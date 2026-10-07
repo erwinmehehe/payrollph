@@ -394,10 +394,10 @@ test("production Vercel aliases are accepted from forwarded host plus deployment
   );
 });
 
-test("shared public nav uses the same soft-indigo start CTA as the homepage", () => {
+test("shared public nav uses the current Linaw blue demo treatment", () => {
   const chrome = read("src/components/marketing/site-chrome.tsx");
-  assert.ok(chrome.includes('bg-[#F5F5FF]'));
-  assert.ok(chrome.includes('text-[#4A4AE0]'));
+  assert.ok(chrome.includes('bg-[#eef5ff]'));
+  assert.ok(chrome.includes('text-[#1768c8]'));
   assert.ok(!chrome.includes('bg-[#11141F] px-5 py-2.5 text-[14px] font-semibold text-white'));
 });
 

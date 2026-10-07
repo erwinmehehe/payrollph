@@ -3,18 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
+import { LinawMark } from "@/components/linaw-mark";
 import { PUBLIC_FOOTER_GROUPS, PUBLIC_PRIMARY_LINKS } from "./public-navigation";
 
 export function BrandMark({ size = 32 }: { size?: number }) {
   return (
-    <span
-      className="flex shrink-0 items-center justify-center rounded-[9px] bg-[#11141F] text-white"
-      style={{ width: size, height: size }}
-      aria-hidden
-    >
-      <svg width={Math.round(size * 0.5)} height={Math.round(size * 0.5)} viewBox="0 0 16 16" fill="none">
-        <path d="M3 8.5l3.2 3.2L13 5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+    <span className="flex shrink-0 items-center justify-center [&_.linaw-mark]:block [&_.linaw-mark]:h-full [&_.linaw-mark]:w-full" style={{ width:size, height:size }} aria-hidden="true">
+      <LinawMark />
     </span>
   );
 }
@@ -67,10 +62,10 @@ export function SiteNav() {
               Sign in
             </Link>
             <Link
-              href="/signup"
-              className="inline-flex items-center rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-4 py-2.5 text-[14px] font-semibold text-[#4A4AE0] transition-all hover:border-[#C5C5FF] hover:bg-[#ECECFF]"
+              href="/book-demo"
+              className="inline-flex items-center rounded-[10px] border border-[#d4e3f9] bg-[#eef5ff] px-4 py-2.5 text-[14px] font-semibold text-[#1768c8] transition-all hover:border-[#aecdf3] hover:bg-[#e2efff]"
             >
-              Request trial access
+              Request a demo
             </Link>
           </div>
 
@@ -103,8 +98,8 @@ export function SiteNav() {
               <Link href="/login" onClick={() => setDrawer(false)} className="flex-1 rounded-full border border-[#E8EAF3] px-5 py-3 text-center text-[14px] font-semibold">
                 Sign in
               </Link>
-              <Link href="/signup" onClick={() => setDrawer(false)} className="flex-1 rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-5 py-3 text-center text-[14px] font-semibold text-[#4A4AE0]">
-                Request trial access
+              <Link href="/book-demo" onClick={() => setDrawer(false)} className="flex-1 rounded-[10px] border border-[#d4e3f9] bg-[#eef5ff] px-5 py-3 text-center text-[14px] font-semibold text-[#1768c8]">
+                Request a demo
               </Link>
             </div>
           </div>
@@ -138,7 +133,7 @@ export function SiteFooter() {
               <ul className="mt-4 space-y-3">
                 {group.links.map((link) => (
                   <li key={link.href}>
-                    <Link href={link.href} className="text-[14px] font-medium text-[#2B2F45] transition-colors hover:text-[#4A4AE0]">
+                    <Link href={link.href} className="text-[14px] font-medium text-[#2B2F45] transition-colors hover:text-[#1768c8]">
                       {link.label}
                     </Link>
                   </li>

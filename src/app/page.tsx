@@ -1,4 +1,7 @@
 import "@/components/marketing/claude-home/home.css";
+import "@/components/marketing/claude-home/workspace-parity.css";
+import "@/components/marketing/claude-home/app-product-preview.css";
+import "@/components/marketing/claude-home/cinematic-hero.css";
 import type { Metadata } from "next";
 import { SoftwareHome } from "@/components/marketing/software-home";
 import { HOMEPAGE_FAQS } from "@/components/marketing/homepage-faqs";
@@ -8,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Payroll Software Philippines | Payroll System PH | Linaw",
-  description: "Philippine payroll software for attendance, statutory deductions, TRAIN withholding, approvals, payslips, reporting, audit trails and payroll release.",
+  description: "Philippine payroll software with workforce management, HCM, statutory calculations, checker approvals, employee payslips and controlled payroll release.",
   alternates: { canonical: "/" },
 };
 

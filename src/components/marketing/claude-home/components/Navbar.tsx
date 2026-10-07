@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Menu, ShieldCheck, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { LinawMark } from "@/components/linaw-mark";
 import { cn } from "../utils/cn";
 import { PUBLIC_PRIMARY_LINKS } from "@/components/marketing/public-navigation";
 
@@ -32,8 +33,8 @@ export default function Navbar() {
       >
         <nav aria-label="Primary" className="mx-auto flex h-[68px] max-w-[1200px] items-center justify-between px-5 sm:px-8">
           <a href="/" className="group flex items-center gap-2.5" aria-label="Linaw home">
-            <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-[#102A4C] p-0.5 transition-transform duration-300 group-hover:rotate-[-4deg] group-hover:scale-105">
-              <ShieldCheck className="h-[18px] w-[18px] text-white" aria-hidden />
+            <span className="flex h-10 w-9 items-center justify-center transition-transform duration-300 group-hover:-translate-y-0.5">
+              <LinawMark />
             </span>
             <span className="leading-none">
               <span className="font-display block text-[18px] font-extrabold tracking-tight text-[#102A4C]">linaw</span>
@@ -41,19 +42,19 @@ export default function Navbar() {
             </span>
           </a>
 
-          <div className="hidden items-center gap-1 lg:flex">
+          <div className="hidden items-center gap-0 xl:flex">
             {links.map((l) => (
               <a
                 key={l.label}
                 href={l.href}
-                className="rounded-full px-4 py-2 text-[14px] font-medium text-[#2B2F45] transition-colors hover:bg-[#F1F2F8] hover:text-[#0B0D1A]"
+                className="rounded-lg px-4 py-2 text-[14px] font-medium text-[#2B2F45] transition-colors hover:bg-[#F1F2F8] hover:text-[#0B0D1A]"
               >
                 {l.label}
               </a>
             ))}
           </div>
 
-          <div className="hidden items-center gap-2 lg:flex">
+          <div className="hidden items-center gap-2 xl:flex">
             <a
               href="/login"
               className="rounded-full px-4 py-2 text-[14px] font-semibold text-[#2B2F45] transition-colors hover:bg-[#F1F2F8]"
@@ -61,10 +62,10 @@ export default function Navbar() {
               Sign in
             </a>
             <a
-              href="/demo"
+              href="/book-demo"
               className="nav-start-cta inline-flex items-center rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-4 py-2.5 text-[14px] font-semibold text-[#4A4AE0] transition-all hover:border-[#C5C5FF] hover:bg-[#ECECFF]"
             >
-              Try live demo
+              Request a demo
             </a>
           </div>
 
@@ -73,7 +74,7 @@ export default function Navbar() {
             onClick={() => setOpen(!open)}
             aria-expanded={open}
             aria-label={open ? "Close menu" : "Open menu"}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E8EAF3] bg-white text-[#0B0D1A] lg:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#E8EAF3] bg-white text-[#0B0D1A] xl:hidden"
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -81,7 +82,7 @@ export default function Navbar() {
 
         <div
           className={cn(
-            "overflow-hidden border-b border-[#E8EAF3] bg-white/95 backdrop-blur-xl transition-all duration-300 lg:hidden",
+            "overflow-hidden border-b border-[#E8EAF3] bg-white/95 backdrop-blur-xl transition-all duration-300 xl:hidden",
             open ? "max-h-[420px] opacity-100" : "max-h-0 opacity-0"
           )}
         >
@@ -105,11 +106,11 @@ export default function Navbar() {
                 Sign in
               </a>
               <a
-                href="/demo"
+                href="/book-demo"
                 onClick={() => setOpen(false)}
-                className="flex-1 rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-5 py-3 text-center text-[14px] font-semibold text-[#4A4AE0]"
+                className="nav-start-cta flex-1 rounded-lg border border-[#0866ed] bg-[#0866ed] px-5 py-3 text-center text-[14px] font-semibold text-white"
               >
-                Try live demo
+                Request a demo
               </a>
             </div>
           </div>

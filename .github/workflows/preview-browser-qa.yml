@@ -139,208 +139,148 @@ jobs:
             const page = await context.newPage();
             const errors = [];
             attachErrorCollection(page, errors);
-
             const response = await page.goto(base, { waitUntil: "networkidle", timeout: 90000 });
-            check(response && response.ok(), `${name}: homepage did not return 2xx`);
+            check(response && response.ok(), name + ": homepage did not return 2xx");
 
-            const h1 = (await page.locator("h1").first().innerText()).trim();
-            check(h1.includes("Philippine payroll you can verify before you pay."), `${name}: expected Linaw payroll hero heading not found; saw "${h1}"`);
-            const heroPrimary = page.locator(".hero-primary-cta");
-            check((await heroPrimary.count()) === 1, `${name}: hero primary CTA is missing`);
-            const heroPrimaryStyles = await heroPrimary.evaluate((el) => {
-              const style = getComputedStyle(el);
-              return { color: style.color, backgroundColor: style.backgroundColor };
-            });
-            check(heroPrimaryStyles.color === "rgb(255, 255, 255)", `${name}: hero primary CTA text lost white contrast; saw ${heroPrimaryStyles.color}`);
-            check(heroPrimaryStyles.backgroundColor !== "rgba(0, 0, 0, 0)" && heroPrimaryStyles.backgroundColor !== "rgb(255, 255, 255)", `${name}: hero primary CTA background lost contrast; saw ${heroPrimaryStyles.backgroundColor}`);
+            const h1 = (await page.locator("h1").first().innerText()).replace(/\s+/g, " ").trim();
+            check(h1.includes("Philippine payroll you can review before money moves."), name + ": payroll-led Linaw H1 is missing; saw " + h1);
+            const hero = page.locator("#top");
+            const heroPrimary = hero.locator('a[href="/book-demo"]').first();
+            check((await heroPrimary.count()) === 1, name + ": primary demo CTA missing");
+            const primaryStyles = await heroPrimary.evaluate(el => ({
+              foreground: getComputedStyle(el).color,
+              background: getComputedStyle(el).backgroundColor,
+            }));
+            check(primaryStyles.foreground === "rgb(255, 255, 255)", name + ": demo CTA lost white text; saw " + primaryStyles.foreground);
+            check(primaryStyles.background !== "rgba(0, 0, 0, 0)" && primaryStyles.background !== "rgb(255, 255, 255)", name + ": demo CTA has no filled background");
+
+            const cinematic = hero.getByTestId("cinematic-hero-demo");
+            check((await cinematic.count()) === 1, name + ": cinematic hero demo missing");
+            check((await cinematic.getByRole("button", {name:"Pause hero demo"}).count()) === 1, name + ": autoplay pause control missing");
             if (name === "desktop") {
-              const primaryNav = page.getByRole("navigation", { name: "Primary" });
-              check((await primaryNav.getByRole("link", { name: "Live demo", exact: true }).getAttribute("href")) === "/demo", "desktop: primary nav does not expose role-based demo");
-              check((await primaryNav.getByRole("link", { name: "Payroll outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", "desktop: primary nav does not expose payroll outsourcing");
-              check((await primaryNav.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/trust", "desktop: primary nav does not expose trust center");
-              check((await primaryNav.getByRole("link", { name: "Pricing", exact: true }).getAttribute("href")) === "/pricing", "desktop: primary nav does not expose dedicated pricing page");
+              const beforeScene = (await cinematic.locator('[role="tab"][aria-selected="true"]').innerText()).trim();
+              await page.waitForTimeout(5600);
+              const afterScene = (await cinematic.locator('[role="tab"][aria-selected="true"]').innerText()).trim();
+              check(beforeScene !== afterScene, "desktop: cinematic hero did not auto-advance");
+            }
+            await cinematic.getByRole("button", {name:"Pause hero demo"}).click();
+            const prepareScene = cinematic.getByRole("tab", {name:/Prepare/});
+            check((await prepareScene.count()) === 1, name + ": Prepare scene missing");
+            await prepareScene.click();
+            const heroPreview = cinematic.getByTestId("payroll-hero-preview");
+            check((await heroPreview.count()) === 1, name + ": current-app hero preview missing");
+            check((await heroPreview.getByText("Illustrative · sample data").count()) === 1, name + ": sample-data disclosure missing");
+            check((await heroPreview.getByText("Let’s make payday a good day.").count()) === 1, name + ": Prepare scene does not mirror Payroll Officer dashboard");
+            for (const step of ["Inputs", "Calculate", "Review", "Submit"]) {
+              check((await heroPreview.locator(".linaw-preview-step").filter({hasText:step}).count()) === 1, name + ": payroll workflow missing " + step);
+            }
+            const payrollSidebar = heroPreview.getByRole("button", {name:"Payroll", exact:true});
+            if (viewport.width > 650) {
+              check((await payrollSidebar.count()) === 1, name + ": clickable Payroll sidebar item missing");
+              await payrollSidebar.click();
+              const payrollPanelHeading = heroPreview.locator("h3").filter({hasText:"Payroll runs"});
+              await payrollPanelHeading.waitFor({state:"visible",timeout:3000});
+              check((await payrollPanelHeading.count()) === 1, name + ": Payroll sidebar did not switch preview content");
+              check((await payrollSidebar.getAttribute("aria-current")) === "page", name + ": clicked sidebar item did not become active");
+              const homeSidebar = heroPreview.getByRole("button", {name:"Home", exact:true});
+              await homeSidebar.click();
+              const homeHeading = heroPreview.getByText("Let’s make payday a good day.");
+              await homeHeading.waitFor({state:"visible",timeout:3000});
+              check((await homeHeading.count()) === 1, name + ": Home sidebar did not restore dashboard");
             } else {
-              const menu = page.getByRole("button", { name: "Open menu" });
-              check((await menu.count()) === 1, "mobile-390: menu button is missing");
+              const rail = heroPreview.locator(".linaw-app-preview-rail");
+              check((await rail.evaluate(el => getComputedStyle(el).display)) === "none", name + ": compact sidebar should be hidden on narrow screens");
+            }
+            check((await cinematic.locator('a[href="#demo"]').count()) >= 1, name + ": cinematic frame must link to the full role demo");
+            await cinematic.getByRole("tab", {name:/Review/}).click();
+            check((await cinematic.getByRole("heading", {name:"Payroll review"}).count()) === 1, name + ": Review scene did not switch to Checker");
+            await prepareScene.click();
+            check((await heroPreview.getByText("Sample company").count()) >= 1, name + ": fake customer brand must be replaced with sample label");
+
+            for (const anchor of ["solutions", "demo", "compliance", "product", "security", "pricing", "cta"]) {
+              check((await page.locator("#" + anchor).count()) === 1, name + ": missing section #" + anchor);
+            }
+
+            if (name === "desktop") {
+              const nav = page.getByRole("navigation", { name: "Primary" });
+              for (const [label, target] of [
+                ["Platform", "/#solutions"], ["Workforce", "/workforce-management"],
+                ["HCM", "/hcm"], ["Outsourcing", "/payroll-outsourcing"],
+                ["Pricing", "/pricing"], ["Live demo", "/demo"]
+              ]) {
+                check((await nav.getByRole("link", {name:label,exact:true}).getAttribute("href")) === target, "desktop nav missing " + label + " -> " + target);
+              }
+              check((await page.locator('#solutions a[href="/hcm"]').count()) === 1, "HCM solution must link to its own page");
+              check((await page.locator('#solutions a[href="/workforce-management"]').count()) === 1, "WFM solution must link to its own page");
+              check((await page.locator('#solutions a[href="/payroll-outsourcing"]').count()) === 1, "Outsourcing solution must link to its own page");
+            } else {
+              const menu = page.getByRole("button", { name: "Open menu" }).first();
+              check((await menu.count()) === 1, name + ": responsive menu missing");
               await menu.click();
-              const mobileHeader = page.getByRole("banner");
-              check((await mobileHeader.getByRole("link", { name: "Live demo", exact: true }).getAttribute("href")) === "/demo", "mobile-390: menu does not expose role-based demo");
-              check((await mobileHeader.getByRole("link", { name: "Payroll outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", "mobile-390: menu does not expose payroll outsourcing");
-              check((await mobileHeader.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/trust", "mobile-390: menu does not expose trust center");
-              check((await mobileHeader.getByRole("link", { name: "Pricing", exact: true }).getAttribute("href")) === "/pricing", "mobile-390: menu does not expose dedicated pricing page");
-              await page.getByRole("button", { name: "Close menu" }).click();
+              const header = page.getByRole("banner").first();
+              for (const label of ["Platform","Workforce","HCM","Outsourcing","Pricing","Live demo"]) {
+                check((await header.getByRole("link", {name:label,exact:true}).count()) === 1, name + ": mobile menu missing " + label);
+              }
+              await page.getByRole("button", {name:"Close menu"}).first().click();
             }
 
             const overflow = await page.evaluate(() => ({
               scrollWidth: document.documentElement.scrollWidth,
               innerWidth: window.innerWidth,
             }));
-            check(
-              overflow.scrollWidth <= overflow.innerWidth + 1,
-              `${name}: horizontal overflow ${overflow.scrollWidth}px > ${overflow.innerWidth}px`,
-            );
-
-            await page.screenshot({
-              path: `${outDir}/homepage-${name}.png`,
-              fullPage: true,
-            });
-
-            report.homepage.push({ name, viewport, h1, overflow, errors: [...errors] });
+            check(overflow.scrollWidth <= overflow.innerWidth+1, name + ": horizontal overflow " + overflow.scrollWidth + " > " + overflow.innerWidth);
+            await page.screenshot({path:outDir+"/homepage-"+name+".png",fullPage:true});
+            report.homepage.push({name,viewport,h1,overflow,errors:[...errors]});
 
             const pricing = page.locator("#pricing");
-            check((await pricing.count()) === 1, `${name}: pricing section is missing`);
-            const planRows = pricing.locator(".pricing-plan-card");
-            check((await planRows.count()) === 3, `${name}: expected three business pricing cards`);
-
-            const firstAmount = (await planRows.first().locator(".pricing-amount").innerText()).trim();
+            const cards = pricing.locator(".pricing-plan-card");
+            check((await cards.count()) === 3, name + ": three live pricing plans required");
+            const firstAmount = (await cards.first().locator(".pricing-amount").innerText()).trim();
             const fiftyPreset = pricing.locator('button[data-headcount="50"]').first();
-            check((await fiftyPreset.count()) === 1, `${name}: 50 employee pricing preset is missing`);
+            check((await fiftyPreset.count()) === 1, name + ": headcount estimator missing");
             await fiftyPreset.click();
             await page.waitForTimeout(100);
-            const updatedAmount = (await planRows.first().locator(".pricing-amount").innerText()).trim();
-            check(firstAmount !== updatedAmount, `${name}: pricing estimate did not update after changing headcount`);
-            check((await pricing.innerText()).includes("50 employees"), `${name}: pricing estimator did not show 50 employees`);
-            report.pricing.push({ name, rows: 3, headcount: 50, firstAmount, updatedAmount });
+            const updatedAmount = (await cards.first().locator(".pricing-amount").innerText()).trim();
+            check(firstAmount !== updatedAmount, name + ": price did not update with headcount");
+            report.pricing.push({name,rows:3,headcount:50,firstAmount,updatedAmount});
 
-            if (name === "desktop") {
-              const hero = page.locator("#top");
-              check((await hero.locator(".payroll-hero-control-card").count()) === 1, "desktop: release-readiness proof card is missing");
-              check((await hero.getByRole("heading", { name: "Can I safely release this payroll?" }).count()) === 1, "desktop: release-readiness question is missing");
-              check((await hero.locator(".payroll-hero-owl").count()) === 0, "desktop: homepage mascot must stay removed");
-              check((await hero.locator(".payroll-hero-speech").count()) === 0, "desktop: mascot speech bubble must stay removed");
-              check((await hero.locator(".payroll-home-trust li").count()) === 3, "desktop: hero trust list must expose three proof points");
-
-              const demo = page.locator("#demo");
-              check((await demo.count()) === 1, "desktop: live demo section is missing");
-              check((await demo.getByText("Interactive payroll workflow").count()) === 1, "desktop: payroll workflow preview chrome did not render");
-              const systemPreview = demo.locator(".system-demo-product .frame.standalone");
-              check((await systemPreview.count()) === 1, "desktop: shared Linaw workspace preview did not render");
-              const previewNav = systemPreview.locator(".nav-item");
-              check((await previewNav.count()) >= 8, "desktop: real workspace navigation is unexpectedly sparse");
-              const peopleNav = previewNav.filter({ hasText: /^People/ }).first();
-              check((await peopleNav.count()) === 1, "desktop: People module is missing from the real-system preview");
-              await peopleNav.click();
-              await page.waitForTimeout(100);
-              check((await peopleNav.getAttribute("aria-current")) === "page", "desktop: real-system preview navigation did not update");
-              const peopleShell = systemPreview.locator(".preview-people-shell");
-              check((await peopleShell.count()) === 1, "desktop: People preview shell is missing");
-              const firstPersonRow = peopleShell.locator(".preview-person-row").first();
-              check((await firstPersonRow.count()) === 1, "desktop: People preview rows are missing");
-              const personRowStyles = await firstPersonRow.evaluate((element) => ({
-                display: getComputedStyle(element).display,
-                columns: getComputedStyle(element).gridTemplateColumns,
-                width: element.getBoundingClientRect().width,
-                scrollWidth: element.scrollWidth,
-              }));
-              check(personRowStyles.display === "grid", `desktop: People preview row styling did not load; display=${personRowStyles.display}`);
-              check(personRowStyles.columns !== "none", "desktop: People preview row has no grid columns");
-              check(personRowStyles.scrollWidth <= personRowStyles.width + 1, `desktop: People preview row overflows ${personRowStyles.scrollWidth}px > ${personRowStyles.width}px`);
-              check((await peopleShell.locator(".preview-people-summary").count()) === 1, "desktop: People summary is missing");
-              check((await peopleShell.locator(".preview-people-controls").count()) === 1, "desktop: People filters/search are missing");
-
-              const migrationNav = previewNav.filter({ hasText: /^Migration/ }).first();
-              check((await migrationNav.count()) === 1, "desktop: Migration module is missing from the real-system preview");
-              await migrationNav.click();
-              await page.waitForTimeout(100);
-              const migrationCard = systemPreview.locator(".preview-migration-card");
-              check((await migrationCard.count()) === 1, "desktop: Migration preview card is missing");
-              const migrationStep = migrationCard.locator(".preview-migration-step").first();
-              const migrationStyles = await migrationStep.evaluate((element) => ({
-                display: getComputedStyle(element).display,
-                columns: getComputedStyle(element).gridTemplateColumns,
-                width: element.getBoundingClientRect().width,
-                scrollWidth: element.scrollWidth,
-              }));
-              check(migrationStyles.display === "grid", `desktop: Migration preview styling did not load; display=${migrationStyles.display}`);
-              check(migrationStyles.columns !== "none", "desktop: Migration preview has no grid columns");
-              check(migrationStyles.scrollWidth <= migrationStyles.width + 1, `desktop: Migration preview overflows ${migrationStyles.scrollWidth}px > ${migrationStyles.width}px`);
-              check((await demo.getByRole("link", { name: /Open role-based sandbox/i }).count()) === 1, "desktop: role-based sandbox handoff is missing");
-              report.modules.push({ module: "Release-readiness hero", active: true });
-              report.modules.push({ module: "Shared Linaw workspace preview", active: true });
-            }
+            const demo = page.locator("#demo");
+            const roleTabs = demo.getByRole("tablist", {name:"Sample payroll roles"});
+            check((await roleTabs.getByRole("tab").count()) === 6, name + ": preview must mirror all six live demo roles");
+            check((await demo.getByTestId("app-role-preview").count()) === 1, name + ": shared current-app UI missing");
+            await roleTabs.getByRole("tab", {name:/Checker/}).click();
+            await demo.getByRole("heading",{name:"Payroll review"}).waitFor({state:"visible",timeout:5000});
+            check((await demo.getByText("What changed?").count()) === 1, name + ": checker change review missing");
+            await roleTabs.getByRole("tab", {name:/Bookkeeper/}).click();
+            await demo.getByRole("heading",{name:"Payroll close"}).waitFor({state:"visible",timeout:5000});
+            await roleTabs.getByRole("tab", {name:/Employee/}).click();
+            await demo.getByRole("heading",{name:"Good morning, Jonas."}).waitFor({state:"visible",timeout:5000});
+            check((await demo.getByRole("link",{name:/Open working sandbox/}).count()) === 1, name + ": working sandbox handoff missing");
+            report.modules.push({module:"Shared six-role clean dashboard marketing preview",active:true});
 
             if (name === "mobile-390") {
-              const normalizedHeading = h1.replace(/\s+/g, " ");
-              check(
-                normalizedHeading.includes("Philippine payroll you can verify before you pay."),
-                `mobile-390: hero words collided after responsive line-break removal; saw "${normalizedHeading}"`,
-              );
-
-              const mobileHero = page.locator("#top");
-              const mobileControlCard = mobileHero.locator(".payroll-hero-control-card").first();
-              check((await mobileControlCard.count()) === 1, "mobile-390: release-readiness proof card is missing");
-              const controlFit = await mobileControlCard.evaluate((element) => ({
-                clientWidth: element.clientWidth,
-                scrollWidth: element.scrollWidth,
-              }));
-              check(
-                controlFit.scrollWidth <= controlFit.clientWidth + 1,
-                `mobile-390: release-readiness card clips ${controlFit.scrollWidth}px > ${controlFit.clientWidth}px`,
-              );
-              const securityProof = page.locator("#security article").first();
-              const securityHeading = securityProof.getByRole("heading", { name: "One workspace can never read another's payroll." });
-              const securityCopy = securityProof.locator("p").filter({ hasText: "Every session route passes one shared membership gate." }).first();
-
-              check(
-                !(await pricing.innerText()).includes("No credit card to start") &&
-                  !(await pricing.innerText()).includes("Cancel anytime"),
-                "mobile-390: stale self-serve pricing promises returned",
-              );
-
-              const closingCta = page.locator("#cta");
-              const trialCta = closingCta.locator('a[href="/signup"]').first();
-              check((await trialCta.count()) === 1, "mobile-390: trial access CTA is missing");
-              const trialCtaStyles = await trialCta.evaluate((element) => ({
-                color: getComputedStyle(element).color,
-                backgroundColor: getComputedStyle(element).backgroundColor,
-              }));
-              check(
-                trialCtaStyles.color === "rgb(17, 20, 31)",
-                `mobile-390: trial CTA text lost dark contrast on white; saw ${trialCtaStyles.color}`,
-              );
-              check(
-                trialCtaStyles.backgroundColor === "rgb(255, 255, 255)",
-                `mobile-390: trial CTA background is not white; saw ${trialCtaStyles.backgroundColor}`,
-              );
-
-              await mobileHero.screenshot({ path: `${outDir}/homepage-mobile-390-hero.png` });
-              await pricing.screenshot({ path: `${outDir}/homepage-mobile-390-pricing.png` });
-              await securityProof.screenshot({ path: `${outDir}/homepage-mobile-390-security.png` });
-              await closingCta.screenshot({ path: `${outDir}/homepage-mobile-390-cta.png` });
-
-              for (const [label, locator] of [["heading", securityHeading], ["copy", securityCopy]]) {
-                check((await locator.count()) === 1, `mobile-390: security proof ${label} is missing`);
-                const fit = await locator.evaluate((element) => {
-                  const article = element.closest("article");
-                  const rect = element.getBoundingClientRect();
-                  const parentRect = article?.getBoundingClientRect();
-                  return {
-                    clientWidth: element.clientWidth,
-                    scrollWidth: element.scrollWidth,
-                    left: rect.left,
-                    right: rect.right,
-                    parentLeft: parentRect?.left ?? rect.left,
-                    parentRight: parentRect?.right ?? rect.right,
-                  };
-                });
-                check(
-                  fit.scrollWidth <= fit.clientWidth + 1 &&
-                    fit.left >= fit.parentLeft - 1 &&
-                    fit.right <= fit.parentRight + 1,
-                  `mobile-390: security proof ${label} is clipped inside its card`,
-                );
-              }
+              const fit = await heroPreview.evaluate(el => ({client:el.clientWidth,scroll:el.scrollWidth}));
+              check(fit.scroll <= fit.client+1, "mobile: hero app preview clips " + fit.scroll + " > " + fit.client);
+              const proof = page.locator("#security article").first();
+              const heading = proof.getByRole("heading",{name:"Permissions are checked before payroll data moves."});
+              const copy = proof.locator("p").filter({hasText:"Requests are scoped to organization membership"});
+              check((await heading.count()) === 1 && (await copy.count()) === 1, "mobile: security copy missing");
+              await hero.screenshot({path:outDir+"/homepage-mobile-390-hero.png"});
+              await pricing.screenshot({path:outDir+"/homepage-mobile-390-pricing.png"});
+              await proof.screenshot({path:outDir+"/homepage-mobile-390-security.png"});
+              await page.locator("#cta").screenshot({path:outDir+"/homepage-mobile-390-cta.png"});
             }
-
-            check(errors.length === 0, `${name}: browser console/page errors: ${errors.join(" | ")}`);
+            check(errors.length === 0, name + ": console errors: " + errors.join(" | "));
             await context.close();
           }
 
-          async function qaPublicRoutes(browser) {
+                    async function qaPublicRoutes(browser) {
             const routes = [
               { path: "/demo", heading: "See Linaw from the seat you actually use." },
               { path: "/signup", heading: "Request access to a Linaw trial workspace." },
-              { path: "/payroll-outsourcing", heading: "Payroll outsourcing in the Philippines, without losing control." },
+              { path: "/payroll-outsourcing", heading: "Payroll processing handled. Your approvals stay yours." },
+              { path: "/hcm", heading: "Know your people. Keep every change connected." },
+              { path: "/workforce-management", heading: "From shifts to payroll, without the blind spots." },
               { path: "/small-business-payroll", heading: "A clearer payroll process for Philippine small businesses." },
               { path: "/resources", heading: "Practical guidance for buying, migrating and operating Philippine payroll." },
               { path: "/industries", heading: "Payroll workflows shaped by how your workforce actually operates." },
@@ -375,6 +315,26 @@ jobs:
               const h1 = (await page.locator("h1").first().innerText()).trim();
               check(h1.includes(route.heading), `${route.path}: expected heading "${route.heading}" not found; saw "${h1}"`);
               check((await page.getByRole("navigation", { name: "Primary" }).count()) >= 1, `${route.path}: shared primary navigation is missing`);
+              if (route.path === "/demo") {
+                const picker = page.getByRole("tablist", { name: "Demo roles" });
+                check((await picker.getByRole("tab").count()) === 6, "/demo must expose all six role contracts");
+                check((await page.getByTestId("app-role-preview").count()) === 1, "/demo must use the same product UI as the homepage");
+                await picker.getByRole("tab", { name: /Owner/ }).click();
+                check((await page.getByRole("heading", { name: "Ready for payday" }).count()) === 1, "/demo Owner preview must mirror the current app");
+                await picker.getByRole("tab", { name: /Bookkeeper/ }).click();
+                check((await page.getByRole("heading", { name: "Payroll close" }).count()) === 1, "/demo Bookkeeper preview missing");
+                check((await page.getByRole("button", { name: /Open Bookkeeper workspace/ }).count()) === 1, "/demo must keep functional persona launch action");
+                await picker.getByRole("tab", { name: /Payroll Officer/ }).click();
+                await page.screenshot({ path: outDir + "/demo-role-picker-desktop.png", fullPage: true });
+                await page.setViewportSize({ width: 390, height: 844 });
+                const narrow = await page.evaluate(() => ({
+                  inner: window.innerWidth,
+                  scroll: document.documentElement.scrollWidth,
+                }));
+                check(narrow.scroll <= narrow.inner+1, "/demo must not horizontally scroll on mobile");
+                await page.screenshot({ path: outDir + "/demo-role-picker-mobile.png", fullPage: true });
+                await page.setViewportSize({ width: 1280, height: 900 });
+              }
               if (route.path === "/login") {
                 check((await page.locator("footer").count()) === 0, "/login: marketing footer should not distract from authentication");
               } else {
@@ -558,7 +518,7 @@ jobs:
             check((await roleTab.count()) === 1, `${persona.label}: role tab is missing`);
             await roleTab.click();
 
-            const openButton = page.getByRole("button", { name: new RegExp(`^Open ${persona.short} demo`, "i") });
+            const openButton = page.getByRole("button", { name: new RegExp(`^Open ${persona.label} workspace$`, "i") });
             check((await openButton.count()) === 1, `${persona.label}: launch button is missing`);
 
             const [switchResponse] = await Promise.all([
@@ -595,7 +555,7 @@ jobs:
               const marketingResponse = await marketingPage.goto(base, { waitUntil: "networkidle", timeout: 90000 });
               check(marketingResponse && marketingResponse.ok(), "Owner: signed-in visit to / did not return 2xx");
               const marketingH1 = (await marketingPage.locator("h1").first().innerText()).trim();
-              check(marketingH1.includes("Philippine payroll you can verify before you pay."), `Owner: signed-in / should stay on the Linaw marketing homepage; saw "${marketingH1}"`);
+              check(marketingH1.replace(/\s+/g, " ").includes("Philippine payroll you can review before money moves."), `Owner: signed-in / should stay on the Linaw marketing homepage; saw "${marketingH1}"`);
               await marketingPage.close();
 
               const legacyPage = await context.newPage();
@@ -1008,6 +968,7 @@ jobs:
             const browser = await chromium.launch({ headless: true });
             try {
               await qaHomepage(browser, "desktop", { width: 1440, height: 1000 });
+              await qaHomepage(browser, "tablet-768", { width: 768, height: 1024 });
               await qaHomepage(browser, "mobile-390", { width: 390, height: 844 });
               await qaPublicRoutes(browser);
 

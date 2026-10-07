@@ -4,11 +4,12 @@ export type PublicLink = {
 };
 
 export const PUBLIC_PRIMARY_LINKS: PublicLink[] = [
-  { label: "Product", href: "/#product" },
-  { label: "Live demo", href: "/demo" },
+  { label: "Platform", href: "/#solutions" },
+  { label: "Workforce", href: "/workforce-management" },
+  { label: "HCM", href: "/hcm" },
+  { label: "Outsourcing", href: "/payroll-outsourcing" },
   { label: "Pricing", href: "/pricing" },
-  { label: "Payroll outsourcing", href: "/payroll-outsourcing" },
-  { label: "Trust", href: "/trust" },
+  { label: "Live demo", href: "/demo" },
 ];
 
 export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }> = [
@@ -17,6 +18,8 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
     links: [
       { label: "Product overview", href: "/#product" },
       { label: "HRIS", href: "/hris" },
+      { label: "Workforce management", href: "/workforce-management" },
+      { label: "Human capital management", href: "/hcm" },
       { label: "Time & attendance", href: "/time-and-attendance" },
       { label: "Employee self-service", href: "/employee-self-service" },
       { label: "Integrations", href: "/integrations" },
