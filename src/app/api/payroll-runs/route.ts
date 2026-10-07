@@ -8,6 +8,7 @@ import { drainPayrollQueue, enqueuePayrollRun, getPayrollJobStatus, PAYROLL_RULE
 import { assertOrganizationRole, assertOrganizationUnitAccess, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { isCanonicalPhSemiMonthlyPeriod } from "@/lib/payroll-calendar";
 import { loadTimesheetPayrollGate } from "@/lib/workforce-timesheet-server";
+import { loadAttendanceCutoffGate } from "@/lib/workforce-attendance-lock";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 import { runAutomationEventSafely } from "@/lib/automation";
 
@@ -261,6 +262,19 @@ export async function POST(request: Request) {
     }, { status: 422 });
   }
 
+  const attendanceCutoffGate = await loadAttendanceCutoffGate({
+    organizationId,
+    periodStart,
+    periodEnd,
+  });
+  if (processNow && !attendanceCutoffGate.gate.allowed) {
+    return Response.json({
+      error: "An active payroll-cutoff attendance lock is required before payroll processing for this organization.",
+      code: "ATTENDANCE_CUTOFF_LOCK_REQUIRED",
+      attendanceCutoffGate: attendanceCutoffGate.gate,
+    }, { status: 422 });
+  }
+
   const timesheetGate = await loadTimesheetPayrollGate({
     organizationId,
     employeeIds: employeesInScope.map((employee) => employee.id),
@@ -308,6 +322,8 @@ export async function POST(request: Request) {
       legalEntityCode: legalEntity.code,
       legalEntityName: legalEntity.displayName,
       ruleVersion: PAYROLL_RULE_VERSION,
+      attendanceCutoffPolicy: attendanceCutoffGate.policy,
+      attendanceCutoffGate: attendanceCutoffGate.gate,
       timesheetPolicy: timesheetGate.policy,
       timesheetGate: timesheetGate.gate,
     },
@@ -338,6 +354,6 @@ export async function POST(request: Request) {
   }
 
   const [fresh] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
-  return Response.json({ run: fresh, queue: queueMeta, processResult, timesheetGate, automation }, { status: 201 });
+  return Response.json({ run: fresh, queue: queueMeta, processResult, attendanceCutoffGate, timesheetGate, automation }, { status: 201 });
 }
 
