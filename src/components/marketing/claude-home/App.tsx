@@ -1,10 +1,9 @@
 "use client";
 
 import Navbar from "./components/Navbar";
-import Hero from "./components/Hero";
+import { ProductHomeHero } from "../product-home-hero";
+import { ProductHomeStories } from "../product-home-stories";
 import Demo from "./components/Demo";
-import { Calculator, Exports } from "./components/Product";
-import { PayrollWorkflow, Security } from "./components/Trust";
 import Pricing from "./components/Pricing";
 import { CTA, FAQ, Footer } from "./components/Closing";
 
@@ -23,13 +22,13 @@ export default function ClaudeHomepage({ plans }: { plans: PublicPlan[] }) {
     <div className="home-redesign min-h-screen bg-white text-[#0B0D1A]">
       <Navbar />
       <main id="main">
-        <Hero />
-        <Demo />
-        <PayrollWorkflow />
-        <Exports />
-        <Security />
+        <ProductHomeHero />
+        <ProductHomeStories />
+        <details className="lp-demo-disclosure">
+          <summary>Try the interactive payroll workflow</summary>
+          <Demo />
+        </details>
         <Pricing plans={plans} />
-        <Calculator />
         <FAQ />
         <CTA />
       </main>

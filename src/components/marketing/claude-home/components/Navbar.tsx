@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Menu, ShieldCheck, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { cn } from "../utils/cn";
 import { PUBLIC_PRIMARY_LINKS } from "@/components/marketing/public-navigation";
+
+import { LinawMark } from "@/components/linaw-mark";
 
 const links = PUBLIC_PRIMARY_LINKS;
 
@@ -32,8 +34,8 @@ export default function Navbar() {
       >
         <nav aria-label="Primary" className="mx-auto flex h-[68px] max-w-[1200px] items-center justify-between px-5 sm:px-8">
           <a href="/" className="group flex items-center gap-2.5" aria-label="Linaw home">
-            <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-[#102A4C] p-0.5 transition-transform duration-300 group-hover:rotate-[-4deg] group-hover:scale-105">
-              <ShieldCheck className="h-[18px] w-[18px] text-white" aria-hidden />
+            <span className="flex h-8 w-8 items-center justify-center rounded-[9px] p-0.5 transition-transform duration-300 group-hover:rotate-[-4deg] group-hover:scale-105">
+              <LinawMark />
             </span>
             <span className="leading-none">
               <span className="font-display block text-[18px] font-extrabold tracking-tight text-[#102A4C]">linaw</span>

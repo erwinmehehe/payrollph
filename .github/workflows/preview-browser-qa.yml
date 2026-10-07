@@ -144,7 +144,7 @@ jobs:
             check(response && response.ok(), `${name}: homepage did not return 2xx`);
 
             const h1 = (await page.locator("h1").first().innerText()).trim();
-            check(h1.includes("Philippine payroll you can verify before you pay."), `${name}: expected Linaw payroll hero heading not found; saw "${h1}"`);
+            check(h1.includes("Your people. Your payroll."), `${name}: expected Linaw payroll hero heading not found; saw "${h1}"`);
             const heroPrimary = page.locator(".hero-primary-cta");
             check((await heroPrimary.count()) === 1, `${name}: hero primary CTA is missing`);
             const heroPrimaryStyles = await heroPrimary.evaluate((el) => {
@@ -204,12 +204,16 @@ jobs:
 
             if (name === "desktop") {
               const hero = page.locator("#top");
-              check((await hero.locator(".payroll-hero-control-card").count()) === 1, "desktop: release-readiness proof card is missing");
-              check((await hero.getByRole("heading", { name: "Can I safely release this payroll?" }).count()) === 1, "desktop: release-readiness question is missing");
-              check((await hero.locator(".payroll-hero-owl").count()) === 0, "desktop: homepage mascot must stay removed");
-              check((await hero.locator(".payroll-hero-speech").count()) === 0, "desktop: mascot speech bubble must stay removed");
-              check((await hero.locator(".payroll-home-trust li").count()) === 3, "desktop: hero trust list must expose three proof points");
+              const areaButtons = hero.getByRole("group", { name: "Choose a product area" }).getByRole("button");
+              check((await areaButtons.count()) === 6, "desktop: six product areas must be available");
+              for (const button of await areaButtons.all()) {
+                await button.click();
+                check((await button.getAttribute("aria-pressed")) === "true", "desktop: product selection did not update");
+                await page.waitForFunction(() => { const image = document.querySelector(".lp-screen img"); return image && image.complete && image.naturalWidth > 0; });
+              }
+              check((await hero.getByText("Actual application screens", { exact: false }).count()) === 1, "desktop: sample screen attribution is missing");
 
+              await page.locator(".lp-demo-disclosure > summary").click();
               const demo = page.locator("#demo");
               check((await demo.count()) === 1, "desktop: live demo section is missing");
               check((await demo.getByText("Interactive payroll workflow").count()) === 1, "desktop: payroll workflow preview chrome did not render");
@@ -255,20 +259,20 @@ jobs:
               check(migrationStyles.columns !== "none", "desktop: Migration preview has no grid columns");
               check(migrationStyles.scrollWidth <= migrationStyles.width + 1, `desktop: Migration preview overflows ${migrationStyles.scrollWidth}px > ${migrationStyles.width}px`);
               check((await demo.getByRole("link", { name: /Open role-based sandbox/i }).count()) === 1, "desktop: role-based sandbox handoff is missing");
-              report.modules.push({ module: "Release-readiness hero", active: true });
+              report.modules.push({ module: "Connected product area hero", active: true });
               report.modules.push({ module: "Shared Linaw workspace preview", active: true });
             }
 
             if (name === "mobile-390") {
               const normalizedHeading = h1.replace(/\s+/g, " ");
               check(
-                normalizedHeading.includes("Philippine payroll you can verify before you pay."),
+                normalizedHeading.includes("Your people. Your payroll."),
                 `mobile-390: hero words collided after responsive line-break removal; saw "${normalizedHeading}"`,
               );
 
               const mobileHero = page.locator("#top");
-              const mobileControlCard = mobileHero.locator(".payroll-hero-control-card").first();
-              check((await mobileControlCard.count()) === 1, "mobile-390: release-readiness proof card is missing");
+              const mobileControlCard = mobileHero.locator(".lp-picker").first();
+              check((await mobileControlCard.count()) === 1, "mobile-390: product area selector is missing");
               const controlFit = await mobileControlCard.evaluate((element) => ({
                 clientWidth: element.clientWidth,
                 scrollWidth: element.scrollWidth,
@@ -277,9 +281,9 @@ jobs:
                 controlFit.scrollWidth <= controlFit.clientWidth + 1,
                 `mobile-390: release-readiness card clips ${controlFit.scrollWidth}px > ${controlFit.clientWidth}px`,
               );
-              const securityProof = page.locator("#security article").first();
-              const securityHeading = securityProof.getByRole("heading", { name: "One workspace can never read another's payroll." });
-              const securityCopy = securityProof.locator("p").filter({ hasText: "Every session route passes one shared membership gate." }).first();
+              const securityProof = page.locator(".lp-boundaries").first();
+              const securityHeading = securityProof.getByRole("heading", { name: "The right view for the right role." });
+              const securityCopy = securityProof.locator("p").filter({ hasText: "Company membership, permissions, personal employee access" }).first();
 
               check(
                 !(await pricing.innerText()).includes("No credit card to start") &&
@@ -595,7 +599,7 @@ jobs:
               const marketingResponse = await marketingPage.goto(base, { waitUntil: "networkidle", timeout: 90000 });
               check(marketingResponse && marketingResponse.ok(), "Owner: signed-in visit to / did not return 2xx");
               const marketingH1 = (await marketingPage.locator("h1").first().innerText()).trim();
-              check(marketingH1.includes("Philippine payroll you can verify before you pay."), `Owner: signed-in / should stay on the Linaw marketing homepage; saw "${marketingH1}"`);
+              check(marketingH1.includes("Your people. Your payroll."), `Owner: signed-in / should stay on the Linaw marketing homepage; saw "${marketingH1}"`);
               await marketingPage.close();
 
               const legacyPage = await context.newPage();
