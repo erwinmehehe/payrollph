@@ -27,7 +27,6 @@ test("payout pull requests cannot modify protected payroll computation or golden
     "bank-validations",
     "payout-destination-changes",
     "treasury-controls",
-    "webhooks/paymongo",
     "payroll-payout-",
     "paymongo",
     "payout-",
