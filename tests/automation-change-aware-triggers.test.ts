@@ -95,6 +95,7 @@ test("authoritative employee, HCM, compensation, payout and worksite paths emit 
   const compensation = read("src/lib/hcm-compensation.ts");
   const payout = read("src/app/api/payout-destination-changes/[id]/route.ts");
   const worksites = read("src/app/api/workforce/worksites/route.ts");
+  const separation = read("src/app/api/separation/route.ts");
 
   assert.ok(employees.includes("runEmployeeFieldChangeAutomations"));
   assert.ok(employees.includes('field: "monthlyEquivalentSalary"'));
@@ -107,4 +108,6 @@ test("authoritative employee, HCM, compensation, payout and worksite paths emit 
   assert.ok(payout.includes("sensitive: true"));
   assert.ok(worksites.includes('field: "worksiteId"'));
   assert.ok(worksites.includes('timing: effectiveFrom > todayPh ? "scheduled" : "effective"'));
+  assert.ok(separation.includes('field: "employeeStatus"'));
+  assert.ok(separation.includes('source: "separation-release"'));
 });
