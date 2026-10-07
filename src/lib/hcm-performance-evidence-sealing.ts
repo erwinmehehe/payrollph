@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  organizations,
   performanceCycleEvidenceAmendments,
   performanceCycleEvidenceSeals,
   performanceCycles,
@@ -272,29 +273,31 @@ export async function runScheduledPerformanceEvidenceSealing(input: {
   now?: Date;
 }) {
   const now = input.now ?? new Date();
-  const policies = await db.select().from(performanceEvidencePolicies).where(
-    eq(performanceEvidencePolicies.autoSealCompletedCycles, true),
-  );
+  const orgs = await db.select({ id: organizations.id }).from(organizations);
   const results = [];
 
-  for (const policy of policies) {
+  for (const organization of orgs) {
+    const policyState = await loadPerformanceEvidencePolicy(organization.id);
+    if (!policyState.snapshot.autoSealCompletedCycles) continue;
+
     const cycles = await db.select().from(performanceCycles).where(and(
-      eq(performanceCycles.organizationId, policy.organizationId),
+      eq(performanceCycles.organizationId, organization.id),
       eq(performanceCycles.status, "completed"),
     ));
     for (const cycle of cycles) {
       const result = await sealPerformanceCycle({
-        organizationId: policy.organizationId,
+        organizationId: organization.id,
         cycleId: cycle.id,
         actorName: input.actor,
         now,
       });
       if (result.created) {
         results.push({
-          organizationId: policy.organizationId,
+          organizationId: organization.id,
           cycleId: cycle.id,
           sealId: result.seal.id,
           manifestHash: result.seal.manifestHash,
+          policyVersion: result.seal.policyVersion,
         });
       }
     }
