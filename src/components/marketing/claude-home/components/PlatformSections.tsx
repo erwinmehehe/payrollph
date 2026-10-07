@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AppProductPreview } from "./AppProductPreview";
 import {
   ArrowRight, BriefcaseBusiness, CalendarDays, Check, ChevronRight,
   ClipboardCheck, FileCheck2, FileText, Landmark, Layers3, ShieldCheck,
@@ -75,30 +76,7 @@ export function SolutionsGrid() {
 }
 
 export function PayrollPreview() {
-  return <div className={panel}>
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#eaf0f5] bg-[#fbfdff] px-5 py-4">
-      <div className="flex items-center gap-3"><span className="rounded-xl bg-[#e9f1ff] p-2 text-[#176be9]"><Wallet size={18}/></span><div><strong className="text-[14px] text-[#1a2b42]">Payroll register</strong><p className="text-[10px] text-[#8895a7]">Illustrative data · sample cutoff</p></div></div>
-      <span className="rounded-full bg-[#e8f6ee] px-3 py-1.5 text-[11px] font-semibold text-[#118459]">In review</span>
-    </div>
-    <div className="grid grid-cols-2 gap-3 px-5 py-5 sm:grid-cols-4">
-      {[["Gross pay","₱512,000"],["Deductions","₱49,500"],["Net pay","₱462,500"],["Review items","2"]].map(([k,v])=>(
-        <div key={k} className="rounded-xl border border-[#e8eef6] bg-[#fafcff] px-3 py-4"><p className="text-[10px] text-[#7e8da0]">{k}</p><p className="mt-2 text-[17px] font-bold tracking-tight text-[#152b46]">{v}</p></div>
-      ))}
-    </div>
-    <div className="px-3 pb-4 sm:px-5">
-      <div className="overflow-x-auto rounded-xl border border-[#e9edf5]">
-        <table className="w-full min-w-[410px] text-left text-[11px]">
-          <thead className="bg-[#f7f9fd] text-[#8190a3]"><tr>{["Sample record","Status","Gross","Net"].map(h=><th scope="col" className="px-4 py-3 font-semibold" key={h}>{h}</th>)}</tr></thead>
-          <tbody className="divide-y divide-[#edf1f6] text-[#506078]">
-          {[["Employee 001","Ready","₱32,000","₱28,450"],["Employee 002","Ready","₱41,000","₱35,810"],["Employee 003","For review","₱38,500","₱34,150"]].map(([a,b,c,d])=>(
-            <tr key={a}><td className="px-4 py-4 font-semibold text-[#273b55]">{a}</td><td className="px-4 py-4"><span className={b==="Ready"?"rounded-full bg-[#e6f7ec] px-2 py-1 text-[#0d8d5b]":"rounded-full bg-[#fff3df] px-2 py-1 text-[#a87325]"}>{b}</span></td><td className="px-4 py-4">{c}</td><td className="px-4 py-4">{d}</td></tr>
-          ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="mt-3 text-[10px] text-[#91a0b3]">Example only. No real employee data or payroll values.</p>
-    </div>
-  </div>;
+  return <AppProductPreview role="payroll" />;
 }
 
 export function PayrollShowcase() {
