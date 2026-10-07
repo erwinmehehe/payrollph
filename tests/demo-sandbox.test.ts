@@ -13,7 +13,7 @@ import {
   roleCanManageTime,
 } from "../src/lib/workspace-role-ui";
 
-const read = (path: string) => readFileSync(path, "utf8");
+const read = (path: string) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
 test("demo page metadata advertises all six product personas", () => {
   const page = read("src/app/demo/page.tsx");
