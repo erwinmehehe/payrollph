@@ -44,6 +44,7 @@ import {
   preferredForShift,
   remainingOpenShiftSlots,
   rankCoverageCandidates,
+  forecastCoverageRisk,
   type AvailabilityRule,
 } from "@/lib/workforce-coverage";
 import {
