@@ -108,7 +108,7 @@ export default function Navbar() {
               <a
                 href="/book-demo"
                 onClick={() => setOpen(false)}
-                className="flex-1 rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-5 py-3 text-center text-[14px] font-semibold text-[#4A4AE0]"
+                className="nav-start-cta flex-1 rounded-lg border border-[#0866ed] bg-[#0866ed] px-5 py-3 text-center text-[14px] font-semibold text-white"
               >
                 Request a demo
               </a>
