@@ -69,9 +69,11 @@ const SAMPLE_COMPANY = SAMPLE_CLIENTS[0];
  * `interactive` is the playable version: tabs, client switching, expandable
  * payslips and a simulated release, all local state, nothing persisted.
  */
-export function WorkspacePreview({ mode = "interactive" }: { mode?: "showcase" | "focused" | "interactive" }) {
+export function WorkspacePreview({ mode = "interactive", page, onPageChange }: { mode?: "showcase" | "focused" | "interactive"; page?: string; onPageChange?: (page: string) => void }) {
   const run = useMemo(() => buildSampleRun(), []);
-  const [tab, setTab] = useState<Tab>(mode === "interactive" ? "Overview" : "Payroll");
+  const [localTab, setLocalTab] = useState<Tab>(mode === "interactive" ? "Overview" : "Payroll");
+  const tab = page ?? localTab;
+  const setTab = (next: string) => { setLocalTab(next); onPageChange?.(next); };
   const [expanded, setExpanded] = useState<number | null>(null);
   const [released, setReleased] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);

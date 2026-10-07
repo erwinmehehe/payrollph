@@ -2,3 +2,4 @@
 
 .home-redesign header .linaw-mark{width:30px;height:34px}
 .home-redesign .lp-demo-disclosure{max-width:1180px;margin:0 auto 35px;border:1px solid #dde5ef;border-radius:10px;overflow:hidden}.home-redesign .lp-demo-disclosure>summary{padding:20px 25px;font-size:14px;font-weight:600;color:#102747;cursor:pointer}.home-redesign .lp-demo-disclosure>summary:focus-visible{outline:3px solid #145cc3;outline-offset:-4px}@media(max-width:760px){.home-redesign .lp-demo-disclosure{margin:0 20px 25px}}
+.home-redesign .lp-simulation{background:white;border:1px solid #dbe6f0;border-radius:12px;overflow:hidden;margin-bottom:15px}.home-redesign .lp-simulation .frame.standalone{margin:0;box-shadow:none;transform:none}.home-redesign .lp-simulation .pv-body{max-height:620px}@media(max-width:760px){.home-redesign .lp-simulation .pv-body{max-height:520px}}

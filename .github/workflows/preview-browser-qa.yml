@@ -209,15 +209,14 @@ jobs:
               for (const button of await areaButtons.all()) {
                 await button.click();
                 check((await button.getAttribute("aria-pressed")) === "true", "desktop: product selection did not update");
-                await page.waitForFunction(() => { const image = document.querySelector(".lp-screen img"); return image && image.complete && image.naturalWidth > 0; });
+                check((await hero.locator(".frame.standalone").count()) === 1, "desktop: working simulation did not render");
               }
-              check((await hero.getByText("Actual application screens", { exact: false }).count()) === 1, "desktop: sample screen attribution is missing");
+              check((await hero.getByText("Interactive simulation", { exact: false }).count()) === 1, "desktop: sample screen attribution is missing");
 
-              await page.locator(".lp-demo-disclosure > summary").click();
               const demo = page.locator("#demo");
               check((await demo.count()) === 1, "desktop: live demo section is missing");
               check((await demo.getByText("Interactive payroll workflow").count()) === 1, "desktop: payroll workflow preview chrome did not render");
-              const systemPreview = demo.locator(".system-demo-product .frame.standalone");
+              const systemPreview = demo.locator(".frame.standalone");
               check((await systemPreview.count()) === 1, "desktop: shared Linaw workspace preview did not render");
               const previewNav = systemPreview.locator(".nav-item");
               check((await previewNav.count()) >= 8, "desktop: real workspace navigation is unexpectedly sparse");

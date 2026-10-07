@@ -65,11 +65,11 @@ test("public SEO origin is payrollsoftware.ph and is independent of app deployme
 
 test("the software homepage uses the real Linaw workspace preview", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
-  const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
-  assert.ok(home.includes("<Demo />"), "redesigned homepage must mount the product demo");
+  const demo = read("src/components/marketing/product-home-hero.tsx");
+  assert.ok(home.includes("<ProductHomeHero />"), "redesigned homepage must mount the product demo");
   assert.ok(demo.includes('id="demo"'), "homepage must expose a stable live-demo anchor");
   assert.ok(demo.includes('from "@/components/marketing/workspace-preview"'), "homepage demo must use the shared Linaw workspace preview");
-  assert.ok(demo.includes('<WorkspacePreview mode="interactive" />'), "homepage demo must expose the interactive real-system preview");
+  assert.ok(demo.includes('<WorkspacePreview mode="interactive"'), "homepage demo must expose the interactive real-system preview");
   assert.ok(demo.includes("Open role-based sandbox"), "homepage demo must hand off to the real role-based sandbox");
 });
 
@@ -84,7 +84,7 @@ test("the homepage leads with the approved connected payroll and people hero", (
   assert.ok(hero.includes('href="/book-demo"'));
   for (const area of ["Payroll", "Workforce Management", "HCM", "HRIS", "Workforce Analytics", "Employee Self-Service"]) assert.ok(hero.includes(area));
   assert.ok(hero.includes("aria-pressed={selected.id === area.id}"));
-  assert.ok(hero.includes("fictional sample data"));
+  assert.ok(hero.toLowerCase().includes("fictional sample data"));
 });
 
 test("a dedicated role-based demo page exists", () => {
@@ -126,8 +126,8 @@ test("homepage buyer flow keeps product evidence before pricing", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
   const stories = read("src/components/marketing/product-home-stories.tsx");
   assert.ok(home.indexOf("<ProductHomeStories />") < home.indexOf("<Pricing plans={plans} />"));
-  assert.ok(home.includes('className="lp-demo-disclosure"'));
-  assert.ok(home.includes("<Demo />"));
+  assert.ok(stories.includes("Payroll Outsourcing Philippines"));
+  assert.ok(home.includes("<ProductHomeHero />"));
   assert.ok(!home.includes("<Calculator />"));
   assert.ok(stories.includes("checking, and release responsibilities distinct"));
   assert.ok(stories.includes("clearly labelled government drafts"));
@@ -257,10 +257,10 @@ test("homepage Leave and Migration modules perform local interactive workflows",
 test("homepage product screens hand off to the deeper interactive demo", () => {
   const hero = read("src/components/marketing/product-home-hero.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
-  assert.ok(hero.includes("/marketing/screens/"));
+  assert.ok(hero.includes("WorkspacePreview"));
   assert.ok(hero.includes('href="/demo"'));
   assert.ok(demo.includes('mode="interactive"'));
-  assert.ok(demo.includes("See how payroll moves from"));
+  assert.ok(demo.includes("Interactive payroll workflow"));
 });
 
 test("pricing explains who each plan is for instead of dumping internal module names", () => {
