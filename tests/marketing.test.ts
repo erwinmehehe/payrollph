@@ -90,9 +90,9 @@ test("homepage is payroll-led, product-proven and avoids repetitive feature wall
   const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
   const preview = read("src/components/marketing/claude-home/components/AppProductPreview.tsx");
 
-  assert.ok(hero.includes("Payroll your team can review"), "hero must lead with payroll buyer value");
+  assert.ok(hero.includes("Philippine payroll you can review"), "hero must lead with Philippine payroll buyer value");
   assert.ok(hero.includes("before money moves."), "hero must make release control explicit");
-  assert.ok(hero.includes("Philippine payroll software"), "hero must identify the category immediately");
+  assert.ok(hero.includes("built for the Philippines"), "hero must identify the Philippine market immediately");
   assert.ok(hero.includes('href="/book-demo"'), "request-demo CTA must remain visible");
   assert.ok(hero.includes("Not a live payroll result."), "hero must qualify illustrative content");
   assert.ok(preview.includes("not a live payroll or filing result"), "preview must not imply government acceptance");
