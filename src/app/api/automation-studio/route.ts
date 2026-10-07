@@ -41,6 +41,15 @@ import {
 
 export const dynamic = "force-dynamic";
 
+function uniqueConstraintViolation(error: unknown) {
+  return Boolean(
+    error
+    && typeof error === "object"
+    && "code" in error
+    && (error as { code?: string }).code === "23505",
+  );
+}
+
 async function assertStudioAdmin(userId: number, organizationId: number) {
   const denied = await assertOrganizationRole(
     userId,
@@ -229,6 +238,9 @@ export async function POST(request: Request) {
       if (error instanceof AutomationVersionError) {
         return Response.json({ error: error.message }, { status: error.status });
       }
+      if (uniqueConstraintViolation(error)) {
+        return Response.json({ error: "Another Automation Studio rule already uses this workflow name." }, { status: 409 });
+      }
       throw error;
     }
   }
@@ -258,6 +270,9 @@ export async function POST(request: Request) {
     } catch (error) {
       if (error instanceof AutomationVersionError) {
         return Response.json({ error: error.message }, { status: error.status });
+      }
+      if (uniqueConstraintViolation(error)) {
+        return Response.json({ error: "Another Automation Studio rule already uses this workflow name." }, { status: 409 });
       }
       throw error;
     }
@@ -294,6 +309,9 @@ export async function POST(request: Request) {
       if (error instanceof AutomationVersionError) {
         return Response.json({ error: error.message }, { status: error.status });
       }
+      if (uniqueConstraintViolation(error)) {
+        return Response.json({ error: "Another Automation Studio rule already uses this workflow name." }, { status: 409 });
+      }
       throw error;
     }
   }
@@ -327,6 +345,9 @@ export async function POST(request: Request) {
     } catch (error) {
       if (error instanceof AutomationVersionError) {
         return Response.json({ error: error.message }, { status: error.status });
+      }
+      if (uniqueConstraintViolation(error)) {
+        return Response.json({ error: "Another Automation Studio rule already uses this workflow name." }, { status: 409 });
       }
       throw error;
     }
