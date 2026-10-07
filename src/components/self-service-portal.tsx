@@ -977,7 +977,7 @@ export function SelfServicePortal() {
       )}
 
       {leaveOpen && (
-        <div className="modal-backdrop" role="presentation">
+        <div className="modal-backdrop linaw-dialog" role="presentation">
           <section className="modal employee-leave-modal" role="dialog" aria-modal="true" aria-label="Request leave">
             <div className="card-kicker">REQUEST LEAVE</div>
             <h2>New leave request</h2>

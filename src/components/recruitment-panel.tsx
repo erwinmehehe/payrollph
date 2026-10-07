@@ -252,7 +252,7 @@ export function RecruitmentPanel({
       <div className="page-heading">
         <div>
           <div className="eyebrow">TALENT ACQUISITION</div>
-          <h1>Recruit against approved headcount.</h1>
+          <h1>Recruitment</h1>
           <p>
             Position-owned requisitions inherit the approved role, unit, employment type, and budget.
             Hiring converts the candidate into an employee, onboarding checklist, and incumbent assignment in one controlled action.

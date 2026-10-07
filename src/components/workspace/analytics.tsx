@@ -97,9 +97,9 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
   return (
     <>
       <PageHeading
-        eyebrow="Analytics"
-        title="Workforce and payroll analytics from governed source data."
-        copy="Review employment lifecycle governance, workforce operations, payroll variance, labor cost and compliance evidence from stored source data. CSV exports remain auditable."
+        eyebrow="Insights"
+        title="Reports"
+        copy="Explore payroll, people and workforce records. Preview a report before exporting."
         actions={
           <button className="secondary-button" onClick={reload} disabled={state === "loading"}>
             <RefreshCw size={15} className="i-blue" /> Refresh
@@ -115,8 +115,8 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
           icon={<FileBarChart2 size={16} className="i-teal" />}
           tone="blue"
         />
-        <Metric label="Total gross paid" value={shortMoney(totalCost)} hint="across every stored run" icon={<WalletCards size={16} className="i-green" />} tone="mint" />
-        <Metric label="Total net paid" value={shortMoney(totalNet)} hint="after employee deductions" icon={<WalletCards size={16} className="i-green" />} tone="purple" />
+        <Metric label="Gross on record" value={shortMoney(totalCost)} hint="all stored runs, including unreleased" icon={<WalletCards size={16} className="i-green" />} tone="mint" />
+        <Metric label="Net on record" value={shortMoney(totalNet)} hint="all stored runs, including unreleased" icon={<WalletCards size={16} className="i-green" />} tone="blue" />
         <Metric
           label="Open exceptions"
           value={String(exceptions)}

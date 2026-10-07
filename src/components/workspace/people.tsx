@@ -404,12 +404,8 @@ export function PeopleView({
     <>
       <PageHeading
         eyebrow={hrMode ? `${data.selectedOrganization.legalName} · HR Admin` : "People"}
-        title={hrMode ? "People." : "Your people, in context."}
-        copy={
-          hrMode
-            ? "Manage employee records, pay profiles, employment status and organizational structure without duplicating the payroll-readiness dashboard."
-            : "Department and branch structure stay optional for small teams and are ready when a client grows into them."
-        }
+        title="Employees"
+        copy="Manage employee records, employment details and pay profiles."
         actions={
           canManage ? (
             <button className="primary-button brand" onClick={onAddEmployee}>
@@ -424,11 +420,12 @@ export function PeopleView({
           <LockKeyhole size={15} className="i-amber" />
           <span>
             Your role is scoped to <strong>{data.access.orgUnitName}</strong>. Employees outside that unit are not loaded,
-            this is enforced in the query, not hidden in the UI.
+            and are outside your current access.
           </span>
         </div>
       )}
 
+      {(canManage || canManageLifecycle || canViewLifecycleNotifications) && <details className="panel-disclosure"><summary>Employee administration <span>Import, lifecycle policies and notifications</span></summary>
       {canManage && <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />}
 
       {canManageLifecycle && (
@@ -456,13 +453,14 @@ export function PeopleView({
           onOpenSeparation={() => onPage("separation")}
         />
       )}
+      </details>}
 
       {openOffboarding > 0 && (
         <div className="notice notice-blue">
           <ShieldCheck size={15} className="i-green" />
           <span>
             <strong>{openOffboarding} offboarding item{openOffboarding === 1 ? "" : "s"}</strong> are open. Completing one
-            is audit-logged through <span className="mono">PATCH /api/provisioning</span>.
+            is recorded in the audit trail.
           </span>
         </div>
       )}
@@ -506,13 +504,13 @@ export function PeopleView({
             <table className="data-table">
               <thead>
                 <tr>
-                  <th className="sortable" onClick={() => toggleSort("name")} aria-sort={sort.key === "name" ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
-                    Person
+                  <th className="sortable" aria-sort={sort.key === "name" ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
+                    <button type="button" className="table-sort" onClick={() => toggleSort("name")}>Person <ArrowUpDown size={12} /></button>
                   </th>
                   <th>Type</th>
                   <th>Status</th>
-                  <th className="right sortable" onClick={() => toggleSort("basicRate")} aria-sort={sort.key === "basicRate" ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
-                    Pay rate
+                  <th className="right sortable" aria-sort={sort.key === "basicRate" ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}>
+                    <button type="button" className="table-sort" onClick={() => toggleSort("basicRate")}>Pay rate <ArrowUpDown size={12} /></button>
                   </th>
                   <th className="right">Region</th>
                 </tr>
@@ -568,6 +566,7 @@ export function PeopleView({
                 {query ? `Nothing matches “${query}”.` : "This status has no employees on this client yet."}
               </EmptyState>
             )}
+            {filtered.length === 0 && (query || tab !== "all") && <div className="empty-state-action"><button type="button" className="secondary-button" onClick={() => { search(""); selectTab("all"); }}>Clear filters</button></div>}
           </div>
 
           <div className="pagination">
@@ -632,8 +631,7 @@ export function PeopleView({
           <div className="notice notice-green" style={{ margin: "0 18px 14px" }}>
             <ShieldCheck size={15} className="i-green" />
             <span>
-              Department-scoped access is stored on the membership row, so a scoped user&apos;s queries are narrowed on the
-              server.
+              Employee visibility follows your assigned department and access permissions.
             </span>
           </div>
           {canManage && (

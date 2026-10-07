@@ -18,7 +18,7 @@ import type {
   ScheduleGuardrailPolicy,
 } from "@/lib/workforce-schedule-guardrails";
 import type { DashboardData, Notify } from "./types";
-import { EmptyState, Metric, PageHeading, Spinner, Status } from "./ui";
+import { EmptyState, ErrorState, Metric, PageHeading, Spinner, Status } from "./ui";
 import { WorkforceOvertimePanel } from "./workforce-overtime-panel";
 import { WorkforceScheduleSwapPanel } from "./workforce-schedule-swap-panel";
 import { WorkforceScheduleGuardrailsPanel } from "./workforce-schedule-guardrails-panel";
@@ -163,6 +163,8 @@ export function WorkforcePlanner({
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
+  const [workspaceTab, setWorkspaceTab] = useState("roster");
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
 
@@ -201,7 +203,9 @@ export function WorkforcePlanner({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Could not load workforce schedules.");
       setCatalog(payload as Catalog);
+      setCatalogError("");
     } catch (error) {
+      setCatalogError(error instanceof Error ? error.message : "Could not load workforce schedules.");
       notify(error instanceof Error ? error.message : "Could not load workforce schedules.", "err");
     } finally {
       setLoadingCatalog(false);
@@ -364,8 +368,8 @@ export function WorkforcePlanner({
     <>
       <PageHeading
         eyebrow="Workforce management"
-        title="Plan the schedule payroll actually uses."
-        copy="Build reusable shifts and rotations, assign them with legal effective dates, and record temporary rest-day or shift changes. Payroll consumes the resolved schedule for premium-pay calculations."
+        title="Workforce schedules"
+        copy="Manage shifts, rotations and schedule changes. Review coverage and guardrails before applying changes."
         actions={
           <button className="secondary-button" onClick={() => void Promise.all([loadCatalog(), loadPreview()])}>
             <RefreshCcw size={15} className="i-cyan" /> Refresh roster
@@ -373,38 +377,46 @@ export function WorkforcePlanner({
         }
       />
 
-      <WorkforceScheduleGuardrailsPanel
-        data={data}
-        notify={notify}
-        canManage={canManage}
-        onSaved={() => void loadPreview()}
-      />
-
+      <div className="tabs" role="tablist" aria-label="Workforce workspace" onKeyDown={(event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+        const index = tabs.indexOf(event.target as HTMLButtonElement);
+        if (index < 0) return;
+        event.preventDefault();
+        const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+        tabs[next]?.focus(); tabs[next]?.click();
+      }}>
+        {[['roster', 'Roster'], ['coverage', 'Coverage'], ['timesheets', 'Timesheets'], ['overtime', 'Overtime'], ['swaps', 'Schedule swaps'], ['worksites', 'Worksites'], ['costing', 'Labor costing'], ['guardrails', 'Guardrails']].map(([key, label]) => (
+          <button type="button" key={key} id={`wfm-tab-${key}`} role="tab" tabIndex={workspaceTab === key ? 0 : -1} aria-selected={workspaceTab === key} aria-controls={`wfm-panel-${key}`} className={workspaceTab === key ? "active" : ""} onClick={() => setWorkspaceTab(key)}>{label}</button>
+        ))}
+      </div>
+      <div role="tabpanel" id="wfm-panel-roster" aria-labelledby="wfm-tab-roster" hidden={workspaceTab !== 'roster'}>
+      {catalogError && <ErrorState title="Schedules could not load" detail={catalogError} onRetry={() => void loadCatalog()} />}
       <section className="stats-grid">
         <Metric
           label="Shift definitions"
-          value={String(catalog?.shifts.length ?? 0)}
+          value={catalog ? String(catalog.shifts.length) : "—"}
           hint="reusable work windows"
           icon={<Clock3 size={16} className="i-cyan" />}
           tone="blue"
         />
         <Metric
           label="Rotation patterns"
-          value={String(catalog?.patterns.length ?? 0)}
+          value={catalog ? String(catalog.patterns.length) : "—"}
           hint="effective-dated roster templates"
           icon={<RotateCw size={16} className="i-purple" />}
           tone="purple"
         />
         <Metric
           label="Employees assigned"
-          value={String(assignedEmployees)}
+          value={catalog ? String(assignedEmployees) : "—"}
           hint="using advanced scheduling"
           icon={<UserRound size={16} className="i-green" />}
           tone="mint"
         />
         <Metric
           label="Overrides"
-          value={String(catalog?.overrides.length ?? 0)}
+          value={catalog ? String(catalog.overrides.length) : "—"}
           hint="audited day-level changes"
           icon={<CalendarRange size={16} className="i-amber" />}
           tone={(catalog?.overrides.length ?? 0) > 0 ? "amber" : "slate"}
@@ -419,12 +431,6 @@ export function WorkforcePlanner({
         </span>
       </div>
 
-      <WorkforceWorksitesPanel data={data} notify={notify} canManage={canManage} />
-
-      <WorkforceCoveragePanel data={data} notify={notify} canManage={canManage} />
-
-      <WorkforceTimesheetPanel data={data} notify={notify} canManage={canManage} />
-
       <article className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
           <div>
@@ -432,7 +438,7 @@ export function WorkforcePlanner({
             <h2>{preview?.employee.name ?? "Select an employee"}</h2>
             <p>Resolved through the same deterministic schedule engine used by payroll.</p>
           </div>
-          {loadingPreview ? <Spinner label="Resolving roster" /> : <Status value="Live preview" />}
+          {loadingPreview ? <Spinner label="Resolving roster" /> : <Status value={preview ? "Live preview" : "No preview"} />}
         </div>
 
         {(preview?.guardrailIssues.length ?? 0) > 0 && (
@@ -703,15 +709,19 @@ export function WorkforcePlanner({
         </div>
       )}
 
-      <WorkforceOvertimePanel data={data} notify={notify} />
-      <WorkforceScheduleSwapPanel data={data} notify={notify} />
-      <LaborCostingPanel data={data} notify={notify} />
-
       {loadingCatalog && !catalog && (
         <div className="notice notice-slate" style={{ marginTop: 16 }}>
           <Spinner label="Loading workforce configuration" />
         </div>
       )}
+      </div>
+      <div role="tabpanel" id="wfm-panel-coverage" aria-labelledby="wfm-tab-coverage" hidden={workspaceTab !== 'coverage'}><WorkforceCoveragePanel data={data} notify={notify} canManage={canManage} /></div>
+      <div role="tabpanel" id="wfm-panel-timesheets" aria-labelledby="wfm-tab-timesheets" hidden={workspaceTab !== 'timesheets'}><WorkforceTimesheetPanel data={data} notify={notify} canManage={canManage} /></div>
+      <div role="tabpanel" id="wfm-panel-overtime" aria-labelledby="wfm-tab-overtime" hidden={workspaceTab !== 'overtime'}><WorkforceOvertimePanel data={data} notify={notify} /></div>
+      <div role="tabpanel" id="wfm-panel-swaps" aria-labelledby="wfm-tab-swaps" hidden={workspaceTab !== 'swaps'}><WorkforceScheduleSwapPanel data={data} notify={notify} /></div>
+      <div role="tabpanel" id="wfm-panel-worksites" aria-labelledby="wfm-tab-worksites" hidden={workspaceTab !== 'worksites'}><WorkforceWorksitesPanel data={data} notify={notify} canManage={canManage} /></div>
+      <div role="tabpanel" id="wfm-panel-costing" aria-labelledby="wfm-tab-costing" hidden={workspaceTab !== 'costing'}><LaborCostingPanel data={data} notify={notify} /></div>
+      <div role="tabpanel" id="wfm-panel-guardrails" aria-labelledby="wfm-tab-guardrails" hidden={workspaceTab !== 'guardrails'}><WorkforceScheduleGuardrailsPanel data={data} notify={notify} canManage={canManage} onSaved={() => void loadPreview()} /></div>
     </>
   );
 }

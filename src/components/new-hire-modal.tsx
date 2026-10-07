@@ -73,7 +73,7 @@ export function NewHireModal({
   }
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop linaw-dialog" role="presentation">
       <section className="modal large" role="dialog" aria-modal="true" aria-label="Add employee">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Layers size={22} className="i-teal" /></div>

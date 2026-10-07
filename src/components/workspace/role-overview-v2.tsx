@@ -14,7 +14,8 @@ import { PayrollHandoff } from "@/components/payroll-handoff";
 import { buildPayrollHandoff } from "@/lib/payroll-handoff";
 import { readLineItems, type DashboardData, type PayrollRun } from "./types";
 import { StatutoryRemittanceWatch } from "./statutory-remittance-watch";
-import { Avatar, EmptyState, Status } from "./ui";
+import { Avatar, EmptyState, Status, moneyExact } from "./ui";
+import { summarizePeopleRecords, summarizeCloseEvidence } from "./record-summary";
 
 export type RoleOverviewV2Role = "owner" | "hr" | "payroll" | "checker" | "bookkeeper";
 
@@ -324,27 +325,21 @@ function CheckerWorkspace({ data, currentRun, firstName, onPage }: CommonProps) 
 }
 
 function HrWorkspace({ data, currentRun, firstName, onPage }: CommonProps) {
-  const activePeople = data.employees.filter((employee) => employee.status === "Active");
+  const { active: activePeople, missingBank, missingIds, attendance, provisioning, attention } = summarizePeopleRecords(data);
   const pendingLeave = (data.leaveRequests ?? []).filter((request) => request.status === "Pending");
-  const provisioning = (data.provisioning ?? []).filter((task) => !task.done);
-  const attendance = (data.punches ?? []).filter((punch) => !["complete", "present", "ok", "approved"].includes(punch.status.toLowerCase()));
-  const missingBank = activePeople.filter((employee) => !employee.bankAccount || !employee.bankCode);
-  const missingIds = activePeople.filter((employee) => !employee.tin || !employee.sssNo || !employee.philHealthNo || !employee.pagIbigNo);
-  const blockerIds = new Set([
-    ...missingBank.map((employee) => employee.id),
-    ...missingIds.map((employee) => employee.id),
-    ...attendance.map((punch) => punch.employeeId),
-    ...provisioning.map((task) => task.employeeId),
-  ]);
-  const ready = Math.max(0, activePeople.length - blockerIds.size);
-  const percentage = activePeople.length ? Math.round((ready / activePeople.length) * 100) : 100;
-  const attentionEmployees = activePeople.filter((employee) => blockerIds.has(employee.id)).slice(0, 6);
+  const ready = activePeople.length - attention.length;
+  const percentage = activePeople.length ? Math.round((ready / activePeople.length) * 100) : 0;
+  const attentionEmployees = attention.slice(0, 6);
   const handoffRun = data.payrollHandoffRun ?? currentRun;
 
   return (
-    <div className="payrollph-dashboard role-workspace-v2 mockup-role-page" data-role-dashboard="hr" data-dashboard-variant="hr">
+    <div className="payrollph-dashboard role-workspace-v2 clean-record-overview" data-role-dashboard="hr" data-dashboard-variant="hr">
       <ContractGreeting firstName={firstName} />
       <span className="role-contract-copy">Which employees are blocking payroll readiness?</span>
+      <section className="mockup-page-intro">
+        <div><h1>Your team at a glance</h1><p>Record checks for active employees · {data.selectedOrganization.legalName}</p></div>
+        <button type="button" className="primary-button brand" onClick={() => onPage("People")}>View employees <ArrowRight size={16} /></button>
+      </section>
 
       <div className="role-contract-focus" aria-hidden>
         <div className="dashboard-stat-card" />
@@ -354,27 +349,26 @@ function HrWorkspace({ data, currentRun, firstName, onPage }: CommonProps) {
       </div>
       <section className="mockup-section hr-readiness-mockup dashboard-alert-banner">
         <div className="mockup-hr-left">
-          <div className="mockup-section-eyebrow">Payroll readiness</div>
-          <span className="mockup-period">{currentRun?.periodLabel ?? "Next cutoff"}</span>
+          <div className="mockup-section-eyebrow">Employee record checks</div>
+          <span className="mockup-period">All loaded records · not payroll release approval</span>
           <div className="mockup-readiness-row">
             <div className="mockup-donut" style={{ "--readiness": String(percentage * 3.6) + "deg" } as React.CSSProperties}>
               <div><strong>{percentage}%</strong></div>
             </div>
             <div className="mockup-readiness-copy">
               <strong>{ready} of {activePeople.length}</strong>
-              <span>employees ready</span>
-              <em>{blockerIds.size} need attention</em>
+              <span>without visible record gaps</span>
+              <em>{attention.length} need attention</em>
             </div>
           </div>
         </div>
 
         <div className="mockup-hr-blockers">
-          <h2>Blocker breakdown</h2>
+          <h2>Needs attention</h2>
           <BlockerRow count={missingBank.length} label="Missing payout details" tone="rose" />
           <BlockerRow count={attendance.length} label="Incomplete attendance" tone="amber" />
           <BlockerRow count={provisioning.length} label="Onboarding task" tone="orange" />
           <BlockerRow count={missingIds.length} label="Government ID issues" tone="blue" />
-          <BlockerRow count={0} label="Employment-date issues" tone="green" />
         </div>
       </section>
 
@@ -395,7 +389,7 @@ function HrWorkspace({ data, currentRun, firstName, onPage }: CommonProps) {
       )}
 
       <section className="mockup-section">
-        <MockupSectionHeader title={"Employees needing attention (" + String(attentionEmployees.length) + ")"} />
+        <MockupSectionHeader title={"Employees needing attention (" + String(attention.length) + ")"} action="View employees" onAction={() => onPage("People")} />
         {attentionEmployees.length ? (
           <div className="mockup-table hr-mockup-table">
             <div className="mockup-table-head"><span>Employee</span><span>Blockers</span><span>Action</span></div>
@@ -416,16 +410,16 @@ function HrWorkspace({ data, currentRun, firstName, onPage }: CommonProps) {
               );
             })}
           </div>
-        ) : <EmptyState icon={<BadgeCheck size={18} />} title="Everyone is ready">No employee readiness blockers are visible.</EmptyState>}
+        ) : <EmptyState icon={<BadgeCheck size={18} />} title={activePeople.length ? "No record gaps found" : "No active employees"}>These checks cover the employee records currently loaded.</EmptyState>}
+        {attention.length > attentionEmployees.length && <p className="heading-copy">Showing {attentionEmployees.length} of {attention.length} employees needing attention.</p>}
       </section>
 
       <section className="mockup-section mockup-upcoming">
-        <MockupSectionHeader title="Upcoming changes" />
+        <MockupSectionHeader title="People workload" />
         <div className="mockup-upcoming-list">
-          <UpcomingLine value={provisioning.length} label="new hires entering next cutoff" />
-          <UpcomingLine value={1} label="separation effective next cutoff" />
-          <UpcomingLine value={pendingLeave.length} label="approved leave periods" />
-          <UpcomingLine value={(data.payRevisions ?? []).length} label="salary revisions" />
+          <UpcomingLine value={provisioning.length} label="open employee provisioning tasks" />
+          <UpcomingLine value={pendingLeave.length} label="leave requests awaiting review" />
+          <UpcomingLine value={(data.payRevisions ?? []).length} label="salary revision records" />
         </div>
       </section>
     </div>
@@ -433,21 +427,12 @@ function HrWorkspace({ data, currentRun, firstName, onPage }: CommonProps) {
 }
 
 function BookkeeperWorkspace({ data, currentRun, firstName, onPage }: CommonProps) {
-  const runEvents = currentRun ? data.auditEvents.filter((event) => {
-    if (!event.metadata || typeof event.metadata !== "object") return false;
-    return Number((event.metadata as Record<string, unknown>).runId) === currentRun.id;
-  }) : [];
-  const hasEvent = (actions: string[]) => runEvents.some((event) => actions.includes(event.action));
-  const paid = hasEvent(["Payroll payout completed manually", "Payroll payout completed via PayMongo"]);
-  const reconciled = paid && hasEvent(["bank export generated"]);
-  const journal = hasEvent(["journal export generated"]);
-  const government = hasEvent(["government export generated"]);
-  const closed = hasEvent(["Payroll close completed"]);
+  const { paid, bankExport, journal, government, closed } = summarizeCloseEvidence(data.auditEvents, currentRun?.id);
   const liabilities = summarizeStatutoryLiabilities(data);
   const totalLiabilities = liabilities.sss + liabilities.philHealth + liabilities.pagIbig + liabilities.bir;
 
   return (
-    <div className="payrollph-dashboard role-workspace-v2 mockup-role-page" data-role-dashboard="bookkeeper" data-dashboard-variant="bookkeeper">
+    <div className="payrollph-dashboard role-workspace-v2 clean-record-overview" data-role-dashboard="bookkeeper" data-dashboard-variant="bookkeeper">
       <ContractGreeting firstName={firstName} />
       <span className="role-contract-copy">Is this payroll fully closed and reconciled?</span>
 
@@ -455,39 +440,40 @@ function BookkeeperWorkspace({ data, currentRun, firstName, onPage }: CommonProp
       <section className="mockup-page-intro bookkeeper-intro">
         <div>
           <h1>{currentRun?.periodLabel ?? "Latest payroll"} payroll close</h1>
-          <div className="mockup-bookkeeper-money">{fullMoney(currentRun?.grossPay ?? 0)}</div>
-          <p>Total payroll cost</p>
+          <div className="mockup-bookkeeper-money">{currentRun && !["Draft", "Inputs"].includes(currentRun.status) ? moneyExact(currentRun.grossPay) : "Unavailable"}</div>
+          <p>Gross payroll · {currentRun?.periodLabel ?? "No payroll selected"}</p>
         </div>
-        <Status value={closed ? "Closed" : "In progress"} />
+        <Status value={!currentRun ? "No payroll" : closed ? "Closed" : "In progress"} />
       </section>
 
       <section className="mockup-close-steps dashboard-alert-banner">
         <CloseStage label="Paid" detail={paid ? "Complete" : "Pending"} done={paid} current={!paid} />
-        <CloseStage label="Reconciled" detail={reconciled ? "Complete" : paid ? "In progress" : "Pending"} done={reconciled} current={paid && !reconciled} />
-        <CloseStage label="Journal" detail={journal ? "Complete" : reconciled ? "In progress" : "Pending"} done={journal} current={reconciled && !journal} />
-        <CloseStage label="Liabilities" detail={government ? "Prepared" : journal ? "In progress" : "Pending"} done={government} current={journal && !government} />
+        <CloseStage label="Bank file" detail={bankExport ? "Generated" : "Not generated"} done={bankExport} current={paid && !bankExport} />
+        <CloseStage label="Journal" detail={journal ? "Generated" : "Not generated"} done={journal} current={bankExport && !journal} />
+        <CloseStage label="Government file" detail={government ? "Generated" : "Not generated"} done={government} current={journal && !government} />
         <CloseStage label="Closed" detail={closed ? "Complete" : "Pending"} done={closed} current={government && !closed} />
       </section>
 
       <section className="mockup-section bookkeeper-liability-section">
         <div className="mockup-tab-header">
-          <button className="active" type="button">Government liabilities</button>
-          <button type="button" onClick={() => onPage("Exports")}>Filing evidence</button>
+          <span className="register-summary-title">Statutory line items</span>
+          <button type="button" onClick={() => onPage("Compliance")}>Filing evidence</button>
         </div>
 
-        <div className="mockup-table liability-mockup-table">
-          <div className="mockup-table-head"><span>Liability</span><span>Amount</span><span>Status</span><span>Action</span></div>
+        {data.payrollEntries.length ? <div className="mockup-table liability-mockup-table">
+          <div className="mockup-table-head"><span>Register category</span><span>Amount</span><span>Status</span><span>Action</span></div>
           <LiabilityRow label="SSS" amount={liabilities.sss} exported={government} onOpen={() => onPage("Exports")} />
           <LiabilityRow label="PhilHealth" amount={liabilities.philHealth} exported={government} onOpen={() => onPage("Exports")} />
           <LiabilityRow label="Pag-IBIG" amount={liabilities.pagIbig} exported={government} onOpen={() => onPage("Exports")} />
           <LiabilityRow label="BIR withholding" amount={liabilities.bir} exported={government} onOpen={() => onPage("Exports")} />
-          <div className="mockup-liability-total"><span>Total statutory liabilities</span><strong>{fullMoney(totalLiabilities)}</strong></div>
-        </div>
+          <div className="mockup-liability-total"><span>Total loaded statutory line items</span><strong>{moneyExact(totalLiabilities)}</strong></div>
+        </div> : <EmptyState title="No calculated register loaded">Open payroll to calculate or select a run before reviewing statutory amounts.</EmptyState>}
 
         <div className="mockup-bookkeeper-actions">
-          <button className="mockup-secondary-button" type="button" onClick={() => onPage("Exports")}>Mark as filed</button>
-          <button className="mockup-primary-button" type="button" onClick={() => onPage("Exports")} disabled={!government}>Close payroll</button>
+          <button className="mockup-secondary-button" type="button" onClick={() => onPage("Compliance")}>Review filing evidence</button>
+          <button className="mockup-primary-button" type="button" onClick={() => onPage("Exports")}>Open accounting outputs <ArrowRight size={16} /></button>
         </div>
+        <p className="heading-copy">Generated files do not confirm bank reconciliation or agency filing. Review evidence before completing the existing close workflow.</p>
       </section>
     </div>
   );
@@ -542,7 +528,7 @@ function PersonCell({ employee, fallback = "Employee record" }: { employee?: Das
 }
 
 function LiabilityRow({ label, amount, exported, onOpen }: { label: string; amount: number; exported: boolean; onOpen: () => void }) {
-  return <div className="mockup-table-row mockup-liability-row"><strong>{label}</strong><span>{fullMoney(amount)}</span><span className="mockup-review-status ok">{exported ? "Exported" : "Prepared"}</span><button type="button" onClick={onOpen}>Export</button></div>;
+  return <div className="mockup-table-row mockup-liability-row"><strong>{label}</strong><span>{moneyExact(amount)}</span><span className="mockup-review-status">{exported ? "Export recorded" : "On record"}</span><button type="button" onClick={onOpen}>View outputs</button></div>;
 }
 
 function CompactPayrollHistory({ runs, onOpen }: { runs: PayrollRun[]; onOpen: () => void }) {
