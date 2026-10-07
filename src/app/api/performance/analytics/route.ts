@@ -110,6 +110,7 @@ export async function GET(request: Request) {
       byManager: [],
       byOrgUnit: [],
       ratingDistribution: [],
+      cycleTrends: [],
       activity: { completedOneOnOnes: 0, feedbackEntries: 0 },
       calibration: null,
     });
@@ -123,15 +124,11 @@ export async function GET(request: Request) {
   const unitName = new Map(units.map((unit) => [unit.id, unit.name]));
   const userName = new Map(memberships.map((membership) => [membership.userId, membership.name]));
 
-  const [allReviews, allGoals, allMeetings, allFeedback, allReminders, calibrationSessions] = await Promise.all([
-    db.select().from(performanceReviews).where(and(
-      eq(performanceReviews.organizationId, organizationId),
-      eq(performanceReviews.cycleId, cycle.id),
-    )),
-    db.select().from(performanceGoals).where(and(
-      eq(performanceGoals.organizationId, organizationId),
-      eq(performanceGoals.cycleId, cycle.id),
-    )),
+  const [allReviews, allGoals, allMeetings, allFeedback, allReminders, allReviewItems, calibrationSessions] = await Promise.all([
+    db.select().from(performanceReviews)
+      .where(eq(performanceReviews.organizationId, organizationId)),
+    db.select().from(performanceGoals)
+      .where(eq(performanceGoals.organizationId, organizationId)),
     db.select().from(performanceOneOnOnes)
       .where(eq(performanceOneOnOnes.organizationId, organizationId)),
     db.select().from(performanceFeedback)
@@ -140,6 +137,8 @@ export async function GET(request: Request) {
       eq(performanceReminderTasks.organizationId, organizationId),
       eq(performanceReminderTasks.cycleId, cycle.id),
     )),
+    db.select().from(performanceReviewItems)
+      .where(eq(performanceReviewItems.organizationId, organizationId)),
     companyPeopleAdmin
       ? db.select().from(performanceCalibrationSessions).where(and(
           eq(performanceCalibrationSessions.organizationId, organizationId),
@@ -148,11 +147,15 @@ export async function GET(request: Request) {
       : Promise.resolve([]),
   ]);
 
-  const reviews = allReviews.filter((review) => visibleEmployeeIds.has(review.employeeId));
+  const visibleReviews = allReviews.filter((review) => visibleEmployeeIds.has(review.employeeId));
+  const reviews = visibleReviews.filter((review) => review.cycleId === cycle.id);
   const goals = allGoals.filter((goal) =>
-    goal.scope === "company"
-    || (goal.scope === "team" && (access.companyWide || goal.orgUnitId === access.orgUnitId))
-    || (goal.employeeId != null && visibleEmployeeIds.has(goal.employeeId)),
+    goal.cycleId === cycle.id
+    && (
+      goal.scope === "company"
+      || (goal.scope === "team" && (access.companyWide || goal.orgUnitId === access.orgUnitId))
+      || (goal.employeeId != null && visibleEmployeeIds.has(goal.employeeId))
+    )
   );
   const reminders = allReminders.filter((task) => visibleEmployeeIds.has(task.employeeId));
   const cycleStart = Date.parse(cycle.startDate + "T00:00:00Z");
@@ -170,8 +173,7 @@ export async function GET(request: Request) {
   );
 
   const reviewIds = new Set(reviews.map((review) => review.id));
-  const competencyItems = (await db.select().from(performanceReviewItems)
-    .where(eq(performanceReviewItems.organizationId, organizationId)))
+  const competencyItems = allReviewItems
     .filter((item) => reviewIds.has(item.reviewId) && item.expectedProficiency != null && item.finalScore != null);
   const belowRoleExpectation = competencyItems.filter((item) =>
     Number(item.finalScore) < Number(item.expectedProficiency)
@@ -255,6 +257,80 @@ export async function GET(request: Request) {
     percentage: percentage(bucketCounts.get(bucket) ?? 0, scores.length),
   }));
 
+  const trendCycles = cycles
+    .filter((item) => item.status === "completed")
+    .slice()
+    .sort((left, right) => left.startDate.localeCompare(right.startDate));
+
+  const cycleTrends = trendCycles.map((trendCycle) => {
+    const trendReviews = visibleReviews.filter((review) => review.cycleId === trendCycle.id);
+    const trendCompleted = trendReviews.filter((review) => review.status === "completed");
+    const trendScores = trendCompleted
+      .map((review) => review.finalScore == null ? null : Number(review.finalScore))
+      .filter((value): value is number => value != null && Number.isFinite(value));
+    const trendSelfScores = trendCompleted
+      .map((review) => review.selfScore == null ? null : Number(review.selfScore))
+      .filter((value): value is number => value != null && Number.isFinite(value));
+    const trendManagerScores = trendCompleted
+      .map((review) => review.managerScore == null ? null : Number(review.managerScore))
+      .filter((value): value is number => value != null && Number.isFinite(value));
+    const trendGoals = allGoals.filter((goal) =>
+      goal.cycleId === trendCycle.id
+      && goal.scope === "employee"
+      && goal.employeeId != null
+      && visibleEmployeeIds.has(goal.employeeId)
+    );
+    const trendReviewIds = new Set(trendReviews.map((review) => review.id));
+    const trendCompetencies = allReviewItems.filter((item) =>
+      trendReviewIds.has(item.reviewId)
+      && item.expectedProficiency != null
+      && item.finalScore != null
+    );
+    const trendBelowExpectation = trendCompetencies.filter((item) =>
+      Number(item.finalScore) < Number(item.expectedProficiency)
+    );
+    const average = (values: number[]) => values.length
+      ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100) / 100
+      : null;
+
+    return {
+      cycleId: trendCycle.id,
+      cycleName: trendCycle.name,
+      startDate: trendCycle.startDate,
+      endDate: trendCycle.endDate,
+      completedAt: trendCycle.completedAt,
+      totalReviews: trendReviews.length,
+      completedReviews: trendCompleted.length,
+      completionRate: percentage(trendCompleted.length, trendReviews.length),
+      averageFinalScore: average(trendScores),
+      averageSelfScore: average(trendSelfScores),
+      averageManagerScore: average(trendManagerScores),
+      goalAttainment: trendGoals.length
+        ? Math.round((trendGoals.reduce((sum, goal) => sum + goal.progress, 0) / trendGoals.length) * 10) / 10
+        : 0,
+      competencyItems: trendCompetencies.length,
+      belowRoleExpectation: trendBelowExpectation.length,
+      roleExpectationGapRate: percentage(trendBelowExpectation.length, trendCompetencies.length),
+    };
+  }).map((row, index, rows) => {
+    const previous = index > 0 ? rows[index - 1] : null;
+    return {
+      ...row,
+      finalScoreDelta:
+        previous?.averageFinalScore != null && row.averageFinalScore != null
+          ? Math.round((row.averageFinalScore - previous.averageFinalScore) * 100) / 100
+          : null,
+      goalAttainmentDelta:
+        previous
+          ? Math.round((row.goalAttainment - previous.goalAttainment) * 10) / 10
+          : null,
+      roleExpectationGapRateDelta:
+        previous
+          ? Math.round((row.roleExpectationGapRate - previous.roleExpectationGapRate) * 10) / 10
+          : null,
+    };
+  });
+
   let calibration: null | {
     status: string;
     changedRatings: number;
@@ -304,6 +380,7 @@ export async function GET(request: Request) {
     byManager,
     byOrgUnit,
     ratingDistribution,
+    cycleTrends,
     activity: {
       completedOneOnOnes: meetings.length,
       feedbackEntries: feedback.length,

@@ -2,7 +2,10 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   hcmJobProfileSkillRequirements,
+  hcmSkillExpectationDefaults,
   hcmSkills,
+  jobFamilies,
+  jobLevels,
   jobProfiles,
   performanceTemplates,
 } from "@/db/schema";
@@ -33,6 +36,17 @@ function proficiency(value: unknown) {
   return Number.isInteger(n) && n >= 1 && n <= 5 ? n : null;
 }
 
+function expectationSource(row: typeof hcmSkillExpectationDefaults.$inferSelect) {
+  if (row.jobFamilyId != null && row.jobLevelId != null) return "family_level" as const;
+  if (row.jobLevelId != null) return "level" as const;
+  return "family" as const;
+}
+
+function expectationSpecificity(row: typeof hcmSkillExpectationDefaults.$inferSelect) {
+  const source = expectationSource(row);
+  return source === "family_level" ? 3 : source === "level" ? 2 : 1;
+}
+
 export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
@@ -45,7 +59,7 @@ export async function GET(request: Request) {
   const gate = await architectureAdmin(user.id, organizationId);
   if ("error" in gate) return gate.error;
 
-  const [profiles, skills, requirements, templates] = await Promise.all([
+  const [profiles, skills, requirements, defaults, families, levels, templates] = await Promise.all([
     db.select().from(jobProfiles)
       .where(eq(jobProfiles.organizationId, organizationId))
       .orderBy(asc(jobProfiles.title)),
@@ -54,6 +68,15 @@ export async function GET(request: Request) {
       .orderBy(asc(hcmSkills.category), asc(hcmSkills.name)),
     db.select().from(hcmJobProfileSkillRequirements)
       .where(eq(hcmJobProfileSkillRequirements.organizationId, organizationId)),
+    db.select().from(hcmSkillExpectationDefaults)
+      .where(eq(hcmSkillExpectationDefaults.organizationId, organizationId))
+      .orderBy(asc(hcmSkillExpectationDefaults.jobFamilyId), asc(hcmSkillExpectationDefaults.jobLevelId), asc(hcmSkillExpectationDefaults.skillId)),
+    db.select().from(jobFamilies)
+      .where(eq(jobFamilies.organizationId, organizationId))
+      .orderBy(asc(jobFamilies.name)),
+    db.select().from(jobLevels)
+      .where(eq(jobLevels.organizationId, organizationId))
+      .orderBy(asc(jobLevels.sequence), asc(jobLevels.name)),
     db.select().from(performanceTemplates)
       .where(and(
         eq(performanceTemplates.organizationId, organizationId),
@@ -70,9 +93,47 @@ export async function GET(request: Request) {
     ) ?? null;
 
   const coverage = profiles.map((profile) => {
-    const profileRequirements = requirements.filter((requirement) => requirement.jobProfileId === profile.id);
-    const mandatory = profileRequirements.filter((requirement) => requirement.mandatory);
-    const mapped = mandatory.filter((requirement) => Boolean(templateFor(profile.id, requirement.skillId)));
+    const effective = new Map<number, {
+      skillId: number;
+      minimumProficiency: number;
+      mandatory: boolean;
+      source: "profile" | "family" | "level" | "family_level";
+      ruleId: number | null;
+      specificity: number;
+    }>();
+
+    for (const row of defaults.filter((item) => item.active)) {
+      const familyMatch = row.jobFamilyId == null || row.jobFamilyId === profile.familyId;
+      const levelMatch = row.jobLevelId == null || row.jobLevelId === profile.levelId;
+      if (!familyMatch || !levelMatch) continue;
+      const specificity = expectationSpecificity(row);
+      const current = effective.get(row.skillId);
+      if (!current || specificity > current.specificity) {
+        effective.set(row.skillId, {
+          skillId: row.skillId,
+          minimumProficiency: row.minimumProficiency,
+          mandatory: row.mandatory,
+          source: expectationSource(row),
+          ruleId: row.id,
+          specificity,
+        });
+      }
+    }
+
+    for (const requirement of requirements.filter((row) => row.jobProfileId === profile.id)) {
+      effective.set(requirement.skillId, {
+        skillId: requirement.skillId,
+        minimumProficiency: requirement.minimumProficiency,
+        mandatory: requirement.mandatory,
+        source: "profile",
+        ruleId: null,
+        specificity: 4,
+      });
+    }
+
+    const effectiveRows = [...effective.values()];
+    const mandatory = effectiveRows.filter((row) => row.mandatory);
+    const mapped = mandatory.filter((row) => Boolean(templateFor(profile.id, row.skillId)));
     return {
       jobProfileId: profile.id,
       title: profile.title,
@@ -80,22 +141,36 @@ export async function GET(request: Request) {
       level: profile.level,
       mandatorySkills: mandatory.length,
       mappedMandatorySkills: mapped.length,
+      inheritedSkills: effectiveRows.filter((row) => row.source !== "profile").length,
       complete: mandatory.length === mapped.length,
+      effectiveExpectations: effectiveRows.map((row) => ({
+        ...row,
+        code: skillById.get(row.skillId)?.code ?? "SKILL",
+        name: skillById.get(row.skillId)?.name ?? "Unknown skill",
+      })),
       missing: mandatory
-        .filter((requirement) => !templateFor(profile.id, requirement.skillId))
-        .map((requirement) => {
-          const skill = skillById.get(requirement.skillId);
-          return {
-            skillId: requirement.skillId,
-            code: skill?.code ?? "SKILL",
-            name: skill?.name ?? "Unknown skill",
-            minimumProficiency: requirement.minimumProficiency,
-          };
-        }),
+        .filter((row) => !templateFor(profile.id, row.skillId))
+        .map((row) => ({
+          skillId: row.skillId,
+          code: skillById.get(row.skillId)?.code ?? "SKILL",
+          name: skillById.get(row.skillId)?.name ?? "Unknown skill",
+          minimumProficiency: row.minimumProficiency,
+          source: row.source,
+        })),
     };
   });
 
-  return Response.json({ profiles, skills, requirements, templates, coverage });
+  return Response.json({
+    profiles,
+    skills,
+    requirements,
+    defaults,
+    families,
+    levels,
+    templates,
+    coverage,
+    precedence: ["profile", "family_level", "level", "family"],
+  });
 }
 
 export async function POST(request: Request) {
@@ -202,7 +277,82 @@ export async function POST(request: Request) {
     }
   }
 
-  return Response.json({ error: "entityType must be skill or requirement." }, { status: 400 });
+  if (entityType === "expectation_default") {
+    const jobFamilyId = body.jobFamilyId ? Number(body.jobFamilyId) : null;
+    const jobLevelId = body.jobLevelId ? Number(body.jobLevelId) : null;
+    const skillId = Number(body.skillId);
+    const minimumProficiency = proficiency(body.minimumProficiency);
+    const mandatory = body.mandatory === true;
+
+    if ((jobFamilyId !== null && !Number.isInteger(jobFamilyId))
+        || (jobLevelId !== null && !Number.isInteger(jobLevelId))
+        || (!jobFamilyId && !jobLevelId)
+        || !Number.isInteger(skillId)
+        || minimumProficiency === null) {
+      return Response.json({
+        error: "At least one family/level scope, skillId, and minimumProficiency from 1 to 5 are required.",
+      }, { status: 400 });
+    }
+
+    const [familyRows, levelRows, skillRows] = await Promise.all([
+      jobFamilyId
+        ? db.select({ id: jobFamilies.id }).from(jobFamilies).where(and(
+            eq(jobFamilies.id, jobFamilyId),
+            eq(jobFamilies.organizationId, organizationId),
+            eq(jobFamilies.active, true),
+          )).limit(1)
+        : Promise.resolve([]),
+      jobLevelId
+        ? db.select({ id: jobLevels.id }).from(jobLevels).where(and(
+            eq(jobLevels.id, jobLevelId),
+            eq(jobLevels.organizationId, organizationId),
+            eq(jobLevels.active, true),
+          )).limit(1)
+        : Promise.resolve([]),
+      db.select({ id: hcmSkills.id }).from(hcmSkills).where(and(
+        eq(hcmSkills.id, skillId),
+        eq(hcmSkills.organizationId, organizationId),
+        eq(hcmSkills.active, true),
+      )).limit(1),
+    ]);
+    if (jobFamilyId && !familyRows[0]) return Response.json({ error: "Active job family not found." }, { status: 404 });
+    if (jobLevelId && !levelRows[0]) return Response.json({ error: "Active job level not found." }, { status: 404 });
+    if (!skillRows[0]) return Response.json({ error: "Active skill not found." }, { status: 404 });
+
+    try {
+      const [row] = await db.insert(hcmSkillExpectationDefaults).values({
+        organizationId,
+        jobFamilyId,
+        jobLevelId,
+        skillId,
+        minimumProficiency,
+        mandatory,
+        active: true,
+        createdByUserId: user.id,
+        createdByName: user.name,
+      }).returning();
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Inherited competency expectation created",
+        resource: "Skill #" + skillId,
+        metadata: {
+          expectationDefaultId: row.id,
+          jobFamilyId,
+          jobLevelId,
+          skillId,
+          minimumProficiency,
+          mandatory,
+          source: expectationSource(row),
+        },
+      });
+      return Response.json(row, { status: 201 });
+    } catch {
+      return Response.json({ error: "An expectation already exists for that family/level scope and skill." }, { status: 409 });
+    }
+  }
+
+  return Response.json({ error: "entityType must be skill, requirement, or expectation_default." }, { status: 400 });
 }
 
 export async function PATCH(request: Request) {
@@ -313,5 +463,44 @@ export async function PATCH(request: Request) {
     }
   }
 
-  return Response.json({ error: "entityType must be requirement or template_mapping." }, { status: 400 });
+  if (entityType === "expectation_default") {
+    const id = Number(body.id);
+    const minimumProficiency = proficiency(body.minimumProficiency);
+    if (!Number.isInteger(id) || minimumProficiency === null) {
+      return Response.json({ error: "Expectation id and minimumProficiency from 1 to 5 are required." }, { status: 400 });
+    }
+
+    const [existing] = await db.select().from(hcmSkillExpectationDefaults).where(and(
+      eq(hcmSkillExpectationDefaults.id, id),
+      eq(hcmSkillExpectationDefaults.organizationId, organizationId),
+    )).limit(1);
+    if (!existing) return Response.json({ error: "Inherited competency expectation not found." }, { status: 404 });
+
+    const [row] = await db.update(hcmSkillExpectationDefaults).set({
+      minimumProficiency,
+      mandatory: body.mandatory === true,
+      active: body.active !== false,
+      updatedAt: new Date(),
+    }).where(eq(hcmSkillExpectationDefaults.id, id)).returning();
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Inherited competency expectation updated",
+      resource: "Expectation #" + id,
+      metadata: {
+        expectationDefaultId: id,
+        jobFamilyId: row.jobFamilyId,
+        jobLevelId: row.jobLevelId,
+        skillId: row.skillId,
+        minimumProficiency: row.minimumProficiency,
+        mandatory: row.mandatory,
+        active: row.active,
+        source: expectationSource(row),
+      },
+    });
+    return Response.json(row);
+  }
+
+  return Response.json({ error: "entityType must be requirement, template_mapping, or expectation_default." }, { status: 400 });
 }

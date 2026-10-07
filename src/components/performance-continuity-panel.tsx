@@ -20,6 +20,13 @@ type Employee = {
   orgUnitId: number | null;
 };
 
+type AgendaContribution = {
+  id: number;
+  authorName: string;
+  content: string;
+  createdAt: string;
+};
+
 type OneOnOne = {
   id: number;
   employeeId: number;
@@ -30,6 +37,7 @@ type OneOnOne = {
   sharedSummary: string | null;
   privateManagerNotes: string | null;
   completedAt: string | null;
+  agendaContributions: AgendaContribution[];
 };
 
 type Feedback = {
@@ -93,6 +101,26 @@ type Analytics = {
     averageFinalScore: number | null;
   }>;
   ratingDistribution: Array<{ bucket: string; count: number; percentage: number }>;
+  cycleTrends: Array<{
+    cycleId: number;
+    cycleName: string;
+    startDate: string;
+    endDate: string;
+    completedAt: string | null;
+    totalReviews: number;
+    completedReviews: number;
+    completionRate: number;
+    averageFinalScore: number | null;
+    averageSelfScore: number | null;
+    averageManagerScore: number | null;
+    goalAttainment: number;
+    competencyItems: number;
+    belowRoleExpectation: number;
+    roleExpectationGapRate: number;
+    finalScoreDelta: number | null;
+    goalAttainmentDelta: number | null;
+    roleExpectationGapRateDelta: number | null;
+  }>;
   activity: { completedOneOnOnes: number; feedbackEntries: number };
   calibration: null | { status: string; changedRatings: number; totalRatings: number; openFlags: number; acceptedFlags: number; resolvedFlags: number };
 };
@@ -341,6 +369,31 @@ export function PerformanceContinuityPanel({
             </div>
           </section>
 
+          {analytics.cycleTrends.length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <div className="card-kicker">MULTI-CYCLE TREND</div>
+              <p>Completed-cycle history inside your current authorization scope. Deltas compare each cycle with the previous completed cycle.</p>
+              {analytics.cycleTrends.map((row) => (
+                <div className="leave-request" key={row.cycleId}>
+                  <div style={{ flex: 1 }}>
+                    <strong>{row.cycleName}</strong>
+                    <span>{row.startDate} → {row.endDate} · {row.completedReviews}/{row.totalReviews} complete</span>
+                    <span>
+                      Final avg {row.averageFinalScore ?? "—"}
+                      {row.finalScoreDelta == null ? "" : " · Δ " + (row.finalScoreDelta >= 0 ? "+" : "") + row.finalScoreDelta.toFixed(2)}
+                      {" · goals " + row.goalAttainment + "%"}
+                      {row.goalAttainmentDelta == null ? "" : " · Δ " + (row.goalAttainmentDelta >= 0 ? "+" : "") + row.goalAttainmentDelta.toFixed(1) + " pts"}
+                    </span>
+                    <span>
+                      Role expectation gaps {row.belowRoleExpectation}/{row.competencyItems} · {row.roleExpectationGapRate}%
+                      {row.roleExpectationGapRateDelta == null ? "" : " · Δ " + (row.roleExpectationGapRateDelta >= 0 ? "+" : "") + row.roleExpectationGapRateDelta.toFixed(1) + " pts"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div style={{ marginTop: 14 }}>
             <div className="card-kicker">RATING DISTRIBUTION</div>
             {analytics.ratingDistribution.map((bucket) => (
@@ -374,7 +427,15 @@ export function PerformanceContinuityPanel({
                   </div>
                   <Clock3 size={17} />
                 </div>
-                {meeting.agenda && <p><strong>Agenda:</strong> {meeting.agenda}</p>}
+                {meeting.agenda && <p><strong>Manager agenda:</strong> {meeting.agenda}</p>}
+                {(meeting.agendaContributions ?? []).length > 0 && (
+                  <div className="notice notice-green" style={{ marginBottom: 10 }}>
+                    <span>
+                      <strong>Employee agenda contributions</strong><br />
+                      {(meeting.agendaContributions ?? []).map((item) => item.content).join(" · ")}
+                    </span>
+                  </div>
+                )}
                 {meeting.status === "completed" && meeting.sharedSummary && <p><strong>Shared summary:</strong> {meeting.sharedSummary}</p>}
                 {meeting.status === "completed" && meeting.privateManagerNotes && <p><strong>Manager-private:</strong> {meeting.privateManagerNotes}</p>}
                 {mayEdit && (

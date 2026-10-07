@@ -30,6 +30,8 @@ type ReviewItem = {
   jobProfileId: number | null;
   skillId: number | null;
   expectedProficiency: number | null;
+  expectationSource: "profile" | "family" | "level" | "family_level" | null;
+  expectationRuleId: number | null;
   required: boolean;
   weight: string;
   selfScore: string | null;
@@ -64,6 +66,13 @@ type Review = {
   items: ReviewItem[];
 };
 
+type AgendaContribution = {
+  id: number;
+  authorName: string;
+  content: string;
+  createdAt: string;
+};
+
 type OneOnOne = {
   id: number;
   scheduledFor: string;
@@ -73,6 +82,7 @@ type OneOnOne = {
   completedAt: string | null;
   cancelledAt: string | null;
   createdByName: string;
+  agendaContributions: AgendaContribution[];
 };
 
 type SharedFeedback = {
@@ -89,6 +99,8 @@ export function HcmSelfPerformance() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [oneOnOnes, setOneOnOnes] = useState<OneOnOne[]>([]);
   const [sharedFeedback, setSharedFeedback] = useState<SharedFeedback[]>([]);
+  const [agendaDrafts, setAgendaDrafts] = useState<Record<number, string>>({});
+  const [agendaSavingId, setAgendaSavingId] = useState<number | null>(null);
   const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
   const [selfScore, setSelfScore] = useState("3");
   const [reflection, setReflection] = useState("");
@@ -155,6 +167,35 @@ export function HcmSelfPerformance() {
     setSelectedReviewId(id);
     loadDraft(review);
     setNotice("");
+  }
+
+  async function contributeAgenda(meeting: OneOnOne) {
+    const content = (agendaDrafts[meeting.id] ?? "").trim();
+    if (content.length < 5) {
+      setNotice("Add at least 5 characters for your 1:1 agenda item.");
+      return;
+    }
+    setAgendaSavingId(meeting.id);
+    setNotice("");
+    try {
+      const response = await fetch("/api/self/performance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oneOnOneId: meeting.id, content }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? "Could not add your 1:1 agenda item.");
+        return;
+      }
+      setAgendaDrafts((current) => ({ ...current, [meeting.id]: "" }));
+      await load();
+      setNotice("Agenda item shared for your upcoming 1:1. It remains separate from manager-private notes.");
+    } catch {
+      setNotice("Could not add the agenda item because the server could not be reached.");
+    } finally {
+      setAgendaSavingId(null);
+    }
   }
 
   async function submit(event: React.FormEvent) {
@@ -269,7 +310,7 @@ export function HcmSelfPerformance() {
                 <div className="employee-leave-row" key={item.id}>
                   <div>
                     <strong>{item.template?.name ?? `Review item #${item.id}`}</strong>
-                    <span>{item.template?.type?.toUpperCase() ?? "ITEM"} · {item.weight}% weight{item.expectedProficiency ? ` · role expectation ≥${item.expectedProficiency}/5` : ""}</span>
+                    <span>{item.template?.type?.toUpperCase() ?? "ITEM"} · {item.weight}% weight{item.expectedProficiency ? ` · role expectation ≥${item.expectedProficiency}/5` : ""}{item.expectationSource ? ` · ${item.expectationSource.replaceAll("_", " ")}` : ""}</span>
                     {item.employeeComment && <span>Your note: {item.employeeComment}</span>}
                     {item.managerComment && <span>Manager note: {item.managerComment}</span>}
                   </div>
@@ -290,7 +331,7 @@ export function HcmSelfPerformance() {
                     <div className="employee-edit-card" key={item.id}>
                       <div className="employee-list-card-head">
                         <div>
-                          <span className="card-kicker">{item.template?.type?.toUpperCase() ?? "REVIEW ITEM"} · {item.weight}% WEIGHT{item.expectedProficiency ? ` · EXPECTED ≥${item.expectedProficiency}/5` : ""}</span>
+                          <span className="card-kicker">{item.template?.type?.toUpperCase() ?? "REVIEW ITEM"} · {item.weight}% WEIGHT{item.expectedProficiency ? ` · EXPECTED ≥${item.expectedProficiency}/5` : ""}{item.expectationSource ? ` · ${item.expectationSource.replaceAll("_", " ").toUpperCase()}` : ""}</span>
                           <h3>{item.template?.name ?? `Review item #${item.id}`}</h3>
                           {item.template?.description && <p>{item.template.description}</p>}
                         </div>
@@ -387,8 +428,33 @@ export function HcmSelfPerformance() {
             <div>
               <strong>{new Date(meeting.scheduledFor).toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" })}</strong>
               <span>{meeting.status} · with {meeting.createdByName}</span>
-              {meeting.agenda && <span>Agenda: {meeting.agenda}</span>}
+              {meeting.agenda && <span>Manager agenda: {meeting.agenda}</span>}
+              {(meeting.agendaContributions ?? []).map((item) => (
+                <span key={item.id}>Your agenda item: {item.content}</span>
+              ))}
               {meeting.sharedSummary && <span>Summary: {meeting.sharedSummary}</span>}
+              {meeting.status === "scheduled" && (
+                <div className="employee-edit-fields" style={{ marginTop: 8 }}>
+                  <label style={{ gridColumn: "1 / -1" }}>
+                    Add an agenda item
+                    <textarea
+                      rows={2}
+                      maxLength={2000}
+                      value={agendaDrafts[meeting.id] ?? ""}
+                      onChange={(event) => setAgendaDrafts((current) => ({ ...current, [meeting.id]: event.target.value }))}
+                      placeholder="Topics, blockers, questions, or development priorities you want to discuss."
+                    />
+                  </label>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={agendaSavingId === meeting.id}
+                    onClick={() => void contributeAgenda(meeting)}
+                  >
+                    {agendaSavingId === meeting.id ? "Sharing…" : "Share agenda item"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}

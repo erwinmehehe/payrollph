@@ -117,3 +117,5 @@ the first one, so it closes itself.
 - `0079_performance_continuity.sql` adds manager 1:1 records, append-only performance feedback, and durable review reminder tasks/events without changing compensation or payroll.
 
 - `0080_performance_job_competency_calibration_controls.sql` connects performance competencies to governed job-profile skills, snapshots expected proficiency into reviews, and adds configurable calibration distribution/outlier policies and resolution flags.
+
+- `0082_performance_one_on_one_inheritance_trends.sql` adds employee-contributed 1:1 agenda items and family/level competency expectation defaults with review provenance snapshots; multi-cycle trend reporting uses existing completed review evidence and does not mutate compensation.
