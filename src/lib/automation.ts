@@ -154,7 +154,6 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "contributionSource", label: "Contribution discrepancy source", kind: "string" },
   { value: "contributionSeverity", label: "Contribution discrepancy severity", kind: "string" },
   { value: "contributionCaseId", label: "Contribution case ID", kind: "number" },
-  { value: "dynamicGroupIds", label: "Dynamic group ID", kind: "number_array" },
   { value: "dynamicGroupCodes", label: "Dynamic group code", kind: "string_array" },
 ] as const;
 
