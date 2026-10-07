@@ -1,10 +1,9 @@
 import Link from "next/link";
 import {
-  ArrowRight, BadgeCheck, BriefcaseBusiness, CalendarDays, Check, ChevronRight,
-  ClipboardCheck, Clock3, FileCheck2, FileText, Landmark, Layers3, ShieldCheck,
-  UserRoundCheck, Users, Wallet, Workflow,
+  ArrowRight, BriefcaseBusiness, CalendarDays, Check, ChevronRight,
+  ClipboardCheck, FileCheck2, FileText, Landmark, Layers3, ShieldCheck,
+  UserRoundCheck, Users, Wallet,
 } from "lucide-react";
-import type { ReactNode } from "react";
 
 const smallLabel = "text-[11px] font-bold uppercase tracking-[.16em] text-[#4373b4]";
 const headline = "font-display text-balance text-[35px] font-semibold leading-[1.1] tracking-[-.04em] text-[#14243a] sm:text-[48px]";
