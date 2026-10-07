@@ -158,6 +158,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }, { status: 422 });
   }
 
+  const bankExportValidation =
+    kind === "bank" && "validation" in file
+      ? file.validation
+      : null;
+
   await recordAuditEvent({
     organizationId: run.organizationId,
     actor,
@@ -169,6 +174,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       kind,
       filename: file.filename,
       dryRun: kind === "bank" ? dryRun : false,
+      bankFileCount: bankExportValidation?.fileCount ?? null,
+      bankFileSplitApplied: bankExportValidation?.splitApplied ?? null,
+      bankFileParts: bankExportValidation?.files ?? null,
+      payoutProfileId: bankExportValidation?.payoutProfileId ?? null,
       ruleVersion: "PH-2026.01",
       treasury: kind === "bank" && !dryRun ? finalBankTreasuryEvidence : null,
     },

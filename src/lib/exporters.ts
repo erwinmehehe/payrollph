@@ -10,8 +10,10 @@ import {
   organizations,
   payrollEntries,
   payrollRuns,
+  payoutProfiles,
 } from "@/db/schema";
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
+import { bankPartFilename, createStoredZip, splitRowsByBankLimits } from "@/lib/bank-file-bundle";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
 import { computePagIbig, computePhilHealth, computeSss } from "@/lib/payroll-rules";
@@ -280,7 +282,44 @@ export async function generateBankFile(
     }
   }
 
-  let body = "";
+  const legalEntity = await resolveComplianceLegalEntity({
+    organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
+  });
+  const [activePayoutProfile] = await db.select().from(payoutProfiles).where(and(
+    eq(payoutProfiles.organizationId, run.organizationId),
+    eq(payoutProfiles.legalEntityId, legalEntity.id),
+    eq(payoutProfiles.active, true),
+  )).limit(1);
+
+  if (
+    !dryRun
+    && activePayoutProfile?.defaultMethod === "bank_file"
+    && activePayoutProfile.bankTemplateId
+    && activePayoutProfile.bankTemplateId !== template.id
+  ) {
+    throw new Error(
+      `Final bank export must use the active payout profile's configured bank adapter for ${legalEntity.displayName}. Update the payout profile or export the configured adapter instead.`,
+    );
+  }
+
+  const matchingPayoutProfile =
+    activePayoutProfile?.defaultMethod === "bank_file"
+    && activePayoutProfile.bankTemplateId === template.id
+      ? activePayoutProfile
+      : null;
+
+  const maxAmountCents = matchingPayoutProfile?.maxAmountPerFile
+    ? Math.round(Number(matchingPayoutProfile.maxAmountPerFile) * 100)
+    : null;
+  const maxRowsPerFile = matchingPayoutProfile?.maxRowsPerFile ?? null;
+
+  const splitParts = splitRowsByBankLimits(
+    rows,
+    (row) => Math.round(Number(row.amount) * 100),
+    { maxAmountCents, maxRows: maxRowsPerFile },
+  );
+  const rowParts = splitParts.length > 0 ? splitParts : [rows];
 
   const bankProvidedMapping = readDelimitedBankMapping(template.mappings);
   const mappedProprietaryBank =
@@ -296,27 +335,26 @@ export async function generateBankFile(
     || tName.includes("rcbc");
 
   if (tName.includes("metrobank") || tName.includes("mbtc")) {
-    // Metrobank's published MBOS guide requires its portal-downloaded,
-    // preformatted Excel 97-2003 (.xls) payroll template and explicitly says
-    // the template cannot be customized. A CSV approximation is therefore not
-    // an acceptable production export.
     throw new Error(
       "Metrobank MBOS payroll requires the bank-provided formatted .xls template downloaded inside MBOS. PayrollPH will not generate a guessed CSV substitute. Capture and validate the exact bank template through UAT before enabling final export.",
     );
   }
 
-  if (mappedProprietaryBank) {
-    if (!bankProvidedMapping) {
-      throw new Error(
-        `${template.name} payroll export requires an explicit bank-provided template mapping. Configure bank_templates.mappings from the bank's current corporate-payroll specification and record portal UAT for that exact template version; PayrollPH will not guess a proprietary layout.`,
-      );
-    }
-    if (template.format.toUpperCase() === "XLS" || template.format.toUpperCase() === "XLSX") {
-      throw new Error(
-        `${template.name} uses a workbook template that cannot be reproduced safely from a delimited mapping. Store/use the exact bank-provided workbook and validate it in the corporate portal instead of generating substitute bytes.`,
-      );
-    }
+  if (mappedProprietaryBank && !bankProvidedMapping) {
+    throw new Error(
+      `${template.name} payroll export requires an explicit bank-provided template mapping. Configure bank_templates.mappings from the bank's current corporate-payroll specification and record portal UAT for that exact template version; PayrollPH will not guess a proprietary layout.`,
+    );
+  }
+  if (
+    mappedProprietaryBank
+    && (template.format.toUpperCase() === "XLS" || template.format.toUpperCase() === "XLSX")
+  ) {
+    throw new Error(
+      `${template.name} uses a workbook template that cannot be reproduced safely from a delimited mapping. Store/use the exact bank-provided workbook and validate it in the corporate portal instead of generating substitute bytes.`,
+    );
+  }
 
+  if (bankProvidedMapping) {
     const identityFields = new Set<MappedBankField>([
       "first_name",
       "middle_name",
@@ -332,66 +370,102 @@ export async function generateBankFile(
         );
       }
     }
+  }
 
-    body = renderMappedBankRows(
-      rows.map((row) => ({
-        account_number: row.account_number,
-        employee_name: row.employee_name,
-        employee_no: row.employee_no,
-        first_name: row.first_name,
-        middle_name: row.middle_name,
-        last_name: row.last_name,
-        email: row.email,
-        mobile: row.mobile,
-        bank_code: row.bank_code,
-        amount: Number(row.amount).toFixed(2),
-        net_pay: Number(row.net_pay).toFixed(2),
-        payment_date: row.payment_date,
-        reference: row.reference,
-      })),
-      bankProvidedMapping,
-    );
-  } else if (tName.includes("gcash")) {
-    const header = ["mobile", "employee_name", "amount", "reference"];
-    body = [header.join(","), ...rows.map((row) => [row.mobile, row.employee_name, row.amount, `${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
-  } else if (tName.includes("maya") || tName.includes("paymaya")) {
-    const header = ["Recipient_Mobile", "Recipient_Name", "Disbursement_Amount", "Batch_Reference"];
-    body = [header.join(","), ...rows.map((row) => [row.mobile, row.employee_name, row.amount, `MAYA-${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
-  } else if (tName.includes("america") || tName.includes("cashpro")) {
-    const header = ["Receiving_Account", "Account_Holder", "Amount", "Currency", "PBR_Reference"];
-    body = [header.join(","), ...rows.map((row) => [row.account_number, row.employee_name, row.amount, "PHP", `BOA-${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
-  } else if (bankProvidedMapping) {
-    body = renderMappedBankRows(
-      rows.map((row) => ({
-        account_number: row.account_number,
-        employee_name: row.employee_name,
-        employee_no: row.employee_no,
-        first_name: row.first_name,
-        middle_name: row.middle_name,
-        last_name: row.last_name,
-        email: row.email,
-        mobile: row.mobile,
-        bank_code: row.bank_code,
-        amount: Number(row.amount).toFixed(2),
-        net_pay: Number(row.net_pay).toFixed(2),
-        payment_date: row.payment_date,
-        reference: row.reference,
-      })),
-      bankProvidedMapping,
-    );
-  } else {
+  const renderBody = (partRows: typeof rows) => {
+    if (bankProvidedMapping) {
+      return renderMappedBankRows(
+        partRows.map((row) => ({
+          account_number: row.account_number,
+          employee_name: row.employee_name,
+          employee_no: row.employee_no,
+          first_name: row.first_name,
+          middle_name: row.middle_name,
+          last_name: row.last_name,
+          email: row.email,
+          mobile: row.mobile,
+          bank_code: row.bank_code,
+          amount: Number(row.amount).toFixed(2),
+          net_pay: Number(row.net_pay).toFixed(2),
+          payment_date: row.payment_date,
+          reference: row.reference,
+        })),
+        bankProvidedMapping,
+      );
+    }
+    if (tName.includes("gcash")) {
+      const header = ["mobile", "employee_name", "amount", "reference"];
+      return [header.join(","), ...partRows.map((row) => [row.mobile, row.employee_name, row.amount, `${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
+    }
+    if (tName.includes("maya") || tName.includes("paymaya")) {
+      const header = ["Recipient_Mobile", "Recipient_Name", "Disbursement_Amount", "Batch_Reference"];
+      return [header.join(","), ...partRows.map((row) => [row.mobile, row.employee_name, row.amount, `MAYA-${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
+    }
+    if (tName.includes("america") || tName.includes("cashpro")) {
+      const header = ["Receiving_Account", "Account_Holder", "Amount", "Currency", "PBR_Reference"];
+      return [header.join(","), ...partRows.map((row) => [row.account_number, row.employee_name, row.amount, "PHP", `BOA-${run.id}-${row.employee_no}`].map(csv).join(","))].join("\n");
+    }
     throw new Error(
       `${template.name} has no verified bank-provided file mapping. PayrollPH will not emit a generic "universal bank CSV" for an unverified bank template.`,
     );
+  };
+
+  const baseFilename = `${options.allowSyntheticDemoDestinations ? "demo-" : ""}${template.name.replaceAll(" ", "-").toLowerCase()}-${run.id}.${template.format.toLowerCase()}`;
+  const renderedParts = rowParts.map((partRows, index) => {
+    const totalCents = partRows.reduce(
+      (sum, row) => sum + Math.round(Number(row.amount) * 100),
+      0,
+    );
+    const filename = bankPartFilename(baseFilename, index + 1, rowParts.length);
+    const rendered = renderBody(partRows);
+    const body = dryRun
+      ? `# DRY-RUN VALIDATION\n# template=${template.name} version=${template.version}\n# part=${index + 1}/${rowParts.length}\n# rows=${partRows.length} totalNet=${(totalCents / 100).toFixed(2)}\n# maxAmountPerFile=${matchingPayoutProfile?.maxAmountPerFile ?? "none"} maxRowsPerFile=${maxRowsPerFile ?? "none"}\n# missingAccounts=${validation.missingAccounts} missingMobiles=${validation.missingMobiles} missingPaymentSnapshots=${validation.missingPaymentSnapshots}\n# syntheticDemoDestinations=${validation.syntheticDemoDestinations}\n# This is a preview. Final files require a released run and immutable payment snapshots.\n${rendered}`
+      : rendered;
+    return {
+      filename,
+      body,
+      rowCount: partRows.length,
+      totalCents,
+    };
+  });
+
+  const combinedCents = renderedParts.reduce((sum, part) => sum + part.totalCents, 0);
+  const releasedCents = Math.round(Number(run.netPay) * 100);
+  if (!dryRun && combinedCents !== releasedCents) {
+    throw new Error(
+      `Split bank files do not reconcile to released payroll net pay: files PHP ${(combinedCents / 100).toFixed(2)} vs released PHP ${(releasedCents / 100).toFixed(2)}.`,
+    );
   }
 
+  const splitValidation = {
+    ...validation,
+    fileCount: renderedParts.length,
+    splitApplied: renderedParts.length > 1,
+    maxAmountPerFile: matchingPayoutProfile?.maxAmountPerFile ?? null,
+    maxRowsPerFile,
+    payoutProfileId: matchingPayoutProfile?.id ?? null,
+    files: renderedParts.map((part) => ({
+      filename: part.filename,
+      rowCount: part.rowCount,
+      totalNet: (part.totalCents / 100).toFixed(2),
+    })),
+  };
+
+  if (renderedParts.length === 1) {
+    return {
+      filename: renderedParts[0]!.filename,
+      contentType: template.format === "CSV" ? "text/csv" : "text/plain",
+      body: renderedParts[0]!.body,
+      validation: splitValidation,
+    };
+  }
+
+  const zipFilename = `${baseFilename.replace(/\.[^.]+$/, "")}-${renderedParts.length}-files.zip`;
   return {
-    filename: `${options.allowSyntheticDemoDestinations ? "demo-" : ""}${template.name.replaceAll(" ", "-").toLowerCase()}-${run.id}.${template.format.toLowerCase()}`,
-    contentType: template.format === "CSV" ? "text/csv" : "text/plain",
-    body: dryRun
-      ? `# DRY-RUN VALIDATION\n# template=${template.name} version=${template.version}\n# rows=${validation.rowCount} totalNet=${validation.totalNet}\n# missingAccounts=${validation.missingAccounts} missingMobiles=${validation.missingMobiles} missingPaymentSnapshots=${validation.missingPaymentSnapshots}\n# syntheticDemoDestinations=${validation.syntheticDemoDestinations}\n# This is a preview. Final files require a released run and immutable payment snapshots.\n${body}`
-      : body,
-    validation,
+    filename: zipFilename,
+    contentType: "application/zip",
+    body: createStoredZip(renderedParts.map((part) => ({ name: part.filename, body: part.body }))),
+    validation: splitValidation,
   };
 }
 
