@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalChainInstanceSteps,
@@ -140,16 +140,11 @@ export async function advanceApprovalChainAfterDecision(input: {
   }
 
   return db.transaction(async (tx) => {
-    await tx.execute(
-      // Lock the chain instance so two approval decisions cannot advance the
-      // same sequence concurrently.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (await import("drizzle-orm")).sql`
-        select id from approval_chain_instances
-        where id = ${task.approvalChainInstanceId}
-        for update
-      `,
-    );
+    await tx.execute(sql`
+      select id from approval_chain_instances
+      where id = ${task.approvalChainInstanceId}
+      for update
+    `);
 
     const [instance] = await tx.select().from(approvalChainInstances).where(
       eq(approvalChainInstances.id, task.approvalChainInstanceId),
