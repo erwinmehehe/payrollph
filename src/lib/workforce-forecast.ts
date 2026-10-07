@@ -386,10 +386,12 @@ export function buildWorkforceDemandForecast(input: {
   const averageBaseHourlyRate = hourlyRates.length
     ? hourlyRates.reduce((sum, value) => sum + value, 0) / hourlyRates.length
     : 0;
-  const activeAnnualLoadedCost = annualizedBasePayroll + annualizedEmployerStatutory + annualizedEmployerBenefits;
+  const activeAnnualLoadedCost = annualizedBasePayroll * (1 + employerLoadPercent / 100)
+    + annualizedEmployerStatutory
+    + annualizedEmployerBenefits;
   const activeAnnualCapacity = [...annualCapacityByEmployee.values()].reduce((sum, value) => sum + value, 0);
   const averageLoadedHourlyRate = activeAnnualCapacity > 0
-    ? activeAnnualLoadedCost / activeAnnualCapacity * (1 + employerLoadPercent / 100)
+    ? activeAnnualLoadedCost / activeAnnualCapacity
     : 0;
   const estimatedShiftDemandWageCost = forecastHeadcountHours * averageLoadedHourlyRate;
 
@@ -401,11 +403,11 @@ export function buildWorkforceDemandForecast(input: {
   const allocationIssueEmployeeIds: number[] = [];
 
   for (const [employeeId, annualCost] of annualCostByEmployee) {
-    const annualLoadedCost = annualCost
+    const annualLoadedCost = annualCost * (1 + employerLoadPercent / 100)
       + (annualStatutoryByEmployee.get(employeeId) ?? 0)
       + (annualBenefitByEmployee.get(employeeId) ?? 0);
     const periodCost = annualCost * windowDays / 365.25;
-    const periodLoadedCost = annualLoadedCost * windowDays / 365.25 * (1 + employerLoadPercent / 100);
+    const periodLoadedCost = annualLoadedCost * windowDays / 365.25;
     try {
       const resolved = resolveLaborAllocation({
         employeeId,
