@@ -2798,6 +2798,7 @@ export const performanceTemplates = pgTable(
     type: varchar("type", { length: 24 }).notNull(),
     description: text("description"),
     jobProfileId: integer("job_profile_id").references((): AnyPgColumn => jobProfiles.id, { onDelete: "set null" }),
+    skillId: integer("skill_id").references((): AnyPgColumn => hcmSkills.id, { onDelete: "set null" }),
     defaultWeight: numeric("default_weight", { precision: 5, scale: 2 }).notNull().default("0"),
     ratingAnchors: jsonb("rating_anchors").notNull().default({}),
     active: boolean("active").notNull().default(true),
@@ -2808,6 +2809,9 @@ export const performanceTemplates = pgTable(
   (table) => [
     uniqueIndex("performance_templates_org_code_unique").on(table.organizationId, table.code),
     index("performance_templates_org_type_idx").on(table.organizationId, table.type, table.active),
+    uniqueIndex("performance_templates_org_skill_competency_unique")
+      .on(table.organizationId, table.skillId)
+      .where(sql`${table.skillId} is not null and ${table.type} = 'competency'`),
     check("performance_templates_type_check", sql`${table.type} IN ('competency','kra')`),
     check("performance_templates_weight_check", sql`${table.defaultWeight} >= 0 AND ${table.defaultWeight} <= 100`),
   ],
@@ -2838,6 +2842,11 @@ export const performanceReviewItems = pgTable(
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     reviewId: integer("review_id").notNull().references(() => performanceReviews.id, { onDelete: "cascade" }),
     templateId: integer("template_id").notNull().references(() => performanceTemplates.id, { onDelete: "restrict" }),
+    jobProfileId: integer("job_profile_id").references((): AnyPgColumn => jobProfiles.id, { onDelete: "set null" }),
+    skillId: integer("skill_id").references((): AnyPgColumn => hcmSkills.id, { onDelete: "set null" }),
+    expectedProficiency: integer("expected_proficiency"),
+    required: boolean("required").notNull().default(true),
+    weight: numeric("weight", { precision: 5, scale: 2 }).notNull().default("0"),
     selfScore: numeric("self_score", { precision: 4, scale: 2 }),
     managerScore: numeric("manager_score", { precision: 4, scale: 2 }),
     finalScore: numeric("final_score", { precision: 4, scale: 2 }),
@@ -2849,9 +2858,12 @@ export const performanceReviewItems = pgTable(
   (table) => [
     uniqueIndex("performance_review_items_unique").on(table.reviewId, table.templateId),
     index("performance_review_items_org_review_idx").on(table.organizationId, table.reviewId),
+    index("performance_review_items_skill_idx").on(table.organizationId, table.skillId, table.jobProfileId),
     check("performance_review_items_self_score_check", sql`${table.selfScore} IS NULL OR (${table.selfScore} >= 1 AND ${table.selfScore} <= 5)`),
     check("performance_review_items_manager_score_check", sql`${table.managerScore} IS NULL OR (${table.managerScore} >= 1 AND ${table.managerScore} <= 5)`),
     check("performance_review_items_final_score_check", sql`${table.finalScore} IS NULL OR (${table.finalScore} >= 1 AND ${table.finalScore} <= 5)`),
+    check("performance_review_items_expected_proficiency_check", sql`${table.expectedProficiency} IS NULL OR (${table.expectedProficiency} >= 1 AND ${table.expectedProficiency} <= 5)`),
+    check("performance_review_items_weight_check", sql`${table.weight} >= 0 AND ${table.weight} <= 100`),
   ],
 );
 
