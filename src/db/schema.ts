@@ -775,6 +775,10 @@ export const staffingRequirements = pgTable(
     shiftDefinitionId: integer("shift_definition_id").notNull().references(() => shiftDefinitions.id, { onDelete: "restrict" }),
     jobProfileId: integer("job_profile_id").references(() => jobProfiles.id, { onDelete: "restrict" }),
     requiredHeadcount: integer("required_headcount").notNull(),
+    sourceType: varchar("source_type", { length: 32 }).notNull().default("manual"),
+    sourcePlanId: integer("source_plan_id").references(() => workforcePlans.id, { onDelete: "set null" }),
+    sourcePositionIds: jsonb("source_position_ids").notNull().default([]),
+    sourceHandoffKey: varchar("source_handoff_key", { length: 180 }),
     notes: varchar("notes", { length: 240 }),
     createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
     createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
@@ -791,6 +795,10 @@ export const staffingRequirements = pgTable(
     ),
     index("staffing_requirement_date_idx").on(table.organizationId, table.workDate),
     index("staffing_requirement_role_idx").on(table.organizationId, table.jobProfileId, table.workDate),
+    index("staffing_requirement_source_plan_idx").on(table.organizationId, table.sourcePlanId, table.workDate),
+    uniqueIndex("staffing_requirement_handoff_key_unique")
+      .on(table.organizationId, table.sourceHandoffKey)
+      .where(sql`${table.sourceHandoffKey} is not null`),
   ],
 );
 
@@ -1999,6 +2007,15 @@ export const benefitPlans = pgTable("benefit_plans", {
   // Voluntary programmes capped by law (e.g. Pag-IBIG MP2 accrual ceiling).
   cap: numeric("cap", { precision: 12, scale: 2 }),
   provider: varchar("provider", { length: 80 }),
+  planCode: varchar("plan_code", { length: 48 }),
+  contractNumber: varchar("contract_number", { length: 80 }),
+  contractStart: date("contract_start"),
+  contractEnd: date("contract_end"),
+  annualBenefitLimit: numeric("annual_benefit_limit", { precision: 12, scale: 2 }),
+  dependentShare: numeric("dependent_share", { precision: 10, scale: 2 }).notNull().default("0"),
+  employerPaidDependents: integer("employer_paid_dependents").notNull().default(0),
+  waitingPeriodDays: integer("waiting_period_days").notNull().default(0),
+  coverageDetails: jsonb("coverage_details").notNull().default({}),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -2011,11 +2028,49 @@ export const benefitEnrollments = pgTable("benefit_enrollments", {
   // Voluntary savers can over- or under-pay the default within the plan cap.
   monthlyContribution: numeric("monthly_contribution", { precision: 10, scale: 2 }).notNull().default("0"),
   status: varchar("status", { length: 24 }).notNull().default("active"),
+  providerStatus: varchar("provider_status", { length: 32 }).notNull().default("not_sent"),
+  providerMemberId: varchar("provider_member_id", { length: 80 }),
   startedOn: date("started_on").notNull(),
+  effectiveOn: date("effective_on"),
   endedOn: date("ended_on"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("benefit_enrollment_unique").on(table.employeeId, table.planId, table.startedOn),
+]);
+
+export const benefitDependents = pgTable("benefit_dependents", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  enrollmentId: integer("enrollment_id").notNull().references(() => benefitEnrollments.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 160 }).notNull(),
+  relationship: varchar("relationship", { length: 32 }).notNull(),
+  birthDate: date("birth_date").notNull(),
+  sex: varchar("sex", { length: 24 }),
+  status: varchar("status", { length: 32 }).notNull().default("pending"),
+  monthlyContribution: numeric("monthly_contribution", { precision: 10, scale: 2 }).notNull().default("0"),
+  providerMemberId: varchar("provider_member_id", { length: 80 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("benefit_dependents_enrollment_identity_unique").on(table.enrollmentId, table.name, table.birthDate),
+  index("benefit_dependents_org_employee_idx").on(table.organizationId, table.employeeId, table.status),
+]);
+
+export const benefitEnrollmentEvents = pgTable("benefit_enrollment_events", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  enrollmentId: integer("enrollment_id").notNull().references(() => benefitEnrollments.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  eventType: varchar("event_type", { length: 48 }).notNull(),
+  status: varchar("status", { length: 32 }),
+  note: text("note"),
+  metadata: jsonb("metadata").notNull().default({}),
+  actor: varchar("actor", { length: 120 }).notNull().default("System"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("benefit_enrollment_events_enrollment_idx").on(table.organizationId, table.enrollmentId, table.createdAt),
+  index("benefit_enrollment_events_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
 ]);
 
 export const auditEvents = pgTable("audit_events", {
@@ -2845,6 +2900,8 @@ export const performanceReviewItems = pgTable(
     jobProfileId: integer("job_profile_id").references((): AnyPgColumn => jobProfiles.id, { onDelete: "set null" }),
     skillId: integer("skill_id").references((): AnyPgColumn => hcmSkills.id, { onDelete: "set null" }),
     expectedProficiency: integer("expected_proficiency"),
+    expectationSource: varchar("expectation_source", { length: 24 }),
+    expectationRuleId: integer("expectation_rule_id").references((): AnyPgColumn => hcmSkillExpectationDefaults.id, { onDelete: "set null" }),
     required: boolean("required").notNull().default(true),
     weight: numeric("weight", { precision: 5, scale: 2 }).notNull().default("0"),
     selfScore: numeric("self_score", { precision: 4, scale: 2 }),
@@ -2859,10 +2916,12 @@ export const performanceReviewItems = pgTable(
     uniqueIndex("performance_review_items_unique").on(table.reviewId, table.templateId),
     index("performance_review_items_org_review_idx").on(table.organizationId, table.reviewId),
     index("performance_review_items_skill_idx").on(table.organizationId, table.skillId, table.jobProfileId),
+    index("performance_review_items_expectation_rule_idx").on(table.organizationId, table.expectationRuleId),
     check("performance_review_items_self_score_check", sql`${table.selfScore} IS NULL OR (${table.selfScore} >= 1 AND ${table.selfScore} <= 5)`),
     check("performance_review_items_manager_score_check", sql`${table.managerScore} IS NULL OR (${table.managerScore} >= 1 AND ${table.managerScore} <= 5)`),
     check("performance_review_items_final_score_check", sql`${table.finalScore} IS NULL OR (${table.finalScore} >= 1 AND ${table.finalScore} <= 5)`),
     check("performance_review_items_expected_proficiency_check", sql`${table.expectedProficiency} IS NULL OR (${table.expectedProficiency} >= 1 AND ${table.expectedProficiency} <= 5)`),
+    check("performance_review_items_expectation_source_check", sql`${table.expectationSource} IS NULL OR ${table.expectationSource} IN (\'profile\',\'family\',\'level\',\'family_level\')`),
     check("performance_review_items_weight_check", sql`${table.weight} >= 0 AND ${table.weight} <= 100`),
   ],
 );
@@ -3025,6 +3084,173 @@ export const performanceOneOnOnes = pgTable(
   ],
 );
 
+export const performanceOneOnOneAgendaContributions = pgTable(
+  "performance_one_on_one_agenda_contributions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    oneOnOneId: integer("one_on_one_id").notNull().references(() => performanceOneOnOnes.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    authorUserId: integer("author_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    authorEmployeeId: integer("author_employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    authorName: varchar("author_name", { length: 120 }).notNull(),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_one_on_one_agenda_contributions_meeting_idx").on(table.organizationId, table.oneOnOneId, table.createdAt),
+    index("performance_one_on_one_agenda_contributions_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+  ],
+);
+
+export const performanceOneOnOneActionItems = pgTable(
+  "performance_one_on_one_action_items",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    oneOnOneId: integer("one_on_one_id").notNull().references(() => performanceOneOnOnes.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    ownerKind: varchar("owner_kind", { length: 16 }).notNull(),
+    ownerUserId: integer("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    ownerEmployeeId: integer("owner_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    ownerName: varchar("owner_name", { length: 120 }).notNull(),
+    title: varchar("title", { length: 220 }).notNull(),
+    detail: text("detail"),
+    dueDate: date("due_date").notNull(),
+    visibility: varchar("visibility", { length: 24 }).notNull().default("employee_shared"),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    completedByUserId: integer("completed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    completedByName: varchar("completed_by_name", { length: 120 }),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_one_on_one_action_items_meeting_idx").on(table.organizationId, table.oneOnOneId, table.status, table.dueDate),
+    index("performance_one_on_one_action_items_owner_user_idx").on(table.organizationId, table.ownerUserId, table.status, table.dueDate),
+    index("performance_one_on_one_action_items_owner_employee_idx").on(table.organizationId, table.ownerEmployeeId, table.status, table.dueDate),
+    check("performance_one_on_one_action_items_owner_kind_check", sql`${table.ownerKind} IN ('employee','manager')`),
+    check("performance_one_on_one_action_items_owner_check", sql`(${table.ownerKind} = 'employee' AND ${table.ownerEmployeeId} IS NOT NULL) OR (${table.ownerKind} = 'manager' AND ${table.ownerUserId} IS NOT NULL)`),
+    check("performance_one_on_one_action_items_visibility_check", sql`${table.visibility} IN ('employee_shared','manager_private')`),
+    check("performance_one_on_one_action_items_status_check", sql`${table.status} IN ('open','in_progress','completed','cancelled')`),
+  ],
+);
+
+export const performanceOneOnOneActionItemEvents = pgTable(
+  "performance_one_on_one_action_item_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    actionItemId: integer("action_item_id").notNull().references(() => performanceOneOnOneActionItems.id, { onDelete: "cascade" }),
+    oneOnOneId: integer("one_on_one_id").notNull().references(() => performanceOneOnOnes.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    note: text("note"),
+    beforeSnapshot: jsonb("before_snapshot"),
+    afterSnapshot: jsonb("after_snapshot"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_one_on_one_action_item_events_item_idx").on(table.organizationId, table.actionItemId, table.createdAt),
+    check("performance_one_on_one_action_item_events_type_check", sql`${table.eventType} IN ('created','updated','status_changed','reassigned','due_date_changed','visibility_changed','reopened','cancelled')`),
+  ],
+);
+
+export const performanceActionReminderPolicies = pgTable(
+  "performance_action_reminder_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    version: integer("version").notNull().default(1),
+    enabled: boolean("enabled").notNull().default(true),
+    reminderDaysBefore: integer("reminder_days_before").notNull().default(3),
+    escalationDaysOverdue: integer("escalation_days_overdue").notNull().default(3),
+    notifyManagerOnEmployeeItem: boolean("notify_manager_on_employee_item").notNull().default(true),
+    notifyPeopleAdminOnEscalation: boolean("notify_people_admin_on_escalation").notNull().default(true),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    updatedByName: varchar("updated_by_name", { length: 120 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_action_reminder_policies_org_unique").on(table.organizationId),
+    check("performance_action_reminder_policy_days_before_check", sql`${table.reminderDaysBefore} >= 0 AND ${table.reminderDaysBefore} <= 30`),
+    check("performance_action_reminder_policy_escalation_check", sql`${table.escalationDaysOverdue} >= 1 AND ${table.escalationDaysOverdue} <= 90`),
+  ],
+);
+
+export const performanceActionReminderPolicyEvents = pgTable(
+  "performance_action_reminder_policy_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    policyId: integer("policy_id").notNull().references(() => performanceActionReminderPolicies.id, { onDelete: "restrict" }),
+    fromVersion: integer("from_version"),
+    toVersion: integer("to_version").notNull(),
+    beforeSnapshot: jsonb("before_snapshot"),
+    afterSnapshot: jsonb("after_snapshot").notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+export const performanceActionItemReminderTasks = pgTable(
+  "performance_action_item_reminder_tasks",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    actionItemId: integer("action_item_id").notNull().references(() => performanceOneOnOneActionItems.id, { onDelete: "cascade" }),
+    oneOnOneId: integer("one_on_one_id").notNull().references(() => performanceOneOnOnes.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    sourceKey: varchar("source_key", { length: 180 }).notNull(),
+    stage: varchar("stage", { length: 32 }).notNull(),
+    dueDate: date("due_date").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    ownerUserId: integer("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    ownerEmployeeId: integer("owner_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    ownerName: varchar("owner_name", { length: 120 }),
+    managerUserId: integer("manager_user_id").references(() => users.id, { onDelete: "set null" }),
+    managerName: varchar("manager_name", { length: 120 }),
+    escalatedToUserId: integer("escalated_to_user_id").references(() => users.id, { onDelete: "set null" }),
+    escalatedToName: varchar("escalated_to_name", { length: 120 }),
+    notificationEpisode: integer("notification_episode").notNull().default(1),
+    lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_action_item_reminder_source_unique").on(table.organizationId, table.sourceKey),
+    index("performance_action_item_reminder_status_idx").on(table.organizationId, table.status, table.dueDate, table.stage),
+    check("performance_action_item_reminder_stage_check", sql`${table.stage} IN ('upcoming','due','overdue','overdue_escalated')`),
+    check("performance_action_item_reminder_status_check", sql`${table.status} IN ('open','resolved')`),
+    check("performance_action_item_reminder_episode_check", sql`${table.notificationEpisode} >= 1`),
+  ],
+);
+
+export const performanceActionItemReminderEvents = pgTable(
+  "performance_action_item_reminder_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    taskId: integer("task_id").notNull().references(() => performanceActionItemReminderTasks.id, { onDelete: "cascade" }),
+    actionItemId: integer("action_item_id").notNull().references(() => performanceOneOnOneActionItems.id, { onDelete: "cascade" }),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_action_item_reminder_events_task_idx").on(table.organizationId, table.taskId, table.createdAt),
+  ],
+);
+
 export const performanceFeedback = pgTable(
   "performance_feedback",
   {
@@ -3046,6 +3272,197 @@ export const performanceFeedback = pgTable(
     index("performance_feedback_org_author_idx").on(table.organizationId, table.authorUserId, table.occurredAt),
     check("performance_feedback_type_check", sql`${table.feedbackType} IN ('praise','coaching','development','general')`),
     check("performance_feedback_visibility_check", sql`${table.visibility} IN ('employee_shared','manager_private')`),
+  ],
+);
+
+export const performanceSkillDevelopmentPlans = pgTable(
+  "performance_skill_development_plans",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    skillId: integer("skill_id").notNull().references(() => hcmSkills.id, { onDelete: "restrict" }),
+    sourceCycleId: integer("source_cycle_id").references(() => performanceCycles.id, { onDelete: "set null" }),
+    sourceReviewItemId: integer("source_review_item_id").references(() => performanceReviewItems.id, { onDelete: "set null" }),
+    sourceSnapshot: jsonb("source_snapshot").notNull().default({}),
+    title: varchar("title", { length: 220 }).notNull(),
+    objective: text("objective").notNull(),
+    currentProficiency: numeric("current_proficiency", { precision: 4, scale: 2 }),
+    targetProficiency: numeric("target_proficiency", { precision: 4, scale: 2 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("planned"),
+    targetDate: date("target_date").notNull(),
+    managerUserId: integer("manager_user_id").references(() => users.id, { onDelete: "set null" }),
+    employeeVisible: boolean("employee_visible").notNull().default(true),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_skill_development_plan_open_unique")
+      .on(table.organizationId, table.employeeId, table.skillId)
+      .where(sql`${table.status} IN ('planned','in_progress')`),
+    index("performance_skill_development_plan_status_idx").on(table.organizationId, table.employeeId, table.status, table.targetDate),
+    check("performance_skill_development_plan_status_check", sql`${table.status} IN ('planned','in_progress','completed','cancelled')`),
+    check("performance_skill_development_plan_target_check", sql`${table.targetProficiency} >= 1 AND ${table.targetProficiency} <= 5`),
+    check("performance_skill_development_plan_current_check", sql`${table.currentProficiency} IS NULL OR (${table.currentProficiency} >= 1 AND ${table.currentProficiency} <= 5)`),
+  ],
+);
+
+export const performanceSkillDevelopmentMilestones = pgTable(
+  "performance_skill_development_milestones",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    planId: integer("plan_id").notNull().references(() => performanceSkillDevelopmentPlans.id, { onDelete: "cascade" }),
+    title: varchar("title", { length: 220 }).notNull(),
+    detail: text("detail"),
+    dueDate: date("due_date").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    completedByUserId: integer("completed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    completedByName: varchar("completed_by_name", { length: 120 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_skill_development_milestone_plan_idx").on(table.organizationId, table.planId, table.status, table.dueDate),
+    check("performance_skill_development_milestone_status_check", sql`${table.status} IN ('open','in_progress','completed','cancelled')`),
+  ],
+);
+
+export const performanceSkillDevelopmentProgress = pgTable(
+  "performance_skill_development_progress",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    planId: integer("plan_id").notNull().references(() => performanceSkillDevelopmentPlans.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    authorUserId: integer("author_user_id").references(() => users.id, { onDelete: "set null" }),
+    authorEmployeeId: integer("author_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    authorName: varchar("author_name", { length: 120 }).notNull(),
+    progressPercent: integer("progress_percent"),
+    content: text("content").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_skill_development_progress_plan_idx").on(table.organizationId, table.planId, table.createdAt),
+    check("performance_skill_development_progress_percent_check", sql`${table.progressPercent} IS NULL OR (${table.progressPercent} >= 0 AND ${table.progressPercent} <= 100)`),
+  ],
+);
+
+export const performanceSkillDevelopmentPlanEvents = pgTable(
+  "performance_skill_development_plan_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    planId: integer("plan_id").notNull().references(() => performanceSkillDevelopmentPlans.id, { onDelete: "cascade" }),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    note: text("note"),
+    beforeSnapshot: jsonb("before_snapshot"),
+    afterSnapshot: jsonb("after_snapshot"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_skill_development_plan_events_plan_idx").on(table.organizationId, table.planId, table.createdAt),
+  ],
+);
+
+export const performanceEvidencePolicies = pgTable(
+  "performance_evidence_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    version: integer("version").notNull().default(1),
+    retentionYears: integer("retention_years").notNull().default(7),
+    autoSealCompletedCycles: boolean("auto_seal_completed_cycles").notNull().default(true),
+    allowPostSealAmendments: boolean("allow_post_seal_amendments").notNull().default(true),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    updatedByName: varchar("updated_by_name", { length: 120 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_evidence_policies_org_unique").on(table.organizationId),
+    check("performance_evidence_policy_retention_check", sql`${table.retentionYears} >= 1 AND ${table.retentionYears} <= 20`),
+  ],
+);
+
+export const performanceEvidencePolicyEvents = pgTable(
+  "performance_evidence_policy_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    policyId: integer("policy_id").notNull().references(() => performanceEvidencePolicies.id, { onDelete: "restrict" }),
+    fromVersion: integer("from_version"),
+    toVersion: integer("to_version").notNull(),
+    beforeSnapshot: jsonb("before_snapshot"),
+    afterSnapshot: jsonb("after_snapshot").notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+export const performanceCycleEvidenceSeals = pgTable(
+  "performance_cycle_evidence_seals",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    cycleId: integer("cycle_id").notNull().references(() => performanceCycles.id, { onDelete: "restrict" }),
+    policyVersion: integer("policy_version").notNull(),
+    policySnapshot: jsonb("policy_snapshot").notNull(),
+    manifest: jsonb("manifest").notNull(),
+    manifestHash: varchar("manifest_hash", { length: 64 }).notNull(),
+    sealedByUserId: integer("sealed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    sealedByName: varchar("sealed_by_name", { length: 120 }).notNull(),
+    sealedAt: timestamp("sealed_at", { withTimezone: true }).notNull().defaultNow(),
+    retentionUntil: date("retention_until").notNull(),
+    legalHold: boolean("legal_hold").notNull().default(false),
+    legalHoldReason: text("legal_hold_reason"),
+    legalHoldSetByUserId: integer("legal_hold_set_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    legalHoldSetByName: varchar("legal_hold_set_by_name", { length: 120 }),
+    legalHoldSetAt: timestamp("legal_hold_set_at", { withTimezone: true }),
+    latestAmendmentNumber: integer("latest_amendment_number").notNull().default(0),
+    lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+    lastVerificationStatus: varchar("last_verification_status", { length: 24 }),
+    lastVerifiedHash: varchar("last_verified_hash", { length: 64 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_cycle_evidence_seals_cycle_unique").on(table.organizationId, table.cycleId),
+    index("performance_cycle_evidence_seals_retention_idx").on(table.organizationId, table.retentionUntil, table.legalHold),
+    check("performance_cycle_evidence_seal_verification_check", sql`${table.lastVerificationStatus} IS NULL OR ${table.lastVerificationStatus} IN ('match','mismatch')`),
+  ],
+);
+
+export const performanceCycleEvidenceAmendments = pgTable(
+  "performance_cycle_evidence_amendments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    sealId: integer("seal_id").notNull().references(() => performanceCycleEvidenceSeals.id, { onDelete: "restrict" }),
+    cycleId: integer("cycle_id").notNull().references(() => performanceCycles.id, { onDelete: "restrict" }),
+    amendmentNumber: integer("amendment_number").notNull(),
+    employeeId: integer("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    reason: varchar("reason", { length: 500 }).notNull(),
+    detail: text("detail").notNull(),
+    previousChainHash: varchar("previous_chain_hash", { length: 64 }).notNull(),
+    amendmentHash: varchar("amendment_hash", { length: 64 }).notNull(),
+    chainHash: varchar("chain_hash", { length: 64 }).notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_cycle_evidence_amendments_number_unique").on(table.sealId, table.amendmentNumber),
+    index("performance_cycle_evidence_amendments_cycle_idx").on(table.organizationId, table.cycleId, table.createdAt),
   ],
 );
 
@@ -3224,6 +3641,36 @@ export const hcmJobProfileSkillRequirements = pgTable(
   (table) => [
     uniqueIndex("hcm_job_profile_skill_unique").on(table.jobProfileId, table.skillId),
     index("hcm_job_profile_skill_profile_idx").on(table.organizationId, table.jobProfileId),
+  ],
+);
+
+export const hcmSkillExpectationDefaults = pgTable(
+  "hcm_skill_expectation_defaults",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    jobFamilyId: integer("job_family_id").references(() => jobFamilies.id, { onDelete: "cascade" }),
+    jobLevelId: integer("job_level_id").references(() => jobLevels.id, { onDelete: "cascade" }),
+    skillId: integer("skill_id").notNull().references(() => hcmSkills.id, { onDelete: "restrict" }),
+    minimumProficiency: integer("minimum_proficiency").notNull().default(1),
+    mandatory: boolean("mandatory").notNull().default(false),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_skill_expectation_defaults_scope_unique").on(
+      table.organizationId,
+      sql`coalesce(${table.jobFamilyId}, 0)`,
+      sql`coalesce(${table.jobLevelId}, 0)`,
+      table.skillId,
+    ),
+    index("hcm_skill_expectation_defaults_family_idx").on(table.organizationId, table.jobFamilyId, table.active),
+    index("hcm_skill_expectation_defaults_level_idx").on(table.organizationId, table.jobLevelId, table.active),
+    check("hcm_skill_expectation_defaults_scope_check", sql`${table.jobFamilyId} IS NOT NULL OR ${table.jobLevelId} IS NOT NULL`),
+    check("hcm_skill_expectation_defaults_proficiency_check", sql`${table.minimumProficiency} >= 1 AND ${table.minimumProficiency} <= 5`),
   ],
 );
 
@@ -4076,6 +4523,28 @@ export const employeePayoutChangeRequests = pgTable(
     index("employee_payout_change_requests_org_status_idx").on(table.organizationId, table.status, table.createdAt),
     index("employee_payout_change_requests_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
     check("employee_payout_change_requests_status_check", sql`${table.status} in ('pending','approved','rejected','cancelled')`),
+  ],
+);
+
+export const dynamicWorkerGroups = pgTable(
+  "dynamic_worker_groups",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 80 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    description: varchar("description", { length: 500 }),
+    conditions: jsonb("conditions").notNull().default({ version: 1, all: [], any: [] }),
+    version: integer("version").notNull().default(1),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("dynamic_worker_groups_org_code_unique").on(table.organizationId, table.code),
+    index("dynamic_worker_groups_org_active_idx").on(table.organizationId, table.active, table.name),
   ],
 );
 

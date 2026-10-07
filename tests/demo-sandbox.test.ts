@@ -13,7 +13,7 @@ import {
   roleCanManageTime,
 } from "../src/lib/workspace-role-ui";
 
-const read = (path: string) => readFileSync(path, "utf8");
+const read = (path: string) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
 
 test("demo page metadata advertises all six product personas", () => {
   const page = read("src/app/demo/page.tsx");
@@ -394,10 +394,10 @@ test("production Vercel aliases are accepted from forwarded host plus deployment
   );
 });
 
-test("shared public nav uses the same soft-indigo start CTA as the homepage", () => {
+test("shared public nav uses the same blue start CTA as the homepage", () => {
   const chrome = read("src/components/marketing/site-chrome.tsx");
-  assert.ok(chrome.includes('bg-[#F5F5FF]'));
-  assert.ok(chrome.includes('text-[#4A4AE0]'));
+  assert.ok(chrome.includes('bg-[#f2f7ff]'));
+  assert.ok(chrome.includes('text-[#0868dc]'));
   assert.ok(!chrome.includes('bg-[#11141F] px-5 py-2.5 text-[14px] font-semibold text-white'));
 });
 

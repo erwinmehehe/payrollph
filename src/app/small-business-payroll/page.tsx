@@ -57,7 +57,7 @@ export default function SmallBusinessPayrollPage() {
       <SeoLandingPage
       simulationArea="payroll"
         eyebrow="Small business payroll software Philippines"
-        title="A clearer payroll process for Philippine small businesses."
+        title="A clearer path from inputs to payday."
         intro="Linaw is built for teams that have outgrown payroll-by-spreadsheet but do not want enterprise software overhead. Keep employee records, attendance inputs, payroll calculations, exceptions, checker review, release and payslips in one controlled workflow."
         proof={[
           "Philippine statutory payroll calculations",

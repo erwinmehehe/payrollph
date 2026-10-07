@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import "./public-pages.css";
 import { LinawMark } from "@/components/linaw-mark";
 import { Menu, X } from "lucide-react";
 import { PUBLIC_FOOTER_GROUPS, PUBLIC_PRIMARY_LINKS } from "./public-navigation";
@@ -24,7 +25,7 @@ export function SiteNav() {
   return (
     <>
       <header
-        className={`sticky top-0 z-50 border-b transition-all duration-300 ${
+        className={`linaw-site-nav sticky top-0 z-50 border-b transition-all duration-300 ${
           stuck
             ? "border-[#E8EAF3] bg-white/92 shadow-[0_8px_24px_-18px_rgba(16,18,38,.28)] backdrop-blur-xl"
             : "border-transparent bg-white/85 backdrop-blur-lg"

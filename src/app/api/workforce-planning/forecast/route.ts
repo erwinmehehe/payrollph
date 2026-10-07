@@ -67,7 +67,7 @@ export async function GET(request: Request) {
         : redactWorkforceForecastCosts(result.forecast),
       costVisible: result.canViewCost,
       scope: result.scope,
-      boundary: "Planning estimate only. Capacity and employer-load assumptions are not payroll calculations or statutory liabilities.",
+      boundary: "Planning estimate. Existing-worker employer costs use PayrollPH statutory formulas plus active benefit and recurring compensation records at the forecast start date. Vacancy benefit costs remain unknown until assigned; additional load % is scenario-only.",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Workforce forecast could not be calculated.";

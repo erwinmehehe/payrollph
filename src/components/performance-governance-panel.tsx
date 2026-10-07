@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Flag, Plus, Target, Trophy } from "lucide-react";
+import { CheckCircle2, Download, Flag, Plus, Target, Trophy } from "lucide-react";
 import { PerformanceCalibrationPanel } from "@/components/performance-calibration-panel";
 import { PerformanceCompetencyArchitecturePanel } from "@/components/performance-competency-architecture-panel";
 import { PerformanceContinuityPanel } from "@/components/performance-continuity-panel";
@@ -58,6 +58,8 @@ type ReviewItem = {
   jobProfileId: number | null;
   skillId: number | null;
   expectedProficiency: number | null;
+  expectationSource: "profile" | "family" | "level" | "family_level" | null;
+  expectationRuleId: number | null;
   required: boolean;
   weight: string;
   selfScore: string | null;
@@ -92,6 +94,9 @@ export function PerformanceGovernancePanel({
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [readiness, setReadiness] = useState<Record<string, Readiness>>({});
   const [canCalibrate, setCanCalibrate] = useState(false);
+  const [evidenceEmployeeId, setEvidenceEmployeeId] = useState("");
+  const [evidenceCycleId, setEvidenceCycleId] = useState("");
+  const [evidenceExporting, setEvidenceExporting] = useState(false);
 
   const [showGoal, setShowGoal] = useState(false);
   const [showTemplate, setShowTemplate] = useState(false);
@@ -310,6 +315,46 @@ export function PerformanceGovernancePanel({
     }
   }
 
+  async function exportEvidence() {
+    if (!evidenceEmployeeId) {
+      setNotice("Select an employee before exporting performance evidence.");
+      return;
+    }
+    setEvidenceExporting(true);
+    try {
+      const params = new URLSearchParams({
+        organizationId: String(organizationId),
+        employeeId: evidenceEmployeeId,
+      });
+      if (evidenceCycleId) params.set("cycleId", evidenceCycleId);
+
+      const response = await fetch("/api/performance/evidence?" + params.toString(), { cache: "no-store" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        setNotice(payload.error ?? "Could not export the performance evidence package.");
+        return;
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match?.[1] ?? "performance-evidence.json";
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(href);
+      setNotice("Performance evidence package exported with a verifiable evidence hash.");
+    } catch {
+      setNotice("Could not export performance evidence because the server could not be reached.");
+    } finally {
+      setEvidenceExporting(false);
+    }
+  }
+
   const parentGoals = goals.filter((goal) => {
     if (goalForm.scope === "company") return false;
     if (goalForm.scope === "team") return goal.scope === "company";
@@ -333,6 +378,38 @@ export function PerformanceGovernancePanel({
           </div>
         </div>
       </article>
+
+      {canCalibrate && (
+        <article className="card" style={{ padding: 20 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">PERFORMANCE EVIDENCE</div>
+              <h2>Export an audit-ready employee evidence package</h2>
+              <p>Includes goals, reviews, structured competency evidence, shared 1:1 records, employee-visible action-item history, and employee-specific calibration evidence. Manager-private notes, private feedback, compensation, and payroll are excluded.</p>
+            </div>
+            <Download size={18} />
+          </div>
+          <div className="setting-form">
+            <label>
+              Employee
+              <select value={evidenceEmployeeId} onChange={(event) => setEvidenceEmployeeId(event.target.value)}>
+                <option value="">Select employee</option>
+                {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName} · {employee.title}</option>)}
+              </select>
+            </label>
+            <label>
+              Cycle
+              <select value={evidenceCycleId} onChange={(event) => setEvidenceCycleId(event.target.value)}>
+                <option value="">All performance cycles</option>
+                {cycles.map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name} · {cycle.status}</option>)}
+              </select>
+            </label>
+            <button className="primary-button" type="button" disabled={evidenceExporting || !evidenceEmployeeId} onClick={() => void exportEvidence()}>
+              <Download size={14} /> {evidenceExporting ? "Exporting…" : "Export evidence"}
+            </button>
+          </div>
+        </article>
+      )}
 
       {showGoal && (
         <article className="card" style={{ padding: 20 }}>
@@ -460,7 +537,7 @@ export function PerformanceGovernancePanel({
                   <div className="leave-request" key={item.id}>
                     <div style={{ flex: 1 }}>
                       <strong>{template?.name ?? "Review item #" + item.id}</strong>
-                      <span>{(template?.type?.toUpperCase() ?? "ITEM") + " · " + item.weight + "% weight" + (item.required ? " · required" : "") + (item.expectedProficiency ? " · job expectation ≥" + item.expectedProficiency + "/5" : "")}</span>
+                      <span>{(template?.type?.toUpperCase() ?? "ITEM") + " · " + item.weight + "% weight" + (item.required ? " · required" : "") + (item.expectedProficiency ? " · job expectation ≥" + item.expectedProficiency + "/5" : "") + (item.expectationSource ? " · " + item.expectationSource.replaceAll("_", " ") : "")}</span>
                       {item.expectedProficiency && item.finalScore && (
                         <span>{"Proficiency gap: " + (Number(item.finalScore) - item.expectedProficiency).toFixed(1) + " vs role expectation"}</span>
                       )}

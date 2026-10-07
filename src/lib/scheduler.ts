@@ -14,7 +14,10 @@ import { runScheduledEmploymentTerms } from "@/lib/hcm-employment-terms";
 import { runScheduledEmploymentTermDecisions } from "@/lib/hcm-employment-term-decisions";
 import { runScheduledHcmLifecycleNotifications } from "@/lib/hcm-lifecycle-notifications";
 import { runScheduledPerformanceReminders } from "@/lib/hcm-performance-reminders";
+import { runScheduledPerformanceActionReminders } from "@/lib/hcm-performance-action-reminders";
+import { runScheduledPerformanceEvidenceSealing } from "@/lib/hcm-performance-evidence-sealing";
 import { resumeDueAutomationExecutions } from "@/lib/automation";
+import { runScheduledAutomationTemporalEvents } from "@/lib/automation-temporal-events";
 
 const MIN_INTERVAL_MS = 30_000;
 
@@ -49,6 +52,7 @@ export async function tickScheduler(force = false) {
     actor: "System scheduler",
   });
   const automationResumes = await resumeDueAutomationExecutions(now, 25);
+  const automationTemporalEvents = await runScheduledAutomationTemporalEvents({ now });
 
   const [hcmDocumentState] = await db.select().from(schedulerState)
     .where(eq(schedulerState.jobName, "hcm-document-expiry"))
@@ -103,12 +107,17 @@ export async function tickScheduler(force = false) {
   const performanceReminders = performanceRemindersDue
     ? await runScheduledPerformanceReminders({ actor: "System scheduler", now })
     : null;
+  const performanceActionReminders = performanceRemindersDue
+    ? await runScheduledPerformanceActionReminders({ actor: "System scheduler", now })
+    : null;
 
   if (performanceRemindersDue) {
     const performanceReminderPayload = {
       at: now.toISOString(),
-      organizations: performanceReminders?.length ?? 0,
-      results: performanceReminders?.slice(0, 50) ?? [],
+      reviewOrganizations: performanceReminders?.length ?? 0,
+      actionOrganizations: performanceActionReminders?.length ?? 0,
+      reviewResults: performanceReminders?.slice(0, 50) ?? [],
+      actionResults: performanceActionReminders?.slice(0, 50) ?? [],
     };
     if (performanceReminderState) {
       await db.update(schedulerState).set({
@@ -120,6 +129,36 @@ export async function tickScheduler(force = false) {
         jobName: "hcm-performance-reminders",
         lastRunAt: now,
         lastResult: performanceReminderPayload,
+      });
+    }
+  }
+
+  const [performanceEvidenceState] = await db.select().from(schedulerState)
+    .where(eq(schedulerState.jobName, "hcm-performance-evidence-sealing"))
+    .limit(1);
+  const performanceEvidenceDue =
+    !performanceEvidenceState?.lastRunAt
+    || now.getTime() - performanceEvidenceState.lastRunAt.getTime() >= 6 * 60 * 60 * 1000;
+  const performanceEvidenceSealing = performanceEvidenceDue
+    ? await runScheduledPerformanceEvidenceSealing({ actor: "System scheduler", now })
+    : null;
+
+  if (performanceEvidenceDue) {
+    const performanceEvidencePayload = {
+      at: now.toISOString(),
+      sealedCycles: performanceEvidenceSealing?.length ?? 0,
+      results: performanceEvidenceSealing?.slice(0, 50) ?? [],
+    };
+    if (performanceEvidenceState) {
+      await db.update(schedulerState).set({
+        lastRunAt: now,
+        lastResult: performanceEvidencePayload,
+      }).where(eq(schedulerState.id, performanceEvidenceState.id));
+    } else {
+      await db.insert(schedulerState).values({
+        jobName: "hcm-performance-evidence-sealing",
+        lastRunAt: now,
+        lastResult: performanceEvidencePayload,
       });
     }
   }
@@ -189,6 +228,7 @@ export async function tickScheduler(force = false) {
     statutoryRemittanceActions,
     contributionCaseEscalations,
     automationResumes,
+    automationTemporalEvents,
     hcmDocumentExpiry,
     hcmEffectiveChanges,
     hcmEmploymentTerms,
@@ -196,6 +236,8 @@ export async function tickScheduler(force = false) {
     hcmCompensation,
     hcmLifecycleNotifications,
     performanceReminders,
+    performanceActionReminders,
+    performanceEvidenceSealing,
     at: now.toISOString(),
     results: {
       webhooks: webhookResults.slice(0, 10),

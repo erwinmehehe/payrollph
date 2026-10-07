@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
+import { MonthlyTaxCalculator } from "@/components/marketing/monthly-tax-calculator";
 import { StructuredData } from "@/components/marketing/structured-data";
 import { CALCULATORS, type CalculatorSlug } from "@/lib/calculators";
 
@@ -51,6 +52,7 @@ export default function CalculatorsPage() {
           </div>
         </section>
 
+        <section className="linaw-company"><h2 className="text-3xl font-semibold">Monthly withholding tax, made clearer.</h2><MonthlyTaxCalculator/><Link href="/calculators/withholding-tax" className="text-[#0877ff] text-sm">Review the calculation context and official source ↗</Link></section>
         <div className="mx-auto max-w-[1180px] px-5 py-14 sm:px-8 sm:py-18">
           <nav aria-label="Calculator groups" className="flex flex-wrap gap-2 border-b border-[#EDEFF7] pb-8">
             {calculatorGroups.map((group, index) => (

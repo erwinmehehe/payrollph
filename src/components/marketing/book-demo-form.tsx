@@ -10,7 +10,7 @@ type Result = { leadId: number; recorded: boolean };
 const inputClass =
   "mt-2 w-full rounded-xl border border-[#D9DCEC] bg-white px-3.5 py-3 text-[14px] text-[#11141F] outline-none transition focus:border-[#0877ff] focus:ring-4 focus:ring-[#0877ff]/10";
 
-export function BookDemoForm() {
+export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact" }) {
   const [form, setForm] = useState({ name: "", email: "", company: "", headcount: "", notes: "" });
   const [problems, setProblems] = useState<string[]>([]);
   const [error, setError] = useState("");
@@ -78,14 +78,14 @@ export function BookDemoForm() {
   }
 
   return (
-    <form className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7" onSubmit={submit} noValidate>
+    <form className="linaw-inquiry-form rounded-[14px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7" onSubmit={submit} noValidate>
       <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e5f0ff] text-[#0868dc]">
         <CalendarDays size={19} />
       </span>
-      <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Book a walkthrough</p>
-      <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#0B0D1A]">Tell us about your payroll.</h2>
+      <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">{variant === "contact" ? "Start a conversation" : "Book a walkthrough"}</p>
+      <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#0B0D1A]">{variant === "contact" ? "Tell us about your team." : "Tell us about your payroll."}</h2>
       <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">
-        A short brief helps us use the call on your actual setup instead of giving you a generic product tour.
+        Share your company, team size, and the workflow you want to improve.
       </p>
 
       {problems.length > 0 && (
@@ -158,7 +158,7 @@ export function BookDemoForm() {
         className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0877ff] px-5 py-3.5 text-[14px] font-semibold text-white transition-transform hover:scale-[1.01] disabled:cursor-wait disabled:opacity-60"
       >
         {saving ? <LoaderCircle size={15} className="animate-spin" /> : <CalendarDays size={15} />}
-        {saving ? "Submitting…" : "Request a demo"}
+        {saving ? "Submitting…" : variant === "contact" ? "Request a conversation" : "Request a demo"}
       </button>
     </form>
   );

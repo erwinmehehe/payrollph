@@ -26,6 +26,7 @@ import {
 } from "@/lib/security-request";
 import { worksiteAssignmentOverlaps } from "@/lib/workforce-worksite";
 import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
+import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 
 export const dynamic = "force-dynamic";
 
@@ -598,7 +599,26 @@ export async function POST(request: Request) {
       },
     });
 
-    return Response.json({ assignment: result }, { status: 201 });
+    const todayPh = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+    const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
+      organizationId,
+      employeeId,
+      eventKey: `worksite-assignment:${result.id}:field-change`,
+      changes: [{
+        field: "worksiteId",
+        previousValue: openPrior?.worksiteId ?? null,
+        newValue: worksiteId,
+        effectiveDate: effectiveFrom,
+        timing: effectiveFrom > todayPh ? "scheduled" : "effective",
+        source: "worksite-assignment",
+        metadata: {
+          employeeWorksiteAssignmentId: result.id,
+          reason,
+        },
+      }],
+    });
+
+    return Response.json({ assignment: result, fieldChangeAutomation }, { status: 201 });
   }
 
   return Response.json({

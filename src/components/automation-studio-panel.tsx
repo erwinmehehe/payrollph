@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApprovalChainAdmin } from "@/components/approval-chain-admin";
 import { SlackConnectorAdmin } from "@/components/slack-connector-admin";
+import { DynamicWorkerGroupsPanel } from "@/components/dynamic-worker-groups-panel";
 import {
   Activity,
   Bot,
@@ -186,6 +187,7 @@ type StudioData = {
   }>;
   approvalChains: ApprovalChainPolicy[];
   integrationConnectors: IntegrationConnector[];
+  dynamicGroups: Array<{ id: number; code: string; name: string; version: number }>;
   schedulePatterns: Array<{
     id: number;
     code: string;
@@ -310,7 +312,7 @@ function actionAllowed(trigger: TriggerCatalog | undefined, type: string) {
   if (!trigger) return false;
   if (["revoke_sessions", "deactivate_access"].includes(type)) return trigger.value === "employee.separated";
   if (["assign_permission_set", "assign_benefit"].includes(type)) {
-    return ["employee.hired", "employee.updated", "employee.moved", "employee.promoted", "candidate.hired"].includes(trigger.value);
+    return ["employee.hired", "employee.updated", "employee.field_changed", "employee.moved", "employee.promoted", "candidate.hired"].includes(trigger.value);
   }
   if (type === "assign_schedule") {
     return ["employee.hired", "employee.moved", "employee.promoted"].includes(trigger.value);
@@ -409,13 +411,17 @@ export function AutomationStudioPanel({
       return {
         field: row.field,
         operator: row.operator,
-        value: field?.kind === "number" ? values.map(Number) : values,
+        value: field?.kind === "number" || field?.kind === "number_array" ? values.map(Number) : values,
       };
     }
     return {
       field: row.field,
       operator: row.operator,
-      value: field?.kind === "number" ? Number(row.value) : row.value,
+      value: field?.kind === "number"
+        ? Number(row.value)
+        : field?.kind === "boolean"
+          ? row.value === "true"
+          : row.value,
     };
   }
 
@@ -439,8 +445,12 @@ export function AutomationStudioPanel({
       const value = row.branchOperator === "exists"
         ? row.branchValue !== "false"
         : row.branchOperator === "in"
-          ? row.branchValue.split(",").map((item) => item.trim()).filter(Boolean).map((item) => field?.kind === "number" ? Number(item) : item)
-          : field?.kind === "number" ? Number(row.branchValue) : row.branchValue;
+          ? row.branchValue.split(",").map((item) => item.trim()).filter(Boolean).map((item) => field?.kind === "number" || field?.kind === "number_array" ? Number(item) : item)
+          : field?.kind === "number"
+            ? Number(row.branchValue)
+            : field?.kind === "boolean"
+              ? row.branchValue === "true"
+              : row.branchValue;
       return {
         type: row.type,
         conditions: {
@@ -831,6 +841,8 @@ export function AutomationStudioPanel({
       <ApprovalChainAdmin organizationId={organizationId} setNotice={setNotice} onChanged={load} />
       <SlackConnectorAdmin organizationId={organizationId} setNotice={setNotice} onChanged={load} />
 
+      <DynamicWorkerGroupsPanel organizationId={organizationId} setNotice={setNotice} />
+
       {showBuilder && (
         <form onSubmit={saveRule} className="card" style={{ marginTop: 16 }}>
           <div className="card-header">
@@ -918,18 +930,35 @@ export function AutomationStudioPanel({
                   )}
                   {conditions.map((row) => {
                     const field = data.catalogs.conditions.find((item) => item.value === row.field);
+                    const operators = row.field === "dynamicGroupCodes"
+                      ? data.catalogs.operators.filter((operator) => ["eq", "neq", "in", "exists"].includes(operator))
+                      : data.catalogs.operators;
                     return (
                       <div key={row.id} style={{ display: "grid", gridTemplateColumns: "1.3fr .8fr 1fr auto", gap: 8, marginBottom: 8 }}>
-                        <select value={row.field} onChange={(event) => updateCondition(row.id, { field: event.target.value, value: "" })}>
+                        <select
+                          value={row.field}
+                          onChange={(event) => updateCondition(row.id, {
+                            field: event.target.value,
+                            operator: event.target.value === "dynamicGroupCodes" ? "eq" : row.operator,
+                            value: "",
+                          })}
+                        >
                           {data.catalogs.conditions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                         </select>
-                        <select value={row.operator} onChange={(event) => updateCondition(row.id, { operator: event.target.value })}>
-                          {data.catalogs.operators.map((operator) => <option key={operator} value={operator}>{operator}</option>)}
+                        <select value={row.operator} onChange={(event) => updateCondition(row.id, { operator: event.target.value, value: "" })}>
+                          {operators.map((operator) => <option key={operator} value={operator}>{operator}</option>)}
                         </select>
                         {row.operator === "exists" ? (
                           <select value={row.value || "true"} onChange={(event) => updateCondition(row.id, { value: event.target.value })}>
                             <option value="true">exists</option>
                             <option value="false">does not exist</option>
+                          </select>
+                        ) : row.field === "dynamicGroupCodes" && row.operator !== "in" ? (
+                          <select required value={row.value} onChange={(event) => updateCondition(row.id, { value: event.target.value })}>
+                            <option value="">Select a live group</option>
+                            {data.dynamicGroups.map((group) => (
+                              <option key={group.id} value={group.code}>{group.name} · {group.code} · v{group.version}</option>
+                            ))}
                           </select>
                         ) : (
                           <input
@@ -937,7 +966,7 @@ export function AutomationStudioPanel({
                             type={field?.kind === "number" && row.operator !== "in" ? "number" : "text"}
                             value={row.value}
                             onChange={(event) => updateCondition(row.id, { value: event.target.value })}
-                            placeholder={row.operator === "in" ? "Comma-separated values" : field?.kind === "number" ? "0" : "Value"}
+                            placeholder={row.field === "dynamicGroupCodes" ? "Comma-separated live group codes" : row.operator === "in" ? "Comma-separated values" : field?.kind === "number" ? "0" : "Value"}
                           />
                         )}
                         <button type="button" className="icon-button" onClick={() => setConditions((rows) => rows.filter((item) => item.id !== row.id))}>

@@ -22,7 +22,7 @@ export default function WorkforceAnalyticsPage() {
       <SeoLandingPage
       simulationArea="reports"
         eyebrow="Workforce analytics Philippines"
-        title="Payroll reporting and workforce insights built from live payroll data."
+        title="Understand the change. Prepare the handoff."
         intro="Linaw's analytics layer focuses on operational reporting: headcount movement, payroll cost history, workforce-status indicators, compliance exceptions and payroll variance. The reports come from organization-scoped application data rather than a separate predictive analytics product."
         proof={[
           "Headcount movement report",

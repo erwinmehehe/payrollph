@@ -1,7 +1,11 @@
-import { and, asc, eq, gte, isNull, lte, or } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  benefitEnrollments,
+  benefitPlans,
+  compensationComponents,
   costCenters,
+  employeeCompensationComponents,
   employeeLaborAllocations,
   employeePayProfiles,
   employees,
@@ -18,7 +22,7 @@ import {
   PEOPLE_PAYROLL_ROLES,
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
-import { buildWorkforceDemandForecast } from "@/lib/workforce-forecast";
+import { annualEmployerStatutoryCost, annualizePayProfile, buildWorkforceDemandForecast } from "@/lib/workforce-forecast";
 import { assertUnambiguousRoleDemand, resolveEmployeeJobProfileAtDate } from "@/lib/workforce-role-demand";
 
 export type WorkforceForecastScope = {
@@ -78,6 +82,9 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
     worksiteAssignmentRows,
     jobProfileRows,
     positionAssignmentRows,
+    benefitPlanRows,
+    benefitEnrollmentRows,
+    recurringCompRows,
   ] = await Promise.all([
     db.select().from(employees)
       .where(eq(employees.organizationId, input.organizationId))
@@ -145,6 +152,45 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
         asc(positionAssignments.effectiveFrom),
         asc(positionAssignments.id),
       ),
+    db.select().from(benefitPlans)
+      .where(and(
+        eq(benefitPlans.active, true),
+        or(
+          isNull(benefitPlans.organizationId),
+          eq(benefitPlans.organizationId, input.organizationId),
+        ),
+      ))
+      .orderBy(asc(benefitPlans.id)),
+    db.select().from(benefitEnrollments)
+      .where(and(
+        eq(benefitEnrollments.organizationId, input.organizationId),
+        eq(benefitEnrollments.status, "active"),
+        lte(benefitEnrollments.startedOn, input.startDate),
+        or(
+          isNull(benefitEnrollments.endedOn),
+          gte(benefitEnrollments.endedOn, input.startDate),
+        ),
+      ))
+      .orderBy(asc(benefitEnrollments.employeeId), asc(benefitEnrollments.id)),
+    db.select({
+      employeeId: employeeCompensationComponents.employeeId,
+      amount: employeeCompensationComponents.amount,
+      amountFrequency: compensationComponents.amountFrequency,
+      componentCode: compensationComponents.code,
+    })
+      .from(employeeCompensationComponents)
+      .innerJoin(compensationComponents, eq(employeeCompensationComponents.componentId, compensationComponents.id))
+      .where(and(
+        eq(employeeCompensationComponents.organizationId, input.organizationId),
+        inArray(employeeCompensationComponents.status, ["scheduled", "active"]),
+        lte(employeeCompensationComponents.effectiveFrom, input.startDate),
+        or(
+          isNull(employeeCompensationComponents.effectiveUntil),
+          gte(employeeCompensationComponents.effectiveUntil, input.startDate),
+        ),
+        eq(compensationComponents.active, true),
+      ))
+      .orderBy(asc(employeeCompensationComponents.employeeId), asc(employeeCompensationComponents.id)),
   ]);
 
   const requestedWorksite = input.worksiteId == null
@@ -236,6 +282,65 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
     jobProfileId: row.jobProfileId,
   })));
 
+  const payProfileByEmployee = new Map(
+    payProfileRows
+      .filter((profile) => visibleEmployeeIds.has(profile.employeeId))
+      .map((profile) => [profile.employeeId, profile]),
+  );
+  const benefitPlanById = new Map(benefitPlanRows.map((plan) => [plan.id, plan]));
+  const annualBenefitEmployerByEmployee = new Map<number, number>();
+  for (const enrollment of benefitEnrollmentRows) {
+    if (!visibleEmployeeIds.has(enrollment.employeeId)) continue;
+    const plan = benefitPlanById.get(enrollment.planId);
+    if (!plan) continue;
+    annualBenefitEmployerByEmployee.set(
+      enrollment.employeeId,
+      (annualBenefitEmployerByEmployee.get(enrollment.employeeId) ?? 0) + Number(plan.employerShare) * 12,
+    );
+  }
+
+  const annualRecurringCompensationByEmployee = new Map<number, number>();
+  const recurringCompensationIssues: string[] = [];
+  for (const row of recurringCompRows) {
+    if (!visibleEmployeeIds.has(row.employeeId)) continue;
+    const amount = Number(row.amount);
+    let annual = 0;
+    if (row.amountFrequency === "monthly") annual = amount * 12;
+    else if (row.amountFrequency === "per_cutoff") annual = amount * 24;
+    else {
+      recurringCompensationIssues.push(
+        `Employee #${row.employeeId} component ${row.componentCode} has unsupported frequency ${row.amountFrequency}; it is excluded from forecast load.`,
+      );
+      continue;
+    }
+    annualRecurringCompensationByEmployee.set(
+      row.employeeId,
+      (annualRecurringCompensationByEmployee.get(row.employeeId) ?? 0) + annual,
+    );
+  }
+
+  const employerCosts = visibleEmployees.flatMap((employee) => {
+    const profile = payProfileByEmployee.get(employee.id);
+    if (!profile) return [];
+    try {
+      const annualBase = annualizePayProfile({
+        employeeId: profile.employeeId,
+        payBasis: profile.payBasis,
+        rateAmount: profile.rateAmount,
+        standardWorkDaysPerMonth: profile.standardWorkDaysPerMonth,
+        standardHoursPerDay: profile.standardHoursPerDay,
+      });
+      return [{
+        employeeId: employee.id,
+        annualStatutoryEmployer: annualEmployerStatutoryCost(annualBase),
+        annualBenefitEmployer: annualBenefitEmployerByEmployee.get(employee.id) ?? 0,
+        annualRecurringCompensation: annualRecurringCompensationByEmployee.get(employee.id) ?? 0,
+      }];
+    } catch {
+      return [];
+    }
+  });
+
   const forecast = buildWorkforceDemandForecast({
     assumptions: {
       startDate: input.startDate,
@@ -304,12 +409,14 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
       family: profile.family,
       level: profile.level,
     })),
+    employerCosts,
   });
   const forecastWithRoleEvidence = {
     ...forecast,
     quality: {
       ...forecast.quality,
       roleEvidenceIssues,
+      recurringCompensationIssues,
     },
   };
 
@@ -345,6 +452,12 @@ export function redactWorkforceForecastCosts<T extends {
       annualRunRateLaborCost: null,
       currentPeriodBasePayroll: null,
       expectedVacancyPeriodCost: null,
+      currentPeriodStatutoryEmployerCost: null,
+      currentPeriodBenefitEmployerCost: null,
+      currentPeriodRecurringCompensationCost: null,
+      expectedVacancyEmployerStatutoryCost: null,
+      sourceGroundedEmployerCost: null,
+      additionalScenarioLoadCost: null,
       employerLoadCost: null,
       forecastPeriodLaborCost: null,
       averageBaseHourlyRate: null,

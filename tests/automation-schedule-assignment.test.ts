@@ -16,12 +16,14 @@ test("Automation Studio exposes a governed assign_schedule action", () => {
 
 test("schedule action input is bounded and deterministic", () => {
   const source = read("src/lib/automation.ts");
+  const workerContext = read("src/lib/worker-attribute-context.ts");
   assert.ok(source.includes('"event_effective_date"'));
   assert.ok(source.includes('"employee_start_date"'));
   assert.ok(source.includes('"today"'));
   assert.ok(source.includes("offsetDays < 0"));
   assert.ok(source.includes("offsetDays > 365"));
-  assert.ok(source.includes("employeeStartDate: String(employee.startDate)"));
+  assert.ok(source.includes("loadWorkerAttributeContext"));
+  assert.ok(workerContext.includes("employeeStartDate: String(employee.startDate)"));
 });
 
 test("schedule mutation goes through the governed WFM helper", () => {

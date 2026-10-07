@@ -34,6 +34,7 @@ import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { requireSensitiveActionMfa } from "@/lib/security-request";
 import { runLifecycleAutomations } from "@/lib/automation";
+import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 
 export const dynamic = "force-dynamic";
 
@@ -1035,9 +1036,26 @@ export async function PATCH(request: Request) {
       },
     });
 
+    const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
+      organizationId: sep.organizationId,
+      employeeId: sep.employeeId,
+      eventKey: "separation-release:" + sep.id + ":field-change",
+      changes: [
+        {
+          field: "employeeStatus",
+          previousValue: employee.status,
+          newValue: "Separated",
+          effectiveDate: String(sep.lastDay),
+          source: "separation-release",
+          metadata: { separationId: sep.id, separationType: sep.separationType },
+        },
+      ],
+    });
+
     return Response.json({
       ...released,
       automation,
+      fieldChangeAutomation,
       offboarding2316: {
         status: "available",
         href: `/api/separation/${released.id}/2316`,
