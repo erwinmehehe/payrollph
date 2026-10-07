@@ -82,6 +82,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       userId: user.id,
       userName: user.name,
       requireReleaseSeparation: true,
+      legacyAllowedRoles: PAYROLL_OPERATOR_ROLES,
     });
     if (treasury.response) return treasury.response;
     finalBankTreasuryEvidence = treasury.evidence;
