@@ -35,10 +35,39 @@ type AttendanceRow = {
   };
 };
 
+type ExceptionEvent = {
+  id: number;
+  employeeId: number;
+  workDate: string;
+  exceptionKind: string;
+  severity: "info" | "warning" | "blocker";
+  message: string;
+  status: "open" | "resolved";
+  ownerUserId: number | null;
+  ownerName: string | null;
+  slaDueAt: string | null;
+  firstDetectedAt: string;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+  resolvedByName: string | null;
+  resolutionRecordedAt: string | null;
+  ageHours: number | null;
+  slaStatus: "resolved" | "on_track" | "overdue" | "untracked";
+};
+
 type ResponsePayload = {
   range: { startDate: string; endDate: string; days: number };
-  summary: { blockers: number; warnings: number; info: number; employeesAffected: number };
+  summary: {
+    blockers: number;
+    warnings: number;
+    info: number;
+    employeesAffected: number;
+    openPersistedExceptions: number;
+    overduePersistedExceptions: number;
+    unassignedPersistedExceptions: number;
+  };
   days: AttendanceRow[];
+  eventLedger: ExceptionEvent[];
 };
 
 function localToday() {
@@ -73,6 +102,7 @@ export function AttendanceExceptionsPanel({
   const [filter, setFilter] = useState<"review" | "all">("review");
   const [payload, setPayload] = useState<ResponsePayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [savingEventId, setSavingEventId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!startDate || !endDate || endDate < startDate) return;
@@ -121,6 +151,49 @@ export function AttendanceExceptionsPanel({
     [payload],
   );
 
+  const eventLedger = useMemo(
+    () => [...(payload?.eventLedger ?? [])].sort((a, b) =>
+      (a.status === b.status ? 0 : a.status === "open" ? -1 : 1)
+      || (a.slaStatus === b.slaStatus ? 0 : a.slaStatus === "overdue" ? -1 : 1)
+      || String(a.slaDueAt ?? "9999").localeCompare(String(b.slaDueAt ?? "9999"))
+      || b.firstDetectedAt.localeCompare(a.firstDetectedAt),
+    ),
+    [payload],
+  );
+
+  async function mutateEvent(
+    eventId: number,
+    action: "assign" | "record_resolution",
+    resolutionNote?: string,
+  ) {
+    setSavingEventId(eventId);
+    try {
+      const response = await fetch("/api/workforce/attendance-exceptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          eventId,
+          action,
+          ...(resolutionNote ? { resolutionNote } : {}),
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Could not update attendance exception.");
+      notify(
+        action === "assign"
+          ? "Attendance exception assigned to you."
+          : "Resolution evidence recorded.",
+        "ok",
+      );
+      await load();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not update attendance exception.", "err");
+    } finally {
+      setSavingEventId(null);
+    }
+  }
+
   return (
     <section style={{ marginTop: 16 }}>
       <div className="table-toolbar" style={{ border: 0, padding: "0 0 14px" }}>
@@ -151,18 +224,18 @@ export function AttendanceExceptionsPanel({
           tone={(payload?.summary.blockers ?? 0) ? "red" : "slate"}
         />
         <Metric
-          label="Warnings"
-          value={String(payload?.summary.warnings ?? 0)}
-          hint="late, undertime or unscheduled work"
+          label="Overdue"
+          value={String(payload?.summary.overduePersistedExceptions ?? 0)}
+          hint="open exceptions beyond SLA"
           icon={<AlertTriangle size={16} className="i-amber" />}
-          tone={(payload?.summary.warnings ?? 0) ? "amber" : "slate"}
+          tone={(payload?.summary.overduePersistedExceptions ?? 0) ? "amber" : "slate"}
         />
         <Metric
-          label="Employees affected"
-          value={String(payload?.summary.employeesAffected ?? 0)}
-          hint="with blocking or warning items"
+          label="Unassigned"
+          value={String(payload?.summary.unassignedPersistedExceptions ?? 0)}
+          hint="open exceptions without an owner"
           icon={<Clock3 size={16} className="i-cyan" />}
-          tone={(payload?.summary.employeesAffected ?? 0) ? "blue" : "slate"}
+          tone={(payload?.summary.unassignedPersistedExceptions ?? 0) ? "blue" : "slate"}
         />
         <Metric
           label="Window"
@@ -172,6 +245,91 @@ export function AttendanceExceptionsPanel({
           tone="purple"
         />
       </section>
+
+      <article className="card table-card" data-wfm-exception-operations>
+        <div className="table-toolbar">
+          <div>
+            <div className="card-kicker">Operational queue</div>
+            <h3 style={{ margin: "3px 0 0" }}>Owned attendance exceptions</h3>
+          </div>
+          <div className="toolbar-spacer" />
+          <span className="id">{payload?.summary.openPersistedExceptions ?? 0} open persisted exception(s)</span>
+        </div>
+
+        <div className="data-table-wrap slim-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Exception</th>
+                <th>Status</th>
+                <th>Owner</th>
+                <th>SLA</th>
+                <th>Evidence</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {eventLedger.map((event) => (
+                <tr key={event.id}>
+                  <td>
+                    <strong>{event.exceptionKind.replaceAll("_", " ")}</strong>
+                    <div className="id">{event.workDate} · employee #{event.employeeId}</div>
+                    <div className="id">{event.message}</div>
+                  </td>
+                  <td><Status value={event.status === "open" ? event.severity : "Resolved"} /></td>
+                  <td>{event.ownerName ?? <span className="id">Unassigned</span>}</td>
+                  <td>
+                    <Status value={event.slaStatus === "overdue" ? "Overdue" : event.slaStatus === "on_track" ? "On track" : event.slaStatus === "resolved" ? "Resolved" : "Untracked"} />
+                    <div className="id">
+                      {event.ageHours == null ? "Age unavailable" : `${event.ageHours}h old`}
+                      {event.slaDueAt ? ` · due ${new Date(event.slaDueAt).toLocaleString()}` : ""}
+                    </div>
+                  </td>
+                  <td>
+                    {event.resolutionRecordedAt ? (
+                      <>
+                        <strong>{event.resolvedByName ?? "Recorded"}</strong>
+                        <div className="id">{event.resolutionNote ?? "Resolution evidence recorded."}</div>
+                      </>
+                    ) : (
+                      <span className="id">{event.status === "resolved" ? "Resolution note pending" : "Awaiting resolution"}</span>
+                    )}
+                  </td>
+                  <td>
+                    {event.status === "open" && event.ownerUserId == null ? (
+                      <button
+                        className="secondary-button"
+                        disabled={savingEventId === event.id}
+                        onClick={() => void mutateEvent(event.id, "assign")}
+                      >
+                        Assign to me
+                      </button>
+                    ) : event.status === "resolved" && !event.resolutionRecordedAt ? (
+                      <button
+                        className="secondary-button"
+                        disabled={savingEventId === event.id}
+                        onClick={() => {
+                          const note = window.prompt("Resolution evidence / note");
+                          if (note?.trim()) void mutateEvent(event.id, "record_resolution", note.trim());
+                        }}
+                      >
+                        Add resolution note
+                      </button>
+                    ) : (
+                      <span className="id">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!loading && eventLedger.length === 0 && (
+            <EmptyState icon={<ShieldAlert size={20} className="i-green" />} title="No persisted exception events">
+              Attendance mutations have not produced any governed exception records in this window.
+            </EmptyState>
+          )}
+        </div>
+      </article>
 
       <article className="card table-card">
         <div className="table-toolbar">
