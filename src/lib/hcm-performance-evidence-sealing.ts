@@ -285,19 +285,29 @@ export async function runScheduledPerformanceEvidenceSealing(input: {
       eq(performanceCycles.status, "completed"),
     ));
     for (const cycle of cycles) {
-      const result = await sealPerformanceCycle({
-        organizationId: organization.id,
-        cycleId: cycle.id,
-        actorName: input.actor,
-        now,
-      });
-      if (result.created) {
+      try {
+        const result = await sealPerformanceCycle({
+          organizationId: organization.id,
+          cycleId: cycle.id,
+          actorName: input.actor,
+          now,
+        });
+        if (result.created) {
+          results.push({
+            organizationId: organization.id,
+            cycleId: cycle.id,
+            sealId: result.seal.id,
+            manifestHash: result.seal.manifestHash,
+            policyVersion: result.seal.policyVersion,
+            status: "sealed" as const,
+          });
+        }
+      } catch (error) {
         results.push({
           organizationId: organization.id,
           cycleId: cycle.id,
-          sealId: result.seal.id,
-          manifestHash: result.seal.manifestHash,
-          policyVersion: result.seal.policyVersion,
+          status: "error" as const,
+          error: error instanceof Error ? error.message : "Evidence sealing failed.",
         });
       }
     }
