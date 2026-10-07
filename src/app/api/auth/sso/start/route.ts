@@ -18,9 +18,13 @@ export async function GET(request: Request) {
 
   const [provider] = await db.select().from(identityProviders).where(and(
     eq(identityProviders.id, providerId),
+    eq(identityProviders.protocol, "oidc"),
     eq(identityProviders.enabled, true),
   )).limit(1);
-  if (!provider) return Response.json({ error: "SSO provider is not available." }, { status: 404 });
+  if (!provider) return Response.json({ error: "OIDC provider is not available." }, { status: 404 });
+  if (!provider.authorizationEndpoint || !provider.clientId) {
+    return Response.json({ error: "OIDC provider configuration is incomplete." }, { status: 409 });
+  }
 
   const domain = loginHint.split("@").pop() ?? "";
   const [verifiedDomain] = await db.select({ id: identityDomains.id }).from(identityDomains).where(and(
