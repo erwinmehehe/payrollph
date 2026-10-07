@@ -61,6 +61,7 @@ export const NAVIGATION: NavGroup[] = [
     items: [
       { name: "Overview", icon: LayoutDashboard, hint: "Payroll status, approvals and cost at a glance", tone: "blue" },
       { name: "Payroll", icon: WalletCards, hint: "Prepare, approve, release and export a run", tone: "green", badge: "runs" },
+      { name: "Payouts", icon: Banknote, hint: "Preflight, submit, reconcile and recover payroll payouts", tone: "teal" },
       { name: "People", icon: UsersRound, hint: "Employee directory, import and structure", tone: "purple", badge: "people" },
       { name: "Migration", icon: RefreshCcw, hint: "Switch from another payroll or HRIS with validated imports", tone: "teal" },
       { name: "Time & attendance", icon: Clock3, hint: "Punches, exceptions and derived hours", tone: "cyan" },
@@ -112,6 +113,7 @@ export const FREELANCER_HIDDEN = new Set([
   "People",
   "Migration",
   "Payroll",
+  "Payouts",
   "Time & attendance",
   "Workforce",
   "Planning",
