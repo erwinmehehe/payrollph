@@ -6,6 +6,7 @@ import {
   computeCoverage,
   preferredForShift,
   remainingOpenShiftSlots,
+  rankCoverageCandidates,
   weekdayForDate,
 } from "../src/lib/workforce-coverage";
 
@@ -259,4 +260,59 @@ test("a fully unavailable precise-leave shift is excluded from available headcou
   assert.equal(result[0]?.approvedLeavePartiallyUnavailableHeadcount, 0);
   assert.equal(result[0]?.availableScheduledHeadcount, 0);
   assert.equal(result[0]?.availableScheduledMinutes, 0);
+});
+
+
+test("coverage candidate ranking prefers qualified available workers with lower workload and preferences", () => {
+  const ranked = rankCoverageCandidates({
+    shiftPaidMinutes: 480,
+    candidates: [
+      {
+        employeeId: 1,
+        employeeName: "Ana Santos",
+        preferred: true,
+        scheduledMinutesInWindow: 1200,
+        consecutiveWorkingDaysBeforeShift: 2,
+        alreadyWorkingThatDay: false,
+      },
+      {
+        employeeId: 2,
+        employeeName: "Ben Cruz",
+        preferred: false,
+        scheduledMinutesInWindow: 2100,
+        consecutiveWorkingDaysBeforeShift: 4,
+        alreadyWorkingThatDay: false,
+      },
+      {
+        employeeId: 3,
+        employeeName: "Cara Lim",
+        preferred: true,
+        scheduledMinutesInWindow: 900,
+        consecutiveWorkingDaysBeforeShift: 1,
+        alreadyWorkingThatDay: true,
+      },
+    ],
+  });
+
+  assert.deepEqual(ranked.map((row) => row.employeeId), [1, 2]);
+  assert.equal(ranked[0]?.workloadRisk, "low");
+  assert.match(ranked[0]?.reasons.join(" "), /preferred availability/i);
+});
+
+test("coverage candidate ranking flags high projected workload instead of hiding it", () => {
+  const [candidate] = rankCoverageCandidates({
+    shiftPaidMinutes: 480,
+    candidates: [{
+      employeeId: 9,
+      employeeName: "Dana Reyes",
+      preferred: false,
+      scheduledMinutesInWindow: 2700,
+      consecutiveWorkingDaysBeforeShift: 6,
+      alreadyWorkingThatDay: false,
+    }],
+  });
+
+  assert.equal(candidate?.workloadRisk, "high");
+  assert.ok((candidate?.score ?? 100) < 50);
+  assert.match(candidate?.reasons.join(" "), /Projected workload risk: high/);
 });
