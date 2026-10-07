@@ -11,6 +11,7 @@ import {
   assertOrganizationRole,
   getAccess,
   ORG_ADMIN_ROLES,
+  PAYROLL_OPERATOR_ROLES,
   roleAllowed,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -58,6 +59,27 @@ export async function GET(request: Request) {
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
+  }
+
+  const view = new URL(request.url).searchParams.get("view");
+  if (view === "current-user") {
+    const denied = await assertOrganizationRole(
+      user.id,
+      organizationId,
+      PAYROLL_OPERATOR_ROLES,
+      "Only payroll operators can view their treasury authorization status.",
+    );
+    if (denied) return denied;
+    const policy = await treasuryControlPolicy(organizationId);
+    return Response.json({
+      policy: {
+        enabled: policy?.enabled ?? false,
+        requireReleaseSubmitterSeparation: policy?.requireReleaseSubmitterSeparation ?? true,
+        enabledAt: policy?.enabledAt?.toISOString() ?? null,
+      },
+      currentUserAssigned: await treasuryOperatorAssigned(organizationId, user.id),
+      canConfigure: false,
+    });
   }
 
   const denied = await assertOrganizationRole(
