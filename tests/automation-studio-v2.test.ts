@@ -68,10 +68,11 @@ test("approval gates pause the exact workflow and decisions resume or terminate 
 });
 
 test("authoritative business decisions stay successful even when automation resume fails", () => {
-  const decisionIndex = approvals.indexOf("updated = await db.transaction");
+  const decisionIndex = approvals.indexOf("const decisionResult = await db.transaction");
   const resumeIndex = approvals.indexOf("resumeAutomationExecutionFromApproval({", decisionIndex);
   assert.ok(decisionIndex >= 0);
-  assert.ok(resumeIndex > decisionIndex, "automation gate must resume after the approval transaction");
+  assert.ok(resumeIndex > decisionIndex, "automation gate must resume only after the atomic approval/chain transaction");
+  assert.ok(approvals.includes("advanceApprovalChainAfterDecisionTx(tx"));
   assert.ok(approvals.includes('status: "engine_error"'));
 });
 
