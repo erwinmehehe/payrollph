@@ -156,7 +156,11 @@ const RAW_AUTOMATION_WORKFLOW_TEMPLATES = [
     name: "HMO enrollment carrier handoff",
     description: "Creates a Benefits Ops handoff task and notifies the employee when a governed HMO enrollment is created.",
     trigger: "benefit.enrollment_created",
-    conditions: { version: 1, all: [], any: [] },
+    conditions: {
+      version: 1,
+      all: [{ field: "benefitCategory", operator: "eq", value: "hmo" }],
+      any: [],
+    },
     actions: [
       {
         type: "create_task",
