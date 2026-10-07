@@ -256,8 +256,8 @@ test("planning UI exposes explicit scenario assumptions and quality boundaries",
   assert.ok(source.includes("Vacancy fill %"));
   assert.ok(source.includes("Employer load %"));
   assert.ok(source.includes("Forecast quality needs review"));
-  assert.ok(source.includes("not a statutory contribution calculation"));
-  assert.ok(source.includes("It is not added to the labor plan again."));
+  assert.ok(source.includes("same current SSS/EC, PhilHealth, and Pag-IBIG functions used by payroll"));
+  assert.ok(source.includes("average loaded hourly cost"));
   assert.ok(source.includes("PROJECTED CAPACITY"));
   assert.ok(source.includes("capacityGapAfterFills"));
   assert.ok(source.includes("STAFFING PLAN APPROVAL"));
