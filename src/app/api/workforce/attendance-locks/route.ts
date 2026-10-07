@@ -60,8 +60,17 @@ export async function GET(request: Request) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
 
-  const denied = await authorizeCompanyWide(user.id, organizationId);
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Only People or Payroll roles can review attendance locks.",
+  );
   if (denied) return denied;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) {
+    return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  }
   await ensureWorkforceAttendanceControlSchema();
 
   const [policyRows, locks] = await Promise.all([
@@ -74,6 +83,7 @@ export async function GET(request: Request) {
   ]);
 
   return Response.json({
+    canManage: access.companyWide,
     policy: {
       requirePayrollCutoffLock: Boolean(policyRows[0]?.requirePayrollCutoffLock),
     },
