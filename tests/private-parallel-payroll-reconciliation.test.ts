@@ -43,10 +43,14 @@ function journalRows(period: string) {
   return [
     ["PAYROLL_GROSS", EMPLOYER, period, "35000.00", "0.00"],
     ["BANK_NET", EMPLOYER, period, "0.00", "29975.00"],
-    ["EE_STATUTORY", EMPLOYER, period, "0.00", "4220.00"],
-    ["LOANS_AND_OTHER", EMPLOYER, period, "0.00", "805.00"],
+    ["SSS_PAYABLE", EMPLOYER, period, "0.00", "4905.00"],
+    ["PHILHEALTH_PAYABLE", EMPLOYER, period, "0.00", "1750.00"],
+    ["PAGIBIG_PAYABLE", EMPLOYER, period, "0.00", "400.00"],
+    ["BIR_WHT_PAYABLE", EMPLOYER, period, "0.00", "1520.00"],
+    ["GOVERNMENT_LOANS_PAYABLE", EMPLOYER, period, "0.00", "500.00"],
+    ["COMPANY_LOANS_PAYABLE", EMPLOYER, period, "0.00", "300.00"],
+    ["OTHER_DEDUCTIONS_PAYABLE", EMPLOYER, period, "0.00", "5.00"],
     ["EMPLOYER_STATUTORY_EXPENSE", EMPLOYER, period, "4355.00", "0.00"],
-    ["EMPLOYER_STATUTORY_PAYABLE", EMPLOYER, period, "0.00", "4355.00"],
   ];
 }
 function writeEvidence(
@@ -236,6 +240,44 @@ test("identical balanced journals still fail when both misstate source payroll t
     assert.ok(report.issues.some((reason) => reason.includes("GL-to-payroll bridge differs at BANK_NET")));
     assert.ok(!report.issues.some((reason) => reason.includes("GL account mismatch")));
     assert.ok(!report.issues.some((reason) => reason.includes("do not balance")));
+  });
+});
+
+test("matching balanced journals cannot hide swapped statutory versus tax liabilities", () => {
+  withFixture((root, manifest) => {
+    for (const source of ["incumbentJournal", "linawJournal"] as const) {
+      mutate(root, manifest, 0, source, (old) => old
+        .replace("SSS_PAYABLE," + EMPLOYER + ",2026-07,0.00,4905.00",
+          "SSS_PAYABLE," + EMPLOYER + ",2026-07,0.00,4906.00")
+        .replace("BIR_WHT_PAYABLE," + EMPLOYER + ",2026-07,0.00,1520.00",
+          "BIR_WHT_PAYABLE," + EMPLOYER + ",2026-07,0.00,1519.00"));
+    }
+    const report = evaluateParallelPayrollReconciliation(manifest, root);
+    assert.equal(report.status, "reconciliation-blocked");
+    assert.ok(report.issues.some((x) => x.includes("bridge differs at SSS_PAYABLE")));
+    assert.ok(report.issues.some((x) => x.includes("bridge differs at BIR_WHT_PAYABLE")));
+    assert.ok(!report.issues.some((x) => x.includes("GL account mismatch")));
+    assert.ok(!report.issues.some((x) => x.includes("do not balance")));
+  });
+});
+
+test("a documented withholding refund bridges to GL debit rather than fictitious credit", () => {
+  withFixture((root, manifest) => {
+    for (const source of ["incumbentPayroll", "linawPayroll"] as const) {
+      mutate(root, manifest, 0, source, (old) => old.replace(
+        "1520.00,0.00,0.00,5.00,17000.00",
+        "-100.00,0.00,0.00,5.00,18620.00",
+      ));
+    }
+    for (const source of ["incumbentJournal", "linawJournal"] as const) {
+      mutate(root, manifest, 0, source, (old) => old
+        .replace("BANK_NET," + EMPLOYER + ",2026-07,0.00,29975.00",
+          "BANK_NET," + EMPLOYER + ",2026-07,0.00,31595.00")
+        .replace("BIR_WHT_PAYABLE," + EMPLOYER + ",2026-07,0.00,1520.00",
+          "BIR_WHT_PAYABLE," + EMPLOYER + ",2026-07,100.00,0.00"));
+    }
+    const report = evaluateParallelPayrollReconciliation(manifest, root);
+    assert.equal(report.status, "arithmetic-reconciled-pending-independent-review");
   });
 });
 
