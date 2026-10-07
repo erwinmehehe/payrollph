@@ -51,12 +51,20 @@ Built:
 - Workspace page for HR/managers plus employee self-service
 - Migration + baseline schema + regression tests
 
+Additional performance capabilities built:
+- Continuous manager 1:1 records with employee-shared agenda/summary and separately restricted manager-private notes
+- Append-only praise, coaching, development and general feedback with explicit employee-shared vs manager-private visibility
+- Optional linkage of continuous feedback to governed company/team/employee goals
+- Scheduler-backed self-assessment and manager-review reminders at 7/3/1-day, due and overdue stages
+- Durable reminder tasks/events with deduplicated email delivery, automatic resolution, and People-admin fallback when ownership is missing
+- Completion analytics by manager and org unit
+- Rating distribution, goal-attainment, 1:1 coverage, reminder backlog and calibration-change analytics
+- Employee self-service history for shared 1:1 and feedback evidence
+
 Next improvements inside this module:
-- Continuous feedback / 1:1 notes
-- Review reminders and due-date automation
-- Completion/distribution analytics by manager and org unit
 - Competency libraries linked more deeply to job-profile skill requirements
-- Calibration distribution views and outlier analytics
+- Calibration distribution outlier flags and configurable review-distribution policies
+- Employee contribution to upcoming 1:1 agendas
 
 ## Tranche 2 — Job architecture and position control
 
