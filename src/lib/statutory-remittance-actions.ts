@@ -8,6 +8,8 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { loadStatutoryRemittanceState } from "@/lib/statutory-remittance-state";
 import { queueStatutoryComplianceEscalations } from "@/lib/statutory-remittance-escalations";
+import { daysUntil, type RemittanceAlert } from "@/lib/statutory-remittance-alerts";
+import { runAutomationEventSafely } from "@/lib/automation";
 
 const SOURCE_TYPE = "statutory_remittance";
 const SCHEDULE_JOB = "statutory-remittance-actions";
@@ -15,6 +17,18 @@ const SCHEDULE_INTERVAL_MS = 60 * 60 * 1000;
 const LOCAL_CHECK_INTERVAL_MS = 60 * 1000;
 
 let lastLocalScheduleCheck = 0;
+
+function isRemittanceDueAutomationAlert(alert: RemittanceAlert) {
+  if (!alert.dueDate) return false;
+  if (alert.id.startsWith("coverage:")) {
+    return alert.tone === "warning" || alert.tone === "danger";
+  }
+  return alert.id.startsWith("batch:")
+    && (
+      alert.title.endsWith("remittance is due soon")
+      || alert.title.endsWith("remittance is overdue")
+    );
+}
 
 export async function syncStatutoryRemittanceActions(
   organizationId: number,
@@ -37,6 +51,11 @@ export async function syncStatutoryRemittanceActions(
   let created = 0;
   let reopened = 0;
   let resolved = 0;
+  const automationCandidates: Array<{
+    taskId: number;
+    escalationEpisode: number;
+    alert: RemittanceAlert;
+  }> = [];
 
   await db.transaction(async (tx) => {
     for (const alert of state.alerts) {
@@ -64,8 +83,20 @@ export async function syncStatutoryRemittanceActions(
             complianceActionTasks.sourceType,
             complianceActionTasks.sourceKey,
           ],
-        }).returning({ id: complianceActionTasks.id });
-        if (inserted.length > 0) created += 1;
+        }).returning({
+          id: complianceActionTasks.id,
+          escalationEpisode: complianceActionTasks.escalationEpisode,
+        });
+        if (inserted.length > 0) {
+          created += 1;
+          if (isRemittanceDueAutomationAlert(alert)) {
+            automationCandidates.push({
+              taskId: inserted[0].id,
+              escalationEpisode: inserted[0].escalationEpisode,
+              alert,
+            });
+          }
+        }
         continue;
       }
 
@@ -96,8 +127,20 @@ export async function syncStatutoryRemittanceActions(
           eq(complianceActionTasks.id, current.id),
           eq(complianceActionTasks.organizationId, organizationId),
           eq(complianceActionTasks.status, "resolved"),
-        )).returning({ id: complianceActionTasks.id });
-        if (reopenedRows.length > 0) reopened += 1;
+        )).returning({
+          id: complianceActionTasks.id,
+          escalationEpisode: complianceActionTasks.escalationEpisode,
+        });
+        if (reopenedRows.length > 0) {
+          reopened += 1;
+          if (isRemittanceDueAutomationAlert(alert)) {
+            automationCandidates.push({
+              taskId: reopenedRows[0].id,
+              escalationEpisode: reopenedRows[0].escalationEpisode,
+              alert,
+            });
+          }
+        }
       } else {
         await tx.update(complianceActionTasks).set(alertFields).where(and(
           eq(complianceActionTasks.id, current.id),
@@ -122,6 +165,37 @@ export async function syncStatutoryRemittanceActions(
     }
   });
 
+  const automation = [];
+  for (const candidate of automationCandidates) {
+    const daysUntilDue = candidate.alert.dueDate
+      ? daysUntil(candidate.alert.dueDate, state.today)
+      : null;
+    try {
+      automation.push(...await runAutomationEventSafely({
+        organizationId,
+        trigger: "government.remittance_due",
+        eventKey: `government-remittance-due:${candidate.taskId}:${candidate.escalationEpisode}`,
+        context: {
+          complianceActionTaskId: candidate.taskId,
+          statutoryAgency: candidate.alert.agency,
+          applicableMonth: candidate.alert.applicableMonth,
+          dueDate: candidate.alert.dueDate,
+          daysUntilDue,
+          remittanceAlertTone: candidate.alert.tone,
+          remittanceAlertId: candidate.alert.id,
+          title: candidate.alert.title,
+          detail: candidate.alert.detail,
+          eventAmount: daysUntilDue ?? 0,
+        },
+      }));
+    } catch (error) {
+      automation.push({
+        status: "engine_error",
+        error: error instanceof Error ? error.message.slice(0, 4000) : "Government remittance automation failed.",
+      });
+    }
+  }
+
   if (created || reopened || resolved) {
     await recordAuditEvent({
       organizationId,
@@ -133,6 +207,7 @@ export async function syncStatutoryRemittanceActions(
         reopened,
         resolved,
         activeAlerts: state.alerts.length,
+        automationEvents: automationCandidates.length,
       },
     });
   }
@@ -171,6 +246,8 @@ export async function syncStatutoryRemittanceActions(
     escalationQueued,
     escalationDeduplicated,
     escalationError,
+    automationEvents: automationCandidates.length,
+    automation,
     missingOrganization: false,
   };
 }
