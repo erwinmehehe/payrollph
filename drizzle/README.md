@@ -111,3 +111,5 @@ the first one, so it closes itself.
 - `0076_performance_structure_controls.sql` adds cascading company/team/employee goals, competency/KRA templates, structured review items, and governed performance-cycle completion controls.
 
 - `0077_performance_calibration.sql` adds one governed calibration session per performance cycle, score-change rationale evidence, and finalized calibrated ratings before cycle closure.
+
+- `0078_slack_connector.sql` adds encrypted provider-specific Slack connectors plus idempotent Automation Studio delivery evidence.

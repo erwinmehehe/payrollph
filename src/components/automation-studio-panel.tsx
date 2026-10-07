@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApprovalChainAdmin } from "@/components/approval-chain-admin";
+import { SlackConnectorAdmin } from "@/components/slack-connector-admin";
 import {
   Activity,
   Bot,
@@ -79,6 +80,19 @@ type ApprovalChainPolicy = {
   active: boolean;
 };
 
+type IntegrationConnector = {
+  id: number;
+  provider: "slack";
+  name: string;
+  active: boolean;
+  verifiedAt: string | null;
+  verifiedIdentity: Record<string, unknown> | null;
+  config: {
+    defaultChannelId: string;
+    allowedChannelIds: string[];
+  };
+};
+
 type AutomationRuleVersion = {
   id: number;
   ruleId: number;
@@ -132,6 +146,7 @@ type StudioData = {
     cap: string | null;
   }>;
   approvalChains: ApprovalChainPolicy[];
+  integrationConnectors: IntegrationConnector[];
   schedulePatterns: Array<{
     id: number;
     code: string;
@@ -188,6 +203,9 @@ type ActionDraft = {
   scheduleOffsetDays: string;
   scheduleReason: string;
   documentTemplateId: string;
+  slackConnectorId: string;
+  slackChannelId: string;
+  slackMessage: string;
 };
 
 const defaultAction = (id: string): ActionDraft => ({
@@ -221,6 +239,9 @@ const defaultAction = (id: string): ActionDraft => ({
   scheduleOffsetDays: "0",
   scheduleReason: "Automation Studio approved schedule assignment",
   documentTemplateId: "",
+  slackConnectorId: "",
+  slackChannelId: "",
+  slackMessage: "",
 });
 
 const formatDateTime = (value: string) =>
@@ -440,6 +461,14 @@ export function AutomationStudioPanel({
         type: row.type,
         planId: Number(row.planId),
         ...(row.monthlyContribution ? { monthlyContribution: Number(row.monthlyContribution) } : {}),
+      };
+    }
+    if (row.type === "send_slack_message") {
+      return {
+        type: row.type,
+        connectorId: Number(row.slackConnectorId),
+        channelId: row.slackChannelId || undefined,
+        text: row.slackMessage,
       };
     }
     if (row.type === "request_payroll_adjustment") {
@@ -704,6 +733,7 @@ export function AutomationStudioPanel({
       </section>
 
       <ApprovalChainAdmin organizationId={organizationId} setNotice={setNotice} onChanged={load} />
+      <SlackConnectorAdmin organizationId={organizationId} setNotice={setNotice} onChanged={load} />
 
       {showBuilder && (
         <form onSubmit={saveRule} className="card" style={{ marginTop: 16 }}>
@@ -1054,6 +1084,50 @@ export function AutomationStudioPanel({
                           <div className="modal-note">This creates a high-priority approval request. If a chain is selected, the absolute PHP adjustment amount determines which configured approval tiers are required. Automation never posts money directly to payroll.</div>
                         </div>
                       )}
+
+                      {row.type === "send_slack_message" && (() => {
+                        const connector = data.integrationConnectors.find((item) => String(item.id) === row.slackConnectorId);
+                        const channels = connector?.config.allowedChannelIds ?? [];
+                        return (
+                          <div className="setting-form">
+                            <label>Slack connector
+                              <select
+                                required
+                                value={row.slackConnectorId}
+                                onChange={(event) => {
+                                  const nextConnector = data.integrationConnectors.find((item) => String(item.id) === event.target.value);
+                                  updateAction(row.id, {
+                                    slackConnectorId: event.target.value,
+                                    slackChannelId: nextConnector?.config.defaultChannelId ?? "",
+                                  });
+                                }}
+                              >
+                                <option value="">Choose active Slack connector</option>
+                                {data.integrationConnectors.filter((item) => item.active && item.provider === "slack").map((item) => (
+                                  <option key={item.id} value={item.id}>{item.name}</option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>Channel ID
+                              <select required value={row.slackChannelId} onChange={(event) => updateAction(row.id, { slackChannelId: event.target.value })}>
+                                <option value="">Choose allow-listed channel</option>
+                                {channels.map((channel) => <option key={channel} value={channel}>{channel}</option>)}
+                              </select>
+                            </label>
+                            <label>Message
+                              <textarea
+                                required
+                                rows={4}
+                                maxLength={4000}
+                                value={row.slackMessage}
+                                onChange={(event) => updateAction(row.id, { slackMessage: event.target.value })}
+                                placeholder="Payroll review is ready."
+                              />
+                            </label>
+                            <div className="modal-note">Uses the verified Slack Bot API connector and only an allow-listed channel ID. Automation Studio never accepts an arbitrary Slack or webhook URL for this action.</div>
+                          </div>
+                        );
+                      })()}
 
                       {row.type === "webhook" && (
                         <div className="modal-note">Calls only registered signed webhook endpoints subscribed to <code>automation.triggered</code>. Arbitrary URLs are not accepted.</div>
