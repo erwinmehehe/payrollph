@@ -41,6 +41,34 @@ export async function treasuryOperatorAssigned(organizationId: number, userId: n
   return Boolean(assignment);
 }
 
+export async function authorizeAssignedTreasuryOperator(input: {
+  organizationId: number;
+  userId: number;
+}) {
+  const policy = await treasuryControlPolicy(input.organizationId);
+  if (!policy?.enabled) {
+    return denied("Enterprise treasury separation must be enabled before treasury dual-control approvals can be used.", 409);
+  }
+
+  const access = await getAccess(input.userId, input.organizationId);
+  if (!access || !access.companyWide) {
+    return denied("Treasury operators must have company-wide workspace access.");
+  }
+  if (!roleAllowed(access.role, TREASURY_OPERATOR_ELIGIBLE_ROLES)) {
+    return denied("This membership role is not eligible for enterprise treasury assignment.");
+  }
+  if (!await treasuryOperatorAssigned(input.organizationId, input.userId)) {
+    return denied("This user is not an assigned treasury operator.");
+  }
+
+  const permission = await roleGateAllowed(input.userId, input.organizationId, "payroll.disburse");
+  if (!permission.allowed) {
+    return denied(permission.reason ?? "Payroll disbursement permission is denied.");
+  }
+
+  return null;
+}
+
 async function releaseEvidence(organizationId: number, runId: number) {
   const events = await db.select().from(auditEvents)
     .where(and(
