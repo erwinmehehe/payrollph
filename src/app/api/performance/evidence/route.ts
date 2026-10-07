@@ -72,6 +72,9 @@ export async function GET(request: Request) {
   const rowCounts = Object.fromEntries(
     Object.entries(pack.sections).map(([name, value]) => [name, value.rowCount]),
   );
+  const selectedSealVerification = cycleId == null
+    ? null
+    : pack.sealVerification.find((item) => item.cycleId === cycleId) ?? null;
 
   await recordAuditEvent({
     organizationId,
@@ -89,6 +92,9 @@ export async function GET(request: Request) {
       managerPrivateFeedbackExcluded: true,
       managerPrivateActionItemsExcluded: true,
       compensationAndPayrollExcluded: true,
+      sealId: selectedSealVerification?.sealId ?? null,
+      employeeEvidenceMatchesSeal: selectedSealVerification?.employeeEvidenceMatchesSeal ?? null,
+      sealedManifestHash: selectedSealVerification?.manifestHash ?? null,
     },
   });
 
@@ -102,6 +108,12 @@ export async function GET(request: Request) {
       "X-Content-Type-Options": "nosniff",
       "X-Linaw-Performance-Evidence-SHA256": pack.snapshot.sha256,
       "X-Linaw-Performance-Evidence-Version": pack.schemaVersion,
+      ...(selectedSealVerification
+        ? {
+            "X-Linaw-Performance-Seal-ID": String(selectedSealVerification.sealId),
+            "X-Linaw-Performance-Seal-Match": String(selectedSealVerification.employeeEvidenceMatchesSeal),
+          }
+        : {}),
     },
   });
 }
