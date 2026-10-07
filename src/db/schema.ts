@@ -2664,6 +2664,7 @@ export const performanceCycles = pgTable(
     status: varchar("status", { length: 24 }).notNull().default("draft"),
     requireSelfAssessment: boolean("require_self_assessment").notNull().default(false),
     requireManagerSummary: boolean("require_manager_summary").notNull().default(true),
+    requireCalibration: boolean("require_calibration").notNull().default(false),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     completedByUserId: integer("completed_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
@@ -2799,6 +2800,54 @@ export const performanceReviewItems = pgTable(
     check("performance_review_items_self_score_check", sql`${table.selfScore} IS NULL OR (${table.selfScore} >= 1 AND ${table.selfScore} <= 5)`),
     check("performance_review_items_manager_score_check", sql`${table.managerScore} IS NULL OR (${table.managerScore} >= 1 AND ${table.managerScore} <= 5)`),
     check("performance_review_items_final_score_check", sql`${table.finalScore} IS NULL OR (${table.finalScore} >= 1 AND ${table.finalScore} <= 5)`),
+  ],
+);
+
+export const performanceCalibrationSessions = pgTable(
+  "performance_calibration_sessions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    cycleId: integer("cycle_id").notNull().references(() => performanceCycles.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 180 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    notes: text("notes"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull(),
+    finalizedByUserId: integer("finalized_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    finalizedByName: varchar("finalized_by_name", { length: 120 }),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_calibration_sessions_cycle_unique").on(table.cycleId),
+    index("performance_calibration_sessions_org_status_idx").on(table.organizationId, table.status),
+    check("performance_calibration_sessions_status_check", sql`${table.status} IN ('open','finalized')`),
+  ],
+);
+
+export const performanceCalibrationEntries = pgTable(
+  "performance_calibration_entries",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    sessionId: integer("session_id").notNull().references(() => performanceCalibrationSessions.id, { onDelete: "cascade" }),
+    reviewId: integer("review_id").notNull().references(() => performanceReviews.id, { onDelete: "cascade" }),
+    originalScore: numeric("original_score", { precision: 4, scale: 2 }).notNull(),
+    calibratedScore: numeric("calibrated_score", { precision: 4, scale: 2 }),
+    rationale: text("rationale"),
+    calibratedByUserId: integer("calibrated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    calibratedByName: varchar("calibrated_by_name", { length: 120 }),
+    calibratedAt: timestamp("calibrated_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_calibration_entries_session_review_unique").on(table.sessionId, table.reviewId),
+    index("performance_calibration_entries_org_session_idx").on(table.organizationId, table.sessionId),
+    check("performance_calibration_entries_original_score_check", sql`${table.originalScore} >= 1 AND ${table.originalScore} <= 5`),
+    check("performance_calibration_entries_calibrated_score_check", sql`${table.calibratedScore} IS NULL OR (${table.calibratedScore} >= 1 AND ${table.calibratedScore} <= 5)`),
   ],
 );
 
