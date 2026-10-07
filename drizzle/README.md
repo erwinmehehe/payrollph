@@ -90,3 +90,5 @@ the first one, so it closes itself.
 - `0066_hcm_probation_review_acknowledgment.sql` adds structured probation reviews, immutable submitted-review evidence, employee receipt-only acknowledgments, and review lifecycle events without granting automatic employment-status authority.
 
 - `0067_attendance_exception_events.sql` persists idempotent attendance-exception lifecycle evidence so newly detected exceptions can emit the live Automation Studio `attendance.exception_created` trigger without duplicate workflow runs.
+
+- `0068_automation_rule_versioning.sql` adds immutable Automation Studio rule-definition history plus published/draft pointers, enabling staged revisions and governed rollback without changing the stable rule IDs used by execution idempotency.
