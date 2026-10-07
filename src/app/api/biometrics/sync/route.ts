@@ -227,10 +227,11 @@ export async function POST(request: Request) {
       }
     }
 
+    if (applied) ingested += 1;
+    else duplicates += 1;
     if (applied) {
-      ingested += 1;
       changedAttendance.set(`${employee.id}|${workDate}`, { employeeId: employee.id, workDate });
-    } else duplicates += 1;
+    }
   }
 
   const attendanceExceptionSync = [];
