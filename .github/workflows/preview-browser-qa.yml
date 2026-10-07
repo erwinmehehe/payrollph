@@ -154,13 +154,24 @@ jobs:
             check(primaryStyles.foreground === "rgb(255, 255, 255)", name + ": demo CTA lost white text; saw " + primaryStyles.foreground);
             check(primaryStyles.background !== "rgba(0, 0, 0, 0)" && primaryStyles.background !== "rgb(255, 255, 255)", name + ": demo CTA has no filled background");
 
-            const heroPreview = hero.getByTestId("payroll-hero-preview");
+            const cinematic = hero.getByTestId("cinematic-hero-demo");
+            check((await cinematic.count()) === 1, name + ": cinematic hero demo missing");
+            check((await cinematic.getByRole("button", {name:"Pause hero demo"}).count()) === 1, name + ": autoplay pause control missing");
+            await cinematic.getByRole("button", {name:"Pause hero demo"}).click();
+            const prepareScene = cinematic.getByRole("tab", {name:/Prepare/});
+            check((await prepareScene.count()) === 1, name + ": Prepare scene missing");
+            await prepareScene.click();
+            const heroPreview = cinematic.getByTestId("payroll-hero-preview");
             check((await heroPreview.count()) === 1, name + ": current-app hero preview missing");
             check((await heroPreview.getByText("Illustrative · sample data").count()) === 1, name + ": sample-data disclosure missing");
-            check((await heroPreview.getByText("Let’s make payday a good day.").count()) === 1, name + ": hero does not mirror live Payroll Officer heading");
+            check((await heroPreview.getByText("Let’s make payday a good day.").count()) === 1, name + ": Prepare scene does not mirror Payroll Officer dashboard");
             for (const step of ["Inputs", "Calculate", "Review", "Submit"]) {
               check((await heroPreview.locator(".linaw-preview-step").filter({hasText:step}).count()) === 1, name + ": payroll workflow missing " + step);
             }
+            check((await cinematic.locator('a[href="/demo"]').count()) >= 1, name + ": cinematic frame must link to /demo");
+            await cinematic.getByRole("tab", {name:/Review/}).click();
+            check((await cinematic.getByRole("heading", {name:"Payroll review"}).count()) === 1, name + ": Review scene did not switch to Checker");
+            await prepareScene.click();
             check((await heroPreview.getByText("Sample company").count()) >= 1, name + ": fake customer brand must be replaced with sample label");
 
             for (const anchor of ["solutions", "demo", "compliance", "product", "security", "pricing", "cta"]) {
