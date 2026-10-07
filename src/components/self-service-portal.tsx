@@ -26,6 +26,7 @@ import { LinawMark } from "@/components/linaw-mark";
 import { EmployeeHomeDashboard } from "@/components/employee-home-dashboard";
 import { EmployeeContributionIssueModal } from "@/components/employee-contribution-issue-modal";
 import { EmployeeDocumentsPanel } from "@/components/employee-documents-panel";
+import { HcmSelfProbationReviews } from "@/components/hcm-self-probation-reviews";
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";

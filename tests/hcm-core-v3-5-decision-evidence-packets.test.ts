@@ -133,6 +133,7 @@ test("packet export contains integrity state, timeline, and content hashes witho
   const route = read("src/app/api/hcm/employment-term-decisions/[id]/evidence/route.ts");
   assert.ok(source.includes('"hcm-employment-decision-packet-v1"'));
   assert.ok(source.includes('"hcm-employment-decision-packet-v2"'));
+  assert.ok(source.includes('"hcm-employment-decision-packet-v3"'));
   assert.ok(source.includes("sealedSha256"));
   assert.ok(source.includes('status: sealedHash'));
   assert.ok(source.includes('"verified" : "mismatch"'));

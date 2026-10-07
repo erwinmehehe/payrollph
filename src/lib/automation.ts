@@ -64,6 +64,7 @@ export const AUTOMATION_LIVE_TRIGGERS = [
   "payroll.submitted",
   "payroll.approved",
   "payroll.released",
+  "attendance.exception_created",
   "overtime.requested",
   "overtime.approved",
   "leave.requested",
@@ -72,13 +73,11 @@ export const AUTOMATION_LIVE_TRIGGERS = [
   "candidate.hired",
   "position.opened",
   "document.expires",
-] as const satisfies readonly AutomationTrigger[];
-
-export const AUTOMATION_PLANNED_TRIGGERS = [
-  "attendance.exception_created",
   "government.remittance_due",
   "contribution.discrepancy_detected",
 ] as const satisfies readonly AutomationTrigger[];
+
+export const AUTOMATION_PLANNED_TRIGGERS = [] as const satisfies readonly AutomationTrigger[];
 
 export function automationTriggerIsLive(trigger: AutomationTrigger) {
   return (AUTOMATION_LIVE_TRIGGERS as readonly string[]).includes(trigger);
@@ -128,6 +127,9 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "tenureYears", label: "Tenure (years)", kind: "number" },
   { value: "payrollAmount", label: "Payroll amount", kind: "number" },
   { value: "overtimeMinutes", label: "Overtime minutes", kind: "number" },
+  { value: "attendanceExceptionKind", label: "Attendance exception type", kind: "string" },
+  { value: "attendanceExceptionSeverity", label: "Attendance exception severity", kind: "string" },
+  { value: "minutes", label: "Attendance exception minutes", kind: "number" },
   { value: "leaveType", label: "Leave type", kind: "string" },
   { value: "positionCode", label: "Position code", kind: "string" },
   { value: "employeeStatus", label: "Employee status", kind: "string" },
@@ -137,6 +139,15 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "documentRequirementCode", label: "Document requirement code", kind: "string" },
   { value: "documentStatus", label: "Document compliance status", kind: "string" },
   { value: "daysUntilExpiry", label: "Days until document expiry", kind: "number" },
+  { value: "statutoryAgency", label: "Statutory agency", kind: "string" },
+  { value: "applicableMonth", label: "Applicable month", kind: "string" },
+  { value: "daysUntilDue", label: "Days until remittance due", kind: "number" },
+  { value: "remittanceAlertTone", label: "Remittance alert severity", kind: "string" },
+  { value: "complianceActionTaskId", label: "Compliance action task ID", kind: "number" },
+  { value: "contributionIssueType", label: "Contribution issue type", kind: "string" },
+  { value: "contributionSource", label: "Contribution discrepancy source", kind: "string" },
+  { value: "contributionSeverity", label: "Contribution discrepancy severity", kind: "string" },
+  { value: "contributionCaseId", label: "Contribution case ID", kind: "number" },
 ] as const;
 
 export const AUTOMATION_OPERATORS = [

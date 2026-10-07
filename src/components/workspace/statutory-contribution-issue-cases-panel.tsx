@@ -59,9 +59,11 @@ const OUTCOME_LABELS: Record<ContributionResolutionOutcome, string> = {
 
 export function StatutoryContributionIssueCasesPanel({
   organizationId,
+  legalEntityId,
   notify,
 }: {
   organizationId: number;
+  legalEntityId?: number | null;
   notify: Notify;
 }) {
   const [cases, setCases] = useState<ContributionIssueCase[]>([]);
@@ -77,7 +79,7 @@ export function StatutoryContributionIssueCasesPanel({
     setLoading(true);
     try {
       const response = await fetch(
-        `/api/compliance/contribution-issues?organizationId=${organizationId}`,
+        `/api/compliance/contribution-issues?organizationId=${organizationId}${legalEntityId ? `&legalEntityId=${legalEntityId}` : ""}`,
         { cache: "no-store" },
       );
       const body = await response.json().catch(() => ({}));
@@ -88,7 +90,7 @@ export function StatutoryContributionIssueCasesPanel({
     } finally {
       setLoading(false);
     }
-  }, [notify, organizationId]);
+  }, [legalEntityId, notify, organizationId]);
 
   useEffect(() => {
     void load();

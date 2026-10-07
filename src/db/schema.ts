@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
   boolean,
+  check,
   date,
   integer,
   index,
@@ -1887,6 +1888,7 @@ export const governmentFilingValidations = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
     payrollRunId: integer("payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
     agency: varchar("agency", { length: 16 }).notNull(),
     form: varchar("form", { length: 24 }).notNull(),
@@ -1908,8 +1910,8 @@ export const governmentFilingValidations = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("government_filing_file_unique").on(table.organizationId, table.agency, table.form, table.fileSha256),
-    index("government_filing_status_idx").on(table.agency, table.form, table.status),
+    uniqueIndex("government_filing_file_unique").on(table.organizationId, table.legalEntityId, table.agency, table.form, table.fileSha256),
+    index("government_filing_status_idx").on(table.organizationId, table.legalEntityId, table.agency, table.form, table.status),
   ],
 );
 
@@ -1918,6 +1920,7 @@ export const birWithholdingRemittanceBatches = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
     applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
     filingChannel: varchar("filing_channel", { length: 24 }).notNull(),
     efpsGroup: varchar("efps_group", { length: 1 }),
@@ -1942,9 +1945,9 @@ export const birWithholdingRemittanceBatches = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("bir_withholding_remittance_month_unique").on(table.organizationId, table.applicableMonth),
-    index("bir_withholding_remittance_due_idx").on(table.organizationId, table.status, table.paymentDueDate),
-    index("bir_withholding_remittance_filing_idx").on(table.organizationId, table.filingValidationId),
+    uniqueIndex("bir_withholding_remittance_month_unique").on(table.organizationId, table.legalEntityId, table.applicableMonth),
+    index("bir_withholding_remittance_due_idx").on(table.organizationId, table.legalEntityId, table.status, table.paymentDueDate),
+    index("bir_withholding_remittance_filing_idx").on(table.organizationId, table.legalEntityId, table.filingValidationId),
   ],
 );
 
@@ -1953,6 +1956,7 @@ export const statutoryRemittanceBatches = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
     agency: varchar("agency", { length: 16 }).notNull(),
     applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
     dueDate: date("due_date").notNull(),
@@ -1979,8 +1983,8 @@ export const statutoryRemittanceBatches = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("statutory_remittance_batch_unique").on(table.organizationId, table.agency, table.applicableMonth),
-    index("statutory_remittance_due_idx").on(table.organizationId, table.status, table.dueDate),
+    uniqueIndex("statutory_remittance_batch_unique").on(table.organizationId, table.legalEntityId, table.agency, table.applicableMonth),
+    index("statutory_remittance_due_idx").on(table.organizationId, table.legalEntityId, table.status, table.dueDate),
     index("statutory_remittance_batches_payment_recorder_idx").on(table.organizationId, table.paymentRecordedByUserId),
     index("statutory_remittance_batches_reconciler_idx").on(table.organizationId, table.reconciledByUserId),
   ],
@@ -2050,6 +2054,7 @@ export const statutoryRemittanceMembers = pgTable(
     id: serial("id").primaryKey(),
     batchId: integer("batch_id").notNull().references(() => statutoryRemittanceBatches.id, { onDelete: "cascade" }),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
     employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
     employeeNo: varchar("employee_no", { length: 32 }).notNull(),
     employeeShare: numeric("employee_share", { precision: 12, scale: 2 }).notNull().default("0"),
@@ -2071,7 +2076,7 @@ export const statutoryRemittanceMembers = pgTable(
   },
   (table) => [
     uniqueIndex("statutory_remittance_member_unique").on(table.batchId, table.employeeId),
-    index("statutory_remittance_member_status_idx").on(table.organizationId, table.postingStatus),
+    index("statutory_remittance_member_status_idx").on(table.organizationId, table.legalEntityId, table.postingStatus),
     index("statutory_remittance_members_confirmer_idx").on(table.organizationId, table.confirmedByUserId),
     index("statutory_remittance_members_evidence_idx").on(table.organizationId, table.postingEvidenceArtifactId),
   ],
@@ -2143,6 +2148,7 @@ export const payrollMonthClosures = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
     applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
     status: varchar("status", { length: 24 }).notNull().default("certified"),
     snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
@@ -2153,8 +2159,8 @@ export const payrollMonthClosures = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("payroll_month_closure_snapshot_unique").on(table.organizationId, table.applicableMonth, table.snapshotHash),
-    index("payroll_month_closure_status_idx").on(table.organizationId, table.applicableMonth, table.status),
+    uniqueIndex("payroll_month_closure_snapshot_unique").on(table.organizationId, table.legalEntityId, table.applicableMonth, table.snapshotHash),
+    index("payroll_month_closure_status_idx").on(table.organizationId, table.legalEntityId, table.applicableMonth, table.status),
   ],
 );
 
@@ -2163,6 +2169,7 @@ export const statutoryRemittanceMonthClosures = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
     applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
     status: varchar("status", { length: 24 }).notNull().default("certified"),
     snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
@@ -2175,8 +2182,8 @@ export const statutoryRemittanceMonthClosures = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("statutory_remittance_month_closure_snapshot_unique").on(table.organizationId, table.applicableMonth, table.snapshotHash),
-    index("statutory_remittance_month_closure_status_idx").on(table.organizationId, table.status),
+    uniqueIndex("statutory_remittance_month_closure_snapshot_unique").on(table.organizationId, table.legalEntityId, table.applicableMonth, table.snapshotHash),
+    index("statutory_remittance_month_closure_status_idx").on(table.organizationId, table.legalEntityId, table.status),
   ],
 );
 
@@ -2185,6 +2192,7 @@ export const statutoryContributionIssueCases = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
     employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
     batchId: integer("batch_id").references(() => statutoryRemittanceBatches.id, { onDelete: "set null" }),
     remittanceMemberId: integer("remittance_member_id").references(() => statutoryRemittanceMembers.id, { onDelete: "set null" }),
@@ -2208,8 +2216,8 @@ export const statutoryContributionIssueCases = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("statutory_contribution_issue_org_status_idx").on(table.organizationId, table.status, table.createdAt),
-    index("statutory_contribution_issue_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+    index("statutory_contribution_issue_org_status_idx").on(table.organizationId, table.legalEntityId, table.status, table.createdAt),
+    index("statutory_contribution_issue_employee_idx").on(table.organizationId, table.legalEntityId, table.employeeId, table.createdAt),
     index("statutory_contribution_issue_member_idx").on(table.organizationId, table.remittanceMemberId),
   ],
 );
@@ -2301,6 +2309,7 @@ export const governmentLoanRemittanceBatches = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
     agency: varchar("agency", { length: 16 }).notNull(),
     applicableMonth: varchar("applicable_month", { length: 7 }).notNull(),
     dueDate: date("due_date").notNull(),
@@ -2320,8 +2329,8 @@ export const governmentLoanRemittanceBatches = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("government_loan_remittance_batch_unique").on(table.organizationId, table.agency, table.applicableMonth),
-    index("government_loan_remittance_due_idx").on(table.organizationId, table.status, table.dueDate),
+    uniqueIndex("government_loan_remittance_batch_unique").on(table.organizationId, table.legalEntityId, table.agency, table.applicableMonth),
+    index("government_loan_remittance_due_idx").on(table.organizationId, table.legalEntityId, table.status, table.dueDate),
   ],
 );
 
@@ -2331,6 +2340,7 @@ export const governmentLoanRemittanceMembers = pgTable(
     id: serial("id").primaryKey(),
     batchId: integer("batch_id").notNull().references(() => governmentLoanRemittanceBatches.id, { onDelete: "cascade" }),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
     loanId: integer("loan_id").notNull().references(() => employeeLoans.id, { onDelete: "restrict" }),
     employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
     employeeNo: varchar("employee_no", { length: 32 }).notNull(),
@@ -2348,7 +2358,7 @@ export const governmentLoanRemittanceMembers = pgTable(
   },
   (table) => [
     uniqueIndex("government_loan_remittance_member_unique").on(table.batchId, table.loanId),
-    index("government_loan_remittance_member_status_idx").on(table.organizationId, table.postingStatus),
+    index("government_loan_remittance_member_status_idx").on(table.organizationId, table.legalEntityId, table.postingStatus),
   ],
 );
 
@@ -3152,6 +3162,90 @@ export const hcmLifecyclePolicyEvents = pgTable(
   ],
 );
 
+export const hcmProbationReviews = pgTable(
+  "hcm_probation_reviews",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    employmentTermId: integer("employment_term_id").notNull().references(() => hcmEmploymentTerms.id, { onDelete: "restrict" }),
+    status: varchar("status", { length: 24 }).notNull().default("draft"),
+    recommendation: varchar("recommendation", { length: 32 }),
+    overallRating: integer("overall_rating"),
+    roleExpectationsRating: integer("role_expectations_rating"),
+    workQualityRating: integer("work_quality_rating"),
+    reliabilityRating: integer("reliability_rating"),
+    conductCollaborationRating: integer("conduct_collaboration_rating"),
+    summary: text("summary"),
+    strengths: text("strengths"),
+    developmentAreas: text("development_areas"),
+    reviewerUserId: integer("reviewer_user_id").references(() => users.id, { onDelete: "set null" }),
+    reviewerEmployeeId: integer("reviewer_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    reviewerName: varchar("reviewer_name", { length: 120 }).notNull(),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_probation_reviews_term_unique").on(table.organizationId, table.employmentTermId),
+    index("hcm_probation_reviews_employee_idx").on(table.organizationId, table.employeeId, table.status),
+    check("hcm_probation_reviews_status_check", sql`${table.status} in ('draft','submitted')`),
+    check(
+      "hcm_probation_reviews_recommendation_check",
+      sql`${table.recommendation} is null or ${table.recommendation} in ('confirm_regular','non_renew','needs_hr_review')`,
+    ),
+    check(
+      "hcm_probation_reviews_ratings_check",
+      sql`
+        (${table.overallRating} is null or ${table.overallRating} between 1 and 5)
+        and (${table.roleExpectationsRating} is null or ${table.roleExpectationsRating} between 1 and 5)
+        and (${table.workQualityRating} is null or ${table.workQualityRating} between 1 and 5)
+        and (${table.reliabilityRating} is null or ${table.reliabilityRating} between 1 and 5)
+        and (${table.conductCollaborationRating} is null or ${table.conductCollaborationRating} between 1 and 5)
+      `,
+    ),
+  ],
+);
+
+export const hcmProbationReviewAcknowledgments = pgTable(
+  "hcm_probation_review_acknowledgments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    reviewId: integer("review_id").notNull().references(() => hcmProbationReviews.id, { onDelete: "restrict" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    response: varchar("response", { length: 32 }).notNull().default("acknowledged_receipt"),
+    employeeComment: text("employee_comment"),
+    statementVersion: varchar("statement_version", { length: 40 }).notNull().default("receipt-only-v1"),
+    acknowledgedByUserId: integer("acknowledged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    acknowledgedByName: varchar("acknowledged_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_probation_review_ack_unique").on(table.reviewId, table.employeeId),
+    index("hcm_probation_review_ack_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+    check("hcm_probation_review_ack_response_check", sql`${table.response} = 'acknowledged_receipt'`),
+  ],
+);
+
+export const hcmProbationReviewEvents = pgTable(
+  "hcm_probation_review_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    reviewId: integer("review_id").notNull().references(() => hcmProbationReviews.id, { onDelete: "restrict" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("hcm_probation_review_events_review_idx").on(table.organizationId, table.reviewId, table.createdAt),
+  ],
+);
+
 export const workerEffectiveChanges = pgTable(
   "worker_effective_changes",
   {
@@ -3376,6 +3470,8 @@ export const automationRules = pgTable(
     conditions: jsonb("conditions").notNull().default({}),
     actions: jsonb("actions").notNull().default([]),
     active: boolean("active").notNull().default(true),
+    publishedVersion: integer("published_version").notNull().default(1),
+    draftVersion: integer("draft_version"),
     createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -3383,6 +3479,35 @@ export const automationRules = pgTable(
   (table) => [
     uniqueIndex("automation_rules_org_name_unique").on(table.organizationId, table.name),
     index("automation_rules_org_trigger_idx").on(table.organizationId, table.trigger),
+  ],
+);
+
+export const automationRuleVersions = pgTable(
+  "automation_rule_versions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    ruleId: integer("rule_id").notNull().references(() => automationRules.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("draft"),
+    name: varchar("name", { length: 160 }).notNull(),
+    trigger: varchar("trigger", { length: 64 }).notNull(),
+    conditions: jsonb("conditions").notNull().default({}),
+    actions: jsonb("actions").notNull().default([]),
+    active: boolean("active").notNull().default(true),
+    sourceVersion: integer("source_version"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    publishedByUserId: integer("published_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("automation_rule_versions_rule_version_unique").on(table.ruleId, table.version),
+    uniqueIndex("automation_rule_versions_one_draft_unique")
+      .on(table.ruleId)
+      .where(sql`${table.status} = 'draft'`),
+    index("automation_rule_versions_org_rule_idx").on(table.organizationId, table.ruleId, table.version),
+    check("automation_rule_versions_status_check", sql`${table.status} in ('draft','published','superseded')`),
   ],
 );
 
@@ -3587,3 +3712,38 @@ export const compensationEvents = pgTable(
 );
 
 
+
+
+export const attendanceExceptionEvents = pgTable(
+  "attendance_exception_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    workDate: date("work_date").notNull(),
+    exceptionKind: varchar("exception_kind", { length: 40 }).notNull(),
+    severity: varchar("severity", { length: 16 }).notNull(),
+    punchId: integer("punch_id").references(() => timePunches.id, { onDelete: "set null" }),
+    minutes: integer("minutes"),
+    message: text("message").notNull(),
+    fingerprintSha256: varchar("fingerprint_sha256", { length: 64 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("open"),
+    firstDetectedAt: timestamp("first_detected_at", { withTimezone: true }).notNull().defaultNow(),
+    lastDetectedAt: timestamp("last_detected_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("attendance_exception_events_fingerprint_unique").on(
+      table.organizationId,
+      table.employeeId,
+      table.workDate,
+      table.fingerprintSha256,
+    ),
+    index("attendance_exception_events_open_idx").on(table.organizationId, table.status, table.workDate, table.employeeId),
+    index("attendance_exception_events_employee_idx").on(table.organizationId, table.employeeId, table.workDate),
+    check("attendance_exception_events_severity_check", sql`${table.severity} in ('info','warning','blocker')`),
+    check("attendance_exception_events_status_check", sql`${table.status} in ('open','resolved')`),
+  ],
+);

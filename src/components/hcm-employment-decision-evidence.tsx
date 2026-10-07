@@ -60,7 +60,29 @@ type EvidencePacket = {
       reportingLineSnapshot: Record<string, unknown>;
       createdAt: string;
     }>;
+    probationReview?: {
+      id: number;
+      recommendation: string | null;
+      ratings: {
+        overall: number | null;
+        roleExpectations: number | null;
+        workQuality: number | null;
+        reliability: number | null;
+        conductCollaboration: number | null;
+      };
+      summary: string | null;
+      strengths: string | null;
+      developmentAreas: string | null;
+      reviewerName: string;
+      submittedAt: string | null;
+    } | null;
   };
+  probationReviewAcknowledgment?: {
+    id: number;
+    employeeComment: string | null;
+    acknowledgedByName: string;
+    createdAt: string;
+  } | null;
   integrity: {
     sealed: boolean;
     sealedAt: string | null;
@@ -143,6 +165,8 @@ export function HcmEmploymentDecisionEvidence({
   const notes = packet?.reviewEvidence.notes ?? [];
   const attachments = packet?.reviewEvidence.attachments ?? [];
   const managerAttestations = packet?.reviewEvidence.managerAttestations ?? [];
+  const probationReview = packet?.reviewEvidence.probationReview ?? null;
+  const probationAcknowledgment = packet?.probationReviewAcknowledgment ?? null;
   const timeline = packet?.timeline ?? [];
 
   const accepted = useMemo(() => payload?.uploadLimits.accepted.join(",") ?? "application/pdf,image/png,image/jpeg", [payload]);
@@ -246,7 +270,7 @@ export function HcmEmploymentDecisionEvidence({
             {packet ? `Decision #${packet.decision.id} · ${readable(packet.decision.decisionKind)}` : "Employment decision evidence"}
           </h2>
           <p>
-            Review notes, manager attestations, and supporting files are append-only while approval is pending. Approval seals the exact review evidence with SHA-256.
+            Review notes, manager attestations, structured probation review evidence, and supporting files are append-only while approval is pending. Approval seals the exact review evidence with SHA-256.
           </p>
         </div>
         <div className="run-actions">
@@ -314,6 +338,48 @@ export function HcmEmploymentDecisionEvidence({
               <small>{packet.integrity.sealedAt ? new Date(packet.integrity.sealedAt).toLocaleString() : "not sealed"}</small>
             </div>
           </div>
+
+          {probationReview && (
+            <div className="card" style={{ margin: "0 0 12px", boxShadow: "none" }}>
+              <div className="card-header">
+                <div>
+                  <div className="card-kicker">STRUCTURED PROBATION REVIEW</div>
+                  <h3 style={{ fontSize: 14 }}>{readable(probationReview.recommendation ?? "no_recommendation")}</h3>
+                  <p>
+                    Submitted by {probationReview.reviewerName}
+                    {probationReview.submittedAt ? ` · ${new Date(probationReview.submittedAt).toLocaleString("en-PH")}` : ""}
+                  </p>
+                </div>
+                <span className={`status-badge ${probationAcknowledgment ? "good" : "warn"}`}>
+                  {probationAcknowledgment ? "Receipt acknowledged" : "Receipt pending"}
+                </span>
+              </div>
+              <div className="run-stats" style={{ margin: "0 0 10px" }}>
+                <div>
+                  <span>Overall rating</span>
+                  <strong>{probationReview.ratings.overall ?? "—"} / 5</strong>
+                  <small>internal assessment</small>
+                </div>
+                <div>
+                  <span>Work quality</span>
+                  <strong>{probationReview.ratings.workQuality ?? "—"} / 5</strong>
+                  <small>internal assessment</small>
+                </div>
+                <div>
+                  <span>Reliability</span>
+                  <strong>{probationReview.ratings.reliability ?? "—"} / 5</strong>
+                  <small>internal assessment</small>
+                </div>
+              </div>
+              {probationReview.summary && <p style={{ whiteSpace: "pre-wrap" }}>{probationReview.summary}</p>}
+              <div className="modal-note">
+                Employee receipt acknowledgment is supplemental lifecycle evidence and is intentionally outside the sealed approval hash.
+                {probationAcknowledgment
+                  ? ` Recorded by ${probationAcknowledgment.acknowledgedByName} on ${new Date(probationAcknowledgment.createdAt).toLocaleString("en-PH")}.`
+                  : " No receipt acknowledgment has been recorded yet."}
+              </div>
+            </div>
+          )}
 
           {managerAttestations.length > 0 && (
             <div className="data-table-wrap" style={{ marginBottom: 12 }}>

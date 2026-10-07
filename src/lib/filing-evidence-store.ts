@@ -30,6 +30,7 @@ export async function recordGeneratedFiling(input: {
     .where(and(eq(payrollRuns.id, input.runId), eq(payrollRuns.organizationId, input.organizationId)))
     .limit(1);
   if (!run) throw new Error("Payroll run not found in this workspace.");
+  if (!run.legalEntityId) throw new Error("Payroll run has no legal employer. Fix payroll ownership before generating government filing evidence.");
 
   const file = await generateGovernmentDraft(run.id, input.definition.kind);
   const fileSha256 = sha256Hex(file.body);
@@ -45,6 +46,7 @@ export async function recordGeneratedFiling(input: {
     .insert(governmentFilingValidations)
     .values({
       organizationId: input.organizationId,
+      legalEntityId: run.legalEntityId,
       payrollRunId: run.id,
       agency: input.definition.agency,
       form: input.definition.form,
@@ -67,6 +69,7 @@ export async function recordGeneratedFiling(input: {
     .from(governmentFilingValidations)
     .where(and(
       eq(governmentFilingValidations.organizationId, input.organizationId),
+      eq(governmentFilingValidations.legalEntityId, run.legalEntityId),
       eq(governmentFilingValidations.agency, input.definition.agency),
       eq(governmentFilingValidations.form, input.definition.form),
       eq(governmentFilingValidations.fileSha256, fileSha256),
@@ -92,11 +95,14 @@ export async function recordGeneratedFiling(input: {
   return { record: existing, created: false, file };
 }
 
-export async function listFilingValidations(organizationId: number) {
+export async function listFilingValidations(organizationId: number, legalEntityId: number) {
   return db
     .select()
     .from(governmentFilingValidations)
-    .where(eq(governmentFilingValidations.organizationId, organizationId))
+    .where(and(
+      eq(governmentFilingValidations.organizationId, organizationId),
+      eq(governmentFilingValidations.legalEntityId, legalEntityId),
+    ))
     .orderBy(desc(governmentFilingValidations.createdAt), desc(governmentFilingValidations.id))
     .limit(100);
 }

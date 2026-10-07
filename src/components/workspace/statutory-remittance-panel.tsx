@@ -59,10 +59,12 @@ type Member = {
 
 export function StatutoryRemittancePanel({
   organizationId,
+  legalEntityId,
   defaultMonth,
   notify,
 }: {
   organizationId: number;
+  legalEntityId?: number | null;
   defaultMonth: string;
   notify: Notify;
 }) {
@@ -84,7 +86,7 @@ export function StatutoryRemittancePanel({
 
   const load = useCallback(async () => {
     const response = await fetch(
-      `/api/compliance/statutory-remittances?organizationId=${organizationId}`,
+      `/api/compliance/statutory-remittances?organizationId=${organizationId}${legalEntityId ? `&legalEntityId=${legalEntityId}` : ""}`,
       { cache: "no-store" },
     );
     const body = await response.json().catch(() => ({}));
@@ -92,7 +94,7 @@ export function StatutoryRemittancePanel({
     setBatches(Array.isArray(body.batches) ? body.batches : []);
     setMembers(Array.isArray(body.members) ? body.members : []);
     setCoverageGaps(Array.isArray(body.coverageGaps) ? body.coverageGaps : []);
-  }, [organizationId]);
+  }, [legalEntityId, organizationId]);
 
   useEffect(() => {
     void load().catch((error) => notify(
@@ -112,7 +114,7 @@ export function StatutoryRemittancePanel({
       const response = await fetch("/api/compliance/statutory-remittances", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ organizationId, action, ...payload }),
+        body: JSON.stringify({ organizationId, legalEntityId: legalEntityId ?? undefined, action, ...payload }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Statutory remittance action failed.");

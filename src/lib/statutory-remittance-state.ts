@@ -2,6 +2,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   governmentFilingValidations,
+  legalEntities,
   organizations,
   payrollEntries,
   payrollRuns,
@@ -60,14 +61,21 @@ export function statutoryLiabilityKeys(input: {
   return keys;
 }
 
-export async function loadStatutoryRemittanceState(organizationId: number) {
-  const [organization] = await db.select().from(organizations)
-    .where(eq(organizations.id, organizationId))
-    .limit(1);
-  if (!organization) return null;
+export async function loadStatutoryRemittanceState(organizationId: number, legalEntityId: number) {
+  const [[organization], [legalEntity]] = await Promise.all([
+    db.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1),
+    db.select().from(legalEntities).where(and(
+      eq(legalEntities.id, legalEntityId),
+      eq(legalEntities.organizationId, organizationId),
+    )).limit(1),
+  ]);
+  if (!organization || !legalEntity) return null;
 
   const batches = await db.select().from(statutoryRemittanceBatches)
-    .where(eq(statutoryRemittanceBatches.organizationId, organizationId))
+    .where(and(
+      eq(statutoryRemittanceBatches.organizationId, organizationId),
+      eq(statutoryRemittanceBatches.legalEntityId, legalEntityId),
+    ))
     .orderBy(asc(statutoryRemittanceBatches.applicableMonth), asc(statutoryRemittanceBatches.agency));
 
   const batchIds = batches.map((batch) => batch.id);
@@ -138,7 +146,10 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
   );
 
   const filingRows = await db.select().from(governmentFilingValidations)
-    .where(eq(governmentFilingValidations.organizationId, organizationId))
+    .where(and(
+      eq(governmentFilingValidations.organizationId, organizationId),
+      eq(governmentFilingValidations.legalEntityId, legalEntityId),
+    ))
     .orderBy(asc(governmentFilingValidations.id));
 
   const releasedRuns = await db.select({
@@ -146,6 +157,7 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
     periodEnd: payrollRuns.periodEnd,
   }).from(payrollRuns).where(and(
     eq(payrollRuns.organizationId, organizationId),
+    eq(payrollRuns.legalEntityId, legalEntityId),
     eq(payrollRuns.status, "Released"),
   ));
 
@@ -192,8 +204,8 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
           dueDate = effectiveRemittanceDueDate({
             agency,
             applicableMonth,
-            legalName: organization.legalName,
-            philHealthEmployerNo: organization.philHealthEmployerNo,
+            legalName: legalEntity.legalName,
+            philHealthEmployerNo: legalEntity.philHealthEmployerNo,
           });
         } catch {
           dueDate = null;
@@ -285,6 +297,7 @@ export async function loadStatutoryRemittanceState(organizationId: number) {
 
   return {
     organization,
+    legalEntity,
     today,
     batches: batchSummaries,
     members: membersWithEvidence,
