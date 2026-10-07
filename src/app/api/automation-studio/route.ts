@@ -192,7 +192,7 @@ export async function POST(request: Request) {
   const demoDenied = publicDemoMutationDenied(user.email, "Automation Studio");
   if (demoDenied) return demoDenied;
 
-  const body = await request.json().catch(() => ({}));
+  const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const organizationId = Number(body.organizationId);
   const action = String(body.action ?? "");
   if (!Number.isInteger(organizationId)) {
@@ -214,90 +214,425 @@ export async function POST(request: Request) {
   if (rateDenied) return rateDenied;
 
   if (action === "save-rule") {
-    const id = body.id ? Number(body.id) : null;
-    const name = String(body.name ?? "").trim();
-    const trigger = String(body.trigger ?? "") as AutomationTrigger;
-    const conditions = body.conditions ?? { version: 1, all: [], any: [] };
-    const actions = normalizeAutomationActions(body.actions);
+    try {
+      const definition = normalizeRuleDefinition(body);
+      const id = body.id ? Number(body.id) : null;
+      const now = new Date();
 
-    if (
-      !name
-      || !(AUTOMATION_TRIGGERS as readonly string[]).includes(trigger)
-      || !validAutomationConditions(conditions)
-      || !actions
-    ) {
-      return Response.json({
-        error: "Rule name, supported trigger, valid IF conditions, and at least one valid THEN action are required.",
-      }, { status: 400 });
-    }
-    if (!automationTriggerIsLive(trigger)) {
-      return Response.json({
-        error: "This trigger is visible on the Automation Studio roadmap but its authoritative event adapter is not connected yet.",
-        trigger,
-      }, { status: 409 });
-    }
+      if (id) {
+        if (!Number.isInteger(id)) {
+          return Response.json({ error: "A valid rule id is required." }, { status: 400 });
+        }
 
-    const compatibilityError = validateAutomationActionTrigger(trigger, actions);
-    if (compatibilityError) {
-      return Response.json({ error: compatibilityError }, { status: 400 });
-    }
+        const result = await db.transaction(async (tx) => {
+          await tx.execute(sql`
+            select id
+            from automation_rules
+            where id = ${id}
+              and organization_id = ${organizationId}
+            for update
+          `);
 
-    if (id) {
-      const [row] = await db.update(automationRules).set({
-        name: name.slice(0, 160),
-        trigger,
-        conditions,
-        actions,
-        active: body.active === undefined ? true : Boolean(body.active),
-        updatedAt: new Date(),
-      }).where(and(
-        eq(automationRules.id, id),
-        eq(automationRules.organizationId, organizationId),
-      )).returning();
+          const [current] = await tx.select().from(automationRules).where(and(
+            eq(automationRules.id, id),
+            eq(automationRules.organizationId, organizationId),
+          )).limit(1);
+          if (!current) {
+            throw new AutomationStudioMutationError("Automation rule not found.", 404);
+          }
 
-      if (!row) return Response.json({ error: "Automation rule not found." }, { status: 404 });
+          const [latest] = await tx.select({ version: automationRuleVersions.version })
+            .from(automationRuleVersions)
+            .where(and(
+              eq(automationRuleVersions.organizationId, organizationId),
+              eq(automationRuleVersions.ruleId, id),
+            ))
+            .orderBy(desc(automationRuleVersions.version))
+            .limit(1);
+          const nextVersion = (latest?.version ?? 0) + 1;
+
+          await tx.insert(automationRuleVersions).values({
+            organizationId,
+            ruleId: id,
+            version: nextVersion,
+            name: definition.name,
+            trigger: definition.trigger,
+            conditions: definition.conditions,
+            actions: definition.actions,
+            createdByUserId: user.id,
+            createdByName: user.name,
+            createdAt: now,
+          });
+
+          const [row] = await tx.update(automationRules).set({
+            name: definition.name,
+            trigger: definition.trigger,
+            conditions: definition.conditions,
+            actions: definition.actions,
+            active: body.active === undefined ? current.active : Boolean(body.active),
+            publishedVersion: nextVersion,
+            draftVersion: null,
+            publishedAt: now,
+            publishedByUserId: user.id,
+            updatedAt: now,
+          }).where(and(
+            eq(automationRules.id, id),
+            eq(automationRules.organizationId, organizationId),
+          )).returning();
+
+          return { row, version: nextVersion, previousVersion: current.publishedVersion };
+        });
+
+        await recordAuditEvent({
+          organizationId,
+          actor: user.name,
+          action: "Automation Studio rule updated and published",
+          resource: result.row.name,
+          metadata: {
+            ruleId: result.row.id,
+            fromVersion: result.previousVersion,
+            publishedVersion: result.version,
+            trigger: result.row.trigger,
+          },
+        });
+        return Response.json({ ...result.row, version: result.version });
+      }
+
+      const result = await db.transaction(async (tx) => {
+        const [row] = await tx.insert(automationRules).values({
+          organizationId,
+          name: definition.name,
+          trigger: definition.trigger,
+          conditions: definition.conditions,
+          actions: definition.actions,
+          active: body.active === undefined ? true : Boolean(body.active),
+          publishedVersion: 1,
+          draftVersion: null,
+          publishedAt: now,
+          publishedByUserId: user.id,
+          createdByUserId: user.id,
+          createdAt: now,
+          updatedAt: now,
+        }).returning();
+
+        await tx.insert(automationRuleVersions).values({
+          organizationId,
+          ruleId: row.id,
+          version: 1,
+          name: definition.name,
+          trigger: definition.trigger,
+          conditions: definition.conditions,
+          actions: definition.actions,
+          createdByUserId: user.id,
+          createdByName: user.name,
+          createdAt: now,
+        });
+
+        return row;
+      });
+
       await recordAuditEvent({
         organizationId,
         actor: user.name,
-        action: "Automation Studio rule updated",
-        resource: row.name,
+        action: "Automation Studio rule created and published",
+        resource: result.name,
         metadata: {
-          ruleId: row.id,
-          trigger,
-          conditionCount:
-            (Array.isArray((conditions as { all?: unknown[] }).all) ? (conditions as { all?: unknown[] }).all!.length : 0)
-            + (Array.isArray((conditions as { any?: unknown[] }).any) ? (conditions as { any?: unknown[] }).any!.length : 0),
-          actionTypes: actions.map((item) => item.type),
+          ruleId: result.id,
+          publishedVersion: 1,
+          trigger: result.trigger,
+          actionTypes: definition.actions.map((item) => item.type),
         },
       });
-      return Response.json(row);
+      return Response.json(result, { status: 201 });
+    } catch (error) {
+      if (error instanceof AutomationStudioMutationError) {
+        return Response.json({ error: error.message }, { status: error.status });
+      }
+      return Response.json({
+        error: "Automation rule could not be saved. Confirm the workflow name is unique and try again.",
+      }, { status: 409 });
+    }
+  }
+
+  if (action === "save-draft") {
+    const ruleId = Number(body.ruleId);
+    if (!Number.isInteger(ruleId)) {
+      return Response.json({ error: "ruleId is required." }, { status: 400 });
     }
 
     try {
-      const [row] = await db.insert(automationRules).values({
-        organizationId,
-        name: name.slice(0, 160),
-        trigger,
-        conditions,
-        actions,
-        active: true,
-        createdByUserId: user.id,
-      }).returning();
+      const definition = normalizeRuleDefinition(body);
+      const now = new Date();
+      const result = await db.transaction(async (tx) => {
+        await tx.execute(sql`
+          select id
+          from automation_rules
+          where id = ${ruleId}
+            and organization_id = ${organizationId}
+          for update
+        `);
+        const [current] = await tx.select().from(automationRules).where(and(
+          eq(automationRules.id, ruleId),
+          eq(automationRules.organizationId, organizationId),
+        )).limit(1);
+        if (!current) {
+          throw new AutomationStudioMutationError("Automation rule not found.", 404);
+        }
+
+        const [latest] = await tx.select({ version: automationRuleVersions.version })
+          .from(automationRuleVersions)
+          .where(and(
+            eq(automationRuleVersions.organizationId, organizationId),
+            eq(automationRuleVersions.ruleId, ruleId),
+          ))
+          .orderBy(desc(automationRuleVersions.version))
+          .limit(1);
+        const nextVersion = (latest?.version ?? 0) + 1;
+
+        const [version] = await tx.insert(automationRuleVersions).values({
+          organizationId,
+          ruleId,
+          version: nextVersion,
+          name: definition.name,
+          trigger: definition.trigger,
+          conditions: definition.conditions,
+          actions: definition.actions,
+          createdByUserId: user.id,
+          createdByName: user.name,
+          createdAt: now,
+        }).returning();
+
+        const [row] = await tx.update(automationRules).set({
+          draftVersion: nextVersion,
+          updatedAt: now,
+        }).where(and(
+          eq(automationRules.id, ruleId),
+          eq(automationRules.organizationId, organizationId),
+        )).returning();
+
+        return { row, version };
+      });
 
       await recordAuditEvent({
         organizationId,
         actor: user.name,
-        action: "Automation Studio rule created",
-        resource: row.name,
+        action: "Automation Studio draft staged",
+        resource: result.row.name,
         metadata: {
-          ruleId: row.id,
-          trigger,
-          actionTypes: actions.map((item) => item.type),
+          ruleId,
+          draftVersion: result.version.version,
+          publishedVersion: result.row.publishedVersion,
+          trigger: result.version.trigger,
         },
       });
-      return Response.json(row, { status: 201 });
-    } catch {
-      return Response.json({ error: "An automation rule with this name already exists." }, { status: 409 });
+      return Response.json({ rule: result.row, version: result.version });
+    } catch (error) {
+      if (error instanceof AutomationStudioMutationError) {
+        return Response.json({ error: error.message }, { status: error.status });
+      }
+      return Response.json({ error: "Automation draft could not be staged." }, { status: 409 });
+    }
+  }
+
+  if (action === "publish-draft") {
+    const ruleId = Number(body.ruleId);
+    if (!Number.isInteger(ruleId)) {
+      return Response.json({ error: "ruleId is required." }, { status: 400 });
+    }
+
+    try {
+      const now = new Date();
+      const result = await db.transaction(async (tx) => {
+        await tx.execute(sql`
+          select id
+          from automation_rules
+          where id = ${ruleId}
+            and organization_id = ${organizationId}
+          for update
+        `);
+        const [current] = await tx.select().from(automationRules).where(and(
+          eq(automationRules.id, ruleId),
+          eq(automationRules.organizationId, organizationId),
+        )).limit(1);
+        if (!current) {
+          throw new AutomationStudioMutationError("Automation rule not found.", 404);
+        }
+        if (!current.draftVersion) {
+          throw new AutomationStudioMutationError("This automation rule has no staged draft.");
+        }
+
+        const [version] = await tx.select().from(automationRuleVersions).where(and(
+          eq(automationRuleVersions.organizationId, organizationId),
+          eq(automationRuleVersions.ruleId, ruleId),
+          eq(automationRuleVersions.version, current.draftVersion),
+        )).limit(1);
+        if (!version) {
+          throw new AutomationStudioMutationError("The staged automation version could not be found.");
+        }
+
+        const definition = normalizeRuleDefinition({
+          name: version.name,
+          trigger: version.trigger,
+          conditions: version.conditions,
+          actions: version.actions,
+        });
+
+        const [row] = await tx.update(automationRules).set({
+          name: definition.name,
+          trigger: definition.trigger,
+          conditions: definition.conditions,
+          actions: definition.actions,
+          publishedVersion: version.version,
+          draftVersion: null,
+          publishedAt: now,
+          publishedByUserId: user.id,
+          updatedAt: now,
+        }).where(and(
+          eq(automationRules.id, ruleId),
+          eq(automationRules.organizationId, organizationId),
+        )).returning();
+
+        return { row, version, previousVersion: current.publishedVersion };
+      });
+
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Automation Studio draft published",
+        resource: result.row.name,
+        metadata: {
+          ruleId,
+          fromVersion: result.previousVersion,
+          publishedVersion: result.version.version,
+          trigger: result.row.trigger,
+        },
+      });
+      return Response.json({ rule: result.row, version: result.version });
+    } catch (error) {
+      if (error instanceof AutomationStudioMutationError) {
+        return Response.json({ error: error.message }, { status: error.status });
+      }
+      return Response.json({ error: "Automation draft could not be published." }, { status: 409 });
+    }
+  }
+
+  if (action === "discard-draft") {
+    const ruleId = Number(body.ruleId);
+    if (!Number.isInteger(ruleId)) {
+      return Response.json({ error: "ruleId is required." }, { status: 400 });
+    }
+
+    const [current] = await db.select().from(automationRules).where(and(
+      eq(automationRules.id, ruleId),
+      eq(automationRules.organizationId, organizationId),
+    )).limit(1);
+    if (!current) return Response.json({ error: "Automation rule not found." }, { status: 404 });
+    if (!current.draftVersion) {
+      return Response.json({ error: "This automation rule has no staged draft." }, { status: 409 });
+    }
+
+    const [row] = await db.update(automationRules).set({
+      draftVersion: null,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(automationRules.id, ruleId),
+      eq(automationRules.organizationId, organizationId),
+      eq(automationRules.draftVersion, current.draftVersion),
+    )).returning();
+    if (!row) {
+      return Response.json({ error: "The staged draft changed before it could be discarded." }, { status: 409 });
+    }
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Automation Studio draft discarded",
+      resource: row.name,
+      metadata: { ruleId, discardedVersion: current.draftVersion },
+    });
+    return Response.json(row);
+  }
+
+  if (action === "rollback-rule") {
+    const ruleId = Number(body.ruleId);
+    const targetVersion = Number(body.targetVersion);
+    if (!Number.isInteger(ruleId) || !Number.isInteger(targetVersion) || targetVersion <= 0) {
+      return Response.json({ error: "ruleId and a positive targetVersion are required." }, { status: 400 });
+    }
+
+    try {
+      const now = new Date();
+      const result = await db.transaction(async (tx) => {
+        await tx.execute(sql`
+          select id
+          from automation_rules
+          where id = ${ruleId}
+            and organization_id = ${organizationId}
+          for update
+        `);
+        const [current] = await tx.select().from(automationRules).where(and(
+          eq(automationRules.id, ruleId),
+          eq(automationRules.organizationId, organizationId),
+        )).limit(1);
+        if (!current) {
+          throw new AutomationStudioMutationError("Automation rule not found.", 404);
+        }
+        if (current.publishedVersion === targetVersion) {
+          throw new AutomationStudioMutationError("That version is already published.");
+        }
+
+        const [version] = await tx.select().from(automationRuleVersions).where(and(
+          eq(automationRuleVersions.organizationId, organizationId),
+          eq(automationRuleVersions.ruleId, ruleId),
+          eq(automationRuleVersions.version, targetVersion),
+        )).limit(1);
+        if (!version) {
+          throw new AutomationStudioMutationError("Automation rule version not found.", 404);
+        }
+
+        const definition = normalizeRuleDefinition({
+          name: version.name,
+          trigger: version.trigger,
+          conditions: version.conditions,
+          actions: version.actions,
+        });
+
+        const [row] = await tx.update(automationRules).set({
+          name: definition.name,
+          trigger: definition.trigger,
+          conditions: definition.conditions,
+          actions: definition.actions,
+          publishedVersion: targetVersion,
+          draftVersion: null,
+          publishedAt: now,
+          publishedByUserId: user.id,
+          updatedAt: now,
+        }).where(and(
+          eq(automationRules.id, ruleId),
+          eq(automationRules.organizationId, organizationId),
+        )).returning();
+
+        return { row, version, previousVersion: current.publishedVersion };
+      });
+
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Automation Studio rule rolled back",
+        resource: result.row.name,
+        metadata: {
+          ruleId,
+          fromVersion: result.previousVersion,
+          targetVersion,
+          trigger: result.row.trigger,
+        },
+      });
+      return Response.json({ rule: result.row, version: result.version });
+    } catch (error) {
+      if (error instanceof AutomationStudioMutationError) {
+        return Response.json({ error: error.message }, { status: error.status });
+      }
+      return Response.json({ error: "Automation rule could not be rolled back." }, { status: 409 });
     }
   }
 
