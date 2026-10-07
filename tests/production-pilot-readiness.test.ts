@@ -61,7 +61,12 @@ test("fresh tenant pilot stays out of demo provisioning and proves the five hand
   assert.ok(pilot.includes("employee-payslip-available"));
   assert.ok(pilot.includes("advanced-wfm-schedules-assigned"));
   assert.ok(pilot.includes("wfm-attendance-exception-detected"));
+  assert.ok(pilot.includes("wfm-attendance-exception-owned-with-sla"));
   assert.ok(pilot.includes("wfm-attendance-correction-approved-four-eyes"));
+  assert.ok(pilot.includes("wfm-attendance-resolution-evidence-recorded"));
+  assert.ok(pilot.includes("wfm-split-and-overnight-overrides-approved"));
+  assert.ok(pilot.includes("PILOT-SPLIT-AM"));
+  assert.ok(pilot.includes("PILOT-NIGHT"));
   assert.ok(pilot.includes("wfm-schedule-evidence-reconciled-into-payroll"));
   assert.ok(pilot.includes('trace?.workforceSchedule?.mode'));
   assert.ok(pilot.includes('"calendar-segmented"'));
