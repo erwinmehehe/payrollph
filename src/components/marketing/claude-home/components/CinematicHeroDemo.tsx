@@ -61,12 +61,6 @@ export function CinematicHeroDemo() {
         </div>
 
         <div className="cinematic-demo-stage">
-          <div className="cinematic-demo-story" aria-live="polite">
-            <span className="cinematic-demo-kicker">{current.step} · {current.eyebrow}</span>
-            <strong>{current.title}</strong>
-            <p>{current.copy}</p>
-          </div>
-
           <div className="cinematic-demo-preview-link" aria-label={"Interactive Linaw "+current.eyebrow.toLowerCase()+" scene"}>
             <div key={current.id} className="cinematic-demo-preview cinematic-demo-enter">
               <AppProductPreview role={current.role} compact/>
