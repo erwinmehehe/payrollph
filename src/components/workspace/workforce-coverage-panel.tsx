@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarClock, CircleAlert, Plus, RefreshCcw, UsersRound } from "lucide-react";
+import { CalendarClock, CircleAlert, Plus, RefreshCcw, ShieldCheck, UsersRound } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
 import { simulateBestFitCoverage } from "@/lib/workforce-coverage";
@@ -133,6 +133,39 @@ type CoverageRisk = {
   reasons: string[];
 };
 
+type RosterReadiness = {
+  status: "ready" | "warning" | "blocked";
+  blockerCount: number;
+  warningCount: number;
+  signals: Array<{
+    code: string;
+    level: "blocker" | "warning";
+    count: number;
+    message: string;
+  }>;
+};
+
+type GuardrailReadiness = {
+  policy: {
+    minimumRestMinutes: number;
+    maxConsecutiveWorkingDays: number;
+    rollingSevenDayMinutes: number;
+    enforcementMode: "advisory" | "block";
+    active: boolean;
+  };
+  issueCount: number;
+  blockingIssueCount: number;
+  issues: Array<{
+    employeeId: number;
+    code: string;
+    title: string;
+    detail: string;
+    date: string;
+    relatedDate?: string | null;
+    blocking: boolean;
+  }>;
+};
+
 type LaborVarianceRow = {
   requirementId: number;
   worksiteId: number;
@@ -208,6 +241,8 @@ type Payload = {
   claimRecommendations: ClaimRecommendation[];
   proactiveSuggestions: ProactiveSuggestion[];
   coverageRisk: CoverageRisk[];
+  rosterReadiness: RosterReadiness;
+  guardrailReadiness: GuardrailReadiness;
   laborVariance: LaborVariance;
 };
 
