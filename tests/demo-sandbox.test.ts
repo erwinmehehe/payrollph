@@ -571,8 +571,10 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
 
 test("employee self-service keeps the payslip summary without mascot dependencies", () => {
   const selfService = read("src/components/self-service-portal.tsx");
-  assert.ok(selfService.includes("employee-pay-guide-card"), "employee view must keep the latest-payslip summary card");
-  assert.ok(selfService.includes("Payslip available"), "released payslip status must stay explicit");
+  const employeeHome = read("src/components/employee-home-dashboard.tsx");
+  assert.ok(selfService.includes("<EmployeeHomeDashboard"), "employee portal must render its released-pay summary");
+  assert.ok(employeeHome.includes("data-latest-payslip"), "employee view must keep the latest-payslip summary card");
+  assert.ok(employeeHome.includes("Payslip available"), "released payslip status must stay explicit");
   assert.ok(!selfService.includes("PayrollGuide"), "employee view must not use the mascot guide");
   assert.ok(!selfService.includes("payroll-owl"), "employee view must not import mascot assets");
   assert.ok(!selfService.includes("RecentPayrollRuns"), "employee view must not expose company payroll run history");

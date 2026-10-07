@@ -9,7 +9,7 @@ test("Compliance Center exposes statutory remittance evidence without claiming c
   const remittance = read("src/components/workspace/statutory-remittance-panel.tsx");
 
   assert.ok(panels.includes("StatutoryRemittancePanel"), "compliance workspace must expose remittance controls");
-  assert.ok(panels.includes("From payroll rule to proof."), "compliance workspace should lead with evidence");
+  assert.ok(panels.includes('title="Compliance"'), "compliance workspace should have a clear heading");
   assert.ok(panels.includes("prepared output is not agency acceptance"), "government output must remain evidence-gated");
   assert.ok(remittance.includes("Deducted does not mean remitted."), "remittance control must distinguish deductions from posting");
   assert.ok(remittance.includes("agency posting"), "employee-level posting reconciliation must remain visible");

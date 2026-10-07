@@ -87,7 +87,7 @@ export function EmployeeHomeDashboard({
           <strong>{latest ? dashboardMoney(latest.net) : "—"}</strong>
           <small>
             {latest
-              ? `Net pay · Paid ${dashboardDate(latest.payDate)}`
+              ? `Payslip available · Net pay · Paid ${dashboardDate(latest.payDate)}`
               : "Your released pay will appear here."}
           </small>
         </div>
