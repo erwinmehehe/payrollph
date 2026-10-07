@@ -12,6 +12,8 @@ test("enterprise BI exports expose versioned payroll and workforce datasets", ()
   assert.ok(source.includes('"workforce_timesheets"'));
   assert.ok(source.includes("BI_EXPORT_MAX_ROWS = 50_000"));
   assert.ok(source.includes("BI_EXPORT_MAX_DAYS = 366"));
+  assert.ok(source.includes("validIsoDate"));
+  assert.ok(source.includes("toISOString().slice(0, 10) === value"));
 });
 
 test("BI payroll entry dimensions use authoritative payroll-run scope", () => {
@@ -44,6 +46,8 @@ test("BI export API is company-wide, MFA protected, bounded and tenant-scoped", 
   assert.ok(route.includes("legalEntities.organizationId"));
   assert.ok(route.includes("orgUnits.organizationId"));
   assert.ok(route.includes("validateBiExportFilters"));
+  assert.ok(route.includes("scopes: { legalEntities: entities, orgUnits: units }"));
+  assert.ok(route.includes("The selected organization unit belongs to a different legal entity."));
 });
 
 test("BI exports carry integrity and audit evidence", () => {
@@ -81,4 +85,6 @@ test("Analytics exposes governed CSV NDJSON and JSON BI downloads", () => {
   assert.ok(panel.includes("X-Linaw-BI-Row-Count"));
   assert.ok(panel.includes("X-Linaw-BI-SHA256"));
   assert.ok(panel.includes("recent MFA"));
+  assert.ok(panel.includes("All legal entities"));
+  assert.ok(panel.includes("All organization units"));
 });
