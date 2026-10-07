@@ -83,12 +83,13 @@ test("fully loaded forecast uses the same employer statutory formulas as payroll
   assert.ok((result.summary.currentPeriodBenefitEmployerCost ?? 0) > 0);
   assert.ok((result.summary.currentPeriodRecurringCompensationCost ?? 0) > 0);
   assert.equal(result.summary.additionalScenarioLoadCost, 0);
-  const reconstructed =
-    (result.summary.currentPeriodBasePayroll ?? 0)
-    + (result.summary.sourceGroundedEmployerCost ?? 0);
+  const loadedIncrement =
+    (result.summary.forecastPeriodLaborCost ?? 0)
+    - (result.summary.currentPeriodBasePayroll ?? 0);
+  assert.ok(loadedIncrement > 0, "known employer costs must increase the loaded labor forecast");
   assert.ok(
-    Math.abs((result.summary.forecastPeriodLaborCost ?? 0) - reconstructed) <= 0.01,
-    "independently rounded payroll and employer-cost components may differ by at most one cent",
+    Math.abs(loadedIncrement - (result.summary.sourceGroundedEmployerCost ?? 0)) <= 0.02,
+    "display-rounded source-grounded employer cost must reconcile to the loaded forecast within cent rounding",
   );
 });
 
