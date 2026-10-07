@@ -45,9 +45,13 @@ export async function GET(request: Request) {
 
   const [provider] = await db.select().from(identityProviders).where(and(
     eq(identityProviders.id, loginState.providerId),
+    eq(identityProviders.protocol, "oidc"),
     eq(identityProviders.enabled, true),
   )).limit(1);
   if (!provider) return Response.json({ error: "OIDC provider is unavailable." }, { status: 403 });
+  if (!provider.tokenEndpoint || !provider.clientId || !provider.clientSecretEncrypted || !provider.issuer || !provider.jwksUri) {
+    return Response.json({ error: "OIDC provider configuration is incomplete." }, { status: 409 });
+  }
 
   let identity;
   try {
