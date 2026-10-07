@@ -143,7 +143,7 @@ jobs:
             check(response && response.ok(), name + ": homepage did not return 2xx");
 
             const h1 = (await page.locator("h1").first().innerText()).replace(/\s+/g, " ").trim();
-            check(h1.includes("People, payroll and compliance made clear."), name + ": new Linaw H1 is missing; saw " + h1);
+            check(h1.includes("Payroll your team can review before money moves."), name + ": payroll-led Linaw H1 is missing; saw " + h1);
             const hero = page.locator("#top");
             const heroPrimary = hero.locator('a[href="/book-demo"]').first();
             check((await heroPrimary.count()) === 1, name + ": primary demo CTA missing");
@@ -163,14 +163,14 @@ jobs:
             }
             check((await heroPreview.getByText("Sample company").count()) >= 1, name + ": fake customer brand must be replaced with sample label");
 
-            for (const anchor of ["solutions", "payroll", "wfm", "hcm", "outsourcing", "compliance", "demo", "security", "pricing", "cta"]) {
+            for (const anchor of ["solutions", "demo", "compliance", "product", "security", "pricing", "cta"]) {
               check((await page.locator("#" + anchor).count()) === 1, name + ": missing section #" + anchor);
             }
 
             if (name === "desktop") {
               const nav = page.getByRole("navigation", { name: "Primary" });
               for (const [label, target] of [
-                ["Payroll", "/#payroll"], ["Workforce Management", "/workforce-management"],
+                ["Platform", "/#solutions"], ["Workforce", "/workforce-management"],
                 ["HCM", "/hcm"], ["Outsourcing", "/payroll-outsourcing"],
                 ["Pricing", "/pricing"], ["Live demo", "/demo"]
               ]) {
@@ -178,12 +178,13 @@ jobs:
               }
               check((await page.locator('#solutions a[href="/hcm"]').count()) === 1, "HCM solution must link to its own page");
               check((await page.locator('#solutions a[href="/workforce-management"]').count()) === 1, "WFM solution must link to its own page");
+              check((await page.locator('#solutions a[href="/payroll-outsourcing"]').count()) === 1, "Outsourcing solution must link to its own page");
             } else {
               const menu = page.getByRole("button", { name: "Open menu" }).first();
               check((await menu.count()) === 1, name + ": responsive menu missing");
               await menu.click();
               const header = page.getByRole("banner").first();
-              for (const label of ["Payroll","Workforce Management","HCM","Outsourcing","Pricing","Live demo"]) {
+              for (const label of ["Platform","Workforce","HCM","Outsourcing","Pricing","Live demo"]) {
                 check((await header.getByRole("link", {name:label,exact:true}).count()) === 1, name + ": mobile menu missing " + label);
               }
               await page.getByRole("button", {name:"Close menu"}).first().click();
