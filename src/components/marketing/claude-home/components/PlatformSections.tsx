@@ -222,7 +222,7 @@ export function PhilippineCompliance() {
 }
 
 export function PlatformFinalCTA() {
-  return <section className="px-5 py-20 sm:px-8"><div className="relative mx-auto max-w-[1240px] overflow-hidden rounded-[32px] border border-[#dce8f6] bg-[linear-gradient(105deg,#eff6ff,#eef8f2_75%,#f8fbff)] px-7 py-14 sm:px-14 sm:py-16">
+  return <section id="cta" className="scroll-mt-24 px-5 py-20 sm:px-8"><div className="relative mx-auto max-w-[1240px] overflow-hidden rounded-[32px] border border-[#dce8f6] bg-[linear-gradient(105deg,#eff6ff,#eef8f2_75%,#f8fbff)] px-7 py-14 sm:px-14 sm:py-16">
     <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-28 h-96 w-96 rounded-full bg-[#bcd9ff]/40 blur-[55px]"/>
     <div className="relative grid items-center gap-7 lg:grid-cols-[1fr_auto]">
       <div><p className={smallLabel}>A clearer next payroll</p><h2 className="font-display mt-3 max-w-[700px] text-[33px] font-semibold tracking-[-.04em] text-[#14253b] sm:text-[48px]">See how Linaw fits your team.</h2><p className="mt-4 max-w-[610px] text-[15px] leading-[1.7] text-[#5c6c81]">Explore the sample workspace or talk through payroll, WFM, HCM and managed service requirements with us.</p></div>
