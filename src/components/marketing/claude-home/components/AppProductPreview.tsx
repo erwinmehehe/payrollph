@@ -204,7 +204,7 @@ function PreviewModulePanel({ item, label, role, compact }: { item: string; labe
     <div className="linaw-preview-two-panels">
       <Card heading={module.title}>
         {module.rows.slice(0, compact ? 2 : 3).map(([title, detail, tone]) => (
-          <SampleRow key={title} title={title} detail={detail} tone={tone}/>
+          <SampleRow key={title} title={title} detail={detail} tone={tone as "warn" | "good" | "neutral"}/>
         ))}
       </Card>
       {!compact && <Card heading="Quick actions">
