@@ -6,6 +6,7 @@ import {
   performanceCycles,
   performanceFeedback,
   performanceGoals,
+  performanceOneOnOneActionItems,
   performanceOneOnOneAgendaContributions,
   performanceOneOnOnes,
   performanceReviewItems,
@@ -47,7 +48,7 @@ export async function GET() {
   const context = await selfContext();
   if ("error" in context) return context.error;
 
-  const [reviews, goals, cycles, allItems, templates, cycleTemplates, oneOnOnes, agendaContributions, feedback] = await Promise.all([
+  const [reviews, goals, cycles, allItems, templates, cycleTemplates, oneOnOnes, actionItems, agendaContributions, feedback] = await Promise.all([
     db.select().from(performanceReviews)
       .where(and(
         eq(performanceReviews.organizationId, context.employee.organizationId),
@@ -84,6 +85,27 @@ export async function GET() {
         eq(performanceOneOnOnes.employeeId, context.employee.id),
       ))
       .orderBy(desc(performanceOneOnOnes.scheduledFor)),
+    db.select({
+      id: performanceOneOnOneActionItems.id,
+      oneOnOneId: performanceOneOnOneActionItems.oneOnOneId,
+      ownerKind: performanceOneOnOneActionItems.ownerKind,
+      ownerEmployeeId: performanceOneOnOneActionItems.ownerEmployeeId,
+      ownerName: performanceOneOnOneActionItems.ownerName,
+      title: performanceOneOnOneActionItems.title,
+      detail: performanceOneOnOneActionItems.detail,
+      dueDate: performanceOneOnOneActionItems.dueDate,
+      status: performanceOneOnOneActionItems.status,
+      completedAt: performanceOneOnOneActionItems.completedAt,
+      completedByName: performanceOneOnOneActionItems.completedByName,
+      createdByName: performanceOneOnOneActionItems.createdByName,
+      updatedAt: performanceOneOnOneActionItems.updatedAt,
+    }).from(performanceOneOnOneActionItems)
+      .where(and(
+        eq(performanceOneOnOneActionItems.organizationId, context.employee.organizationId),
+        eq(performanceOneOnOneActionItems.employeeId, context.employee.id),
+        eq(performanceOneOnOneActionItems.visibility, "employee_shared"),
+      ))
+      .orderBy(desc(performanceOneOnOneActionItems.updatedAt)),
     db.select({
       id: performanceOneOnOneAgendaContributions.id,
       oneOnOneId: performanceOneOnOneAgendaContributions.oneOnOneId,
@@ -134,6 +156,9 @@ export async function GET() {
       agendaContributions: agendaContributions
         .filter((item) => item.oneOnOneId === meeting.id)
         .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime()),
+      actionItems: actionItems
+        .filter((item) => item.oneOnOneId === meeting.id)
+        .sort((left, right) => left.dueDate.localeCompare(right.dueDate) || left.id - right.id),
     })),
     feedback,
   });
