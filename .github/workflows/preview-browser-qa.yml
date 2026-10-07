@@ -157,7 +157,7 @@ jobs:
             for (const section of ["solutions", "payroll", "wfm", "hcm", "outsourcing", "compliance", "demo", "pricing"]) {
               check((await page.locator("#" + section).count()) === 1, name + ": missing homepage section #" + section);
             }
-            check((await page.getByText("Illustrative · sample data").count()) === 1, name + ": sample hero data needs a visible disclaimer");
+            check((await page.locator("#top").getByText("Illustrative · sample data").count()) === 1, name + ": sample hero data needs a visible disclaimer");
             if (name === "desktop") {
               const primaryNav = page.getByRole("navigation", { name: "Primary" });
               for (const [label, target] of [
