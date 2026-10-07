@@ -265,6 +265,11 @@ test("PayMongo transfer reconciliation keeps the newest status for retried refer
   assert.equal(result.pending, 1);
   assert.equal(result.failed, 0);
   assert.equal(result.completed, false);
+  assert.equal(result.expectedAmountCents, 6_000_00);
+  assert.equal(result.settledAmountCents, 3_000_00);
+  assert.equal(result.pendingAmountCents, 3_000_00);
+  assert.equal(result.failedAmountCents, 0);
+  assert.equal(result.settlementVarianceCents, 3_000_00);
   assert.deepEqual(result.retryableReferences, []);
   assert.equal(result.transfers.find((transfer) => transfer.employeeNo === "E-002")?.batchId, "batch_tr_retry");
 });
@@ -290,6 +295,10 @@ test("PayMongo reconciliation retries failed references only and never pending t
   assert.deepEqual(result.retryableReferences, ["PAY-88-E-001"]);
   assert.equal(result.failed, 1);
   assert.equal(result.pending, 1);
+  assert.equal(result.expectedAmountCents, 3_000_00);
+  assert.equal(result.failedAmountCents, 1_000_00);
+  assert.equal(result.pendingAmountCents, 2_000_00);
+  assert.equal(result.settlementVarianceCents, 3_000_00);
 });
 
 test("PayMongo reconciliation fails closed on unexpected references or changed amounts", () => {
@@ -360,6 +369,12 @@ test("payout reconciliation route and UI enforce failed-only retry semantics", (
   assert.ok(view.includes("failed only"));
   assert.ok(view.includes('data-payout-transfer-list'));
   assert.ok(view.includes('payoutState.reconciliation.provider !== "PayMongo"'));
+  const payoutCenter = readFileSync("src/components/workspace/payout-control-center.tsx", "utf8");
+  const nav = readFileSync("src/components/workspace/nav.ts", "utf8");
+  assert.ok(payoutCenter.includes("Settlement variance"));
+  assert.ok(payoutCenter.includes("Retry ${state.reconciliation.failed} failed only"));
+  assert.ok(payoutCenter.includes('state.reconciliation.settlementVarianceCents'));
+  assert.ok(nav.includes('{ name: "Payouts"'));
 });
 
 
