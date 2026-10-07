@@ -117,8 +117,8 @@ export async function POST(request: Request) {
     )),
   ]);
 
-  if (!plan || plan.status !== "active") {
-    return Response.json({ error: "The selected workforce plan is missing or not active." }, { status: 409 });
+  if (!plan || !["active", "approved", "published"].includes(plan.status)) {
+    return Response.json({ error: "The selected workforce plan is missing or not available for execution." }, { status: 409 });
   }
   if (!profile || !worksite || !shift) {
     return Response.json({ error: "Job profile, worksite, or shift is missing/inactive." }, { status: 404 });
