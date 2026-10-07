@@ -135,6 +135,9 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
 
+  const policyState = await loadCalibrationPolicy(organizationId);
+  const sessionPolicy = policyState.snapshot;
+
   try {
     const [session] = await db.insert(performanceCalibrationSessions).values({
       organizationId,
@@ -142,6 +145,8 @@ export async function POST(request: Request) {
       name: name.slice(0, 180),
       status: "open",
       notes,
+      policyVersion: sessionPolicy.version,
+      policySnapshot: sessionPolicy,
       createdByUserId: user.id,
       createdByName: user.name,
     }).returning();
@@ -153,6 +158,13 @@ export async function POST(request: Request) {
       originalScore: review.finalScore!,
     })));
 
+    const flags = await createCalibrationDistributionFlags({
+      organizationId,
+      sessionId: session.id,
+      reviews,
+      policy: sessionPolicy,
+    });
+
     await recordAuditEvent({
       organizationId,
       actor: user.name,
@@ -162,6 +174,8 @@ export async function POST(request: Request) {
         calibrationSessionId: session.id,
         cycleId,
         reviewCount: reviews.length,
+        policyVersion: sessionPolicy.version,
+        distributionFlags: flags.length,
       },
     });
 
