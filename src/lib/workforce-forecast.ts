@@ -394,8 +394,10 @@ export function buildWorkforceDemandForecast(input: {
   const estimatedShiftDemandWageCost = forecastHeadcountHours * averageLoadedHourlyRate;
 
   const costCenterById = new Map(input.costCenters.map((center) => [center.id, center]));
-  const costCenterCost = new Map<number, number>();
+  const costCenterBaseCost = new Map<number, number>();
+  const costCenterLoadedCost = new Map<number, number>();
   let unallocatedCurrentPeriodBaseCost = 0;
+  let unallocatedCurrentPeriodLoadedCost = 0;
   const allocationIssueEmployeeIds: number[] = [];
 
   for (const [employeeId, annualCost] of annualCostByEmployee) {
@@ -411,33 +413,39 @@ export function buildWorkforceDemandForecast(input: {
         rows: input.laborAllocations,
       });
       if (resolved.status === "unallocated") {
-        unallocatedCurrentPeriodBaseCost += periodLoadedCost;
+        unallocatedCurrentPeriodBaseCost += periodCost;
+        unallocatedCurrentPeriodLoadedCost += periodLoadedCost;
         continue;
       }
       for (const allocation of resolved.allocations) {
-        costCenterCost.set(
+        costCenterBaseCost.set(
           allocation.costCenterId,
-          (costCenterCost.get(allocation.costCenterId) ?? 0) + periodLoadedCost * allocation.percent / 100,
+          (costCenterBaseCost.get(allocation.costCenterId) ?? 0) + periodCost * allocation.percent / 100,
+        );
+        costCenterLoadedCost.set(
+          allocation.costCenterId,
+          (costCenterLoadedCost.get(allocation.costCenterId) ?? 0) + periodLoadedCost * allocation.percent / 100,
         );
       }
     } catch {
       allocationIssueEmployeeIds.push(employeeId);
-      unallocatedCurrentPeriodBaseCost += periodLoadedCost;
+      unallocatedCurrentPeriodBaseCost += periodCost;
+      unallocatedCurrentPeriodLoadedCost += periodLoadedCost;
     }
   }
 
-  const costCenters = [...costCenterCost.entries()]
-    .map(([costCenterId, currentPeriodBaseCost]) => {
+  const costCenters = [...new Set([...costCenterBaseCost.keys(), ...costCenterLoadedCost.keys()])]
+    .map((costCenterId) => {
       const center = costCenterById.get(costCenterId);
       return {
         costCenterId,
         code: center?.code ?? `#${costCenterId}`,
         name: center?.name ?? "Unknown cost center",
-        currentPeriodBaseCost: null,
-        currentPeriodLoadedCost: round2(currentPeriodBaseCost),
+        currentPeriodBaseCost: round2(costCenterBaseCost.get(costCenterId) ?? 0),
+        currentPeriodLoadedCost: round2(costCenterLoadedCost.get(costCenterId) ?? 0),
       };
     })
-    .sort((a, b) => b.currentPeriodBaseCost - a.currentPeriodBaseCost || a.code.localeCompare(b.code));
+    .sort((a, b) => b.currentPeriodLoadedCost - a.currentPeriodLoadedCost || a.code.localeCompare(b.code));
 
   return {
     assumptions: {
@@ -486,6 +494,7 @@ export function buildWorkforceDemandForecast(input: {
     costCenters,
     unallocated: {
       currentPeriodBaseCost: round2(unallocatedCurrentPeriodBaseCost),
+      currentPeriodLoadedCost: round2(unallocatedCurrentPeriodLoadedCost),
       plannedVacancyPeriodCost: round2(expectedVacancyPeriodCost),
     },
     quality: {
