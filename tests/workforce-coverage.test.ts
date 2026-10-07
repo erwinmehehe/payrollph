@@ -8,6 +8,7 @@ import {
   remainingOpenShiftSlots,
   rankCoverageCandidates,
   forecastCoverageRisk,
+  simulateBestFitCoverage,
   weekdayForDate,
 } from "../src/lib/workforce-coverage";
 
@@ -341,4 +342,62 @@ test("coverage risk distinguishes thin candidate benches from recoverable gaps",
   assert.equal(risks[0]?.level, "high");
   assert.equal(risks[1]?.level, "medium");
   assert.equal(risks[2]?.level, "low");
+});
+
+
+test("best-fit coverage simulation avoids double-booking the same worker on the same date", () => {
+  const result = simulateBestFitCoverage({
+    requirements: [
+      {
+        requirementId: 10,
+        workDate: "2026-10-12",
+        gap: 1,
+        candidates: [
+          { employeeId: 1, employeeName: "Ana", score: 90, workloadRisk: "low" },
+          { employeeId: 2, employeeName: "Ben", score: 80, workloadRisk: "low" },
+        ],
+      },
+      {
+        requirementId: 11,
+        workDate: "2026-10-12",
+        gap: 1,
+        candidates: [
+          { employeeId: 1, employeeName: "Ana", score: 95, workloadRisk: "low" },
+          { employeeId: 3, employeeName: "Cara", score: 70, workloadRisk: "low" },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(result.baselineGap, 2);
+  assert.equal(result.projectedGap, 0);
+  assert.equal(new Set(result.fills.map((row) => row.employeeId)).size, 2);
+});
+
+test("best-fit coverage simulation skips high workload risk unless explicitly allowed", () => {
+  const safe = simulateBestFitCoverage({
+    requirements: [{
+      requirementId: 12,
+      workDate: "2026-10-13",
+      gap: 1,
+      candidates: [
+        { employeeId: 4, employeeName: "Dina", score: 99, workloadRisk: "high" },
+      ],
+    }],
+  });
+  assert.equal(safe.projectedGap, 1);
+  assert.equal(safe.avoidedHighRiskCandidates, 1);
+
+  const override = simulateBestFitCoverage({
+    allowHighWorkloadRisk: true,
+    requirements: [{
+      requirementId: 12,
+      workDate: "2026-10-13",
+      gap: 1,
+      candidates: [
+        { employeeId: 4, employeeName: "Dina", score: 99, workloadRisk: "high" },
+      ],
+    }],
+  });
+  assert.equal(override.projectedGap, 0);
 });
