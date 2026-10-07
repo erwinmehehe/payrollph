@@ -139,6 +139,31 @@ type Analytics = {
     goalAttainmentDelta: number | null;
     roleExpectationGapRateDelta: number | null;
   }>;
+  skillTrends: Array<{
+    skillId: number;
+    code: string;
+    name: string;
+    category: string;
+    active: boolean;
+    cycles: Array<{
+      cycleId: number;
+      cycleName: string;
+      endDate: string;
+      itemCount: number;
+      employeeCount: number;
+      averageFinalScore: number | null;
+      averageExpectedProficiency: number | null;
+      belowExpectationCount: number;
+      belowExpectationRate: number;
+    }>;
+    latestAverageFinalScore: number | null;
+    latestAverageExpectedProficiency: number | null;
+    latestBelowExpectationRate: number;
+    scoreDelta: number | null;
+    gapRateDelta: number | null;
+    consecutiveGapCycles: number;
+    persistentGap: boolean;
+  }>;
   activity: { completedOneOnOnes: number; feedbackEntries: number };
   calibration: null | { status: string; changedRatings: number; totalRatings: number; openFlags: number; acceptedFlags: number; resolvedFlags: number };
 };
@@ -474,6 +499,38 @@ export function PerformanceContinuityPanel({
                       Role expectation gaps {row.belowRoleExpectation}/{row.competencyItems} · {row.roleExpectationGapRate}%
                       {row.roleExpectationGapRateDelta == null ? "" : " · Δ " + (row.roleExpectationGapRateDelta >= 0 ? "+" : "") + row.roleExpectationGapRateDelta.toFixed(1) + " pts"}
                     </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {analytics.skillTrends.length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <div className="card-kicker">SKILL-LEVEL TREND</div>
+              <p>Completed-review evidence by governed HCM skill. Persistent gaps mean the average scored proficiency remained below the frozen role expectation for at least two consecutive completed cycles.</p>
+              {analytics.skillTrends.map((skill) => (
+                <div className="employee-edit-card" key={skill.skillId} style={{ marginBottom: 10 }}>
+                  <div className="employee-list-card-head">
+                    <div>
+                      <strong>{skill.name}</strong>
+                      <span>{skill.code} · {skill.category}</span>
+                      <span>
+                        Latest avg {skill.latestAverageFinalScore ?? "—"} / expected {skill.latestAverageExpectedProficiency ?? "—"}
+                        {" · below expectation " + skill.latestBelowExpectationRate + "%"}
+                        {skill.scoreDelta == null ? "" : " · score Δ " + (skill.scoreDelta >= 0 ? "+" : "") + skill.scoreDelta.toFixed(2)}
+                      </span>
+                    </div>
+                    <span className={"employee-status-pill " + (skill.persistentGap ? "bad" : skill.latestBelowExpectationRate > 0 ? "warn" : "good")}>
+                      {skill.persistentGap ? skill.consecutiveGapCycles + " cycle gap" : "tracked"}
+                    </span>
+                  </div>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {skill.cycles.map((point) => (
+                      <span key={point.cycleId}>
+                        {point.cycleName}: avg {point.averageFinalScore ?? "—"} / expected {point.averageExpectedProficiency ?? "—"} · {point.belowExpectationCount}/{point.itemCount} below ({point.belowExpectationRate}%)
+                      </span>
+                    ))}
                   </div>
                 </div>
               ))}
