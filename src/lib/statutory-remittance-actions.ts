@@ -9,6 +9,8 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { loadStatutoryRemittanceState } from "@/lib/statutory-remittance-state";
 import { queueStatutoryComplianceEscalations } from "@/lib/statutory-remittance-escalations";
+import { daysUntil, type RemittanceAlert } from "@/lib/statutory-remittance-alerts";
+import { runAutomationEventSafely } from "@/lib/automation";
 
 const SOURCE_TYPE = "statutory_remittance";
 const SCHEDULE_JOB = "statutory-remittance-actions";
@@ -16,6 +18,18 @@ const SCHEDULE_INTERVAL_MS = 60 * 60 * 1000;
 const LOCAL_CHECK_INTERVAL_MS = 60 * 1000;
 
 let lastLocalScheduleCheck = 0;
+
+function isRemittanceDueAutomationAlert(alert: RemittanceAlert) {
+  if (!alert.dueDate) return false;
+  if (alert.id.startsWith("coverage:")) {
+    return alert.tone === "warning" || alert.tone === "danger";
+  }
+  return alert.id.startsWith("batch:")
+    && (
+      alert.title.endsWith("remittance is due soon")
+      || alert.title.endsWith("remittance is overdue")
+    );
+}
 
 type StatutoryRemittanceSyncResult = {
   organizationId: number;
@@ -27,6 +41,8 @@ type StatutoryRemittanceSyncResult = {
   escalationQueued: number;
   escalationDeduplicated: number;
   escalationError: string | null;
+  automationEvents: number;
+  automationErrors: number;
   missingOrganization: boolean;
 };
 
@@ -41,7 +57,7 @@ export async function syncStatutoryRemittanceActions(
       eq(legalEntities.active, true),
     ));
     if (entities.length === 0) {
-      return { organizationId, created: 0, reopened: 0, resolved: 0, activeAlerts: 0, escalationQueued: 0, escalationDeduplicated: 0, escalationError: null, missingOrganization: true };
+      return { organizationId, created: 0, reopened: 0, resolved: 0, activeAlerts: 0, escalationQueued: 0, escalationDeduplicated: 0, escalationError: null, automationEvents: 0, automationErrors: 0, missingOrganization: true };
     }
 
     const now = new Date();
@@ -76,13 +92,15 @@ export async function syncStatutoryRemittanceActions(
       escalationQueued: results.reduce((sum, result) => sum + result.escalationQueued, 0),
       escalationDeduplicated: results.reduce((sum, result) => sum + result.escalationDeduplicated, 0),
       escalationError: results.map((result) => result.escalationError).filter(Boolean).join("; ") || null,
+      automationEvents: results.reduce((sum, result) => sum + result.automationEvents, 0),
+      automationErrors: results.reduce((sum, result) => sum + result.automationErrors, 0),
       missingOrganization: false,
     };
   }
 
   const state = await loadStatutoryRemittanceState(organizationId, legalEntityId);
   if (!state) {
-    return { organizationId, legalEntityId, created: 0, reopened: 0, resolved: 0, activeAlerts: 0, escalationQueued: 0, escalationDeduplicated: 0, escalationError: null, missingOrganization: true };
+    return { organizationId, legalEntityId, created: 0, reopened: 0, resolved: 0, activeAlerts: 0, escalationQueued: 0, escalationDeduplicated: 0, escalationError: null, automationEvents: 0, automationErrors: 0, missingOrganization: true };
   }
 
   const sourcePrefix = `legal-entity:${legalEntityId}:`;
@@ -99,6 +117,11 @@ export async function syncStatutoryRemittanceActions(
   let created = 0;
   let reopened = 0;
   let resolved = 0;
+  const automationCandidates: Array<{
+    taskId: number;
+    escalationEpisode: number;
+    alert: RemittanceAlert;
+  }> = [];
 
   await db.transaction(async (tx) => {
     for (const alert of state.alerts) {
@@ -127,8 +150,20 @@ export async function syncStatutoryRemittanceActions(
             complianceActionTasks.sourceType,
             complianceActionTasks.sourceKey,
           ],
-        }).returning({ id: complianceActionTasks.id });
-        if (inserted.length > 0) created += 1;
+        }).returning({
+          id: complianceActionTasks.id,
+          escalationEpisode: complianceActionTasks.escalationEpisode,
+        });
+        if (inserted.length > 0) {
+          created += 1;
+          if (isRemittanceDueAutomationAlert(alert)) {
+            automationCandidates.push({
+              taskId: inserted[0].id,
+              escalationEpisode: inserted[0].escalationEpisode,
+              alert,
+            });
+          }
+        }
         continue;
       }
 
@@ -159,14 +194,33 @@ export async function syncStatutoryRemittanceActions(
           eq(complianceActionTasks.id, current.id),
           eq(complianceActionTasks.organizationId, organizationId),
           eq(complianceActionTasks.status, "resolved"),
-        )).returning({ id: complianceActionTasks.id });
-        if (reopenedRows.length > 0) reopened += 1;
+        )).returning({
+          id: complianceActionTasks.id,
+          escalationEpisode: complianceActionTasks.escalationEpisode,
+        });
+        if (reopenedRows.length > 0) {
+          reopened += 1;
+          if (isRemittanceDueAutomationAlert(alert)) {
+            automationCandidates.push({
+              taskId: reopenedRows[0].id,
+              escalationEpisode: reopenedRows[0].escalationEpisode,
+              alert,
+            });
+          }
+        }
       } else {
         await tx.update(complianceActionTasks).set(alertFields).where(and(
           eq(complianceActionTasks.id, current.id),
           eq(complianceActionTasks.organizationId, organizationId),
           ne(complianceActionTasks.status, "resolved"),
         ));
+        if (severityChanged && isRemittanceDueAutomationAlert(alert)) {
+          automationCandidates.push({
+            taskId: current.id,
+            escalationEpisode: current.escalationEpisode,
+            alert,
+          });
+        }
       }
     }
 
@@ -185,6 +239,38 @@ export async function syncStatutoryRemittanceActions(
     }
   });
 
+  let automationEvents = 0;
+  let automationErrors = 0;
+  for (const candidate of automationCandidates) {
+    const daysUntilDue = candidate.alert.dueDate
+      ? daysUntil(candidate.alert.dueDate, state.today)
+      : null;
+    automationEvents += 1;
+    try {
+      await runAutomationEventSafely({
+        organizationId,
+        trigger: "government.remittance_due",
+        eventKey: `government-remittance-due:${legalEntityId}:${candidate.taskId}:${candidate.escalationEpisode}:${candidate.alert.tone}`,
+        context: {
+          legalEntityId,
+          legalEntityCode: state.legalEntity.code,
+          legalEntityName: state.legalEntity.displayName,
+          complianceActionTaskId: candidate.taskId,
+          statutoryAgency: candidate.alert.agency,
+          applicableMonth: candidate.alert.applicableMonth,
+          dueDate: candidate.alert.dueDate,
+          daysUntilDue,
+          remittanceAlertTone: candidate.alert.tone,
+          remittanceAlertId: candidate.alert.id,
+          title: candidate.alert.title,
+          detail: candidate.alert.detail,
+        },
+      });
+    } catch {
+      automationErrors += 1;
+    }
+  }
+
   if (created || reopened || resolved) {
     await recordAuditEvent({
       organizationId,
@@ -198,6 +284,8 @@ export async function syncStatutoryRemittanceActions(
         reopened,
         resolved,
         activeAlerts: state.alerts.length,
+        automationEvents,
+        automationErrors,
       },
     });
   }
@@ -237,6 +325,8 @@ export async function syncStatutoryRemittanceActions(
     escalationQueued,
     escalationDeduplicated,
     escalationError,
+    automationEvents,
+    automationErrors,
     missingOrganization: false,
   };
 }
@@ -257,6 +347,8 @@ export async function syncAllStatutoryRemittanceActions(actor = "System complian
         escalationQueued: 0,
         escalationDeduplicated: 0,
         escalationError: null,
+        automationEvents: 0,
+        automationErrors: 0,
         missingOrganization: false,
         error: error instanceof Error ? error.message : "Unknown remittance monitor error",
       });
@@ -291,6 +383,8 @@ export async function runScheduledStatutoryRemittanceSync(options?: {
     0,
   );
   const activeAlerts = results.reduce((sum, result) => sum + result.activeAlerts, 0);
+  const automationEvents = results.reduce((sum, result) => sum + ("automationEvents" in result ? Number(result.automationEvents ?? 0) : 0), 0);
+  const automationErrors = results.reduce((sum, result) => sum + ("automationErrors" in result ? Number(result.automationErrors ?? 0) : 0), 0);
   const failures = results.filter((result) => "error" in result && Boolean(result.error)).length;
   const escalationsQueued = results.reduce((sum, result) => sum + ("escalationQueued" in result ? Number(result.escalationQueued ?? 0) : 0), 0);
   const escalationFailures = results.filter((result) => "escalationError" in result && Boolean(result.escalationError)).length;
@@ -299,6 +393,8 @@ export async function runScheduledStatutoryRemittanceSync(options?: {
     organizations: results.length,
     changed,
     activeAlerts,
+    automationEvents,
+    automationErrors,
     failures,
     escalationsQueued,
     escalationFailures,
