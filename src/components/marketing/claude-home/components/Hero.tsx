@@ -9,10 +9,10 @@ export default function Hero() {
       <div className="mx-auto grid max-w-[1270px] items-center gap-10 px-5 pb-20 sm:px-8 lg:grid-cols-[.86fr_1.14fr] lg:gap-10 lg:pb-24">
         <div className="relative z-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#d9e8f8] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#45617f]">
-            <span className="h-2 w-2 rounded-full bg-[#0866ed]" aria-hidden="true" /> Philippine payroll software
+            <span className="h-2 w-2 rounded-full bg-[#0866ed]" aria-hidden="true" /> Payroll + workforce, built for the Philippines
           </div>
           <h1 className="font-display mt-7 max-w-[650px] text-balance text-[44px] font-semibold leading-[1.065] tracking-[-.047em] text-[#10213d] sm:text-[62px] lg:text-[66px]">
-            Payroll your team can review <span className="text-[#0866ed]">before money moves.</span>
+            Philippine payroll you can review <span className="text-[#0866ed]">before money moves.</span>
           </h1>
           <p className="mt-6 max-w-[510px] text-[17px] leading-[1.8] text-[#596e86]">
             Linaw connects time, people records, payroll calculations and approvals so Philippine teams can prepare, check and release pay without losing context.
