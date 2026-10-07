@@ -56,7 +56,8 @@ test("all attendance mutation paths enforce locks and stale finalized timesheets
   const webBundy = readFileSync("src/app/api/web-bundy/route.ts", "utf8");
   const biometrics = readFileSync("src/app/api/biometrics/sync/route.ts", "utf8");
   const corrections = readFileSync("src/app/api/workforce/attendance-corrections/route.ts", "utf8");
-  for (const source of [webBundy, biometrics, corrections]) {
+  const overtime = readFileSync("src/app/api/workforce/overtime/route.ts", "utf8");
+  for (const source of [webBundy, biometrics, corrections, overtime]) {
     assert.ok(source.includes("attendanceMutationLock"));
   }
   assert.ok(webBundy.includes("markTimesheetsStaleForEmployeeDate"));
