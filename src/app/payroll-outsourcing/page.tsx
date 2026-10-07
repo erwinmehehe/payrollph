@@ -8,6 +8,12 @@ export const metadata: Metadata = {
   description: "Payroll outsourcing for Philippine businesses with approved inputs, payroll validation, exception review, approvals and supported payslip and reporting outputs.",
   alternates: {canonical:"/payroll-outsourcing"},
   openGraph: {title:"Payroll Outsourcing Philippines | Linaw",description:"Managed payroll processing with traceable inputs, approvals and supported outputs.",url:"/payroll-outsourcing"},
+  twitter: {
+    card: "summary_large_image",
+    title: "Payroll Outsourcing Philippines | Linaw",
+    description:
+      "Managed Philippine payroll processing with clear exceptions, approval handoff, payslips, reports and supported outputs.",
+  },
 };
 const outsourcingSchema = {
   "@context": "https://schema.org",
@@ -15,7 +21,7 @@ const outsourcingSchema = {
   "@id": absolutePublicUrl("/payroll-outsourcing#service"),
   url: absolutePublicUrl("/payroll-outsourcing"),
   name: "Linaw Payroll Outsourcing",
-  serviceType: "Managed payroll processing",
+  serviceType: "Payroll outsourcing and managed payroll processing",
   description: "Managed payroll processing workflows for Philippine businesses with reviewed inputs, payroll validation and authorized client approvals.",
   provider: {"@type":"Organization","@id":absolutePublicUrl("/#organization"),name:"Linaw",url:absolutePublicUrl("/")},
   areaServed: {"@type":"Country",name:"Philippines"},
