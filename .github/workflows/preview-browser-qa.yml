@@ -175,17 +175,22 @@ jobs:
               check((await heroPreview.locator(".linaw-preview-step").filter({hasText:step}).count()) === 1, name + ": payroll workflow missing " + step);
             }
             const payrollSidebar = heroPreview.getByRole("button", {name:"Payroll", exact:true});
-            check((await payrollSidebar.count()) === 1, name + ": clickable Payroll sidebar item missing");
-            await payrollSidebar.click();
-            const payrollPanelHeading = heroPreview.locator("h3").filter({hasText:"Payroll runs"});
-            await payrollPanelHeading.waitFor({state:"visible",timeout:3000});
-            check((await payrollPanelHeading.count()) === 1, name + ": Payroll sidebar did not switch preview content");
-            check((await payrollSidebar.getAttribute("aria-current")) === "page", name + ": clicked sidebar item did not become active");
-            const homeSidebar = heroPreview.getByRole("button", {name:"Home", exact:true});
-            await homeSidebar.click();
-            const homeHeading = heroPreview.getByText("Let’s make payday a good day.");
-            await homeHeading.waitFor({state:"visible",timeout:3000});
-            check((await homeHeading.count()) === 1, name + ": Home sidebar did not restore dashboard");
+            if (viewport.width > 650) {
+              check((await payrollSidebar.count()) === 1, name + ": clickable Payroll sidebar item missing");
+              await payrollSidebar.click();
+              const payrollPanelHeading = heroPreview.locator("h3").filter({hasText:"Payroll runs"});
+              await payrollPanelHeading.waitFor({state:"visible",timeout:3000});
+              check((await payrollPanelHeading.count()) === 1, name + ": Payroll sidebar did not switch preview content");
+              check((await payrollSidebar.getAttribute("aria-current")) === "page", name + ": clicked sidebar item did not become active");
+              const homeSidebar = heroPreview.getByRole("button", {name:"Home", exact:true});
+              await homeSidebar.click();
+              const homeHeading = heroPreview.getByText("Let’s make payday a good day.");
+              await homeHeading.waitFor({state:"visible",timeout:3000});
+              check((await homeHeading.count()) === 1, name + ": Home sidebar did not restore dashboard");
+            } else {
+              const rail = heroPreview.locator(".linaw-app-preview-rail");
+              check((await rail.evaluate(el => getComputedStyle(el).display)) === "none", name + ": compact sidebar should be hidden on narrow screens");
+            }
             check((await cinematic.locator('a[href="#demo"]').count()) >= 1, name + ": cinematic frame must link to the full role demo");
             await cinematic.getByRole("tab", {name:/Review/}).click();
             check((await cinematic.getByRole("heading", {name:"Payroll review"}).count()) === 1, name + ": Review scene did not switch to Checker");
