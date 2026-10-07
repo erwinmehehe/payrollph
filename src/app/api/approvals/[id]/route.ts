@@ -159,6 +159,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         decidedBy: actor,
       });
 
+      if (chainResult.isChain && !chainResult.final && chainResult.nextTaskId) {
+        await tx.update(automationExecutions).set({
+          waitingApprovalTaskId: chainResult.nextTaskId,
+          updatedAt: new Date(),
+        }).where(and(
+          eq(automationExecutions.waitingApprovalTaskId, taskId),
+          eq(automationExecutions.status, "waiting_approval"),
+        ));
+      }
+
       await tx.insert(auditEvents).values({
         organizationId: task.organizationId,
         actor,
@@ -199,13 +209,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   let automationGate: unknown = null;
   try {
     if (chain.isChain && !chain.final && chain.nextTaskId) {
-      await db.update(automationExecutions).set({
-        waitingApprovalTaskId: chain.nextTaskId,
-        updatedAt: new Date(),
-      }).where(and(
-        eq(automationExecutions.waitingApprovalTaskId, taskId),
-        eq(automationExecutions.status, "waiting_approval"),
-      ));
       automationGate = {
         status: "waiting_approval",
         approvalChainInstanceId: chain.instanceId,
