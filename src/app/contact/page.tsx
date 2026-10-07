@@ -56,7 +56,7 @@ export default function ContactPage() {
       <main>
         <section className="border-b border-[#EDEFF7] bg-[#FAFBFD] py-16 sm:py-20">
           <div className="mx-auto max-w-[1080px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Contact Linaw</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">Contact Linaw</p>
             <h1 className="font-display mt-4 max-w-[850px] text-[44px] font-semibold leading-[1.03] tracking-[-0.045em] sm:text-[60px]">
               Start with the contact path that matches what you need.
             </h1>
@@ -70,12 +70,12 @@ export default function ContactPage() {
           <div className="mx-auto grid max-w-[1080px] gap-5 px-5 sm:px-8 md:grid-cols-2">
             {contactPaths.map(({ title, body, href, cta, icon: Icon }) => (
               <article key={title} className="rounded-[24px] border border-[#E3E5EF] bg-white p-6 shadow-sm">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F1F1FF] text-[#4A4AE0]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F1F1FF] text-[#0868dc]">
                   <Icon size={18} />
                 </span>
                 <h2 className="font-display mt-4 text-[25px] font-semibold tracking-[-0.03em]">{title}</h2>
                 <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">{body}</p>
-                <Link href={href} className="mt-5 inline-flex items-center gap-2 text-[13px] font-semibold text-[#4A4AE0]">
+                <Link href={href} className="mt-5 inline-flex items-center gap-2 text-[13px] font-semibold text-[#0868dc]">
                   {cta} <ArrowRight size={13} />
                 </Link>
               </article>

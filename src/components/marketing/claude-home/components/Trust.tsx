@@ -33,7 +33,7 @@ export function PayrollWorkflow() {
       role: "Payroll Officer",
       action: "Calculate and resolve",
       copy: "Run payroll, inspect exceptions and hand the same run to an assigned checker for independent review.",
-      tone: "bg-[#ECECFF] text-[#4A4AE0]",
+      tone: "bg-[#e5f0ff] text-[#0868dc]",
     },
     {
       icon: ClipboardCheck,
@@ -47,7 +47,7 @@ export function PayrollWorkflow() {
       role: "Owner",
       action: "Release with context",
       copy: "See approval state, exceptions and release readiness before the approved payroll is allowed to move.",
-      tone: "bg-[#E3FAF0] text-[#0A8A53]",
+      tone: "bg-[#e5f8f2] text-[#00886e]",
     },
     {
       icon: UserRound,
@@ -72,7 +72,7 @@ export function PayrollWorkflow() {
               <p className="font-display mt-2 text-[19px] font-semibold leading-snug text-[#11141F]">
                 Who owns the next decision before money moves?
               </p>
-              <a href="/demo" className="mt-4 inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[#4A4AE0]">
+              <a href="/demo" className="mt-4 inline-flex items-center gap-1.5 text-[13.5px] font-semibold text-[#0868dc]">
                 Try each role in the live demo <ArrowRight size={14} aria-hidden />
               </a>
             </div>
@@ -111,8 +111,8 @@ const securityControls = [
     icon: Fingerprint,
     t: "TOTP before session",
     d: "Second factor sits between password success and session creation. Backup codes included.",
-    c: "#6161FF",
-    s: "#ECECFF",
+    c: "#0877ff",
+    s: "#e5f0ff",
   },
   {
     icon: KeyRound,
@@ -132,7 +132,7 @@ const securityControls = [
     icon: ShieldCheck,
     t: "Privacy request workflow",
     d: "Access, correction, deletion and portability requests include an audit trail, internal response deadline and legal-retention review.",
-    c: "#7C5CFF",
+    c: "#10b8a0",
     s: "#F1EDFF",
   },
 ];
@@ -157,7 +157,7 @@ export function Security() {
           <article className="mt-8 overflow-hidden rounded-[30px] border border-[#CDEFDD] bg-[#11141F] text-white shadow-[0_30px_70px_-38px_rgba(17,20,31,.5)]">
             <div className="grid min-w-0 gap-0 lg:grid-cols-[1.05fr_0.95fr]">
               <div className="min-w-0 p-6 sm:p-8 lg:p-10">
-                <span className="inline-flex items-center gap-2 rounded-full bg-[#E3FAF0] px-3 py-1.5 text-[12px] font-bold text-[#0A8A53]">
+                <span className="inline-flex items-center gap-2 rounded-full bg-[#e5f8f2] px-3 py-1.5 text-[12px] font-bold text-[#00886e]">
                   <ShieldCheck className="h-4 w-4" aria-hidden />
                   Tenant isolation verified
                 </span>
@@ -220,7 +220,7 @@ const score: { f: string; s: S; ev: string }[] = [
 ];
 
 const badge: Record<S, string> = {
-  verified: "bg-[#E3FAF0] text-[#0A8A53]",
+  verified: "bg-[#e5f8f2] text-[#00886e]",
   partial: "bg-[#FFF4D6] text-[#9A6B00]",
   absent: "bg-[#F1F2F8] text-[#7C82A1]",
 };
@@ -314,7 +314,7 @@ export function Developers() {
                   "Retries: 1m → 5m → 25m → 125m",
                 ].map((text) => (
                   <li key={text} className="flex items-start gap-2 rounded-2xl border border-[#E8EAF3] bg-white p-3.5 text-[14px] font-medium leading-relaxed">
-                    <Webhook className="mt-0.5 h-4 w-4 shrink-0 text-[#7C5CFF]" aria-hidden />
+                    <Webhook className="mt-0.5 h-4 w-4 shrink-0 text-[#10b8a0]" aria-hidden />
                     {text}
                   </li>
                 ))}
@@ -347,7 +347,7 @@ export function Developers() {
               <pre className="mono overflow-x-auto p-5 text-[13px] leading-[1.75] text-[#2B2F45]">
                 <code>
                   {snippet.split("\n").map((line, index) => (
-                    <span key={index} className={cn("block", line.startsWith("#") && "text-[#0A8A53]")}>
+                    <span key={index} className={cn("block", line.startsWith("#") && "text-[#00886e]")}>
                       {line || " "}
                     </span>
                   ))}

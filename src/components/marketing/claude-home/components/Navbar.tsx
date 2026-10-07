@@ -64,7 +64,7 @@ export default function Navbar() {
             </a>
             <a
               href="/demo"
-              className="nav-start-cta inline-flex items-center rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-4 py-2.5 text-[14px] font-semibold text-[#4A4AE0] transition-all hover:border-[#C5C5FF] hover:bg-[#ECECFF]"
+              className="nav-start-cta inline-flex items-center rounded-[10px] border border-[#cddfff] bg-[#f2f7ff] px-4 py-2.5 text-[14px] font-semibold text-[#0868dc] transition-all hover:border-[#abcfff] hover:bg-[#e5f0ff]"
             >
               Try live demo
             </a>
@@ -109,7 +109,7 @@ export default function Navbar() {
               <a
                 href="/demo"
                 onClick={() => setOpen(false)}
-                className="flex-1 rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-5 py-3 text-center text-[14px] font-semibold text-[#4A4AE0]"
+                className="flex-1 rounded-[10px] border border-[#cddfff] bg-[#f2f7ff] px-5 py-3 text-center text-[14px] font-semibold text-[#0868dc]"
               >
                 Try live demo
               </a>

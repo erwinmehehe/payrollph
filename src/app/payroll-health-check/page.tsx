@@ -15,7 +15,7 @@ export default function PayrollHealthCheckPage() {
       <main>
         <section className="border-b border-[#EDEFF7] bg-white py-16 sm:py-20">
           <div className="mx-auto max-w-[1080px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Payroll health check</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">Payroll health check</p>
             <h1 className="font-display mt-4 max-w-[820px] text-[44px] font-semibold tracking-[-0.045em] sm:text-[58px]">How resilient is your current payroll process?</h1>
             <p className="mt-5 max-w-[760px] text-[16px] leading-relaxed text-[#5B6080]">Answer ten operational questions. No employee names, government IDs, bank details or payroll files are required.</p>
           </div>

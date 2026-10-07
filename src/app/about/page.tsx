@@ -18,7 +18,7 @@ export default function AboutPage() {
       <main>
         <section className="border-b border-[#EDEFF7] bg-[#FAFBFD] py-16 sm:py-20">
           <div className="mx-auto max-w-[1080px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">About Linaw</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">About Linaw</p>
             <h1 className="font-display mt-4 max-w-[860px] text-[44px] font-semibold leading-[1.03] tracking-[-0.045em] sm:text-[60px]">
               Building clearer payroll operations for Philippine teams.
             </h1>
@@ -49,7 +49,7 @@ export default function AboutPage() {
               },
             ].map((item) => (
               <article key={item.title} className="rounded-[24px] border border-[#E3E5EF] bg-white p-6">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E3FAF0] text-[#0A8A53]">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e5f8f2] text-[#00886e]">
                   <CheckCircle2 size={17} />
                 </span>
                 <h2 className="font-display mt-4 text-[25px] font-semibold tracking-[-0.03em]">{item.title}</h2>

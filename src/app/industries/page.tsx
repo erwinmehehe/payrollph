@@ -49,7 +49,7 @@ export default function IndustriesPage() {
       <main>
         <section className="border-b border-[#EDEFF7] py-16 sm:py-20">
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Industry payroll</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">Industry payroll</p>
             <h1 className="font-display mt-4 max-w-[880px] text-[44px] font-semibold leading-[1.04] tracking-[-0.045em] sm:text-[58px]">
               Payroll workflows shaped by how your workforce actually operates.
             </h1>
@@ -62,7 +62,7 @@ export default function IndustriesPage() {
         <div className="mx-auto max-w-[1180px] px-5 py-14 sm:px-8 sm:py-18">
           <nav aria-label="Industry groups" className="flex flex-wrap gap-2 border-b border-[#EDEFF7] pb-8">
             {industryGroups.map((group, index) => (
-              <a key={group.title} href={`#industry-group-${index + 1}`} className="rounded-full bg-[#F4F5FA] px-4 py-2 text-[12px] font-semibold text-[#4F556D] hover:bg-[#ECECFF] hover:text-[#4A4AE0]">
+              <a key={group.title} href={`#industry-group-${index + 1}`} className="rounded-full bg-[#F4F5FA] px-4 py-2 text-[12px] font-semibold text-[#4F556D] hover:bg-[#e5f0ff] hover:text-[#0868dc]">
                 {group.title}
               </a>
             ))}
@@ -82,10 +82,10 @@ export default function IndustriesPage() {
                       const item = bySlug.get(slug);
                       if (!item) return null;
                       return (
-                        <Link key={item.slug} href={`/industries/${item.slug}`} className="group rounded-[20px] border border-[#E4E6F0] bg-[#FAFBFD] p-5 transition hover:-translate-y-0.5 hover:border-[#CFCFFF] hover:bg-white">
+                        <Link key={item.slug} href={`/industries/${item.slug}`} className="group rounded-[20px] border border-[#E4E6F0] bg-[#FAFBFD] p-5 transition hover:-translate-y-0.5 hover:border-[#b7d6ff] hover:bg-white">
                           <h3 className="font-display text-[19px] font-semibold leading-snug tracking-[-0.02em]">{item.title}</h3>
                           <p className="mt-2 line-clamp-3 text-[12.5px] leading-relaxed text-[#6B718C]">{item.description}</p>
-                          <span className="mt-4 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#4A4AE0]">Explore industry <ArrowRight size={13} /></span>
+                          <span className="mt-4 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#0868dc]">Explore industry <ArrowRight size={13} /></span>
                         </Link>
                       );
                     })}

@@ -37,7 +37,7 @@ export default async function GlossaryEntryPage({ params }: { params: Promise<{ 
       <main>
         <section className="border-b border-[#EDEFF7] py-16 sm:py-20">
           <div className="mx-auto max-w-[900px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Payroll glossary</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">Payroll glossary</p>
             <h1 className="font-display mt-4 text-[46px] font-semibold tracking-[-0.045em] sm:text-[58px]">{entry.term}</h1>
             <p className="mt-6 text-[19px] font-medium leading-relaxed text-[#34394F]">{entry.definition}</p>
             <p className="mt-5 text-[15px] leading-relaxed text-[#5B6080]">{entry.explanation}</p>

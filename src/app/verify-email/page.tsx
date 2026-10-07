@@ -21,11 +21,11 @@ export default async function VerifyEmailPage({
       <SiteNav />
       <main className="relative overflow-hidden py-16 sm:py-20">
         <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div className="absolute -right-40 -top-48 h-[560px] w-[620px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-75 blur-3xl" />
+          <div className="absolute -right-40 -top-48 h-[560px] w-[620px] rounded-full bg-gradient-to-br from-[#e5f0ff] via-[#EAF4FF] to-[#e5f8f2] opacity-75 blur-3xl" />
         </div>
         <section className="relative mx-auto max-w-[620px] px-5 sm:px-8">
           <div className="rounded-[28px] border border-[#E2E4F0] bg-white p-6 shadow-[0_26px_70px_-38px_rgba(30,34,70,.4)] sm:p-8">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E3FAF0] text-[#0A8A53]">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e5f8f2] text-[#00886e]">
               <MailCheck size={19} />
             </span>
             <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Account security</p>

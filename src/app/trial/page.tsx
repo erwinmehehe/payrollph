@@ -18,10 +18,10 @@ export default function TrialPage() {
       <main>
         <section className="relative overflow-hidden border-b border-[#EDEFF7] py-16 sm:py-20">
           <div aria-hidden className="pointer-events-none absolute inset-0">
-            <div className="absolute -right-40 -top-52 h-[620px] w-[680px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-80 blur-3xl" />
+            <div className="absolute -right-40 -top-52 h-[620px] w-[680px] rounded-full bg-gradient-to-br from-[#e5f0ff] via-[#EAF4FF] to-[#e5f8f2] opacity-80 blur-3xl" />
           </div>
           <div className="relative mx-auto max-w-[1120px] px-5 sm:px-8">
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#4A4AE0] shadow-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#0868dc] shadow-sm">
               <ShieldCheck size={14} />
               Controlled trial access
             </span>
@@ -32,7 +32,7 @@ export default function TrialPage() {
               Explore the live role-based demo immediately. If you want a dedicated trial workspace, request access with your company and headcount so Linaw can provision the correct organization structure and permissions.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/signup" className="rounded-full bg-[#6161FF] px-6 py-3.5 text-[14px] font-semibold text-white">
+              <Link href="/signup" className="rounded-full bg-[#0877ff] px-6 py-3.5 text-[14px] font-semibold text-white">
                 Request trial access
               </Link>
               <Link href="/demo" className="inline-flex items-center gap-2 rounded-full border border-[#D9DCEC] px-6 py-3.5 text-[14px] font-semibold">
@@ -50,7 +50,7 @@ export default function TrialPage() {
               ["Provision the right access", "Trial workspaces are invitation-based so company structure, tenant ownership and role access can be set up deliberately."],
             ].map(([title, body]) => (
               <article key={title} className="rounded-[24px] border border-[#E4E6F0] bg-[#FAFBFD] p-6">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E3FAF0] text-[#0A8A53]">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e5f8f2] text-[#00886e]">
                   <Check size={16} strokeWidth={2.8} />
                 </span>
                 <h2 className="font-display mt-4 text-[23px] font-semibold tracking-[-0.03em]">{title}</h2>

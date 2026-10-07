@@ -29,7 +29,7 @@ export default function OpenGraphImage() {
             right: -120,
             top: -180,
             borderRadius: 999,
-            background: "radial-gradient(circle, rgba(97,97,255,.28), rgba(97,97,255,0))",
+            background: "radial-gradient(circle, rgba(8,119,255,.28), rgba(8,119,255,0))",
           }}
         />
         <div
@@ -46,24 +46,9 @@ export default function OpenGraphImage() {
 
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", width: "100%", zIndex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-            <div
-              style={{
-                display: "flex",
-                width: 58,
-                height: 58,
-                borderRadius: 16,
-                alignItems: "center",
-                justifyContent: "center",
-                background: "#11141F",
-                color: "#fff",
-                fontSize: 30,
-                fontWeight: 700,
-              }}
-            >
-              ✓
-            </div>
+            <svg width="58" height="64" viewBox="0 0 36 40" fill="none"><path d="M17 38C5 32 3 21 3 5C14 10 17 17 17 27V38Z" fill="#2889F5"/><path d="M20 24C20 11 25 6 34 2C35 13 30 20 20 24Z" fill="#10B8A0"/><path d="M18 38V17" stroke="#B9DFFF" strokeWidth="1.5"/></svg>
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-1px" }}>linaw</div>
+              <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-1px" }}>Linaw</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#7C82A1", letterSpacing: "2px", textTransform: "uppercase" }}>
                 Philippine Payroll
               </div>
@@ -79,7 +64,7 @@ export default function OpenGraphImage() {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 18, fontSize: 18, fontWeight: 700, color: "#4A4AE0" }}>
+          <div style={{ display: "flex", gap: 18, fontSize: 18, fontWeight: 700, color: "#0868dc" }}>
             <span>Role-based approvals</span>
             <span>·</span>
             <span>Philippine statutory payroll</span>

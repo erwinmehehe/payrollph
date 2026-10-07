@@ -8,7 +8,7 @@ import { readMarketingAttribution } from "@/lib/marketing-attribution-client";
 type Result = { leadId: number; recorded: boolean };
 
 const inputClass =
-  "mt-2 w-full rounded-xl border border-[#D9DCEC] bg-white px-3.5 py-3 text-[14px] text-[#11141F] outline-none transition focus:border-[#6161FF] focus:ring-4 focus:ring-[#6161FF]/10";
+  "mt-2 w-full rounded-xl border border-[#D9DCEC] bg-white px-3.5 py-3 text-[14px] text-[#11141F] outline-none transition focus:border-[#0877ff] focus:ring-4 focus:ring-[#0877ff]/10";
 
 export function BookDemoForm() {
   const [form, setForm] = useState({ name: "", email: "", company: "", headcount: "", notes: "" });
@@ -56,7 +56,7 @@ export function BookDemoForm() {
   if (result) {
     return (
       <div className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7">
-        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E3FAF0] text-[#0A8A53]">
+        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e5f8f2] text-[#00886e]">
           <Check size={19} />
         </span>
         <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Demo request</p>
@@ -79,7 +79,7 @@ export function BookDemoForm() {
 
   return (
     <form className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 shadow-[0_22px_60px_-38px_rgba(30,34,70,.38)] sm:p-7" onSubmit={submit} noValidate>
-      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#ECECFF] text-[#4A4AE0]">
+      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e5f0ff] text-[#0868dc]">
         <CalendarDays size={19} />
       </span>
       <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Book a walkthrough</p>
@@ -155,7 +155,7 @@ export function BookDemoForm() {
       <button
         type="submit"
         disabled={saving}
-        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#6161FF] px-5 py-3.5 text-[14px] font-semibold text-white transition-transform hover:scale-[1.01] disabled:cursor-wait disabled:opacity-60"
+        className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0877ff] px-5 py-3.5 text-[14px] font-semibold text-white transition-transform hover:scale-[1.01] disabled:cursor-wait disabled:opacity-60"
       >
         {saving ? <LoaderCircle size={15} className="animate-spin" /> : <CalendarDays size={15} />}
         {saving ? "Submitting…" : "Request a demo"}

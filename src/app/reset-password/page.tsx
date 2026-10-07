@@ -17,11 +17,11 @@ export default function ResetPasswordPage() {
       <SiteNav />
       <main className="relative overflow-hidden py-14 sm:py-18">
         <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-40 -top-48 h-[580px] w-[640px] rounded-full bg-gradient-to-br from-[#E3FAF0] via-[#EAF4FF] to-[#ECECFF] opacity-75 blur-3xl" />
+          <div className="absolute -left-40 -top-48 h-[580px] w-[640px] rounded-full bg-gradient-to-br from-[#e5f8f2] via-[#EAF4FF] to-[#e5f0ff] opacity-75 blur-3xl" />
         </div>
         <div className="relative mx-auto grid max-w-[960px] gap-8 px-5 sm:px-8 lg:grid-cols-[.88fr_1.12fr] lg:items-center">
           <section>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#4A4AE0] shadow-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#0868dc] shadow-sm">
               <KeyRound size={14} /> Password security
             </span>
             <h1 className="font-display mt-6 text-[40px] font-semibold leading-[1.03] tracking-[-0.045em] sm:text-[52px]">Set a new password.</h1>

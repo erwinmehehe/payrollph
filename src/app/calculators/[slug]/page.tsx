@@ -100,7 +100,7 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
       <main>
         <section className="border-b border-[#EDEFF7] bg-white py-14 sm:py-16">
           <div className="mx-auto max-w-[980px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Payroll calculator</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">Payroll calculator</p>
             <h1 className="font-display mt-4 text-[42px] font-semibold tracking-[-0.045em] sm:text-[54px]">{item.title}</h1>
             <p className="mt-4 max-w-[760px] text-[15px] leading-relaxed text-[#5B6080]">{item.intro}</p>
             <p className="mt-3 text-[11.5px] font-medium text-[#8B90AA]">
@@ -127,7 +127,7 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
               <ul className="mt-4 grid gap-3">
                 {guide.assumptions.map((item) => (
                   <li key={item} className="flex gap-2.5 text-[13.5px] leading-relaxed text-[#4A5068]">
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#6161FF]" />
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#0877ff]" />
                     {item}
                   </li>
                 ))}
@@ -182,7 +182,7 @@ export default async function CalculatorPage({ params }: { params: Promise<{ slu
               <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Use the estimate in context</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {related.map((link) => (
-                  <Link key={link.href} href={link.href} className="rounded-[20px] border border-[#E4E6F0] bg-[#FAFBFD] p-5 transition hover:border-[#CFCFFF]">
+                  <Link key={link.href} href={link.href} className="rounded-[20px] border border-[#E4E6F0] bg-[#FAFBFD] p-5 transition hover:border-[#b7d6ff]">
                     <strong className="text-[14px] font-semibold text-[#11141F]">{link.label}</strong>
                     <p className="mt-2 text-[12.5px] leading-relaxed text-[#6B718C]">{link.copy}</p>
                   </Link>

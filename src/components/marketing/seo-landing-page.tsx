@@ -77,10 +77,10 @@ export function SeoLandingPage({
       <main>
         <section className="relative overflow-hidden border-b border-[#EDEFF7] py-16 sm:py-20">
           <div aria-hidden className="pointer-events-none absolute inset-0">
-            <div className="absolute -right-40 -top-56 h-[650px] w-[760px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-80 blur-3xl" />
+            <div className="absolute -right-40 -top-56 h-[650px] w-[760px] rounded-full bg-gradient-to-br from-[#e5f0ff] via-[#EAF4FF] to-[#e5f8f2] opacity-80 blur-3xl" />
           </div>
           <div className="relative mx-auto max-w-[1180px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">{eyebrow}</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">{eyebrow}</p>
             <h1 className="font-display mt-4 max-w-[900px] text-balance text-[42px] font-semibold leading-[1.04] tracking-[-0.045em] sm:text-[58px]">
               {title}
             </h1>
@@ -89,7 +89,7 @@ export function SeoLandingPage({
             <div className="mt-8 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
               {proof.map((item) => (
                 <div key={item} className="flex gap-2.5 rounded-2xl border border-[#E6E8F2] bg-white/90 p-4 text-[13px] font-medium leading-relaxed text-[#34394F] shadow-sm">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E3FAF0] text-[#0A8A53]">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#e5f8f2] text-[#00886e]">
                     <Check size={12} strokeWidth={2.8} />
                   </span>
                   {item}
@@ -97,7 +97,7 @@ export function SeoLandingPage({
               ))}
             </div>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="/demo" className="inline-flex items-center gap-2 rounded-full bg-[#6161FF] px-6 py-3.5 text-[14px] font-semibold text-white">
+              <Link href="/demo" className="inline-flex items-center gap-2 rounded-full bg-[#0877ff] px-6 py-3.5 text-[14px] font-semibold text-white">
                 Try live demo <ArrowRight size={14} />
               </Link>
               <Link href="/book-demo" className="rounded-full border border-[#D9DCEC] bg-white px-6 py-3.5 text-[14px] font-semibold text-[#2B2F45]">
@@ -119,7 +119,7 @@ export function SeoLandingPage({
                   <ul className="mt-5 grid gap-2.5">
                     {section.bullets.map((item) => (
                       <li key={item} className="flex gap-2.5 text-[13.5px] leading-relaxed text-[#34394F]">
-                        <Check size={14} className="mt-1 shrink-0 text-[#0A8A53]" />
+                        <Check size={14} className="mt-1 shrink-0 text-[#00886e]" />
                         {item}
                       </li>
                     ))}
@@ -146,10 +146,10 @@ export function SeoLandingPage({
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
                       {group.links.map((item) => (
-                        <Link key={item.href} href={item.href} className="group rounded-[18px] border border-[#E2E4F0] bg-white p-4 transition hover:-translate-y-0.5 hover:border-[#CFCFFF]">
+                        <Link key={item.href} href={item.href} className="group rounded-[18px] border border-[#E2E4F0] bg-white p-4 transition hover:-translate-y-0.5 hover:border-[#b7d6ff]">
                           <strong className="font-display text-[16px] font-semibold">{item.label}</strong>
                           <p className="mt-1.5 text-[12px] leading-relaxed text-[#6B718C]">{item.description}</p>
-                          <span className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#4A4AE0]">
+                          <span className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#0868dc]">
                             Open guide <ArrowRight size={12} />
                           </span>
                         </Link>
@@ -207,10 +207,10 @@ export function SeoLandingPage({
             <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Explore related workflows</p>
             <div className="mt-5 grid gap-4 md:grid-cols-3">
               {related.map((item) => (
-                <Link key={item.href} href={item.href} className="group rounded-[22px] border border-[#E2E4F0] bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#CFCFFF] hover:shadow-sm">
+                <Link key={item.href} href={item.href} className="group rounded-[22px] border border-[#E2E4F0] bg-white p-5 transition hover:-translate-y-0.5 hover:border-[#b7d6ff] hover:shadow-sm">
                   <strong className="font-display text-[18px] font-semibold">{item.label}</strong>
                   <p className="mt-2 text-[12.5px] leading-relaxed text-[#6B718C]">{item.description}</p>
-                  <span className="mt-4 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#4A4AE0]">
+                  <span className="mt-4 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-[#0868dc]">
                     Learn more <ArrowRight size={13} className="transition group-hover:translate-x-0.5" />
                   </span>
                 </Link>

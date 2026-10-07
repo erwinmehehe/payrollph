@@ -27,8 +27,8 @@ const ICONS: Record<DemoRoleId, ElementType> = {
 };
 
 const TONES: Record<DemoRoleId, { bg: string; fg: string }> = {
-  owner: { bg: "#ECECFF", fg: "#4A4AE0" },
-  hr: { bg: "#E3FAF0", fg: "#0A8A53" },
+  owner: { bg: "#e5f0ff", fg: "#0868dc" },
+  hr: { bg: "#e5f8f2", fg: "#00886e" },
   payroll: { bg: "#E0F7FA", fg: "#00838F" },
   checker: { bg: "#FFF4D6", fg: "#9A6B00" },
   bookkeeper: { bg: "#E8F2FF", fg: "#3263B8" },
@@ -76,10 +76,10 @@ export function DemoRolePicker() {
     <main className="bg-white text-[#0B0D1A]">
       <section className="relative overflow-hidden border-b border-[#EDEFF7] pb-16 pt-16 sm:pb-20 sm:pt-20">
         <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div className="absolute -right-32 -top-48 h-[560px] w-[620px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-80 blur-3xl" />
+          <div className="absolute -right-32 -top-48 h-[560px] w-[620px] rounded-full bg-gradient-to-br from-[#e5f0ff] via-[#EAF4FF] to-[#e5f8f2] opacity-80 blur-3xl" />
         </div>
         <div className="relative mx-auto max-w-[1120px] px-5 text-center sm:px-8">
-          <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#4A4AE0] shadow-sm">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#0868dc] shadow-sm">
             <ShieldCheck size={14} aria-hidden />
             Real role boundaries · sample payroll · no setup
           </span>
@@ -139,9 +139,9 @@ export function DemoRolePicker() {
                       <small className="mt-0.5 block truncate text-[12px] text-[#7C82A1]">{role.person}</small>
                     </span>
                     {role.id === "owner" && !active && (
-                      <span className="rounded-full bg-[#ECECFF] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[#4A4AE0]">Start</span>
+                      <span className="rounded-full bg-[#e5f0ff] px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-[#0868dc]">Start</span>
                     )}
-                    <ArrowRight size={14} className={active ? "text-[#4A4AE0]" : "text-[#A0A5B8]"} aria-hidden />
+                    <ArrowRight size={14} className={active ? "text-[#0868dc]" : "text-[#A0A5B8]"} aria-hidden />
                   </button>
                 );
               })}
@@ -178,7 +178,7 @@ export function DemoRolePicker() {
                     <div className="mt-3 grid gap-2">
                       {selected.access.map((item) => (
                         <span key={item} className="flex items-start gap-2.5 text-[14px] leading-relaxed text-[#2B2F45]">
-                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E3FAF0] text-[#0A8A53]">
+                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#e5f8f2] text-[#00886e]">
                             <Check size={12} strokeWidth={2.8} aria-hidden />
                           </span>
                           {item}
@@ -241,7 +241,7 @@ export function DemoRolePicker() {
               <p className="mt-1 text-[13.5px] text-[#5B6080]">Request a controlled trial workspace, or ask Linaw to handle the payroll cycle as a managed service.</p>
             </div>
             <div className="flex flex-wrap gap-2.5">
-              <Link href="/signup" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#6161FF] px-5 py-3 text-[13.5px] font-semibold text-white">
+              <Link href="/signup" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0877ff] px-5 py-3 text-[13.5px] font-semibold text-white">
                 Request trial access <ArrowRight size={14} aria-hidden />
               </Link>
               <Link href="/payroll-outsourcing" className="inline-flex items-center justify-center gap-2 rounded-full border border-[#D9DCEC] bg-white px-5 py-3 text-[13.5px] font-semibold text-[#2B2F45]">

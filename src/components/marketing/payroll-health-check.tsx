@@ -46,7 +46,7 @@ export function PayrollHealthCheck() {
                   key={labelText}
                   type="button"
                   onClick={() => setAnswers((current) => ({ ...current, [question.id]: value }))}
-                  className={`rounded-full border px-4 py-2 text-[12px] font-semibold ${answers[question.id] === value ? "border-[#6161FF] bg-[#F1F1FF] text-[#4A4AE0]" : "border-[#DDE0EB] bg-white text-[#596078]"}`}
+                  className={`rounded-full border px-4 py-2 text-[12px] font-semibold ${answers[question.id] === value ? "border-[#0877ff] bg-[#F1F1FF] text-[#0868dc]" : "border-[#DDE0EB] bg-white text-[#596078]"}`}
                 >
                   {labelText === "yes" ? "Yes" : "No"}
                 </button>

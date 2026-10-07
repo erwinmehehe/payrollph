@@ -21,7 +21,7 @@ export default function CustomersPage() {
       <main>
         <section className="border-b border-[#EDEFF7] py-16 sm:py-20">
           <div className="mx-auto max-w-[1080px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Customer evidence</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">Customer evidence</p>
             <h1 className="font-display mt-4 max-w-[820px] text-[44px] font-semibold leading-[1.04] tracking-[-0.045em] sm:text-[58px]">
               Customer stories are published only after approval and evidence review.
             </h1>
@@ -39,12 +39,12 @@ export default function CustomersPage() {
                   <Link
                     key={story.slug}
                     href={`/customers/${story.slug}`}
-                    className="rounded-[24px] border border-[#E4E6F0] bg-[#FAFBFD] p-6 transition hover:-translate-y-0.5 hover:border-[#CFCFFF]"
+                    className="rounded-[24px] border border-[#E4E6F0] bg-[#FAFBFD] p-6 transition hover:-translate-y-0.5 hover:border-[#b7d6ff]"
                   >
                     <p className="text-[11px] font-bold uppercase tracking-[0.13em] text-[#7C82A1]">{story.industry}</p>
                     <h2 className="font-display mt-3 text-[26px] font-semibold tracking-[-0.03em]">{story.customerName}</h2>
                     <p className="mt-3 text-[13.5px] leading-relaxed text-[#5B6080]">{story.challenge}</p>
-                    <span className="mt-5 inline-block text-[13px] font-semibold text-[#4A4AE0]">Read approved story</span>
+                    <span className="mt-5 inline-block text-[13px] font-semibold text-[#0868dc]">Read approved story</span>
                   </Link>
                 ))}
               </div>
