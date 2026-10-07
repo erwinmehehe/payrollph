@@ -1,4 +1,4 @@
-import { and, eq, isNull, lte } from "drizzle-orm";
+import { and, eq, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
@@ -7,12 +7,7 @@ import {
   automationRules,
   benefitEnrollments,
   benefitPlans,
-  employees,
-  jobProfiles,
-  orgUnits,
   permissionSets,
-  positionAssignments,
-  positions,
   provisioningTasks,
   scimIdentities,
   sessions,
@@ -26,6 +21,8 @@ import { assignEmployeeScheduleGoverned } from "@/lib/workforce-schedule-assignm
 import { generateAutomationEmployeeDocument } from "@/lib/automation-document-generation";
 import { createApprovalFromConfiguredChain } from "@/lib/approval-chains";
 import { deliverSlackAutomationMessage } from "@/lib/integration-connectors";
+import { loadWorkerAttributeContext } from "@/lib/worker-attribute-context";
+import { resolveWorkerDynamicGroups } from "@/lib/dynamic-worker-groups";
 import {
   getAutomationDocumentTemplate,
   type AutomationDocumentTrigger,
@@ -34,6 +31,7 @@ import {
 export const AUTOMATION_TRIGGERS = [
   "employee.hired",
   "employee.updated",
+  "employee.field_changed",
   "employee.moved",
   "employee.promoted",
   "employee.separated",
@@ -41,7 +39,11 @@ export const AUTOMATION_TRIGGERS = [
   "payroll.submitted",
   "payroll.approved",
   "payroll.released",
+  "payroll.pay_date_approaching",
+  "timesheet.cutoff_approaching",
   "attendance.exception_created",
+  "attendance.exception_aging",
+  "coverage.gap_approaching",
   "overtime.requested",
   "overtime.approved",
   "leave.requested",
@@ -52,6 +54,10 @@ export const AUTOMATION_TRIGGERS = [
   "document.expires",
   "government.remittance_due",
   "contribution.discrepancy_detected",
+  "benefit.enrollment_created",
+  "benefit.dependent_added",
+  "benefit.coverage_activated",
+  "benefit.coverage_ended",
 ] as const;
 
 export const LIFECYCLE_TRIGGERS = [
@@ -66,6 +72,7 @@ export type LifecycleTrigger = (typeof LIFECYCLE_TRIGGERS)[number];
 export const AUTOMATION_LIVE_TRIGGERS = [
   "employee.hired",
   "employee.updated",
+  "employee.field_changed",
   "employee.moved",
   "employee.promoted",
   "employee.separated",
@@ -73,7 +80,11 @@ export const AUTOMATION_LIVE_TRIGGERS = [
   "payroll.submitted",
   "payroll.approved",
   "payroll.released",
+  "payroll.pay_date_approaching",
+  "timesheet.cutoff_approaching",
   "attendance.exception_created",
+  "attendance.exception_aging",
+  "coverage.gap_approaching",
   "overtime.requested",
   "overtime.approved",
   "leave.requested",
@@ -84,6 +95,10 @@ export const AUTOMATION_LIVE_TRIGGERS = [
   "document.expires",
   "government.remittance_due",
   "contribution.discrepancy_detected",
+  "benefit.enrollment_created",
+  "benefit.dependent_added",
+  "benefit.coverage_activated",
+  "benefit.coverage_ended",
 ] as const satisfies readonly AutomationTrigger[];
 
 export const AUTOMATION_PLANNED_TRIGGERS = [] as const satisfies readonly AutomationTrigger[];
@@ -100,6 +115,7 @@ export const AUTOMATION_TRIGGER_CATALOG: Array<{
 }> = [
   { value: "employee.hired", label: "Employee hired", category: "People", employeeScoped: true },
   { value: "employee.updated", label: "Employee updated", category: "People", employeeScoped: true },
+  { value: "employee.field_changed", label: "Employee field changed", category: "People", employeeScoped: true },
   { value: "employee.moved", label: "Employee changes department / position", category: "People", employeeScoped: true },
   { value: "employee.promoted", label: "Employee promoted", category: "People", employeeScoped: true },
   { value: "employee.separated", label: "Employee separated", category: "People", employeeScoped: true },
@@ -107,7 +123,11 @@ export const AUTOMATION_TRIGGER_CATALOG: Array<{
   { value: "payroll.submitted", label: "Payroll submitted for review", category: "Payroll", employeeScoped: false },
   { value: "payroll.approved", label: "Payroll approved", category: "Payroll", employeeScoped: false },
   { value: "payroll.released", label: "Payroll released", category: "Payroll", employeeScoped: false },
+  { value: "payroll.pay_date_approaching", label: "Payroll pay date approaching", category: "Payroll", employeeScoped: false },
+  { value: "timesheet.cutoff_approaching", label: "Timesheet cutoff approaching", category: "Workforce", employeeScoped: true },
   { value: "attendance.exception_created", label: "Attendance exception created", category: "Workforce", employeeScoped: true },
+  { value: "attendance.exception_aging", label: "Attendance exception aging", category: "Workforce", employeeScoped: true },
+  { value: "coverage.gap_approaching", label: "Coverage gap approaching", category: "Workforce", employeeScoped: false },
   { value: "overtime.requested", label: "Overtime requested", category: "Workforce", employeeScoped: true },
   { value: "overtime.approved", label: "Overtime approved", category: "Workforce", employeeScoped: true },
   { value: "leave.requested", label: "Leave requested", category: "Workforce", employeeScoped: true },
@@ -118,6 +138,10 @@ export const AUTOMATION_TRIGGER_CATALOG: Array<{
   { value: "document.expires", label: "Document expires", category: "Compliance", employeeScoped: true },
   { value: "government.remittance_due", label: "Government remittance due", category: "Compliance", employeeScoped: false },
   { value: "contribution.discrepancy_detected", label: "Contribution discrepancy detected", category: "Compliance", employeeScoped: true },
+  { value: "benefit.enrollment_created", label: "Benefit enrollment created", category: "Benefits", employeeScoped: true },
+  { value: "benefit.dependent_added", label: "HMO dependent added", category: "Benefits", employeeScoped: true },
+  { value: "benefit.coverage_activated", label: "HMO coverage activated", category: "Benefits", employeeScoped: true },
+  { value: "benefit.coverage_ended", label: "HMO coverage ended", category: "Benefits", employeeScoped: true },
 ];
 
 export const AUTOMATION_CONDITION_FIELDS = [
@@ -135,6 +159,21 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "tenureDays", label: "Tenure (days)", kind: "number" },
   { value: "tenureYears", label: "Tenure (years)", kind: "number" },
   { value: "payrollAmount", label: "Payroll amount", kind: "number" },
+  { value: "payrollRunId", label: "Payroll run ID", kind: "number" },
+  { value: "payrollRunStatus", label: "Payroll run status", kind: "string" },
+  { value: "deadlineType", label: "Deadline type", kind: "string" },
+  { value: "deadlineBucket", label: "Deadline bucket", kind: "string" },
+  { value: "daysUntilDeadline", label: "Days until deadline", kind: "number" },
+  { value: "ageHours", label: "Age (hours)", kind: "number" },
+  { value: "ageBucket", label: "Age bucket", kind: "string" },
+  { value: "timesheetId", label: "Timesheet ID", kind: "number" },
+  { value: "timesheetStatus", label: "Timesheet status", kind: "string" },
+  { value: "timesheetBlockerCount", label: "Timesheet blocker count", kind: "number" },
+  { value: "openShiftId", label: "Open shift ID", kind: "number" },
+  { value: "worksiteId", label: "Worksite ID", kind: "number" },
+  { value: "workDate", label: "Work date", kind: "string" },
+  { value: "coverageSlots", label: "Coverage slots", kind: "number" },
+  { value: "coverageStatus", label: "Coverage status", kind: "string" },
   { value: "overtimeMinutes", label: "Overtime minutes", kind: "number" },
   { value: "attendanceExceptionKind", label: "Attendance exception type", kind: "string" },
   { value: "attendanceExceptionSeverity", label: "Attendance exception severity", kind: "string" },
@@ -144,6 +183,17 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "employeeStatus", label: "Employee status", kind: "string" },
   { value: "legalEntityId", label: "Legal employer ID", kind: "number" },
   { value: "eventAmount", label: "Event amount", kind: "number" },
+  { value: "changeField", label: "Changed field", kind: "string" },
+  { value: "changeDirection", label: "Change direction", kind: "string" },
+  { value: "changeTiming", label: "Change timing", kind: "string" },
+  { value: "changeSource", label: "Change source", kind: "string" },
+  { value: "sensitiveChange", label: "Sensitive field changed", kind: "boolean" },
+  { value: "previousValue", label: "Previous value", kind: "string" },
+  { value: "newValue", label: "New value", kind: "string" },
+  { value: "previousNumericValue", label: "Previous numeric value", kind: "number" },
+  { value: "newNumericValue", label: "New numeric value", kind: "number" },
+  { value: "changeAmount", label: "Numeric change amount", kind: "number" },
+  { value: "changePercent", label: "Numeric change percent", kind: "number" },
   { value: "documentKind", label: "Document type", kind: "string" },
   { value: "documentRequirementCode", label: "Document requirement code", kind: "string" },
   { value: "documentStatus", label: "Document compliance status", kind: "string" },
@@ -157,6 +207,15 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "contributionSource", label: "Contribution discrepancy source", kind: "string" },
   { value: "contributionSeverity", label: "Contribution discrepancy severity", kind: "string" },
   { value: "contributionCaseId", label: "Contribution case ID", kind: "number" },
+  { value: "benefitCategory", label: "Benefit category", kind: "string" },
+  { value: "benefitPlanId", label: "Benefit plan ID", kind: "number" },
+  { value: "benefitPlanName", label: "Benefit plan name", kind: "string" },
+  { value: "benefitProvider", label: "Benefit provider", kind: "string" },
+  { value: "benefitStatus", label: "Benefit enrollment status", kind: "string" },
+  { value: "providerStatus", label: "Provider enrollment status", kind: "string" },
+  { value: "dependentRelationship", label: "Dependent relationship", kind: "string" },
+  { value: "dependentMonthlyContribution", label: "Dependent monthly contribution", kind: "number" },
+  { value: "dynamicGroupCodes", label: "Dynamic group code", kind: "string_array" },
 ] as const;
 
 export const AUTOMATION_OPERATORS = [
@@ -358,6 +417,7 @@ export const AUTOMATION_ACTION_CATALOG = [
 const EMPLOYEE_ACCESS_TRIGGERS = new Set<AutomationTrigger>([
   "employee.hired",
   "employee.updated",
+  "employee.field_changed",
   "employee.moved",
   "employee.promoted",
   "candidate.hired",
@@ -743,13 +803,33 @@ function conditionClauseMatches(clause: AutomationConditionClause, context: Reco
     const exists = actual !== undefined && actual !== null && actual !== "";
     return expected === false ? !exists : exists;
   }
-  if (clause.operator === "eq") return actual === expected || String(actual ?? "") === String(expected ?? "");
-  if (clause.operator === "neq") return !(actual === expected || String(actual ?? "") === String(expected ?? ""));
+  if (clause.operator === "eq") {
+    if (Array.isArray(actual)) {
+      return actual.some((item) => item === expected || String(item ?? "") === String(expected ?? ""));
+    }
+    return actual === expected || String(actual ?? "") === String(expected ?? "");
+  }
+  if (clause.operator === "neq") {
+    if (Array.isArray(actual)) {
+      return !actual.some((item) => item === expected || String(item ?? "") === String(expected ?? ""));
+    }
+    return !(actual === expected || String(actual ?? "") === String(expected ?? ""));
+  }
   if (clause.operator === "contains") {
-    return String(actual ?? "").toLowerCase().includes(String(expected ?? "").toLowerCase());
+    const needle = String(expected ?? "").toLowerCase();
+    if (Array.isArray(actual)) {
+      return actual.some((item) => String(item ?? "").toLowerCase().includes(needle));
+    }
+    return String(actual ?? "").toLowerCase().includes(needle);
   }
   if (clause.operator === "in") {
-    return Array.isArray(expected) && expected.some((item) => actual === item || String(actual ?? "") === String(item ?? ""));
+    if (!Array.isArray(expected)) return false;
+    if (Array.isArray(actual)) {
+      return actual.some((actualItem) =>
+        expected.some((item) => actualItem === item || String(actualItem ?? "") === String(item ?? ""))
+      );
+    }
+    return expected.some((item) => actual === item || String(actual ?? "") === String(item ?? ""));
   }
 
   const left = Number(actual);
@@ -1036,93 +1116,24 @@ async function enrichEmployeeContext(input: {
 }) {
   if (!input.employeeId) return { ...(input.context ?? {}) };
 
-  const [employee] = await db.select().from(employees).where(and(
-    eq(employees.id, input.employeeId),
-    eq(employees.organizationId, input.organizationId),
-  )).limit(1);
-  if (!employee) return { employeeId: input.employeeId, ...(input.context ?? {}) };
+  const worker = await loadWorkerAttributeContext({
+    organizationId: input.organizationId,
+    employeeId: input.employeeId,
+  });
+  if (!worker) return { employeeId: input.employeeId, ...(input.context ?? {}) };
 
-  const [assignment] = await db.select().from(positionAssignments).where(and(
-    eq(positionAssignments.organizationId, input.organizationId),
-    eq(positionAssignments.employeeId, employee.id),
-    isNull(positionAssignments.effectiveUntil),
-  )).limit(1);
-
-  const [unitRows, positionRows] = await Promise.all([
-    employee.orgUnitId
-      ? db.select({ id: orgUnits.id, name: orgUnits.name }).from(orgUnits).where(and(
-          eq(orgUnits.id, employee.orgUnitId),
-          eq(orgUnits.organizationId, input.organizationId),
-        )).limit(1)
-      : Promise.resolve([]),
-    assignment
-      ? db.select().from(positions).where(and(
-          eq(positions.id, assignment.positionId),
-          eq(positions.organizationId, input.organizationId),
-        )).limit(1)
-      : Promise.resolve([]),
-  ]);
-
-  const position = positionRows[0] ?? null;
-  const [profileRows, managerRows] = await Promise.all([
-    position
-      ? db.select({
-          id: jobProfiles.id,
-          title: jobProfiles.title,
-          family: jobProfiles.family,
-          level: jobProfiles.level,
-          grade: jobProfiles.grade,
-        }).from(jobProfiles).where(and(
-          eq(jobProfiles.id, position.jobProfileId),
-          eq(jobProfiles.organizationId, input.organizationId),
-        )).limit(1)
-      : Promise.resolve([]),
-    position?.managerEmployeeId
-      ? db.select({
-          id: employees.id,
-          firstName: employees.firstName,
-          lastName: employees.lastName,
-          email: employees.email,
-          title: employees.title,
-        }).from(employees).where(and(
-          eq(employees.id, position.managerEmployeeId),
-          eq(employees.organizationId, input.organizationId),
-        )).limit(1)
-      : Promise.resolve([]),
-  ]);
-
-  const profile = profileRows[0] ?? null;
-  const manager = managerRows[0] ?? null;
-  const start = Date.parse(String(employee.startDate) + "T00:00:00Z");
-  const today = Date.parse(todayPh() + "T00:00:00Z");
-  const tenureDays = Number.isFinite(start) ? Math.max(0, Math.floor((today - start) / 86_400_000)) : 0;
+  const memberships = await resolveWorkerDynamicGroups({
+    organizationId: input.organizationId,
+    context: worker,
+  });
 
   return {
-    employeeId: employee.id,
-    employeeNo: employee.employeeNo,
-    employeeName: `${employee.firstName} ${employee.lastName}`,
-    employeeEmail: employee.email,
-    employeeStatus: employee.status,
-    employeeStartDate: String(employee.startDate),
-    orgUnitId: employee.orgUnitId,
-    department: unitRows[0]?.name ?? null,
-    location: employee.region,
-    employmentType: employee.employmentType,
-    title: employee.title,
-    role: profile?.title ?? employee.title,
-    salary: Number(employee.basicRate),
-    legalEntityId: employee.legalEntityId,
-    tenureDays,
-    tenureYears: Math.round((tenureDays / 365.25) * 100) / 100,
-    positionId: position?.id ?? null,
-    positionCode: position?.code ?? null,
-    jobFamily: profile?.family ?? null,
-    jobLevel: profile?.level ?? null,
-    grade: profile?.grade ?? null,
-    managerEmployeeId: manager?.id ?? null,
-    managerName: manager ? `${manager.firstName} ${manager.lastName}` : null,
-    managerEmail: manager?.email ?? null,
+    ...worker,
     ...(input.context ?? {}),
+    dynamicGroupIds: memberships.map((group) => group.id),
+    dynamicGroupCodes: memberships.map((group) => group.code),
+    dynamicGroupNames: memberships.map((group) => group.name),
+    dynamicGroupMemberships: memberships,
   };
 }
 
@@ -1333,7 +1344,7 @@ async function executeAction(input: {
     const employeeId = requiredEmployeeId(input.employeeId, "Assign benefit");
     const [plan] = await db.select().from(benefitPlans).where(and(
       eq(benefitPlans.id, action.planId),
-      eq(benefitPlans.organizationId, input.organizationId),
+      or(isNull(benefitPlans.organizationId), eq(benefitPlans.organizationId, input.organizationId)),
       eq(benefitPlans.active, true),
     )).limit(1);
     if (!plan) throw new Error("The configured benefit plan is missing or inactive.");

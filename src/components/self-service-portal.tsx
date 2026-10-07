@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { LinawMark } from "@/components/linaw-mark";
 import { EmployeeHomeDashboard } from "@/components/employee-home-dashboard";
+import { EmployeeExplainPay } from "@/components/employee-explain-pay";
 import { EmployeeContributionIssueModal } from "@/components/employee-contribution-issue-modal";
 import { EmployeeDocumentsPanel } from "@/components/employee-documents-panel";
 import { HcmSelfProbationReviews } from "@/components/hcm-self-probation-reviews";
@@ -607,6 +608,7 @@ export function SelfServicePortal() {
                 <PayLines title="Earnings" rows={latestBreakdown.earnings} empty="No positive pay lines stored." />
                 <PayLines title="Deductions" rows={latestBreakdown.deductions} empty="No deductions stored." deductions />
               </div>
+              <EmployeeExplainPay entryId={latestPayslip.entryId} period={latestPayslip.period} />
               <div className="employee-rule-note"><ShieldCheck size={12} /> Rule version {latestPayslip.ruleVersion}</div>
             </article>
           )}
@@ -839,6 +841,7 @@ export function SelfServicePortal() {
                       <div><span>Gross</span><strong>{peso(slip.gross)}</strong></div>
                       <div><span>Deductions</span><strong>{peso(slip.deductions)}</strong></div>
                       <a className="secondary-button" href={"/api/self/payslips/" + slip.entryId}><Download size={13} /> Download PDF</a>
+                      <EmployeeExplainPay entryId={slip.entryId} period={slip.period} />
                     </div>
                   )}
                 </div>

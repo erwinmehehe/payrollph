@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import { assertOrganizationRole, assertScope, getAccess, ORG_ADMIN_ROLES, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { runAutomationEventSafely } from "@/lib/automation";
 import { getSessionUser } from "@/lib/auth";
 import { validateContribution, type BenefitPlanInput } from "@/lib/benefits";
 import { benefitEnrollments, benefitPlans, employees } from "@/db/schema";
@@ -112,6 +113,8 @@ export async function POST(request: Request) {
     planId,
     monthlyContribution: (monthlyContribution || Number(plan.employeeShare)).toFixed(2),
     startedOn,
+    effectiveOn: startedOn,
+    providerStatus: plan.category === "hmo" ? "not_sent" : "confirmed",
   }).returning();
 
   await recordAuditEvent({
@@ -120,6 +123,22 @@ export async function POST(request: Request) {
     action: "Benefit enrolment created",
     resource: `${employee.firstName} ${employee.lastName} · ${plan.name}`,
     metadata: { enrolmentId: row.id, planId, monthlyContribution: row.monthlyContribution },
+  });
+  await runAutomationEventSafely({
+    organizationId,
+    employeeId,
+    trigger: "benefit.enrollment_created",
+    eventKey: `benefit-enrollment:${row.id}`,
+    context: {
+      benefitEnrollmentId: row.id,
+      benefitCategory: plan.category,
+      benefitPlanId: plan.id,
+      benefitPlanName: plan.name,
+      benefitProvider: plan.provider,
+      benefitStatus: row.status,
+      providerStatus: row.providerStatus,
+      effectiveDate: row.effectiveOn ?? row.startedOn,
+    },
   });
 
   return Response.json(row, { status: 201 });
@@ -163,6 +182,24 @@ export async function DELETE(request: Request) {
     resource: `employee ${row.employeeId}`,
     metadata: { enrolmentId: row.id, planId: row.planId },
   });
+  const [plan] = await db.select().from(benefitPlans).where(eq(benefitPlans.id, row.planId)).limit(1);
+  if (plan?.category === "hmo") {
+    await runAutomationEventSafely({
+      organizationId: row.organizationId,
+      employeeId: row.employeeId,
+      trigger: "benefit.coverage_ended",
+      eventKey: `benefit-enrollment:${row.id}:ended`,
+      context: {
+        benefitEnrollmentId: row.id,
+        benefitPlanId: row.planId,
+        benefitPlanName: plan.name,
+        benefitProvider: plan.provider,
+        benefitStatus: "ended",
+        providerStatus: row.providerStatus,
+        effectiveDate: row.effectiveOn ?? row.startedOn,
+      },
+    });
+  }
 
   return Response.json({ ok: true });
 }

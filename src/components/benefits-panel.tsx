@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { HandCoins, HeartPulse, PiggyBank, Plus, X } from "lucide-react";
+import { HmoBenefitsPanel } from "@/components/hmo-benefits-panel";
 
 type Plan = { id: number; name: string; category: string; employeeShare: string; employerShare: string; cap: string | null; provider: string | null; enrolled: number };
 type Row = { id: number; name: string; monthlyBasic: string; enrolments: Array<{ id: number; planId: number; monthlyContribution: string; status: string }> };
@@ -49,7 +50,11 @@ export function BenefitsPanel({ organizationId, setNotice }: { organizationId: n
   }
 
   async function seed() {
-    const response = await fetch("/api/benefits", { method: "PUT" });
+    const response = await fetch("/api/benefits", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ organizationId }),
+    });
     const payload = await response.json();
     setNotice(payload.seeded ? "Default PH benefit catalogue created." : "Catalogue already exists.");
     await load();
@@ -95,6 +100,8 @@ export function BenefitsPanel({ organizationId, setNotice }: { organizationId: n
         copy="HMO, group insurance, Pag-IBIG MP2 and allowance enrolments deduct automatically on the next calculated run."
         actions={plans.length === 0 && <button className="primary-button" onClick={seed}><Plus size={16} className="i-green" /> Seed PH catalogue</button>}
       />
+
+      <HmoBenefitsPanel organizationId={organizationId} setNotice={setNotice} />
 
       <section className="stats-grid">
         <article className="stat-card"><div className="stat-icon mint"><HandCoins size={19} /></div><p>EMPLOYEE SHARE / MO</p><h3>{peso(totalEmployee)}</h3><span>{employees.reduce((sum, e) => sum + e.enrolments.filter((x) => x.status === "active").length, 0)} active enrolment(s)</span></article>

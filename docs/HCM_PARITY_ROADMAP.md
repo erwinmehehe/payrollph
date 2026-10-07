@@ -75,10 +75,45 @@ Additional job-architecture and calibration governance built:
 - Closed large-score-change flags reopen if the underlying calibration delta materially changes
 - Calibration flag backlog and resolution status are included in performance analytics
 
-Next improvements inside this module:
-- Employee contribution to upcoming 1:1 agendas
-- Optional competency expectation inheritance by job family/level when a profile does not override it
-- Trend views across completed performance cycles without expanding performance data into automatic compensation decisions
+Additional continuity, inheritance, and trend capabilities built:
+- Employees can contribute append-only agenda items to their own scheduled 1:1s from self-service
+- Employee agenda contributions remain separate from the manager-authored agenda and manager-private notes
+- Family-, level-, and family+level competency expectation defaults reduce repeated job-profile setup
+- Deterministic expectation precedence: profile override -> family+level -> level -> family
+- Review items snapshot expectation source/rule provenance so later default changes do not rewrite historical review evidence
+- People-admin coverage views include inherited competency counts and inherited mandatory-skill gaps
+- Completed-cycle trend analytics show review completion, final/self/manager rating averages, goal attainment, and role-expectation gap rates
+- Trend deltas compare each completed cycle with the previous completed cycle inside the viewer's existing authorization scope
+- Performance trends remain explicitly separated from compensation and payroll mutation
+
+Additional performance follow-through and evidence capabilities built:
+- Governed 1:1 action items with employee/manager ownership, due dates, status, employee-shared vs manager-private visibility, completion metadata and immutable event history
+- Employees can progress/complete only their own employee-visible action items from self-service; managers/People admins retain governed cancel/reopen controls with written rationale
+- Overdue action items are surfaced in employee and manager workspaces without silently mutating meeting or review status
+- Skill-level trend analytics aggregate completed, scoped review evidence across cycles
+- Persistent competency gaps are identified only when the average scored proficiency remains below the frozen role expectation for at least two consecutive completed cycles
+- People admins can export an MFA-gated, rate-limited, audited employee performance evidence package for all cycles or one selected cycle
+- Evidence packages include section-level SHA-256 hashes and an overall evidence hash
+- Evidence exports exclude manager-private 1:1 notes, manager-private feedback, manager-private action items, compensation/payroll records and sensitive identifiers
+
+Additional performance follow-through automation built:
+- Configurable 1:1 action-item reminder policy with upcoming, due, overdue and escalated stages
+- Durable action reminder tasks/events with deduplicated delivery, automatic resolution, manager notification for employee-owned commitments and company-wide People-admin escalation
+- Persistent skill-gap development plans can only be opened when stored review evidence shows at least two consecutive completed cycles below the frozen role expectation
+- Development plans include target proficiency, target date, milestones, manager governance, employee visibility and append-only employee progress evidence
+- Employees can progress visible milestones and post development updates without access to manager-only cancel/reopen or evidence-trigger controls
+- Versioned performance-evidence retention policy with configurable retention years, automatic completed-cycle sealing and post-seal amendment rules
+- Completed-cycle seals freeze policy version/snapshot plus a cycle-wide manifest of privacy-scoped employee evidence hashes
+- Scheduled automatic sealing runs through the existing performance scheduler path
+- Seal verification recomputes current evidence and records match/mismatch status
+- Legal holds preserve sealed evidence beyond ordinary retention handling
+- Post-seal corrections are append-only, tamper-evident amendments chained from the original manifest hash
+- Employee evidence exports report whether the selected package still matches its completed-cycle seal
+
+Performance is now sufficiently deep for the current HCM target. Shift the next major build tranche to Workforce Planning 2.0 rather than continuing to expand performance.
+
+Next major HCM module:
+- Workforce Planning 2.0: plan versioning, requested/approved/filled headcount, scenarios, loaded labor-cost forecasts, HR/Finance approvals, approved-position to requisition handoff, variance and attrition/backfill planning
 
 ## Tranche 2 — Job architecture and position control
 

@@ -6,10 +6,15 @@ import { BadgeCheck, BriefcaseBusiness, Link2, Plus, RefreshCw, ShieldCheck } fr
 type JobProfile = {
   id: number;
   title: string;
+  familyId: number | null;
+  levelId: number | null;
   family: string;
   level: string;
   active: boolean;
 };
+
+type JobFamily = { id: number; code: string; name: string; active: boolean };
+type JobLevel = { id: number; code: string; name: string; sequence: number; active: boolean };
 
 type Skill = {
   id: number;
@@ -26,6 +31,16 @@ type Requirement = {
   skillId: number;
   minimumProficiency: number;
   mandatory: boolean;
+};
+
+type ExpectationDefault = {
+  id: number;
+  jobFamilyId: number | null;
+  jobLevelId: number | null;
+  skillId: number;
+  minimumProficiency: number;
+  mandatory: boolean;
+  active: boolean;
 };
 
 type Template = {
@@ -45,12 +60,23 @@ type Coverage = {
   level: string;
   mandatorySkills: number;
   mappedMandatorySkills: number;
+  inheritedSkills: number;
   complete: boolean;
+  effectiveExpectations: Array<{
+    skillId: number;
+    code: string;
+    name: string;
+    minimumProficiency: number;
+    mandatory: boolean;
+    source: "profile" | "family" | "level" | "family_level";
+    ruleId: number | null;
+  }>;
   missing: Array<{
     skillId: number;
     code: string;
     name: string;
     minimumProficiency: number;
+    source: "profile" | "family" | "level" | "family_level";
   }>;
 };
 
@@ -64,10 +90,14 @@ export function PerformanceCompetencyArchitecturePanel({
   const [profiles, setProfiles] = useState<JobProfile[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [requirements, setRequirements] = useState<Requirement[]>([]);
+  const [defaults, setDefaults] = useState<ExpectationDefault[]>([]);
+  const [families, setFamilies] = useState<JobFamily[]>([]);
+  const [levels, setLevels] = useState<JobLevel[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [coverage, setCoverage] = useState<Coverage[]>([]);
   const [showSkill, setShowSkill] = useState(false);
   const [showRequirement, setShowRequirement] = useState(false);
+  const [showDefault, setShowDefault] = useState(false);
   const [skillForm, setSkillForm] = useState({ code: "", name: "", category: "General", description: "" });
   const [requirementForm, setRequirementForm] = useState({
     jobProfileId: "",
@@ -75,10 +105,20 @@ export function PerformanceCompetencyArchitecturePanel({
     minimumProficiency: "3",
     mandatory: true,
   });
+  const [defaultForm, setDefaultForm] = useState({
+    jobFamilyId: "",
+    jobLevelId: "",
+    skillId: "",
+    minimumProficiency: "3",
+    mandatory: false,
+  });
   const [mappingSkill, setMappingSkill] = useState<Record<number, string>>({});
   const [mappingProfile, setMappingProfile] = useState<Record<number, string>>({});
   const [requirementLevels, setRequirementLevels] = useState<Record<number, string>>({});
   const [requirementMandatory, setRequirementMandatory] = useState<Record<number, boolean>>({});
+  const [defaultLevels, setDefaultLevels] = useState<Record<number, string>>({});
+  const [defaultMandatory, setDefaultMandatory] = useState<Record<number, boolean>>({});
+  const [defaultActive, setDefaultActive] = useState<Record<number, boolean>>({});
 
   const load = useCallback(async () => {
     const response = await fetch("/api/performance/competencies?organizationId=" + organizationId, { cache: "no-store" });
@@ -90,6 +130,9 @@ export function PerformanceCompetencyArchitecturePanel({
     setProfiles(payload.profiles ?? []);
     setSkills(payload.skills ?? []);
     setRequirements(payload.requirements ?? []);
+    setDefaults(payload.defaults ?? []);
+    setFamilies(payload.families ?? []);
+    setLevels(payload.levels ?? []);
     setTemplates(payload.templates ?? []);
     setCoverage(payload.coverage ?? []);
     setMappingSkill(Object.fromEntries((payload.templates ?? []).map((template: Template) => [
@@ -108,12 +151,26 @@ export function PerformanceCompetencyArchitecturePanel({
       requirement.id,
       requirement.mandatory,
     ])));
+    setDefaultLevels(Object.fromEntries((payload.defaults ?? []).map((row: ExpectationDefault) => [
+      row.id,
+      String(row.minimumProficiency),
+    ])));
+    setDefaultMandatory(Object.fromEntries((payload.defaults ?? []).map((row: ExpectationDefault) => [
+      row.id,
+      row.mandatory,
+    ])));
+    setDefaultActive(Object.fromEntries((payload.defaults ?? []).map((row: ExpectationDefault) => [
+      row.id,
+      row.active,
+    ])));
   }, [organizationId, setNotice]);
 
   useEffect(() => { void load(); }, [load]);
 
   const skillById = useMemo(() => new Map(skills.map((skill) => [skill.id, skill])), [skills]);
   const profileById = useMemo(() => new Map(profiles.map((profile) => [profile.id, profile])), [profiles]);
+  const familyById = useMemo(() => new Map(families.map((family) => [family.id, family])), [families]);
+  const levelById = useMemo(() => new Map(levels.map((level) => [level.id, level])), [levels]);
 
   async function createSkill(event: React.FormEvent) {
     event.preventDefault();
@@ -162,6 +219,36 @@ export function PerformanceCompetencyArchitecturePanel({
     setNotice("Job-profile skill requirement added.");
   }
 
+  async function createDefault(event: React.FormEvent) {
+    event.preventDefault();
+    if (!defaultForm.jobFamilyId && !defaultForm.jobLevelId) {
+      setNotice("Choose a job family, a job level, or both for the inherited expectation.");
+      return;
+    }
+    const response = await fetch("/api/performance/competencies", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        organizationId,
+        entityType: "expectation_default",
+        jobFamilyId: defaultForm.jobFamilyId ? Number(defaultForm.jobFamilyId) : null,
+        jobLevelId: defaultForm.jobLevelId ? Number(defaultForm.jobLevelId) : null,
+        skillId: Number(defaultForm.skillId),
+        minimumProficiency: Number(defaultForm.minimumProficiency),
+        mandatory: defaultForm.mandatory,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setNotice(payload.error ?? "Could not create inherited competency expectation.");
+      return;
+    }
+    setDefaultForm({ jobFamilyId: "", jobLevelId: "", skillId: "", minimumProficiency: "3", mandatory: false });
+    setShowDefault(false);
+    await load();
+    setNotice("Inherited competency expectation created.");
+  }
+
   async function saveRequirement(requirement: Requirement) {
     const response = await fetch("/api/performance/competencies", {
       method: "PATCH",
@@ -181,6 +268,28 @@ export function PerformanceCompetencyArchitecturePanel({
     }
     await load();
     setNotice("Job-profile proficiency expectation updated.");
+  }
+
+  async function saveDefault(row: ExpectationDefault) {
+    const response = await fetch("/api/performance/competencies", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        organizationId,
+        entityType: "expectation_default",
+        id: row.id,
+        minimumProficiency: Number(defaultLevels[row.id] ?? row.minimumProficiency),
+        mandatory: defaultMandatory[row.id] ?? row.mandatory,
+        active: defaultActive[row.id] ?? row.active,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setNotice(payload.error ?? "Could not update inherited competency expectation.");
+      return;
+    }
+    await load();
+    setNotice("Inherited competency expectation updated.");
   }
 
   async function saveMapping(template: Template) {
@@ -215,7 +324,8 @@ export function PerformanceCompetencyArchitecturePanel({
         <div className="page-actions">
           <button className="secondary-button" type="button" onClick={() => void load()}><RefreshCw size={14} /> Refresh</button>
           <button className="secondary-button" type="button" onClick={() => setShowSkill((value) => !value)}><Plus size={14} /> Skill</button>
-          <button className="primary-button" type="button" onClick={() => setShowRequirement((value) => !value)}><BriefcaseBusiness size={14} /> Requirement</button>
+          <button className="secondary-button" type="button" onClick={() => setShowDefault((value) => !value)}><ShieldCheck size={14} /> Inherited default</button>
+          <button className="primary-button" type="button" onClick={() => setShowRequirement((value) => !value)}><BriefcaseBusiness size={14} /> Profile override</button>
         </div>
       </div>
 
@@ -228,6 +338,20 @@ export function PerformanceCompetencyArchitecturePanel({
             <label style={{ gridColumn: "1 / -1" }}>Description<textarea rows={2} value={skillForm.description} onChange={(event) => setSkillForm({ ...skillForm, description: event.target.value })} /></label>
           </div>
           <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowSkill(false)}>Cancel</button><button className="primary-button">Create skill</button></div>
+        </form>
+      )}
+
+      {showDefault && (
+        <form onSubmit={createDefault} style={{ marginBottom: 16 }}>
+          <div className="setting-form">
+            <label>Job family<select value={defaultForm.jobFamilyId} onChange={(event) => setDefaultForm({ ...defaultForm, jobFamilyId: event.target.value })}><option value="">Any family</option>{families.filter((family) => family.active).map((family) => <option key={family.id} value={family.id}>{family.name}</option>)}</select></label>
+            <label>Job level<select value={defaultForm.jobLevelId} onChange={(event) => setDefaultForm({ ...defaultForm, jobLevelId: event.target.value })}><option value="">Any level</option>{levels.filter((level) => level.active).map((level) => <option key={level.id} value={level.id}>{level.name}</option>)}</select></label>
+            <label>Skill<select required value={defaultForm.skillId} onChange={(event) => setDefaultForm({ ...defaultForm, skillId: event.target.value })}><option value="">Select skill</option>{skills.filter((skill) => skill.active).map((skill) => <option key={skill.id} value={skill.id}>{skill.code} · {skill.name}</option>)}</select></label>
+            <label>Minimum proficiency<input type="number" min="1" max="5" step="1" value={defaultForm.minimumProficiency} onChange={(event) => setDefaultForm({ ...defaultForm, minimumProficiency: event.target.value })} /></label>
+            <label><input type="checkbox" checked={defaultForm.mandatory} onChange={(event) => setDefaultForm({ ...defaultForm, mandatory: event.target.checked })} /> Mandatory when inherited</label>
+          </div>
+          <p>Precedence is profile override → family + level → level → family. At least one family/level scope is required.</p>
+          <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowDefault(false)}>Cancel</button><button className="primary-button">Add inherited default</button></div>
         </form>
       )}
 
@@ -252,12 +376,35 @@ export function PerformanceCompetencyArchitecturePanel({
               <div className="inline-icon mint">{row.complete ? <BadgeCheck size={15} /> : <ShieldCheck size={15} />}</div>
               <div style={{ flex: 1 }}>
                 <strong>{row.title}</strong>
-                <span>{row.family} · {row.level} · {row.mappedMandatorySkills}/{row.mandatorySkills} mandatory skills mapped</span>
-                {row.missing.length > 0 && <span>Missing: {row.missing.map((item) => item.name + " (≥" + item.minimumProficiency + ")").join(", ")}</span>}
+                <span>{row.family} · {row.level} · {row.mappedMandatorySkills}/{row.mandatorySkills} mandatory skills mapped · {row.inheritedSkills} inherited expectation(s)</span>
+                {row.missing.length > 0 && <span>Missing: {row.missing.map((item) => item.name + " (≥" + item.minimumProficiency + ", " + item.source.replaceAll("_", " ") + ")").join(", ")}</span>}
               </div>
               <span className={"employee-status-pill " + (row.complete ? "good" : "warn")}>{row.complete ? "Ready" : "Gap"}</span>
             </div>
           ))}
+        </div>
+
+        <div>
+          <div className="card-kicker">INHERITED DEFAULTS</div>
+          <p>Use family and level defaults to avoid repeating the same competency expectation on every job profile. Profile requirements override inherited values.</p>
+          {defaults.length === 0 && <div className="empty-state">No inherited expectations yet.</div>}
+          {defaults.map((row) => {
+            const scope = [
+              row.jobFamilyId ? familyById.get(row.jobFamilyId)?.name ?? "Family" : null,
+              row.jobLevelId ? levelById.get(row.jobLevelId)?.name ?? "Level" : null,
+            ].filter(Boolean).join(" + ");
+            return (
+              <div className="employee-edit-card" key={row.id} style={{ marginBottom: 10 }}>
+                <strong>{scope} · {skillById.get(row.skillId)?.name ?? "Skill"}</strong>
+                <div className="setting-form" style={{ marginTop: 8 }}>
+                  <label>Expected 1–5<input type="number" min="1" max="5" step="1" value={defaultLevels[row.id] ?? row.minimumProficiency} onChange={(event) => setDefaultLevels((current) => ({ ...current, [row.id]: event.target.value }))} /></label>
+                  <label><input type="checkbox" checked={defaultMandatory[row.id] ?? row.mandatory} onChange={(event) => setDefaultMandatory((current) => ({ ...current, [row.id]: event.target.checked }))} /> Mandatory</label>
+                  <label><input type="checkbox" checked={defaultActive[row.id] ?? row.active} onChange={(event) => setDefaultActive((current) => ({ ...current, [row.id]: event.target.checked }))} /> Active</label>
+                  <button className="secondary-button" type="button" onClick={() => void saveDefault(row)}>Save</button>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <div>

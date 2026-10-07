@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automation";
+import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
 
 type ChangeSnapshot = {
@@ -474,10 +475,91 @@ export async function applyWorkerEffectiveChange(
     }
   }
 
+  const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
+    organizationId: result.change.organizationId,
+    employeeId: result.change.employeeId,
+    eventKey: `effective-change:${result.change.id}:field-change`,
+    changes: [
+      {
+        field: "orgUnitId",
+        previousValue: result.employeeBefore.orgUnitId,
+        newValue: result.employee.orgUnitId,
+        effectiveDate: String(result.change.effectiveDate),
+        source: "hcm-effective-change",
+        metadata: { effectiveChangeId: result.change.id, movementType: result.change.movementType },
+      },
+      {
+        field: "positionId",
+        previousValue: result.currentPosition?.id ?? null,
+        newValue: result.position?.id ?? null,
+        effectiveDate: String(result.change.effectiveDate),
+        source: "hcm-effective-change",
+        metadata: { effectiveChangeId: result.change.id, movementType: result.change.movementType },
+      },
+      {
+        field: "managerEmployeeId",
+        previousValue: result.currentPosition?.managerEmployeeId ?? null,
+        newValue: result.position?.managerEmployeeId ?? null,
+        effectiveDate: String(result.change.effectiveDate),
+        source: "hcm-effective-change",
+        metadata: { effectiveChangeId: result.change.id, movementType: result.change.movementType },
+      },
+      {
+        field: "legalEntityId",
+        previousValue: result.employeeBefore.legalEntityId,
+        newValue: result.employee.legalEntityId,
+        effectiveDate: String(result.change.effectiveDate),
+        source: "hcm-effective-change",
+        metadata: { effectiveChangeId: result.change.id, movementType: result.change.movementType },
+      },
+      {
+        field: "employmentType",
+        previousValue: result.employeeBefore.employmentType,
+        newValue: result.employee.employmentType,
+        effectiveDate: String(result.change.effectiveDate),
+        source: "hcm-effective-change",
+        metadata: { effectiveChangeId: result.change.id, movementType: result.change.movementType },
+      },
+      {
+        field: "employeeStatus",
+        previousValue: result.employeeBefore.status,
+        newValue: result.employee.status,
+        effectiveDate: String(result.change.effectiveDate),
+        source: "hcm-effective-change",
+        metadata: { effectiveChangeId: result.change.id, movementType: result.change.movementType },
+      },
+      {
+        field: "title",
+        previousValue: result.employeeBefore.title,
+        newValue: result.employee.title,
+        effectiveDate: String(result.change.effectiveDate),
+        source: "hcm-effective-change",
+        metadata: { effectiveChangeId: result.change.id, movementType: result.change.movementType },
+      },
+      {
+        field: "costCenterId",
+        previousValue: result.currentPosition?.costCenterId ?? null,
+        newValue: result.position?.costCenterId ?? null,
+        effectiveDate: String(result.change.effectiveDate),
+        source: "hcm-effective-change",
+        metadata: { effectiveChangeId: result.change.id, movementType: result.change.movementType },
+      },
+      {
+        field: "supervisoryOrgUnitId",
+        previousValue: result.currentPosition?.supervisoryOrgUnitId ?? null,
+        newValue: result.position?.supervisoryOrgUnitId ?? null,
+        effectiveDate: String(result.change.effectiveDate),
+        source: "hcm-effective-change",
+        metadata: { effectiveChangeId: result.change.id, movementType: result.change.movementType },
+      },
+    ],
+  });
+
   return {
     ...result,
     hcmObligations,
     automation: [...lifecycleAutomation, ...promotionAutomation],
+    fieldChangeAutomation,
     postApplyWarnings,
   };
 }

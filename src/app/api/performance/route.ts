@@ -3,6 +3,7 @@ import { db } from "@/db";
 import {
   employees,
   hcmJobProfileSkillRequirements,
+  hcmSkillExpectationDefaults,
   hcmSkills,
   jobProfiles,
   orgUnits,
@@ -101,7 +102,18 @@ async function reviewStructureForEmployee(
   ));
   const templateById = new Map(templates.map((template) => [template.id, template]));
 
-  const requirements = jobProfileId
+  const [profile] = jobProfileId
+    ? await db.select({
+        id: jobProfiles.id,
+        familyId: jobProfiles.familyId,
+        levelId: jobProfiles.levelId,
+      }).from(jobProfiles).where(and(
+        eq(jobProfiles.id, jobProfileId),
+        eq(jobProfiles.organizationId, organizationId),
+      )).limit(1)
+    : [];
+
+  const directRequirements = jobProfileId
     ? await db.select({
         skillId: hcmJobProfileSkillRequirements.skillId,
         minimumProficiency: hcmJobProfileSkillRequirements.minimumProficiency,
@@ -117,7 +129,77 @@ async function reviewStructureForEmployee(
         ))
     : [];
 
-  const requirementBySkillId = new Map(requirements.map((requirement) => [requirement.skillId, requirement]));
+  const inheritedRows = profile
+    ? await db.select({
+        id: hcmSkillExpectationDefaults.id,
+        jobFamilyId: hcmSkillExpectationDefaults.jobFamilyId,
+        jobLevelId: hcmSkillExpectationDefaults.jobLevelId,
+        skillId: hcmSkillExpectationDefaults.skillId,
+        minimumProficiency: hcmSkillExpectationDefaults.minimumProficiency,
+        mandatory: hcmSkillExpectationDefaults.mandatory,
+        code: hcmSkills.code,
+        name: hcmSkills.name,
+      })
+        .from(hcmSkillExpectationDefaults)
+        .innerJoin(hcmSkills, eq(hcmSkillExpectationDefaults.skillId, hcmSkills.id))
+        .where(and(
+          eq(hcmSkillExpectationDefaults.organizationId, organizationId),
+          eq(hcmSkillExpectationDefaults.active, true),
+        ))
+    : [];
+
+  type EffectiveExpectation = {
+    skillId: number;
+    minimumProficiency: number;
+    mandatory: boolean;
+    code: string;
+    name: string;
+    expectationSource: "profile" | "family" | "level" | "family_level";
+    expectationRuleId: number | null;
+    specificity: number;
+  };
+
+  const effectiveBySkillId = new Map<number, EffectiveExpectation>();
+  for (const row of inheritedRows) {
+    const familyMatch = row.jobFamilyId == null || row.jobFamilyId === profile?.familyId;
+    const levelMatch = row.jobLevelId == null || row.jobLevelId === profile?.levelId;
+    if (!familyMatch || !levelMatch) continue;
+
+    const expectationSource: EffectiveExpectation["expectationSource"] =
+      row.jobFamilyId != null && row.jobLevelId != null
+        ? "family_level"
+        : row.jobLevelId != null
+          ? "level"
+          : "family";
+    const specificity = expectationSource === "family_level" ? 3 : expectationSource === "level" ? 2 : 1;
+    const current = effectiveBySkillId.get(row.skillId);
+    if (!current || specificity > current.specificity) {
+      effectiveBySkillId.set(row.skillId, {
+        skillId: row.skillId,
+        minimumProficiency: row.minimumProficiency,
+        mandatory: row.mandatory,
+        code: row.code,
+        name: row.name,
+        expectationSource,
+        expectationRuleId: row.id,
+        specificity,
+      });
+    }
+  }
+
+  for (const requirement of directRequirements) {
+    effectiveBySkillId.set(requirement.skillId, {
+      skillId: requirement.skillId,
+      minimumProficiency: requirement.minimumProficiency,
+      mandatory: requirement.mandatory,
+      code: requirement.code,
+      name: requirement.name,
+      expectationSource: "profile",
+      expectationRuleId: null,
+      specificity: 4,
+    });
+  }
+
   const applicable = links
     .map((link) => ({ link, template: templateById.get(link.templateId) }))
     .filter((row): row is { link: typeof links[number]; template: typeof performanceTemplates.$inferSelect } =>
@@ -130,21 +212,28 @@ async function reviewStructureForEmployee(
       .filter((row) => row.template.type === "competency" && row.template.skillId != null)
       .map((row) => row.template.skillId!),
   );
-  const missingMandatorySkills = requirements
-    .filter((requirement) => requirement.mandatory && !mappedSkillIds.has(requirement.skillId))
-    .map((requirement) => ({ skillId: requirement.skillId, code: requirement.code, name: requirement.name }));
+  const effectiveExpectations = [...effectiveBySkillId.values()];
+  const missingMandatorySkills = effectiveExpectations
+    .filter((expectation) => expectation.mandatory && !mappedSkillIds.has(expectation.skillId))
+    .map((expectation) => ({
+      skillId: expectation.skillId,
+      code: expectation.code,
+      name: expectation.name,
+    }));
 
   return {
     jobProfileId,
     missingMandatorySkills,
     items: applicable.map(({ link, template }) => {
-      const requirement = template.skillId ? requirementBySkillId.get(template.skillId) : null;
+      const expectation = template.skillId ? effectiveBySkillId.get(template.skillId) : null;
       return {
         templateId: template.id,
         jobProfileId,
         skillId: template.skillId,
-        expectedProficiency: requirement?.minimumProficiency ?? null,
-        required: link.required || Boolean(requirement?.mandatory),
+        expectedProficiency: expectation?.minimumProficiency ?? null,
+        expectationSource: expectation?.expectationSource ?? null,
+        expectationRuleId: expectation?.expectationRuleId ?? null,
+        required: link.required || Boolean(expectation?.mandatory),
         weight: link.weight,
       };
     }),

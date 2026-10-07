@@ -3365,3 +3365,395 @@ CREATE UNIQUE INDEX IF NOT EXISTS "performance_calibration_flags_unique"
   ON "performance_calibration_flags" ("session_id","flag_type","reviewer_user_id","review_id");
 CREATE INDEX IF NOT EXISTS "performance_calibration_flags_status_idx"
   ON "performance_calibration_flags" ("organization_id","session_id","status");
+
+-- HCM performance continuity: employee 1:1 agenda contributions,
+-- inherited competency expectations, and review evidence provenance.
+
+CREATE TABLE IF NOT EXISTS "hcm_skill_expectation_defaults" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "job_family_id" integer REFERENCES "job_families"("id") ON DELETE cascade,
+  "job_level_id" integer REFERENCES "job_levels"("id") ON DELETE cascade,
+  "skill_id" integer NOT NULL REFERENCES "hcm_skills"("id") ON DELETE restrict,
+  "minimum_proficiency" integer NOT NULL DEFAULT 1,
+  "mandatory" boolean NOT NULL DEFAULT false,
+  "active" boolean NOT NULL DEFAULT true,
+  "created_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "created_by_name" varchar(120) NOT NULL DEFAULT 'System',
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "hcm_skill_expectation_defaults_scope_check"
+    CHECK ("job_family_id" IS NOT NULL OR "job_level_id" IS NOT NULL),
+  CONSTRAINT "hcm_skill_expectation_defaults_proficiency_check"
+    CHECK ("minimum_proficiency" >= 1 AND "minimum_proficiency" <= 5)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "hcm_skill_expectation_defaults_scope_unique"
+  ON "hcm_skill_expectation_defaults" (
+    "organization_id",
+    COALESCE("job_family_id", 0),
+    COALESCE("job_level_id", 0),
+    "skill_id"
+  );
+
+CREATE INDEX IF NOT EXISTS "hcm_skill_expectation_defaults_family_idx"
+  ON "hcm_skill_expectation_defaults" ("organization_id","job_family_id","active");
+
+CREATE INDEX IF NOT EXISTS "hcm_skill_expectation_defaults_level_idx"
+  ON "hcm_skill_expectation_defaults" ("organization_id","job_level_id","active");
+
+ALTER TABLE "performance_review_items"
+  ADD COLUMN IF NOT EXISTS "expectation_source" varchar(24),
+  ADD COLUMN IF NOT EXISTS "expectation_rule_id" integer REFERENCES "hcm_skill_expectation_defaults"("id") ON DELETE set null;
+
+ALTER TABLE "performance_review_items"
+  DROP CONSTRAINT IF EXISTS "performance_review_items_expectation_source_check";
+
+ALTER TABLE "performance_review_items"
+  ADD CONSTRAINT "performance_review_items_expectation_source_check"
+    CHECK (
+      "expectation_source" IS NULL
+      OR "expectation_source" IN ('profile','family','level','family_level')
+    );
+
+CREATE INDEX IF NOT EXISTS "performance_review_items_expectation_rule_idx"
+  ON "performance_review_items" ("organization_id","expectation_rule_id");
+
+CREATE TABLE IF NOT EXISTS "performance_one_on_one_agenda_contributions" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "one_on_one_id" integer NOT NULL REFERENCES "performance_one_on_ones"("id") ON DELETE cascade,
+  "employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
+  "author_user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE restrict,
+  "author_employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
+  "author_name" varchar(120) NOT NULL,
+  "content" text NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS "performance_one_on_one_agenda_contributions_meeting_idx"
+  ON "performance_one_on_one_agenda_contributions" ("organization_id","one_on_one_id","created_at");
+
+CREATE INDEX IF NOT EXISTS "performance_one_on_one_agenda_contributions_employee_idx"
+  ON "performance_one_on_one_agenda_contributions" ("organization_id","employee_id","created_at");
+
+-- HCM performance follow-through: governed 1:1 action items with owner,
+-- due-date, visibility, completion, and immutable event history.
+
+CREATE TABLE IF NOT EXISTS "performance_one_on_one_action_items" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "one_on_one_id" integer NOT NULL REFERENCES "performance_one_on_ones"("id") ON DELETE cascade,
+  "employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
+  "owner_kind" varchar(16) NOT NULL,
+  "owner_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "owner_employee_id" integer REFERENCES "employees"("id") ON DELETE set null,
+  "owner_name" varchar(120) NOT NULL,
+  "title" varchar(220) NOT NULL,
+  "detail" text,
+  "due_date" date NOT NULL,
+  "visibility" varchar(24) NOT NULL DEFAULT 'employee_shared',
+  "status" varchar(24) NOT NULL DEFAULT 'open',
+  "completed_at" timestamptz,
+  "completed_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "completed_by_name" varchar(120),
+  "created_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "created_by_name" varchar(120) NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "performance_one_on_one_action_items_owner_kind_check"
+    CHECK ("owner_kind" IN ('employee','manager')),
+  CONSTRAINT "performance_one_on_one_action_items_owner_check"
+    CHECK (
+      ("owner_kind" = 'employee' AND "owner_employee_id" IS NOT NULL)
+      OR ("owner_kind" = 'manager' AND "owner_user_id" IS NOT NULL)
+    ),
+  CONSTRAINT "performance_one_on_one_action_items_visibility_check"
+    CHECK ("visibility" IN ('employee_shared','manager_private')),
+  CONSTRAINT "performance_one_on_one_action_items_status_check"
+    CHECK ("status" IN ('open','in_progress','completed','cancelled'))
+);
+
+CREATE INDEX IF NOT EXISTS "performance_one_on_one_action_items_meeting_idx"
+  ON "performance_one_on_one_action_items" ("organization_id","one_on_one_id","status","due_date");
+
+CREATE INDEX IF NOT EXISTS "performance_one_on_one_action_items_owner_user_idx"
+  ON "performance_one_on_one_action_items" ("organization_id","owner_user_id","status","due_date");
+
+CREATE INDEX IF NOT EXISTS "performance_one_on_one_action_items_owner_employee_idx"
+  ON "performance_one_on_one_action_items" ("organization_id","owner_employee_id","status","due_date");
+
+CREATE TABLE IF NOT EXISTS "performance_one_on_one_action_item_events" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "action_item_id" integer NOT NULL REFERENCES "performance_one_on_one_action_items"("id") ON DELETE cascade,
+  "one_on_one_id" integer NOT NULL REFERENCES "performance_one_on_ones"("id") ON DELETE cascade,
+  "employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
+  "event_type" varchar(32) NOT NULL,
+  "actor_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "actor_name" varchar(120) NOT NULL,
+  "note" text,
+  "before_snapshot" jsonb,
+  "after_snapshot" jsonb,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "performance_one_on_one_action_item_events_type_check"
+    CHECK ("event_type" IN ('created','updated','status_changed','reassigned','due_date_changed','visibility_changed','reopened','cancelled'))
+);
+
+CREATE INDEX IF NOT EXISTS "performance_one_on_one_action_item_events_item_idx"
+  ON "performance_one_on_one_action_item_events" ("organization_id","action_item_id","created_at");
+
+-- HCM performance follow-through automation:
+-- overdue 1:1 action reminders/escalations, skill development plans,
+-- and completed-cycle evidence retention/sealing.
+
+CREATE TABLE IF NOT EXISTS "performance_action_reminder_policies" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "version" integer NOT NULL DEFAULT 1,
+  "enabled" boolean NOT NULL DEFAULT true,
+  "reminder_days_before" integer NOT NULL DEFAULT 3,
+  "escalation_days_overdue" integer NOT NULL DEFAULT 3,
+  "notify_manager_on_employee_item" boolean NOT NULL DEFAULT true,
+  "notify_people_admin_on_escalation" boolean NOT NULL DEFAULT true,
+  "updated_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "updated_by_name" varchar(120),
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "performance_action_reminder_policy_days_before_check"
+    CHECK ("reminder_days_before" >= 0 AND "reminder_days_before" <= 30),
+  CONSTRAINT "performance_action_reminder_policy_escalation_check"
+    CHECK ("escalation_days_overdue" >= 1 AND "escalation_days_overdue" <= 90)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "performance_action_reminder_policies_org_unique"
+  ON "performance_action_reminder_policies" ("organization_id");
+
+CREATE TABLE IF NOT EXISTS "performance_action_reminder_policy_events" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "policy_id" integer NOT NULL REFERENCES "performance_action_reminder_policies"("id") ON DELETE restrict,
+  "from_version" integer,
+  "to_version" integer NOT NULL,
+  "before_snapshot" jsonb,
+  "after_snapshot" jsonb NOT NULL,
+  "actor_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "actor_name" varchar(120) NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS "performance_action_item_reminder_tasks" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "action_item_id" integer NOT NULL REFERENCES "performance_one_on_one_action_items"("id") ON DELETE cascade,
+  "one_on_one_id" integer NOT NULL REFERENCES "performance_one_on_ones"("id") ON DELETE cascade,
+  "employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
+  "source_key" varchar(180) NOT NULL,
+  "stage" varchar(32) NOT NULL,
+  "due_date" date NOT NULL,
+  "status" varchar(24) NOT NULL DEFAULT 'open',
+  "owner_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "owner_employee_id" integer REFERENCES "employees"("id") ON DELETE set null,
+  "owner_name" varchar(120),
+  "manager_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "manager_name" varchar(120),
+  "escalated_to_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "escalated_to_name" varchar(120),
+  "notification_episode" integer NOT NULL DEFAULT 1,
+  "last_notified_at" timestamptz,
+  "resolved_at" timestamptz,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "performance_action_item_reminder_stage_check"
+    CHECK ("stage" IN ('upcoming','due','overdue','overdue_escalated')),
+  CONSTRAINT "performance_action_item_reminder_status_check"
+    CHECK ("status" IN ('open','resolved')),
+  CONSTRAINT "performance_action_item_reminder_episode_check"
+    CHECK ("notification_episode" >= 1)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "performance_action_item_reminder_source_unique"
+  ON "performance_action_item_reminder_tasks" ("organization_id","source_key");
+CREATE INDEX IF NOT EXISTS "performance_action_item_reminder_status_idx"
+  ON "performance_action_item_reminder_tasks" ("organization_id","status","due_date","stage");
+
+CREATE TABLE IF NOT EXISTS "performance_action_item_reminder_events" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "task_id" integer NOT NULL REFERENCES "performance_action_item_reminder_tasks"("id") ON DELETE cascade,
+  "action_item_id" integer NOT NULL REFERENCES "performance_one_on_one_action_items"("id") ON DELETE cascade,
+  "event_type" varchar(32) NOT NULL,
+  "actor_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "actor_name" varchar(120) NOT NULL,
+  "metadata" jsonb NOT NULL DEFAULT '{}'::jsonb,
+  "created_at" timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS "performance_action_item_reminder_events_task_idx"
+  ON "performance_action_item_reminder_events" ("organization_id","task_id","created_at");
+
+CREATE TABLE IF NOT EXISTS "performance_skill_development_plans" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
+  "skill_id" integer NOT NULL REFERENCES "hcm_skills"("id") ON DELETE restrict,
+  "source_cycle_id" integer REFERENCES "performance_cycles"("id") ON DELETE set null,
+  "source_review_item_id" integer REFERENCES "performance_review_items"("id") ON DELETE set null,
+  "source_snapshot" jsonb NOT NULL DEFAULT '{}'::jsonb,
+  "title" varchar(220) NOT NULL,
+  "objective" text NOT NULL,
+  "current_proficiency" numeric(4,2),
+  "target_proficiency" numeric(4,2) NOT NULL,
+  "status" varchar(24) NOT NULL DEFAULT 'planned',
+  "target_date" date NOT NULL,
+  "manager_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "employee_visible" boolean NOT NULL DEFAULT true,
+  "started_at" timestamptz,
+  "completed_at" timestamptz,
+  "cancelled_at" timestamptz,
+  "created_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "created_by_name" varchar(120) NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "performance_skill_development_plan_status_check"
+    CHECK ("status" IN ('planned','in_progress','completed','cancelled')),
+  CONSTRAINT "performance_skill_development_plan_target_check"
+    CHECK ("target_proficiency" >= 1 AND "target_proficiency" <= 5),
+  CONSTRAINT "performance_skill_development_plan_current_check"
+    CHECK ("current_proficiency" IS NULL OR ("current_proficiency" >= 1 AND "current_proficiency" <= 5))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "performance_skill_development_plan_open_unique"
+  ON "performance_skill_development_plans" ("organization_id","employee_id","skill_id")
+  WHERE "status" IN ('planned','in_progress');
+CREATE INDEX IF NOT EXISTS "performance_skill_development_plan_status_idx"
+  ON "performance_skill_development_plans" ("organization_id","employee_id","status","target_date");
+
+CREATE TABLE IF NOT EXISTS "performance_skill_development_milestones" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "plan_id" integer NOT NULL REFERENCES "performance_skill_development_plans"("id") ON DELETE cascade,
+  "title" varchar(220) NOT NULL,
+  "detail" text,
+  "due_date" date NOT NULL,
+  "status" varchar(24) NOT NULL DEFAULT 'open',
+  "completed_at" timestamptz,
+  "completed_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "completed_by_name" varchar(120),
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "performance_skill_development_milestone_status_check"
+    CHECK ("status" IN ('open','in_progress','completed','cancelled'))
+);
+CREATE INDEX IF NOT EXISTS "performance_skill_development_milestone_plan_idx"
+  ON "performance_skill_development_milestones" ("organization_id","plan_id","status","due_date");
+
+CREATE TABLE IF NOT EXISTS "performance_skill_development_progress" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "plan_id" integer NOT NULL REFERENCES "performance_skill_development_plans"("id") ON DELETE cascade,
+  "employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
+  "author_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "author_employee_id" integer REFERENCES "employees"("id") ON DELETE set null,
+  "author_name" varchar(120) NOT NULL,
+  "progress_percent" integer,
+  "content" text NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "performance_skill_development_progress_percent_check"
+    CHECK ("progress_percent" IS NULL OR ("progress_percent" >= 0 AND "progress_percent" <= 100))
+);
+CREATE INDEX IF NOT EXISTS "performance_skill_development_progress_plan_idx"
+  ON "performance_skill_development_progress" ("organization_id","plan_id","created_at");
+
+CREATE TABLE IF NOT EXISTS "performance_skill_development_plan_events" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "plan_id" integer NOT NULL REFERENCES "performance_skill_development_plans"("id") ON DELETE cascade,
+  "event_type" varchar(32) NOT NULL,
+  "actor_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "actor_name" varchar(120) NOT NULL,
+  "note" text,
+  "before_snapshot" jsonb,
+  "after_snapshot" jsonb,
+  "created_at" timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS "performance_skill_development_plan_events_plan_idx"
+  ON "performance_skill_development_plan_events" ("organization_id","plan_id","created_at");
+
+CREATE TABLE IF NOT EXISTS "performance_evidence_policies" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "version" integer NOT NULL DEFAULT 1,
+  "retention_years" integer NOT NULL DEFAULT 7,
+  "auto_seal_completed_cycles" boolean NOT NULL DEFAULT true,
+  "allow_post_seal_amendments" boolean NOT NULL DEFAULT true,
+  "updated_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "updated_by_name" varchar(120),
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "performance_evidence_policy_retention_check"
+    CHECK ("retention_years" >= 1 AND "retention_years" <= 20)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "performance_evidence_policies_org_unique"
+  ON "performance_evidence_policies" ("organization_id");
+
+CREATE TABLE IF NOT EXISTS "performance_evidence_policy_events" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "policy_id" integer NOT NULL REFERENCES "performance_evidence_policies"("id") ON DELETE restrict,
+  "from_version" integer,
+  "to_version" integer NOT NULL,
+  "before_snapshot" jsonb,
+  "after_snapshot" jsonb NOT NULL,
+  "actor_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "actor_name" varchar(120) NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS "performance_cycle_evidence_seals" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "cycle_id" integer NOT NULL REFERENCES "performance_cycles"("id") ON DELETE restrict,
+  "policy_version" integer NOT NULL,
+  "policy_snapshot" jsonb NOT NULL,
+  "manifest" jsonb NOT NULL,
+  "manifest_hash" varchar(64) NOT NULL,
+  "sealed_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "sealed_by_name" varchar(120) NOT NULL,
+  "sealed_at" timestamptz NOT NULL DEFAULT now(),
+  "retention_until" date NOT NULL,
+  "legal_hold" boolean NOT NULL DEFAULT false,
+  "legal_hold_reason" text,
+  "legal_hold_set_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "legal_hold_set_by_name" varchar(120),
+  "legal_hold_set_at" timestamptz,
+  "latest_amendment_number" integer NOT NULL DEFAULT 0,
+  "last_verified_at" timestamptz,
+  "last_verification_status" varchar(24),
+  "last_verified_hash" varchar(64),
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT "performance_cycle_evidence_seal_verification_check"
+    CHECK ("last_verification_status" IS NULL OR "last_verification_status" IN ('match','mismatch'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "performance_cycle_evidence_seals_cycle_unique"
+  ON "performance_cycle_evidence_seals" ("organization_id","cycle_id");
+CREATE INDEX IF NOT EXISTS "performance_cycle_evidence_seals_retention_idx"
+  ON "performance_cycle_evidence_seals" ("organization_id","retention_until","legal_hold");
+
+CREATE TABLE IF NOT EXISTS "performance_cycle_evidence_amendments" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "seal_id" integer NOT NULL REFERENCES "performance_cycle_evidence_seals"("id") ON DELETE restrict,
+  "cycle_id" integer NOT NULL REFERENCES "performance_cycles"("id") ON DELETE restrict,
+  "amendment_number" integer NOT NULL,
+  "employee_id" integer REFERENCES "employees"("id") ON DELETE set null,
+  "reason" varchar(500) NOT NULL,
+  "detail" text NOT NULL,
+  "previous_chain_hash" varchar(64) NOT NULL,
+  "amendment_hash" varchar(64) NOT NULL,
+  "chain_hash" varchar(64) NOT NULL,
+  "actor_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "actor_name" varchar(120) NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "performance_cycle_evidence_amendments_number_unique"
+  ON "performance_cycle_evidence_amendments" ("seal_id","amendment_number");
+CREATE INDEX IF NOT EXISTS "performance_cycle_evidence_amendments_cycle_idx"
+  ON "performance_cycle_evidence_amendments" ("organization_id","cycle_id","created_at");

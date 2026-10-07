@@ -4,6 +4,8 @@ import {
   employees,
   performanceFeedback,
   performanceGoals,
+  performanceOneOnOneActionItems,
+  performanceOneOnOneAgendaContributions,
   performanceOneOnOnes,
   performanceReminderTasks,
 } from "@/db/schema";
@@ -76,7 +78,7 @@ export async function GET(request: Request) {
   if ("error" in gate) return gate.error;
   const companyPeopleAdmin = gate.access.companyWide && roleAllowed(gate.access.role, PEOPLE_ADMIN_ROLES);
 
-  const [staff, meetings, feedback, reminders, goals] = await Promise.all([
+  const [staff, meetings, actionItems, agendaContributions, feedback, reminders, goals] = await Promise.all([
     db.select({
       id: employees.id,
       firstName: employees.firstName,
@@ -88,6 +90,12 @@ export async function GET(request: Request) {
     db.select().from(performanceOneOnOnes)
       .where(eq(performanceOneOnOnes.organizationId, organizationId))
       .orderBy(desc(performanceOneOnOnes.scheduledFor), desc(performanceOneOnOnes.id)),
+    db.select().from(performanceOneOnOneActionItems)
+      .where(eq(performanceOneOnOneActionItems.organizationId, organizationId))
+      .orderBy(desc(performanceOneOnOneActionItems.updatedAt), desc(performanceOneOnOneActionItems.id)),
+    db.select().from(performanceOneOnOneAgendaContributions)
+      .where(eq(performanceOneOnOneAgendaContributions.organizationId, organizationId))
+      .orderBy(desc(performanceOneOnOneAgendaContributions.createdAt)),
     db.select().from(performanceFeedback)
       .where(eq(performanceFeedback.organizationId, organizationId))
       .orderBy(desc(performanceFeedback.occurredAt), desc(performanceFeedback.id)),
@@ -114,6 +122,19 @@ export async function GET(request: Request) {
           companyPeopleAdmin || meeting.managerUserId === user.id
             ? meeting.privateManagerNotes
             : null,
+        agendaContributions: agendaContributions
+          .filter((item) => item.oneOnOneId === meeting.id)
+          .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime()),
+        actionItems: actionItems
+          .filter((item) =>
+            item.oneOnOneId === meeting.id
+            && (
+              item.visibility === "employee_shared"
+              || companyPeopleAdmin
+              || meeting.managerUserId === user.id
+            )
+          )
+          .sort((left, right) => left.dueDate.localeCompare(right.dueDate) || left.id - right.id),
       })),
     feedback: feedback.filter((item) =>
       visibleIds.has(item.employeeId)
