@@ -1855,6 +1855,41 @@ export async function POST(request: Request) {
     const scope = assertScope(access, employee.orgUnitId);
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
+    if (openShift.sourceRequirementId != null) {
+      const [requirement] = await db.select().from(staffingRequirements).where(and(
+        eq(staffingRequirements.id, openShift.sourceRequirementId),
+        eq(staffingRequirements.organizationId, organizationId),
+      )).limit(1);
+      if (!requirement) {
+        return Response.json({ error: "The staffing requirement behind this recovery shift no longer exists." }, { status: 409 });
+      }
+
+      const currentWorkforce = await visibleWorkforce(user.id, organizationId);
+      if (!currentWorkforce) return Response.json({ error: "Workspace access not found." }, { status: 403 });
+      const currentEmployeeIds = currentWorkforce.visibleEmployees.map((row) => row.id);
+      const currentAvailability = currentEmployeeIds.length
+        ? await db.select().from(employeeAvailabilityRules).where(and(
+            eq(employeeAvailabilityRules.organizationId, organizationId),
+            inArray(employeeAvailabilityRules.employeeId, currentEmployeeIds),
+            lte(employeeAvailabilityRules.effectiveFrom, requirement.workDate),
+          ))
+        : [];
+      const currentCoverage = await coverageRows({
+        organizationId,
+        employeeIds: currentEmployeeIds,
+        startDate: String(requirement.workDate),
+        endDate: String(requirement.workDate),
+        requirements: [requirement],
+        availabilityRows: currentAvailability,
+      });
+      const live = currentCoverage.coverage[0];
+      if (!live || live.gap <= 0) {
+        return Response.json({
+          error: "This recovery claim is stale because the staffing requirement is already covered. Refresh coverage before approval.",
+        }, { status: 409 });
+      }
+    }
+
     if (decision === "rejected") {
       const [updated] = await db.update(openShiftClaims).set({
         status: "rejected",
