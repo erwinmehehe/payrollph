@@ -763,6 +763,29 @@ function PersonDrawer({
   const [changeEmployeeStatus, setChangeEmployeeStatus] = useState("");
   const [changeReason, setChangeReason] = useState("");
 
+  async function refreshPayoutChanges() {
+    if (!canManage) {
+      setPayoutChangeRequests([]);
+      return;
+    }
+    try {
+      const response = await fetch(
+        `/api/payout-destination-changes?organizationId=${data.selectedOrganization.id}&employeeId=${employee.id}`,
+        { cache: "no-store" },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not load payout destination changes.");
+      setPayoutChangeRequests(Array.isArray(payload.requests) ? payload.requests : []);
+    } catch (error) {
+      setPayoutError(error instanceof Error ? error.message : "Could not load payout destination changes.");
+    }
+  }
+
+  useEffect(() => {
+    void refreshPayoutChanges();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.selectedOrganization.id, employee.id, canManage]);
+
   useEffect(() => {
     if (!canManage) {
       setConnectedProfile(null);
