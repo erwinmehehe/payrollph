@@ -775,9 +775,8 @@ export const staffingRequirements = pgTable(
     shiftDefinitionId: integer("shift_definition_id").notNull().references(() => shiftDefinitions.id, { onDelete: "restrict" }),
     jobProfileId: integer("job_profile_id").references(() => jobProfiles.id, { onDelete: "restrict" }),
     requiredHeadcount: integer("required_headcount").notNull(),
-    sourcePositionId: integer("source_position_id").references(() => positions.id, { onDelete: "set null" }),
-    sourceDemandRuleId: integer("source_demand_rule_id").references(() => positionWfmDemandRules.id, { onDelete: "set null" }),
     sourceKind: varchar("source_kind", { length: 32 }).notNull().default("manual"),
+    sourceRefs: jsonb("source_refs").notNull().default([]),
     notes: varchar("notes", { length: 240 }),
     createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
     createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
@@ -794,9 +793,6 @@ export const staffingRequirements = pgTable(
     ),
     index("staffing_requirement_date_idx").on(table.organizationId, table.workDate),
     index("staffing_requirement_role_idx").on(table.organizationId, table.jobProfileId, table.workDate),
-    uniqueIndex("staffing_requirements_position_rule_date_unique")
-      .on(table.sourceDemandRuleId, table.workDate)
-      .where(sql`${table.sourceDemandRuleId} is not null`),
   ],
 );
 
