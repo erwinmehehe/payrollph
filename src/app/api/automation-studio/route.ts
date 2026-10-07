@@ -26,6 +26,10 @@ import {
   type AutomationTrigger,
 } from "@/lib/automation";
 import {
+  AUTOMATION_WORKFLOW_TEMPLATES,
+  getAutomationWorkflowTemplate,
+} from "@/lib/automation-templates";
+import {
   AutomationVersionError,
   listAutomationRuleVersions,
   publishAutomationRuleDraft,
@@ -132,6 +136,22 @@ export async function GET(request: Request) {
       conditions: AUTOMATION_CONDITION_FIELDS,
       operators: AUTOMATION_OPERATORS,
       actions: AUTOMATION_ACTION_CATALOG,
+      templates: AUTOMATION_WORKFLOW_TEMPLATES.map((template) => ({
+        id: template.id,
+        version: template.version,
+        category: template.category,
+        name: template.name,
+        description: template.description,
+        trigger: template.trigger,
+        conditionCount:
+          Array.isArray((template.conditions as { all?: unknown[] }).all)
+            ? (template.conditions as { all: unknown[] }).all.length
+              + (Array.isArray((template.conditions as { any?: unknown[] }).any)
+                ? (template.conditions as { any: unknown[] }).any.length
+                : 0)
+            : 0,
+        actionCount: template.actions.length,
+      })),
     },
     orgUnits: units,
     permissionSets: sets,
@@ -180,6 +200,62 @@ export async function POST(request: Request) {
     windowMs: 5 * 60_000,
   });
   if (rateDenied) return rateDenied;
+
+  if (action === "create-from-template") {
+    const templateId = String(body.templateId ?? "").trim();
+    const template = getAutomationWorkflowTemplate(templateId);
+    if (!template) {
+      return Response.json({ error: "Automation workflow template not found." }, { status: 404 });
+    }
+    const requestedName = String(body.name ?? template.name).trim();
+    if (!requestedName) {
+      return Response.json({ error: "Workflow name is required." }, { status: 400 });
+    }
+
+    try {
+      const result = await saveAutomationRuleDraft({
+        organizationId,
+        name: requestedName.slice(0, 160),
+        trigger: template.trigger,
+        conditions: template.conditions,
+        actions: template.actions,
+        active: true,
+        actorUserId: user.id,
+      });
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Automation Studio template instantiated as draft",
+        resource: result.draft.name,
+        metadata: {
+          ruleId: result.rule.id,
+          draftVersion: result.draft.version,
+          templateId: template.id,
+          templateVersion: template.version,
+          trigger: template.trigger,
+          actionTypes: template.actions.map((item) => item.type),
+        },
+      });
+      return Response.json({
+        ...result,
+        template: {
+          id: template.id,
+          version: template.version,
+          name: template.name,
+        },
+      }, { status: 201 });
+    } catch (error) {
+      if (error instanceof AutomationVersionError) {
+        return Response.json({ error: error.message }, { status: error.status });
+      }
+      if (uniqueConstraintViolation(error)) {
+        return Response.json({
+          error: "Another Automation Studio rule already uses this workflow name. Choose a different draft name.",
+        }, { status: 409 });
+      }
+      throw error;
+    }
+  }
 
   if (action === "save-rule") {
     const id = body.id ? Number(body.id) : null;
