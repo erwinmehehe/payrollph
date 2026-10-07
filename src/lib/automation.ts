@@ -23,6 +23,7 @@ import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { assignEmployeeScheduleGoverned } from "@/lib/workforce-schedule-assignment";
 import { generateAutomationEmployeeDocument } from "@/lib/automation-document-generation";
+import { createApprovalFromConfiguredChain } from "@/lib/approval-chains";
 import {
   getAutomationDocumentTemplate,
   type AutomationDocumentTrigger,
@@ -221,6 +222,7 @@ type RequestApprovalAction = {
   title: string;
   detail: string;
   approver?: string;
+  approvalChainCode?: string;
   dueLabel?: string;
   priority?: string;
 };
@@ -287,6 +289,7 @@ type ApprovalGateAction = {
   title: string;
   detail: string;
   approver?: string;
+  approvalChainCode?: string;
   dueLabel?: string;
   priority?: string;
 };
@@ -458,6 +461,7 @@ function normalizeAutomationSteps(
         title: title.slice(0, 180),
         detail: detail.slice(0, 240),
         approver: String(action.approver ?? "People Ops").trim().slice(0, 120) || "People Ops",
+        approvalChainCode: String(action.approvalChainCode ?? "").trim().toLowerCase().slice(0, 64) || undefined,
         dueLabel: String(action.dueLabel ?? "Workflow paused for approval").trim().slice(0, 80) || "Workflow paused for approval",
         priority: String(action.priority ?? "Normal").trim().slice(0, 32) || "Normal",
       });
@@ -509,6 +513,7 @@ function normalizeAutomationSteps(
         title: title.slice(0, 180),
         detail: detail.slice(0, 240),
         approver: String(action.approver ?? "People Ops").trim().slice(0, 120) || "People Ops",
+        approvalChainCode: String(action.approvalChainCode ?? "").trim().toLowerCase().slice(0, 64) || undefined,
         dueLabel: String(action.dueLabel ?? "Review required").trim().slice(0, 80) || "Review required",
         priority: String(action.priority ?? "Normal").trim().slice(0, 32) || "Normal",
       });
@@ -941,15 +946,23 @@ async function executeAction(input: {
   }
 
   if (action.type === "request_approval") {
-    const [task] = await db.insert(approvalTasks).values({
+    const routed = await createApprovalFromConfiguredChain({
       organizationId: input.organizationId,
+      chainCode: action.approvalChainCode,
+      sourceType: "automation_request_approval",
+      sourceKey: `${input.executionId}:${input.actionIndex}`,
       title: action.title,
       detail: action.detail,
-      approver: resolveApprover(action.approver, input.context),
+      fallbackApprover: resolveApprover(action.approver, input.context),
       dueLabel: action.dueLabel ?? "Review required",
       priority: action.priority ?? "Normal",
-    }).returning();
-    return { type: action.type, approvalTaskId: task.id };
+    });
+    return {
+      type: action.type,
+      approvalTaskId: routed.task.id,
+      approvalChainInstanceId: routed.chainInstance?.id ?? null,
+      approvalChainCode: routed.chainInstance?.policyCode ?? null,
+    };
   }
 
   if (action.type === "send_email") {
@@ -1250,19 +1263,25 @@ export async function advanceAutomationExecution(executionId: number) {
     }
 
     if (step.type === "approval_gate") {
-      const [task] = await db.insert(approvalTasks).values({
+      const routed = await createApprovalFromConfiguredChain({
         organizationId: execution.organizationId,
+        chainCode: step.approvalChainCode,
+        sourceType: "automation_approval_gate",
+        sourceKey: `${execution.id}:${cursor}`,
         title: step.title,
         detail: step.detail,
-        approver: resolveApprover(step.approver ?? "People Ops", context),
+        fallbackApprover: resolveApprover(step.approver ?? "People Ops", context),
         dueLabel: step.dueLabel ?? "Workflow paused for approval",
         priority: step.priority ?? "Normal",
-      }).returning();
+      });
+      const task = routed.task;
       result.push({
         type: step.type,
         stepIndex: cursor,
         status: "pending",
         approvalTaskId: task.id,
+        approvalChainInstanceId: routed.chainInstance?.id ?? null,
+        approvalChainCode: routed.chainInstance?.policyCode ?? null,
       });
       const [waiting] = await db.update(automationExecutions).set({
         status: "waiting_approval",
