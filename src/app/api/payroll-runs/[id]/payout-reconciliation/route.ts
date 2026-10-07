@@ -24,6 +24,7 @@ import {
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { withPayrollPayoutSubmissionLock } from "@/lib/payout-submission-lock";
 import { authorizeTreasuryOperation, type TreasuryEvidence } from "@/lib/treasury-controls";
+import { latestApprovedPayoutDestinationChangeForRun } from "@/lib/payout-destination-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -320,6 +321,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       { error: "Live PayMongo disbursement is not enabled.", readiness: "/api/readiness" },
       { status: 501 },
     );
+  }
+
+  const payoutEvents = await db.select().from(auditEvents)
+    .where(eq(auditEvents.organizationId, run.organizationId));
+  const latestPreflight = payoutEvents
+    .filter((event) => {
+      if (event.action !== "PayMongo payroll preflight passed") return false;
+      if (!event.metadata || typeof event.metadata !== "object") return false;
+      return Number((event.metadata as Record<string, unknown>).runId) === run.id;
+    })
+    .sort((a, b) => b.id - a.id)[0];
+
+  if (!latestPreflight) {
+    return Response.json({
+      error: "Run the no-money PayMongo preflight successfully before retrying failed transfers.",
+    }, { status: 409 });
+  }
+
+  const changedAfterPreflight = await latestApprovedPayoutDestinationChangeForRun({
+    organizationId: run.organizationId,
+    runId: run.id,
+    after: latestPreflight.createdAt,
+  });
+  if (changedAfterPreflight) {
+    return Response.json({
+      error: "An employee payout destination changed after the last PayMongo preflight. Run preflight again before retrying failed transfers.",
+      payoutDestinationChangeRequestId: changedAfterPreflight.id,
+      employeeId: changedAfterPreflight.employeeId,
+    }, { status: 409 });
   }
 
   try {
