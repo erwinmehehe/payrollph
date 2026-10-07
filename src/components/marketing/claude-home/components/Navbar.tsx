@@ -61,10 +61,10 @@ export default function Navbar() {
               Sign in
             </a>
             <a
-              href="/demo"
+              href="/book-demo"
               className="nav-start-cta inline-flex items-center rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-4 py-2.5 text-[14px] font-semibold text-[#4A4AE0] transition-all hover:border-[#C5C5FF] hover:bg-[#ECECFF]"
             >
-              Try live demo
+              Request a demo
             </a>
           </div>
 
@@ -105,11 +105,11 @@ export default function Navbar() {
                 Sign in
               </a>
               <a
-                href="/demo"
+                href="/book-demo"
                 onClick={() => setOpen(false)}
                 className="flex-1 rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-5 py-3 text-center text-[14px] font-semibold text-[#4A4AE0]"
               >
-                Try live demo
+                Request a demo
               </a>
             </div>
           </div>
