@@ -34,8 +34,8 @@ export default function ClaudeHomepage({ plans }: { plans: PublicPlan[] }) {
         <HcmShowcase />
         <OutsourcingShowcase />
         <PhilippineCompliance />
-        <PayrollWorkflow />
         <Demo />
+        <PayrollWorkflow />
         <Security />
         <Pricing plans={plans} />
         <Calculator />
