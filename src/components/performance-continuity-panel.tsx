@@ -11,6 +11,7 @@ import {
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
+import { PerformanceFollowThroughPanel } from "@/components/performance-follow-through-panel";
 
 type Employee = {
   id: number;
