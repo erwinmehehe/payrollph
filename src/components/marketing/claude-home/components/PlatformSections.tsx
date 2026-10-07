@@ -41,9 +41,9 @@ const solutionJourneys: Record<string, string[]> = {
 };
 
 export function SolutionsGrid() {
-  return <section id="solutions" className="scroll-mt-24 py-20 sm:py-24">
+  return <section id="solutions" className="scroll-mt-24 py-16 sm:py-20">
     <div className="mx-auto max-w-[1240px] px-5 sm:px-8">
-      <SectionTitle label="One connected platform" title="Everything your people operations need to stay in sync." description="Explore the product areas that connect employee information and worked time to a reviewable Philippine payroll." centered />
+      <SectionTitle label="Connected around payroll" title="Payroll first. Workforce and HCM connected around it." description="Start with the payroll run, then connect schedules, attendance, employee records and managed processing without stitching together separate workflows." centered />
       <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {solutions.map(item=>(
           <article key={item.name} className="group flex h-full flex-col overflow-hidden rounded-[25px] border border-[#e5eaf3] bg-white transition-transform hover:-translate-y-1 hover:shadow-[0_20px_45px_-30px_rgba(24,53,98,.25)]">
