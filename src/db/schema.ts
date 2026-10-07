@@ -775,6 +775,9 @@ export const staffingRequirements = pgTable(
     shiftDefinitionId: integer("shift_definition_id").notNull().references(() => shiftDefinitions.id, { onDelete: "restrict" }),
     jobProfileId: integer("job_profile_id").references(() => jobProfiles.id, { onDelete: "restrict" }),
     requiredHeadcount: integer("required_headcount").notNull(),
+    sourcePositionId: integer("source_position_id").references(() => positions.id, { onDelete: "set null" }),
+    sourceDemandRuleId: integer("source_demand_rule_id").references(() => positionWfmDemandRules.id, { onDelete: "set null" }),
+    sourceKind: varchar("source_kind", { length: 32 }).notNull().default("manual"),
     notes: varchar("notes", { length: 240 }),
     createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
     createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
@@ -791,6 +794,9 @@ export const staffingRequirements = pgTable(
     ),
     index("staffing_requirement_date_idx").on(table.organizationId, table.workDate),
     index("staffing_requirement_role_idx").on(table.organizationId, table.jobProfileId, table.workDate),
+    uniqueIndex("staffing_requirements_position_rule_date_unique")
+      .on(table.sourceDemandRuleId, table.workDate)
+      .where(sql`${table.sourceDemandRuleId} is not null`),
   ],
 );
 
@@ -3749,6 +3755,35 @@ export const positions = pgTable(
     index("positions_legal_entity_idx").on(table.organizationId, table.legalEntityId),
     index("positions_cost_center_idx").on(table.organizationId, table.costCenterId),
     index("positions_plan_idx").on(table.planId),
+  ],
+);
+
+export const positionWfmDemandRules = pgTable(
+  "position_wfm_demand_rules",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    positionId: integer("position_id").notNull().references(() => positions.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "restrict" }),
+    shiftDefinitionId: integer("shift_definition_id").notNull().references(() => shiftDefinitions.id, { onDelete: "restrict" }),
+    weekdays: jsonb("weekdays").notNull().default([]),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    requiredHeadcount: integer("required_headcount").notNull().default(1),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("position_wfm_demand_rule_scope_unique").on(
+      table.positionId,
+      table.worksiteId,
+      table.shiftDefinitionId,
+      table.effectiveFrom,
+    ),
+    index("position_wfm_demand_rule_org_active_idx").on(table.organizationId, table.active, table.effectiveFrom),
   ],
 );
 
