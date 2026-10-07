@@ -697,11 +697,11 @@ export function WorkforceCoveragePanel({
                 </td>
                 <td>{row.gap ? <Status value={`${row.gap} short`} /> : row.overage ? <Status value={`+${row.overage} covered`} /> : <Status value="Covered" />}</td>
                 <td>
-                  {row.gap > 0 && canManage ? (
-                    <button className="secondary-button" onClick={() => void openGap(row)} disabled={saving !== null}>
-                      Open {row.gap} shift{row.gap === 1 ? "" : "s"}
-                    </button>
-                  ) : <span className="id">No action</span>}
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {riskByRequirement.get(row.requirementId) && <Status value={String(riskByRequirement.get(row.requirementId)?.level) + " risk"} />}
+                    {proactiveByRequirement.get(row.requirementId)?.recommendations[0] ? <div className="id">Best eligible: {proactiveByRequirement.get(row.requirementId)?.recommendations[0]?.employeeName}</div> : row.gap > 0 ? <div className="id">No governed eligible recovery candidate.</div> : null}
+                    {row.gap > 0 && canManage ? <button className="secondary-button" onClick={() => void openGap(row)} disabled={saving !== null}>Open {row.gap} shift{row.gap === 1 ? "" : "s"}</button> : <span className="id">No action</span>}
+                  </div>
                 </td>
               </tr>
             ))}
