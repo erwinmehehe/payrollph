@@ -6,6 +6,7 @@ import {
   performanceCycles,
   performanceFeedback,
   performanceGoals,
+  performanceOneOnOneAgendaContributions,
   performanceOneOnOnes,
   performanceReviewItems,
   performanceReviews,
@@ -46,7 +47,7 @@ export async function GET() {
   const context = await selfContext();
   if ("error" in context) return context.error;
 
-  const [reviews, goals, cycles, allItems, templates, cycleTemplates, oneOnOnes, feedback] = await Promise.all([
+  const [reviews, goals, cycles, allItems, templates, cycleTemplates, oneOnOnes, agendaContributions, feedback] = await Promise.all([
     db.select().from(performanceReviews)
       .where(and(
         eq(performanceReviews.organizationId, context.employee.organizationId),
@@ -84,6 +85,18 @@ export async function GET() {
       ))
       .orderBy(desc(performanceOneOnOnes.scheduledFor)),
     db.select({
+      id: performanceOneOnOneAgendaContributions.id,
+      oneOnOneId: performanceOneOnOneAgendaContributions.oneOnOneId,
+      authorName: performanceOneOnOneAgendaContributions.authorName,
+      content: performanceOneOnOneAgendaContributions.content,
+      createdAt: performanceOneOnOneAgendaContributions.createdAt,
+    }).from(performanceOneOnOneAgendaContributions)
+      .where(and(
+        eq(performanceOneOnOneAgendaContributions.organizationId, context.employee.organizationId),
+        eq(performanceOneOnOneAgendaContributions.employeeId, context.employee.id),
+      ))
+      .orderBy(desc(performanceOneOnOneAgendaContributions.createdAt)),
+    db.select({
       id: performanceFeedback.id,
       goalId: performanceFeedback.goalId,
       authorName: performanceFeedback.authorName,
@@ -116,9 +129,73 @@ export async function GET() {
         })),
     })),
     goals,
-    oneOnOnes,
+    oneOnOnes: oneOnOnes.map((meeting) => ({
+      ...meeting,
+      agendaContributions: agendaContributions
+        .filter((item) => item.oneOnOneId === meeting.id)
+        .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime()),
+    })),
     feedback,
   });
+}
+
+export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
+  const context = await selfContext();
+  if ("error" in context) return context.error;
+
+  const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+  const oneOnOneId = Number(body.oneOnOneId);
+  const content = String(body.content ?? "").trim().slice(0, 2000);
+  if (!Number.isInteger(oneOnOneId) || content.length < 5) {
+    return Response.json({ error: "A valid oneOnOneId and an agenda contribution of at least 5 characters are required." }, { status: 400 });
+  }
+
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: context.session.id,
+    action: "performance-one-on-one-agenda-contribution",
+    resourceId: oneOnOneId,
+    limit: 12,
+    windowMs: 5 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
+
+  const [meeting] = await db.select().from(performanceOneOnOnes).where(and(
+    eq(performanceOneOnOnes.id, oneOnOneId),
+    eq(performanceOneOnOnes.organizationId, context.employee.organizationId),
+    eq(performanceOneOnOnes.employeeId, context.employee.id),
+  )).limit(1);
+  if (!meeting) return Response.json({ error: "Upcoming 1:1 not found for this employee account." }, { status: 404 });
+  if (meeting.status !== "scheduled") {
+    return Response.json({ error: "Agenda contributions are locked after a 1:1 is completed or cancelled." }, { status: 409 });
+  }
+
+  const [row] = await db.insert(performanceOneOnOneAgendaContributions).values({
+    organizationId: context.employee.organizationId,
+    oneOnOneId,
+    employeeId: context.employee.id,
+    authorUserId: context.session.id,
+    authorEmployeeId: context.employee.id,
+    authorName: context.session.name,
+    content,
+  }).returning();
+
+  await recordAuditEvent({
+    organizationId: context.employee.organizationId,
+    actor: context.session.name,
+    action: "Employee contributed 1:1 agenda item",
+    resource: "1:1 #" + oneOnOneId,
+    metadata: {
+      oneOnOneId,
+      agendaContributionId: row.id,
+      employeeId: context.employee.id,
+      contentLength: content.length,
+    },
+  });
+
+  return Response.json(row, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
