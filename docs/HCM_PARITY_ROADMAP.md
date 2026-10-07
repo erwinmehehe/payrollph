@@ -132,7 +132,7 @@ Why: Deel connects workforce planning to ATS; Frappe validates openings against 
 
 ## Tranche 3 — Workforce and headcount planning
 
-Status: Workforce Planning 2.0 is now materially implemented.
+Status: Published Headcount Plans are implemented. Workforce Planning 2.0 remains in progress.
 
 Built:
 - Governed planning windows and plan budgets
