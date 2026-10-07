@@ -22,6 +22,7 @@ on:
       - "src/components/workspace/**"
       - "src/lib/access.ts"
       - "src/lib/bank-**"
+      - "src/lib/paymongo.ts"
       - "src/lib/paymongo-**"
       - "src/lib/payout-**"
       - "src/lib/treasury-**"
