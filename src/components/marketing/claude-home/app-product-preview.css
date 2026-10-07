@@ -16,7 +16,7 @@
 .linaw-app-preview-rail { min-width:0; padding:12px 9px; border-right:1px solid #e9edf2; background:#fafbfc; }
 .linaw-app-preview-role { margin:2px 6px 15px; display:flex; align-items:center; gap:6px; color:#758195; font-size:10px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .linaw-app-preview-pulse { display:inline-block; width:6px; height:6px; border-radius:100%; background:#0866ed; flex-shrink:0; }
-.linaw-app-preview-nav { display:flex; align-items:center; gap:8px; min-height:34px; margin-bottom:5px; padding:0 7px; border:1px solid transparent; border-radius:8px; color:#667085; font-size:10px; white-space:nowrap; overflow:hidden; }
+.linaw-app-preview-nav { width:100%; display:flex; align-items:center; gap:8px; min-height:34px; margin-bottom:5px; padding:0 7px; border:1px solid transparent; border-radius:8px; background:transparent; color:#667085; font:inherit; font-size:10px; text-align:left; white-space:nowrap; overflow:hidden; cursor:pointer; transition:background .16s ease,border-color .16s ease,color .16s ease,transform .16s ease; }\n.linaw-app-preview-nav:hover { background:#f2f6fb; border-color:#e2e8f0; color:#35516f; }\n.linaw-app-preview-nav:focus-visible { outline:2px solid #8bbdff; outline-offset:1px; }
 .linaw-app-preview-nav.active { color:#0866ed; background:#edf5ff; border-color:#d3e5ff; font-weight:700; box-shadow:inset 3px 0 #0866ed; }
 .linaw-app-preview-nav-symbol { flex-shrink:0; display:grid; place-items:center; width:20px; height:20px; border-radius:6px; background:#edf2f8; color:#61758a; font-size:10px; }
 .linaw-app-preview-nav.active .linaw-app-preview-nav-symbol { color:#0866ed; background:white; }
