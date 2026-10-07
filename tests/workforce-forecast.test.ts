@@ -83,9 +83,12 @@ test("fully loaded forecast uses the same employer statutory formulas as payroll
   assert.ok((result.summary.currentPeriodBenefitEmployerCost ?? 0) > 0);
   assert.ok((result.summary.currentPeriodRecurringCompensationCost ?? 0) > 0);
   assert.equal(result.summary.additionalScenarioLoadCost, 0);
-  assert.equal(
-    result.summary.forecastPeriodLaborCost,
-    Math.round(((result.summary.currentPeriodBasePayroll ?? 0) + (result.summary.sourceGroundedEmployerCost ?? 0)) * 100) / 100,
+  const reconstructed =
+    (result.summary.currentPeriodBasePayroll ?? 0)
+    + (result.summary.sourceGroundedEmployerCost ?? 0);
+  assert.ok(
+    Math.abs((result.summary.forecastPeriodLaborCost ?? 0) - reconstructed) <= 0.01,
+    "independently rounded payroll and employer-cost components may differ by at most one cent",
   );
 });
 
@@ -258,7 +261,7 @@ test("forecast API is read-only and delegates WFM scope plus salary redaction to
   const service = readFileSync("src/lib/workforce-forecast-server.ts", "utf8");
   assert.ok(route.includes("loadScopedWorkforceForecast"));
   assert.ok(route.includes("redactWorkforceForecastCosts"));
-  assert.ok(route.includes("Planning estimate only"));
+  assert.ok(route.includes("Planning estimate."));
   assert.ok(!route.includes("export async function POST"));
   assert.ok(!route.includes("export async function PATCH"));
   assert.ok(service.includes("WORKFORCE_MANAGER_ROLES"));
