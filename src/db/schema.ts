@@ -2876,6 +2876,8 @@ export const performanceCalibrationSessions = pgTable(
     name: varchar("name", { length: 180 }).notNull(),
     status: varchar("status", { length: 24 }).notNull().default("open"),
     notes: text("notes"),
+    policyVersion: integer("policy_version"),
+    policySnapshot: jsonb("policy_snapshot"),
     createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdByName: varchar("created_by_name", { length: 120 }).notNull(),
     finalizedByUserId: integer("finalized_by_user_id").references(() => users.id, { onDelete: "set null" }),
