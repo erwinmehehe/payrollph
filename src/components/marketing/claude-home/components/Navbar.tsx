@@ -41,7 +41,7 @@ export default function Navbar() {
             </span>
           </a>
 
-          <div className="hidden items-center gap-1 lg:flex">
+          <div className="hidden items-center gap-0 xl:flex">
             {links.map((l) => (
               <a
                 key={l.label}
@@ -53,7 +53,7 @@ export default function Navbar() {
             ))}
           </div>
 
-          <div className="hidden items-center gap-2 lg:flex">
+          <div className="hidden items-center gap-2 xl:flex">
             <a
               href="/login"
               className="rounded-full px-4 py-2 text-[14px] font-semibold text-[#2B2F45] transition-colors hover:bg-[#F1F2F8]"
@@ -73,7 +73,7 @@ export default function Navbar() {
             onClick={() => setOpen(!open)}
             aria-expanded={open}
             aria-label={open ? "Close menu" : "Open menu"}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E8EAF3] bg-white text-[#0B0D1A] lg:hidden"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[#E8EAF3] bg-white text-[#0B0D1A] xl:hidden"
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -81,7 +81,7 @@ export default function Navbar() {
 
         <div
           className={cn(
-            "overflow-hidden border-b border-[#E8EAF3] bg-white/95 backdrop-blur-xl transition-all duration-300 lg:hidden",
+            "overflow-hidden border-b border-[#E8EAF3] bg-white/95 backdrop-blur-xl transition-all duration-300 xl:hidden",
             open ? "max-h-[420px] opacity-100" : "max-h-0 opacity-0"
           )}
         >
