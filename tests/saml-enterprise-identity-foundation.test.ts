@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("0074 adds protocol-specific SAML metadata and replay-resistant login state", () => {
-  const migration = read("drizzle/0074_saml_enterprise_identity_foundation.sql");
+test("0075 adds protocol-specific SAML metadata and replay-resistant login state", () => {
+  const migration = read("drizzle/0075_saml_enterprise_identity_foundation.sql");
   assert.ok(migration.includes('ALTER COLUMN "issuer" DROP NOT NULL'));
   assert.ok(migration.includes('"saml_entity_id"'));
   assert.ok(migration.includes('"saml_sso_url"'));
