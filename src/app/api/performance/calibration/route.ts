@@ -3,6 +3,9 @@ import { db } from "@/db";
 import {
   employees,
   performanceCalibrationEntries,
+  performanceCalibrationFlags,
+  performanceCalibrationPolicies,
+  performanceCalibrationPolicyEvents,
   performanceCalibrationSessions,
   performanceCycles,
   performanceReviews,
@@ -10,6 +13,13 @@ import {
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import {
+  calibrationPolicyFromUnknown,
+  calibrationPolicySnapshot,
+  createCalibrationDistributionFlags,
+  loadCalibrationPolicy,
+  syncLargeScoreChangeFlag,
+} from "@/lib/hcm-performance-calibration";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -49,11 +59,13 @@ export async function GET(request: Request) {
   const authorized = await companyWidePeopleAdmin(user.id, organizationId);
   if ("error" in authorized) return authorized.error;
 
-  const [sessions, entries, reviews, staff, cycles] = await Promise.all([
+  const [sessions, entries, flags, reviews, staff, cycles, policyState] = await Promise.all([
     db.select().from(performanceCalibrationSessions)
       .where(eq(performanceCalibrationSessions.organizationId, organizationId)),
     db.select().from(performanceCalibrationEntries)
       .where(eq(performanceCalibrationEntries.organizationId, organizationId)),
+    db.select().from(performanceCalibrationFlags)
+      .where(eq(performanceCalibrationFlags.organizationId, organizationId)),
     db.select().from(performanceReviews)
       .where(eq(performanceReviews.organizationId, organizationId)),
     db.select({
@@ -65,9 +77,18 @@ export async function GET(request: Request) {
     }).from(employees).where(eq(employees.organizationId, organizationId)),
     db.select().from(performanceCycles)
       .where(eq(performanceCycles.organizationId, organizationId)),
+    loadCalibrationPolicy(organizationId),
   ]);
 
-  return Response.json({ sessions, entries, reviews, employees: staff, cycles });
+  return Response.json({
+    sessions,
+    entries,
+    flags,
+    reviews,
+    employees: staff,
+    cycles,
+    policy: policyState.snapshot,
+  });
 }
 
 export async function POST(request: Request) {
