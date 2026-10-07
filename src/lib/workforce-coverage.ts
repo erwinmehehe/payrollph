@@ -192,3 +192,200 @@ export function remainingOpenShiftSlots(input: {
 }) {
   return Math.max(0, input.slots - input.approvedClaims);
 }
+
+
+export type CoverageCandidateInput = {
+  employeeId: number;
+  employeeName: string;
+  preferred: boolean;
+  scheduledMinutesInWindow: number;
+  consecutiveWorkingDaysBeforeShift: number;
+  alreadyWorkingThatDay: boolean;
+};
+
+export type RankedCoverageCandidate = CoverageCandidateInput & {
+  score: number;
+  workloadRisk: "low" | "medium" | "high";
+  reasons: string[];
+};
+
+export function rankCoverageCandidates(input: {
+  candidates: CoverageCandidateInput[];
+  shiftPaidMinutes: number;
+  maxRecommendations?: number;
+}) {
+  const maxRecommendations = Math.max(1, Math.min(20, input.maxRecommendations ?? 5));
+  const shiftPaidMinutes = Math.max(0, input.shiftPaidMinutes);
+
+  return input.candidates
+    .filter((candidate) => !candidate.alreadyWorkingThatDay)
+    .map((candidate): RankedCoverageCandidate => {
+      const projectedMinutes = candidate.scheduledMinutesInWindow + shiftPaidMinutes;
+      const projectedHours = projectedMinutes / 60;
+      const fairnessBonus = Math.max(0, Math.min(30, Math.round((48 - Math.min(48, candidate.scheduledMinutesInWindow / 60)) * 0.625)));
+      const preferenceBonus = candidate.preferred ? 20 : 0;
+      const consecutivePenalty = Math.max(0, candidate.consecutiveWorkingDaysBeforeShift - 4) * 8;
+      const workloadPenalty = projectedHours > 48 ? 25 : projectedHours > 40 ? 10 : 0;
+      const score = 50 + fairnessBonus + preferenceBonus - consecutivePenalty - workloadPenalty;
+      const workloadRisk: RankedCoverageCandidate["workloadRisk"] =
+        projectedHours > 48 || candidate.consecutiveWorkingDaysBeforeShift >= 6
+          ? "high"
+          : projectedHours > 40 || candidate.consecutiveWorkingDaysBeforeShift >= 5
+            ? "medium"
+            : "low";
+      const reasons = [
+        candidate.preferred ? "Matches preferred availability" : "Available for the shift",
+        `${(candidate.scheduledMinutesInWindow / 60).toFixed(1)}h currently scheduled in the planning window`,
+      ];
+      if (candidate.consecutiveWorkingDaysBeforeShift > 0) {
+        reasons.push(`${candidate.consecutiveWorkingDaysBeforeShift} consecutive working day(s) before this shift`);
+      }
+      if (workloadRisk !== "low") reasons.push(`Projected workload risk: ${workloadRisk}`);
+
+      return {
+        ...candidate,
+        score,
+        workloadRisk,
+        reasons,
+      };
+    })
+    .sort((a, b) =>
+      b.score - a.score
+      || a.scheduledMinutesInWindow - b.scheduledMinutesInWindow
+      || a.employeeName.localeCompare(b.employeeName),
+    )
+    .slice(0, maxRecommendations);
+}
+
+
+export type CoverageRiskInput = {
+  requirementId: number;
+  gap: number;
+  eligibleRecoveryCandidates: number;
+  unavailableScheduledHeadcount?: number;
+  capabilityIneligibleHeadcount?: number;
+  approvedLeaveScheduledHeadcount?: number;
+  siteIneligibleHeadcount?: number;
+};
+
+export type CoverageRisk = {
+  requirementId: number;
+  level: "low" | "medium" | "high" | "critical";
+  reasons: string[];
+};
+
+export function forecastCoverageRisk(rows: CoverageRiskInput[]): CoverageRisk[] {
+  return rows.map((row) => {
+    const exclusions =
+      (row.unavailableScheduledHeadcount ?? 0)
+      + (row.capabilityIneligibleHeadcount ?? 0)
+      + (row.approvedLeaveScheduledHeadcount ?? 0)
+      + (row.siteIneligibleHeadcount ?? 0);
+    const reasons: string[] = [];
+    let level: CoverageRisk["level"] = "low";
+
+    if (row.gap > 0 && row.eligibleRecoveryCandidates === 0) {
+      level = "critical";
+      reasons.push(`${row.gap} uncovered slot(s) with no governed eligible recovery candidate`);
+    } else if (row.gap > 0 && row.eligibleRecoveryCandidates < row.gap) {
+      level = "high";
+      reasons.push(`${row.gap} uncovered slot(s) but only ${row.eligibleRecoveryCandidates} eligible recovery candidate(s)`);
+    } else if (row.gap > 0) {
+      level = "medium";
+      reasons.push(`${row.gap} uncovered slot(s) remain before publish`);
+    }
+
+    if (exclusions > 0) {
+      reasons.push(`${exclusions} scheduled worker exclusion(s) from availability, qualification, leave, or worksite rules`);
+      if (level === "low") level = "medium";
+    }
+
+    if (reasons.length === 0) reasons.push("Recorded staffing demand is covered with no current exclusion signal");
+    return { requirementId: row.requirementId, level, reasons };
+  });
+}
+
+
+export type CoverageSimulationRequirement = {
+  requirementId: number;
+  workDate: string;
+  gap: number;
+  candidates: Array<{
+    employeeId: number;
+    employeeName: string;
+    score: number;
+    workloadRisk: "low" | "medium" | "high";
+  }>;
+};
+
+export type CoverageSimulation = {
+  fills: Array<{
+    requirementId: number;
+    workDate: string;
+    employeeId: number;
+    employeeName: string;
+    score: number;
+    workloadRisk: "low" | "medium" | "high";
+  }>;
+  baselineGap: number;
+  projectedGap: number;
+  avoidedHighRiskCandidates: number;
+  requirementsRecovered: number;
+  requirementsStillAtRisk: number;
+};
+
+export function simulateBestFitCoverage(input: {
+  requirements: CoverageSimulationRequirement[];
+  allowHighWorkloadRisk?: boolean;
+}) : CoverageSimulation {
+  const usedEmployeeDate = new Set<string>();
+  const fills: CoverageSimulation["fills"] = [];
+  let avoidedHighRiskCandidates = 0;
+  let requirementsRecovered = 0;
+  let requirementsStillAtRisk = 0;
+  const baselineGap = input.requirements.reduce(
+    (sum, row) => sum + Math.max(0, row.gap),
+    0,
+  );
+
+  for (const requirement of [...input.requirements].sort((a, b) =>
+    b.gap - a.gap || a.workDate.localeCompare(b.workDate) || a.requirementId - b.requirementId
+  )) {
+    let remaining = Math.max(0, requirement.gap);
+    const ranked = [...requirement.candidates].sort((a, b) =>
+      b.score - a.score || a.employeeName.localeCompare(b.employeeName)
+    );
+
+    for (const candidate of ranked) {
+      if (remaining <= 0) break;
+      const key = `${candidate.employeeId}|${requirement.workDate}`;
+      if (usedEmployeeDate.has(key)) continue;
+      if (candidate.workloadRisk === "high" && !input.allowHighWorkloadRisk) {
+        avoidedHighRiskCandidates += 1;
+        continue;
+      }
+      usedEmployeeDate.add(key);
+      fills.push({
+        requirementId: requirement.requirementId,
+        workDate: requirement.workDate,
+        employeeId: candidate.employeeId,
+        employeeName: candidate.employeeName,
+        score: candidate.score,
+        workloadRisk: candidate.workloadRisk,
+      });
+      remaining -= 1;
+    }
+
+    if (requirement.gap > 0 && remaining === 0) requirementsRecovered += 1;
+    if (remaining > 0) requirementsStillAtRisk += 1;
+  }
+
+  return {
+    fills,
+    baselineGap,
+    projectedGap: Math.max(0, baselineGap - fills.length),
+    avoidedHighRiskCandidates,
+    requirementsRecovered,
+    requirementsStillAtRisk,
+  };
+}

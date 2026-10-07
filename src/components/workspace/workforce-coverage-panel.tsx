@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarClock, CircleAlert, Plus, RefreshCcw, UsersRound } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
+import { simulateBestFitCoverage } from "@/lib/workforce-coverage";
 
 type Shift = {
   id: number;
@@ -94,6 +95,44 @@ type Claim = {
   requestedBy: string;
 };
 
+type ClaimRecommendation = {
+  openShiftId: number;
+  recommendations: Array<{
+    rank: number;
+    claimId: number | null;
+    employeeId: number;
+    employeeName: string;
+    score: number;
+    preferred: boolean;
+    scheduledMinutesInWindow: number;
+    consecutiveWorkingDaysBeforeShift: number;
+    workloadRisk: "low" | "medium" | "high";
+    reasons: string[];
+  }>;
+};
+
+type ProactiveSuggestion = {
+  requirementId: number;
+  gap: number;
+  recommendations: Array<{
+    rank: number;
+    employeeId: number;
+    employeeName: string;
+    score: number;
+    preferred: boolean;
+    scheduledMinutesInWindow: number;
+    consecutiveWorkingDaysBeforeShift: number;
+    workloadRisk: "low" | "medium" | "high";
+    reasons: string[];
+  }>;
+};
+
+type CoverageRisk = {
+  requirementId: number;
+  level: "low" | "medium" | "high" | "critical";
+  reasons: string[];
+};
+
 type LaborVarianceRow = {
   requirementId: number;
   worksiteId: number;
@@ -166,6 +205,9 @@ type Payload = {
   availability: Availability[];
   openShifts: OpenShift[];
   claims: Claim[];
+  claimRecommendations: ClaimRecommendation[];
+  proactiveSuggestions: ProactiveSuggestion[];
+  coverageRisk: CoverageRisk[];
   laborVariance: LaborVariance;
 };
 
@@ -216,6 +258,7 @@ export function WorkforceCoveragePanel({
   const [payload, setPayload] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
+  const [simulateHighRisk, setSimulateHighRisk] = useState(false);
 
   const [requirementDate, setRequirementDate] = useState(localToday());
   const [requirementWorksiteId, setRequirementWorksiteId] = useState("");
@@ -323,6 +366,19 @@ export function WorkforceCoveragePanel({
     }, "Open shift created from the coverage gap.");
   }
 
+  async function stageRecoveryPlan() {
+    if (simulation.fills.length === 0) {
+      notify("No simulated recovery assignments are available to stage.", "err");
+      return;
+    }
+    await mutate("stage_recovery_plan", {
+      assignments: simulation.fills.map((fill) => ({
+        requirementId: fill.requirementId,
+        employeeId: fill.employeeId,
+      })),
+    }, "Recovery plan staged as pending claims for governed approval.");
+  }
+
   async function decideClaim(claimId: number, decision: "approved" | "rejected") {
     await mutate("decide_claim", {
       claimId,
@@ -347,6 +403,26 @@ export function WorkforceCoveragePanel({
     () => new Map(data.employees.map((employee) => [employee.id, employee])),
     [data.employees],
   );
+  const recommendationByClaimId = useMemo(() => {
+    const rows = new Map<number, ClaimRecommendation["recommendations"][number]>();
+    for (const group of payload?.claimRecommendations ?? []) {
+      for (const recommendation of group.recommendations) {
+        if (recommendation.claimId != null) rows.set(recommendation.claimId, recommendation);
+      }
+    }
+    return rows;
+  }, [payload?.claimRecommendations]);
+
+  const proactiveByRequirement = useMemo(
+    () => new Map((payload?.proactiveSuggestions ?? []).map((row) => [row.requirementId, row])),
+    [payload?.proactiveSuggestions],
+  );
+  const riskByRequirement = useMemo(
+    () => new Map((payload?.coverageRisk ?? []).map((row) => [row.requirementId, row])),
+    [payload?.coverageRisk],
+  );
+  const criticalRiskCount = (payload?.coverageRisk ?? []).filter((row) => row.level === "critical").length;
+  const highRiskCount = (payload?.coverageRisk ?? []).filter((row) => row.level === "high").length;
 
   const gapCount = (payload?.coverage ?? []).filter((row) => row.gap > 0).length;
   const missingSlots = (payload?.coverage ?? []).reduce((sum, row) => sum + row.gap, 0);
@@ -377,6 +453,22 @@ export function WorkforceCoveragePanel({
   );
   const siteExclusions = (payload?.coverage ?? []).reduce((sum, row) => sum + row.siteIneligibleHeadcount, 0);
   const labor = payload?.laborVariance;
+  const simulation = useMemo(() => simulateBestFitCoverage({
+    allowHighWorkloadRisk: simulateHighRisk,
+    requirements: (payload?.coverage ?? [])
+      .filter((row) => row.gap > 0)
+      .map((row) => ({
+        requirementId: row.requirementId,
+        workDate: row.workDate,
+        gap: row.gap,
+        candidates: (proactiveByRequirement.get(row.requirementId)?.recommendations ?? []).map((candidate) => ({
+          employeeId: candidate.employeeId,
+          employeeName: candidate.employeeName,
+          score: candidate.score,
+          workloadRisk: candidate.workloadRisk,
+        })),
+      })),
+  }), [payload?.coverage, proactiveByRequirement, simulateHighRisk]);
 
   return (
     <article className="card" style={{ marginTop: 16 }} data-wfm-coverage>
@@ -420,10 +512,69 @@ export function WorkforceCoveragePanel({
         <Metric label="Pending claims" value={String(pendingClaims)} hint="manager decision needed" icon={<UsersRound size={16} />} tone={pendingClaims ? "amber" : "slate"} />
       </section>
 
+      {(criticalRiskCount > 0 || highRiskCount > 0) && (
+        <div className={criticalRiskCount > 0 ? "notice notice-red" : "notice notice-amber"} style={{ margin: "0 18px 18px" }}>
+          <CircleAlert size={15} />
+          <span><strong>Pre-publish coverage risk:</strong> {criticalRiskCount} critical · {highRiskCount} high.</span>
+        </div>
+      )}
+
       <div className="setting-form" style={{ padding: "0 18px 18px" }}>
         <label>Coverage window<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
         <label>Window end<input value={endDate} readOnly /></label>
       </div>
+
+      <section style={{ padding: "0 18px 18px" }} data-wfm-what-if>
+        <article className="card" style={{ margin: 0 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">What-if roster simulation</div>
+              <h3>Test recovery before changing the roster.</h3>
+              <p>Simulate filling current coverage gaps with the best governed candidates. This preview never writes schedule changes.</p>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="checkbox" checked={simulateHighRisk} onChange={(event) => setSimulateHighRisk(event.target.checked)} />
+                Include high workload risk
+              </label>
+              {canManage && (
+                <button className="primary-button brand" onClick={() => void stageRecoveryPlan()} disabled={saving !== null || simulation.fills.length === 0}>
+                  {saving === "stage_recovery_plan" ? <Spinner label="Staging" /> : <UsersRound size={14} />} Stage for approval
+                </button>
+              )}
+            </div>
+          </div>
+          <section className="stats-grid" style={{ padding: "0 18px 18px" }}>
+            <Metric label="Current uncovered" value={String(simulation.baselineGap)} hint="recorded staffing gap" icon={<CircleAlert size={16} />} tone={simulation.baselineGap ? "amber" : "mint"} />
+            <Metric label="Projected uncovered" value={String(simulation.projectedGap)} hint="after best-fit simulation" icon={<UsersRound size={16} />} tone={simulation.projectedGap ? "amber" : "mint"} />
+            <Metric label="Requirements recovered" value={String(simulation.requirementsRecovered)} hint="fully covered in scenario" icon={<UsersRound size={16} />} tone="blue" />
+            <Metric label="Still at risk" value={String(simulation.requirementsStillAtRisk)} hint={simulation.avoidedHighRiskCandidates + " high-risk candidate(s) avoided"} icon={<CircleAlert size={16} />} tone={simulation.requirementsStillAtRisk ? "amber" : "mint"} />
+          </section>
+          <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
+            <span>
+              <strong>Governed handoff.</strong> Staging creates pending open-shift claims only. It does not change the roster.
+              Each approval rechecks the live staffing gap, job profile, skills/credentials, worksite eligibility, leave,
+              availability, current schedule, and blocking schedule guardrails before an override can be created.
+            </span>
+          </div>
+          {simulation.fills.length > 0 ? (
+            <div className="policy-lines" style={{ padding: "0 18px 18px" }}>
+              {simulation.fills.slice(0, 12).map((fill) => (
+                <span key={fill.requirementId + "-" + fill.employeeId}>
+                  <b>{fill.workDate} · Requirement #{fill.requirementId}</b>
+                  <small style={{ display: "block", color: "var(--muted)" }}>
+                    {fill.employeeName} · score {fill.score} · {fill.workloadRisk} workload risk
+                  </small>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
+              <span>No safe best-fit recovery assignment is available in the current scenario.</span>
+            </div>
+          )}
+        </article>
+      </section>
 
       {labor && (
         <section style={{ padding: "0 18px 18px" }} data-wfm-labor-variance>
@@ -629,11 +780,11 @@ export function WorkforceCoveragePanel({
                 </td>
                 <td>{row.gap ? <Status value={`${row.gap} short`} /> : row.overage ? <Status value={`+${row.overage} covered`} /> : <Status value="Covered" />}</td>
                 <td>
-                  {row.gap > 0 && canManage ? (
-                    <button className="secondary-button" onClick={() => void openGap(row)} disabled={saving !== null}>
-                      Open {row.gap} shift{row.gap === 1 ? "" : "s"}
-                    </button>
-                  ) : <span className="id">No action</span>}
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {riskByRequirement.get(row.requirementId) && <Status value={String(riskByRequirement.get(row.requirementId)?.level) + " risk"} />}
+                    {proactiveByRequirement.get(row.requirementId)?.recommendations[0] ? <div className="id">Best eligible: {proactiveByRequirement.get(row.requirementId)?.recommendations[0]?.employeeName}</div> : row.gap > 0 ? <div className="id">No governed eligible recovery candidate.</div> : null}
+                    {row.gap > 0 && canManage ? <button className="secondary-button" onClick={() => void openGap(row)} disabled={saving !== null}>Open {row.gap} shift{row.gap === 1 ? "" : "s"}</button> : <span className="id">No action</span>}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -649,6 +800,13 @@ export function WorkforceCoveragePanel({
       {(payload?.openShifts.length ?? 0) > 0 && (
         <div style={{ padding: 18 }}>
           <div className="card-kicker" style={{ marginBottom: 8 }}>Open shifts and claims</div>
+          <div className="notice notice-slate" style={{ margin: "0 0 12px" }}>
+            <span>
+              <strong>Coverage recommendations are advisory.</strong> Pending claims are ranked using preferred availability,
+              current scheduled workload, and consecutive working days. Approval still revalidates job profile, skills and
+              credentials, worksite eligibility, leave, availability, schedule conflicts, and blocking guardrails.
+            </span>
+          </div>
           <div className="policy-lines">
             {(payload?.openShifts ?? []).map((shift) => {
               const claims = (payload?.claims ?? []).filter((claim) => claim.openShiftId === shift.id);
@@ -658,17 +816,35 @@ export function WorkforceCoveragePanel({
                   <small style={{ display: "block", color: "var(--muted)" }}>
                     {shift.remainingSlots} of {shift.slots} slot(s) remaining · {shift.status} · {shift.reason}
                   </small>
-                  {claims.map((claim) => {
+                  {[...claims].sort((a, b) => {
+                    const ar = recommendationByClaimId.get(a.id)?.rank ?? 999;
+                    const br = recommendationByClaimId.get(b.id)?.rank ?? 999;
+                    return ar - br || a.id - b.id;
+                  }).map((claim) => {
                     const employee = employeeById.get(claim.employeeId);
+                    const recommendation = recommendationByClaimId.get(claim.id);
                     return (
-                      <small key={claim.id} style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+                      <small key={claim.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
                         <strong>{employee ? `${employee.firstName} ${employee.lastName}` : `Employee #${claim.employeeId}`}</strong>
                         <Status value={claim.status} />
+                        {recommendation && claim.status === "pending" && (
+                          <>
+                            <Status value={`#${recommendation.rank} recommended`} />
+                            {recommendation.preferred && <Status value="Preferred availability" />}
+                            <Status value={`${(recommendation.scheduledMinutesInWindow / 60).toFixed(1)}h planned`} />
+                            <Status value={`${recommendation.workloadRisk} workload risk`} />
+                          </>
+                        )}
                         {claim.status === "pending" && canManage && (
                           <>
                             <button className="secondary-button" onClick={() => void decideClaim(claim.id, "approved")} disabled={saving !== null}>Approve</button>
                             <button className="secondary-button" onClick={() => void decideClaim(claim.id, "rejected")} disabled={saving !== null}>Reject</button>
                           </>
+                        )}
+                        {recommendation && claim.status === "pending" && (
+                          <span className="id" style={{ flexBasis: "100%", paddingLeft: 2 }}>
+                            {recommendation.reasons.join(" · ")}
+                          </span>
                         )}
                       </small>
                     );

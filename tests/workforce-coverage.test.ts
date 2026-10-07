@@ -6,6 +6,9 @@ import {
   computeCoverage,
   preferredForShift,
   remainingOpenShiftSlots,
+  rankCoverageCandidates,
+  forecastCoverageRisk,
+  simulateBestFitCoverage,
   weekdayForDate,
 } from "../src/lib/workforce-coverage";
 
@@ -259,4 +262,142 @@ test("a fully unavailable precise-leave shift is excluded from available headcou
   assert.equal(result[0]?.approvedLeavePartiallyUnavailableHeadcount, 0);
   assert.equal(result[0]?.availableScheduledHeadcount, 0);
   assert.equal(result[0]?.availableScheduledMinutes, 0);
+});
+
+
+test("coverage candidate ranking prefers qualified available workers with lower workload and preferences", () => {
+  const ranked = rankCoverageCandidates({
+    shiftPaidMinutes: 480,
+    candidates: [
+      {
+        employeeId: 1,
+        employeeName: "Ana Santos",
+        preferred: true,
+        scheduledMinutesInWindow: 1200,
+        consecutiveWorkingDaysBeforeShift: 2,
+        alreadyWorkingThatDay: false,
+      },
+      {
+        employeeId: 2,
+        employeeName: "Ben Cruz",
+        preferred: false,
+        scheduledMinutesInWindow: 2100,
+        consecutiveWorkingDaysBeforeShift: 4,
+        alreadyWorkingThatDay: false,
+      },
+      {
+        employeeId: 3,
+        employeeName: "Cara Lim",
+        preferred: true,
+        scheduledMinutesInWindow: 900,
+        consecutiveWorkingDaysBeforeShift: 1,
+        alreadyWorkingThatDay: true,
+      },
+    ],
+  });
+
+  assert.deepEqual(ranked.map((row) => row.employeeId), [1, 2]);
+  assert.equal(ranked[0]?.workloadRisk, "low");
+  assert.match(ranked[0]?.reasons.join(" "), /preferred availability/i);
+});
+
+test("coverage candidate ranking flags high projected workload instead of hiding it", () => {
+  const [candidate] = rankCoverageCandidates({
+    shiftPaidMinutes: 480,
+    candidates: [{
+      employeeId: 9,
+      employeeName: "Dana Reyes",
+      preferred: false,
+      scheduledMinutesInWindow: 2700,
+      consecutiveWorkingDaysBeforeShift: 6,
+      alreadyWorkingThatDay: false,
+    }],
+  });
+
+  assert.equal(candidate?.workloadRisk, "high");
+  assert.ok((candidate?.score ?? 100) < 50);
+  assert.match(candidate?.reasons.join(" "), /Projected workload risk: high/);
+});
+
+
+test("coverage risk is critical when a staffing gap has no governed recovery candidate", () => {
+  const [risk] = forecastCoverageRisk([{
+    requirementId: 1,
+    gap: 2,
+    eligibleRecoveryCandidates: 0,
+    unavailableScheduledHeadcount: 1,
+  }]);
+
+  assert.equal(risk?.level, "critical");
+  assert.match(risk?.reasons.join(" "), /no governed eligible recovery candidate/i);
+});
+
+test("coverage risk distinguishes thin candidate benches from recoverable gaps", () => {
+  const risks = forecastCoverageRisk([
+    { requirementId: 2, gap: 3, eligibleRecoveryCandidates: 1 },
+    { requirementId: 3, gap: 2, eligibleRecoveryCandidates: 4 },
+    { requirementId: 4, gap: 0, eligibleRecoveryCandidates: 0 },
+  ]);
+
+  assert.equal(risks[0]?.level, "high");
+  assert.equal(risks[1]?.level, "medium");
+  assert.equal(risks[2]?.level, "low");
+});
+
+
+test("best-fit coverage simulation avoids double-booking the same worker on the same date", () => {
+  const result = simulateBestFitCoverage({
+    requirements: [
+      {
+        requirementId: 10,
+        workDate: "2026-10-12",
+        gap: 1,
+        candidates: [
+          { employeeId: 1, employeeName: "Ana", score: 90, workloadRisk: "low" },
+          { employeeId: 2, employeeName: "Ben", score: 80, workloadRisk: "low" },
+        ],
+      },
+      {
+        requirementId: 11,
+        workDate: "2026-10-12",
+        gap: 1,
+        candidates: [
+          { employeeId: 1, employeeName: "Ana", score: 95, workloadRisk: "low" },
+          { employeeId: 3, employeeName: "Cara", score: 70, workloadRisk: "low" },
+        ],
+      },
+    ],
+  });
+
+  assert.equal(result.baselineGap, 2);
+  assert.equal(result.projectedGap, 0);
+  assert.equal(new Set(result.fills.map((row) => row.employeeId)).size, 2);
+});
+
+test("best-fit coverage simulation skips high workload risk unless explicitly allowed", () => {
+  const safe = simulateBestFitCoverage({
+    requirements: [{
+      requirementId: 12,
+      workDate: "2026-10-13",
+      gap: 1,
+      candidates: [
+        { employeeId: 4, employeeName: "Dina", score: 99, workloadRisk: "high" },
+      ],
+    }],
+  });
+  assert.equal(safe.projectedGap, 1);
+  assert.equal(safe.avoidedHighRiskCandidates, 1);
+
+  const override = simulateBestFitCoverage({
+    allowHighWorkloadRisk: true,
+    requirements: [{
+      requirementId: 12,
+      workDate: "2026-10-13",
+      gap: 1,
+      candidates: [
+        { employeeId: 4, employeeName: "Dina", score: 99, workloadRisk: "high" },
+      ],
+    }],
+  });
+  assert.equal(override.projectedGap, 0);
 });

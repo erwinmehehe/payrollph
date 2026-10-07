@@ -1,0 +1,26 @@
+                <td>
+                  {(() => {
+                    const risk = riskByRequirement.get(row.requirementId);
+                    const suggestion = proactiveByRequirement.get(row.requirementId);
+                    return (
+                      <div style={{ display: "grid", gap: 7 }}>
+                        {risk && <Status value={`${risk.level} risk`} />}
+                        {suggestion?.recommendations.length ? (
+                          <div className="id">
+                            Suggested: {suggestion.recommendations.slice(0, 3).map((candidate) =>
+                              `#${candidate.rank} ${candidate.employeeName}${candidate.preferred ? " · preferred" : ""}`
+                            ).join(" · ")}
+                          </div>
+                        ) : row.gap > 0 ? (
+                          <div className="id">No governed eligible recovery candidate found.</div>
+                        ) : null}
+                        {risk?.reasons?.length ? <div className="id">{risk.reasons.join(" · ")}</div> : null}
+                        {row.gap > 0 && canManage ? (
+                          <button className="secondary-button" onClick={() => void openGap(row)} disabled={saving !== null}>
+                            Open {row.gap} shift{row.gap === 1 ? "" : "s"}
+                          </button>
+                        ) : <span className="id">No action</span>}
+                      </div>
+                    );
+                  })()}
+                </td>
