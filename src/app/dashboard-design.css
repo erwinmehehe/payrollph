@@ -95,6 +95,9 @@
   padding: 0;
 }
 .app-shell.clean-shell .side-navigation .nav-item {
+  /* The shell already applies role permissions. Legacy overview CSS must not
+     hide permitted modules or the More button. */
+  display: flex !important;
   min-height: 44px;
   padding: 10px 12px;
   gap: 12px;
