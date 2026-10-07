@@ -300,6 +300,17 @@ test("homepage Leave and Migration modules perform local interactive workflows",
 });
 
 
+test("marketing app preview sidebar is interactive instead of decorative", () => {
+  const preview = read("src/components/marketing/claude-home/components/AppProductPreview.tsx");
+  const cinematic = read("src/components/marketing/claude-home/components/CinematicHeroDemo.tsx");
+  assert.ok(preview.includes("useState"), "preview must keep local navigation state");
+  assert.ok(preview.includes("setSelectedNav(item)"), "sidebar items must switch preview modules");
+  assert.ok(preview.includes("<button"), "sidebar navigation must use real buttons");
+  assert.ok(preview.includes("PreviewModulePanel"), "non-home sidebar routes must render module content");
+  assert.ok(preview.includes("aria-current"), "active sidebar route must be exposed accessibly");
+  assert.ok(!cinematic.includes('<Link href="#demo" className="cinematic-demo-preview-link"'), "whole cinematic frame must not swallow sidebar clicks");
+});
+
 test("cinematic hero and deeper demo reuse the current role-based app chrome", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
   const cinematic = read("src/components/marketing/claude-home/components/CinematicHeroDemo.tsx");
