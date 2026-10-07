@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart3, CheckCircle2, Flag, Plus, RefreshCw, Target, Trophy } from "lucide-react";
+import { PerformanceGovernancePanel } from "@/components/performance-governance-panel";
 
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null; status: string };
-type Cycle = { id: number; name: string; startDate: string; endDate: string; status: string };
+type Cycle = { id: number; name: string; startDate: string; endDate: string; status: string; requireSelfAssessment: boolean; requireManagerSummary: boolean };
 type Goal = { id: number; employeeId: number; cycleId: number | null; title: string; description: string | null; weight: string; progress: number; status: string; dueDate: string | null };
 type Review = { id: number; employeeId: number; cycleId: number; status: string; selfScore: string | null; employeeReflection: string | null; managerScore: string | null; finalScore: string | null; managerSummary: string | null };
 
@@ -17,7 +18,7 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
   const [showCycle, setShowCycle] = useState(false);
   const [showGoal, setShowGoal] = useState(false);
   const [showReview, setShowReview] = useState(false);
-  const [cycleForm, setCycleForm] = useState({ name: "", startDate: "", endDate: "" });
+  const [cycleForm, setCycleForm] = useState({ name: "", startDate: "", endDate: "", requireSelfAssessment: true, requireManagerSummary: true });
   const [goalForm, setGoalForm] = useState({ employeeId: "", cycleId: "", title: "", description: "", weight: "25", dueDate: "" });
   const [reviewForm, setReviewForm] = useState({ employeeId: "", cycleId: "", managerScore: "3", managerSummary: "" });
 
@@ -69,7 +70,7 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
     try {
       await post({ entityType: "cycle", ...cycleForm });
       setShowCycle(false);
-      setCycleForm({ name: "", startDate: "", endDate: "" });
+      setCycleForm({ name: "", startDate: "", endDate: "", requireSelfAssessment: true, requireManagerSummary: true });
       await load();
       setNotice("Performance cycle created.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create cycle."); }
@@ -95,29 +96,16 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
   async function createReview(event: React.FormEvent) {
     event.preventDefault();
     try {
-      const review = await post({
+      await post({
         entityType: "review",
         employeeId: Number(reviewForm.employeeId),
         cycleId: Number(reviewForm.cycleId),
       });
-      const response = await fetch("/api/performance", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          entityType: "review",
-          id: review.id,
-          managerScore: Number(reviewForm.managerScore),
-          managerSummary: reviewForm.managerSummary,
-          status: "completed",
-        }),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error ?? "Could not complete review.");
       setShowReview(false);
       setReviewForm({ employeeId: "", cycleId: "", managerScore: "3", managerSummary: "" });
       await load();
-      setNotice("Performance review completed.");
-    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save review."); }
+      setNotice("Performance review opened. Complete the structured evidence in Performance Governance.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not open review."); }
   }
 
   async function updateGoal(goal: Goal, progress: number) {
@@ -154,6 +142,8 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
         <article className="stat-card"><div className="stat-icon orange"><BarChart3 size={19} /></div><p>AVERAGE SCORE</p><h3>{averageScore}</h3><span>{completedReviews.length ? "Out of 5.00" : "No completed reviews"}</span></article>
       </section>
 
+      <PerformanceGovernancePanel organizationId={organizationId} setNotice={setNotice} />
+
       {showCycle && (
         <article className="card" style={{ padding: 20, marginBottom: 16 }}>
           <div className="card-header"><div><div className="card-kicker">PERFORMANCE CYCLE</div><h2>Open a governed review period</h2></div></div>
@@ -162,6 +152,8 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
               <label>Cycle name<input required value={cycleForm.name} onChange={(e) => setCycleForm({ ...cycleForm, name: e.target.value })} placeholder="2026 Annual Review" /></label>
               <label>Start date<input required type="date" value={cycleForm.startDate} onChange={(e) => setCycleForm({ ...cycleForm, startDate: e.target.value })} /></label>
               <label>End date<input required type="date" value={cycleForm.endDate} onChange={(e) => setCycleForm({ ...cycleForm, endDate: e.target.value })} /></label>
+              <label><input type="checkbox" checked={cycleForm.requireSelfAssessment} onChange={(e) => setCycleForm({ ...cycleForm, requireSelfAssessment: e.target.checked })} /> Require employee self-assessment</label>
+              <label><input type="checkbox" checked={cycleForm.requireManagerSummary} onChange={(e) => setCycleForm({ ...cycleForm, requireManagerSummary: e.target.checked })} /> Require manager narrative</label>
             </div>
             <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowCycle(false)}>Cancel</button><button className="primary-button">Create cycle</button></div>
           </form>
@@ -187,15 +179,13 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
 
       {showReview && (
         <article className="card" style={{ padding: 20, marginBottom: 16 }}>
-          <div className="card-header"><div><div className="card-kicker">MANAGER REVIEW</div><h2>Complete a structured review</h2></div></div>
+          <div className="card-header"><div><div className="card-kicker">MANAGER REVIEW</div><h2>Open a structured review</h2></div></div>
           <form onSubmit={createReview}>
             <div className="setting-form">
               <label>Employee<select required value={reviewForm.employeeId} onChange={(e) => setReviewForm({ ...reviewForm, employeeId: e.target.value })}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>
               <label>Cycle<select required value={reviewForm.cycleId} onChange={(e) => setReviewForm({ ...reviewForm, cycleId: e.target.value })}><option value="">Select cycle</option>{cycles.map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}</select></label>
-              <label>Manager score (1–5)<input required type="number" min="1" max="5" step="0.1" value={reviewForm.managerScore} onChange={(e) => setReviewForm({ ...reviewForm, managerScore: e.target.value })} /></label>
-              <label style={{ gridColumn: "1 / -1" }}>Summary<textarea required rows={3} value={reviewForm.managerSummary} onChange={(e) => setReviewForm({ ...reviewForm, managerSummary: e.target.value })} placeholder="Evidence, outcomes, strengths, and development priorities." /></label>
             </div>
-            <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowReview(false)}>Cancel</button><button className="primary-button">Complete review</button></div>
+            <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowReview(false)}>Cancel</button><button className="primary-button">Open review</button></div>
           </form>
         </article>
       )}
