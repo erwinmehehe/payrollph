@@ -8,6 +8,8 @@ import { recordAuditEvent } from "@/lib/audit";
 import { rateLimitDistributed } from "@/lib/rate-limit";
 import { verifyBiometricDeviceCredential } from "@/lib/biometric-auth";
 import { reconcileAttendanceExceptionEvents } from "@/lib/workforce-attendance-exception-events";
+import { attendanceMutationLock, loadActiveAttendanceLocks } from "@/lib/workforce-attendance-lock";
+import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 
 export const dynamic = "force-dynamic";
 
@@ -129,9 +131,11 @@ export async function POST(request: Request) {
 
   const staff = await db.select().from(employees).where(eq(employees.organizationId, organizationId));
   const staffByNo = new Map(staff.map((employee) => [employee.employeeNo.toUpperCase(), employee]));
+  const activeAttendanceLocks = await loadActiveAttendanceLocks(organizationId);
 
   let ingested = 0;
   let duplicates = 0;
+  let locked = 0;
   let unmatched = 0;
   let invalid = 0;
   const changedAttendance = new Map<string, { employeeId: number; workDate: string }>();
@@ -164,6 +168,12 @@ export async function POST(request: Request) {
     }
 
     const workDate = localDateFromInput(timestampStr, punchDate);
+    const attendanceLock = attendanceMutationLock(activeAttendanceLocks, workDate, "capture");
+    if (attendanceLock) {
+      locked += 1;
+      continue;
+    }
+
     const [existing] = await db.select().from(timePunches).where(
       and(
         eq(timePunches.organizationId, organizationId),
@@ -237,6 +247,11 @@ export async function POST(request: Request) {
   const attendanceExceptionSync = [];
   for (const changed of changedAttendance.values()) {
     try {
+      const staleTimesheets = await markTimesheetsStaleForEmployeeDate({
+        organizationId,
+        employeeId: changed.employeeId,
+        workDate: changed.workDate,
+      });
       const result = await reconcileAttendanceExceptionEvents({
         organizationId,
         employeeId: changed.employeeId,
@@ -247,6 +262,7 @@ export async function POST(request: Request) {
         status: "ok",
         createdIds: result.createdIds,
         resolvedIds: result.resolvedIds,
+        staleTimesheetIds: staleTimesheets.map((row) => row.id),
       });
     } catch (error) {
       attendanceExceptionSync.push({
@@ -271,6 +287,7 @@ export async function POST(request: Request) {
       totalLogs: logs.length,
       ingested,
       duplicates,
+      locked,
       unmatched,
       invalid,
       deviceSerial,
@@ -284,6 +301,7 @@ export async function POST(request: Request) {
     deviceSerial,
     ingested,
     duplicates,
+    locked,
     unmatched,
     invalid,
     syncedAt: new Date().toISOString(),
