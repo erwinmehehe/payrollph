@@ -794,7 +794,20 @@ export function AutomationStudioPanel({
                       </div>
                       <select
                         value={row.type}
-                        onChange={(event) => updateAction(row.id, { type: event.target.value })}
+                        onChange={(event) => {
+                          const nextType = event.target.value;
+                          updateAction(row.id, {
+                            type: nextType,
+                            ...(nextType === "assign_schedule"
+                              ? {
+                                  scheduleEffectiveDateSource:
+                                    selectedTrigger?.value === "employee.hired"
+                                      ? "employee_start_date"
+                                      : "event_effective_date",
+                                }
+                              : {}),
+                          });
+                        }}
                         style={{ width: "100%", marginBottom: 10 }}
                       >
                         {data.catalogs.actions.map((item) => (
