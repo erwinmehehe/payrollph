@@ -30,6 +30,11 @@ test("competency and KRA templates create structured review evidence", () => {
   assert.ok(route.includes("structuredItems: links.length"));
 });
 
+test("review structure freezes once completion begins", () => {
+  assert.ok(route.includes("Review structure is locked after the first review completes."));
+  assert.ok(route.includes('existingReviews.some((review) => review.status === "completed")'));
+});
+
 test("review completion enforces configured evidence instead of silently finalizing", () => {
   assert.ok(route.includes("cycle.requireManagerSummary"));
   assert.ok(route.includes("cycle.requireSelfAssessment"));
