@@ -1110,7 +1110,10 @@ export const approvalTasks = pgTable("approval_tasks", {
   decidedBy: varchar("decided_by", { length: 120 }),
   decidedOnBehalfOf: varchar("decided_on_behalf_of", { length: 120 }),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
-  approvalChainInstanceId: integer("approval_chain_instance_id"),
+  approvalChainInstanceId: integer("approval_chain_instance_id").references(
+    (): AnyPgColumn => approvalChainInstances.id,
+    { onDelete: "set null" },
+  ),
   approvalChainStepIndex: integer("approval_chain_step_index"),
 });
 
