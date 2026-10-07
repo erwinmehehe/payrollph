@@ -14,6 +14,7 @@ import { runScheduledEmploymentTerms } from "@/lib/hcm-employment-terms";
 import { runScheduledEmploymentTermDecisions } from "@/lib/hcm-employment-term-decisions";
 import { runScheduledHcmLifecycleNotifications } from "@/lib/hcm-lifecycle-notifications";
 import { runScheduledPerformanceReminders } from "@/lib/hcm-performance-reminders";
+import { runScheduledPerformanceActionReminders } from "@/lib/hcm-performance-action-reminders";
 import { resumeDueAutomationExecutions } from "@/lib/automation";
 import { runScheduledAutomationTemporalEvents } from "@/lib/automation-temporal-events";
 
@@ -105,12 +106,17 @@ export async function tickScheduler(force = false) {
   const performanceReminders = performanceRemindersDue
     ? await runScheduledPerformanceReminders({ actor: "System scheduler", now })
     : null;
+  const performanceActionReminders = performanceRemindersDue
+    ? await runScheduledPerformanceActionReminders({ actor: "System scheduler", now })
+    : null;
 
   if (performanceRemindersDue) {
     const performanceReminderPayload = {
       at: now.toISOString(),
-      organizations: performanceReminders?.length ?? 0,
-      results: performanceReminders?.slice(0, 50) ?? [],
+      reviewOrganizations: performanceReminders?.length ?? 0,
+      actionOrganizations: performanceActionReminders?.length ?? 0,
+      reviewResults: performanceReminders?.slice(0, 50) ?? [],
+      actionResults: performanceActionReminders?.slice(0, 50) ?? [],
     };
     if (performanceReminderState) {
       await db.update(schedulerState).set({
@@ -199,6 +205,7 @@ export async function tickScheduler(force = false) {
     hcmCompensation,
     hcmLifecycleNotifications,
     performanceReminders,
+    performanceActionReminders,
     at: now.toISOString(),
     results: {
       webhooks: webhookResults.slice(0, 10),
