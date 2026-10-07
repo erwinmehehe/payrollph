@@ -9,27 +9,27 @@ export default function Hero() {
       <div className="mx-auto grid max-w-[1270px] items-center gap-10 px-5 pb-20 sm:px-8 lg:grid-cols-[.86fr_1.14fr] lg:gap-10 lg:pb-24">
         <div className="relative z-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#d9e8f8] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#45617f]">
-            <span className="h-2 w-2 rounded-full bg-[#0866ed]" aria-hidden="true" /> Philippine payroll & workforce platform
+            <span className="h-2 w-2 rounded-full bg-[#0866ed]" aria-hidden="true" /> Philippine payroll software
           </div>
           <h1 className="font-display mt-7 max-w-[650px] text-balance text-[44px] font-semibold leading-[1.065] tracking-[-.047em] text-[#10213d] sm:text-[62px] lg:text-[66px]">
-            People, payroll and compliance <span className="text-[#0866ed]">made clear.</span>
+            Payroll your team can review <span className="text-[#0866ed]">before money moves.</span>
           </h1>
           <p className="mt-6 max-w-[510px] text-[17px] leading-[1.8] text-[#596e86]">
-            Payroll, workforce management and employee records together—with clear next steps for the people preparing, reviewing and receiving pay.
+            Linaw connects time, people records, payroll calculations and approvals so Philippine teams can prepare, check and release pay without losing context.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link href="/book-demo" style={{ backgroundColor:"#0866ed",color:"#fff" }} className="hero-primary-cta inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#0866ed] px-6 py-3.5 text-[14px] font-semibold text-white hover:bg-[#0754c5]">
               Request a demo <ArrowRight size={16} aria-hidden="true" />
             </Link>
             <Link href="#demo" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#d4e0ee] bg-white px-6 py-3.5 text-[14px] font-semibold text-[#263b55] hover:bg-[#f1f6ff]">
-              Explore role previews <ChevronRight size={16} aria-hidden="true" />
+              See how Linaw works <ChevronRight size={16} aria-hidden="true" />
             </Link>
           </div>
           <div className="mt-10 grid max-w-[550px] gap-4 border-t border-[#e5ebf3] pt-6 sm:grid-cols-3">
             {[
-              { icon: ShieldCheck, heading: "Review before release", copy: "Checker and owner approval steps" },
-              { icon: UsersRound, heading: "Role-specific views", copy: "Payroll, HR, finance and employee" },
-              { icon: CalendarDays, heading: "Workforce-connected", copy: "Time, leave and lifecycle changes" },
+              { icon: ShieldCheck, heading: "Independent review", copy: "Maker-checker approval flow" },
+              { icon: UsersRound, heading: "Explainable payroll", copy: "See what changed and why" },
+              { icon: CalendarDays, heading: "Connected workforce", copy: "Time, leave and people records" },
             ].map(({icon:Icon,heading,copy})=>(
               <div key={heading} className="flex items-start gap-2.5 sm:block">
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#edf5ff] text-[#0866ed] sm:mb-2"><Icon size={16} aria-hidden="true"/></span>
