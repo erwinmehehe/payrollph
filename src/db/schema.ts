@@ -3573,6 +3573,41 @@ export const treasuryOperatorAssignments = pgTable(
   ],
 );
 
+export const employeePayoutChangeRequests = pgTable(
+  "employee_payout_change_requests",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    reason: varchar("reason", { length: 360 }).notNull(),
+    originalSnapshot: jsonb("original_snapshot").notNull(),
+    originalStateSha256: varchar("original_state_sha256", { length: 64 }).notNull(),
+    proposedBankAccount: varchar("proposed_bank_account", { length: 160 }),
+    proposedBankCode: varchar("proposed_bank_code", { length: 16 }),
+    proposedMobile: varchar("proposed_mobile", { length: 24 }),
+    proposedMaskedAccount: varchar("proposed_masked_account", { length: 64 }),
+    requestedByUserId: integer("requested_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    requestedByName: varchar("requested_by_name", { length: 120 }).notNull(),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedByName: varchar("decided_by_name", { length: 120 }),
+    decisionNote: varchar("decision_note", { length: 500 }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("employee_payout_change_requests_open_employee_unique")
+      .on(table.organizationId, table.employeeId)
+      .where(sql`${table.status} = 'pending'`),
+    index("employee_payout_change_requests_org_status_idx").on(table.organizationId, table.status, table.createdAt),
+    index("employee_payout_change_requests_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+    check("employee_payout_change_requests_status_check", sql`${table.status} in ('pending','approved','rejected','cancelled')`),
+  ],
+);
+
 export const automationRules = pgTable(
   "automation_rules",
   {
