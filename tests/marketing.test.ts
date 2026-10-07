@@ -63,30 +63,46 @@ test("public SEO origin is payrollsoftware.ph and is independent of app deployme
 });
 
 
-test("the software homepage uses the real Linaw workspace preview", () => {
+test("marketing previews reuse the current app's role and navigation contracts", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
+  const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
-  assert.ok(home.includes("<Demo />"), "redesigned homepage must mount the product demo");
-  assert.ok(demo.includes('id="demo"'), "homepage must expose a stable live-demo anchor");
-  assert.ok(demo.includes('from "@/components/marketing/workspace-preview"'), "homepage demo must use the shared Linaw workspace preview");
-  assert.ok(demo.includes('<WorkspacePreview mode="interactive" />'), "homepage demo must expose the interactive real-system preview");
-  assert.ok(demo.includes("Open role-based sandbox"), "homepage demo must hand off to the real role-based sandbox");
+  const preview = read("src/components/marketing/claude-home/components/AppProductPreview.tsx");
+  const roleDashboard = read("src/components/workspace/clean-role-dashboard.tsx");
+
+  assert.ok(home.includes("<Demo />"), "homepage must include product walkthrough");
+  assert.ok(hero.includes('<AppProductPreview role="payroll" compact />'), "hero must use the same dashboard component");
+  assert.ok(demo.includes("<AppProductPreview role={role} />"), "role previews must share the exact marketing dashboard chrome");
+  assert.ok(demo.includes('id="demo"'), "homepage must keep its anchor");
+  assert.ok(demo.includes("DEMO_ROLES"), "demo must derive roles from the live sandbox");
+  assert.ok(preview.includes("workspacePrimaryPagesForRole"), "preview navigation must derive from current application roles");
+  assert.ok(preview.includes("LinawMark"), "marketing preview must use the current app brand mark");
+  assert.ok(preview.includes("Illustrative · sample data"), "sample values must be visibly labelled");
+  assert.ok(preview.includes("Inputs") && preview.includes("Calculate") && preview.includes("Review") && preview.includes("Submit"), "preview must show the actual Payroll Officer steps");
+  assert.ok(roleDashboard.includes("Let’s make payday a good day."), "real role dashboard reference must exist");
+  assert.ok(demo.includes('href="/demo"'), "real sandbox remains linked");
 });
 
-test("the homepage leads with the approved Linaw payroll hero", () => {
+test("homepage presents the connected platform and qualifies sample claims", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
+  const app = read("src/components/marketing/claude-home/App.tsx");
+  const sections = read("src/components/marketing/claude-home/components/PlatformSections.tsx");
   const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
-  const product = read("src/components/marketing/claude-home/components/Product.tsx");
-
-  assert.ok(hero.includes("Philippine payroll you can verify before you pay."), "hero must lead with Philippine payroll and the review-before-release value proposition");
-  assert.ok(hero.includes("Try Live Demo"), "hero must expose the primary live-demo CTA");
-  assert.ok(hero.includes("See Pricing"), "hero must expose the pricing CTA");
-  assert.ok(hero.includes("SSS, PhilHealth, Pag-IBIG & TRAIN calculations"), "hero must show the statutory calculation proof point");
-  assert.ok(hero.includes("Government worksheets clearly labelled"), "hero must avoid implying certified filing");
-  assert.ok(hero.includes("Maker-checker release controls"), "hero must show the release-control proof point");
-  assert.ok(!hero.includes("Let’s make payroll easier"), "hero must stay mascot-free");
-  assert.ok(product.includes("See how a payroll calculation explains itself."), "statutory explanation must stay visible below the fold");
-  assert.ok(trust.includes("Controls that return 403, not a tooltip."), "security controls must remain a primary product story");
+  const preview = read("src/components/marketing/claude-home/components/AppProductPreview.tsx");
+  assert.ok(hero.includes("People, payroll and compliance"), "hero must communicate the connected product");
+  assert.ok(hero.includes("made clear."), "hero must keep the approved copy");
+  assert.ok(hero.includes('href="/book-demo"'), "request demo must remain visible");
+  assert.ok(hero.includes("Review before release"), "hero must make release decisions clear");
+  assert.ok(hero.includes("not a live payroll result"), "hero must qualify conceptual content");
+  assert.ok(preview.includes("not a live payroll or filing result"), "preview must not imply government acceptance");
+  for (const component of ["SolutionsGrid", "PayrollShowcase", "WorkforceShowcase", "HcmShowcase", "OutsourcingShowcase", "PhilippineCompliance"]) {
+    assert.ok(app.includes("<"+component+" />"), "homepage must render "+component);
+  }
+  assert.ok(sections.includes('href="/workforce-management"') || sections.includes('href:"/workforce-management"'), "homepage must link WFM");
+  assert.ok(sections.includes('href:"/hcm"'), "homepage must link HCM");
+  assert.ok(trust.includes("Access controls worth being clear about."), "security explanation must remain visible");
+  assert.ok(!app.includes("<TrustStrip />"), "no decorative pseudo-metrics");
+  assert.ok(!hero.includes("Trusted by"), "no invented customer endorsements");
 });
 
 test("a dedicated role-based demo page exists", () => {
@@ -111,7 +127,7 @@ test("payroll outsourcing has its own service route and conversion path", () => 
 
   const page = read("src/app/payroll-outsourcing/page.tsx");
   assert.ok(page.includes("Payroll Outsourcing Philippines"), "service metadata must target outsourcing intent");
-  assert.ok(page.includes("Get a payroll quote"), "service page must use a quote CTA");
+  assert.ok(read("src/components/marketing/solution-pages.tsx").includes("Get a payroll quote"), "service page must use a quote CTA");
   assert.ok(!page.includes("PricingTable"), "outsourcing page must not reuse product pricing");
 });
 
@@ -268,15 +284,18 @@ test("homepage Leave and Migration modules perform local interactive workflows",
 });
 
 
-test("homepage hero stays simple while the deeper demo owns the real workspace preview", () => {
+test("hero and demo mirror the current six-role app without embedding a second app", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
-  assert.ok(!hero.includes("WorkspacePreview"), "homepage hero must not embed the product workspace");
-  assert.ok(hero.includes("Can I safely release this payroll?"), "homepage hero must explain release readiness");
-  assert.ok(hero.includes("Release stays locked until blockers are cleared."), "homepage hero must show the control model");
-  assert.ok(demo.includes("WorkspacePreview"), "homepage demo must render the shared workspace preview");
-  assert.ok(demo.includes('mode="interactive"'), "homepage demo must retain the interactive real-system preview");
-  assert.ok(demo.includes("See how payroll moves from"), "homepage demo must frame the product around the payroll workflow");
+  const preview = read("src/components/marketing/claude-home/components/AppProductPreview.tsx");
+  assert.ok(hero.includes("AppProductPreview"), "hero must use role-based preview");
+  assert.ok(demo.includes("AppProductPreview"), "demo must share preview");
+  assert.ok(!hero.includes("WorkspacePreview"), "hero must not embed the legacy simulated app");
+  assert.ok(!demo.includes("WorkspacePreview"), "marketing demo must not reintroduce a disconnected second application");
+  assert.ok(demo.includes("DEMO_ROLES"), "six roles must come from real sandbox contract");
+  assert.ok(demo.includes('role="tablist"'), "tabs are keyboard navigable");
+  assert.ok(demo.includes("ArrowRight") && demo.includes("ArrowLeft"), "keyboard arrow navigation must work");
+  assert.ok(preview.includes("Payroll Officer") || preview.includes('role === "payroll"'), "payroll view must match the app");
 });
 
 test("pricing explains who each plan is for instead of dumping internal module names", () => {
@@ -361,14 +380,14 @@ test("homepage hero stays focused without a mascot or embedded app demo", () => 
   assert.ok(!hero.includes("PayrollOwlArt"), "homepage hero must not render an owl mascot");
   assert.ok(!hero.includes("payroll-hero-speech"), "homepage hero must not render mascot speech");
   assert.ok(!hero.includes("WorkspacePreview"), "homepage hero must not embed a miniature app");
-  assert.ok(hero.includes("payroll-hero-control-card"), "homepage hero must use the release-readiness proof card");
+  assert.ok(hero.includes("AppProductPreview"), "homepage hero must share the actual app-inspired preview");
 });
 
 
 test("Linaw public navigation uses one product brand without a mascot mark", () => {
   const nav = read("src/components/marketing/claude-home/components/Navbar.tsx");
   assert.ok(nav.includes(">linaw</span>"), "public navigation must use Linaw branding");
-  assert.ok(nav.includes("ShieldCheck"), "public navigation should use the neutral product mark");
+  assert.ok(nav.includes("LinawMark"), "public navigation must reuse the authentic blue and teal logo");
   assert.ok(!nav.includes("PayrollOwl"), "public navigation must not use mascot branding");
   assert.ok(!nav.includes("payroll-owl"), "public navigation must not import mascot assets");
 });
