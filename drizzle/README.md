@@ -112,4 +112,6 @@ the first one, so it closes itself.
 
 - `0077_performance_calibration.sql` adds one governed calibration session per performance cycle, score-change rationale evidence, and finalized calibrated ratings before cycle closure.
 
-- `0078_performance_continuity.sql` adds manager 1:1 records, append-only performance feedback, and durable review reminder tasks/events without changing compensation or payroll.
+- `0078_slack_connector.sql` adds encrypted provider-specific Slack connectors plus idempotent Automation Studio delivery evidence.
+
+- `0079_performance_continuity.sql` adds manager 1:1 records, append-only performance feedback, and durable review reminder tasks/events without changing compensation or payroll.
