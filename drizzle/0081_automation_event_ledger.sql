@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS "automation_event_log" (
   "employee_id" integer REFERENCES "employees"("id") ON DELETE set null,
   "trigger" varchar(64) NOT NULL,
   "event_key" varchar(240) NOT NULL,
+  "source" varchar(32) NOT NULL DEFAULT 'authoritative',
   "context" jsonb NOT NULL DEFAULT '{}'::jsonb,
   "occurred_at" timestamptz NOT NULL DEFAULT now()
 );
@@ -28,6 +29,7 @@ INSERT INTO "automation_event_log" (
   "employee_id",
   "trigger",
   "event_key",
+  "source",
   "context",
   "occurred_at"
 )
@@ -36,6 +38,7 @@ SELECT DISTINCT ON ("organization_id", "trigger", "event_key")
   "employee_id",
   "trigger",
   "event_key",
+  'execution_backfill',
   "context",
   "created_at"
 FROM "automation_executions"
