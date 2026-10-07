@@ -6,7 +6,7 @@ import { generateBankFile } from "@/lib/exporters";
 
 export type BankFileValidationRow = typeof bankFileValidations.$inferSelect;
 
-export function bankFileSha256(body: string) {
+export function bankFileSha256(body: string | Uint8Array) {
   return createHash("sha256").update(body).digest("hex");
 }
 
