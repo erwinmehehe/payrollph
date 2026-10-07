@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarRange, Clock3, RefreshCcw, ShieldAlert } from "lucide-react";
 import type { Notify } from "./types";
+import { AttendanceLockControl } from "./attendance-lock-control";
 import { EmptyState, Metric, Segmented, Spinner, Status } from "./ui";
 
 type ExceptionItem = {
@@ -172,6 +173,13 @@ export function AttendanceExceptionsPanel({
           tone="purple"
         />
       </section>
+
+      <AttendanceLockControl
+        organizationId={organizationId}
+        startDate={startDate}
+        endDate={endDate}
+        notify={notify}
+      />
 
       <article className="card table-card">
         <div className="table-toolbar">
