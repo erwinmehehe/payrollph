@@ -3,13 +3,11 @@
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import Demo from "./components/Demo";
-import { Calculator } from "./components/Product";
 import { PayrollWorkflow, Security } from "./components/Trust";
 import Pricing from "./components/Pricing";
 import { FAQ, Footer } from "./components/Closing";
 import {
-  SolutionsGrid, PayrollShowcase, WorkforceShowcase, HcmShowcase,
-  OutsourcingShowcase, PhilippineCompliance, PlatformFinalCTA,
+  SolutionsGrid, PhilippineCompliance, PlatformFinalCTA,
 } from "./components/PlatformSections";
 
 export type PublicPlan = {
@@ -29,16 +27,11 @@ export default function ClaudeHomepage({ plans }: { plans: PublicPlan[] }) {
       <main id="main">
         <Hero />
         <SolutionsGrid />
-        <PayrollShowcase />
-        <WorkforceShowcase />
-        <HcmShowcase />
-        <OutsourcingShowcase />
-        <PhilippineCompliance />
         <Demo />
+        <PhilippineCompliance />
         <PayrollWorkflow />
         <Security />
         <Pricing plans={plans} />
-        <Calculator />
         <FAQ />
         <PlatformFinalCTA />
       </main>
