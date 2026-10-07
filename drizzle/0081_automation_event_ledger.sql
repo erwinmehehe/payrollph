@@ -18,3 +18,26 @@ CREATE INDEX IF NOT EXISTS "automation_event_log_org_trigger_occurred_idx"
 
 -- The ledger is append-only by application design. It records authoritative
 -- event context whether or not any Automation Studio rule matches.
+
+
+-- Seed the ledger with the event contexts that were already preserved on
+-- historical executions. These rows are necessarily matched-only history;
+-- new events are captured before rule matching by the runtime.
+INSERT INTO "automation_event_log" (
+  "organization_id",
+  "employee_id",
+  "trigger",
+  "event_key",
+  "context",
+  "occurred_at"
+)
+SELECT DISTINCT ON ("organization_id", "trigger", "event_key")
+  "organization_id",
+  "employee_id",
+  "trigger",
+  "event_key",
+  "context",
+  "created_at"
+FROM "automation_executions"
+ORDER BY "organization_id", "trigger", "event_key", "created_at" ASC
+ON CONFLICT ("organization_id", "trigger", "event_key") DO NOTHING;
