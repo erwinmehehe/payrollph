@@ -45,7 +45,7 @@ export default function Hero() {
         </div>
         <div className="relative min-w-0 lg:pl-3">
           <div aria-hidden="true" className="absolute -inset-5 rounded-[42px] bg-[#a6caff]/20 blur-3xl" />
-          <div className="relative overflow-hidden rounded-[27px] border border-white bg-white shadow-[0_40px_100px_-40px_rgba(37,75,132,.32),0_5px_30px_-13px_rgba(31,58,89,.17)]">
+          <div data-testid="payroll-hero-preview" className="relative overflow-hidden rounded-[27px] border border-white bg-white shadow-[0_40px_100px_-40px_rgba(37,75,132,.32),0_5px_30px_-13px_rgba(31,58,89,.17)]">
             <div className="flex items-center justify-between border-b border-[#e9edf4] bg-white px-4 py-3 sm:px-5">
               <div className="flex items-center gap-2 text-[12px] font-bold text-[#1a2b47]">
                 <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-[#e9f2ff] text-[#1769ea]"><ShieldCheck size={15} aria-hidden="true" /></span>
