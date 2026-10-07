@@ -1115,6 +1115,8 @@ export async function GET(request: Request) {
 
   const rosterReadiness = buildRosterPublishReadiness({
     coverageRisk,
+    uncoveredRequirements: coverageData.coverage.filter((row) => row.gap > 0).length,
+    uncoveredSlots: coverageData.coverage.reduce((sum, row) => sum + row.gap, 0),
     pendingRecoveryClaims,
     blockingGuardrailIssues: blockingGuardrailIssues.length,
     roleEvidenceIssues: coverageData.roleEvidenceIssues.length,
