@@ -220,3 +220,31 @@ test("gross-to-net identity is verified independently of the peer comparison", (
     assert.ok(evaluateParallelPayrollReconciliation(manifest, root).issues.some((x) => x.includes("Gross-to-net cash identity")));
   });
 });
+
+test("identical balanced journals still fail when both misstate source payroll totals", () => {
+  withFixture((root, manifest) => {
+    for (const source of ["incumbentJournal", "linawJournal"] as const) {
+      mutate(root, manifest, 0, source, (old) => old
+        .replace("PAYROLL_GROSS," + EMPLOYER + ",2026-07,35000.00,0.00",
+          "PAYROLL_GROSS," + EMPLOYER + ",2026-07,35002.00,0.00")
+        .replace("BANK_NET," + EMPLOYER + ",2026-07,0.00,29975.00",
+          "BANK_NET," + EMPLOYER + ",2026-07,0.00,29977.00"));
+    }
+    const report = evaluateParallelPayrollReconciliation(manifest, root);
+    assert.equal(report.status, "reconciliation-blocked");
+    assert.ok(report.issues.some((reason) => reason.includes("GL-to-payroll bridge differs at PAYROLL_GROSS")));
+    assert.ok(report.issues.some((reason) => reason.includes("GL-to-payroll bridge differs at BANK_NET")));
+    assert.ok(!report.issues.some((reason) => reason.includes("GL account mismatch")));
+    assert.ok(!report.issues.some((reason) => reason.includes("do not balance")));
+  });
+});
+
+test("missing source files never expose private filenames in report", () => {
+  withFixture((root, manifest) => {
+    manifest.cycles[0].linawPayroll.filePath = "PRIVATE-NAME-KEEP-SECRET.csv";
+    const report = evaluateParallelPayrollReconciliation(manifest, root);
+    assert.equal(report.status, "reconciliation-blocked");
+    assert.ok(report.issues.some((reason) => reason.includes("Input file missing or unreadable")));
+    assert.ok(!JSON.stringify(report).includes("PRIVATE-NAME-KEEP-SECRET"));
+  });
+});
