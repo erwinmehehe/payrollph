@@ -2903,6 +2903,106 @@ export const performanceCalibrationEntries = pgTable(
   ],
 );
 
+export const performanceOneOnOnes = pgTable(
+  "performance_one_on_ones",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    managerUserId: integer("manager_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    managerEmployeeId: integer("manager_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("scheduled"),
+    agenda: text("agenda"),
+    sharedSummary: text("shared_summary"),
+    privateManagerNotes: text("private_manager_notes"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_one_on_ones_org_employee_idx").on(table.organizationId, table.employeeId, table.scheduledFor),
+    index("performance_one_on_ones_manager_idx").on(table.organizationId, table.managerUserId, table.status, table.scheduledFor),
+    check("performance_one_on_ones_status_check", sql`${table.status} IN ('scheduled','completed','cancelled')`),
+  ],
+);
+
+export const performanceFeedback = pgTable(
+  "performance_feedback",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    goalId: integer("goal_id").references(() => performanceGoals.id, { onDelete: "set null" }),
+    authorUserId: integer("author_user_id").references(() => users.id, { onDelete: "set null" }),
+    authorEmployeeId: integer("author_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    authorName: varchar("author_name", { length: 120 }).notNull(),
+    feedbackType: varchar("feedback_type", { length: 24 }).notNull(),
+    visibility: varchar("visibility", { length: 24 }).notNull().default("employee_shared"),
+    content: text("content").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_feedback_org_employee_idx").on(table.organizationId, table.employeeId, table.occurredAt),
+    index("performance_feedback_org_author_idx").on(table.organizationId, table.authorUserId, table.occurredAt),
+    check("performance_feedback_type_check", sql`${table.feedbackType} IN ('praise','coaching','development','general')`),
+    check("performance_feedback_visibility_check", sql`${table.visibility} IN ('employee_shared','manager_private')`),
+  ],
+);
+
+export const performanceReminderTasks = pgTable(
+  "performance_reminder_tasks",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    cycleId: integer("cycle_id").notNull().references(() => performanceCycles.id, { onDelete: "cascade" }),
+    reviewId: integer("review_id").notNull().references(() => performanceReviews.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    reminderType: varchar("reminder_type", { length: 32 }).notNull(),
+    sourceKey: varchar("source_key", { length: 160 }).notNull(),
+    stage: varchar("stage", { length: 32 }).notNull(),
+    dueDate: date("due_date").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    ownerUserId: integer("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    ownerName: varchar("owner_name", { length: 120 }),
+    notificationEpisode: integer("notification_episode").notNull().default(1),
+    lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_reminder_source_unique").on(table.organizationId, table.sourceKey),
+    index("performance_reminder_status_idx").on(table.organizationId, table.status, table.dueDate, table.stage),
+    index("performance_reminder_owner_idx").on(table.organizationId, table.ownerUserId, table.status),
+    check("performance_reminder_type_check", sql`${table.reminderType} IN ('self_assessment','manager_review')`),
+    check("performance_reminder_status_check", sql`${table.status} IN ('open','resolved')`),
+    check("performance_reminder_episode_check", sql`${table.notificationEpisode} >= 1`),
+  ],
+);
+
+export const performanceReminderEvents = pgTable(
+  "performance_reminder_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    taskId: integer("task_id").notNull().references(() => performanceReminderTasks.id, { onDelete: "cascade" }),
+    reviewId: integer("review_id").notNull().references(() => performanceReviews.id, { onDelete: "cascade" }),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_reminder_events_task_idx").on(table.organizationId, table.taskId, table.createdAt),
+  ],
+);
+
 /* -------------------------------------------------------------------------- */
 /* HCM: job architecture and position planning                                */
 /* -------------------------------------------------------------------------- */
