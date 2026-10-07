@@ -96,10 +96,24 @@ Additional performance follow-through and evidence capabilities built:
 - Evidence packages include section-level SHA-256 hashes and an overall evidence hash
 - Evidence exports exclude manager-private 1:1 notes, manager-private feedback, manager-private action items, compensation/payroll records and sensitive identifiers
 
-Next improvements inside this module:
-- Action-item reminder/escalation automation for overdue 1:1 commitments
-- Employee-specific skill development plans linked to persistent competency gaps
-- Configurable performance evidence retention/sealing policies for completed cycles
+Additional performance follow-through automation built:
+- Configurable 1:1 action-item reminder policy with upcoming, due, overdue and escalated stages
+- Durable action reminder tasks/events with deduplicated delivery, automatic resolution, manager notification for employee-owned commitments and company-wide People-admin escalation
+- Persistent skill-gap development plans can only be opened when stored review evidence shows at least two consecutive completed cycles below the frozen role expectation
+- Development plans include target proficiency, target date, milestones, manager governance, employee visibility and append-only employee progress evidence
+- Employees can progress visible milestones and post development updates without access to manager-only cancel/reopen or evidence-trigger controls
+- Versioned performance-evidence retention policy with configurable retention years, automatic completed-cycle sealing and post-seal amendment rules
+- Completed-cycle seals freeze policy version/snapshot plus a cycle-wide manifest of privacy-scoped employee evidence hashes
+- Scheduled automatic sealing runs through the existing performance scheduler path
+- Seal verification recomputes current evidence and records match/mismatch status
+- Legal holds preserve sealed evidence beyond ordinary retention handling
+- Post-seal corrections are append-only, tamper-evident amendments chained from the original manifest hash
+- Employee evidence exports report whether the selected package still matches its completed-cycle seal
+
+Performance is now sufficiently deep for the current HCM target. Shift the next major build tranche to Workforce Planning 2.0 rather than continuing to expand performance.
+
+Next major HCM module:
+- Workforce Planning 2.0: plan versioning, requested/approved/filled headcount, scenarios, loaded labor-cost forecasts, HR/Finance approvals, approved-position to requisition handoff, variance and attrition/backfill planning
 
 ## Tranche 2 — Job architecture and position control
 
