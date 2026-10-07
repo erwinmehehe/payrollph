@@ -43,8 +43,24 @@ type AutomationRule = {
   conditions: unknown;
   actions: unknown;
   active: boolean;
+  publishedVersion: number;
+  draftVersion: number | null;
+  publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+type AutomationRuleVersion = {
+  id: number;
+  organizationId: number;
+  ruleId: number;
+  version: number;
+  name: string;
+  trigger: string;
+  conditions: unknown;
+  actions: unknown;
+  createdByName: string;
+  createdAt: string;
 };
 
 type Execution = {
@@ -64,6 +80,7 @@ type Execution = {
 
 type StudioData = {
   rules: AutomationRule[];
+  ruleVersions: AutomationRuleVersion[];
   executions: Execution[];
   catalogs: {
     triggers: TriggerCatalog[];
@@ -192,6 +209,7 @@ export function AutomationStudioPanel({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showBuilder, setShowBuilder] = useState(false);
+  const [editingRuleId, setEditingRuleId] = useState<number | null>(null);
   const [name, setName] = useState("");
   const [trigger, setTrigger] = useState("employee.hired");
   const [matchMode, setMatchMode] = useState<"all" | "any">("all");
@@ -225,13 +243,150 @@ export function AutomationStudioPanel({
     () => new Map((data?.rules ?? []).map((rule) => [rule.id, rule])),
     [data],
   );
+  const versionsByRule = useMemo(() => {
+    const map = new Map<number, AutomationRuleVersion[]>();
+    for (const version of data?.ruleVersions ?? []) {
+      map.set(version.ruleId, [...(map.get(version.ruleId) ?? []), version]);
+    }
+    return map;
+  }, [data]);
 
   function resetBuilder() {
+    setEditingRuleId(null);
     setName("");
     setTrigger("employee.hired");
     setMatchMode("all");
     setConditions([]);
     setActions([defaultAction("a" + Date.now())]);
+  }
+
+  function loadDefinitionIntoBuilder(input: {
+    ruleId: number;
+    name: string;
+    trigger: string;
+    conditions: unknown;
+    actions: unknown;
+  }) {
+    setEditingRuleId(input.ruleId);
+    setName(input.name);
+    setTrigger(input.trigger);
+
+    const conditionRow =
+      input.conditions && typeof input.conditions === "object" && !Array.isArray(input.conditions)
+        ? input.conditions as { all?: unknown[]; any?: unknown[] }
+        : {};
+    const sourceConditions = Array.isArray(conditionRow.all) && conditionRow.all.length
+      ? conditionRow.all
+      : Array.isArray(conditionRow.any) ? conditionRow.any : [];
+    setMatchMode(Array.isArray(conditionRow.any) && conditionRow.any.length ? "any" : "all");
+    setConditions(sourceConditions.map((raw, index) => {
+      const row = raw && typeof raw === "object" && !Array.isArray(raw)
+        ? raw as Record<string, unknown>
+        : {};
+      const value = Array.isArray(row.value)
+        ? row.value.join(", ")
+        : typeof row.value === "boolean"
+          ? String(row.value)
+          : row.value == null ? "" : String(row.value);
+      return {
+        id: `c-edit-${index}-${Date.now()}`,
+        field: String(row.field ?? data?.catalogs.conditions[0]?.value ?? "department"),
+        operator: String(row.operator ?? "eq"),
+        value,
+      };
+    }));
+
+    const sourceActions = Array.isArray(input.actions) ? input.actions : [];
+    setActions(sourceActions.length
+      ? sourceActions.map((raw, index) => actionDraftFromStored(raw, `a-edit-${index}-${Date.now()}`))
+      : [defaultAction("a-edit-" + Date.now())]);
+    setShowBuilder(true);
+  }
+
+  function actionDraftFromStored(raw: unknown, id: string): ActionDraft {
+    const base = defaultAction(id);
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return base;
+    const row = raw as Record<string, unknown>;
+    const type = String(row.type ?? "create_task");
+    const next: ActionDraft = {
+      ...base,
+      type,
+      title: String(row.title ?? ""),
+      owner: String(row.owner ?? base.owner),
+      detail: String(row.detail ?? ""),
+      approver: String(row.approver ?? base.approver),
+      priority: String(row.priority ?? base.priority),
+      recipient: String(row.recipient ?? base.recipient),
+      email: String(row.email ?? ""),
+      subject: String(row.subject ?? ""),
+      body: String(row.body ?? ""),
+      permissionSetId: row.permissionSetId == null ? "" : String(row.permissionSetId),
+      planId: row.planId == null ? "" : String(row.planId),
+      monthlyContribution: row.monthlyContribution == null ? "" : String(row.monthlyContribution),
+      amount: row.amount == null ? "" : String(row.amount),
+      reason: String(row.reason ?? ""),
+      waitAmount: row.amount == null || type !== "wait" ? base.waitAmount : String(row.amount),
+      waitUnit: String(row.unit ?? base.waitUnit),
+    };
+
+    if (type === "create_onboarding_checklist") {
+      next.checklist = Array.isArray(row.items)
+        ? row.items.map((item) => (
+            item && typeof item === "object" && !Array.isArray(item)
+              ? String((item as Record<string, unknown>).title ?? "")
+              : ""
+          )).filter(Boolean).join("\n")
+        : "";
+    }
+
+    if (type === "branch") {
+      const conditions =
+        row.conditions && typeof row.conditions === "object" && !Array.isArray(row.conditions)
+          ? row.conditions as { all?: unknown[] }
+          : {};
+      const clause = Array.isArray(conditions.all) && conditions.all[0]
+        && typeof conditions.all[0] === "object" && !Array.isArray(conditions.all[0])
+        ? conditions.all[0] as Record<string, unknown>
+        : {};
+      next.branchField = String(clause.field ?? base.branchField);
+      next.branchOperator = String(clause.operator ?? base.branchOperator);
+      next.branchValue = Array.isArray(clause.value)
+        ? clause.value.join(", ")
+        : clause.value == null ? "" : String(clause.value);
+      const thenRows = Array.isArray(row.then) ? row.then : [];
+      const elseRows = Array.isArray(row.else) ? row.else : [];
+      const thenFirst = thenRows[0] && typeof thenRows[0] === "object" && !Array.isArray(thenRows[0])
+        ? thenRows[0] as Record<string, unknown> : {};
+      const elseFirst = elseRows[0] && typeof elseRows[0] === "object" && !Array.isArray(elseRows[0])
+        ? elseRows[0] as Record<string, unknown> : {};
+      next.branchThenTitle = String(thenFirst.title ?? "");
+      next.branchElseTitle = String(elseFirst.title ?? "");
+      next.owner = String(thenFirst.owner ?? base.owner);
+    }
+
+    return next;
+  }
+
+  function editRule(rule: AutomationRule) {
+    const versions = versionsByRule.get(rule.id) ?? [];
+    const staged = rule.draftVersion
+      ? versions.find((version) => version.version === rule.draftVersion)
+      : null;
+    loadDefinitionIntoBuilder(staged
+      ? {
+          ruleId: rule.id,
+          name: staged.name,
+          trigger: staged.trigger,
+          conditions: staged.conditions,
+          actions: staged.actions,
+        }
+      : {
+          ruleId: rule.id,
+          name: rule.name,
+          trigger: rule.trigger,
+          conditions: rule.conditions,
+          actions: rule.actions,
+        });
   }
 
   function addCondition() {
