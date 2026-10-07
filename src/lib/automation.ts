@@ -1502,6 +1502,7 @@ export async function runAutomationEvent(input: {
     employeeId: input.employeeId ?? null,
     trigger: input.trigger,
     eventKey: input.eventKey.slice(0, 240),
+    source: "authoritative",
     context,
     occurredAt: new Date(),
   }).onConflictDoNothing();
