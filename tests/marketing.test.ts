@@ -83,25 +83,29 @@ test("marketing previews reuse the current app's role and navigation contracts",
   assert.ok(demo.includes('href="/demo"'), "real sandbox remains linked");
 });
 
-test("homepage presents the connected platform and qualifies sample claims", () => {
+test("homepage is payroll-led, product-proven and avoids repetitive feature walls", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
   const app = read("src/components/marketing/claude-home/App.tsx");
   const sections = read("src/components/marketing/claude-home/components/PlatformSections.tsx");
   const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
   const preview = read("src/components/marketing/claude-home/components/AppProductPreview.tsx");
-  assert.ok(hero.includes("People, payroll and compliance"), "hero must communicate the connected product");
-  assert.ok(hero.includes("made clear."), "hero must keep the approved copy");
-  assert.ok(hero.includes('href="/book-demo"'), "request demo must remain visible");
-  assert.ok(hero.includes("Review before release"), "hero must make release decisions clear");
-  assert.ok(hero.includes("not a live payroll result"), "hero must qualify conceptual content");
+
+  assert.ok(hero.includes("Payroll your team can review"), "hero must lead with payroll buyer value");
+  assert.ok(hero.includes("before money moves."), "hero must make release control explicit");
+  assert.ok(hero.includes("Philippine payroll software"), "hero must identify the category immediately");
+  assert.ok(hero.includes('href="/book-demo"'), "request-demo CTA must remain visible");
+  assert.ok(hero.includes("Not a live payroll result."), "hero must qualify illustrative content");
   assert.ok(preview.includes("not a live payroll or filing result"), "preview must not imply government acceptance");
-  for (const component of ["SolutionsGrid", "PayrollShowcase", "WorkforceShowcase", "HcmShowcase", "OutsourcingShowcase", "PhilippineCompliance"]) {
-    assert.ok(app.includes("<"+component+" />"), "homepage must render "+component);
+
+  for (const component of ["SolutionsGrid", "Demo", "PhilippineCompliance", "PayrollWorkflow", "Security", "Pricing", "FAQ", "PlatformFinalCTA"]) {
+    assert.ok(app.includes("<"+component), "homepage must keep "+component);
   }
-  assert.ok(sections.includes('href="/workforce-management"') || sections.includes('href:"/workforce-management"'), "homepage must link WFM");
-  assert.ok(sections.includes('href:"/hcm"'), "homepage must link HCM");
-  assert.ok(trust.includes("Access controls worth being clear about."), "security explanation must remain visible");
-  assert.ok(!app.includes("<TrustStrip />"), "no decorative pseudo-metrics");
+  for (const removed of ["PayrollShowcase", "WorkforceShowcase", "HcmShowcase", "OutsourcingShowcase", "<Calculator />"]) {
+    assert.ok(!app.includes(removed), "homepage must not repeat the product story with "+removed);
+  }
+  assert.ok(sections.includes('href:"/workforce-management"'), "platform overview must link WFM");
+  assert.ok(sections.includes('href:"/hcm"'), "platform overview must link HCM");
+  assert.ok(trust.includes("Access controls built around payroll boundaries."), "security explanation must remain buyer-readable");
   assert.ok(!hero.includes("Trusted by"), "no invented customer endorsements");
 });
 
@@ -140,27 +144,31 @@ test("homepage simulation uses the real workspace navigation and no dead client 
   assert.ok(!preview.includes("client.id !== 1"), "homepage preview must not branch into disconnected client datasets");
 });
 
-test("homepage buyer flow explains payroll handoffs before secondary tools", () => {
+test("homepage buyer flow stays concise and ordered around the purchasing decision", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
-  const product = read("src/components/marketing/claude-home/components/Product.tsx");
   const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
 
-  assert.ok(!home.includes("<TrustStrip />"), "homepage must not render the animated output marquee");
-  assert.ok(!product.includes("export function TrustStrip"), "obsolete output marquee component must stay removed");
-  assert.ok(home.includes("<PayrollWorkflow />"), "homepage must explain the payroll handoff");
+  const order = [
+    "<Hero />",
+    "<SolutionsGrid />",
+    "<Demo />",
+    "<PhilippineCompliance />",
+    "<PayrollWorkflow />",
+    "<Security />",
+    "<Pricing plans={plans} />",
+    "<FAQ />",
+    "<PlatformFinalCTA />",
+  ].map(token => [token, home.indexOf(token)]);
+
+  for (const [token,index] of order) assert.ok(index >= 0, "missing "+token);
+  for (let i=1;i<order.length;i++) assert.ok(order[i][1] > order[i-1][1], order[i][0]+" must follow "+order[i-1][0]);
+
+  assert.ok(!home.includes("<Calculator />"), "salary calculator belongs in Resources, not the homepage conversion flow");
   assert.ok(!home.includes("<Audiences />"), "generic audience cards must not interrupt the payroll story");
-
-  const workflowIndex = home.indexOf("<PayrollWorkflow />");
-  const pricingIndex = home.indexOf("<Pricing plans={plans} />");
-  const calculatorIndex = home.indexOf("<Calculator />");
-  assert.ok(workflowIndex > home.indexOf("<Demo />"), "workflow must follow the real product demo");
-  assert.ok(calculatorIndex > pricingIndex, "salary calculator must sit below pricing instead of interrupting the buyer journey");
-
   for (const role of ["HR Admin", "Payroll Officer", "Checker", "Owner", "Employee"]) {
-    assert.ok(trust.includes(role), `workflow must include ${role}`);
+    assert.ok(trust.includes(role), "workflow must include "+role);
   }
-  assert.ok(trust.includes("Who owns the next decision before money moves?"), "workflow must frame the next payroll decision");
-  assert.ok(!trust.includes("Solo is free"), "homepage must not revive stale self-serve Solo claims");
+  assert.ok(trust.includes("Who owns the next decision before money moves?"), "workflow must frame accountability");
 });
 
 test("dedicated pricing page uses live catalog values and explains plan fit", () => {
@@ -187,13 +195,15 @@ test("homepage pricing keeps persisted plan values inside the redesigned cards",
   assert.ok(!pricing.includes("modules.map"), "redesigned pricing must explain buyer outcomes instead of dumping module names");
 });
 
-test("role demo launches the same product instead of rendering a second fake app", () => {
+test("role demo previews the current interface then hands off to the working sandbox", () => {
   const demo = read("src/components/marketing/demo-role-picker.tsx");
-  assert.ok(demo.includes("Sandbox task"), "role page must explain the action-oriented sandbox handoff");
+  assert.ok(demo.includes("Choose a seat, then do the work."), "role page must explain the action-oriented handoff");
+  assert.ok(demo.includes("AppProductPreview"), "role page must share the current app-inspired interface");
+  assert.ok(demo.includes("openDemo(selectedRole)"), "role page must launch the real role switch flow");
+  assert.ok(demo.includes("Open {selected.label} workspace"), "launch CTA must identify the chosen role");
   assert.ok(!demo.includes("previewSidebar"), "role page must not maintain a second fake app navigation");
   assert.ok(!demo.includes("PreviewRow"), "role page must not maintain a separate fake payroll table");
 });
-
 
 test("role sandbox uses six real identities and provisions checker and bookkeeper handoffs", () => {
   const route = read("src/app/api/auth/demo-switch/route.ts");
