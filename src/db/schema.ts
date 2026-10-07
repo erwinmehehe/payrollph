@@ -1999,6 +1999,15 @@ export const benefitPlans = pgTable("benefit_plans", {
   // Voluntary programmes capped by law (e.g. Pag-IBIG MP2 accrual ceiling).
   cap: numeric("cap", { precision: 12, scale: 2 }),
   provider: varchar("provider", { length: 80 }),
+  planCode: varchar("plan_code", { length: 48 }),
+  contractNumber: varchar("contract_number", { length: 80 }),
+  contractStart: date("contract_start"),
+  contractEnd: date("contract_end"),
+  annualBenefitLimit: numeric("annual_benefit_limit", { precision: 12, scale: 2 }),
+  dependentShare: numeric("dependent_share", { precision: 10, scale: 2 }).notNull().default("0"),
+  employerPaidDependents: integer("employer_paid_dependents").notNull().default(0),
+  waitingPeriodDays: integer("waiting_period_days").notNull().default(0),
+  coverageDetails: jsonb("coverage_details").notNull().default({}),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -2011,11 +2020,49 @@ export const benefitEnrollments = pgTable("benefit_enrollments", {
   // Voluntary savers can over- or under-pay the default within the plan cap.
   monthlyContribution: numeric("monthly_contribution", { precision: 10, scale: 2 }).notNull().default("0"),
   status: varchar("status", { length: 24 }).notNull().default("active"),
+  providerStatus: varchar("provider_status", { length: 32 }).notNull().default("not_sent"),
+  providerMemberId: varchar("provider_member_id", { length: 80 }),
   startedOn: date("started_on").notNull(),
+  effectiveOn: date("effective_on"),
   endedOn: date("ended_on"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("benefit_enrollment_unique").on(table.employeeId, table.planId, table.startedOn),
+]);
+
+export const benefitDependents = pgTable("benefit_dependents", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  enrollmentId: integer("enrollment_id").notNull().references(() => benefitEnrollments.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 160 }).notNull(),
+  relationship: varchar("relationship", { length: 32 }).notNull(),
+  birthDate: date("birth_date").notNull(),
+  sex: varchar("sex", { length: 24 }),
+  status: varchar("status", { length: 32 }).notNull().default("pending"),
+  monthlyContribution: numeric("monthly_contribution", { precision: 10, scale: 2 }).notNull().default("0"),
+  providerMemberId: varchar("provider_member_id", { length: 80 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("benefit_dependents_enrollment_identity_unique").on(table.enrollmentId, table.name, table.birthDate),
+  index("benefit_dependents_org_employee_idx").on(table.organizationId, table.employeeId, table.status),
+]);
+
+export const benefitEnrollmentEvents = pgTable("benefit_enrollment_events", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  enrollmentId: integer("enrollment_id").notNull().references(() => benefitEnrollments.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  eventType: varchar("event_type", { length: 48 }).notNull(),
+  status: varchar("status", { length: 32 }),
+  note: text("note"),
+  metadata: jsonb("metadata").notNull().default({}),
+  actor: varchar("actor", { length: 120 }).notNull().default("System"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("benefit_enrollment_events_enrollment_idx").on(table.organizationId, table.enrollmentId, table.createdAt),
+  index("benefit_enrollment_events_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
 ]);
 
 export const auditEvents = pgTable("audit_events", {
