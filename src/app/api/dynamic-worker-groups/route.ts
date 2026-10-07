@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { dynamicWorkerGroups } from "@/db/schema";
+import { automationRules, dynamicWorkerGroups } from "@/db/schema";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
@@ -28,6 +28,57 @@ function uniqueConstraintViolation(error: unknown) {
     && "code" in error
     && (error as { code?: string }).code === "23505",
   );
+}
+
+function conditionsReferenceDynamicGroup(value: unknown, code: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+  for (const bucket of ["all", "any"] as const) {
+    const clauses = Array.isArray(row[bucket]) ? row[bucket] as Array<Record<string, unknown>> : [];
+    for (const clause of clauses) {
+      if (String(clause.field ?? "") !== "dynamicGroupCodes") continue;
+      const operator = String(clause.operator ?? "");
+      const values = operator === "in"
+        ? (Array.isArray(clause.value) ? clause.value : [])
+        : [clause.value];
+      if (values.some((value) => String(value ?? "") === code)) return true;
+    }
+  }
+  return false;
+}
+
+function workflowStepsReferenceDynamicGroup(value: unknown, code: string): boolean {
+  if (!Array.isArray(value)) return false;
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const step = raw as Record<string, unknown>;
+    if (String(step.type ?? "") !== "branch") continue;
+    if (conditionsReferenceDynamicGroup(step.conditions, code)) return true;
+    if (workflowStepsReferenceDynamicGroup(step.then, code)) return true;
+    if (workflowStepsReferenceDynamicGroup(step.else, code)) return true;
+  }
+  return false;
+}
+
+function ruleReferencesDynamicGroup(
+  rule: { conditions: unknown; actions: unknown },
+  code: string,
+) {
+  return conditionsReferenceDynamicGroup(rule.conditions, code)
+    || workflowStepsReferenceDynamicGroup(rule.actions, code);
+}
+
+async function dynamicGroupDependencies(organizationId: number, code: string) {
+  const rules = await db.select({
+    id: automationRules.id,
+    name: automationRules.name,
+    active: automationRules.active,
+    conditions: automationRules.conditions,
+    actions: automationRules.actions,
+  }).from(automationRules).where(eq(automationRules.organizationId, organizationId));
+  return rules
+    .filter((rule) => ruleReferencesDynamicGroup(rule, code))
+    .map((rule) => ({ id: rule.id, name: rule.name, active: rule.active }));
 }
 
 async function assertGroupAdmin(userId: number, organizationId: number) {
@@ -92,8 +143,21 @@ export async function GET(request: Request) {
   }
 
   const groups = await listDynamicWorkerGroups(organizationId);
+  const dependencyPairs = await Promise.all(groups.map(async (group) => ({
+    groupId: group.id,
+    dependencies: await dynamicGroupDependencies(organizationId, group.code),
+  })));
+  const dependenciesByGroup = new Map(dependencyPairs.map((row) => [row.groupId, row.dependencies]));
   return Response.json({
-    groups,
+    groups: groups.map((group) => {
+      const dependencies = dependenciesByGroup.get(group.id) ?? [];
+      return {
+        ...group,
+        automationDependencyCount: dependencies.length,
+        activeAutomationDependencyCount: dependencies.filter((dependency) => dependency.active).length,
+        automationDependencies: dependencies,
+      };
+    }),
     catalogs: {
       fields: DYNAMIC_WORKER_GROUP_FIELDS,
       operators: DYNAMIC_WORKER_GROUP_OPERATORS,
@@ -155,6 +219,18 @@ export async function POST(request: Request) {
           .limit(1);
         if (!existing || existing.organizationId !== organizationId) {
           return Response.json({ error: "Dynamic group not found." }, { status: 404 });
+        }
+
+        const definitionChanged = JSON.stringify(existing.conditions) !== JSON.stringify(conditions);
+        if (definitionChanged) {
+          const dependencies = await dynamicGroupDependencies(organizationId, existing.code);
+          const activeDependencies = dependencies.filter((dependency) => dependency.active);
+          if (activeDependencies.length > 0) {
+            return Response.json({
+              error: "This live Dynamic Group is used by active Automation Studio workflows. Disable those workflows before changing group membership logic.",
+              dependencies: activeDependencies,
+            }, { status: 409 });
+          }
         }
 
         const [group] = await db.update(dynamicWorkerGroups).set({
@@ -226,6 +302,17 @@ export async function POST(request: Request) {
       .limit(1);
     if (!existing || existing.organizationId !== organizationId) {
       return Response.json({ error: "Dynamic group not found." }, { status: 404 });
+    }
+
+    if (!active) {
+      const dependencies = await dynamicGroupDependencies(organizationId, existing.code);
+      const activeDependencies = dependencies.filter((dependency) => dependency.active);
+      if (activeDependencies.length > 0) {
+        return Response.json({
+          error: "Disable dependent Automation Studio workflows before disabling this Dynamic Group.",
+          dependencies: activeDependencies,
+        }, { status: 409 });
+      }
     }
 
     const [group] = await db.update(dynamicWorkerGroups).set({
