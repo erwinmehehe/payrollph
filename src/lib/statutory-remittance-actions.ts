@@ -147,6 +147,13 @@ export async function syncStatutoryRemittanceActions(
           eq(complianceActionTasks.organizationId, organizationId),
           ne(complianceActionTasks.status, "resolved"),
         ));
+        if (severityChanged && isRemittanceDueAutomationAlert(alert)) {
+          automationCandidates.push({
+            taskId: current.id,
+            escalationEpisode: current.escalationEpisode,
+            alert,
+          });
+        }
       }
     }
 
@@ -174,7 +181,7 @@ export async function syncStatutoryRemittanceActions(
       automation.push(...await runAutomationEventSafely({
         organizationId,
         trigger: "government.remittance_due",
-        eventKey: `government-remittance-due:${candidate.taskId}:${candidate.escalationEpisode}`,
+        eventKey: `government-remittance-due:${candidate.taskId}:${candidate.escalationEpisode}:${candidate.alert.tone}`,
         context: {
           complianceActionTaskId: candidate.taskId,
           statutoryAgency: candidate.alert.agency,
@@ -302,6 +309,10 @@ export async function runScheduledStatutoryRemittanceSync(options?: {
     0,
   );
   const activeAlerts = results.reduce((sum, result) => sum + result.activeAlerts, 0);
+  const automationEvents = results.reduce(
+    (sum, result) => sum + ("automationEvents" in result ? Number(result.automationEvents ?? 0) : 0),
+    0,
+  );
   const failures = results.filter((result) => "error" in result && Boolean(result.error)).length;
   const escalationsQueued = results.reduce((sum, result) => sum + ("escalationQueued" in result ? Number(result.escalationQueued ?? 0) : 0), 0);
   const escalationFailures = results.filter((result) => "escalationError" in result && Boolean(result.escalationError)).length;
@@ -310,6 +321,7 @@ export async function runScheduledStatutoryRemittanceSync(options?: {
     organizations: results.length,
     changed,
     activeAlerts,
+    automationEvents,
     failures,
     escalationsQueued,
     escalationFailures,
