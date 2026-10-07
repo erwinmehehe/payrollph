@@ -276,6 +276,7 @@ type PayrollAdjustmentApprovalAction = {
   amount: number;
   reason: string;
   approver?: string;
+  approvalChainCode?: string;
 };
 
 type WaitAction = {
@@ -603,6 +604,7 @@ function normalizeAutomationSteps(
         amount,
         reason: reason.slice(0, 240),
         approver: String(action.approver ?? "Payroll").trim().slice(0, 120) || "Payroll",
+        approvalChainCode: String(action.approvalChainCode ?? "").trim().toLowerCase().slice(0, 64) || undefined,
       });
       continue;
     }
@@ -1179,18 +1181,27 @@ async function executeAction(input: {
 
   if (action.type === "request_payroll_adjustment") {
     const employeeSuffix = input.employeeId ? ` · employee #${input.employeeId}` : "";
-    const [task] = await db.insert(approvalTasks).values({
+    const routed = await createApprovalFromConfiguredChain({
       organizationId: input.organizationId,
+      chainCode: action.approvalChainCode,
+      sourceType: "automation_payroll_adjustment",
+      sourceKey: `${input.executionId}:${input.actionIndex}`,
       title: "Review automation-requested payroll adjustment",
       detail: `${action.reason} · PHP ${action.amount.toFixed(2)}${employeeSuffix}`.slice(0, 240),
-      approver: resolveApprover(action.approver ?? "Payroll", input.context),
+      fallbackApprover: resolveApprover(action.approver ?? "Payroll", input.context),
       dueLabel: "Approval required before payroll mutation",
       priority: "High",
-    }).returning();
+      amount: Math.abs(action.amount),
+      amountCurrency: "PHP",
+      amountBasis: "absolute_requested_adjustment",
+    });
     return {
       type: action.type,
-      approvalTaskId: task.id,
+      approvalTaskId: routed.task.id,
+      approvalChainInstanceId: routed.chainInstance?.id ?? null,
+      approvalChainCode: routed.chainInstance?.policyCode ?? null,
       requestedAmount: action.amount,
+      approvalAmount: Math.abs(action.amount),
       appliedAutomatically: false,
     };
   }

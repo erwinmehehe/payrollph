@@ -1151,6 +1151,10 @@ export const approvalChainInstances = pgTable(
     status: varchar("status", { length: 24 }).notNull().default("pending"),
     currentStepIndex: integer("current_step_index").notNull().default(0),
     stepsSnapshot: jsonb("steps_snapshot").notNull(),
+    amount: numeric("amount", { precision: 14, scale: 2 }),
+    amountCurrency: varchar("amount_currency", { length: 3 }),
+    amountBasis: varchar("amount_basis", { length: 64 }),
+    routingSnapshot: jsonb("routing_snapshot").notNull().default({}),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
@@ -1158,6 +1162,7 @@ export const approvalChainInstances = pgTable(
     uniqueIndex("approval_chain_instances_source_unique").on(table.organizationId, table.sourceType, table.sourceKey),
     index("approval_chain_instances_status_idx").on(table.organizationId, table.status, table.createdAt),
     check("approval_chain_instances_status_check", sql`${table.status} in ('pending','approved','declined','cancelled')`),
+    check("approval_chain_instances_amount_nonnegative_check", sql`${table.amount} is null or ${table.amount} >= 0`),
   ],
 );
 

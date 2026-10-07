@@ -2759,8 +2759,14 @@ CREATE TABLE IF NOT EXISTS "approval_chain_instances" (
     CHECK ("status" IN ('pending','approved','declined','cancelled')),
   "current_step_index" integer NOT NULL DEFAULT 0,
   "steps_snapshot" jsonb NOT NULL,
+  "amount" numeric(14,2),
+  "amount_currency" varchar(3),
+  "amount_basis" varchar(64),
+  "routing_snapshot" jsonb NOT NULL DEFAULT '{}'::jsonb,
   "created_at" timestamptz NOT NULL DEFAULT now(),
-  "completed_at" timestamptz
+  "completed_at" timestamptz,
+  CONSTRAINT "approval_chain_instances_amount_nonnegative_check"
+    CHECK ("amount" IS NULL OR "amount" >= 0)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "approval_chain_instances_source_unique"
