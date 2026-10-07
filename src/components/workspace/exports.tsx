@@ -79,6 +79,24 @@ export function ExportsView({
       : ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "")
     : ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "");
 
+  const expectedPayoutCents = Math.round(Number(run?.netPay ?? 0) * 100);
+  const payoutTransfers = payoutState?.reconciliation.transfers ?? [];
+  const settledPayoutCents = payoutTransfers
+    .filter((transfer) => transfer.status === "succeeded")
+    .reduce((sum, transfer) => sum + transfer.amountCents, 0);
+  const failedPayoutCents = payoutTransfers
+    .filter((transfer) => transfer.status === "failed")
+    .reduce((sum, transfer) => sum + transfer.amountCents, 0);
+  const pendingKnownPayoutCents = payoutTransfers
+    .filter((transfer) => transfer.status === "pending" || transfer.status === "unknown")
+    .reduce((sum, transfer) => sum + transfer.amountCents, 0);
+  const unsettledPayoutCents = Math.max(0, expectedPayoutCents - settledPayoutCents);
+  const settledVarianceCents =
+    payoutState?.reconciliation.status === "settled"
+      ? expectedPayoutCents - settledPayoutCents
+      : null;
+  const employeeByNo = new Map(data.employees.map((employee) => [employee.employeeNo, employee]));
+
   useEffect(() => {
     if (!treasuryStatusEligible) {
       setTreasuryStatus({ enabled: false, assigned: false });
@@ -444,6 +462,92 @@ export function ExportsView({
                     </div>
                   </div>
                 </div>
+
+                <section data-payout-control-center style={{ marginTop: 18 }}>
+                  <div className="card-kicker">PAYOUT CONTROL CENTER</div>
+                  <div className="run-stats" style={{ marginTop: 8 }}>
+                    <div>
+                      <span>Released net pay</span>
+                      <strong>{money((expectedPayoutCents / 100).toFixed(2))}</strong>
+                    </div>
+                    <div>
+                      <span>Settled</span>
+                      <strong className="green-number">{money((settledPayoutCents / 100).toFixed(2))}</strong>
+                    </div>
+                    <div>
+                      <span>Unsettled</span>
+                      <strong>{money((unsettledPayoutCents / 100).toFixed(2))}</strong>
+                    </div>
+                    <div>
+                      <span>{settledVarianceCents === null ? "Known failed" : "Final variance"}</span>
+                      <strong className={settledVarianceCents === 0 ? "green-number" : undefined}>
+                        {money(((settledVarianceCents ?? failedPayoutCents) / 100).toFixed(2))}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {payoutState.reconciliation.provider === "PayMongo" && (
+                    <div style={{ marginTop: 14 }}>
+                      <div className="notice notice-slate" style={{ marginBottom: 12 }}>
+                        <Banknote size={15} className="i-teal" />
+                        <span>
+                          Provider status: {payoutState.reconciliation.succeeded} settled · {payoutState.reconciliation.pending} pending · {payoutState.reconciliation.failed} failed
+                          {payoutState.reconciliation.unknown ? ` · ${payoutState.reconciliation.unknown} unknown` : ""}.
+                          {pendingKnownPayoutCents > 0 ? ` Known pending/unknown value: ${money((pendingKnownPayoutCents / 100).toFixed(2))}.` : ""}
+                        </span>
+                      </div>
+
+                      {payoutTransfers.length > 0 && (
+                        <div style={{ display: "grid", gap: 8 }} data-payout-transfer-ledger>
+                          {payoutTransfers.map((transfer) => {
+                            const employee = employeeByNo.get(transfer.employeeNo);
+                            const employeeName = employee
+                              ? `${employee.firstName} ${employee.lastName}`
+                              : transfer.employeeNo;
+                            const statusTone =
+                              transfer.status === "succeeded"
+                                ? "Completed"
+                                : transfer.status === "failed"
+                                  ? "Attention"
+                                  : transfer.status === "pending"
+                                    ? "Pending"
+                                    : "Unknown";
+                            return (
+                              <div
+                                key={transfer.referenceNumber}
+                                className="leave-request"
+                                data-payout-transfer-status={transfer.status}
+                              >
+                                <div style={{ flex: 1, minWidth: 220 }}>
+                                  <strong>{employeeName}</strong>
+                                  <span>
+                                    {transfer.employeeNo}
+                                    {employee?.bankCode ? ` · ${employee.bankCode}` : ""}
+                                    {" · "}
+                                    {transfer.referenceNumber}
+                                  </span>
+                                  {transfer.providerError && (
+                                    <small style={{ display: "block", marginTop: 4 }}>
+                                      {transfer.providerErrorCode ? `${transfer.providerErrorCode}: ` : ""}
+                                      {transfer.providerError}
+                                    </small>
+                                  )}
+                                </div>
+                                <div style={{ minWidth: 120, textAlign: "right" }}>
+                                  <strong>{money((transfer.amountCents / 100).toFixed(2))}</strong>
+                                  {transfer.providerReferenceNumber && (
+                                    <small style={{ display: "block" }}>{transfer.providerReferenceNumber}</small>
+                                  )}
+                                </div>
+                                <Status value={statusTone} />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
 
                 {payoutState.reconciliation.provider !== "PayMongo" && payoutState.payout.method !== "bank-file" && (
                   <div className="payout-confirm" data-paymongo-primary-actions>
