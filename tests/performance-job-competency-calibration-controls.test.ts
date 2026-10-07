@@ -70,6 +70,12 @@ test("manager distribution and large score changes create durable calibration fl
   assert.ok(calibrationRoute.includes("syncLargeScoreChangeFlag"));
 });
 
+test("large-score-change flags reopen when the flagged delta changes after closure", () => {
+  assert.ok(calibrationLib.includes("observedChanged"));
+  assert.ok(calibrationLib.includes('status: observedChanged ? "open" : existing.status'));
+  assert.ok(calibrationLib.includes("resolvedAt: observedChanged ? null"));
+});
+
 test("open outlier flags can block finalization until explicitly accepted or resolved", () => {
   assert.ok(calibrationRoute.includes("Resolve or explicitly accept every calibration outlier flag before finalization."));
   assert.ok(calibrationRoute.includes('eq(performanceCalibrationFlags.status, "open")'));
