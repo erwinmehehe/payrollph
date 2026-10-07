@@ -66,7 +66,7 @@ export function SeoLandingPage({
     : null;
 
   return (
-    <div className="min-h-screen bg-white text-[#0B0D1A]">
+    <div className="linaw-editorial min-h-screen bg-white text-[#0B0D1A]">
       {faqSchema ? (
         <script
           type="application/ld+json"
@@ -75,10 +75,7 @@ export function SeoLandingPage({
       ) : null}
       <SiteNav />
       <main>
-        <section className="relative overflow-hidden border-b border-[#EDEFF7] py-16 sm:py-20">
-          <div aria-hidden className="pointer-events-none absolute inset-0">
-            <div className="absolute -right-40 -top-56 h-[650px] w-[760px] rounded-full bg-gradient-to-br from-[#e5f0ff] via-[#EAF4FF] to-[#e5f8f2] opacity-80 blur-3xl" />
-          </div>
+        <section className="le-hero">
           <div className="relative mx-auto max-w-[1180px] px-5 sm:px-8">
             <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">{eyebrow}</p>
             <h1 className="font-display mt-4 max-w-[900px] text-balance text-[42px] font-semibold leading-[1.04] tracking-[-0.045em] sm:text-[58px]">
@@ -86,9 +83,9 @@ export function SeoLandingPage({
             </h1>
             <p className="mt-6 max-w-[780px] text-[17px] leading-relaxed text-[#5B6080]">{intro}</p>
             {lastReviewed ? <p className="mt-3 text-[11.5px] font-medium text-[#8B90AA]">Last reviewed: {lastReviewed}</p> : null}
-            <div className="mt-8 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="le-proof">
               {proof.map((item) => (
-                <div key={item} className="flex gap-2.5 rounded-2xl border border-[#E6E8F2] bg-white/90 p-4 text-[13px] font-medium leading-relaxed text-[#34394F] shadow-sm">
+                <div key={item} className="le-proof-item">
                   <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#e5f8f2] text-[#00886e]">
                     <Check size={12} strokeWidth={2.8} />
                   </span>
@@ -109,25 +106,8 @@ export function SeoLandingPage({
 
         {simulationArea ? <ProductSimulation area={simulationArea} /> : null}
 
-        <section className="py-16 sm:py-20">
-          <div className="mx-auto grid max-w-[1180px] gap-5 px-5 sm:px-8 lg:grid-cols-2">
-            {sections.map((section) => (
-              <article key={section.title} className="rounded-[24px] border border-[#E5E7F0] bg-[#FAFBFD] p-6 sm:p-7">
-                <h2 className="font-display text-[25px] font-semibold tracking-[-0.03em]">{section.title}</h2>
-                <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">{section.body}</p>
-                {section.bullets ? (
-                  <ul className="mt-5 grid gap-2.5">
-                    {section.bullets.map((item) => (
-                      <li key={item} className="flex gap-2.5 text-[13.5px] leading-relaxed text-[#34394F]">
-                        <Check size={14} className="mt-1 shrink-0 text-[#00886e]" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </article>
-            ))}
-          </div>
+        <section className="le-capabilities">
+          {sections.map((section,index)=><article className="le-capability" key={section.title}><span className="le-number">{String(index+1).padStart(2,"0")}</span><h2>{section.title}</h2><div><p>{section.body}</p>{section.bullets?<ul>{section.bullets.map(item=><li className="flex gap-2" key={item}><Check size={14} className="mt-1 shrink-0 text-[#00886e]"/>{item}</li>)}</ul>:null}</div></article>)}
         </section>
 
         {directoryGroups.length ? (

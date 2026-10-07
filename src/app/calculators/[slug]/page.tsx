@@ -1,3 +1,4 @@
+import { MonthlyTaxPage } from "@/components/marketing/monthly-tax-page";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
@@ -81,6 +82,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function CalculatorPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  if (slug === "withholding-tax") return <MonthlyTaxPage />;
   const typedSlug = slug as CalculatorSlug;
   const item = CALCULATORS[typedSlug];
   if (!item) notFound();

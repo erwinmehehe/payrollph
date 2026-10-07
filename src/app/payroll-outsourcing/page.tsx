@@ -128,7 +128,7 @@ export default function PayrollOutsourcingPage() {
                 Payroll outsourcing Philippines · managed payroll
               </span>
               <h1 className="font-display mt-6 max-w-[720px] text-balance text-[44px] font-semibold leading-[1.02] tracking-[-0.045em] sm:text-[62px]">
-                Payroll outsourcing in the Philippines, without losing control.
+                Payroll Outsourcing Philippines
               </h1>
               <p className="mt-6 max-w-[680px] text-[17px] leading-relaxed text-[#5B6080]">
                 Linaw provides managed payroll processing for Philippine businesses: approved inputs come in, the run is
