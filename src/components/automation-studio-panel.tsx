@@ -36,6 +36,17 @@ type ActionCatalog = {
   category: string;
 };
 
+type WorkflowTemplateCatalog = {
+  id: string;
+  version: number;
+  category: string;
+  name: string;
+  description: string;
+  trigger: string;
+  conditionCount: number;
+  actionCount: number;
+};
+
 type AutomationRule = {
   id: number;
   name: string;
@@ -88,6 +99,7 @@ type StudioData = {
     conditions: ConditionCatalog[];
     operators: string[];
     actions: ActionCatalog[];
+    templates: WorkflowTemplateCatalog[];
   };
   orgUnits: Array<{ id: number; name: string; code: string }>;
   permissionSets: Array<{ id: number; name: string; active: boolean }>;
@@ -423,6 +435,33 @@ export function AutomationStudioPanel({
     }
   }
 
+  async function instantiateTemplate(template: WorkflowTemplateCatalog) {
+    const requestedName = window.prompt("Draft workflow name", template.name)?.trim();
+    if (!requestedName) return;
+
+    setSaving(true);
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action: "create-from-template",
+          templateId: template.id,
+          name: requestedName,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not create workflow draft from template.");
+      await load();
+      setNotice(`${requestedName} created as draft v${payload.draft?.version ?? 1}. Review it before publishing.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not create workflow draft from template.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function publishRule(rule: AutomationRule) {
     try {
       const response = await fetch("/api/automation-studio", {
@@ -549,6 +588,42 @@ export function AutomationStudioPanel({
           </span>
         </div>
       </article>
+
+      <section className="card" style={{ marginTop: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">WORKFLOW TEMPLATES</div>
+            <h2>Start from a governed workflow pattern</h2>
+            <p>Templates are code-reviewed starter definitions. Using one creates an unpublished draft; it cannot execute until an administrator separately publishes it.</p>
+          </div>
+          <Workflow size={17} className="i-purple" />
+        </div>
+        <div className="card-body">
+          <div className="module-grid two">
+            {data.catalogs.templates.map((template) => {
+              const triggerInfo = data.catalogs.triggers.find((item) => item.value === template.trigger);
+              return (
+                <article className="card" key={template.id} style={{ boxShadow: "none", padding: 14 }}>
+                  <div className="card-kicker">{template.category} · TEMPLATE V{template.version}</div>
+                  <h3 style={{ margin: "6px 0" }}>{template.name}</h3>
+                  <p style={{ margin: "0 0 10px" }}>{template.description}</p>
+                  <div className="modal-note" style={{ marginBottom: 10 }}>
+                    WHEN {triggerInfo?.label ?? template.trigger} · {template.conditionCount} IF · {template.actionCount} THEN
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={saving}
+                    onClick={() => void instantiateTemplate(template)}
+                  >
+                    <Plus size={14} /> Create draft
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
       {showBuilder && (
         <form onSubmit={saveRule} className="card" style={{ marginTop: 16 }}>
