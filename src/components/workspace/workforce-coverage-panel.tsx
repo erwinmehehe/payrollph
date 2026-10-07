@@ -366,6 +366,19 @@ export function WorkforceCoveragePanel({
     }, "Open shift created from the coverage gap.");
   }
 
+  async function stageRecoveryPlan() {
+    if (simulation.fills.length === 0) {
+      notify("No simulated recovery assignments are available to stage.", "err");
+      return;
+    }
+    await mutate("stage_recovery_plan", {
+      assignments: simulation.fills.map((fill) => ({
+        requirementId: fill.requirementId,
+        employeeId: fill.employeeId,
+      })),
+    }, "Recovery plan staged as pending claims for governed approval.");
+  }
+
   async function decideClaim(claimId: number, decision: "approved" | "rejected") {
     await mutate("decide_claim", {
       claimId,
@@ -519,10 +532,17 @@ export function WorkforceCoveragePanel({
               <h3>Test recovery before changing the roster.</h3>
               <p>Simulate filling current coverage gaps with the best governed candidates. This preview never writes schedule changes.</p>
             </div>
-            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <input type="checkbox" checked={simulateHighRisk} onChange={(event) => setSimulateHighRisk(event.target.checked)} />
-              Include high workload risk
-            </label>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="checkbox" checked={simulateHighRisk} onChange={(event) => setSimulateHighRisk(event.target.checked)} />
+                Include high workload risk
+              </label>
+              {canManage && (
+                <button className="primary-button brand" onClick={() => void stageRecoveryPlan()} disabled={saving !== null || simulation.fills.length === 0}>
+                  {saving === "stage_recovery_plan" ? <Spinner label="Staging" /> : <UsersRound size={14} />} Stage for approval
+                </button>
+              )}
+            </div>
           </div>
           <section className="stats-grid" style={{ padding: "0 18px 18px" }}>
             <Metric label="Current uncovered" value={String(simulation.baselineGap)} hint="recorded staffing gap" icon={<CircleAlert size={16} />} tone={simulation.baselineGap ? "amber" : "mint"} />
@@ -530,6 +550,13 @@ export function WorkforceCoveragePanel({
             <Metric label="Requirements recovered" value={String(simulation.requirementsRecovered)} hint="fully covered in scenario" icon={<UsersRound size={16} />} tone="blue" />
             <Metric label="Still at risk" value={String(simulation.requirementsStillAtRisk)} hint={simulation.avoidedHighRiskCandidates + " high-risk candidate(s) avoided"} icon={<CircleAlert size={16} />} tone={simulation.requirementsStillAtRisk ? "amber" : "mint"} />
           </section>
+          <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
+            <span>
+              <strong>Governed handoff.</strong> Staging creates pending open-shift claims only. It does not change the roster.
+              Each approval rechecks the live staffing gap, job profile, skills/credentials, worksite eligibility, leave,
+              availability, current schedule, and blocking schedule guardrails before an override can be created.
+            </span>
+          </div>
           {simulation.fills.length > 0 ? (
             <div className="policy-lines" style={{ padding: "0 18px 18px" }}>
               {simulation.fills.slice(0, 12).map((fill) => (
