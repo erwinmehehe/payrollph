@@ -1,0 +1,34 @@
+/* Cinematic interactive homepage product walkthrough */
+.cinematic-demo{position:relative;min-width:0}
+.cinematic-demo-glow{position:absolute;inset:-9% -8% -10%;pointer-events:none;border-radius:48px;background:radial-gradient(circle at 72% 18%,rgb(58 137 255 / 24%),transparent 38%),radial-gradient(circle at 12% 78%,rgb(50 184 141 / 17%),transparent 34%);filter:blur(34px)}
+.cinematic-demo-shell{position:relative;overflow:hidden;border:1px solid rgb(190 207 227 / 82%);border-radius:24px;background:rgb(255 255 255 / 92%);box-shadow:0 38px 90px -48px rgb(18 50 95 / 55%),0 6px 22px -12px rgb(18 50 95 / 20%);backdrop-filter:blur(18px)}
+.cinematic-demo-topbar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:46px;padding:0 14px;border-bottom:1px solid #e6edf5;background:rgb(255 255 255 / 94%)}
+.cinematic-demo-window{display:flex;gap:5px;align-items:center}
+.cinematic-demo-window span{width:7px;height:7px;border-radius:50%;background:#dce4ee}
+.cinematic-demo-window span:nth-child(1){background:#ffb6b6}.cinematic-demo-window span:nth-child(2){background:#ffe09b}.cinematic-demo-window span:nth-child(3){background:#a9e2cb}
+.cinematic-demo-now{display:flex;align-items:center;gap:7px;color:#536b84;font-size:10px;font-weight:700;letter-spacing:.02em}
+.cinematic-demo-live-dot{width:6px;height:6px;border-radius:50%;background:#1da273;box-shadow:0 0 0 4px rgb(29 162 115 / 10%)}
+.cinematic-demo-actions{display:flex;justify-content:flex-end;gap:4px}
+.cinematic-demo-icon-button{display:grid;place-items:center;width:29px;height:29px;border:1px solid #e0e7ef;border-radius:8px;background:#fff;color:#4e657d;transition:background .18s ease,border-color .18s ease,color .18s ease}
+.cinematic-demo-icon-button:hover{background:#edf5ff;border-color:#cbdcf4;color:#0866ed}
+.cinematic-demo-stage{position:relative;min-height:484px;padding:18px 18px 16px;background:linear-gradient(160deg,#eef6ff 0%,#f8fbff 45%,#edf9f4 100%)}
+.cinematic-demo-story{position:absolute;z-index:4;left:28px;top:29px;width:min(315px,45%);padding:15px 16px;border:1px solid rgb(255 255 255 / 75%);border-radius:16px;background:rgb(11 31 58 / 89%);color:#fff;box-shadow:0 18px 45px -26px rgb(11 31 58 / 70%);backdrop-filter:blur(14px)}
+.cinematic-demo-kicker{display:block;margin-bottom:7px;color:#9fc9ff;font-size:9px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+.cinematic-demo-story strong{display:block;font-size:17px;line-height:1.26;letter-spacing:-.025em}.cinematic-demo-story p{margin:7px 0 0;color:rgb(225 236 249 / 82%);font-size:10px;line-height:1.62}
+.cinematic-demo-preview-link{position:relative;display:block;min-height:448px;color:inherit;text-decoration:none;outline:none}
+.cinematic-demo-preview{position:absolute;left:21%;right:0;bottom:0;top:36px;transform-origin:68% 60%;transition:transform .35s ease,filter .35s ease}
+.cinematic-demo-preview-link:hover .cinematic-demo-preview,.cinematic-demo-preview-link:focus-visible .cinematic-demo-preview{transform:translateY(-3px) scale(1.006);filter:saturate(1.04)}
+.cinematic-demo-preview .linaw-app-preview{height:100%}
+.cinematic-demo-click-hint{position:absolute;z-index:6;right:14px;bottom:14px;display:inline-flex;align-items:center;gap:6px;padding:7px 9px;border:1px solid #d9e6f4;border-radius:9px;background:rgb(255 255 255 / 92%);color:#35658c;font-size:9px;font-weight:750;box-shadow:0 12px 28px -20px rgb(16 50 88 / 50%);opacity:.92;transition:transform .2s ease,opacity .2s ease}
+.cinematic-demo-preview-link:hover .cinematic-demo-click-hint{opacity:1;transform:translateY(-2px)}
+.cinematic-demo-scenes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid #e4ebf3;background:#fff}
+.cinematic-demo-scene{position:relative;display:grid;grid-template-columns:24px minmax(0,1fr);align-items:center;gap:8px;min-height:67px;padding:12px 11px 13px;border-right:1px solid #edf1f5;text-align:left;color:#6f8093;background:#fff;transition:background .18s ease,color .18s ease}
+.cinematic-demo-scene:last-child{border-right:0}.cinematic-demo-scene:hover{background:#f7faff}.cinematic-demo-scene.is-active{background:#f1f7ff;color:#173f69}
+.cinematic-demo-scene-number{display:grid;place-items:center;width:23px;height:23px;border-radius:7px;background:#f1f4f8;color:#708298;font-size:8px;font-weight:800}.cinematic-demo-scene.is-active .cinematic-demo-scene-number{background:#0866ed;color:#fff}
+.cinematic-demo-scene strong{display:block;font-size:10px;font-weight:800}.cinematic-demo-scene small{display:block;margin-top:2px;font-size:8px;opacity:.7}
+.cinematic-demo-progress-track{position:absolute;left:0;right:0;bottom:0;height:2px;overflow:hidden;background:transparent}.cinematic-demo-progress{display:block;height:100%;width:0;background:#0866ed}.cinematic-demo-progress.is-playing{animation:cinematic-progress var(--cinematic-duration) linear forwards}
+.cinematic-demo-note{position:relative;margin:10px 10px 0;text-align:center;color:#74869b;font-size:10px;line-height:1.55}.cinematic-demo-enter{animation:cinematic-enter .46s cubic-bezier(.2,.72,.2,1)}
+@keyframes cinematic-enter{from{opacity:.2;transform:translateY(10px) scale(.986)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes cinematic-progress{from{width:0}to{width:100%}}
+@media(prefers-reduced-motion:reduce){.cinematic-demo-enter,.cinematic-demo-progress.is-playing{animation:none}.cinematic-demo-preview{transition:none}}
+@media(max-width:1100px){.cinematic-demo-stage{min-height:445px}.cinematic-demo-preview-link{min-height:410px}.cinematic-demo-story{width:43%;left:20px;top:22px}.cinematic-demo-preview{left:17%;top:72px}}
+@media(max-width:760px){.cinematic-demo-shell{border-radius:19px}.cinematic-demo-topbar{grid-template-columns:1fr auto;min-height:43px;padding:0 10px}.cinematic-demo-now{display:none}.cinematic-demo-stage{min-height:520px;padding:12px}.cinematic-demo-story{position:relative;inset:auto;width:auto;margin:0 0 10px;padding:13px 14px;background:#102d50;border-radius:13px}.cinematic-demo-story strong{font-size:15px}.cinematic-demo-preview-link{min-height:365px}.cinematic-demo-preview{left:0;top:0;right:0;bottom:auto}.cinematic-demo-click-hint{right:8px;bottom:8px}.cinematic-demo-scenes{grid-template-columns:repeat(4,72%);overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-inline:contain}.cinematic-demo-scene{scroll-snap-align:start;min-height:64px}}
