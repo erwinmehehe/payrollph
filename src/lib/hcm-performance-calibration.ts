@@ -201,16 +201,20 @@ export async function syncLargeScoreChangeFlag(input: {
 
   if (delta >= input.policy.largeScoreChangeThreshold) {
     if (existing) {
-      if (existing.status === "open") {
-        const [row] = await db.update(performanceCalibrationFlags).set({
-          observedValue: delta.toFixed(2),
-          thresholdValue: input.policy.largeScoreChangeThreshold.toFixed(2),
-          detail: "Calibration changes the rating by " + delta.toFixed(2) + " points from the manager final rating.",
-          updatedAt: new Date(),
-        }).where(eq(performanceCalibrationFlags.id, existing.id)).returning();
-        return row;
-      }
-      return existing;
+      const observedChanged = existing.observedValue == null
+        || Math.abs(Number(existing.observedValue) - delta) > 0.001;
+      const [row] = await db.update(performanceCalibrationFlags).set({
+        observedValue: delta.toFixed(2),
+        thresholdValue: input.policy.largeScoreChangeThreshold.toFixed(2),
+        detail: "Calibration changes the rating by " + delta.toFixed(2) + " points from the manager final rating.",
+        status: observedChanged ? "open" : existing.status,
+        resolutionNote: observedChanged ? null : existing.resolutionNote,
+        resolvedByUserId: observedChanged ? null : existing.resolvedByUserId,
+        resolvedByName: observedChanged ? null : existing.resolvedByName,
+        resolvedAt: observedChanged ? null : existing.resolvedAt,
+        updatedAt: new Date(),
+      }).where(eq(performanceCalibrationFlags.id, existing.id)).returning();
+      return row;
     }
     const [row] = await db.insert(performanceCalibrationFlags).values({
       organizationId: input.organizationId,
