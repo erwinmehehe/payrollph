@@ -82,6 +82,7 @@ export function PerformanceGovernancePanel({
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewItems, setReviewItems] = useState<ReviewItem[]>([]);
   const [readiness, setReadiness] = useState<Record<string, Readiness>>({});
+  const [canCalibrate, setCanCalibrate] = useState(false);
 
   const [showGoal, setShowGoal] = useState(false);
   const [showTemplate, setShowTemplate] = useState(false);
@@ -134,6 +135,7 @@ export function PerformanceGovernancePanel({
     setReviews(payload.reviews ?? []);
     setReviewItems(payload.reviewItems ?? []);
     setReadiness(payload.cycleReadiness ?? {});
+    setCanCalibrate(Boolean(payload.access?.companyWide && ["owner", "admin", "bookkeeper", "hr"].includes(payload.access?.role)));
     setManagerScores(Object.fromEntries((payload.reviews ?? []).map((review: Review) => [
       review.id,
       review.managerScore ? String(Number(review.managerScore)) : "3",
@@ -500,7 +502,7 @@ export function PerformanceGovernancePanel({
         })}
       </article>
 
-      <PerformanceCalibrationPanel organizationId={organizationId} setNotice={setNotice} />
+      {canCalibrate && <PerformanceCalibrationPanel organizationId={organizationId} setNotice={setNotice} />}
     </div>
   );
 }
