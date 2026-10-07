@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BadgeCheck, CalendarClock, MessageSquare, RefreshCw, Target } from "lucide-react";
+import { BadgeCheck, CalendarClock, CheckCircle2, MessageSquare, RefreshCw, Target } from "lucide-react";
 
 type Goal = {
   id: number;
@@ -73,6 +73,22 @@ type AgendaContribution = {
   createdAt: string;
 };
 
+type ActionItem = {
+  id: number;
+  oneOnOneId: number;
+  ownerKind: "employee" | "manager";
+  ownerEmployeeId: number | null;
+  ownerName: string;
+  title: string;
+  detail: string | null;
+  dueDate: string;
+  status: "open" | "in_progress" | "completed" | "cancelled";
+  completedAt: string | null;
+  completedByName: string | null;
+  createdByName: string;
+  updatedAt: string;
+};
+
 type OneOnOne = {
   id: number;
   scheduledFor: string;
@@ -83,6 +99,7 @@ type OneOnOne = {
   cancelledAt: string | null;
   createdByName: string;
   agendaContributions: AgendaContribution[];
+  actionItems: ActionItem[];
 };
 
 type SharedFeedback = {
@@ -101,6 +118,7 @@ export function HcmSelfPerformance() {
   const [sharedFeedback, setSharedFeedback] = useState<SharedFeedback[]>([]);
   const [agendaDrafts, setAgendaDrafts] = useState<Record<number, string>>({});
   const [agendaSavingId, setAgendaSavingId] = useState<number | null>(null);
+  const [actionSavingId, setActionSavingId] = useState<number | null>(null);
   const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
   const [selfScore, setSelfScore] = useState("3");
   const [reflection, setReflection] = useState("");
@@ -195,6 +213,29 @@ export function HcmSelfPerformance() {
       setNotice("Could not add the agenda item because the server could not be reached.");
     } finally {
       setAgendaSavingId(null);
+    }
+  }
+
+  async function updateActionItem(item: ActionItem, status: "in_progress" | "completed") {
+    setActionSavingId(item.id);
+    setNotice("");
+    try {
+      const response = await fetch("/api/self/performance/action-items", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, status }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? "Could not update the 1:1 action item.");
+        return;
+      }
+      await load();
+      setNotice(status === "completed" ? "Action item completed." : "Action item marked in progress.");
+    } catch {
+      setNotice("Could not update the action item because the server could not be reached.");
+    } finally {
+      setActionSavingId(null);
     }
   }
 
@@ -433,6 +474,38 @@ export function HcmSelfPerformance() {
                 <span key={item.id}>Your agenda item: {item.content}</span>
               ))}
               {meeting.sharedSummary && <span>Summary: {meeting.sharedSummary}</span>}
+              {(meeting.actionItems ?? []).length > 0 && (
+                <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                  {(meeting.actionItems ?? []).map((item) => {
+                    const overdue = !["completed", "cancelled"].includes(item.status)
+                      && item.dueDate < new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+                    return (
+                      <div className="employee-edit-card" key={item.id}>
+                        <div className="employee-list-card-head">
+                          <div>
+                            <strong>{item.title}</strong>
+                            <span>Owner: {item.ownerName} · due {item.dueDate}{overdue ? " · overdue" : ""}</span>
+                            {item.detail && <p>{item.detail}</p>}
+                          </div>
+                          <span className={"employee-status-pill " + (item.status === "completed" ? "good" : overdue ? "bad" : "neutral")}>{item.status.replaceAll("_", " ")}</span>
+                        </div>
+                        {item.ownerKind === "employee" && !["completed", "cancelled"].includes(item.status) && (
+                          <div className="run-actions">
+                            {item.status === "open" && (
+                              <button className="secondary-button" type="button" disabled={actionSavingId === item.id} onClick={() => void updateActionItem(item, "in_progress")}>
+                                Start action
+                              </button>
+                            )}
+                            <button className="primary-button" type="button" disabled={actionSavingId === item.id} onClick={() => void updateActionItem(item, "completed")}>
+                              <CheckCircle2 size={14} /> Complete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               {meeting.status === "scheduled" && (
                 <div className="employee-edit-fields" style={{ marginTop: 8 }}>
                   <label style={{ gridColumn: "1 / -1" }}>
