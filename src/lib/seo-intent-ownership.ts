@@ -46,6 +46,20 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
     supportingIntents: ["hris software philippines", "human resource information system philippines", "hr software philippines"],
   },
   {
+    primaryIntent: "workforce management software philippines",
+    ownerPath: "/workforce-management",
+    intentClass: "commercial",
+    supportingIntents: ["workforce management system philippines", "workforce scheduling software philippines"],
+    note: "Own broad workforce-management intent. Timekeeping-specific intent remains owned by /time-and-attendance.",
+  },
+  {
+    primaryIntent: "human capital management software philippines",
+    ownerPath: "/hcm",
+    intentClass: "commercial",
+    supportingIntents: ["hcm software philippines", "human capital management philippines"],
+    note: "Own HCM platform intent. HRIS-specific intent remains owned by /hris.",
+  },
+  {
     primaryIntent: "timekeeping system philippines",
     ownerPath: "/time-and-attendance",
     intentClass: "commercial",
