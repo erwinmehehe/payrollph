@@ -22,7 +22,7 @@ test("performance competencies map to HCM skills and freeze role expectations in
   assert.ok(schema.includes('expectedProficiency: integer("expected_proficiency")'));
   assert.ok(performanceRoute.includes("reviewStructureForEmployee"));
   assert.ok(performanceRoute.includes("minimumProficiency"));
-  assert.ok(performanceRoute.includes("expectedProficiency: requirement?.minimumProficiency ?? null"));
+  assert.ok(performanceRoute.includes("expectedProficiency: expectation?.minimumProficiency ?? null"));
 });
 
 test("mandatory job-profile skills must be represented in the review cycle before a review opens", () => {
