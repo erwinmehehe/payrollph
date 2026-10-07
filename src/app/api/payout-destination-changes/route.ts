@@ -14,12 +14,12 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
   const employeeIdRaw = url.searchParams.get("employeeId");
-  const employeeId = employeeIdRaw ? Number(employeeIdRaw) : null;
+  const employeeId = employeeIdRaw == null ? null : Number(employeeIdRaw);
 
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
-  if (employeeIdRaw && !Number.isInteger(employeeId)) {
+  if (employeeId !== null && !Number.isInteger(employeeId)) {
     return Response.json({ error: "employeeId must be valid." }, { status: 400 });
   }
 
