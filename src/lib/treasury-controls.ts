@@ -16,7 +16,7 @@ import { roleGateAllowed } from "@/lib/permissions";
 
 export const TREASURY_OPERATOR_ELIGIBLE_ROLES = ["owner", "admin", "bookkeeper"] as const;
 
-type TreasuryEvidence = {
+export type TreasuryEvidence = {
   policyEnabled: boolean;
   policyEnabledAt: string | null;
   treasuryOperatorUserId: number;
