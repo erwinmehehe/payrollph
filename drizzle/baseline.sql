@@ -3259,12 +3259,13 @@ UPDATE "performance_review_items" AS pri
 SET
   "required" = pct."required",
   "weight" = pct."weight"
-FROM "performance_reviews" AS pr
-JOIN "performance_cycle_templates" AS pct
-  ON pct."cycle_id" = pr."cycle_id"
- AND pct."template_id" = pri."template_id"
+FROM "performance_reviews" AS pr,
+     "performance_cycle_templates" AS pct
 WHERE pri."review_id" = pr."id"
-  AND pri."organization_id" = pr."organization_id";
+  AND pri."organization_id" = pr."organization_id"
+  AND pct."cycle_id" = pr."cycle_id"
+  AND pct."template_id" = pri."template_id"
+  AND pct."organization_id" = pri."organization_id";
 
 ALTER TABLE "performance_review_items"
   DROP CONSTRAINT IF EXISTS "performance_review_items_expected_proficiency_check";
