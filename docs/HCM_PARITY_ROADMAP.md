@@ -61,10 +61,24 @@ Additional performance capabilities built:
 - Rating distribution, goal-attainment, 1:1 coverage, reminder backlog and calibration-change analytics
 - Employee self-service history for shared 1:1 and feedback evidence
 
+Additional job-architecture and calibration governance built:
+- Performance competency templates can map directly to governed HCM skills
+- Job profiles define mandatory/optional skills and expected proficiency from 1–5
+- Review opening validates mandatory job-skill coverage against the selected cycle
+- Job-profile-specific templates apply only to employees in that profile; reusable skill competencies can remain global
+- Review items snapshot job profile, skill, expected proficiency, required status and weight so later architecture edits do not rewrite historical review evidence
+- Manager and employee review views surface role proficiency expectations and scored gaps
+- Analytics surface job-linked competency items below role expectation
+- Versioned calibration-distribution policy with configurable minimum sample, manager-mean deviation, high/low rating concentration and large-score-change thresholds
+- Calibration sessions freeze the policy version/snapshot used when the session opened
+- Durable manager-distribution and large-score-change flags require explicit resolution/acceptance when policy requires it
+- Closed large-score-change flags reopen if the underlying calibration delta materially changes
+- Calibration flag backlog and resolution status are included in performance analytics
+
 Next improvements inside this module:
-- Competency libraries linked more deeply to job-profile skill requirements
-- Calibration distribution outlier flags and configurable review-distribution policies
 - Employee contribution to upcoming 1:1 agendas
+- Optional competency expectation inheritance by job family/level when a profile does not override it
+- Trend views across completed performance cycles without expanding performance data into automatic compensation decisions
 
 ## Tranche 2 — Job architecture and position control
 
