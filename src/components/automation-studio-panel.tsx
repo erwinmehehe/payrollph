@@ -312,7 +312,7 @@ function actionAllowed(trigger: TriggerCatalog | undefined, type: string) {
   if (!trigger) return false;
   if (["revoke_sessions", "deactivate_access"].includes(type)) return trigger.value === "employee.separated";
   if (["assign_permission_set", "assign_benefit"].includes(type)) {
-    return ["employee.hired", "employee.updated", "employee.moved", "employee.promoted", "candidate.hired"].includes(trigger.value);
+    return ["employee.hired", "employee.updated", "employee.field_changed", "employee.moved", "employee.promoted", "candidate.hired"].includes(trigger.value);
   }
   if (type === "assign_schedule") {
     return ["employee.hired", "employee.moved", "employee.promoted"].includes(trigger.value);
@@ -417,7 +417,11 @@ export function AutomationStudioPanel({
     return {
       field: row.field,
       operator: row.operator,
-      value: field?.kind === "number" ? Number(row.value) : row.value,
+      value: field?.kind === "number"
+        ? Number(row.value)
+        : field?.kind === "boolean"
+          ? row.value === "true"
+          : row.value,
     };
   }
 
@@ -442,7 +446,11 @@ export function AutomationStudioPanel({
         ? row.branchValue !== "false"
         : row.branchOperator === "in"
           ? row.branchValue.split(",").map((item) => item.trim()).filter(Boolean).map((item) => field?.kind === "number" || field?.kind === "number_array" ? Number(item) : item)
-          : field?.kind === "number" ? Number(row.branchValue) : row.branchValue;
+          : field?.kind === "number"
+            ? Number(row.branchValue)
+            : field?.kind === "boolean"
+              ? row.branchValue === "true"
+              : row.branchValue;
       return {
         type: row.type,
         conditions: {

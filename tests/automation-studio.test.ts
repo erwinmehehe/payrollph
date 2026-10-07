@@ -24,6 +24,7 @@ test("Automation Studio exposes the broad event catalog with live and planned ad
   for (const trigger of [
     "employee.hired",
     "employee.updated",
+    "employee.field_changed",
     "employee.moved",
     "employee.promoted",
     "employee.separated",

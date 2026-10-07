@@ -5,6 +5,7 @@ import { authorizeAssignedTreasuryOperator } from "@/lib/treasury-controls";
 import { decidePayoutDestinationChange } from "@/lib/payout-destination-controls";
 import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(request);
@@ -68,6 +69,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
 
   let automation: unknown[] = [];
+  let fieldChangeAutomation: unknown[] = [];
   if (outcome.kind === "approved") {
     automation = await runAutomationEventSafely({
       organizationId,
@@ -83,6 +85,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         approvedByUserId: user.id,
       },
     });
+    fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
+      organizationId,
+      employeeId: outcome.employee.id,
+      eventKey: `payout-destination-approved:${requestId}:field-change`,
+      changes: [{
+        field: "payoutDestination",
+        sensitive: true,
+        source: "payout-destination-dual-control",
+        metadata: {
+          payoutDestinationChangeRequestId: requestId,
+          approvedByUserId: user.id,
+        },
+      }],
+    });
   }
 
   return Response.json({
@@ -92,5 +108,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       ? { ...outcome.employee, bankAccount: maskBankAccount(outcome.employee.bankAccount) }
       : undefined,
     automation,
+    fieldChangeAutomation,
   });
 }
