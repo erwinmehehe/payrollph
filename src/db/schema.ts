@@ -2662,6 +2662,10 @@ export const performanceCycles = pgTable(
     startDate: date("start_date").notNull(),
     endDate: date("end_date").notNull(),
     status: varchar("status", { length: 24 }).notNull().default("draft"),
+    requireSelfAssessment: boolean("require_self_assessment").notNull().default(false),
+    requireManagerSummary: boolean("require_manager_summary").notNull().default(true),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    completedByUserId: integer("completed_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2678,8 +2682,11 @@ export const performanceGoals = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").references(() => employees.id, { onDelete: "cascade" }),
     cycleId: integer("cycle_id").references(() => performanceCycles.id, { onDelete: "set null" }),
+    scope: varchar("scope", { length: 24 }).notNull().default("employee"),
+    orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    parentGoalId: integer("parent_goal_id").references((): AnyPgColumn => performanceGoals.id, { onDelete: "set null" }),
     title: varchar("title", { length: 180 }).notNull(),
     description: text("description"),
     weight: numeric("weight", { precision: 5, scale: 2 }).notNull().default("0"),
@@ -2693,6 +2700,14 @@ export const performanceGoals = pgTable(
   (table) => [
     index("performance_goals_org_employee_idx").on(table.organizationId, table.employeeId),
     index("performance_goals_cycle_idx").on(table.cycleId),
+    index("performance_goals_parent_idx").on(table.organizationId, table.parentGoalId),
+    index("performance_goals_scope_idx").on(table.organizationId, table.cycleId, table.scope, table.orgUnitId),
+    check(
+      "performance_goals_scope_check",
+      sql`(${table.scope} = 'company' AND ${table.employeeId} IS NULL AND ${table.orgUnitId} IS NULL)
+        OR (${table.scope} = 'team' AND ${table.employeeId} IS NULL AND ${table.orgUnitId} IS NOT NULL)
+        OR (${table.scope} = 'employee' AND ${table.employeeId} IS NOT NULL)`,
+    ),
   ],
 );
 
@@ -2717,6 +2732,73 @@ export const performanceReviews = pgTable(
   (table) => [
     uniqueIndex("performance_reviews_cycle_employee_unique").on(table.cycleId, table.employeeId),
     index("performance_reviews_org_employee_idx").on(table.organizationId, table.employeeId),
+  ],
+);
+
+export const performanceTemplates = pgTable(
+  "performance_templates",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 60 }).notNull(),
+    name: varchar("name", { length: 180 }).notNull(),
+    type: varchar("type", { length: 24 }).notNull(),
+    description: text("description"),
+    jobProfileId: integer("job_profile_id").references((): AnyPgColumn => jobProfiles.id, { onDelete: "set null" }),
+    defaultWeight: numeric("default_weight", { precision: 5, scale: 2 }).notNull().default("0"),
+    ratingAnchors: jsonb("rating_anchors").notNull().default({}),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_templates_org_code_unique").on(table.organizationId, table.code),
+    index("performance_templates_org_type_idx").on(table.organizationId, table.type, table.active),
+    check("performance_templates_type_check", sql`${table.type} IN ('competency','kra')`),
+    check("performance_templates_weight_check", sql`${table.defaultWeight} >= 0 AND ${table.defaultWeight} <= 100`),
+  ],
+);
+
+export const performanceCycleTemplates = pgTable(
+  "performance_cycle_templates",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    cycleId: integer("cycle_id").notNull().references(() => performanceCycles.id, { onDelete: "cascade" }),
+    templateId: integer("template_id").notNull().references(() => performanceTemplates.id, { onDelete: "cascade" }),
+    weight: numeric("weight", { precision: 5, scale: 2 }).notNull().default("0"),
+    required: boolean("required").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_cycle_templates_unique").on(table.cycleId, table.templateId),
+    index("performance_cycle_templates_org_cycle_idx").on(table.organizationId, table.cycleId),
+    check("performance_cycle_templates_weight_check", sql`${table.weight} >= 0 AND ${table.weight} <= 100`),
+  ],
+);
+
+export const performanceReviewItems = pgTable(
+  "performance_review_items",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    reviewId: integer("review_id").notNull().references(() => performanceReviews.id, { onDelete: "cascade" }),
+    templateId: integer("template_id").notNull().references(() => performanceTemplates.id, { onDelete: "restrict" }),
+    selfScore: numeric("self_score", { precision: 4, scale: 2 }),
+    managerScore: numeric("manager_score", { precision: 4, scale: 2 }),
+    finalScore: numeric("final_score", { precision: 4, scale: 2 }),
+    employeeComment: text("employee_comment"),
+    managerComment: text("manager_comment"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_review_items_unique").on(table.reviewId, table.templateId),
+    index("performance_review_items_org_review_idx").on(table.organizationId, table.reviewId),
+    check("performance_review_items_self_score_check", sql`${table.selfScore} IS NULL OR (${table.selfScore} >= 1 AND ${table.selfScore} <= 5)`),
+    check("performance_review_items_manager_score_check", sql`${table.managerScore} IS NULL OR (${table.managerScore} >= 1 AND ${table.managerScore} <= 5)`),
+    check("performance_review_items_final_score_check", sql`${table.finalScore} IS NULL OR (${table.finalScore} >= 1 AND ${table.finalScore} <= 5)`),
   ],
 );
 
