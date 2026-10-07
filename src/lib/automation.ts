@@ -22,6 +22,11 @@ import {
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { assignEmployeeScheduleGoverned } from "@/lib/workforce-schedule-assignment";
+import { generateAutomationEmployeeDocument } from "@/lib/automation-document-generation";
+import {
+  getAutomationDocumentTemplate,
+  type AutomationDocumentTrigger,
+} from "@/lib/automation-document-templates";
 
 export const AUTOMATION_TRIGGERS = [
   "employee.hired",
@@ -247,6 +252,11 @@ type AssignScheduleAction = {
   reason: string;
 };
 
+type GenerateDocumentAction = {
+  type: "generate_document";
+  templateId: string;
+};
+
 type RevokeSessionsAction = {
   type: "revoke_sessions";
 };
@@ -296,6 +306,7 @@ export type AutomationAction =
   | AssignPermissionSetAction
   | AssignBenefitAction
   | AssignScheduleAction
+  | GenerateDocumentAction
   | RevokeSessionsAction
   | DeactivateAccessAction
   | WebhookAction
@@ -319,6 +330,7 @@ export const AUTOMATION_ACTION_CATALOG = [
   { value: "assign_permission_set", label: "Assign access policy", category: "Access" },
   { value: "assign_benefit", label: "Assign benefit", category: "Benefits" },
   { value: "assign_schedule", label: "Assign schedule pattern", category: "Workforce" },
+  { value: "generate_document", label: "Generate employee document", category: "People" },
   { value: "revoke_sessions", label: "Revoke active sessions", category: "Access" },
   { value: "deactivate_access", label: "Remove workspace access", category: "Access" },
   { value: "request_payroll_adjustment", label: "Request payroll adjustment approval", category: "Payroll" },
@@ -520,6 +532,13 @@ function normalizeAutomationSteps(
       continue;
     }
 
+    if (type === "generate_document") {
+      const templateId = String(action.templateId ?? "").trim();
+      if (!templateId || !getAutomationDocumentTemplate(templateId)) return null;
+      actions.push({ type, templateId });
+      continue;
+    }
+
     if (type === "assign_schedule") {
       const patternId = Number(action.patternId);
       const effectiveDateSource = String(action.effectiveDateSource ?? "event_effective_date") as AssignScheduleAction["effectiveDateSource"];
@@ -622,7 +641,46 @@ export function validateAutomationActionTrigger(trigger: AutomationTrigger, acti
       }
       continue;
     }
-    if (action.type === "assign_schedule") {
+    if (action.type === "generate_document") {
+      const template = getAutomationDocumentTemplate(action.templateId);
+      if (!template || !template.allowedTriggers.some((allowed) => allowed === trigger)) {
+        return "Generated-document template is not approved for this trigger.";
+      }
+      if (actions[actionIndex - 1]?.type !== "approval_gate") {
+        return "Document generation must be immediately preceded by an approval gate.";
+      }
+      continue;
+    }
+    if (action.type === "generate_document") {
+    const employeeId = requiredEmployeeId(input.employeeId, "Generate employee document");
+    const template = getAutomationDocumentTemplate(action.templateId);
+    if (!template || !template.allowedTriggers.some((allowed) => allowed === input.trigger)) {
+      throw new Error("Generated-document template is not approved for this trigger.");
+    }
+
+    const result = await generateAutomationEmployeeDocument({
+      organizationId: input.organizationId,
+      employeeId,
+      trigger: input.trigger as AutomationDocumentTrigger,
+      templateId: action.templateId,
+      sourceKey: `Automation Studio document #${input.executionId}:${input.actionIndex}`,
+      context: input.context,
+      actor: "Automation Studio",
+    });
+
+    return {
+      type: action.type,
+      documentId: result.document.id,
+      templateId: action.templateId,
+      templateVersion: template.version,
+      fileName: result.document.fileName,
+      sha256: result.document.sha256,
+      idempotent: result.idempotent,
+      auditWarning: result.auditWarning,
+    };
+  }
+
+  if (action.type === "assign_schedule") {
       if (!SCHEDULE_ASSIGNMENT_TRIGGERS.has(trigger)) {
         return "Schedule assignment automation is allowed only after employee hire, move, or promotion events.";
       }
