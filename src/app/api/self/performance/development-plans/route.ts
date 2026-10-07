@@ -53,7 +53,10 @@ export async function GET() {
       ? db.select().from(performanceSkillDevelopmentProgress).where(inArray(performanceSkillDevelopmentProgress.planId, planIds))
       : Promise.resolve([]),
     skillIds.length
-      ? db.select().from(hcmSkills).where(inArray(hcmSkills.id, skillIds))
+      ? db.select().from(hcmSkills).where(and(
+          eq(hcmSkills.organizationId, context.employee.organizationId),
+          inArray(hcmSkills.id, skillIds),
+        ))
       : Promise.resolve([]),
   ]);
 
