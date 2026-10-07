@@ -188,6 +188,39 @@ export async function ensureCoreCompatibilitySchema() {
       await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v18'))");
 
       await client.query(`
+        ALTER TABLE IF EXISTS attendance_exception_events
+          ADD COLUMN IF NOT EXISTS owner_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          ADD COLUMN IF NOT EXISTS owner_name varchar(120),
+          ADD COLUMN IF NOT EXISTS sla_due_at timestamptz,
+          ADD COLUMN IF NOT EXISTS resolution_note text,
+          ADD COLUMN IF NOT EXISTS resolved_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          ADD COLUMN IF NOT EXISTS resolved_by_name varchar(120),
+          ADD COLUMN IF NOT EXISTS resolution_recorded_at timestamptz
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF to_regclass('attendance_exception_events') IS NOT NULL THEN
+            UPDATE attendance_exception_events
+            SET sla_due_at = first_detected_at + (
+              CASE
+                WHEN severity = 'blocker' THEN interval '4 hours'
+                WHEN severity = 'warning' THEN interval '24 hours'
+                ELSE interval '72 hours'
+              END
+            )
+            WHERE sla_due_at IS NULL;
+
+            CREATE INDEX IF NOT EXISTS attendance_exception_events_owner_idx
+              ON attendance_exception_events(organization_id, status, owner_user_id, sla_due_at);
+            CREATE INDEX IF NOT EXISTS attendance_exception_events_sla_idx
+              ON attendance_exception_events(organization_id, status, sla_due_at);
+          END IF;
+        END
+        $compat$;
+      `);
+
+      await client.query(`
         ALTER TABLE organizations
           ADD COLUMN IF NOT EXISTS bir_tin varchar(16),
           ADD COLUMN IF NOT EXISTS bir_branch_code varchar(4),

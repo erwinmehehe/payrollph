@@ -45,6 +45,11 @@ export async function reconcileAttendanceExceptionEvents(input: {
   organizationId: number;
   employeeId: number;
   workDate: string;
+  resolutionEvidence?: {
+    actorUserId: number;
+    actorName: string;
+    note: string;
+  } | null;
 }) {
   const [
     shifts,
@@ -230,6 +235,10 @@ export async function reconcileAttendanceExceptionEvents(input: {
         }),
         lastDetectedAt: now,
         resolvedAt: null,
+        resolutionNote: null,
+        resolvedByUserId: null,
+        resolvedByName: null,
+        resolutionRecordedAt: null,
         updatedAt: now,
       }).where(eq(attendanceExceptionEvents.id, found.id));
       continue;
@@ -265,6 +274,10 @@ export async function reconcileAttendanceExceptionEvents(input: {
     const [resolved] = await db.update(attendanceExceptionEvents).set({
       status: "resolved",
       resolvedAt: now,
+      resolutionNote: input.resolutionEvidence?.note ?? row.resolutionNote,
+      resolvedByUserId: input.resolutionEvidence?.actorUserId ?? row.resolvedByUserId,
+      resolvedByName: input.resolutionEvidence?.actorName ?? row.resolvedByName,
+      resolutionRecordedAt: input.resolutionEvidence ? now : row.resolutionRecordedAt,
       updatedAt: now,
     }).where(and(
       eq(attendanceExceptionEvents.id, row.id),

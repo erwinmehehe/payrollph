@@ -429,6 +429,11 @@ export async function POST(request: Request) {
           organizationId,
           employeeId: existing.employeeId,
           workDate: String(existing.workDate),
+          resolutionEvidence: {
+            actorUserId: user.id,
+            actorName: user.name,
+            note: `Attendance correction #${requestId} approved${decisionNote ? `: ${decisionNote}` : "."}`,
+          },
         });
         attendanceExceptionSync = {
           status: "ok",
