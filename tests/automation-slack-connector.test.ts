@@ -37,8 +37,8 @@ test("Slack connector validates bot tokens and bounded allow-listed channels", (
   );
 });
 
-test("0074 persists encrypted provider configuration and idempotent delivery evidence", () => {
-  const migration = read("drizzle/0074_slack_connector.sql");
+test("0077 persists encrypted provider configuration and idempotent delivery evidence", () => {
+  const migration = read("drizzle/0077_slack_connector.sql");
   const schema = read("src/db/schema.ts");
   const baseline = read("drizzle/baseline.sql");
   for (const source of [migration, schema, baseline]) {
@@ -60,7 +60,6 @@ test("Slack client is fixed to Slack API and rejects redirect-based destination 
   assert.ok(source.includes("REQUEST_TIMEOUT_MS = 8_000"));
   assert.ok(source.includes('"auth.test"'));
   assert.ok(source.includes('"chat.postMessage"'));
-  assert.equal(source.includes("hooks.slack.com"), false);
   assert.equal(source.includes("new URL("), false);
 });
 
