@@ -26,10 +26,5 @@ CREATE INDEX IF NOT EXISTS "position_wfm_demand_rule_org_active_idx"
   ON "position_wfm_demand_rules" ("organization_id","active","effective_from");
 
 ALTER TABLE "staffing_requirements"
-  ADD COLUMN IF NOT EXISTS "source_position_id" integer REFERENCES "positions"("id") ON DELETE set null,
-  ADD COLUMN IF NOT EXISTS "source_demand_rule_id" integer REFERENCES "position_wfm_demand_rules"("id") ON DELETE set null,
-  ADD COLUMN IF NOT EXISTS "source_kind" varchar(32) NOT NULL DEFAULT 'manual';
-
-CREATE UNIQUE INDEX IF NOT EXISTS "staffing_requirements_position_rule_date_unique"
-  ON "staffing_requirements" ("source_demand_rule_id","work_date")
-  WHERE "source_demand_rule_id" IS NOT NULL;
+  ADD COLUMN IF NOT EXISTS "source_kind" varchar(32) NOT NULL DEFAULT 'manual',
+  ADD COLUMN IF NOT EXISTS "source_refs" jsonb NOT NULL DEFAULT '[]'::jsonb;
