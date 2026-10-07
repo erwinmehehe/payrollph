@@ -1,4 +1,5 @@
 import { encryptBankAccount, maskBankAccount } from "@/lib/bank-account-crypto";
+import { createPayoutDestinationChangeRequest } from "@/lib/payout-destination-controls";
 import { encryptGovernmentId, maskGovernmentId } from "@/lib/government-id-crypto";
 import {
   enforceSameOriginMutation,
@@ -549,6 +550,54 @@ export async function PATCH(request: Request) {
       windowMs: 15 * 60_000,
     });
     if (rateDenied) return rateDenied;
+
+    const hasNonPayoutMutation =
+      wantsStartDateUpdate
+      || wantsPayUpdate
+      || wantsRestDayUpdate
+      || [
+        "middleName",
+        "tin",
+        "tinBranchCode",
+        "sssNo",
+        "philHealthNo",
+        "pagIbigNo",
+        "pagIbigVoluntaryMonthly",
+        "nationality",
+      ].some((field) => body[field] !== undefined);
+
+    const payoutChangeRequest = await createPayoutDestinationChangeRequest({
+      organizationId,
+      employeeId,
+      requestedByUserId: user.id,
+      requestedByName: user.name,
+      reason: String(body.payoutChangeReason ?? "").trim(),
+      replacementBankAccount,
+      bankCode: nextBankCode,
+      mobile: body.mobile === undefined ? employee.mobile : clean(body.mobile) ?? null,
+    }).catch((error) => error instanceof Error ? error : new Error("Could not create payout destination change request."));
+
+    if (payoutChangeRequest instanceof Error) {
+      const message = payoutChangeRequest.message;
+      const status = /already has a pending/.test(message) ? 409 : /unchanged|reason is required|complete together/.test(message) ? 422 : 500;
+      return Response.json({ error: message }, { status });
+    }
+
+    if (payoutChangeRequest) {
+      if (hasNonPayoutMutation) {
+        return Response.json({
+          error: "When treasury separation is enabled, submit payout destination changes separately from other employee profile edits.",
+        }, { status: 409 });
+      }
+      return Response.json({
+        pendingApproval: true,
+        payoutChangeRequest,
+        employee: {
+          ...employee,
+          bankAccount: maskBankAccount(employee.bankAccount),
+        },
+      }, { status: 202 });
+    }
   }
 
   let nextPagIbigVoluntaryMonthly: string | undefined;
