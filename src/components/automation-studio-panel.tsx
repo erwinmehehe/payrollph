@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ApprovalChainAdmin } from "@/components/approval-chain-admin";
 import {
   Activity,
   Bot,
@@ -700,6 +701,8 @@ export function AutomationStudioPanel({
           </div>
         </div>
       </section>
+
+      <ApprovalChainAdmin organizationId={organizationId} setNotice={setNotice} onChanged={load} />
 
       {showBuilder && (
         <form onSubmit={saveRule} className="card" style={{ marginTop: 16 }}>
