@@ -75,10 +75,21 @@ Additional job-architecture and calibration governance built:
 - Closed large-score-change flags reopen if the underlying calibration delta materially changes
 - Calibration flag backlog and resolution status are included in performance analytics
 
+Additional continuity, inheritance, and trend capabilities built:
+- Employees can contribute append-only agenda items to their own scheduled 1:1s from self-service
+- Employee agenda contributions remain separate from the manager-authored agenda and manager-private notes
+- Family-, level-, and family+level competency expectation defaults reduce repeated job-profile setup
+- Deterministic expectation precedence: profile override -> family+level -> level -> family
+- Review items snapshot expectation source/rule provenance so later default changes do not rewrite historical review evidence
+- People-admin coverage views include inherited competency counts and inherited mandatory-skill gaps
+- Completed-cycle trend analytics show review completion, final/self/manager rating averages, goal attainment, and role-expectation gap rates
+- Trend deltas compare each completed cycle with the previous completed cycle inside the viewer's existing authorization scope
+- Performance trends remain explicitly separated from compensation and payroll mutation
+
 Next improvements inside this module:
-- Employee contribution to upcoming 1:1 agendas
-- Optional competency expectation inheritance by job family/level when a profile does not override it
-- Trend views across completed performance cycles without expanding performance data into automatic compensation decisions
+- Governed 1:1 action items with owners, due dates, completion and employee visibility
+- Skill-level trend views showing persistent competency strengths/gaps across completed cycles
+- Exportable performance evidence package for internal HR review and audit support
 
 ## Tranche 2 — Job architecture and position control
 
