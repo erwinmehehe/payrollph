@@ -195,14 +195,104 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const action = String(body.action ?? "");
   const organizationId = Number(body.organizationId);
-  const sessionId = Number(body.sessionId);
-
-  if (!Number.isInteger(organizationId) || !Number.isInteger(sessionId)) {
-    return Response.json({ error: "organizationId and sessionId are required." }, { status: 400 });
+  if (!Number.isInteger(organizationId)) {
+    return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
 
   const authorized = await companyWidePeopleAdmin(user.id, organizationId);
   if ("error" in authorized) return authorized.error;
+
+  if (action === "policy") {
+    const minimumManagerSample = Number(body.minimumManagerSample);
+    const managerMeanDeviationThreshold = Number(body.managerMeanDeviationThreshold);
+    const highRatingThreshold = Number(body.highRatingThreshold);
+    const highRatingShareThreshold = Number(body.highRatingShareThreshold);
+    const lowRatingThreshold = Number(body.lowRatingThreshold);
+    const lowRatingShareThreshold = Number(body.lowRatingShareThreshold);
+    const largeScoreChangeThreshold = Number(body.largeScoreChangeThreshold);
+    const requireFlagResolution = body.requireFlagResolution !== false;
+
+    if (!Number.isInteger(minimumManagerSample) || minimumManagerSample < 2 || minimumManagerSample > 1000) {
+      return Response.json({ error: "minimumManagerSample must be an integer from 2 to 1000." }, { status: 400 });
+    }
+    if (!Number.isFinite(managerMeanDeviationThreshold) || managerMeanDeviationThreshold < 0.1 || managerMeanDeviationThreshold > 4) {
+      return Response.json({ error: "managerMeanDeviationThreshold must be from 0.10 to 4.00." }, { status: 400 });
+    }
+    if (!Number.isFinite(highRatingThreshold) || highRatingThreshold < 1 || highRatingThreshold > 5
+        || !Number.isFinite(lowRatingThreshold) || lowRatingThreshold < 1 || lowRatingThreshold > 5
+        || lowRatingThreshold > highRatingThreshold) {
+      return Response.json({ error: "Low/high rating thresholds must be from 1.00 to 5.00, with low not above high." }, { status: 400 });
+    }
+    if (!Number.isFinite(highRatingShareThreshold) || highRatingShareThreshold < 0 || highRatingShareThreshold > 100
+        || !Number.isFinite(lowRatingShareThreshold) || lowRatingShareThreshold < 0 || lowRatingShareThreshold > 100) {
+      return Response.json({ error: "Rating concentration thresholds must be percentages from 0 to 100." }, { status: 400 });
+    }
+    if (!Number.isFinite(largeScoreChangeThreshold) || largeScoreChangeThreshold < 0.1 || largeScoreChangeThreshold > 4) {
+      return Response.json({ error: "largeScoreChangeThreshold must be from 0.10 to 4.00." }, { status: 400 });
+    }
+
+    const [existing] = await db.select().from(performanceCalibrationPolicies).where(
+      eq(performanceCalibrationPolicies.organizationId, organizationId),
+    ).limit(1);
+    const expectedVersion = body.expectedVersion === undefined ? existing?.version ?? 0 : Number(body.expectedVersion);
+    const currentVersion = existing?.version ?? 0;
+    if (!Number.isInteger(expectedVersion) || expectedVersion !== currentVersion) {
+      return Response.json({
+        error: "Calibration policy changed since it was loaded. Refresh before saving.",
+        currentVersion,
+      }, { status: 409 });
+    }
+
+    const beforeSnapshot = existing ? calibrationPolicySnapshot(existing) : null;
+    const values = {
+      minimumManagerSample,
+      managerMeanDeviationThreshold: managerMeanDeviationThreshold.toFixed(2),
+      highRatingThreshold: highRatingThreshold.toFixed(2),
+      highRatingShareThreshold: highRatingShareThreshold.toFixed(2),
+      lowRatingThreshold: lowRatingThreshold.toFixed(2),
+      lowRatingShareThreshold: lowRatingShareThreshold.toFixed(2),
+      largeScoreChangeThreshold: largeScoreChangeThreshold.toFixed(2),
+      requireFlagResolution,
+      updatedByUserId: user.id,
+      updatedByName: user.name,
+      updatedAt: new Date(),
+    };
+    const [row] = existing
+      ? await db.update(performanceCalibrationPolicies).set({
+          ...values,
+          version: existing.version + 1,
+        }).where(eq(performanceCalibrationPolicies.id, existing.id)).returning()
+      : await db.insert(performanceCalibrationPolicies).values({
+          organizationId,
+          ...values,
+          version: 1,
+        }).returning();
+
+    const afterSnapshot = calibrationPolicySnapshot(row);
+    await db.insert(performanceCalibrationPolicyEvents).values({
+      organizationId,
+      policyId: row.id,
+      fromVersion: existing?.version ?? null,
+      toVersion: row.version,
+      beforeSnapshot,
+      afterSnapshot,
+      actorUserId: user.id,
+      actorName: user.name,
+    });
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Performance calibration distribution policy updated",
+      resource: "Calibration policy",
+      metadata: { fromVersion: existing?.version ?? null, toVersion: row.version, afterSnapshot },
+    });
+    return Response.json({ policy: afterSnapshot });
+  }
+
+  const sessionId = Number(body.sessionId);
+  if (!Number.isInteger(sessionId)) {
+    return Response.json({ error: "sessionId is required for this calibration action." }, { status: 400 });
+  }
 
   const [session] = await db.select().from(performanceCalibrationSessions).where(and(
     eq(performanceCalibrationSessions.id, sessionId),
@@ -220,6 +310,46 @@ export async function PATCH(request: Request) {
   if (!cycle) return Response.json({ error: "Performance cycle not found." }, { status: 404 });
   if (cycle.status === "completed") {
     return Response.json({ error: "Completed performance cycles cannot be changed by calibration." }, { status: 409 });
+  }
+
+  const sessionPolicy = calibrationPolicyFromUnknown(session.policySnapshot)
+    ?? (await loadCalibrationPolicy(organizationId)).snapshot;
+
+  if (action === "flag") {
+    const flagId = Number(body.flagId);
+    const status = String(body.status ?? "");
+    const resolutionNote = String(body.resolutionNote ?? "").trim().slice(0, 8000);
+    if (!Number.isInteger(flagId) || !["accepted", "resolved"].includes(status)) {
+      return Response.json({ error: "flagId and status accepted or resolved are required." }, { status: 400 });
+    }
+    if (resolutionNote.length < 10) {
+      return Response.json({ error: "A resolution/acceptance note of at least 10 characters is required." }, { status: 400 });
+    }
+    const [flag] = await db.select().from(performanceCalibrationFlags).where(and(
+      eq(performanceCalibrationFlags.id, flagId),
+      eq(performanceCalibrationFlags.organizationId, organizationId),
+      eq(performanceCalibrationFlags.sessionId, sessionId),
+    )).limit(1);
+    if (!flag) return Response.json({ error: "Calibration flag not found." }, { status: 404 });
+    if (flag.status !== "open") return Response.json({ error: "This calibration flag is already closed." }, { status: 409 });
+
+    const [row] = await db.update(performanceCalibrationFlags).set({
+      status,
+      resolutionNote,
+      resolvedByUserId: user.id,
+      resolvedByName: user.name,
+      resolvedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(performanceCalibrationFlags.id, flagId)).returning();
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Performance calibration outlier flag " + status,
+      resource: flag.title,
+      metadata: { calibrationSessionId: sessionId, flagId, flagType: flag.flagType, resolutionNote },
+    });
+    return Response.json(row);
   }
 
   if (action === "score") {
@@ -251,6 +381,17 @@ export async function PATCH(request: Request) {
       updatedAt: new Date(),
     }).where(eq(performanceCalibrationEntries.id, entryId)).returning();
 
+    const largeChangeFlag = await syncLargeScoreChangeFlag({
+      organizationId,
+      sessionId,
+      reviewId: entry.reviewId,
+      originalScore: Number(entry.originalScore),
+      calibratedScore: Number(calibratedScore),
+      policy: sessionPolicy,
+      actorUserId: user.id,
+      actorName: user.name,
+    });
+
     await recordAuditEvent({
       organizationId,
       actor: user.name,
@@ -263,10 +404,12 @@ export async function PATCH(request: Request) {
         calibratedScore,
         changed,
         rationaleProvided: Boolean(rationale),
+        policyVersion: sessionPolicy.version,
+        largeChangeFlagId: largeChangeFlag?.id ?? null,
       },
     });
 
-    return Response.json(row);
+    return Response.json({ ...row, largeChangeFlag });
   }
 
   if (action === "finalize") {
@@ -278,6 +421,20 @@ export async function PATCH(request: Request) {
       windowMs: 5 * 60_000,
     });
     if (rateDenied) return rateDenied;
+
+    if (sessionPolicy.requireFlagResolution) {
+      const openFlags = await db.select().from(performanceCalibrationFlags).where(and(
+        eq(performanceCalibrationFlags.organizationId, organizationId),
+        eq(performanceCalibrationFlags.sessionId, sessionId),
+        eq(performanceCalibrationFlags.status, "open"),
+      ));
+      if (openFlags.length) {
+        return Response.json({
+          error: "Resolve or explicitly accept every calibration outlier flag before finalization.",
+          openFlagIds: openFlags.map((flag) => flag.id),
+        }, { status: 409 });
+      }
+    }
 
     const entries = await db.select().from(performanceCalibrationEntries).where(and(
       eq(performanceCalibrationEntries.organizationId, organizationId),
@@ -331,11 +488,13 @@ export async function PATCH(request: Request) {
         cycleId: session.cycleId,
         entryCount: entries.length,
         changedCount,
+        policyVersion: sessionPolicy.version,
       },
     });
 
     return Response.json({ ...row, changedCount });
   }
 
-  return Response.json({ error: "action must be score or finalize." }, { status: 400 });
+  return Response.json({ error: "action must be policy, flag, score, or finalize." }, { status: 400 });
 }
+
