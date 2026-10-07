@@ -56,6 +56,7 @@ test("bank and payout changes always trigger the fresh-tenant payroll pilot", ()
     'src/app/api/treasury-controls/**',
     'src/app/api/webhooks/paymongo/**',
     'src/lib/bank-**',
+    'src/lib/paymongo.ts',
     'src/lib/paymongo-**',
     'src/lib/payout-**',
     'src/lib/treasury-**',
