@@ -129,104 +129,115 @@ export async function createApprovalFromConfiguredChain(input: {
   });
 }
 
+type ApprovalTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function advanceApprovalChainAfterDecisionTx(
+  tx: ApprovalTransaction,
+  input: {
+    taskId: number;
+    decision: "Approved" | "Declined";
+    decidedBy: string;
+  },
+) {
+  const [task] = await tx.select().from(approvalTasks).where(eq(approvalTasks.id, input.taskId)).limit(1);
+  if (!task?.approvalChainInstanceId || task.approvalChainStepIndex == null) {
+    return { isChain: false, final: true, nextTaskId: null, instanceId: null };
+  }
+
+  await tx.execute(sql`
+    select id from approval_chain_instances
+    where id = ${task.approvalChainInstanceId}
+    for update
+  `);
+
+  const [instance] = await tx.select().from(approvalChainInstances).where(
+    eq(approvalChainInstances.id, task.approvalChainInstanceId),
+  ).limit(1);
+  if (!instance) throw new Error("Approval chain instance no longer exists.");
+  if (instance.status !== "pending") {
+    return {
+      isChain: true,
+      final: true,
+      nextTaskId: null,
+      instanceId: instance.id,
+      status: instance.status,
+    };
+  }
+  if (instance.currentStepIndex !== task.approvalChainStepIndex) {
+    throw new Error("Approval chain already advanced to another step.");
+  }
+
+  const [step] = await tx.update(approvalChainInstanceSteps).set({
+    status: input.decision === "Approved" ? "approved" : "declined",
+    decidedBy: input.decidedBy.slice(0, 120),
+    decidedAt: new Date(),
+  }).where(and(
+    eq(approvalChainInstanceSteps.instanceId, instance.id),
+    eq(approvalChainInstanceSteps.stepIndex, task.approvalChainStepIndex),
+    eq(approvalChainInstanceSteps.status, "pending"),
+  )).returning();
+  if (!step) throw new Error("Approval chain step was already decided.");
+
+  if (input.decision === "Declined") {
+    await tx.update(approvalChainInstances).set({
+      status: "declined",
+      completedAt: new Date(),
+    }).where(eq(approvalChainInstances.id, instance.id));
+    return { isChain: true, final: true, nextTaskId: null, instanceId: instance.id, status: "declined" };
+  }
+
+  const snapshot = normalizeApprovalChainSteps(instance.stepsSnapshot);
+  if (!snapshot) throw new Error("Approval chain snapshot is invalid.");
+  const nextIndex = task.approvalChainStepIndex + 1;
+  const next = snapshot[nextIndex];
+  if (!next) {
+    await tx.update(approvalChainInstances).set({
+      status: "approved",
+      completedAt: new Date(),
+    }).where(eq(approvalChainInstances.id, instance.id));
+    return { isChain: true, final: true, nextTaskId: null, instanceId: instance.id, status: "approved" };
+  }
+
+  const [nextTask] = await tx.insert(approvalTasks).values({
+    organizationId: task.organizationId,
+    title: task.title,
+    detail: task.detail,
+    approver: next.approver,
+    dueLabel: next.dueLabel ?? task.dueLabel,
+    priority: next.priority ?? task.priority,
+    approvalChainInstanceId: instance.id,
+    approvalChainStepIndex: nextIndex,
+  }).returning();
+
+  await tx.insert(approvalChainInstanceSteps).values({
+    organizationId: task.organizationId,
+    instanceId: instance.id,
+    stepIndex: nextIndex,
+    label: next.label,
+    approver: next.approver,
+    status: "pending",
+    approvalTaskId: nextTask.id,
+  });
+
+  await tx.update(approvalChainInstances).set({
+    currentStepIndex: nextIndex,
+  }).where(eq(approvalChainInstances.id, instance.id));
+
+  return {
+    isChain: true,
+    final: false,
+    nextTaskId: nextTask.id,
+    instanceId: instance.id,
+    status: "pending",
+  };
+}
+
 export async function advanceApprovalChainAfterDecision(input: {
   taskId: number;
   decision: "Approved" | "Declined";
   decidedBy: string;
 }) {
-  const [task] = await db.select().from(approvalTasks).where(eq(approvalTasks.id, input.taskId)).limit(1);
-  if (!task?.approvalChainInstanceId || task.approvalChainStepIndex == null) {
-    return { isChain: false, final: true, nextTaskId: null, instanceId: null };
-  }
-
-  return db.transaction(async (tx) => {
-    await tx.execute(sql`
-      select id from approval_chain_instances
-      where id = ${task.approvalChainInstanceId}
-      for update
-    `);
-
-    const [instance] = await tx.select().from(approvalChainInstances).where(
-      eq(approvalChainInstances.id, task.approvalChainInstanceId),
-    ).limit(1);
-    if (!instance) throw new Error("Approval chain instance no longer exists.");
-    if (instance.status !== "pending") {
-      return {
-        isChain: true,
-        final: true,
-        nextTaskId: null,
-        instanceId: instance.id,
-        status: instance.status,
-      };
-    }
-    if (instance.currentStepIndex !== task.approvalChainStepIndex) {
-      throw new Error("Approval chain already advanced to another step.");
-    }
-
-    const [step] = await tx.update(approvalChainInstanceSteps).set({
-      status: input.decision === "Approved" ? "approved" : "declined",
-      decidedBy: input.decidedBy.slice(0, 120),
-      decidedAt: new Date(),
-    }).where(and(
-      eq(approvalChainInstanceSteps.instanceId, instance.id),
-      eq(approvalChainInstanceSteps.stepIndex, task.approvalChainStepIndex),
-      eq(approvalChainInstanceSteps.status, "pending"),
-    )).returning();
-    if (!step) throw new Error("Approval chain step was already decided.");
-
-    if (input.decision === "Declined") {
-      await tx.update(approvalChainInstances).set({
-        status: "declined",
-        completedAt: new Date(),
-      }).where(eq(approvalChainInstances.id, instance.id));
-      return { isChain: true, final: true, nextTaskId: null, instanceId: instance.id, status: "declined" };
-    }
-
-    const snapshot = normalizeApprovalChainSteps(instance.stepsSnapshot);
-    if (!snapshot) throw new Error("Approval chain snapshot is invalid.");
-    const nextIndex = task.approvalChainStepIndex + 1;
-    const next = snapshot[nextIndex];
-    if (!next) {
-      await tx.update(approvalChainInstances).set({
-        status: "approved",
-        completedAt: new Date(),
-      }).where(eq(approvalChainInstances.id, instance.id));
-      return { isChain: true, final: true, nextTaskId: null, instanceId: instance.id, status: "approved" };
-    }
-
-    const [nextTask] = await tx.insert(approvalTasks).values({
-      organizationId: task.organizationId,
-      title: task.title,
-      detail: task.detail,
-      approver: next.approver,
-      dueLabel: next.dueLabel ?? task.dueLabel,
-      priority: next.priority ?? task.priority,
-      approvalChainInstanceId: instance.id,
-      approvalChainStepIndex: nextIndex,
-    }).returning();
-
-    await tx.insert(approvalChainInstanceSteps).values({
-      organizationId: task.organizationId,
-      instanceId: instance.id,
-      stepIndex: nextIndex,
-      label: next.label,
-      approver: next.approver,
-      status: "pending",
-      approvalTaskId: nextTask.id,
-    });
-
-    await tx.update(approvalChainInstances).set({
-      currentStepIndex: nextIndex,
-    }).where(eq(approvalChainInstances.id, instance.id));
-
-    return {
-      isChain: true,
-      final: false,
-      nextTaskId: nextTask.id,
-      instanceId: instance.id,
-      status: "pending",
-    };
-  });
+  return db.transaction((tx) => advanceApprovalChainAfterDecisionTx(tx, input));
 }
 
 export async function listApprovalChainPolicies(organizationId: number) {
