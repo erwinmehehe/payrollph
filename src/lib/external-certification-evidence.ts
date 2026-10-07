@@ -125,7 +125,7 @@ export function evaluateExternalCertificationEvidence(
       issues.push("Document " + index + " must be an object.");
       continue;
     }
-    const doc = raw as EvidenceDocument;
+    const doc = raw as unknown as EvidenceDocument;
     if (!nonPlaceholder(doc.id) || documentMap.has(doc.id)) {
       issues.push("Document " + index + " needs a unique real id.");
       continue;
