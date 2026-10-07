@@ -43,6 +43,7 @@ import {
   computeCoverage,
   preferredForShift,
   remainingOpenShiftSlots,
+  rankCoverageCandidates,
   type AvailabilityRule,
 } from "@/lib/workforce-coverage";
 import {
@@ -975,6 +976,88 @@ export async function GET(request: Request) {
     },
   };
 
+  const employeeNameById = new Map(
+    workforce.visibleEmployees.map((employee) => [
+      employee.id,
+      `${employee.firstName} ${employee.lastName}`,
+    ]),
+  );
+  const scheduledMinutesByEmployee = new Map<number, number>();
+  for (const segment of coverageData.scheduledSegments) {
+    scheduledMinutesByEmployee.set(
+      segment.employeeId,
+      (scheduledMinutesByEmployee.get(segment.employeeId) ?? 0) + segment.paidMinutes,
+    );
+  }
+
+  const claimRecommendations = openShiftRows.map((openShift) => {
+    const shift = shifts.find((row) => row.id === openShift.shiftDefinitionId);
+    if (!shift) {
+      return { openShiftId: openShift.id, recommendations: [] };
+    }
+    const pending = claimRows.filter((claim) =>
+      claim.openShiftId === openShift.id
+      && claim.status === "pending"
+      && employeeIds.includes(claim.employeeId),
+    );
+    const claimIdByEmployee = new Map(pending.map((claim) => [claim.employeeId, claim.id]));
+    const ranked = rankCoverageCandidates({
+      shiftPaidMinutes: paidShiftMinutes({
+        id: shift.id,
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        breakMinutes: shift.breakMinutes,
+        spansMidnight: shift.spansMidnight,
+      }),
+      candidates: pending.map((claim) => {
+        const rules: AvailabilityRule[] = availability
+          .filter((row) => row.employeeId === claim.employeeId)
+          .map((row) => ({
+            id: row.id,
+            employeeId: row.employeeId,
+            weekday: row.weekday,
+            startTime: row.startTime,
+            endTime: row.endTime,
+            availabilityType: row.availabilityType === "preferred" ? "preferred" : "unavailable",
+            effectiveFrom: String(row.effectiveFrom),
+            effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+          }));
+        let consecutiveWorkingDaysBeforeShift = 0;
+        for (let offset = 1; offset <= 7; offset += 1) {
+          const previousDate = addDays(String(openShift.workDate), -offset);
+          const previous = coverageData.schedules.get(`${claim.employeeId}|${previousDate}`);
+          if (!previous || previous.isRestDay || previous.segments.length === 0) break;
+          consecutiveWorkingDaysBeforeShift += 1;
+        }
+        const current = coverageData.schedules.get(
+          `${claim.employeeId}|${String(openShift.workDate)}`,
+        );
+        return {
+          employeeId: claim.employeeId,
+          employeeName: employeeNameById.get(claim.employeeId) ?? `Employee #${claim.employeeId}`,
+          preferred: preferredForShift({
+            rules,
+            date: String(openShift.workDate),
+            shift,
+          }),
+          scheduledMinutesInWindow: scheduledMinutesByEmployee.get(claim.employeeId) ?? 0,
+          consecutiveWorkingDaysBeforeShift,
+          alreadyWorkingThatDay: Boolean(
+            current && !current.isRestDay && current.segments.length > 0,
+          ),
+        };
+      }),
+    });
+    return {
+      openShiftId: openShift.id,
+      recommendations: ranked.map((candidate, index) => ({
+        ...candidate,
+        rank: index + 1,
+        claimId: claimIdByEmployee.get(candidate.employeeId) ?? null,
+      })),
+    };
+  });
+
   return Response.json({
     employees: workforce.visibleEmployees.map((employee) => ({
       id: employee.id,
@@ -989,6 +1072,7 @@ export async function GET(request: Request) {
     availability,
     coverage: coverageData.coverage,
     laborVariance: laborVarianceResponse,
+    claimRecommendations,
     openShifts: openShiftRows.map((row) => {
       const approved = claimRows.filter((claim) =>
         claim.openShiftId === row.id && claim.status === "approved",
