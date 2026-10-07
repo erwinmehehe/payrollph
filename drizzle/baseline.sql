@@ -3497,7 +3497,7 @@ CREATE TABLE IF NOT EXISTS "performance_one_on_one_action_item_events" (
   "after_snapshot" jsonb,
   "created_at" timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT "performance_one_on_one_action_item_events_type_check"
-    CHECK ("event_type" IN ('created','status_changed','reassigned','due_date_changed','visibility_changed','reopened','cancelled'))
+    CHECK ("event_type" IN ('created','updated','status_changed','reassigned','due_date_changed','visibility_changed','reopened','cancelled'))
 );
 
 CREATE INDEX IF NOT EXISTS "performance_one_on_one_action_item_events_item_idx"
