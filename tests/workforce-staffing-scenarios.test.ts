@@ -81,5 +81,6 @@ test("planning API returns scoped worksites and UI supports scenario scope plus 
   assert.ok(panel.includes('scenarioAction(scenario.id, "submit")'));
   assert.ok(panel.includes('scenarioAction(scenario.id, "approve")'));
   assert.ok(panel.includes('scenarioAction(scenario.id, "reject")'));
-  assert.ok(panel.includes("Locked evidence"));
+  assert.ok(panel.includes("Current baseline"));
+  assert.ok(panel.includes("Publish baseline"));
 });
