@@ -18,7 +18,7 @@ export default function Hero() {
             From schedules and employee records to payroll review and payslips, Linaw brings the work together in one connected Philippine platform.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/book-demo" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#10243d] px-6 py-3.5 text-[14px] font-semibold text-white shadow-[0_14px_25px_-14px_rgba(16,36,61,.45)] transition-transform hover:-translate-y-0.5">
+            <Link href="/book-demo" style={{ color: "#ffffff", backgroundColor: "#10243d" }} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#10243d] px-6 py-3.5 text-[14px] font-semibold text-white shadow-[0_14px_25px_-14px_rgba(16,36,61,.45)] transition-transform hover:-translate-y-0.5">
               Request a demo <ArrowRight size={16} aria-hidden="true" />
             </Link>
             <Link href="/demo" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[#d9e1eb] bg-white px-6 py-3.5 text-[14px] font-semibold text-[#15253d] transition-colors hover:bg-[#f1f6ff]">
