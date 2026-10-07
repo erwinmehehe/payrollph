@@ -1,4 +1,5 @@
 import { resolveLaborAllocation, type LaborAllocationRow } from "./labor-costing";
+import { computePagIbig, computePhilHealth, computeSss } from "./payroll-rules";
 
 export type ForecastPayProfile = {
   employeeId: number;
@@ -12,6 +13,11 @@ export type ForecastEmployee = {
   id: number;
   status: string;
   jobProfileId?: number | null;
+};
+
+export type ForecastEmployerBenefit = {
+  employeeId: number;
+  monthlyEmployerCost: number | string;
 };
 
 export type ForecastPosition = {
@@ -110,6 +116,23 @@ export function hourlyBaseRate(profile: ForecastPayProfile) {
   throw new Error(`Unsupported pay basis "${profile.payBasis}".`);
 }
 
+export function monthlyEquivalentPay(profile: ForecastPayProfile) {
+  return round2(annualizePayProfile(profile) / 12);
+}
+
+export function monthlyEmployerStatutoryCost(monthlySalary: number) {
+  if (!Number.isFinite(monthlySalary) || monthlySalary <= 0) return 0;
+  const sss = computeSss(monthlySalary);
+  const philHealth = computePhilHealth(monthlySalary);
+  const pagIbig = computePagIbig(monthlySalary);
+  return round2(sss.employerTotal + philHealth.employer + pagIbig.employer);
+}
+
+export function annualEmployerStatutoryCostFromAnnualSalary(annualSalary: number) {
+  if (!Number.isFinite(annualSalary) || annualSalary <= 0) return 0;
+  return round2(monthlyEmployerStatutoryCost(annualSalary / 12) * 12);
+}
+
 export function annualStandardCapacityHours(profile: ForecastPayProfile) {
   const workDays = number(profile.standardWorkDaysPerMonth, "standard work days");
   const hours = number(profile.standardHoursPerDay, "standard hours");
@@ -149,6 +172,7 @@ export function buildWorkforceDemandForecast(input: {
   assumptions: WorkforceForecastAssumptions;
   employees: ForecastEmployee[];
   payProfiles: ForecastPayProfile[];
+  employerBenefits?: ForecastEmployerBenefit[];
   positions: ForecastPosition[];
   staffingRequirements: ForecastStaffingRequirement[];
   shifts: ForecastShift[];
@@ -181,8 +205,13 @@ export function buildWorkforceDemandForecast(input: {
   const missingPayProfileEmployeeIds: number[] = [];
   const invalidPayProfileEmployeeIds: number[] = [];
   const annualCostByEmployee = new Map<number, number>();
+  const annualStatutoryByEmployee = new Map<number, number>();
+  const annualBenefitByEmployee = new Map<number, number>();
   const annualCapacityByEmployee = new Map<number, number>();
   const hourlyRates: number[] = [];
+  const benefitMonthlyByEmployee = new Map(
+    (input.employerBenefits ?? []).map((row) => [row.employeeId, number(row.monthlyEmployerCost, "employer benefit cost")]),
+  );
 
   for (const employee of activeEmployees) {
     const profile = profileByEmployee.get(employee.id);
@@ -191,7 +220,10 @@ export function buildWorkforceDemandForecast(input: {
       continue;
     }
     try {
-      annualCostByEmployee.set(employee.id, annualizePayProfile(profile));
+      const annualBase = annualizePayProfile(profile);
+      annualCostByEmployee.set(employee.id, annualBase);
+      annualStatutoryByEmployee.set(employee.id, annualEmployerStatutoryCostFromAnnualSalary(annualBase));
+      annualBenefitByEmployee.set(employee.id, round2((benefitMonthlyByEmployee.get(employee.id) ?? 0) * 12));
       annualCapacityByEmployee.set(employee.id, annualStandardCapacityHours(profile));
       hourlyRates.push(hourlyBaseRate(profile));
     } catch {
@@ -200,20 +232,46 @@ export function buildWorkforceDemandForecast(input: {
   }
 
   const annualizedBasePayroll = [...annualCostByEmployee.values()].reduce((sum, value) => sum + value, 0);
+  const annualizedEmployerStatutory = [...annualStatutoryByEmployee.values()].reduce((sum, value) => sum + value, 0);
+  const annualizedEmployerBenefits = [...annualBenefitByEmployee.values()].reduce((sum, value) => sum + value, 0);
   const currentPeriodBasePayroll = annualizedBasePayroll * windowDays / 365.25;
+  const currentPeriodEmployerStatutory = annualizedEmployerStatutory * windowDays / 365.25;
+  const currentPeriodEmployerBenefits = annualizedEmployerBenefits * windowDays / 365.25;
   const currentPeriodCapacityHours = [...annualCapacityByEmployee.values()]
     .reduce((sum, annualHours) => sum + annualHours * windowDays / 365.25, 0);
   const averageAnnualCapacityHours = annualCapacityByEmployee.size
     ? [...annualCapacityByEmployee.values()].reduce((sum, value) => sum + value, 0) / annualCapacityByEmployee.size
     : 0;
+  const averageMonthlyEmployerBenefit = annualBenefitByEmployee.size
+    ? [...annualBenefitByEmployee.values()].reduce((sum, value) => sum + value, 0) / annualBenefitByEmployee.size / 12
+    : 0;
 
   const vacantPositions = input.positions.filter((position) => VACANT_POSITION_STATUSES.has(position.status));
   const vacantAnnualBudget = vacantPositions.reduce((sum, position) => sum + number(position.annualBudget, "position annual budget"), 0);
   const expectedVacancyAnnualCost = vacantAnnualBudget * vacancyFillPercent / 100;
+  const expectedVacancyAnnualStatutory = vacantPositions.reduce((sum, position) =>
+    sum + annualEmployerStatutoryCostFromAnnualSalary(number(position.annualBudget, "position annual budget")) * vacancyFillPercent / 100,
+  0);
+  const expectedVacancyAnnualBenefits = vacantPositions.reduce((sum, position) => {
+    const annualBudget = number(position.annualBudget, "position annual budget");
+    if (annualBudget <= 0) return sum;
+    return sum + averageMonthlyEmployerBenefit * 12 * vacancyFillPercent / 100;
+  }, 0);
   const expectedVacancyPeriodCost = vacantPositions.reduce((sum, position) => {
     const days = overlapDays(startDate, endDate, position.plannedStartDate);
     const periodBudget = number(position.annualBudget, "position annual budget") * days / 365.25;
     return sum + periodBudget * vacancyFillPercent / 100;
+  }, 0);
+  const expectedVacancyPeriodStatutory = vacantPositions.reduce((sum, position) => {
+    const days = overlapDays(startDate, endDate, position.plannedStartDate);
+    const annualStatutory = annualEmployerStatutoryCostFromAnnualSalary(number(position.annualBudget, "position annual budget"));
+    return sum + annualStatutory * days / 365.25 * vacancyFillPercent / 100;
+  }, 0);
+  const expectedVacancyPeriodBenefits = vacantPositions.reduce((sum, position) => {
+    const annualBudget = number(position.annualBudget, "position annual budget");
+    if (annualBudget <= 0) return sum;
+    const days = overlapDays(startDate, endDate, position.plannedStartDate);
+    return sum + averageMonthlyEmployerBenefit * 12 * days / 365.25 * vacancyFillPercent / 100;
   }, 0);
   const expectedVacancyCapacityHours = vacantPositions.reduce((sum, position) => {
     const days = overlapDays(startDate, endDate, position.plannedStartDate);
@@ -221,10 +279,20 @@ export function buildWorkforceDemandForecast(input: {
   }, 0);
 
   const forecastPeriodBasePayroll = currentPeriodBasePayroll + expectedVacancyPeriodCost;
+  const forecastPeriodEmployerStatutory = currentPeriodEmployerStatutory + expectedVacancyPeriodStatutory;
+  const forecastPeriodEmployerBenefits = currentPeriodEmployerBenefits + expectedVacancyPeriodBenefits;
   const employerLoadCost = forecastPeriodBasePayroll * employerLoadPercent / 100;
-  const forecastPeriodLaborCost = forecastPeriodBasePayroll + employerLoadCost;
+  const forecastPeriodLaborCost = forecastPeriodBasePayroll
+    + forecastPeriodEmployerStatutory
+    + forecastPeriodEmployerBenefits
+    + employerLoadCost;
   const annualRunRateBase = annualizedBasePayroll + expectedVacancyAnnualCost;
-  const annualRunRateLaborCost = annualRunRateBase * (1 + employerLoadPercent / 100);
+  const annualRunRateEmployerStatutory = annualizedEmployerStatutory + expectedVacancyAnnualStatutory;
+  const annualRunRateEmployerBenefits = annualizedEmployerBenefits + expectedVacancyAnnualBenefits;
+  const annualRunRateLaborCost = annualRunRateBase
+    + annualRunRateEmployerStatutory
+    + annualRunRateEmployerBenefits
+    + annualRunRateBase * employerLoadPercent / 100;
 
   const shiftById = new Map(input.shifts.map((shift) => [shift.id, shift]));
   let requiredHeadcountHours = 0;
@@ -318,9 +386,12 @@ export function buildWorkforceDemandForecast(input: {
   const averageBaseHourlyRate = hourlyRates.length
     ? hourlyRates.reduce((sum, value) => sum + value, 0) / hourlyRates.length
     : 0;
-  const estimatedShiftDemandWageCost = forecastHeadcountHours
-    * averageBaseHourlyRate
-    * (1 + employerLoadPercent / 100);
+  const activeAnnualLoadedCost = annualizedBasePayroll + annualizedEmployerStatutory + annualizedEmployerBenefits;
+  const activeAnnualCapacity = [...annualCapacityByEmployee.values()].reduce((sum, value) => sum + value, 0);
+  const averageLoadedHourlyRate = activeAnnualCapacity > 0
+    ? activeAnnualLoadedCost / activeAnnualCapacity * (1 + employerLoadPercent / 100)
+    : 0;
+  const estimatedShiftDemandWageCost = forecastHeadcountHours * averageLoadedHourlyRate;
 
   const costCenterById = new Map(input.costCenters.map((center) => [center.id, center]));
   const costCenterCost = new Map<number, number>();
@@ -328,7 +399,11 @@ export function buildWorkforceDemandForecast(input: {
   const allocationIssueEmployeeIds: number[] = [];
 
   for (const [employeeId, annualCost] of annualCostByEmployee) {
+    const annualLoadedCost = annualCost
+      + (annualStatutoryByEmployee.get(employeeId) ?? 0)
+      + (annualBenefitByEmployee.get(employeeId) ?? 0);
     const periodCost = annualCost * windowDays / 365.25;
+    const periodLoadedCost = annualLoadedCost * windowDays / 365.25 * (1 + employerLoadPercent / 100);
     try {
       const resolved = resolveLaborAllocation({
         employeeId,
@@ -336,18 +411,18 @@ export function buildWorkforceDemandForecast(input: {
         rows: input.laborAllocations,
       });
       if (resolved.status === "unallocated") {
-        unallocatedCurrentPeriodBaseCost += periodCost;
+        unallocatedCurrentPeriodBaseCost += periodLoadedCost;
         continue;
       }
       for (const allocation of resolved.allocations) {
         costCenterCost.set(
           allocation.costCenterId,
-          (costCenterCost.get(allocation.costCenterId) ?? 0) + periodCost * allocation.percent / 100,
+          (costCenterCost.get(allocation.costCenterId) ?? 0) + periodLoadedCost * allocation.percent / 100,
         );
       }
     } catch {
       allocationIssueEmployeeIds.push(employeeId);
-      unallocatedCurrentPeriodBaseCost += periodCost;
+      unallocatedCurrentPeriodBaseCost += periodLoadedCost;
     }
   }
 
@@ -358,8 +433,8 @@ export function buildWorkforceDemandForecast(input: {
         costCenterId,
         code: center?.code ?? `#${costCenterId}`,
         name: center?.name ?? "Unknown cost center",
-        currentPeriodBaseCost: round2(currentPeriodBaseCost),
-        currentPeriodLoadedCost: round2(currentPeriodBaseCost * (1 + employerLoadPercent / 100)),
+        currentPeriodBaseCost: null,
+        currentPeriodLoadedCost: round2(currentPeriodBaseCost),
       };
     })
     .sort((a, b) => b.currentPeriodBaseCost - a.currentPeriodBaseCost || a.code.localeCompare(b.code));
@@ -379,15 +454,26 @@ export function buildWorkforceDemandForecast(input: {
       vacantPositions: vacantPositions.length,
       expectedVacancyFills: round2(vacantPositions.length * vacancyFillPercent / 100),
       annualizedBasePayroll: round2(annualizedBasePayroll),
+      annualizedEmployerStatutory: round2(annualizedEmployerStatutory),
+      annualizedEmployerBenefits: round2(annualizedEmployerBenefits),
       vacantAnnualBudget: round2(vacantAnnualBudget),
+      annualRunRateEmployerStatutory: round2(annualRunRateEmployerStatutory),
+      annualRunRateEmployerBenefits: round2(annualRunRateEmployerBenefits),
       annualRunRateLaborCost: round2(annualRunRateLaborCost),
       currentPeriodBasePayroll: round2(currentPeriodBasePayroll),
+      currentPeriodEmployerStatutory: round2(currentPeriodEmployerStatutory),
+      currentPeriodEmployerBenefits: round2(currentPeriodEmployerBenefits),
       expectedVacancyPeriodCost: round2(expectedVacancyPeriodCost),
+      expectedVacancyPeriodStatutory: round2(expectedVacancyPeriodStatutory),
+      expectedVacancyPeriodBenefits: round2(expectedVacancyPeriodBenefits),
       employerLoadCost: round2(employerLoadCost),
+      forecastPeriodEmployerStatutory: round2(forecastPeriodEmployerStatutory),
+      forecastPeriodEmployerBenefits: round2(forecastPeriodEmployerBenefits),
       forecastPeriodLaborCost: round2(forecastPeriodLaborCost),
       requiredHeadcountHours: round2(requiredHeadcountHours),
       forecastHeadcountHours: round2(forecastHeadcountHours),
       averageBaseHourlyRate: round2(averageBaseHourlyRate),
+      averageLoadedHourlyRate: round2(averageLoadedHourlyRate),
       estimatedShiftDemandWageCost: round2(estimatedShiftDemandWageCost),
       currentPeriodCapacityHours: round2(currentPeriodCapacityHours),
       expectedVacancyCapacityHours: round2(expectedVacancyCapacityHours),
