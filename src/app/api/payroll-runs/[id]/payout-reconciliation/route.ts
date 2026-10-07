@@ -4,11 +4,7 @@ import { auditEvents, payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
-import {
-  assertOrganizationRole,
-  assertOrganizationUnitAccess,
-  PAYROLL_DISBURSEMENT_ROLES,
-} from "@/lib/access";
+import { assertOrganizationUnitAccess } from "@/lib/access";
 import {
   createPaymongoPayrollRetry,
   getPaymongoBatchDisbursement,
@@ -27,6 +23,7 @@ import {
 } from "@/lib/security-request";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { withPayrollPayoutSubmissionLock } from "@/lib/payout-submission-lock";
+import { authorizeTreasuryOperation, type TreasuryEvidence } from "@/lib/treasury-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +93,7 @@ async function writeReconciliation(input: {
   periodLabel: string;
   runId: number;
   reconciliation: PaymongoPayrollReconciliation;
+  treasury: TreasuryEvidence | null;
 }) {
   const checkedAt = new Date().toISOString();
   const action = input.reconciliation.completed
@@ -120,6 +118,7 @@ async function writeReconciliation(input: {
       completedAt: input.reconciliation.completed ? checkedAt : null,
       moneyMovedByLinaw: true,
       settlementVerified: input.reconciliation.completed,
+      treasury: input.treasury,
     },
   });
 
@@ -144,13 +143,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
 
-  const denied = await assertOrganizationRole(
-    user.id,
-    run.organizationId,
-    PAYROLL_DISBURSEMENT_ROLES,
-    "Only the workspace owner can view payroll payout reconciliation.",
-  );
-  if (denied) return denied;
+  const treasury = await authorizeTreasuryOperation({
+    organizationId: run.organizationId,
+    runId: run.id,
+    userId: user.id,
+    userName: user.name,
+    requireReleaseSeparation: false,
+  });
+  if (treasury.response) return treasury.response;
 
   const scopeDenied = await assertOrganizationUnitAccess(
     user.id,
@@ -220,13 +220,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
 
-  const denied = await assertOrganizationRole(
-    user.id,
-    run.organizationId,
-    PAYROLL_DISBURSEMENT_ROLES,
-    "Only the workspace owner can reconcile or retry payroll payouts.",
-  );
-  if (denied) return denied;
+  const body = await request.json().catch(() => ({}));
+  const action = body.action === "retry-failed" ? "retry-failed" : "reconcile";
+  const treasury = await authorizeTreasuryOperation({
+    organizationId: run.organizationId,
+    runId: run.id,
+    userId: user.id,
+    userName: user.name,
+    requireReleaseSeparation: action === "retry-failed",
+  });
+  if (treasury.response) return treasury.response;
 
   const scopeDenied = await assertOrganizationUnitAccess(
     user.id,
@@ -260,9 +263,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
-  const body = await request.json().catch(() => ({}));
-  const action = body.action === "retry-failed" ? "retry-failed" : "reconcile";
-
   const allEvents = await db
     .select()
     .from(auditEvents)
@@ -291,6 +291,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     periodLabel: run.periodLabel,
     runId: run.id,
     reconciliation,
+    treasury: treasury.evidence,
   });
 
   if (action === "reconcile") {
@@ -344,6 +345,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         transferCount: retry.transfers.length,
         transfers: retry.transfers,
         moneyMovedByLinaw: true,
+        treasury: treasury.evidence,
       },
     });
 
@@ -367,6 +369,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         retryReferences: reconciliation.retryableReferences,
         error: message,
         moneyMovedByLinaw: false,
+        treasury: treasury.evidence,
       },
     });
     return Response.json({ error: message, reconciliation }, { status: 502 });
