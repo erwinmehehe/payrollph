@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { DEFAULT_HCM_LIFECYCLE_POLICY } from "@/lib/hcm-lifecycle-policy";
+import { probationReviewSnapshot } from "@/lib/hcm-probation-reviews";
 import {
   documents,
   employees,
@@ -12,6 +13,8 @@ import {
   hcmEmploymentTermDecisions,
   hcmEmploymentTerms,
   hcmLifecyclePolicies,
+  hcmProbationReviewAcknowledgments,
+  hcmProbationReviews,
   positionAssignments,
   positions,
 } from "@/db/schema";
@@ -158,6 +161,28 @@ function proposalSnapshotV2(
   };
 }
 
+function proposalSnapshotV3(
+  decision: typeof hcmEmploymentTermDecisions.$inferSelect,
+  term: typeof hcmEmploymentTerms.$inferSelect,
+  notes: Array<typeof hcmEmploymentDecisionNotes.$inferSelect>,
+  attachments: Array<{
+    evidence: typeof hcmEmploymentDecisionDocuments.$inferSelect;
+    document: Pick<
+      typeof documents.$inferSelect,
+      "id" | "fileName" | "mimeType" | "byteSize" | "sha256" | "scannedClean" | "scanNote" | "createdAt"
+    >;
+  }>,
+  managerAttestations: Array<typeof hcmEmploymentDecisionManagerAttestations.$inferSelect>,
+  probationReview: typeof hcmProbationReviews.$inferSelect | null,
+) {
+  const v2 = proposalSnapshotV2(decision, term, notes, attachments, managerAttestations);
+  return {
+    ...v2,
+    packetVersion: "hcm-employment-decision-evidence-v3",
+    probationReview: probationReview ? probationReviewSnapshot(probationReview) : null,
+  };
+}
+
 async function loadReviewEvidence(input: {
   organizationId: number;
   decisionId: number;
@@ -168,7 +193,7 @@ async function loadReviewEvidence(input: {
   )).limit(1);
   if (!decision) return null;
 
-  const [term, employee, notes, attachments, managerAttestations] = await Promise.all([
+  const [term, employee, notes, attachments, managerAttestations, structuredProbationReview] = await Promise.all([
     db.select().from(hcmEmploymentTerms).where(and(
       eq(hcmEmploymentTerms.id, decision.employmentTermId),
       eq(hcmEmploymentTerms.organizationId, decision.organizationId),
@@ -216,13 +241,24 @@ async function loadReviewEvidence(input: {
       asc(hcmEmploymentDecisionManagerAttestations.createdAt),
       asc(hcmEmploymentDecisionManagerAttestations.id),
     ),
+    db.select().from(hcmProbationReviews).where(and(
+      eq(hcmProbationReviews.organizationId, input.organizationId),
+      eq(hcmProbationReviews.employmentTermId, decision.employmentTermId),
+      eq(hcmProbationReviews.status, "submitted"),
+    )).limit(1).then((rows) => rows[0] ?? null),
   ]);
 
   if (!term || !employee) return null;
-  const evidencePacketVersion = decision.evidencePacketVersion === "v1" ? "v1" : "v2";
+  const evidencePacketVersion = decision.evidencePacketVersion === "v1"
+    ? "v1"
+    : decision.evidencePacketVersion === "v2"
+      ? "v2"
+      : "v3";
   const reviewEvidence = evidencePacketVersion === "v1"
     ? proposalSnapshotV1(decision, term, notes, attachments)
-    : proposalSnapshotV2(decision, term, notes, attachments, managerAttestations);
+    : evidencePacketVersion === "v2"
+      ? proposalSnapshotV2(decision, term, notes, attachments, managerAttestations)
+      : proposalSnapshotV3(decision, term, notes, attachments, managerAttestations, structuredProbationReview);
   return {
     decision,
     employee,
@@ -230,6 +266,7 @@ async function loadReviewEvidence(input: {
     notes,
     attachments,
     managerAttestations,
+    structuredProbationReview,
     evidencePacketVersion,
     reviewEvidence,
     currentEvidenceSha256: evidenceSha256(reviewEvidence),
@@ -248,14 +285,25 @@ export async function loadEmploymentDecisionEvidencePacket(input: {
     eq(hcmEmploymentDecisionEvents.decisionId, input.decisionId),
   )).orderBy(asc(hcmEmploymentDecisionEvents.createdAt), asc(hcmEmploymentDecisionEvents.id));
 
+  const [probationReviewAcknowledgment] = review.structuredProbationReview
+    ? await db.select().from(hcmProbationReviewAcknowledgments).where(
+        eq(hcmProbationReviewAcknowledgments.reviewId, review.structuredProbationReview.id),
+      ).limit(1)
+    : [null];
+
   const sealedHash = review.decision.evidenceSnapshotSha256;
   return {
-    packetVersion: review.evidencePacketVersion === "v1" ? "hcm-employment-decision-packet-v1" : "hcm-employment-decision-packet-v2",
+    packetVersion: review.evidencePacketVersion === "v1"
+      ? "hcm-employment-decision-packet-v1"
+      : review.evidencePacketVersion === "v2"
+        ? "hcm-employment-decision-packet-v2"
+        : "hcm-employment-decision-packet-v3",
     generatedAt: new Date().toISOString(),
     employee: review.employee,
     decision: review.decision,
     sourceEmploymentTerms: review.term,
     reviewEvidence: review.reviewEvidence,
+    probationReviewAcknowledgment: probationReviewAcknowledgment ?? null,
     integrity: {
       sealed: Boolean(sealedHash),
       sealedAt: review.decision.evidenceSealedAt?.toISOString() ?? null,
@@ -377,6 +425,14 @@ export async function approveEmploymentDecisionWithEvidence(input: {
         asc(hcmEmploymentDecisionManagerAttestations.id),
       );
 
+    const [structuredProbationReview] = term.termKind === "probationary"
+      ? await tx.select().from(hcmProbationReviews).where(and(
+          eq(hcmProbationReviews.organizationId, input.organizationId),
+          eq(hcmProbationReviews.employmentTermId, decision.employmentTermId),
+          eq(hcmProbationReviews.status, "submitted"),
+        )).limit(1)
+      : [null];
+
     const [currentReportingLine] = await tx.select({
       assignmentId: positionAssignments.id,
       positionId: positions.id,
@@ -439,12 +495,13 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       );
     }
 
-    const reviewEvidence = proposalSnapshotV2(
+    const reviewEvidence = proposalSnapshotV3(
       decision,
       term,
       notes,
       attachments,
       managerAttestations,
+      structuredProbationReview ?? null,
     );
     const snapshotSha256 = evidenceSha256(reviewEvidence);
 
@@ -454,7 +511,7 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       approvedBy: input.approverName,
       approvedAt: now,
       evidenceSnapshotSha256: snapshotSha256,
-      evidencePacketVersion: "v2",
+      evidencePacketVersion: "v3",
       evidenceSealedAt: now,
       failure: null,
       updatedAt: now,
@@ -480,7 +537,8 @@ export async function approveEmploymentDecisionWithEvidence(input: {
         managerAttestationCount: managerAttestations.length,
         currentManagerAttestationId: currentManagerAttestation?.id ?? null,
         currentManagerRecommendation: currentManagerAttestation?.recommendation ?? null,
-        evidencePacketVersion: "v2",
+        structuredProbationReviewId: structuredProbationReview?.id ?? null,
+        evidencePacketVersion: "v3",
         effectiveDate: String(scheduled.effectiveDate),
         decisionKind: scheduled.decisionKind,
         lifecyclePolicyVersion: lifecyclePolicy?.version ?? 0,
@@ -500,6 +558,7 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       attachmentCount: attachments.length,
       managerAttestationCount: managerAttestations.length,
       currentManagerAttestationId: currentManagerAttestation?.id ?? null,
+      structuredProbationReviewId: structuredProbationReview?.id ?? null,
     };
   });
 }
