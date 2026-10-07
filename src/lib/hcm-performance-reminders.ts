@@ -10,6 +10,7 @@ import {
   userOrganizations,
   users,
 } from "@/db/schema";
+import { PEOPLE_ADMIN_ROLES, roleAllowed } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { philippineBusinessDate } from "@/lib/hcm-employment-terms";
 import { queueMessage } from "@/lib/mailer";
@@ -30,6 +31,7 @@ type ReminderSignal = {
   ownerUserId: number | null;
   ownerName: string | null;
   ownerEmail: string | null;
+  fallbackOwner: boolean;
 };
 
 function dayDifference(dueDate: string, today: string) {
@@ -55,9 +57,13 @@ function reminderSubject(signal: ReminderSignal) {
 }
 
 function reminderBody(signal: ReminderSignal, recipientName: string) {
-  const action = signal.reminderType === "self_assessment"
-    ? "Complete your self-assessment and reflection in Employee Self-Service."
-    : "Complete the manager review, required structured items, and final rating in Performance.";
+  const action = signal.fallbackOwner
+    ? signal.reminderType === "self_assessment"
+      ? "The employee self-assessment is still incomplete and there is no active linked employee account. Please resolve the access/ownership gap or follow up with the employee."
+      : "The manager review is still incomplete and the assigned reviewer is missing or inactive. Please resolve reviewer ownership."
+    : signal.reminderType === "self_assessment"
+      ? "Complete your self-assessment and reflection in Employee Self-Service."
+      : "Complete the manager review, required structured items, and final rating in Performance.";
   const urgency = signal.stage === "overdue_escalated"
     ? "This item is overdue and has crossed the escalation threshold."
     : signal.stage === "overdue"
@@ -114,6 +120,7 @@ async function signalsForOrganization(organizationId: number, now: Date): Promis
       name: users.name,
       email: users.email,
       role: userOrganizations.role,
+      orgUnitId: userOrganizations.orgUnitId,
       membershipActive: userOrganizations.active,
       userActive: users.active,
     })
@@ -131,6 +138,19 @@ async function signalsForOrganization(organizationId: number, now: Date): Promis
       .map((row) => [row.employeeId!, row]),
   );
 
+  const fallbackPeopleAdmin = memberships.find((row) =>
+    row.membershipActive
+    && row.userActive
+    && row.orgUnitId == null
+    && row.role === "hr"
+    && roleAllowed(row.role, PEOPLE_ADMIN_ROLES),
+  ) ?? memberships.find((row) =>
+    row.membershipActive
+    && row.userActive
+    && row.orgUnitId == null
+    && roleAllowed(row.role, PEOPLE_ADMIN_ROLES),
+  ) ?? null;
+
   const signals: ReminderSignal[] = [];
   for (const review of reviews) {
     const cycle = cycleById.get(review.cycleId);
@@ -143,7 +163,8 @@ async function signalsForOrganization(organizationId: number, now: Date): Promis
     const employeeName = employee.firstName + " " + employee.lastName;
 
     if (cycle.requireSelfAssessment && (!review.selfScore || !review.employeeReflection)) {
-      const owner = employeeAccountByEmployeeId.get(review.employeeId) ?? null;
+      const employeeOwner = employeeAccountByEmployeeId.get(review.employeeId) ?? null;
+      const owner = employeeOwner ?? fallbackPeopleAdmin;
       signals.push({
         organizationId,
         cycleId: cycle.id,
@@ -158,11 +179,13 @@ async function signalsForOrganization(organizationId: number, now: Date): Promis
         ownerUserId: owner?.userId ?? null,
         ownerName: owner?.name ?? null,
         ownerEmail: owner?.email ?? null,
+        fallbackOwner: !employeeOwner && Boolean(owner),
       });
     }
 
     if (review.status !== "completed") {
-      const owner = review.reviewerUserId ? userById.get(review.reviewerUserId) ?? null : null;
+      const assignedOwner = review.reviewerUserId ? userById.get(review.reviewerUserId) ?? null : null;
+      const owner = assignedOwner ?? fallbackPeopleAdmin;
       signals.push({
         organizationId,
         cycleId: cycle.id,
@@ -177,6 +200,7 @@ async function signalsForOrganization(organizationId: number, now: Date): Promis
         ownerUserId: owner?.userId ?? null,
         ownerName: owner?.name ?? null,
         ownerEmail: owner?.email ?? null,
+        fallbackOwner: !assignedOwner && Boolean(owner),
       });
     }
   }
@@ -292,8 +316,10 @@ async function syncOrganizationPerformanceReminders(
           },
         },
       });
-      notified = !("deduplicated" in delivery && delivery.deduplicated);
-      if (notified) {
+      if ("deduplicated" in delivery && delivery.deduplicated) {
+        notified = false;
+      } else {
+        notified = true;
         await db.update(performanceReminderTasks).set({
           lastNotifiedAt: now,
           updatedAt: now,
@@ -301,6 +327,7 @@ async function syncOrganizationPerformanceReminders(
         await recordReminderEvent(task, signal.stage.startsWith("overdue") ? "escalated" : "notified", actor, {
           stage: signal.stage,
           ownerUserId: signal.ownerUserId,
+          fallbackOwner: signal.fallbackOwner,
           outboxId: delivery.id,
         });
       }
