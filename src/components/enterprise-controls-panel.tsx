@@ -20,6 +20,14 @@ type Provider = {
   clientId: string;
   scopes: string;
   emailClaim: string;
+  samlEntityId: string | null;
+  samlSsoUrl: string | null;
+  samlNameIdFormat: string | null;
+  samlEmailAttribute: string | null;
+  samlMetadataVerifiedAt: string | null;
+  samlCertificateFingerprintSha256: string | null;
+  samlMetadataUrl: string | null;
+  samlAcsUrl: string | null;
   enabled: boolean;
   discoveryVerifiedAt: string | null;
   clientSecretConfigured: boolean;
@@ -49,6 +57,8 @@ type EnterpriseData = {
   mfaReadiness: MfaReadiness;
   identityEncryptionConfigured: boolean;
   oidcCallbackUrl: string;
+  samlRuntimeReady: boolean;
+  samlRuntimeBlockReason: string;
   scimBaseUrl: string;
   identityProviders: Provider[];
   identityDomains: Domain[];
@@ -69,6 +79,7 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
   const [data, setData] = useState<EnterpriseData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showProvider, setShowProvider] = useState(false);
+  const [showSamlProvider, setShowSamlProvider] = useState(false);
   const [showPermission, setShowPermission] = useState(false);
   const [showRule, setShowRule] = useState(false);
   const [oneTimeSecret, setOneTimeSecret] = useState<{ title: string; value: string; copy: string } | null>(null);
@@ -81,6 +92,14 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
     ssoMode: "optional",
   });
   const [providerForm, setProviderForm] = useState({ name: "", issuer: "", clientId: "", clientSecret: "", domain: "" });
+  const [samlProviderForm, setSamlProviderForm] = useState({
+    name: "",
+    entityId: "",
+    ssoUrl: "",
+    x509Certificate: "",
+    emailAttribute: "email",
+    domain: "",
+  });
   const [scimName, setScimName] = useState("");
   const [permissionForm, setPermissionForm] = useState({ name: "", description: "", permissions: [] as string[] });
   const [ruleForm, setRuleForm] = useState({
@@ -150,6 +169,29 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
       await load();
       setNotice("OIDC provider discovered and saved. Verify the company domain before enabling it.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not configure OIDC."); }
+  }
+
+  async function createSamlProvider(event: React.FormEvent) {
+    event.preventDefault();
+    try {
+      const payload = await mutate({ action: "create-saml-provider", ...samlProviderForm });
+      setSamlProviderForm({
+        name: "",
+        entityId: "",
+        ssoUrl: "",
+        x509Certificate: "",
+        emailAttribute: "email",
+        domain: "",
+      });
+      setShowSamlProvider(false);
+      setOneTimeSecret({
+        title: "Publish this DNS TXT value",
+        value: payload.dnsTxtRecord,
+        copy: "Add the exact value as a TXT record on the company email domain. SAML remains non-routable until signed XML assertion verification is installed.",
+      });
+      await load();
+      setNotice("SAML provider metadata saved. Verify the company domain; SAML sign-in remains disabled until cryptographic assertion verification is available.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Could not configure SAML."); }
   }
 
   async function verifyDomain(domain: Domain) {
@@ -298,6 +340,48 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
 
       <TreasuryControlsPanel organizationId={organizationId} setNotice={setNotice} />
 
+      <article className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">SAML 2.0</div>
+            <h2>Enterprise SAML configuration</h2>
+            <p>Configure IdP metadata, signing certificate, SP metadata, and verified company domains without enabling an unverified SAML runtime.</p>
+          </div>
+          <button className="primary-button" onClick={() => setShowSamlProvider(!showSamlProvider)}><KeyRound size={14} /> SAML provider</button>
+        </div>
+        {!data.samlRuntimeReady && <div className="notice" style={{ margin: "0 16px 12px" }}>{data.samlRuntimeBlockReason}</div>}
+        {showSamlProvider && (
+          <form onSubmit={createSamlProvider} style={{ padding: "0 16px 14px" }}>
+            <div className="setting-form">
+              <label>Name<input required value={samlProviderForm.name} onChange={(e) => setSamlProviderForm({ ...samlProviderForm, name: e.target.value })} placeholder="Microsoft Entra SAML" /></label>
+              <label>IdP entity ID<input required value={samlProviderForm.entityId} onChange={(e) => setSamlProviderForm({ ...samlProviderForm, entityId: e.target.value })} placeholder="https://sts.example.com/tenant/" /></label>
+              <label>IdP SSO URL<input required value={samlProviderForm.ssoUrl} onChange={(e) => setSamlProviderForm({ ...samlProviderForm, ssoUrl: e.target.value })} placeholder="https://login.example.com/saml2" /></label>
+              <label>Email attribute<input required value={samlProviderForm.emailAttribute} onChange={(e) => setSamlProviderForm({ ...samlProviderForm, emailAttribute: e.target.value })} placeholder="email" /></label>
+              <label>Company email domain<input required value={samlProviderForm.domain} onChange={(e) => setSamlProviderForm({ ...samlProviderForm, domain: e.target.value })} placeholder="company.ph" /></label>
+              <label>IdP X.509 signing certificate<textarea required rows={7} value={samlProviderForm.x509Certificate} onChange={(e) => setSamlProviderForm({ ...samlProviderForm, x509Certificate: e.target.value })} placeholder="-----BEGIN CERTIFICATE-----" /></label>
+            </div>
+            <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowSamlProvider(false)}>Cancel</button><button className="primary-button">Validate & save</button></div>
+          </form>
+        )}
+        {data.identityProviders.filter((provider) => provider.protocol === "saml").length === 0 && <div className="empty-state">No SAML provider configured.</div>}
+        {data.identityProviders.filter((provider) => provider.protocol === "saml").map((provider) => {
+          const domains = data.identityDomains.filter((domain) => domain.providerId === provider.id);
+          const verified = domains.some((domain) => domain.verified);
+          return <div className="leave-request" key={provider.id}>
+            <div className="inline-icon purple"><ShieldCheck size={16} /></div>
+            <div style={{ flex: 1 }}>
+              <strong>{provider.name}</strong>
+              <span>{provider.samlEntityId} · {verified ? "domain verified" : "domain verification pending"} · runtime blocked</span>
+              {provider.samlMetadataUrl && <small style={{ display: "block", color: "var(--muted)" }}>SP metadata: <code>{provider.samlMetadataUrl}</code></small>}
+              {provider.samlAcsUrl && <small style={{ display: "block", color: "var(--muted)" }}>ACS: <code>{provider.samlAcsUrl}</code></small>}
+              {provider.samlCertificateFingerprintSha256 && <small style={{ display: "block", color: "var(--muted)" }}>Cert SHA-256: <code>{provider.samlCertificateFingerprintSha256}</code></small>}
+            </div>
+            {!verified && domains[0] && <button className="secondary-button" onClick={() => void verifyDomain(domains[0])}>Verify DNS</button>}
+            <button className="secondary-button" disabled title="SAML sign-in remains fail-closed until signed XML assertion verification is installed.">Enable blocked</button>
+          </div>;
+        })}
+      </article>
+
       <section className="module-grid two">
         <article className="card">
           <div className="card-header">
@@ -317,8 +401,8 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
               <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowProvider(false)}>Cancel</button><button className="primary-button">Discover & save</button></div>
             </form>
           )}
-          {data.identityProviders.length === 0 && <div className="empty-state">No OIDC provider configured.</div>}
-          {data.identityProviders.map((provider) => {
+          {data.identityProviders.filter((provider) => provider.protocol === "oidc").length === 0 && <div className="empty-state">No OIDC provider configured.</div>}
+          {data.identityProviders.filter((provider) => provider.protocol === "oidc").map((provider) => {
             const domains = data.identityDomains.filter((domain) => domain.providerId === provider.id);
             const verified = domains.some((domain) => domain.verified);
             return <div className="leave-request" key={provider.id}>
