@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import {
@@ -277,9 +278,9 @@ test("WFM evidence closes schedule -> punch -> correction -> timesheet -> payrol
 });
 
 test("the production payroll path enforces approved WFM timesheets instead of relying only on the certification test", () => {
-  const payrollRoute = require("node:fs").readFileSync("src/app/api/payroll-runs/route.ts", "utf8");
-  const correctionRoute = require("node:fs").readFileSync("src/app/api/workforce/attendance-corrections/route.ts", "utf8");
-  const timesheetServer = require("node:fs").readFileSync("src/lib/workforce-timesheet-server.ts", "utf8");
+  const payrollRoute = readFileSync("src/app/api/payroll-runs/route.ts", "utf8");
+  const correctionRoute = readFileSync("src/app/api/workforce/attendance-corrections/route.ts", "utf8");
+  const timesheetServer = readFileSync("src/lib/workforce-timesheet-server.ts", "utf8");
 
   assert.ok(payrollRoute.includes("loadTimesheetPayrollGate"));
   assert.ok(payrollRoute.includes("TIMESHEET_APPROVAL_REQUIRED"));
