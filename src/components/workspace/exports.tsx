@@ -69,13 +69,15 @@ export function ExportsView({
   const organizationId = data.selectedOrganization.id;
   const payoutState = run ? derivePayrollPayoutState(data.auditEvents, run.id) : null;
   const bookkeeperMode = data.access?.role === "bookkeeper";
-  const treasuryStatusEligible = Boolean(
-    data.access?.companyWide
-    && ["owner", "admin", "bookkeeper"].includes(data.access?.role ?? "")
-  );
+  const treasuryStatusEligible = ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "");
   const canRecordManualPayout = treasuryStatus
     ? treasuryStatus.enabled ? treasuryStatus.assigned : data.access?.role === "owner"
     : data.access?.role === "owner";
+  const canGenerateLiveBankFile = treasuryStatus
+    ? treasuryStatus.enabled
+      ? treasuryStatus.assigned
+      : ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "")
+    : ["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "");
 
   useEffect(() => {
     if (!treasuryStatusEligible) {
@@ -83,7 +85,7 @@ export function ExportsView({
       return;
     }
     let cancelled = false;
-    void fetch(`/api/treasury-controls?organizationId=${organizationId}`, { cache: "no-store" })
+    void fetch(`/api/treasury-controls?organizationId=${organizationId}&view=current-user`, { cache: "no-store" })
       .then(async (response) => {
         const payload = await response.json().catch(() => ({}));
         if (cancelled || !response.ok) return;
@@ -697,8 +699,8 @@ export function ExportsView({
                   />
                   <button
                     className={mode === "live" ? "primary-button" : "secondary-button"}
-                    disabled={mode === "live" && !canRecordManualPayout}
-                    title={mode === "live" && !canRecordManualPayout ? "An assigned treasury operator must generate the final bank file." : undefined}
+                    disabled={mode === "live" && !canGenerateLiveBankFile}
+                    title={mode === "live" && !canGenerateLiveBankFile ? "An assigned treasury operator must generate the final bank file when treasury separation is enabled." : undefined}
                     onClick={() =>
                       void download(
                         `/api/payroll-runs/${run.id}/exports?kind=bank&template=${encodeURIComponent(template)}&dryRun=${mode === "dry"}`,
