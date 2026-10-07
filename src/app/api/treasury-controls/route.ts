@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  employeePayoutChangeRequests,
   treasuryControlPolicies,
   treasuryOperatorAssignments,
   userOrganizations,
@@ -190,6 +191,22 @@ export async function POST(request: Request) {
     if (!viable) {
       return Response.json({
         error: "Treasury separation needs two distinct company-wide users: one release-capable owner/admin and a different assigned treasury operator.",
+      }, { status: 409 });
+    }
+  }
+
+  if (!enabled) {
+    const [pendingPayoutChange] = await db.select({ id: employeePayoutChangeRequests.id })
+      .from(employeePayoutChangeRequests)
+      .where(and(
+        eq(employeePayoutChangeRequests.organizationId, organizationId),
+        eq(employeePayoutChangeRequests.status, "pending"),
+      ))
+      .limit(1);
+    if (pendingPayoutChange) {
+      return Response.json({
+        error: "Resolve pending payout destination change requests before disabling treasury separation.",
+        payoutDestinationChangeRequestId: pendingPayoutChange.id,
       }, { status: 409 });
     }
   }

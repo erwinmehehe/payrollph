@@ -28,6 +28,7 @@ import {
 } from "@/lib/paymongo-disbursements";
 import { withPayrollPayoutSubmissionLock } from "@/lib/payout-submission-lock";
 import { authorizeTreasuryOperation, type TreasuryEvidence } from "@/lib/treasury-controls";
+import { latestApprovedPayoutDestinationChangeForRun } from "@/lib/payout-destination-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -495,6 +496,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!latestPreflight) {
     return Response.json({
       error: "Run the no-money PayMongo preflight successfully for this released payroll before submitting funds.",
+    }, { status: 409 });
+  }
+
+  const changedAfterPreflight = await latestApprovedPayoutDestinationChangeForRun({
+    organizationId: run.organizationId,
+    runId: run.id,
+    after: latestPreflight.createdAt,
+  });
+  if (changedAfterPreflight) {
+    return Response.json({
+      error: "An employee payout destination changed after the last PayMongo preflight. Run preflight again before submitting funds.",
+      payoutDestinationChangeRequestId: changedAfterPreflight.id,
+      employeeId: changedAfterPreflight.employeeId,
     }, { status: 409 });
   }
 
