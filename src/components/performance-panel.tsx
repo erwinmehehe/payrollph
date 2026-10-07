@@ -6,7 +6,7 @@ import { BarChart3, CheckCircle2, Flag, Plus, RefreshCw, Target, Trophy } from "
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null; status: string };
 type Cycle = { id: number; name: string; startDate: string; endDate: string; status: string };
 type Goal = { id: number; employeeId: number; cycleId: number | null; title: string; description: string | null; weight: string; progress: number; status: string; dueDate: string | null };
-type Review = { id: number; employeeId: number; cycleId: number; status: string; managerScore: string | null; finalScore: string | null; managerSummary: string | null };
+type Review = { id: number; employeeId: number; cycleId: number; status: string; selfScore: string | null; employeeReflection: string | null; managerScore: string | null; finalScore: string | null; managerSummary: string | null };
 
 export function PerformancePanel({ organizationId, setNotice }: { organizationId: number; setNotice: (message: string) => void }) {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -233,7 +233,9 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
               <div style={{ flex: 1 }}>
                 <strong>{employeeName.get(review.employeeId) ?? `Employee #${review.employeeId}`}</strong>
                 <span>{cycles.find((cycle) => cycle.id === review.cycleId)?.name ?? `Cycle #${review.cycleId}`} · {review.status}</span>
-                {review.managerSummary && <span>{review.managerSummary}</span>}
+                {review.selfScore && <span>Employee self-assessment: {Number(review.selfScore).toFixed(1)}/5</span>}
+                {review.employeeReflection && <span>Employee reflection: {review.employeeReflection}</span>}
+                {review.managerSummary && <span>Manager summary: {review.managerSummary}</span>}
               </div>
               <strong>{review.finalScore ? `${Number(review.finalScore).toFixed(1)}/5` : "Open"}</strong>
             </div>
