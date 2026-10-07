@@ -244,12 +244,12 @@ jobs:
             check((await roleTabs.getByRole("tab").count()) === 6, name + ": preview must mirror all six live demo roles");
             check((await demo.getByTestId("app-role-preview").count()) === 1, name + ": shared current-app UI missing");
             await roleTabs.getByRole("tab", {name:/Checker/}).click();
-            check((await demo.getByRole("heading",{name:"Payroll review"}).count()) === 1, name + ": Checker dashboard did not switch");
+            await demo.getByRole("heading",{name:"Payroll review"}).waitFor({state:"visible",timeout:5000});
             check((await demo.getByText("What changed?").count()) === 1, name + ": checker change review missing");
             await roleTabs.getByRole("tab", {name:/Bookkeeper/}).click();
-            check((await demo.getByRole("heading",{name:"Payroll close"}).count()) === 1, name + ": Bookkeeper dashboard did not switch");
+            await demo.getByRole("heading",{name:"Payroll close"}).waitFor({state:"visible",timeout:5000});
             await roleTabs.getByRole("tab", {name:/Employee/}).click();
-            check((await demo.getByRole("heading",{name:"Good morning, Jonas."}).count()) === 1, name + ": Employee dashboard did not switch");
+            await demo.getByRole("heading",{name:"Good morning, Jonas."}).waitFor({state:"visible",timeout:5000});
             check((await demo.getByRole("link",{name:/Open working sandbox/}).count()) === 1, name + ": working sandbox handoff missing");
             report.modules.push({module:"Shared six-role clean dashboard marketing preview",active:true});
 
