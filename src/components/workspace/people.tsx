@@ -999,6 +999,7 @@ function PersonDrawer({
   async function savePayoutDetails() {
     setSavingPayout(true);
     setPayoutError("");
+    setPayoutNotice("");
     try {
       const response = await fetch("/api/employees", {
         method: "PATCH",
@@ -1009,6 +1010,7 @@ function PersonDrawer({
           ...(replacementBankAccount.trim() ? { bankAccount: replacementBankAccount.trim() } : {}),
           bankCode,
           mobile,
+          payoutChangeReason,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -1017,10 +1019,48 @@ function PersonDrawer({
         return;
       }
       setReplacementBankAccount("");
+      setPayoutChangeReason("");
+      if (payload.pendingApproval) {
+        setPayoutNotice(`Payout destination change request #${payload.payoutChangeRequest?.id ?? ""} is pending treasury approval. The employee record has not changed yet.`);
+        setEditingPayout(false);
+        await refreshPayoutChanges();
+        return;
+      }
       await onRefresh();
       onClose();
     } finally {
       setSavingPayout(false);
+    }
+  }
+
+  async function decidePayoutChange(requestId: number, decision: "approve" | "reject") {
+    setPayoutDecisionBusy(true);
+    setPayoutError("");
+    setPayoutNotice("");
+    try {
+      const response = await fetch(`/api/payout-destination-changes/${requestId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: data.selectedOrganization.id,
+          decision,
+          decisionNote: payoutDecisionNote,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setPayoutError(payload.error ?? "Could not decide payout destination change.");
+        await refreshPayoutChanges();
+        return;
+      }
+      setPayoutDecisionNote("");
+      setPayoutNotice(decision === "approve"
+        ? "Payout destination change approved and applied. Any earlier PayMongo preflight for an affected payroll must be rerun."
+        : "Payout destination change rejected.");
+      await refreshPayoutChanges();
+      await onRefresh();
+    } finally {
+      setPayoutDecisionBusy(false);
     }
   }
 
