@@ -304,3 +304,88 @@ export function forecastCoverageRisk(rows: CoverageRiskInput[]): CoverageRisk[] 
     return { requirementId: row.requirementId, level, reasons };
   });
 }
+
+
+export type CoverageSimulationRequirement = {
+  requirementId: number;
+  workDate: string;
+  gap: number;
+  candidates: Array<{
+    employeeId: number;
+    employeeName: string;
+    score: number;
+    workloadRisk: "low" | "medium" | "high";
+  }>;
+};
+
+export type CoverageSimulation = {
+  fills: Array<{
+    requirementId: number;
+    workDate: string;
+    employeeId: number;
+    employeeName: string;
+    score: number;
+    workloadRisk: "low" | "medium" | "high";
+  }>;
+  baselineGap: number;
+  projectedGap: number;
+  avoidedHighRiskCandidates: number;
+  requirementsRecovered: number;
+  requirementsStillAtRisk: number;
+};
+
+export function simulateBestFitCoverage(input: {
+  requirements: CoverageSimulationRequirement[];
+  allowHighWorkloadRisk?: boolean;
+}) : CoverageSimulation {
+  const usedEmployeeDate = new Set<string>();
+  const fills: CoverageSimulation["fills"] = [];
+  let avoidedHighRiskCandidates = 0;
+  let requirementsRecovered = 0;
+  let requirementsStillAtRisk = 0;
+  const baselineGap = input.requirements.reduce(
+    (sum, row) => sum + Math.max(0, row.gap),
+    0,
+  );
+
+  for (const requirement of [...input.requirements].sort((a, b) =>
+    b.gap - a.gap || a.workDate.localeCompare(b.workDate) || a.requirementId - b.requirementId
+  )) {
+    let remaining = Math.max(0, requirement.gap);
+    const ranked = [...requirement.candidates].sort((a, b) =>
+      b.score - a.score || a.employeeName.localeCompare(b.employeeName)
+    );
+
+    for (const candidate of ranked) {
+      if (remaining <= 0) break;
+      const key = `${candidate.employeeId}|${requirement.workDate}`;
+      if (usedEmployeeDate.has(key)) continue;
+      if (candidate.workloadRisk === "high" && !input.allowHighWorkloadRisk) {
+        avoidedHighRiskCandidates += 1;
+        continue;
+      }
+      usedEmployeeDate.add(key);
+      fills.push({
+        requirementId: requirement.requirementId,
+        workDate: requirement.workDate,
+        employeeId: candidate.employeeId,
+        employeeName: candidate.employeeName,
+        score: candidate.score,
+        workloadRisk: candidate.workloadRisk,
+      });
+      remaining -= 1;
+    }
+
+    if (requirement.gap > 0 && remaining === 0) requirementsRecovered += 1;
+    if (remaining > 0) requirementsStillAtRisk += 1;
+  }
+
+  return {
+    fills,
+    baselineGap,
+    projectedGap: Math.max(0, baselineGap - fills.length),
+    avoidedHighRiskCandidates,
+    requirementsRecovered,
+    requirementsStillAtRisk,
+  };
+}
