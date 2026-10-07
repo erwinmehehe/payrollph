@@ -38,6 +38,29 @@ export type PayrollPayoutRow = {
   referenceNumber: string;
 };
 
+type PayrollPaymentSnapshot = {
+  employeeNo: string;
+  employeeName: string;
+  bankAccount: string | null;
+  bankCode: string | null;
+};
+
+function readPayrollPaymentSnapshot(value: unknown): PayrollPaymentSnapshot | null {
+  if (!value || typeof value !== "object") return null;
+  const payment = (value as Record<string, unknown>).payment;
+  if (!payment || typeof payment !== "object") return null;
+  const row = payment as Record<string, unknown>;
+  const employeeNo = typeof row.employeeNo === "string" ? row.employeeNo.trim() : "";
+  const employeeName = typeof row.employeeName === "string" ? row.employeeName.trim() : "";
+  if (!employeeNo || !employeeName) return null;
+  return {
+    employeeNo,
+    employeeName,
+    bankAccount: typeof row.bankAccount === "string" && row.bankAccount.trim() ? row.bankAccount : null,
+    bankCode: typeof row.bankCode === "string" && row.bankCode.trim() ? row.bankCode.trim() : null,
+  };
+}
+
 type ReceivingInstitution = { name: string; bic: string };
 
 function requirePaymongoSecret(): string {
@@ -392,14 +415,27 @@ export async function loadPayrollPayoutRows(runId: number): Promise<PayrollPayou
     .where(eq(payrollEntries.payrollRunId, runId))
     .orderBy(asc(employees.id));
 
-  return entries.map(({ entry, employee }) => ({
-    employeeNo: employee.employeeNo,
-    employeeName: `${employee.firstName} ${employee.lastName}`,
-    accountNumber: decryptBankAccount(employee.bankAccount) ?? "",
-    bankName: employee.bankCode ?? "",
-    amountCents: Math.round(Number(entry.netPay) * 100),
-    referenceNumber: `PAY-${run.id}-${employee.employeeNo}`,
-  }));
+  return entries.map(({ entry, employee }) => {
+    const payment = readPayrollPaymentSnapshot(entry.trace);
+    if (!payment) {
+      throw new Error(
+        `Payroll entry for ${employee.employeeNo} has no immutable payment snapshot. Recalculate the payroll before release; Linaw will not use mutable employee bank details for a live payout.`,
+      );
+    }
+    if (payment.employeeNo !== employee.employeeNo) {
+      throw new Error(
+        `Payroll payment snapshot employee mismatch for ${employee.employeeNo}. No transfer was attempted.`,
+      );
+    }
+    return {
+      employeeNo: payment.employeeNo,
+      employeeName: payment.employeeName,
+      accountNumber: decryptBankAccount(payment.bankAccount) ?? "",
+      bankName: payment.bankCode ?? "",
+      amountCents: Math.round(Number(entry.netPay) * 100),
+      referenceNumber: `PAY-${run.id}-${payment.employeeNo}`,
+    };
+  });
 }
 
 export async function createPaymongoPayrollDisbursement(runId: number): Promise<BatchDisbursementResult> {
