@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Flag, Plus, Target, Trophy } from "lucide-react";
 import { PerformanceCalibrationPanel } from "@/components/performance-calibration-panel";
+import { PerformanceContinuityPanel } from "@/components/performance-continuity-panel";
 
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null };
 type OrgUnit = { id: number; name: string; type: string };
@@ -503,6 +504,8 @@ export function PerformanceGovernancePanel({
       </article>
 
       {canCalibrate && <PerformanceCalibrationPanel organizationId={organizationId} setNotice={setNotice} />}
+
+      <PerformanceContinuityPanel organizationId={organizationId} setNotice={setNotice} />
     </div>
   );
 }
