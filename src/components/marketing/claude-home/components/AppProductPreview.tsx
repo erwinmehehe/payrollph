@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { LinawMark } from "@/components/linaw-mark";
 import { DEMO_ROLES, type DemoRoleId } from "@/lib/demo-roles";
 import { workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
@@ -68,13 +69,13 @@ export function AppProductPreview({ role, compact = false }: { role: DemoRoleId;
 function PreviewTitle({ title, subtitle, status }: { title: string; subtitle: string; status?: string }) {
   return <div className="linaw-preview-title"><div><h3>{title}</h3><p>{subtitle}</p></div>{status && <span className="linaw-preview-muted-pill">{status}</span>}</div>;
 }
-function Card({ heading, children, className = "" }: { heading?: string; children: React.ReactNode; className?: string }) {
+function Card({ heading, children, className = "" }: { heading?: string; children: ReactNode; className?: string }) {
   return <section className={"linaw-preview-card " + className}>{heading && <h4>{heading}</h4>}{children}</section>;
 }
-function Flag({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "good" | "warn" | "neutral" }) {
+function Flag({ children, tone = "neutral" }: { children: ReactNode; tone?: "good" | "warn" | "neutral" }) {
   return <span className={"linaw-preview-status " + tone}>{children}</span>;
 }
-function SampleRow({ icon, title, detail, tone = "neutral" }: { icon?: React.ReactNode; title: string; detail?: string; tone?: "warn" | "good" | "neutral" }) {
+function SampleRow({ icon, title, detail, tone = "neutral" }: { icon?: ReactNode; title: string; detail?: string; tone?: "warn" | "good" | "neutral" }) {
   return <div className="linaw-preview-row"><span className={"linaw-preview-row-icon " + tone} aria-hidden>{icon ?? <FileText size={15}/>}</span><span><strong>{title}</strong>{detail && <small>{detail}</small>}</span><ChevronRight size={14} className="linaw-preview-arrow" aria-hidden="true"/></div>;
 }
 function MiniMetric({ label, value, tone }: { label: string; value: string; tone?: string }) {
