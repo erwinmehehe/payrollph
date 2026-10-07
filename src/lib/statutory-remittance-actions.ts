@@ -259,7 +259,7 @@ export async function syncStatutoryRemittanceActions(
           statutoryAgency: candidate.alert.agency,
           applicableMonth: candidate.alert.applicableMonth,
           dueDate: candidate.alert.dueDate,
-          daysUntilDue,
+          daysUntilDue: daysUntilDue,
           remittanceAlertTone: candidate.alert.tone,
           remittanceAlertId: candidate.alert.id,
           title: candidate.alert.title,
