@@ -20,10 +20,12 @@ const changedFiles = execFileSync(
 const payoutPatterns = [
   /^src\/app\/api\/compliance\/bank-validations\//,
   /^src\/app\/api\/payout-destination-changes\//,
+  /^src\/app\/api\/payout-profiles\//,
   /^src\/app\/api\/treasury-controls\//,
   /^src\/app\/api\/webhooks\/paymongo\//,
   /^src\/app\/api\/payroll-runs\/\[id\]\/exports\//,
   /^src\/app\/api\/payroll-runs\/\[id\]\/payout-reconciliation\//,
+  /^src\/components\/payout-profiles-panel\.tsx$/,
   /^src\/components\/treasury-controls-panel\.tsx$/,
   /^src\/components\/workspace\/exports\.tsx$/,
   /^src\/components\/workspace\/people\.tsx$/,
