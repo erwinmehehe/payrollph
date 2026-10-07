@@ -73,6 +73,13 @@ test("payroll creation and recalculation enforce the optional cutoff gate", () =
   }
 });
 
+test("payroll cutoff cannot lock over unresolved attendance evidence", () => {
+  const route = readFileSync("src/app/api/workforce/attendance-locks/route.ts", "utf8");
+  assert.ok(route.includes("ATTENDANCE_CORRECTIONS_PENDING"));
+  assert.ok(route.includes("ATTENDANCE_BLOCKERS_OPEN"));
+  assert.ok(route.includes("attendanceExceptionEvents.severity"));
+});
+
 test("attendance exception center exposes lock controls", () => {
   const panel = readFileSync("src/components/workspace/attendance-exceptions-panel.tsx", "utf8");
   assert.ok(panel.includes("AttendanceLockControl"));
