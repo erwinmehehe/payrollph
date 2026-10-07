@@ -111,6 +111,13 @@ type StudioData = {
     employeeShare: string;
     cap: string | null;
   }>;
+  schedulePatterns: Array<{
+    id: number;
+    code: string;
+    name: string;
+    cycleDays: number;
+    active: boolean;
+  }>;
   analytics: {
     activeRules: number;
     recentExecutions: number;
@@ -154,6 +161,10 @@ type ActionDraft = {
   branchValue: string;
   branchThenTitle: string;
   branchElseTitle: string;
+  schedulePatternId: string;
+  scheduleEffectiveDateSource: string;
+  scheduleOffsetDays: string;
+  scheduleReason: string;
 };
 
 const defaultAction = (id: string): ActionDraft => ({
@@ -181,6 +192,10 @@ const defaultAction = (id: string): ActionDraft => ({
   branchValue: "",
   branchThenTitle: "",
   branchElseTitle: "",
+  schedulePatternId: "",
+  scheduleEffectiveDateSource: "event_effective_date",
+  scheduleOffsetDays: "0",
+  scheduleReason: "Automation Studio approved schedule assignment",
 });
 
 const formatDateTime = (value: string) =>
@@ -204,6 +219,9 @@ function actionAllowed(trigger: TriggerCatalog | undefined, type: string) {
   if (["revoke_sessions", "deactivate_access"].includes(type)) return trigger.value === "employee.separated";
   if (["assign_permission_set", "assign_benefit"].includes(type)) {
     return ["employee.hired", "employee.updated", "employee.moved", "employee.promoted", "candidate.hired"].includes(trigger.value);
+  }
+  if (type === "assign_schedule") {
+    return ["employee.hired", "employee.moved", "employee.promoted"].includes(trigger.value);
   }
   if (["create_task", "create_onboarding_checklist"].includes(type)) return trigger.employeeScoped;
   return true;
@@ -369,6 +387,15 @@ export function AutomationStudioPanel({
         body: row.body,
       };
     }
+    if (row.type === "assign_schedule") {
+      return {
+        type: row.type,
+        patternId: Number(row.schedulePatternId),
+        effectiveDateSource: row.scheduleEffectiveDateSource,
+        offsetDays: Number(row.scheduleOffsetDays || "0"),
+        reason: row.scheduleReason,
+      };
+    }
     if (row.type === "assign_permission_set") {
       return { type: row.type, permissionSetId: Number(row.permissionSetId) };
     }
@@ -400,6 +427,13 @@ export function AutomationStudioPanel({
     const invalidAction = actions.find((row) => !actionAllowed(selectedTrigger, row.type));
     if (invalidAction) {
       setNotice("One or more THEN actions are not allowed for this trigger.");
+      return;
+    }
+    const unsafeScheduleIndex = actions.findIndex((row, index) =>
+      row.type === "assign_schedule" && actions[index - 1]?.type !== "approval_gate"
+    );
+    if (unsafeScheduleIndex >= 0) {
+      setNotice("Schedule assignment must be immediately preceded by an approval gate.");
       return;
     }
 
@@ -840,6 +874,55 @@ export function AutomationStudioPanel({
                           {row.recipient === "custom" && <label>Email<input required type="email" value={row.email} onChange={(event) => updateAction(row.id, { email: event.target.value })} /></label>}
                           <label>Subject<input required value={row.subject} onChange={(event) => updateAction(row.id, { subject: event.target.value })} /></label>
                           <label>Message<textarea required value={row.body} onChange={(event) => updateAction(row.id, { body: event.target.value })} rows={4} /></label>
+                        </div>
+                      )}
+
+                      {row.type === "assign_schedule" && (
+                        <div className="setting-form">
+                          <label>Schedule pattern
+                            <select
+                              required
+                              value={row.schedulePatternId}
+                              onChange={(event) => updateAction(row.id, { schedulePatternId: event.target.value })}
+                            >
+                              <option value="">Choose active schedule pattern</option>
+                              {data.schedulePatterns.map((pattern) => (
+                                <option key={pattern.id} value={pattern.id}>
+                                  {pattern.code} · {pattern.name} · {pattern.cycleDays}-day cycle
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>Effective date source
+                            <select
+                              value={row.scheduleEffectiveDateSource}
+                              onChange={(event) => updateAction(row.id, { scheduleEffectiveDateSource: event.target.value })}
+                            >
+                              <option value="event_effective_date">Trigger event effective date</option>
+                              <option value="employee_start_date">Employee start date</option>
+                              <option value="today">Current Philippine business date</option>
+                            </select>
+                          </label>
+                          <label>Days after source date
+                            <input
+                              required
+                              type="number"
+                              min="0"
+                              max="365"
+                              value={row.scheduleOffsetDays}
+                              onChange={(event) => updateAction(row.id, { scheduleOffsetDays: event.target.value })}
+                            />
+                          </label>
+                          <label>Assignment reason
+                            <input
+                              required
+                              value={row.scheduleReason}
+                              onChange={(event) => updateAction(row.id, { scheduleReason: event.target.value })}
+                            />
+                          </label>
+                          <div className="modal-note">
+                            This action must immediately follow an approval gate. It will not replace an existing effective schedule, will not backdate a schedule, and still runs WFM schedule guardrails before assignment.
+                          </div>
                         </div>
                       )}
 
