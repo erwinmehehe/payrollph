@@ -83,17 +83,10 @@ function crc32(buffer: Buffer) {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-function dosDateTime(date = new Date()) {
-  const year = Math.max(1980, date.getFullYear());
-  const dosTime =
-    ((date.getHours() & 0x1f) << 11)
-    | ((date.getMinutes() & 0x3f) << 5)
-    | ((Math.floor(date.getSeconds() / 2)) & 0x1f);
-  const dosDate =
-    (((year - 1980) & 0x7f) << 9)
-    | (((date.getMonth() + 1) & 0x0f) << 5)
-    | (date.getDate() & 0x1f);
-  return { dosTime, dosDate };
+function deterministicDosDateTime() {
+  // ZIP metadata must be byte-for-byte reproducible because bank validation
+  // evidence hashes the generated archive and later regenerates it for proof.
+  return { dosTime: 0, dosDate: 33 }; // 1980-01-01 00:00:00
 }
 
 export function createStoredZip(files: Array<{ name: string; body: string | Buffer }>) {
@@ -102,7 +95,7 @@ export function createStoredZip(files: Array<{ name: string; body: string | Buff
   const localParts: Buffer[] = [];
   const centralParts: Buffer[] = [];
   let offset = 0;
-  const { dosTime, dosDate } = dosDateTime();
+  const { dosTime, dosDate } = deterministicDosDateTime();
 
   for (const file of files) {
     const name = Buffer.from(file.name, "utf8");
