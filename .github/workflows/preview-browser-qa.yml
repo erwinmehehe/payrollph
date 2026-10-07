@@ -168,7 +168,7 @@ jobs:
             for (const step of ["Inputs", "Calculate", "Review", "Submit"]) {
               check((await heroPreview.locator(".linaw-preview-step").filter({hasText:step}).count()) === 1, name + ": payroll workflow missing " + step);
             }
-            check((await cinematic.locator('a[href="/demo"]').count()) >= 1, name + ": cinematic frame must link to /demo");
+            check((await cinematic.locator('a[href="#demo"]').count()) >= 1, name + ": cinematic frame must link to the full role demo");
             await cinematic.getByRole("tab", {name:/Review/}).click();
             check((await cinematic.getByRole("heading", {name:"Payroll review"}).count()) === 1, name + ": Review scene did not switch to Checker");
             await prepareScene.click();
