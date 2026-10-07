@@ -17,6 +17,9 @@ type GroupRow = {
   conditions: unknown;
   version: number;
   active: boolean;
+  automationDependencyCount?: number;
+  activeAutomationDependencyCount?: number;
+  automationDependencies?: Array<{ id: number; name: string; active: boolean }>;
   createdAt: string;
   updatedAt: string;
 };
@@ -465,8 +468,16 @@ export function DynamicWorkerGroupsPanel({
             <div className="inline-icon purple"><UsersRound size={16} /></div>
             <div style={{ flex: 1 }}>
               <strong>{group.name}</strong>
-              <span>{group.code} · v{group.version} · {group.active ? "live" : "disabled"}</span>
+              <span>
+                {group.code} · v{group.version} · {group.active ? "live" : "disabled"}
+                {(group.automationDependencyCount ?? 0) > 0 ? ` · used by ${group.automationDependencyCount} workflow(s)` : ""}
+              </span>
               {group.description && <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>{group.description}</small>}
+              {(group.activeAutomationDependencyCount ?? 0) > 0 && (
+                <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
+                  {group.activeAutomationDependencyCount} active automation dependency(ies) must be disabled before membership logic can change.
+                </small>
+              )}
             </div>
             <div className="run-actions" style={{ margin: 0 }}>
               <button className="secondary-button" type="button" onClick={() => void previewGroup(group)} disabled={previewingId === group.id}>
