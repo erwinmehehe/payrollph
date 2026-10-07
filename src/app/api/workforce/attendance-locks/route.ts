@@ -2,6 +2,7 @@ import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   attendanceCorrectionRequests,
+  attendanceExceptionEvents,
   workforceAttendanceLockPolicies,
   workforceAttendancePeriodLocks,
 } from "@/db/schema";
@@ -170,6 +171,23 @@ export async function POST(request: Request) {
         return Response.json({
           error: "Resolve pending attendance corrections before locking the payroll cutoff.",
           code: "ATTENDANCE_CORRECTIONS_PENDING",
+        }, { status: 409 });
+      }
+
+      const [blocker] = await db.select({ id: attendanceExceptionEvents.id })
+        .from(attendanceExceptionEvents)
+        .where(and(
+          eq(attendanceExceptionEvents.organizationId, organizationId),
+          eq(attendanceExceptionEvents.status, "open"),
+          eq(attendanceExceptionEvents.severity, "blocker"),
+          gte(attendanceExceptionEvents.workDate, periodStart),
+          lte(attendanceExceptionEvents.workDate, periodEnd),
+        ))
+        .limit(1);
+      if (blocker) {
+        return Response.json({
+          error: "Resolve blocking attendance exceptions before locking the payroll cutoff.",
+          code: "ATTENDANCE_BLOCKERS_OPEN",
         }, { status: 409 });
       }
     }
