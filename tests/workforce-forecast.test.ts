@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  annualEmployerStatutoryCost,
   annualStandardCapacityHours,
   annualizePayProfile,
   buildWorkforceDemandForecast,
@@ -48,6 +49,44 @@ test("pay profiles annualize consistently across monthly, daily, and hourly base
     standardWorkDaysPerMonth: 22,
     standardHoursPerDay: 8,
   }), 2112);
+});
+
+test("fully loaded forecast uses the same employer statutory formulas as payroll", () => {
+  assert.equal(annualEmployerStatutoryCost(360000), 47760);
+
+  const result = buildWorkforceDemandForecast({
+    assumptions: {
+      startDate: "2026-01-01",
+      endDate: "2026-01-31",
+      demandGrowthPercent: 0,
+      vacancyFillPercent: 0,
+      employerLoadPercent: 0,
+    },
+    employees: [{ id: 1, status: "Active" }],
+    payProfiles: [
+      { employeeId: 1, payBasis: "monthly", rateAmount: 30000, standardWorkDaysPerMonth: 22, standardHoursPerDay: 8 },
+    ],
+    positions: [],
+    staffingRequirements: [],
+    shifts: [],
+    laborAllocations: [],
+    costCenters: [],
+    employerCosts: [{
+      employeeId: 1,
+      annualStatutoryEmployer: 47760,
+      annualBenefitEmployer: 30000,
+      annualRecurringCompensation: 12000,
+    }],
+  });
+
+  assert.ok((result.summary.currentPeriodStatutoryEmployerCost ?? 0) > 0);
+  assert.ok((result.summary.currentPeriodBenefitEmployerCost ?? 0) > 0);
+  assert.ok((result.summary.currentPeriodRecurringCompensationCost ?? 0) > 0);
+  assert.equal(result.summary.additionalScenarioLoadCost, 0);
+  assert.equal(
+    result.summary.forecastPeriodLaborCost,
+    Math.round(((result.summary.currentPeriodBasePayroll ?? 0) + (result.summary.sourceGroundedEmployerCost ?? 0)) * 100) / 100,
+  );
 });
 
 test("paid shift hours handle breaks and cross-midnight shifts", () => {
@@ -237,9 +276,9 @@ test("planning UI exposes explicit scenario assumptions and quality boundaries",
   assert.ok(source.includes("DEMAND & LABOR-COST FORECAST"));
   assert.ok(source.includes("Demand growth %"));
   assert.ok(source.includes("Vacancy fill %"));
-  assert.ok(source.includes("Employer load %"));
+  assert.ok(source.includes("Additional scenario load %"));
   assert.ok(source.includes("Forecast quality needs review"));
-  assert.ok(source.includes("not a statutory contribution calculation"));
+  assert.ok(source.includes("same SSS/EC, PhilHealth, and Pag-IBIG formulas as payroll"));
   assert.ok(source.includes("It is not added to the labor plan again."));
   assert.ok(source.includes("PROJECTED CAPACITY"));
   assert.ok(source.includes("capacityGapAfterFills"));
