@@ -75,7 +75,7 @@ import { approvedLeaveCoverageImpact } from "@/lib/workforce-absence";
 import { resolveLeaveIntervalsForSchedule, type PreciseLeaveInterval } from "@/lib/workforce-absence-intervals";
 import { loadSiteEligibilityEvidence, employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
 import { evaluateSiteEligibility } from "@/lib/hcm-worksite-eligibility";
-import { resolveDynamicWorkerGroupMembers } from "@/lib/dynamic-worker-groups";
+import { listDynamicWorkerGroups, resolveDynamicWorkerGroupMembers } from "@/lib/dynamic-worker-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -761,6 +761,7 @@ export async function GET(request: Request) {
   const workforce = await visibleWorkforce(user.id, organizationId);
   if (!workforce) return Response.json({ error: "Workspace access not found." }, { status: 403 });
 
+  const dynamicGroups = await listDynamicWorkerGroups(organizationId, true);
   const dynamicSelection = dynamicGroupCode
     ? await resolveDynamicWorkerGroupMembers({ organizationId, code: dynamicGroupCode })
     : null;
@@ -1207,6 +1208,12 @@ export async function GET(request: Request) {
   });
 
   return Response.json({
+    dynamicGroups: dynamicGroups.map((group) => ({
+      id: group.id,
+      code: group.code,
+      name: group.name,
+      version: group.version,
+    })),
     dynamicGroup: dynamicSelection ? {
       ...dynamicSelection.group,
       memberCount: dynamicSelection.employeeIds.length,
