@@ -3048,6 +3048,63 @@ export const performanceOneOnOneAgendaContributions = pgTable(
   ],
 );
 
+export const performanceOneOnOneActionItems = pgTable(
+  "performance_one_on_one_action_items",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    oneOnOneId: integer("one_on_one_id").notNull().references(() => performanceOneOnOnes.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    ownerKind: varchar("owner_kind", { length: 16 }).notNull(),
+    ownerUserId: integer("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    ownerEmployeeId: integer("owner_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    ownerName: varchar("owner_name", { length: 120 }).notNull(),
+    title: varchar("title", { length: 220 }).notNull(),
+    detail: text("detail"),
+    dueDate: date("due_date").notNull(),
+    visibility: varchar("visibility", { length: 24 }).notNull().default("employee_shared"),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    completedByUserId: integer("completed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    completedByName: varchar("completed_by_name", { length: 120 }),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_one_on_one_action_items_meeting_idx").on(table.organizationId, table.oneOnOneId, table.status, table.dueDate),
+    index("performance_one_on_one_action_items_owner_user_idx").on(table.organizationId, table.ownerUserId, table.status, table.dueDate),
+    index("performance_one_on_one_action_items_owner_employee_idx").on(table.organizationId, table.ownerEmployeeId, table.status, table.dueDate),
+    check("performance_one_on_one_action_items_owner_kind_check", sql`${table.ownerKind} IN ('employee','manager')`),
+    check("performance_one_on_one_action_items_owner_check", sql`(${table.ownerKind} = 'employee' AND ${table.ownerEmployeeId} IS NOT NULL) OR (${table.ownerKind} = 'manager' AND ${table.ownerUserId} IS NOT NULL)`),
+    check("performance_one_on_one_action_items_visibility_check", sql`${table.visibility} IN ('employee_shared','manager_private')`),
+    check("performance_one_on_one_action_items_status_check", sql`${table.status} IN ('open','in_progress','completed','cancelled')`),
+  ],
+);
+
+export const performanceOneOnOneActionItemEvents = pgTable(
+  "performance_one_on_one_action_item_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    actionItemId: integer("action_item_id").notNull().references(() => performanceOneOnOneActionItems.id, { onDelete: "cascade" }),
+    oneOnOneId: integer("one_on_one_id").notNull().references(() => performanceOneOnOnes.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    note: text("note"),
+    beforeSnapshot: jsonb("before_snapshot"),
+    afterSnapshot: jsonb("after_snapshot"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_one_on_one_action_item_events_item_idx").on(table.organizationId, table.actionItemId, table.createdAt),
+    check("performance_one_on_one_action_item_events_type_check", sql`${table.eventType} IN ('created','status_changed','reassigned','due_date_changed','visibility_changed','reopened','cancelled')`),
+  ],
+);
+
 export const performanceFeedback = pgTable(
   "performance_feedback",
   {
