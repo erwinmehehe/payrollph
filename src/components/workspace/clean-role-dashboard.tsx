@@ -70,13 +70,13 @@ export function CleanRoleDashboard({
             {role === "payroll"
               ? "Here’s where your payroll stands."
               : role === "owner"
-                ? "A clear view of your next release."
+                ? `${run?.periodLabel ?? "Next payroll"} · ${run?.employeeCount ?? active.length} employees`
                 : "Review changes. Resolve exceptions."}
           </p>
         </div>
-        <span className="clean-period">
-          {run?.periodLabel ?? "Your workspace"}
-        </span>
+        {role === "owner" ? <Status value={run?.status ?? "Not started"} /> : (
+          <span className="clean-period">{run?.periodLabel ?? "Your workspace"}</span>
+        )}
       </div>
       {role === "payroll" ? (
         <PayrollHome
@@ -87,13 +87,6 @@ export function CleanRoleDashboard({
         />
       ) : role === "owner" ? (
         <section className="clean-card clean-owner">
-          <CardHeader title={run?.periodLabel ?? "Next payroll"}>
-            <Status value={run?.status ?? "Not started"} />
-          </CardHeader>
-          <p className="clean-muted">
-            {run?.employeeCount ?? active.length} employees ·{" "}
-            {dashboardDate(run?.payDate)}
-          </p>
           <div
             className={`clean-assurance ${releaseReady || summary.released ? "clear" : "pending"}`}
           >
@@ -134,9 +127,11 @@ export function CleanRoleDashboard({
             </div>
             <div className="clean-funding-note">
               <WalletCards size={24} />
-              <span>
-                Review payout details and funding in the payroll release screen.
-              </span>
+              <div>
+                <strong>Payout details</strong>
+                <p>Confirm the funding account before release.</p>
+                <button type="button" className="clean-link" onClick={openPayroll}>View details <ArrowRight size={15} /></button>
+              </div>
             </div>
           </div>
           <button

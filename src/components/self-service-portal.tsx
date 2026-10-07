@@ -489,7 +489,6 @@ export function SelfServicePortal() {
       <div className="app-main employee-workspace-body">
         <header className="topbar employee-workspace-topbar">
           <div className="employee-topbar-greeting">
-            <span className="top-avatar employee-app-avatar">{data.employee.firstName.charAt(0)}{data.employee.lastName.charAt(0)}</span>
             <div>
               <strong>Hi, {data.employee.firstName} 👋</strong>
               <span>{data.employer?.name ?? "Your employer"} · {data.employee.title}</span>
@@ -509,6 +508,7 @@ export function SelfServicePortal() {
             )}
             <button className="top-profile-button employee-shell-profile" type="button" onClick={() => setTab("profile")} aria-label="Open profile">
               <span className="employee-app-avatar">{data.employee.firstName.charAt(0)}{data.employee.lastName.charAt(0)}</span>
+              <span className="clean-profile-copy"><strong>{data.employee.firstName} {data.employee.lastName}</strong><small>Employee</small></span>
             </button>
             <button className="employee-icon-button employee-shell-signout" type="button" disabled={busy} onClick={() => void signOut()} aria-label="Sign out">
               <LogOut size={14} />

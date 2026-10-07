@@ -180,6 +180,44 @@
 }
 .app-shell.clean-shell .employee-clock-button {
   min-height: 38px;
+  background: #0866ed;
+  color: #fff;
+}
+.app-shell.clean-shell.employee-workspace-shell .employee-shell-profile {
+  width: auto;
+  height: 38px;
+  gap: 9px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app-shell.clean-shell.employee-workspace-shell .employee-app-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  border-radius: 50%;
+  background: #1454a1;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.app-shell.clean-shell .clean-profile-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  color: #10213d;
+}
+.app-shell.clean-shell .clean-profile-copy strong {
+  font-size: 12px;
+}
+.app-shell.clean-shell .clean-profile-copy small {
+  color: #64748b;
+  font-size: 11px;
 }
 .app-shell.clean-shell .employee-tabs {
   display: none;
@@ -571,6 +609,50 @@
   width: 100%;
   max-width: 920px;
 }
+.app-shell.clean-shell [data-role-dashboard="owner"] {
+  max-width: 720px;
+  margin: 0 auto;
+  gap: 16px;
+}
+.app-shell.clean-shell [data-role-dashboard="owner"] .clean-heading h1 {
+  font-size: 28px;
+}
+.app-shell.clean-shell [data-role-dashboard="owner"] .clean-heading {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.app-shell.clean-shell .clean-owner.clean-card {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app-shell.clean-shell .clean-owner .clean-assurance {
+  margin: 0 0 16px;
+  padding: 20px;
+}
+.app-shell.clean-shell .clean-owner .clean-funding {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.app-shell.clean-shell .clean-owner .clean-funding > div {
+  min-width: 0;
+  padding: 18px;
+  background: #fff;
+}
+.app-shell.clean-shell .clean-owner .clean-funding-note strong {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+.app-shell.clean-shell .clean-owner .clean-funding-note .clean-link {
+  margin-top: 10px;
+}
+.app-shell.clean-shell .clean-owner > .clean-button {
+  min-height: 48px;
+  font-size: 15px;
+}
 .app-shell.clean-shell .clean-assurance {
   display: flex;
   align-items: flex-start;
@@ -737,22 +819,52 @@
   font-size: 12px;
 }
 .app-shell.clean-shell .clean-employee-home {
-  max-width: 1000px;
+  max-width: 680px;
   margin: 0 auto;
+  gap: 14px;
+}
+.app-shell.clean-shell .clean-employee-home .clean-card {
+  padding: 18px;
+}
+.app-shell.clean-shell .clean-employee-home .clean-heading h1 {
+  font-size: 28px;
+}
+.app-shell.clean-shell .clean-employee-home .clean-heading p {
+  margin-top: 5px;
+}
+.app-shell.clean-shell .clean-employee-home .clean-card-header {
+  margin-bottom: 6px;
+}
+.app-shell.clean-shell .clean-employee-home .clean-leave-balance {
+  margin: 8px 0;
+}
+.app-shell.clean-shell .clean-employee-home .clean-action-row {
+  min-height: 54px;
+  padding: 10px 0;
+}
+.app-shell.clean-shell .clean-employee-home .clean-eyebrow {
+  margin-bottom: 5px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  color: #10213d;
 }
 .app-shell.clean-shell .clean-employee-next {
   display: flex;
   align-items: flex-start;
   gap: 18px;
 }
+.app-shell.clean-shell .clean-employee-home .clean-employee-next {
+  padding: 15px 18px;
+}
 .app-shell.clean-shell .clean-employee-next h2 {
-  margin-top: 8px;
-  font-size: 23px;
+  margin: 4px 0 0;
+  font-size: 21px;
 }
 .app-shell.clean-shell .clean-employee-next p,
 .app-shell.clean-shell .clean-employee-next small {
   display: block;
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   color: #64748b;
   font-size: 13px;
   line-height: 1.5;
@@ -774,9 +886,11 @@
 }
 .app-shell.clean-shell .clean-employee-payslip strong {
   display: block;
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.035em;
+  line-height: 1.25;
+  margin: 0;
 }
 .app-shell.clean-shell .clean-employee-payslip small {
   display: block;
@@ -793,7 +907,17 @@
 .app-shell.clean-shell .clean-employee-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 14px;
+}
+.app-shell.clean-shell .clean-employee-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+.app-shell.clean-shell .clean-employee-actions .clean-button {
+  background: #fff;
+  justify-content: center;
+  padding: 10px;
 }
 .app-shell.clean-shell .clean-leave-balance {
   display: flex;
@@ -864,6 +988,12 @@
   }
 }
 @media (max-width: 760px) {
+  .app-shell.clean-shell .clean-profile-copy {
+    display: none;
+  }
+  .app-shell.clean-shell .clean-owner .clean-funding {
+    grid-template-columns: 1fr;
+  }
   .app-shell.clean-shell .content-area {
     padding-bottom: 100px;
   }
@@ -941,6 +1071,9 @@
     width: 100%;
   }
   .app-shell.clean-shell .clean-employee-grid {
+    grid-template-columns: 1fr;
+  }
+  .app-shell.clean-shell .clean-employee-actions {
     grid-template-columns: 1fr;
   }
   .app-shell.clean-shell .clean-employee-payslip.employee-latest-pay {

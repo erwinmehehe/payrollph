@@ -137,13 +137,6 @@ export function EmployeeHomeDashboard({
               ? `${pending} requests awaiting approval`
               : "No pending leave requests"}
           </p>
-          <button
-            type="button"
-            className="clean-button secondary"
-            onClick={onLeave}
-          >
-            Request leave <ArrowRight size={15} />
-          </button>
         </section>
         <section className="clean-card">
           <div className="clean-card-header">
@@ -163,14 +156,15 @@ export function EmployeeHomeDashboard({
                 : "You’re clocked in"
               : "Not clocked in today"}
           </p>
-          <button
-            type="button"
-            className="clean-button secondary"
-            onClick={onAttendance}
-          >
-            View attendance <ArrowRight size={15} />
-          </button>
         </section>
+      </div>
+      <div className="clean-employee-actions">
+        <button type="button" className="clean-button secondary" onClick={onLeave}>
+          <Leaf size={17} /> Request leave
+        </button>
+        <button type="button" className="clean-button secondary" onClick={onAttendance}>
+          <CalendarDays size={17} /> View attendance
+        </button>
       </div>
       <section className="clean-card">
         <div className="clean-card-header">
