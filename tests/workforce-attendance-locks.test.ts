@@ -80,7 +80,11 @@ test("payroll cutoff cannot lock over unresolved attendance evidence", () => {
   assert.ok(route.includes("attendanceExceptionEvents.severity"));
 });
 
-test("attendance exception center exposes lock controls", () => {
+test("attendance exception center exposes scope-aware lock controls", () => {
   const panel = readFileSync("src/components/workspace/attendance-exceptions-panel.tsx", "utf8");
+  const control = readFileSync("src/components/workspace/attendance-lock-control.tsx", "utf8");
+  const route = readFileSync("src/app/api/workforce/attendance-locks/route.ts", "utf8");
   assert.ok(panel.includes("AttendanceLockControl"));
+  assert.ok(control.includes("payload?.canManage"));
+  assert.ok(route.includes("canManage: access.companyWide"));
 });
