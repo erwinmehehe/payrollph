@@ -483,7 +483,492 @@ jobs:
             check((await roleTab.count()) === 1, `${persona.label}: role tab is missing`);
             await roleTab.click();
 
-            const openButton = page.getByRole("button", { name: new RegExp(`^Open ${persona.short} demo`, "i") });
+            const openButton = page.getByRole("button", { name: new RegExp(`^Open ${persona.label} workspacename: Marketing Browser QA
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/components/marketing/**"
+      - "src/app/workspace-theme.css"
+      - "src/components/workspace/**"
+      - "src/components/linaw-workspace.tsx"
+      - "src/components/self-service-portal.tsx"
+      - "src/components/demo-sandbox-bar.tsx"
+      - "src/app/page.tsx"
+      - "src/app/app/page.tsx"
+      - "src/app/workspace/page.tsx"
+      - "src/app/api/auth/demo-switch/route.ts"
+      - "src/db/public-demo.ts"
+      - "src/db/seed.ts"
+      - "src/lib/demo-host.ts"
+      - "src/lib/security-request.ts"
+      - "src/lib/core-schema-compat.ts"
+      - "src/lib/bank-account-crypto.ts"
+      - "src/app/api/readiness/route.ts"
+      - "src/lib/pricing-catalog.ts"
+      - "src/lib/demo-roles.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tests/marketing.test.ts"
+      - "tests/demo-sandbox.test.ts"
+      - ".github/workflows/preview-browser-qa.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  browser-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      DEMO_MODE: "false"
+      APP_BASE_URL: "http://localhost:3000"
+      TRUSTED_APP_ORIGINS: "http://localhost:3000"
+      TOTP_ENCRYPTION_KEY: "2222222222222222222222222222222222222222222222222222222222222222"
+      # Browser QA exercises privileged lifecycle behavior using isolated demo data.
+      # Security HTTP Smoke separately verifies that production MFA enforcement fails closed.
+      REQUIRE_PRIVILEGED_MFA: "false"
+      QA_URL: http://localhost:3000
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+      - run: npm run db:push
+      - run: npx next build
+
+      - name: Install Playwright for browser QA
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Start production build
+        shell: bash
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/payrollph-next.log 2>&1 &
+          echo $! > /tmp/payrollph-next.pid
+          for attempt in {1..40}; do
+            if curl -fsS "$QA_URL" >/tmp/homepage.html; then
+              echo "Production build is reachable."
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/payrollph-next.log
+          exit 1
+
+      - name: Run Chromium homepage and persona QA
+        shell: bash
+        run: |
+          cat > preview-qa.cjs <<'JS'
+          const fs = require("node:fs");
+          const { chromium } = require("playwright");
+
+          const base = process.env.QA_URL;
+          const outDir = "qa-artifacts";
+          fs.mkdirSync(outDir, { recursive: true });
+
+          const report = {
+            base,
+            homepage: [],
+            modules: [],
+            pricing: [],
+            publicRoutes: [],
+            personas: [],
+            errors: [],
+          };
+
+          function check(condition, message) {
+            if (!condition) throw new Error(message);
+          }
+
+          function attachErrorCollection(page, bucket) {
+            page.on("pageerror", (error) => bucket.push(`pageerror: ${error.message}`));
+            page.on("console", (message) => {
+              if (message.type() === "error") bucket.push(`console: ${message.text()}`);
+            });
+          }
+
+          async function qaHomepage(browser, name, viewport) {
+            const context = await browser.newContext({ viewport });
+            const page = await context.newPage();
+            const errors = [];
+            attachErrorCollection(page, errors);
+            const response = await page.goto(base, { waitUntil: "networkidle", timeout: 90000 });
+            check(response && response.ok(), name + ": homepage did not return 2xx");
+
+            const h1 = (await page.locator("h1").first().innerText()).replace(/\s+/g, " ").trim();
+            check(h1.includes("People, payroll and compliance made clear."), name + ": new Linaw H1 is missing; saw " + h1);
+            const hero = page.locator("#top");
+            const heroPrimary = hero.locator('a[href="/book-demo"]').first();
+            check((await heroPrimary.count()) === 1, name + ": primary demo CTA missing");
+            const primaryStyles = await heroPrimary.evaluate(el => ({
+              foreground: getComputedStyle(el).color,
+              background: getComputedStyle(el).backgroundColor,
+            }));
+            check(primaryStyles.foreground === "rgb(255, 255, 255)", name + ": demo CTA lost white text; saw " + primaryStyles.foreground);
+            check(primaryStyles.background !== "rgba(0, 0, 0, 0)" && primaryStyles.background !== "rgb(255, 255, 255)", name + ": demo CTA has no filled background");
+
+            const heroPreview = hero.getByTestId("payroll-hero-preview");
+            check((await heroPreview.count()) === 1, name + ": current-app hero preview missing");
+            check((await heroPreview.getByText("Illustrative · sample data").count()) === 1, name + ": sample-data disclosure missing");
+            check((await heroPreview.getByText("Let’s make payday a good day.").count()) === 1, name + ": hero does not mirror live Payroll Officer heading");
+            for (const step of ["Inputs", "Calculate", "Review", "Submit"]) {
+              check((await heroPreview.locator(".linaw-preview-step").filter({hasText:step}).count()) === 1, name + ": payroll workflow missing " + step);
+            }
+            check((await heroPreview.getByText("Sample company").count()) >= 1, name + ": fake customer brand must be replaced with sample label");
+
+            for (const anchor of ["solutions", "payroll", "wfm", "hcm", "outsourcing", "compliance", "demo", "security", "pricing", "cta"]) {
+              check((await page.locator("#" + anchor).count()) === 1, name + ": missing section #" + anchor);
+            }
+
+            if (name === "desktop") {
+              const nav = page.getByRole("navigation", { name: "Primary" });
+              for (const [label, target] of [
+                ["Payroll", "/#payroll"], ["Workforce Management", "/workforce-management"],
+                ["HCM", "/hcm"], ["Outsourcing", "/payroll-outsourcing"],
+                ["Pricing", "/pricing"], ["Live demo", "/demo"]
+              ]) {
+                check((await nav.getByRole("link", {name:label,exact:true}).getAttribute("href")) === target, "desktop nav missing " + label + " -> " + target);
+              }
+              check((await page.locator('#solutions a[href="/hcm"]').count()) === 1, "HCM solution must link to its own page");
+              check((await page.locator('#solutions a[href="/workforce-management"]').count()) === 1, "WFM solution must link to its own page");
+            } else {
+              const menu = page.getByRole("button", { name: "Open menu" }).first();
+              check((await menu.count()) === 1, name + ": responsive menu missing");
+              await menu.click();
+              const header = page.getByRole("banner").first();
+              for (const label of ["Payroll","Workforce Management","HCM","Outsourcing","Pricing","Live demo"]) {
+                check((await header.getByRole("link", {name:label,exact:true}).count()) === 1, name + ": mobile menu missing " + label);
+              }
+              await page.getByRole("button", {name:"Close menu"}).first().click();
+            }
+
+            const overflow = await page.evaluate(() => ({
+              scrollWidth: document.documentElement.scrollWidth,
+              innerWidth: window.innerWidth,
+            }));
+            check(overflow.scrollWidth <= overflow.innerWidth+1, name + ": horizontal overflow " + overflow.scrollWidth + " > " + overflow.innerWidth);
+            await page.screenshot({path:outDir+"/homepage-"+name+".png",fullPage:true});
+            report.homepage.push({name,viewport,h1,overflow,errors:[...errors]});
+
+            const pricing = page.locator("#pricing");
+            const cards = pricing.locator(".pricing-plan-card");
+            check((await cards.count()) === 3, name + ": three live pricing plans required");
+            const firstAmount = (await cards.first().locator(".pricing-amount").innerText()).trim();
+            const fiftyPreset = pricing.locator('button[data-headcount="50"]').first();
+            check((await fiftyPreset.count()) === 1, name + ": headcount estimator missing");
+            await fiftyPreset.click();
+            await page.waitForTimeout(100);
+            const updatedAmount = (await cards.first().locator(".pricing-amount").innerText()).trim();
+            check(firstAmount !== updatedAmount, name + ": price did not update with headcount");
+            report.pricing.push({name,rows:3,headcount:50,firstAmount,updatedAmount});
+
+            const demo = page.locator("#demo");
+            const roleTabs = demo.getByRole("tablist", {name:"Sample payroll roles"});
+            check((await roleTabs.getByRole("tab").count()) === 6, name + ": preview must mirror all six live demo roles");
+            check((await demo.getByTestId("app-role-preview").count()) === 1, name + ": shared current-app UI missing");
+            await roleTabs.getByRole("tab", {name:/Checker/}).click();
+            check((await demo.getByRole("heading",{name:"Payroll review"}).count()) === 1, name + ": Checker dashboard did not switch");
+            check((await demo.getByText("What changed?").count()) === 1, name + ": checker change review missing");
+            await roleTabs.getByRole("tab", {name:/Bookkeeper/}).click();
+            check((await demo.getByRole("heading",{name:"Payroll close"}).count()) === 1, name + ": Bookkeeper dashboard did not switch");
+            await roleTabs.getByRole("tab", {name:/Employee/}).click();
+            check((await demo.getByRole("heading",{name:"Good morning, Jonas."}).count()) === 1, name + ": Employee dashboard did not switch");
+            check((await demo.getByRole("link",{name:/Open working sandbox/}).count()) === 1, name + ": working sandbox handoff missing");
+            report.modules.push({module:"Shared six-role clean dashboard marketing preview",active:true});
+
+            if (name === "mobile-390") {
+              const fit = await heroPreview.evaluate(el => ({client:el.clientWidth,scroll:el.scrollWidth}));
+              check(fit.scroll <= fit.client+1, "mobile: hero app preview clips " + fit.scroll + " > " + fit.client);
+              const proof = page.locator("#security article").first();
+              const heading = proof.getByRole("heading",{name:"Permissions are checked before payroll data moves."});
+              const copy = proof.locator("p").filter({hasText:"Requests are scoped to organization membership"});
+              check((await heading.count()) === 1 && (await copy.count()) === 1, "mobile: security copy missing");
+              await hero.screenshot({path:outDir+"/homepage-mobile-390-hero.png"});
+              await pricing.screenshot({path:outDir+"/homepage-mobile-390-pricing.png"});
+              await proof.screenshot({path:outDir+"/homepage-mobile-390-security.png"});
+              await page.locator("#cta").screenshot({path:outDir+"/homepage-mobile-390-cta.png"});
+            }
+            check(errors.length === 0, name + ": console errors: " + errors.join(" | "));
+            await context.close();
+          }
+
+                    async function qaPublicRoutes(browser) {
+            const routes = [
+              { path: "/demo", heading: "See Linaw from the seat you actually use." },
+              { path: "/signup", heading: "Request access to a Linaw trial workspace." },
+              { path: "/payroll-outsourcing", heading: "Payroll processing handled. Your approvals stay yours." },
+              { path: "/hcm", heading: "Know your people. Keep every change connected." },
+              { path: "/workforce-management", heading: "From shifts to payroll, without the blind spots." },
+              { path: "/small-business-payroll", heading: "A clearer payroll process for Philippine small businesses." },
+              { path: "/resources", heading: "Practical guidance for buying, migrating and operating Philippine payroll." },
+              { path: "/industries", heading: "Payroll workflows shaped by how your workforce actually operates." },
+              { path: "/calculators", heading: "Start with the payroll question you need to estimate." },
+              { path: "/compliance", heading: "Compliance support with evidence, validation states and fewer hidden assumptions." },
+              { path: "/industries/construction", heading: "Payroll and timekeeping for Philippine construction teams." },
+              { path: "/industries/logistics", heading: "Payroll and timekeeping for Philippine logistics teams." },
+              { path: "/book-demo", heading: "Bring your actual payroll questions." },
+              { path: "/status", heading: "Linaw system status." },
+              { path: "/scorecard", heading: "Verified claims only." },
+              { path: "/login", heading: "Welcome back." },
+              { path: "/invite", heading: "Join your team on Linaw." },
+              { path: "/reset-password", heading: "Set a new password." },
+              { path: "/verify-email", heading: "Verify your new email." },
+            ];
+
+            const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+            const page = await context.newPage();
+
+            for (const route of routes) {
+              const errors = [];
+              const pageError = (error) => errors.push(`pageerror: ${error.message}`);
+              const consoleError = (message) => {
+                if (message.type() === "error") errors.push(`console: ${message.text()}`);
+              };
+              page.on("pageerror", pageError);
+              page.on("console", consoleError);
+
+              const response = await page.goto(`${base}${route.path}`, { waitUntil: "networkidle", timeout: 90000 });
+              check(response && response.ok(), `${route.path}: did not return 2xx`);
+
+              const h1 = (await page.locator("h1").first().innerText()).trim();
+              check(h1.includes(route.heading), `${route.path}: expected heading "${route.heading}" not found; saw "${h1}"`);
+              check((await page.getByRole("navigation", { name: "Primary" }).count()) >= 1, `${route.path}: shared primary navigation is missing`);
+              if (route.path === "/demo") {
+                const picker = page.getByRole("tablist", { name: "Demo roles" });
+                check((await picker.getByRole("tab").count()) === 6, "/demo must expose all six role contracts");
+                check((await page.getByTestId("app-role-preview").count()) === 1, "/demo must use the same product UI as the homepage");
+                await picker.getByRole("tab", { name: /Owner/ }).click();
+                check((await page.getByRole("heading", { name: "Ready for payday" }).count()) === 1, "/demo Owner preview must mirror the current app");
+                await picker.getByRole("tab", { name: /Bookkeeper/ }).click();
+                check((await page.getByRole("heading", { name: "Payroll close" }).count()) === 1, "/demo Bookkeeper preview missing");
+                check((await page.getByRole("button", { name: /Open Bookkeeper workspace/ }).count()) === 1, "/demo must keep functional persona launch action");
+                await picker.getByRole("tab", { name: /Payroll Officer/ }).click();
+                await page.screenshot({ path: outDir + "/demo-role-picker-desktop.png", fullPage: true });
+                await page.setViewportSize({ width: 390, height: 844 });
+                const narrow = await page.evaluate(() => ({
+                  inner: window.innerWidth,
+                  scroll: document.documentElement.scrollWidth,
+                }));
+                check(narrow.scroll <= narrow.inner+1, "/demo must not horizontally scroll on mobile");
+                await page.screenshot({ path: outDir + "/demo-role-picker-mobile.png", fullPage: true });
+                await page.setViewportSize({ width: 1280, height: 900 });
+              }
+              if (route.path === "/login") {
+                check((await page.locator("footer").count()) === 0, "/login: marketing footer should not distract from authentication");
+              } else {
+                check((await page.locator("footer").count()) >= 1, `${route.path}: shared footer is missing`);
+              }
+
+              const overflow = await page.evaluate(() => ({
+                scrollWidth: document.documentElement.scrollWidth,
+                innerWidth: window.innerWidth,
+              }));
+              check(
+                overflow.scrollWidth <= overflow.innerWidth + 1,
+                `${route.path}: horizontal overflow ${overflow.scrollWidth}px > ${overflow.innerWidth}px`,
+              );
+              check(errors.length === 0, `${route.path}: browser console/page errors: ${errors.join(" | ")}`);
+
+              report.publicRoutes.push({ path: route.path, h1, overflow, errors: [...errors] });
+              if (route.path === "/login") {
+                const signInButton = page.getByRole("button", { name: /^Sign in$/ });
+                check((await signInButton.count()) === 1, "/login: primary sign-in button is missing");
+                const signInStyles = await signInButton.evaluate((element) => ({
+                  backgroundColor: getComputedStyle(element).backgroundColor,
+                  color: getComputedStyle(element).color,
+                  borderRadius: getComputedStyle(element).borderRadius,
+                }));
+                check(signInStyles.backgroundColor === "rgb(97, 97, 255)", `/login: primary CTA lost Linaw indigo; saw ${signInStyles.backgroundColor}`);
+                check(signInStyles.color === "rgb(255, 255, 255)", `/login: primary CTA text lost contrast; saw ${signInStyles.color}`);
+                check((await page.locator('[data-testid="password-visibility"]').count()) === 1, "/login: password visibility control is missing");
+                await page.screenshot({ path: `${outDir}/login-desktop.png`, fullPage: true });
+
+                await page.setViewportSize({ width: 390, height: 844 });
+                await page.waitForTimeout(100);
+                const mobileOverflow = await page.evaluate(() => ({
+                  scrollWidth: document.documentElement.scrollWidth,
+                  innerWidth: window.innerWidth,
+                }));
+                check(mobileOverflow.scrollWidth <= mobileOverflow.innerWidth + 1, `/login: mobile horizontal overflow ${mobileOverflow.scrollWidth}px > ${mobileOverflow.innerWidth}px`);
+                const formHeading = page.getByRole("heading", { name: "Welcome back." });
+                check((await formHeading.count()) === 1, "/login: mobile auth heading is missing");
+                const supportHeading = page.locator("h2").filter({ hasText: "Sign in to Linaw." }).first();
+                check((await supportHeading.count()) === 1, "/login: desktop support heading is missing from the DOM");
+                check((await supportHeading.isVisible()) === false, "/login: supporting marketing panel should stay hidden on mobile");
+                await page.screenshot({ path: `${outDir}/login-mobile-390.png`, fullPage: true });
+                await page.setViewportSize({ width: 1280, height: 900 });
+              }
+              page.off("pageerror", pageError);
+              page.off("console", consoleError);
+            }
+
+            await page.goto(`${base}/demo`, { waitUntil: "networkidle", timeout: 90000 });
+            const outsourcingLink = page.getByRole("link", { name: "Payroll outsourcing" }).first();
+            check((await outsourcingLink.count()) === 1, "/demo: Outsourcing nav link is missing");
+            await outsourcingLink.click();
+            await page.waitForURL(new RegExp("/payroll-outsourcing(?:$|[?#])"), { timeout: 30000 });
+            check(new URL(page.url()).pathname === "/payroll-outsourcing", "/demo: shared navigation did not reach payroll outsourcing");
+
+            await context.close();
+          }
+
+          const personas = [
+            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Ready for payday", taskPage: "Home", dashboardRole: "owner" },
+            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "Your team at a glance", taskPage: "Employees", dashboardRole: "hr" },
+            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Let’s make payday a good day.", taskPage: "Payroll", dashboardRole: "payroll" },
+            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Payroll review", taskPage: "Reviews", dashboardRole: "checker" },
+            { id: "bookkeeper", label: "Bookkeeper", short: "Bookkeeper", person: "Bea Navarro", landing: "payroll close", taskPage: "Exports", dashboardRole: "bookkeeper" },
+            { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "Good morning, Jonas", taskPage: "Payslips", dashboardRole: null },
+          ];
+
+          async function inspectPersonaViewport(page, persona, width, height, suffix) {
+            await page.setViewportSize({ width, height });
+            await page.waitForTimeout(120);
+
+            const overflow = await page.evaluate(() => ({
+              scrollWidth: document.documentElement.scrollWidth,
+              innerWidth: window.innerWidth,
+            }));
+            check(
+              overflow.scrollWidth <= overflow.innerWidth + 1,
+              `${persona.label}: ${suffix} horizontal overflow ${overflow.scrollWidth}px > ${overflow.innerWidth}px`,
+            );
+
+            const sandbox = page.locator("section.demo-sandbox").first();
+            if (await sandbox.count()) {
+            const sandboxLayout = await sandbox.evaluate((element) => {
+              const rect = element.getBoundingClientRect();
+              return {
+                left: rect.left,
+                right: rect.right,
+                scrollWidth: element.scrollWidth,
+                clientWidth: element.clientWidth,
+              };
+            });
+            check(sandboxLayout.left >= -1, `${persona.label}: ${suffix} sandbox escapes the left viewport edge`);
+            check(sandboxLayout.right <= width + 1, `${persona.label}: ${suffix} sandbox escapes the right viewport edge`);
+            check(
+              sandboxLayout.scrollWidth <= sandboxLayout.clientWidth + 1,
+              `${persona.label}: ${suffix} sandbox clips internally`,
+            );
+
+            }
+
+            const responsiveControls = page.locator(".demo-role-button, .demo-access-chip, .demo-task-card");
+            for (const control of await responsiveControls.all()) {
+              if (!(await control.isVisible())) continue;
+              const layout = await control.evaluate((element) => ({
+                scrollWidth: element.scrollWidth,
+                clientWidth: element.clientWidth,
+              }));
+              check(
+                layout.scrollWidth <= layout.clientWidth + 1,
+                `${persona.label}: ${suffix} sandbox control clips ${layout.scrollWidth}px > ${layout.clientWidth}px`,
+              );
+            }
+
+            const handoffs = page.locator("[data-payroll-handoff]");
+            for (const handoff of await handoffs.all()) {
+              if (!(await handoff.isVisible())) continue;
+              const layout = await handoff.evaluate((element) => ({
+                scrollWidth: element.scrollWidth,
+                clientWidth: element.clientWidth,
+              }));
+              check(
+                layout.scrollWidth <= layout.clientWidth + 1,
+                `${persona.label}: ${suffix} payroll handoff clips ${layout.scrollWidth}px > ${layout.clientWidth}px`,
+              );
+            }
+
+            const topbar = page.locator(".topbar").first();
+            if (await topbar.count()) {
+              const layout = await topbar.evaluate((element) => ({
+                scrollWidth: element.scrollWidth,
+                clientWidth: element.clientWidth,
+              }));
+              check(
+                layout.scrollWidth <= layout.clientWidth + 1,
+                `${persona.label}: ${suffix} topbar clips ${layout.scrollWidth}px > ${layout.clientWidth}px`,
+              );
+            }
+
+            if (persona.id === "employee") {
+              if (width <= 768) {
+                const mobileTabs = page.locator(".employee-tabs").first();
+                check((await mobileTabs.count()) === 1, "Employee: mobile bottom navigation is missing");
+                check(await mobileTabs.isVisible(), `Employee: ${suffix} mobile bottom navigation is not visible`);
+              }
+              const employeeActions = page.locator(".employee-self-service-actions").first();
+              check((await employeeActions.count()) === 1, "Employee: responsive header actions are missing");
+              const actionLayout = await employeeActions.evaluate((element) => ({
+                scrollWidth: element.scrollWidth,
+                clientWidth: element.clientWidth,
+              }));
+              check(
+                actionLayout.scrollWidth <= actionLayout.clientWidth + 1,
+                `Employee: ${suffix} header actions clip ${actionLayout.scrollWidth}px > ${actionLayout.clientWidth}px`,
+              );
+            } else if (width <= 768) {
+              const drawerButton = page.getByRole("button", { name: "Open navigation" }).first();
+              check((await drawerButton.count()) === 1, `${persona.label}: ${suffix} mobile/tablet navigation trigger is missing`);
+              check(await drawerButton.isVisible(), `${persona.label}: ${suffix} navigation trigger is not visible`);
+              const mobileNav = page.locator(".mobile-bottom-nav").first();
+              check((await mobileNav.count()) === 1, `${persona.label}: ${suffix} bottom navigation is missing`);
+              check(await mobileNav.isVisible(), `${persona.label}: ${suffix} bottom navigation is not visible`);
+            }
+
+            await page.screenshot({
+              path: `${outDir}/persona-${persona.id}-landing-${suffix}.png`,
+              fullPage: true,
+            });
+          }
+
+          async function qaPersona(browser, persona) {
+            const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+            const page = await context.newPage();
+            const errors = [];
+            attachErrorCollection(page, errors);
+
+            const demoResponse = await page.goto(`${base}/demo`, { waitUntil: "networkidle", timeout: 90000 });
+            check(demoResponse && demoResponse.ok(), `${persona.label}: /demo did not return 2xx`);
+
+            const roleTab = page.getByRole("tab").filter({ hasText: persona.label }).first();
+            check((await roleTab.count()) === 1, `${persona.label}: role tab is missing`);
+            await roleTab.click();
+
+            const openButton = , "i") });
             check((await openButton.count()) === 1, `${persona.label}: launch button is missing`);
 
             const [switchResponse] = await Promise.all([
