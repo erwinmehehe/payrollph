@@ -481,6 +481,13 @@ export function WorkforceCoveragePanel({
         <Metric label="Pending claims" value={String(pendingClaims)} hint="manager decision needed" icon={<UsersRound size={16} />} tone={pendingClaims ? "amber" : "slate"} />
       </section>
 
+      {(criticalRiskCount > 0 || highRiskCount > 0) && (
+        <div className={criticalRiskCount > 0 ? "notice notice-red" : "notice notice-amber"} style={{ margin: "0 18px 18px" }}>
+          <CircleAlert size={15} />
+          <span><strong>Pre-publish coverage risk:</strong> {criticalRiskCount} critical · {highRiskCount} high.</span>
+        </div>
+      )}
+
       <div className="setting-form" style={{ padding: "0 18px 18px" }}>
         <label>Coverage window<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
         <label>Window end<input value={endDate} readOnly /></label>
