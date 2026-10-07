@@ -143,12 +143,12 @@ export function Security() {
       <div className="mx-auto max-w-[1240px] px-5 sm:px-8">
         <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
           <SectionHeading
-            title="Access controls worth being clear about."
-            description="Sensitive data access and payroll approvals need enforcement at the boundary, not just a reassuring badge on the page."
+            title="Access controls built around payroll boundaries."
+            description="Sensitive payroll data needs role scope, organization boundaries and explicit approval permissions—not just reassuring UI labels."
           />
           <Reveal delay={80}>
             <p className="max-w-[620px] text-[15px] leading-relaxed text-[#5B6080] lg:ml-auto">
-              See how role scope, cross-workspace checks and approval responsibilities are designed to protect payroll data and release decisions.
+              Linaw keeps payroll data access and release authority separate, with server-side checks behind the workflows shown in the app.
             </p>
           </Reveal>
         </div>
