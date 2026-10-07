@@ -46,7 +46,7 @@ test("review completion enforces configured evidence instead of silently finaliz
 test("cycle completion is a governed irreversible closure gate", () => {
   assert.ok(migration.includes('"completed_at" timestamptz'));
   assert.ok(route.includes("cycleCompletionReadiness"));
-  assert.ok(route.includes("The cycle cannot close until every review is completed"));
+  assert.ok(route.includes("The cycle cannot close until every review is complete"));
   assert.ok(route.includes('status: "completed"'));
   assert.ok(route.includes("Performance cycle completed"));
 });
