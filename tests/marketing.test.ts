@@ -73,19 +73,25 @@ test("the software homepage uses the real Linaw workspace preview", () => {
   assert.ok(demo.includes("Open role-based sandbox"), "homepage demo must hand off to the real role-based sandbox");
 });
 
-test("the homepage leads with the approved Linaw payroll hero", () => {
+test("the homepage presents the connected Linaw platform without invented proof", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
+  const sections = read("src/components/marketing/claude-home/components/PlatformSections.tsx");
+  const home = read("src/components/marketing/claude-home/App.tsx");
   const trust = read("src/components/marketing/claude-home/components/Trust.tsx");
   const product = read("src/components/marketing/claude-home/components/Product.tsx");
 
-  assert.ok(hero.includes("Philippine payroll you can verify before you pay."), "hero must lead with Philippine payroll and the review-before-release value proposition");
-  assert.ok(hero.includes("Try Live Demo"), "hero must expose the primary live-demo CTA");
-  assert.ok(hero.includes("See Pricing"), "hero must expose the pricing CTA");
-  assert.ok(hero.includes("SSS, PhilHealth, Pag-IBIG & TRAIN calculations"), "hero must show the statutory calculation proof point");
-  assert.ok(hero.includes("Government worksheets clearly labelled"), "hero must avoid implying certified filing");
-  assert.ok(hero.includes("Maker-checker release controls"), "hero must show the release-control proof point");
-  assert.ok(!hero.includes("Let’s make payroll easier"), "hero must stay mascot-free");
-  assert.ok(product.includes("See how a payroll calculation explains itself."), "statutory explanation must stay visible below the fold");
+  assert.ok(hero.includes("People, payroll and compliance"), "hero must present the integrated Philippine platform");
+  assert.ok(hero.includes("made clear."), "hero must keep the approved clarity messaging");
+  assert.ok(hero.includes('href="/book-demo"'), "hero must let visitors request a demo");
+  assert.ok(hero.includes('href="/demo"'), "hero must preserve the sample workspace path");
+  assert.ok(hero.includes("Illustrative · sample data"), "hero preview must be explicitly labelled as sample data");
+  for (const section of ["<SolutionsGrid />", "<PayrollShowcase />", "<WorkforceShowcase />", "<HcmShowcase />", "<OutsourcingShowcase />", "<PhilippineCompliance />"]) {
+    assert.ok(home.includes(section), "homepage must render " + section);
+  }
+  assert.ok(sections.includes("does not represent calculation support as government certification"), "government compliance must not imply certification");
+  assert.ok(sections.includes("Example only. No real employee data"), "payroll preview must avoid suggesting real customer data");
+  assert.ok(!hero.includes("Trusted by") && !sections.includes("What our customers say"), "no fabricated social proof");
+  assert.ok(product.includes("See how a payroll calculation explains itself."), "statutory explanation must stay below the fold");
   assert.ok(trust.includes("Controls that return 403, not a tooltip."), "security controls must remain a primary product story");
 });
 
@@ -111,10 +117,24 @@ test("payroll outsourcing has its own service route and conversion path", () => 
 
   const page = read("src/app/payroll-outsourcing/page.tsx");
   assert.ok(page.includes("Payroll Outsourcing Philippines"), "service metadata must target outsourcing intent");
-  assert.ok(page.includes("Get a payroll quote"), "service page must use a quote CTA");
+  assert.ok(read("src/components/marketing/solution-pages.tsx").includes("Get a payroll quote"), "service must expose a quote CTA");
   assert.ok(!page.includes("PricingTable"), "outsourcing page must not reuse product pricing");
 });
 
+
+test("WFM and HCM landing routes link to existing feature pages without claiming certification", () => {
+  for (const [route, canonical] of [["workforce-management", "/workforce-management"], ["hcm", "/hcm"]]) {
+    const page = read("src/app/" + route + "/page.tsx");
+    assert.ok(page.includes(canonical), route + " must have a canonical URL");
+    assert.ok(page.includes("<SolutionLanding"), route + " must use shared solution design");
+  }
+  const sitemap = read("src/lib/sitemap-data.ts");
+  assert.ok(sitemap.includes('path: "/workforce-management"'), "WFM must appear in sitemap");
+  assert.ok(sitemap.includes('path: "/hcm"'), "HCM must appear in sitemap");
+  const service = read("src/components/marketing/solution-pages.tsx");
+  assert.ok(service.includes("<PayrollQuoteForm/>"), "outsourcing must preserve the existing live quote form");
+  assert.ok(service.includes("does not transfer"), "outsourcing must preserve employer responsibility language");
+});
 
 test("homepage simulation uses the real workspace navigation and no dead client states", () => {
   const preview = read("src/components/marketing/workspace-preview.tsx");
