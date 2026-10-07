@@ -24,6 +24,7 @@ import {
 } from "@/lib/workforce-attendance-correction";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import { reconcileAttendanceExceptionEvents } from "@/lib/workforce-attendance-exception-events";
+import { attendanceMutationLock, loadActiveAttendanceLocks } from "@/lib/workforce-attendance-lock";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -297,6 +298,20 @@ export async function POST(request: Request) {
         metadata: { attendanceCorrectionRequestId: requestId, decisionNote },
       });
       return Response.json({ correction: updated });
+    }
+
+    const attendanceLock = attendanceMutationLock(
+      await loadActiveAttendanceLocks(organizationId),
+      String(existing.workDate),
+      "correction",
+    );
+    if (attendanceLock) {
+      return Response.json({
+        error: "Attendance corrections are frozen for the locked payroll cutoff. Reopen the cutoff before applying a correction.",
+        code: "ATTENDANCE_PERIOD_LOCKED",
+        attendanceLockId: attendanceLock.id,
+        lockType: attendanceLock.lockType,
+      }, { status: 423 });
     }
 
     const original = storedSnapshot(existing.originalPunchSnapshot);

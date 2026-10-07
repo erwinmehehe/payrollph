@@ -671,6 +671,57 @@ export const workforceTimesheets = pgTable(
   ],
 );
 
+export const workforceAttendanceLockPolicies = pgTable(
+  "workforce_attendance_lock_policies",
+  {
+    organizationId: integer("organization_id").primaryKey().references(() => organizations.id, { onDelete: "cascade" }),
+    requirePayrollCutoffLock: boolean("require_payroll_cutoff_lock").notNull().default(false),
+    updatedBy: varchar("updated_by", { length: 120 }).notNull().default("System"),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+export const workforceAttendancePeriodLocks = pgTable(
+  "workforce_attendance_period_locks",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    lockType: varchar("lock_type", { length: 24 }).notNull().default("attendance"),
+    status: varchar("status", { length: 16 }).notNull().default("locked"),
+    reason: varchar("reason", { length: 240 }).notNull(),
+    lockedBy: varchar("locked_by", { length: 120 }).notNull(),
+    lockedByUserId: integer("locked_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    lockedAt: timestamp("locked_at", { withTimezone: true }).notNull().defaultNow(),
+    unlockedBy: varchar("unlocked_by", { length: 120 }),
+    unlockedByUserId: integer("unlocked_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    unlockReason: varchar("unlock_reason", { length: 240 }),
+    unlockedAt: timestamp("unlocked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("workforce_attendance_period_locks_period_unique").on(
+      table.organizationId,
+      table.periodStart,
+      table.periodEnd,
+      table.lockType,
+    ),
+    index("workforce_attendance_period_locks_active_idx").on(
+      table.organizationId,
+      table.status,
+      table.periodStart,
+      table.periodEnd,
+    ),
+    check("workforce_attendance_period_locks_date_check", sql`${table.periodEnd} >= ${table.periodStart}`),
+    check("workforce_attendance_period_locks_type_check", sql`${table.lockType} in ('attendance','payroll_cutoff')`),
+    check("workforce_attendance_period_locks_status_check", sql`${table.status} in ('locked','unlocked')`),
+  ],
+);
+
 export const costCenters = pgTable(
   "cost_centers",
   {

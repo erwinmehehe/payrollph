@@ -7,6 +7,8 @@ import { assertMembership, assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/
 import { recordAuditEvent } from "@/lib/audit";
 import { clientIp } from "@/lib/rate-limit";
 import { reconcileAttendanceExceptionEvents } from "@/lib/workforce-attendance-exception-events";
+import { attendanceMutationLock, loadActiveAttendanceLocks } from "@/lib/workforce-attendance-lock";
+import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +128,21 @@ export async function POST(request: Request) {
 
   const todayStr = manilaToday();
   const now = new Date();
+  const attendanceLock = attendanceMutationLock(
+    await loadActiveAttendanceLocks(organizationId),
+    todayStr,
+    "capture",
+  );
+  if (attendanceLock) {
+    return Response.json({
+      error: attendanceLock.lockType === "payroll_cutoff"
+        ? "Attendance is frozen for the payroll cutoff covering today."
+        : "Attendance capture is locked for the period covering today.",
+      code: "ATTENDANCE_PERIOD_LOCKED",
+      attendanceLockId: attendanceLock.id,
+      lockType: attendanceLock.lockType,
+    }, { status: 423 });
+  }
 
   const [existingPunch] = await db.select().from(timePunches).where(
     and(
@@ -154,6 +171,11 @@ export async function POST(request: Request) {
       resource: `${employee.firstName} ${employee.lastName}`,
       metadata: { employeeId, workDate: todayStr, breakStart: now.toISOString(), ip },
     });
+    await markTimesheetsStaleForEmployeeDate({
+      organizationId,
+      employeeId,
+      workDate: todayStr,
+    });
     const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
     return Response.json({ ok: true, action: "break_start", punch: updated, attendanceExceptionSync });
   }
@@ -176,6 +198,11 @@ export async function POST(request: Request) {
       action: "Web Bundy Break END",
       resource: `${employee.firstName} ${employee.lastName}`,
       metadata: { employeeId, workDate: todayStr, breakEnd: now.toISOString(), ip },
+    });
+    await markTimesheetsStaleForEmployeeDate({
+      organizationId,
+      employeeId,
+      workDate: todayStr,
     });
     const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
     return Response.json({ ok: true, action: "break_end", punch: updated, attendanceExceptionSync });
@@ -220,6 +247,11 @@ export async function POST(request: Request) {
       metadata: { employeeId, workDate: todayStr, timeIn: now.toISOString(), ip },
     });
 
+    await markTimesheetsStaleForEmployeeDate({
+      organizationId,
+      employeeId,
+      workDate: todayStr,
+    });
     const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
     return Response.json({ ok: true, action: "clock_in", punch, attendanceExceptionSync }, { status: existingPunch ? 200 : 201 });
   }
@@ -248,6 +280,11 @@ export async function POST(request: Request) {
       metadata: { employeeId, workDate: todayStr, timeOut: now.toISOString(), ip },
     });
 
+    await markTimesheetsStaleForEmployeeDate({
+      organizationId,
+      employeeId,
+      workDate: todayStr,
+    });
     const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
     return Response.json({
       ok: true,

@@ -7,6 +7,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { drainPayrollQueue, enqueuePayrollRun } from "@/lib/payroll-engine";
 import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { loadTimesheetPayrollGate } from "@/lib/workforce-timesheet-server";
+import { loadAttendanceCutoffGate } from "@/lib/workforce-attendance-lock";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(_request);
@@ -56,6 +57,19 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
           lte(employees.startDate, run.periodEnd),
         ),
   );
+  const attendanceCutoffGate = await loadAttendanceCutoffGate({
+    organizationId: run.organizationId,
+    periodStart: String(run.periodStart),
+    periodEnd: String(run.periodEnd),
+  });
+  if (!attendanceCutoffGate.gate.allowed) {
+    return Response.json({
+      error: "An active payroll-cutoff attendance lock is required before payroll recalculation for this organization.",
+      code: "ATTENDANCE_CUTOFF_LOCK_REQUIRED",
+      attendanceCutoffGate: attendanceCutoffGate.gate,
+    }, { status: 422 });
+  }
+
   const timesheetGate = await loadTimesheetPayrollGate({
     organizationId: run.organizationId,
     employeeIds: employeeRows.map((employee) => employee.id),
@@ -139,10 +153,12 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       ruleVersion: "PH-2026.01",
       chunks: processResult.length,
       approvalsSuperseded: recalculation.superseded,
+      attendanceCutoffPolicy: attendanceCutoffGate.policy,
+      attendanceCutoffGate: attendanceCutoffGate.gate,
       timesheetPolicy: timesheetGate.policy,
       timesheetGate: timesheetGate.gate,
     },
   });
 
-  return Response.json({ run: fresh, queue, processResult, timesheetGate });
+  return Response.json({ run: fresh, queue, processResult, attendanceCutoffGate, timesheetGate });
 }
