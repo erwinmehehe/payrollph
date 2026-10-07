@@ -8,17 +8,17 @@ const productIcons = [Wallet, CalendarClock, Users, ContactRound, ChartNoAxesCom
 
 const areas = [
   { id: "payroll", name: "Payroll", color: "#0877ff", image: "payroll", height: 1501, title: "Payroll / inputs, calculation & review", copy: "See the payroll run, its amounts, and the items that need your team’s attention.", href: "/small-business-payroll" },
-  { id: "wfm", name: "Workforce Management", color: "#088775", image: "attendance", height: 2114, title: "Workforce / time records & exceptions", copy: "Review attendance records and the exceptions that feed workforce and payroll decisions.", href: "/time-and-attendance" },
-  { id: "hcm", name: "HCM", color: "#8455c7", image: "hr", height: 1304, title: "HCM / people workflows", copy: "Explore employee records here. Use the full sandbox for the wider lifecycle workflows.", href: "/hris" },
+  { id: "wfm", name: "Workforce Management", color: "#088775", image: "attendance", height: 2114, title: "Workforce / time records & exceptions", copy: "Review attendance records and the exceptions that feed workforce and payroll decisions.", href: "/workforce-management" },
+  { id: "hcm", name: "HCM", color: "#8455c7", image: "hr", height: 1304, title: "HCM / people workflows", copy: "Follow onboarding tasks, responsibilities, and upcoming employee milestones.", href: "/hcm" },
   { id: "hris", name: "HRIS", color: "#a75528", image: "people", height: 1375, title: "HRIS / employee records", copy: "Maintain employee information, employment details, and organization access in the employee directory.", href: "/hris" },
-  { id: "analytics", name: "Workforce Analytics", color: "#277592", image: "reports", height: 1286, title: "Analytics / reports & outputs", copy: "Explore sample export outputs here. Full analytics and reports are available in the sandbox.", href: "/workforce-analytics" },
-  { id: "employee", name: "Employee Self-Service", color: "#a23f6a", image: "employee", height: 1050, title: "Self-service / personal pay & time", copy: "Expand sample payroll entries here. Personal employee self-service is available in the role-based sandbox.", href: "/employee-self-service" },
+  { id: "analytics", name: "Workforce Analytics", color: "#277592", image: "reports", height: 1286, title: "Analytics / reports & outputs", copy: "Compare payroll periods, department costs, and headcount in the sample reporting workspace.", href: "/workforce-analytics" },
+  { id: "employee", name: "Employee Self-Service", color: "#a23f6a", image: "employee", height: 1050, title: "Self-service / personal pay & time", copy: "Explore personal payslips, attendance, and leave requests from the employee perspective.", href: "/employee-self-service" },
 ] as const;
 
 export function ProductHomeHero() {
   const [selected, setSelected] = useState<(typeof areas)[number]>(areas[0]);
   const [previewPage, setPreviewPage] = useState("Payroll");
-  const destinations: Record<string, string> = { payroll: "Payroll", wfm: "Time & attendance", hcm: "People", hris: "People", analytics: "Exports", employee: "Payroll" };
+  const destinations: Record<string, string> = { payroll: "Payroll", wfm: "Workforce", hcm: "HCM", hris: "People", analytics: "Exports", employee: "Payroll" };
   return (
     <section id="top" className="linaw-product-hero" aria-label="Linaw payroll and people platform">
       <div className="lp-intro">

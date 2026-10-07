@@ -17,6 +17,8 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
     links: [
       { label: "Product overview", href: "/#product" },
       { label: "HRIS", href: "/hris" },
+      { label: "Human capital management", href: "/hcm" },
+      { label: "Workforce management", href: "/workforce-management" },
       { label: "Time & attendance", href: "/time-and-attendance" },
       { label: "Employee self-service", href: "/employee-self-service" },
       { label: "Integrations", href: "/integrations" },

@@ -218,6 +218,14 @@ jobs:
               check((await demo.getByText("Your team. One connected workspace.").count()) === 1, "desktop: payroll workflow preview chrome did not render");
               const systemPreview = demo.locator(".frame.standalone");
               check((await systemPreview.count()) === 1, "desktop: shared Linaw workspace preview did not render");
+              await page.getByRole("group", { name: "Choose a product area" }).getByRole("button", { name: "HRIS", exact: true }).click();
+              await systemPreview.getByRole("textbox", { name: "Search employees" }).fill("Maria");
+              await systemPreview.getByRole("button", { name: /Maria Santos/ }).click();
+              const employeeProfile = page.getByRole("dialog", { name: "Employee profile" });
+              await employeeProfile.getByRole("button", { name: "Pay profile", exact: true }).click();
+              check(await employeeProfile.getByText("₱32,000", { exact: true }).count() === 1, "HRIS pay profile must show the sample salary");
+              await page.keyboard.press("Escape");
+              check(await employeeProfile.count() === 0, "HRIS profile must dismiss with Escape");
               const perspectives = systemPreview.getByRole("group", { name: "Choose a team perspective" });
               await perspectives.getByRole("button", { name: "Checker", exact: true }).click();
               await systemPreview.getByRole("button", { name: "Review exceptions", exact: true }).click();
