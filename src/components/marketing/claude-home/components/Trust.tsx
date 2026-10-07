@@ -143,45 +143,45 @@ export function Security() {
       <div className="mx-auto max-w-[1240px] px-5 sm:px-8">
         <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
           <SectionHeading
-            title="Controls that return 403, not a tooltip."
-            description="Every rule below is checked on the server and covered by a test that fails the build if it regresses."
+            title="Access controls worth being clear about."
+            description="Sensitive data access and payroll approvals need enforcement at the boundary, not just a reassuring badge on the page."
           />
           <Reveal delay={80}>
             <p className="max-w-[620px] text-[15px] leading-relaxed text-[#5B6080] lg:ml-auto">
-              The strongest security story is not a badge wall. It is predictable refusal behavior at the exact boundary where data or money could move.
+              See how role scope, cross-workspace checks and approval responsibilities are designed to protect payroll data and release decisions.
             </p>
           </Reveal>
         </div>
 
         <Reveal delay={100}>
-          <article className="mt-8 overflow-hidden rounded-[30px] border border-[#CDEFDD] bg-[#11141F] text-white shadow-[0_30px_70px_-38px_rgba(17,20,31,.5)]">
+          <article className="mt-8 overflow-hidden rounded-[30px] border border-[#dce7f5] bg-[#f4f8ff] text-[#152943] shadow-[0_24px_70px_-42px_rgba(30,78,142,.22)]">
             <div className="grid min-w-0 gap-0 lg:grid-cols-[1.05fr_0.95fr]">
               <div className="min-w-0 p-6 sm:p-8 lg:p-10">
                 <span className="inline-flex items-center gap-2 rounded-full bg-[#E3FAF0] px-3 py-1.5 text-[12px] font-bold text-[#0A8A53]">
                   <ShieldCheck className="h-4 w-4" aria-hidden />
-                  Tenant isolation verified
+                  Cross-workspace access checks
                 </span>
                 <h3 className="font-display mt-5 max-w-[600px] break-words text-[28px] font-semibold leading-tight sm:text-[36px]">
-                  One workspace can never read another&apos;s payroll.
+                  Permissions are checked before payroll data moves.
                 </h3>
-                <p className="mt-3 max-w-[640px] break-words text-[15px] leading-relaxed text-white/65">
-                  Every session route passes one shared membership gate. Resource URLs resolve their own organization, so an ID in the URL never counts as authorization.
+                <p className="mt-3 max-w-[640px] break-words text-[15px] leading-relaxed text-[#596e87]">
+                  Requests are scoped to organization membership and resource permissions. A resource ID alone does not authorize access to employee or payroll data.
                 </p>
               </div>
 
-              <div className="min-w-0 border-t border-white/10 bg-white/[0.04] p-5 sm:p-7 lg:border-l lg:border-t-0">
-                <div className="mono grid gap-2 rounded-2xl border border-white/10 bg-black/10 p-4 text-[12.5px]">
+              <div className="min-w-0 border-t border-[#dce7f5] bg-[#ecf4ff] p-5 sm:p-7 lg:border-l lg:border-t-0">
+                <div className="mono grid gap-2 rounded-2xl border border-[#dce6f3] bg-white p-4 text-[12.5px]">
                   {[
                     "GET  /api/payroll-runs/:foreign/exports",
                     "POST /api/payroll-runs/:foreign/release",
                     "GET  /api/employees?org=:foreign",
                   ].map((line) => (
                     <div key={line} className="flex items-center justify-between gap-3">
-                      <span className="truncate text-white/72">{line}</span>
+                      <span className="truncate text-[#647891]">{line}</span>
                       <span className="shrink-0 rounded-md bg-[#FFE8EC] px-2 py-0.5 font-semibold text-[#D12D4B]">403</span>
                     </div>
                   ))}
-                  <div className="mt-2 border-t border-white/10 pt-3 text-[#77E1AD]">✓ 17/17 cross-tenant attempts rejected</div>
+                  <div className="mt-2 border-t border-[#e2eaf4] pt-3 text-[#338363]">✓ Illustrative cross-tenant requests return 403</div>
                 </div>
               </div>
             </div>
