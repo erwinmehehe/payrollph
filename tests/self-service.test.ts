@@ -124,3 +124,33 @@ test("latest pay remains ahead of history in the polished employee app", () => {
   const historyAt = portal.indexOf("PAY HISTORY");
   assert.ok(latestAt > -1 && historyAt > -1 && latestAt < historyAt, "latest pay should render before pay history");
 });
+
+
+test("employee Explain My Pay endpoint is session-scoped and released-only", () => {
+  const route = read("src/app/api/self/payslips/[id]/explain/route.ts");
+  assert.ok(route.includes('session.role !== "employee"'), "only employee self-service accounts may use the endpoint");
+  assert.ok(route.includes("session.employeeId"), "employee identity must come from the authenticated session");
+  assert.ok(route.includes("eq(payrollEntries.employeeId, session.employeeId)"), "requested entry must belong to the authenticated employee");
+  assert.ok(route.includes("eq(payrollRuns.status, \"Released\")"), "draft or in-review payroll must never be explained to employees");
+  assert.ok(route.includes("eq(payrollRuns.organizationId, employee.organizationId)"), "entry must remain inside the employee organization");
+  assert.ok(!route.includes('searchParams.get("employeeId")'), "employee identity must never be supplied by the client");
+});
+
+test("employee Explain My Pay compares against the previous released cutoff", () => {
+  const route = read("src/app/api/self/payslips/[id]/explain/route.ts");
+  assert.ok(route.includes("lt(payrollRuns.payDate, run.payDate)"));
+  assert.ok(route.includes('eq(payrollRuns.status, "Released")'));
+  assert.ok(route.includes("orderBy(desc(payrollRuns.payDate), desc(payrollRuns.id))"));
+  assert.ok(route.includes("buildPayExplanation(entry, previousEntry ?? null)"));
+});
+
+test("employee pay screen exposes Explain My Pay on latest and historical released payslips", () => {
+  const portal = read("src/components/self-service-portal.tsx");
+  const component = read("src/components/employee-explain-pay.tsx");
+  assert.ok(portal.includes('import { EmployeeExplainPay } from "@/components/employee-explain-pay";'));
+  assert.ok(portal.includes("<EmployeeExplainPay entryId={latestPayslip.entryId} period={latestPayslip.period} />"));
+  assert.ok(portal.includes("<EmployeeExplainPay entryId={slip.entryId} period={slip.period} />"));
+  assert.ok(component.includes("Why did my pay change?"));
+  assert.ok(component.includes("previous released cutoff"));
+  assert.ok(component.includes("effect on net"));
+});
