@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ClipboardCheck, Download, FileBarChart2, Gauge, RefreshCw, ShieldCheck, TrendingDown, UsersRound, WalletCards } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
+import { EnterpriseBiExportPanel } from "@/components/enterprise-bi-export-panel";
 import {
   EmptyState,
   ErrorState,
@@ -144,6 +145,8 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
           />
         </article>
       )}
+
+      <EnterpriseBiExportPanel organizationId={organizationId} notify={notify} />
 
       <div className="report-grid">
         {REPORTS.map((report) => {
