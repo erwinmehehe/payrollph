@@ -224,52 +224,17 @@ jobs:
               check((await page.locator('#solutions a[href="/payroll-outsourcing"]').count()) === 1, "desktop: outsourcing card must link to its page");
 
               const demo = page.locator("#demo");
-              check((await demo.count()) === 1, "desktop: live demo section is missing");
-              check((await demo.getByText("Interactive payroll workflow").count()) === 1, "desktop: payroll workflow preview chrome did not render");
-              const systemPreview = demo.locator(".system-demo-product .frame.standalone");
-              check((await systemPreview.count()) === 1, "desktop: shared Linaw workspace preview did not render");
-              const previewNav = systemPreview.locator(".nav-item");
-              check((await previewNav.count()) >= 8, "desktop: real workspace navigation is unexpectedly sparse");
-              const peopleNav = previewNav.filter({ hasText: /^People/ }).first();
-              check((await peopleNav.count()) === 1, "desktop: People module is missing from the real-system preview");
-              await peopleNav.click();
-              await page.waitForTimeout(100);
-              check((await peopleNav.getAttribute("aria-current")) === "page", "desktop: real-system preview navigation did not update");
-              const peopleShell = systemPreview.locator(".preview-people-shell");
-              check((await peopleShell.count()) === 1, "desktop: People preview shell is missing");
-              const firstPersonRow = peopleShell.locator(".preview-person-row").first();
-              check((await firstPersonRow.count()) === 1, "desktop: People preview rows are missing");
-              const personRowStyles = await firstPersonRow.evaluate((element) => ({
-                display: getComputedStyle(element).display,
-                columns: getComputedStyle(element).gridTemplateColumns,
-                width: element.getBoundingClientRect().width,
-                scrollWidth: element.scrollWidth,
-              }));
-              check(personRowStyles.display === "grid", `desktop: People preview row styling did not load; display=${personRowStyles.display}`);
-              check(personRowStyles.columns !== "none", "desktop: People preview row has no grid columns");
-              check(personRowStyles.scrollWidth <= personRowStyles.width + 1, `desktop: People preview row overflows ${personRowStyles.scrollWidth}px > ${personRowStyles.width}px`);
-              check((await peopleShell.locator(".preview-people-summary").count()) === 1, "desktop: People summary is missing");
-              check((await peopleShell.locator(".preview-people-controls").count()) === 1, "desktop: People filters/search are missing");
-
-              const migrationNav = previewNav.filter({ hasText: /^Migration/ }).first();
-              check((await migrationNav.count()) === 1, "desktop: Migration module is missing from the real-system preview");
-              await migrationNav.click();
-              await page.waitForTimeout(100);
-              const migrationCard = systemPreview.locator(".preview-migration-card");
-              check((await migrationCard.count()) === 1, "desktop: Migration preview card is missing");
-              const migrationStep = migrationCard.locator(".preview-migration-step").first();
-              const migrationStyles = await migrationStep.evaluate((element) => ({
-                display: getComputedStyle(element).display,
-                columns: getComputedStyle(element).gridTemplateColumns,
-                width: element.getBoundingClientRect().width,
-                scrollWidth: element.scrollWidth,
-              }));
-              check(migrationStyles.display === "grid", `desktop: Migration preview styling did not load; display=${migrationStyles.display}`);
-              check(migrationStyles.columns !== "none", "desktop: Migration preview has no grid columns");
-              check(migrationStyles.scrollWidth <= migrationStyles.width + 1, `desktop: Migration preview overflows ${migrationStyles.scrollWidth}px > ${migrationStyles.width}px`);
-              check((await demo.getByRole("link", { name: /Open role-based sandbox/i }).count()) === 1, "desktop: role-based sandbox handoff is missing");
+              check((await demo.count()) === 1, "desktop: guided demo section is missing");
+              check((await demo.getByRole("heading", { name: "A clearer view for every decision-maker." }).count()) === 1, "desktop: demo heading is missing");
+              const roleTabs = demo.getByRole("tablist", { name: "Sample payroll roles" });
+              check((await roleTabs.getByRole("tab").count()) === 5, "desktop: all five sample role tabs must be available");
+              check((await demo.getByText("Illustrative · sample data").count()) === 1, "desktop: demo must disclose its sample content");
+              await roleTabs.getByRole("tab", { name: /Checker/ }).click();
+              check((await demo.getByRole("heading", { name: "Review the changes, not just totals." }).count()) === 1, "desktop: role preview did not switch to Checker");
+              check((await roleTabs.getByRole("tab", { name: /Checker/ }).getAttribute("aria-selected")) === "true", "desktop: selected role state is missing");
+              check((await demo.getByRole("link", { name: /Open real role-based sandbox/ }).count()) === 1, "desktop: real sandbox link is missing");
               report.modules.push({ module: "Illustrative payroll hero", active: true });
-              report.modules.push({ module: "Shared Linaw workspace preview", active: true });
+              report.modules.push({ module: "Guided payroll role preview", active: true });
             }
 
             if (name === "mobile-390") {
