@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarClock, CircleAlert, Plus, RefreshCcw, UsersRound } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
+import { simulateBestFitCoverage } from "@/lib/workforce-coverage";
 
 type Shift = {
   id: number;
@@ -257,6 +258,7 @@ export function WorkforceCoveragePanel({
   const [payload, setPayload] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
+  const [simulateHighRisk, setSimulateHighRisk] = useState(false);
 
   const [requirementDate, setRequirementDate] = useState(localToday());
   const [requirementWorksiteId, setRequirementWorksiteId] = useState("");
@@ -438,6 +440,22 @@ export function WorkforceCoveragePanel({
   );
   const siteExclusions = (payload?.coverage ?? []).reduce((sum, row) => sum + row.siteIneligibleHeadcount, 0);
   const labor = payload?.laborVariance;
+  const simulation = useMemo(() => simulateBestFitCoverage({
+    allowHighWorkloadRisk: simulateHighRisk,
+    requirements: (payload?.coverage ?? [])
+      .filter((row) => row.gap > 0)
+      .map((row) => ({
+        requirementId: row.requirementId,
+        workDate: row.workDate,
+        gap: row.gap,
+        candidates: (proactiveByRequirement.get(row.requirementId)?.recommendations ?? []).map((candidate) => ({
+          employeeId: candidate.employeeId,
+          employeeName: candidate.employeeName,
+          score: candidate.score,
+          workloadRisk: candidate.workloadRisk,
+        })),
+      })),
+  }), [payload?.coverage, proactiveByRequirement, simulateHighRisk]);
 
   return (
     <article className="card" style={{ marginTop: 16 }} data-wfm-coverage>
@@ -492,6 +510,44 @@ export function WorkforceCoveragePanel({
         <label>Coverage window<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
         <label>Window end<input value={endDate} readOnly /></label>
       </div>
+
+      <section style={{ padding: "0 18px 18px" }} data-wfm-what-if>
+        <article className="card" style={{ margin: 0 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">What-if roster simulation</div>
+              <h3>Test recovery before changing the roster.</h3>
+              <p>Simulate filling current coverage gaps with the best governed candidates. This preview never writes schedule changes.</p>
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input type="checkbox" checked={simulateHighRisk} onChange={(event) => setSimulateHighRisk(event.target.checked)} />
+              Include high workload risk
+            </label>
+          </div>
+          <section className="stats-grid" style={{ padding: "0 18px 18px" }}>
+            <Metric label="Current uncovered" value={String(simulation.baselineGap)} hint="recorded staffing gap" icon={<CircleAlert size={16} />} tone={simulation.baselineGap ? "amber" : "mint"} />
+            <Metric label="Projected uncovered" value={String(simulation.projectedGap)} hint="after best-fit simulation" icon={<UsersRound size={16} />} tone={simulation.projectedGap ? "amber" : "mint"} />
+            <Metric label="Requirements recovered" value={String(simulation.requirementsRecovered)} hint="fully covered in scenario" icon={<UsersRound size={16} />} tone="blue" />
+            <Metric label="Still at risk" value={String(simulation.requirementsStillAtRisk)} hint={simulation.avoidedHighRiskCandidates + " high-risk candidate(s) avoided"} icon={<CircleAlert size={16} />} tone={simulation.requirementsStillAtRisk ? "amber" : "mint"} />
+          </section>
+          {simulation.fills.length > 0 ? (
+            <div className="policy-lines" style={{ padding: "0 18px 18px" }}>
+              {simulation.fills.slice(0, 12).map((fill) => (
+                <span key={fill.requirementId + "-" + fill.employeeId}>
+                  <b>{fill.workDate} · Requirement #{fill.requirementId}</b>
+                  <small style={{ display: "block", color: "var(--muted)" }}>
+                    {fill.employeeName} · score {fill.score} · {fill.workloadRisk} workload risk
+                  </small>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
+              <span>No safe best-fit recovery assignment is available in the current scenario.</span>
+            </div>
+          )}
+        </article>
+      </section>
 
       {labor && (
         <section style={{ padding: "0 18px 18px" }} data-wfm-labor-variance>
