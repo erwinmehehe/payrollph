@@ -1850,14 +1850,18 @@ function PersonDrawer({
                 <label>Mobile payout number
                   <input value={mobile} onChange={(event) => setMobile(event.target.value)} placeholder="optional" />
                 </label>
+                <label>Change reason
+                  <input value={payoutChangeReason} onChange={(event) => setPayoutChangeReason(event.target.value)} placeholder="Why is this payout destination changing?" />
+                </label>
               </div>
               <div className="modal-note" style={{ margin: "0 16px 10px" }}>
-                Leave account number blank to keep the saved destination. New account numbers are encrypted server-side; only a masked value returns to the browser and final payout exports decrypt on the server.
+                Leave account number blank to keep the saved destination. New account numbers are encrypted server-side; only a masked value returns to the browser. When enterprise treasury separation is enabled, this creates a maker-checker request and does not change the employee destination until a different assigned treasury operator approves it.
               </div>
               {payoutError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{payoutError}</span></div>}
+              {payoutNotice && <div className="notice notice-slate" style={{ margin: "0 16px 10px" }}><span>{payoutNotice}</span></div>}
               <div className="run-actions">
                 <button className="primary-button" disabled={savingPayout || !bankCode.trim()} onClick={() => void savePayoutDetails()}>
-                  <Check size={14} /> {savingPayout ? "Saving…" : "Save payout details"}
+                  <Check size={14} /> {savingPayout ? "Submitting…" : "Submit payout change"}
                 </button>
               </div>
             </>
@@ -1868,6 +1872,44 @@ function PersonDrawer({
                 <div><span>Bank / payout code</span><strong style={{ fontSize: 12 }}>{employee.bankCode || "Missing"}</strong><small>used by final export mapping</small></div>
                 <div><span>Mobile</span><strong style={{ fontSize: 12 }}>{employee.mobile || "Not set"}</strong><small>used only for supported mobile payout rails</small></div>
               </div>
+              {payoutNotice && <div className="notice notice-slate" style={{ marginTop: 12 }}><span>{payoutNotice}</span></div>}
+              {payoutError && <div className="notice notice-amber" style={{ marginTop: 12 }}><span>{payoutError}</span></div>}
+              {payoutChangeRequests.filter((row) => row.status === "pending").map((row) => {
+                const canAttemptDecision = Boolean(
+                  data.user
+                  && data.access?.companyWide
+                  && ["owner", "admin", "bookkeeper"].includes(data.access.role)
+                  && row.requestedByUserId !== data.user.id,
+                );
+                return (
+                  <div className="leave-request" key={row.id} style={{ marginTop: 12 }}>
+                    <div className="inline-icon purple"><ShieldCheck size={15} /></div>
+                    <div style={{ flex: 1 }}>
+                      <strong>Pending payout change #{row.id}</strong>
+                      <span>
+                        {row.proposedMaskedAccount || "No bank account"} · {row.proposedBankCode || "No bank code"}
+                        {row.proposedMobile ? ` · ${row.proposedMobile}` : ""}
+                        {` · requested by ${row.requestedByName}`}
+                      </span>
+                      <small>{row.reason}</small>
+                    </div>
+                    {canAttemptDecision && (
+                      <div style={{ minWidth: 240 }}>
+                        <input
+                          value={payoutDecisionNote}
+                          onChange={(event) => setPayoutDecisionNote(event.target.value)}
+                          placeholder="Decision note (optional)"
+                          style={{ width: "100%", marginBottom: 6 }}
+                        />
+                        <div className="run-actions" style={{ margin: 0 }}>
+                          <button className="secondary-button" disabled={payoutDecisionBusy} onClick={() => void decidePayoutChange(row.id, "reject")}><X size={14} /> Reject</button>
+                          <button className="primary-button" disabled={payoutDecisionBusy} onClick={() => void decidePayoutChange(row.id, "approve")}><Check size={14} /> Approve</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
