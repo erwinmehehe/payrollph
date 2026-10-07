@@ -96,3 +96,14 @@ test("bank exporter applies payout-profile limits after released payroll values 
   assert.ok(!bankExporter.includes("computePhilHealth("));
   assert.ok(!bankExporter.includes("computeSemiMonthlyWithholdingTax("));
 });
+
+
+test("bank export audit stores the split manifest and payout profile identity", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const route = await readFile("src/app/api/payroll-runs/[id]/exports/route.ts", "utf8");
+
+  assert.ok(route.includes("bankFileCount"));
+  assert.ok(route.includes("bankFileSplitApplied"));
+  assert.ok(route.includes("bankFileParts"));
+  assert.ok(route.includes("payoutProfileId"));
+});
