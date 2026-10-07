@@ -6,8 +6,21 @@ import { getSessionUser } from "@/lib/auth";
 import { assertMembership, assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { clientIp } from "@/lib/rate-limit";
+import { reconcileAttendanceExceptionEvents } from "@/lib/workforce-attendance-exception-events";
 
 export const dynamic = "force-dynamic";
+
+async function syncAttendanceExceptionEvents(organizationId: number, employeeId: number, workDate: string) {
+  try {
+    const result = await reconcileAttendanceExceptionEvents({ organizationId, employeeId, workDate });
+    return { status: "ok", createdIds: result.createdIds, resolvedIds: result.resolvedIds };
+  } catch (error) {
+    return {
+      status: "sync_error",
+      error: error instanceof Error ? error.message.slice(0, 1000) : "Attendance exception sync failed.",
+    };
+  }
+}
 
 function manilaToday() {
   return new Intl.DateTimeFormat("en-CA", {
@@ -141,7 +154,8 @@ export async function POST(request: Request) {
       resource: `${employee.firstName} ${employee.lastName}`,
       metadata: { employeeId, workDate: todayStr, breakStart: now.toISOString(), ip },
     });
-    return Response.json({ ok: true, action: "break_start", punch: updated });
+    const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
+    return Response.json({ ok: true, action: "break_start", punch: updated, attendanceExceptionSync });
   }
 
   if (actionType === "break_end") {
@@ -163,7 +177,8 @@ export async function POST(request: Request) {
       resource: `${employee.firstName} ${employee.lastName}`,
       metadata: { employeeId, workDate: todayStr, breakEnd: now.toISOString(), ip },
     });
-    return Response.json({ ok: true, action: "break_end", punch: updated });
+    const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
+    return Response.json({ ok: true, action: "break_end", punch: updated, attendanceExceptionSync });
   }
 
   if (actionType === "clock_in") {
@@ -205,7 +220,8 @@ export async function POST(request: Request) {
       metadata: { employeeId, workDate: todayStr, timeIn: now.toISOString(), ip },
     });
 
-    return Response.json({ ok: true, action: "clock_in", punch }, { status: existingPunch ? 200 : 201 });
+    const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
+    return Response.json({ ok: true, action: "clock_in", punch, attendanceExceptionSync }, { status: existingPunch ? 200 : 201 });
   }
 
   if (!existingPunch || !existingPunch.timeIn) {
@@ -232,11 +248,13 @@ export async function POST(request: Request) {
       metadata: { employeeId, workDate: todayStr, timeOut: now.toISOString(), ip },
     });
 
+    const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
     return Response.json({
       ok: true,
       action: "clock_out",
       punch: created,
       warning: "Clock out recorded without prior clock-in.",
+      attendanceExceptionSync,
     }, { status: 201 });
   }
 
@@ -267,5 +285,6 @@ export async function POST(request: Request) {
     metadata: { employeeId, workDate: todayStr, timeOut: now.toISOString(), ip },
   });
 
-  return Response.json({ ok: true, action: "clock_out", punch: updated });
+  const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
+  return Response.json({ ok: true, action: "clock_out", punch: updated, attendanceExceptionSync });
 }
