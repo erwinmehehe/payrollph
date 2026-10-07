@@ -54,13 +54,13 @@ test("using a template creates only a version-governed draft", () => {
   assert.ok(block.includes("templateId: template.id"));
   assert.ok(block.includes("templateVersion: template.version"));
   assert.equal(block.includes("publishAutomationRuleDraft"), false);
-  assert.ok(block.includes("created as draft"));
+  assert.ok(block.includes("instantiated as draft"));
 });
 
 test("template catalog is exposed as metadata rather than raw executable definitions", () => {
   const api = read("src/app/api/automation-studio/route.ts");
   const start = api.indexOf("templates: AUTOMATION_WORKFLOW_TEMPLATES.map");
-  const end = api.indexOf("}),\n    },", start);
+  const end = api.indexOf("})),\n    },", start);
   const mapping = api.slice(start, end);
   assert.ok(mapping.includes("id: template.id"));
   assert.ok(mapping.includes("version: template.version"));
