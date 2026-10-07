@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Database, Download, FileJson2, ShieldCheck } from "lucide-react";
 import type { Notify } from "@/components/workspace/types";
 
+type ScopeOption = { id: number; code: string; name: string; legalEntityId?: number | null };
+
 type Definition = {
   key: string;
   name: string;
@@ -32,6 +34,10 @@ export function EnterpriseBiExportPanel({
 
   const [definitions, setDefinitions] = useState<Definition[]>([]);
   const [dataset, setDataset] = useState("payroll_runs");
+  const [legalEntities, setLegalEntities] = useState<ScopeOption[]>([]);
+  const [orgUnits, setOrgUnits] = useState<ScopeOption[]>([]);
+  const [legalEntityId, setLegalEntityId] = useState("");
+  const [orgUnitId, setOrgUnitId] = useState("");
   const [format, setFormat] = useState("csv");
   const [startDate, setStartDate] = useState(isoDate(ninetyDaysAgo));
   const [endDate, setEndDate] = useState(isoDate(today));
@@ -47,6 +53,8 @@ export function EnterpriseBiExportPanel({
         if (!alive) return;
         if (!response.ok) throw new Error(payload.error ?? "Could not load BI export definitions.");
         setDefinitions(Array.isArray(payload.datasets) ? payload.datasets : []);
+        setLegalEntities(Array.isArray(payload.scopes?.legalEntities) ? payload.scopes.legalEntities : []);
+        setOrgUnits(Array.isArray(payload.scopes?.orgUnits) ? payload.scopes.orgUnits : []);
       } catch (error) {
         if (alive) notify(error instanceof Error ? error.message : "Could not load BI export definitions.", "err");
       } finally {
@@ -57,6 +65,9 @@ export function EnterpriseBiExportPanel({
   }, [organizationId, notify]);
 
   const selected = definitions.find((definition) => definition.key === dataset);
+  const visibleOrgUnits = orgUnits.filter((unit) =>
+    !legalEntityId || unit.legalEntityId == null || String(unit.legalEntityId) === legalEntityId
+  );
 
   async function requestExport() {
     if (!startDate || !endDate) {
@@ -74,6 +85,8 @@ export function EnterpriseBiExportPanel({
       startDate,
       endDate,
     });
+    if (legalEntityId) params.set("legalEntityId", legalEntityId);
+    if (orgUnitId) params.set("orgUnitId", orgUnitId);
     setExporting(true);
     try {
       const response = await fetch(`/api/bi-exports?${params.toString()}`, { cache: "no-store" });
@@ -144,6 +157,37 @@ export function EnterpriseBiExportPanel({
               <option value="csv">CSV</option>
               <option value="ndjson">NDJSON</option>
               <option value="json">JSON + manifest</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="setting-form" style={{ marginTop: 10, gridTemplateColumns: "1fr 1fr" }}>
+          <label>
+            Legal entity
+            <select
+              value={legalEntityId}
+              onChange={(event) => {
+                const next = event.target.value;
+                setLegalEntityId(next);
+                if (orgUnitId) {
+                  const unit = orgUnits.find((item) => String(item.id) === orgUnitId);
+                  if (unit?.legalEntityId != null && String(unit.legalEntityId) !== next) setOrgUnitId("");
+                }
+              }}
+            >
+              <option value="">All legal entities</option>
+              {legalEntities.map((entity) => (
+                <option key={entity.id} value={entity.id}>{entity.code} · {entity.name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Organization unit
+            <select value={orgUnitId} onChange={(event) => setOrgUnitId(event.target.value)}>
+              <option value="">All organization units</option>
+              {visibleOrgUnits.map((unit) => (
+                <option key={unit.id} value={unit.id}>{unit.code} · {unit.name}</option>
+              ))}
             </select>
           </label>
         </div>
