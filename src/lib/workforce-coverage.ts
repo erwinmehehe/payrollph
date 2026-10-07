@@ -393,6 +393,7 @@ export function simulateBestFitCoverage(input: {
 
 export type RosterReadinessSignal = {
   code:
+    | "coverage_gap"
     | "coverage_critical"
     | "coverage_high"
     | "pending_recovery"
@@ -415,6 +416,8 @@ export type RosterPublishReadiness = {
 
 export function buildRosterPublishReadiness(input: {
   coverageRisk: Array<{ level: "low" | "medium" | "high" | "critical" }>;
+  uncoveredRequirements: number;
+  uncoveredSlots: number;
   pendingRecoveryClaims: number;
   blockingGuardrailIssues: number;
   roleEvidenceIssues: number;
@@ -425,6 +428,15 @@ export function buildRosterPublishReadiness(input: {
   const signals: RosterReadinessSignal[] = [];
   const criticalCoverage = input.coverageRisk.filter((row) => row.level === "critical").length;
   const highCoverage = input.coverageRisk.filter((row) => row.level === "high").length;
+
+  if (input.uncoveredRequirements > 0) {
+    signals.push({
+      code: "coverage_gap",
+      level: "blocker",
+      count: input.uncoveredRequirements,
+      message: `${input.uncoveredSlots} required staffing slot(s) remain uncovered across ${input.uncoveredRequirements} requirement(s).`,
+    });
+  }
 
   if (criticalCoverage > 0) {
     signals.push({
