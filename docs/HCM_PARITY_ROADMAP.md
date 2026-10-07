@@ -86,10 +86,20 @@ Additional continuity, inheritance, and trend capabilities built:
 - Trend deltas compare each completed cycle with the previous completed cycle inside the viewer's existing authorization scope
 - Performance trends remain explicitly separated from compensation and payroll mutation
 
+Additional performance follow-through and evidence capabilities built:
+- Governed 1:1 action items with employee/manager ownership, due dates, status, employee-shared vs manager-private visibility, completion metadata and immutable event history
+- Employees can progress/complete only their own employee-visible action items from self-service; managers/People admins retain governed cancel/reopen controls with written rationale
+- Overdue action items are surfaced in employee and manager workspaces without silently mutating meeting or review status
+- Skill-level trend analytics aggregate completed, scoped review evidence across cycles
+- Persistent competency gaps are identified only when the average scored proficiency remains below the frozen role expectation for at least two consecutive completed cycles
+- People admins can export an MFA-gated, rate-limited, audited employee performance evidence package for all cycles or one selected cycle
+- Evidence packages include section-level SHA-256 hashes and an overall evidence hash
+- Evidence exports exclude manager-private 1:1 notes, manager-private feedback, manager-private action items, compensation/payroll records and sensitive identifiers
+
 Next improvements inside this module:
-- Governed 1:1 action items with owners, due dates, completion and employee visibility
-- Skill-level trend views showing persistent competency strengths/gaps across completed cycles
-- Exportable performance evidence package for internal HR review and audit support
+- Action-item reminder/escalation automation for overdue 1:1 commitments
+- Employee-specific skill development plans linked to persistent competency gaps
+- Configurable performance evidence retention/sealing policies for completed cycles
 
 ## Tranche 2 — Job architecture and position control
 

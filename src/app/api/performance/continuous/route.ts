@@ -4,6 +4,7 @@ import {
   employees,
   performanceFeedback,
   performanceGoals,
+  performanceOneOnOneActionItems,
   performanceOneOnOneAgendaContributions,
   performanceOneOnOnes,
   performanceReminderTasks,
@@ -77,7 +78,7 @@ export async function GET(request: Request) {
   if ("error" in gate) return gate.error;
   const companyPeopleAdmin = gate.access.companyWide && roleAllowed(gate.access.role, PEOPLE_ADMIN_ROLES);
 
-  const [staff, meetings, agendaContributions, feedback, reminders, goals] = await Promise.all([
+  const [staff, meetings, actionItems, agendaContributions, feedback, reminders, goals] = await Promise.all([
     db.select({
       id: employees.id,
       firstName: employees.firstName,
@@ -89,6 +90,9 @@ export async function GET(request: Request) {
     db.select().from(performanceOneOnOnes)
       .where(eq(performanceOneOnOnes.organizationId, organizationId))
       .orderBy(desc(performanceOneOnOnes.scheduledFor), desc(performanceOneOnOnes.id)),
+    db.select().from(performanceOneOnOneActionItems)
+      .where(eq(performanceOneOnOneActionItems.organizationId, organizationId))
+      .orderBy(desc(performanceOneOnOneActionItems.updatedAt), desc(performanceOneOnOneActionItems.id)),
     db.select().from(performanceOneOnOneAgendaContributions)
       .where(eq(performanceOneOnOneAgendaContributions.organizationId, organizationId))
       .orderBy(desc(performanceOneOnOneAgendaContributions.createdAt)),
@@ -121,6 +125,16 @@ export async function GET(request: Request) {
         agendaContributions: agendaContributions
           .filter((item) => item.oneOnOneId === meeting.id)
           .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime()),
+        actionItems: actionItems
+          .filter((item) =>
+            item.oneOnOneId === meeting.id
+            && (
+              item.visibility === "employee_shared"
+              || companyPeopleAdmin
+              || meeting.managerUserId === user.id
+            )
+          )
+          .sort((left, right) => left.dueDate.localeCompare(right.dueDate) || left.id - right.id),
       })),
     feedback: feedback.filter((item) =>
       visibleIds.has(item.employeeId)

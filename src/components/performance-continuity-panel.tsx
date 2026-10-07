@@ -27,6 +27,23 @@ type AgendaContribution = {
   createdAt: string;
 };
 
+type ActionItem = {
+  id: number;
+  oneOnOneId: number;
+  employeeId: number;
+  ownerKind: "employee" | "manager";
+  ownerUserId: number | null;
+  ownerEmployeeId: number | null;
+  ownerName: string;
+  title: string;
+  detail: string | null;
+  dueDate: string;
+  visibility: "employee_shared" | "manager_private";
+  status: "open" | "in_progress" | "completed" | "cancelled";
+  completedAt: string | null;
+  completedByName: string | null;
+};
+
 type OneOnOne = {
   id: number;
   employeeId: number;
@@ -38,6 +55,7 @@ type OneOnOne = {
   privateManagerNotes: string | null;
   completedAt: string | null;
   agendaContributions: AgendaContribution[];
+  actionItems: ActionItem[];
 };
 
 type Feedback = {
@@ -121,6 +139,31 @@ type Analytics = {
     goalAttainmentDelta: number | null;
     roleExpectationGapRateDelta: number | null;
   }>;
+  skillTrends: Array<{
+    skillId: number;
+    code: string;
+    name: string;
+    category: string;
+    active: boolean;
+    cycles: Array<{
+      cycleId: number;
+      cycleName: string;
+      endDate: string;
+      itemCount: number;
+      employeeCount: number;
+      averageFinalScore: number | null;
+      averageExpectedProficiency: number | null;
+      belowExpectationCount: number;
+      belowExpectationRate: number;
+    }>;
+    latestAverageFinalScore: number | null;
+    latestAverageExpectedProficiency: number | null;
+    latestBelowExpectationRate: number;
+    scoreDelta: number | null;
+    gapRateDelta: number | null;
+    consecutiveGapCycles: number;
+    persistentGap: boolean;
+  }>;
   activity: { completedOneOnOnes: number; feedbackEntries: number };
   calibration: null | { status: string; changedRatings: number; totalRatings: number; openFlags: number; acceptedFlags: number; resolvedFlags: number };
 };
@@ -149,6 +192,7 @@ export function PerformanceContinuityPanel({
   const [access, setAccess] = useState<{ userId: number; companyPeopleAdmin: boolean } | null>(null);
   const [showMeeting, setShowMeeting] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [actionMeetingId, setActionMeetingId] = useState<number | null>(null);
 
   const [meetingForm, setMeetingForm] = useState({
     employeeId: "",
@@ -164,6 +208,14 @@ export function PerformanceContinuityPanel({
   });
   const [summaries, setSummaries] = useState<Record<number, string>>({});
   const [privateNotes, setPrivateNotes] = useState<Record<number, string>>({});
+  const [actionNotes, setActionNotes] = useState<Record<number, string>>({});
+  const [actionForm, setActionForm] = useState({
+    title: "",
+    detail: "",
+    dueDate: "",
+    ownerKind: "employee" as "employee" | "manager",
+    visibility: "employee_shared" as "employee_shared" | "manager_private",
+  });
 
   const load = useCallback(async () => {
     const [continuousResponse, analyticsResponse] = await Promise.all([
@@ -289,6 +341,65 @@ export function PerformanceContinuityPanel({
     setNotice(action === "complete" ? "1:1 completed. Shared and manager-private notes remain separated." : "1:1 cancelled.");
   }
 
+  async function createActionItem(meeting: OneOnOne) {
+    const response = await fetch("/api/performance/action-items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        organizationId,
+        oneOnOneId: meeting.id,
+        title: actionForm.title,
+        detail: actionForm.detail,
+        dueDate: actionForm.dueDate,
+        ownerKind: actionForm.ownerKind,
+        visibility: actionForm.ownerKind === "employee" ? "employee_shared" : actionForm.visibility,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setNotice(payload.error ?? "Could not create the 1:1 action item.");
+      return;
+    }
+    setActionForm({ title: "", detail: "", dueDate: "", ownerKind: "employee", visibility: "employee_shared" });
+    setActionMeetingId(null);
+    await load();
+    setNotice("1:1 action item created with governed ownership and due date.");
+  }
+
+  async function changeActionItem(
+    item: ActionItem,
+    action: "status" | "cancel" | "reopen",
+    status?: "open" | "in_progress" | "completed",
+  ) {
+    const response = await fetch("/api/performance/action-items", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        organizationId,
+        id: item.id,
+        action,
+        status,
+        note: actionNotes[item.id] ?? "",
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setNotice(payload.error ?? "Could not update the 1:1 action item.");
+      return;
+    }
+    setActionNotes((current) => ({ ...current, [item.id]: "" }));
+    await load();
+    setNotice(
+      action === "reopen"
+        ? "Action item reopened with rationale."
+        : action === "cancel"
+          ? "Action item cancelled with rationale."
+          : status === "completed"
+            ? "Action item completed."
+            : "Action item status updated.",
+    );
+  }
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <article className="card" style={{ padding: 20 }}>
@@ -394,6 +505,38 @@ export function PerformanceContinuityPanel({
             </div>
           )}
 
+          {analytics.skillTrends.length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <div className="card-kicker">SKILL-LEVEL TREND</div>
+              <p>Completed-review evidence by governed HCM skill. Persistent gaps mean the average scored proficiency remained below the frozen role expectation for at least two consecutive completed cycles.</p>
+              {analytics.skillTrends.map((skill) => (
+                <div className="employee-edit-card" key={skill.skillId} style={{ marginBottom: 10 }}>
+                  <div className="employee-list-card-head">
+                    <div>
+                      <strong>{skill.name}</strong>
+                      <span>{skill.code} · {skill.category}</span>
+                      <span>
+                        Latest avg {skill.latestAverageFinalScore ?? "—"} / expected {skill.latestAverageExpectedProficiency ?? "—"}
+                        {" · below expectation " + skill.latestBelowExpectationRate + "%"}
+                        {skill.scoreDelta == null ? "" : " · score Δ " + (skill.scoreDelta >= 0 ? "+" : "") + skill.scoreDelta.toFixed(2)}
+                      </span>
+                    </div>
+                    <span className={"employee-status-pill " + (skill.persistentGap ? "bad" : skill.latestBelowExpectationRate > 0 ? "warn" : "good")}>
+                      {skill.persistentGap ? skill.consecutiveGapCycles + " cycle gap" : "tracked"}
+                    </span>
+                  </div>
+                  <div style={{ display: "grid", gap: 6 }}>
+                    {skill.cycles.map((point) => (
+                      <span key={point.cycleId}>
+                        {point.cycleName}: avg {point.averageFinalScore ?? "—"} / expected {point.averageExpectedProficiency ?? "—"} · {point.belowExpectationCount}/{point.itemCount} below ({point.belowExpectationRate}%)
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div style={{ marginTop: 14 }}>
             <div className="card-kicker">RATING DISTRIBUTION</div>
             {analytics.ratingDistribution.map((bucket) => (
@@ -416,7 +559,8 @@ export function PerformanceContinuityPanel({
           <div className="card-header"><div><div className="card-kicker">1:1 RECORDS</div><h2>Manager check-ins</h2><p>Shared summaries are employee-visible; private manager notes remain restricted.</p></div><CalendarClock size={18} /></div>
           {oneOnOnes.length === 0 && <div className="empty-state">No 1:1 records yet.</div>}
           {oneOnOnes.map((meeting) => {
-            const mayEdit = meeting.status === "scheduled" && (access?.companyPeopleAdmin || meeting.managerUserId === access?.userId);
+            const mayManage = Boolean(access?.companyPeopleAdmin || meeting.managerUserId === access?.userId);
+            const mayEdit = meeting.status === "scheduled" && mayManage;
             return (
               <div className="employee-edit-card" key={meeting.id} style={{ marginBottom: 12 }}>
                 <div className="employee-list-card-head">
@@ -438,6 +582,65 @@ export function PerformanceContinuityPanel({
                 )}
                 {meeting.status === "completed" && meeting.sharedSummary && <p><strong>Shared summary:</strong> {meeting.sharedSummary}</p>}
                 {meeting.status === "completed" && meeting.privateManagerNotes && <p><strong>Manager-private:</strong> {meeting.privateManagerNotes}</p>}
+
+                {(meeting.actionItems ?? []).length > 0 && (
+                  <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                    <div className="card-kicker">ACTION ITEMS</div>
+                    {(meeting.actionItems ?? []).map((item) => {
+                      const overdue = !["completed", "cancelled"].includes(item.status)
+                        && item.dueDate < new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+                      return (
+                        <div className="employee-edit-card" key={item.id}>
+                          <div className="employee-list-card-head">
+                            <div>
+                              <strong>{item.title}</strong>
+                              <span>{item.ownerName} · due {item.dueDate} · {item.visibility === "employee_shared" ? "employee visible" : "manager private"}{overdue ? " · overdue" : ""}</span>
+                              {item.detail && <p>{item.detail}</p>}
+                            </div>
+                            <span className={"employee-status-pill " + (item.status === "completed" ? "good" : overdue ? "bad" : item.status === "cancelled" ? "neutral" : "warn")}>{item.status.replaceAll("_", " ")}</span>
+                          </div>
+                          {mayManage && !["completed", "cancelled"].includes(item.status) && (
+                            <div className="run-actions">
+                              {item.status === "open" && <button className="secondary-button" type="button" onClick={() => void changeActionItem(item, "status", "in_progress")}>Start</button>}
+                              <button className="primary-button" type="button" onClick={() => void changeActionItem(item, "status", "completed")}><CheckCircle2 size={14} /> Complete</button>
+                            </div>
+                          )}
+                          {mayManage && (
+                            <div className="setting-form" style={{ marginTop: 8 }}>
+                              <label style={{ gridColumn: "1 / -1" }}>Governance rationale<input value={actionNotes[item.id] ?? ""} onChange={(event) => setActionNotes((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="Required to cancel or reopen a closed action item." /></label>
+                              <div className="run-actions" style={{ gridColumn: "1 / -1" }}>
+                                {!["completed", "cancelled"].includes(item.status) && <button className="secondary-button" type="button" onClick={() => void changeActionItem(item, "cancel")}>Cancel item</button>}
+                                {["completed", "cancelled"].includes(item.status) && <button className="secondary-button" type="button" onClick={() => void changeActionItem(item, "reopen")}>Reopen</button>}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {mayManage && meeting.status !== "cancelled" && (
+                  <div style={{ marginTop: 10 }}>
+                    <button className="secondary-button" type="button" onClick={() => setActionMeetingId((current) => current === meeting.id ? null : meeting.id)}>
+                      <Plus size={14} /> {actionMeetingId === meeting.id ? "Close action form" : "Add action item"}
+                    </button>
+                    {actionMeetingId === meeting.id && (
+                      <div className="setting-form" style={{ marginTop: 10 }}>
+                        <label>Title<input value={actionForm.title} onChange={(event) => setActionForm({ ...actionForm, title: event.target.value })} /></label>
+                        <label>Due date<input type="date" value={actionForm.dueDate} onChange={(event) => setActionForm({ ...actionForm, dueDate: event.target.value })} /></label>
+                        <label>Owner<select value={actionForm.ownerKind} onChange={(event) => {
+                          const ownerKind = event.target.value as "employee" | "manager";
+                          setActionForm({ ...actionForm, ownerKind, visibility: ownerKind === "employee" ? "employee_shared" : actionForm.visibility });
+                        }}><option value="employee">Employee</option><option value="manager">Manager</option></select></label>
+                        <label>Visibility<select value={actionForm.ownerKind === "employee" ? "employee_shared" : actionForm.visibility} disabled={actionForm.ownerKind === "employee"} onChange={(event) => setActionForm({ ...actionForm, visibility: event.target.value as "employee_shared" | "manager_private" })}><option value="employee_shared">Employee visible</option><option value="manager_private">Manager private</option></select></label>
+                        <label style={{ gridColumn: "1 / -1" }}>Detail<textarea rows={2} value={actionForm.detail} onChange={(event) => setActionForm({ ...actionForm, detail: event.target.value })} /></label>
+                        <div className="run-actions" style={{ gridColumn: "1 / -1" }}><button className="primary-button" type="button" onClick={() => void createActionItem(meeting)}>Create action item</button></div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {mayEdit && (
                   <>
                     <div className="setting-form">
