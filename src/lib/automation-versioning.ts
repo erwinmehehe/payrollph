@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { automationRules, automationRuleVersions } from "@/db/schema";
 import {
@@ -78,6 +78,13 @@ export async function saveAutomationRuleDraft(input: {
       return { rule, draft, created: true };
     }
 
+    await tx.execute(sql`
+      select id
+      from automation_rules
+      where id = ${input.ruleId}
+        and organization_id = ${input.organizationId}
+      for update
+    `);
     const [rule] = await tx.select().from(automationRules).where(and(
       eq(automationRules.id, input.ruleId),
       eq(automationRules.organizationId, input.organizationId),
@@ -133,6 +140,13 @@ export async function publishAutomationRuleDraft(input: {
   actorUserId: number;
 }) {
   return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      select id
+      from automation_rules
+      where id = ${input.ruleId}
+        and organization_id = ${input.organizationId}
+      for update
+    `);
     const [rule] = await tx.select().from(automationRules).where(and(
       eq(automationRules.id, input.ruleId),
       eq(automationRules.organizationId, input.organizationId),
@@ -192,6 +206,13 @@ export async function rollbackAutomationRule(input: {
   actorUserId: number;
 }) {
   return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      select id
+      from automation_rules
+      where id = ${input.ruleId}
+        and organization_id = ${input.organizationId}
+      for update
+    `);
     const [rule] = await tx.select().from(automationRules).where(and(
       eq(automationRules.id, input.ruleId),
       eq(automationRules.organizationId, input.organizationId),
@@ -262,6 +283,13 @@ export async function setAutomationRuleActiveVersioned(input: {
   actorUserId: number;
 }) {
   return db.transaction(async (tx) => {
+    await tx.execute(sql`
+      select id
+      from automation_rules
+      where id = ${input.ruleId}
+        and organization_id = ${input.organizationId}
+      for update
+    `);
     const [rule] = await tx.select().from(automationRules).where(and(
       eq(automationRules.id, input.ruleId),
       eq(automationRules.organizationId, input.organizationId),
@@ -269,6 +297,9 @@ export async function setAutomationRuleActiveVersioned(input: {
     if (!rule) throw new AutomationVersionError("Automation rule not found.", 404);
     if (rule.publishedVersion < 1) {
       throw new AutomationVersionError("Publish the rule before changing its live state.");
+    }
+    if (rule.draftVersion) {
+      throw new AutomationVersionError("Publish or roll back the pending draft before changing the live enabled state.");
     }
     if (rule.active === input.active) return { rule, published: null };
 
