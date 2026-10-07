@@ -63,14 +63,16 @@ test("public SEO origin is payrollsoftware.ph and is independent of app deployme
 });
 
 
-test("the software homepage uses the real Linaw workspace preview", () => {
+test("the homepage demo is a clear role walkthrough with a real sandbox handoff", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
-  assert.ok(home.includes("<Demo />"), "redesigned homepage must mount the product demo");
-  assert.ok(demo.includes('id="demo"'), "homepage must expose a stable live-demo anchor");
-  assert.ok(demo.includes('from "@/components/marketing/workspace-preview"'), "homepage demo must use the shared Linaw workspace preview");
-  assert.ok(demo.includes('<WorkspacePreview mode="interactive" />'), "homepage demo must expose the interactive real-system preview");
-  assert.ok(demo.includes("Open role-based sandbox"), "homepage demo must hand off to the real role-based sandbox");
+  assert.ok(home.includes("<Demo />"), "homepage must mount the role-focused demonstration");
+  assert.ok(demo.includes('id="demo"'), "guided demo must keep its anchor");
+  assert.ok(demo.includes('href="/demo"'), "guided preview must link to the actual role sandbox");
+  assert.ok(demo.includes('role="tablist"'), "role preview must offer accessible selection");
+  assert.ok(demo.includes("aria-selected={active === index}"), "selected role state must be exposed");
+  assert.ok(demo.includes("Illustrative · sample data"), "marketing demo must not pretend to use actual payroll data");
+  assert.ok(!demo.includes("WorkspacePreview"), "do not embed the unrelated full application simulation in marketing");
 });
 
 test("the homepage presents the connected Linaw platform without invented proof", () => {
@@ -133,7 +135,7 @@ test("WFM and HCM landing routes link to existing feature pages without claiming
   assert.ok(sitemap.includes('path: "/hcm"'), "HCM must appear in sitemap");
   const service = read("src/components/marketing/solution-pages.tsx");
   assert.ok(service.includes("<PayrollQuoteForm/>"), "outsourcing must preserve the existing live quote form");
-  assert.ok(service.includes("does not transfer"), "outsourcing must preserve employer responsibility language");
+  assert.ok(service.includes("Employer obligations, funding decisions"), "outsourcing must preserve employer responsibility language");
 });
 
 test("homepage simulation uses the real workspace navigation and no dead client states", () => {
@@ -288,15 +290,15 @@ test("homepage Leave and Migration modules perform local interactive workflows",
 });
 
 
-test("homepage hero stays simple while the deeper demo owns the real workspace preview", () => {
+test("homepage hero and demonstration share the same clear visual language", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
-  assert.ok(!hero.includes("WorkspacePreview"), "homepage hero must not embed the product workspace");
-  assert.ok(hero.includes("Can I safely release this payroll?"), "homepage hero must explain release readiness");
-  assert.ok(hero.includes("Release stays locked until blockers are cleared."), "homepage hero must show the control model");
-  assert.ok(demo.includes("WorkspacePreview"), "homepage demo must render the shared workspace preview");
-  assert.ok(demo.includes('mode="interactive"'), "homepage demo must retain the interactive real-system preview");
-  assert.ok(demo.includes("See how payroll moves from"), "homepage demo must frame the product around the payroll workflow");
+  assert.ok(!hero.includes("WorkspacePreview"), "hero should not embed the entire app");
+  assert.ok(hero.includes("Review before release"), "hero must still make approval gates concrete");
+  assert.ok(hero.includes("Illustrative · sample data"), "hero must label example data");
+  assert.ok(demo.includes("A clearer view for every decision-maker."), "demo must explain role-specific next decisions");
+  assert.ok(demo.includes("Open real role-based sandbox"), "demo must link to functional product");
+  assert.ok(!demo.includes("system-demo-product"), "remove the oversized disconnected simulation UI");
 });
 
 test("pricing explains who each plan is for instead of dumping internal module names", () => {
