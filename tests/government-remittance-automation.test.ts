@@ -32,8 +32,9 @@ test("remittance due events emit only for newly opened or reopened episodes", ()
   assert.ok(remittance.includes("if (reopenedRows.length > 0)"));
   assert.ok(remittance.includes("escalationEpisode: current.escalationEpisode + 1"));
   assert.ok(remittance.includes(
-    "government-remittance-due:${candidate.taskId}:${candidate.escalationEpisode}",
+    "government-remittance-due:${candidate.taskId}:${candidate.escalationEpisode}:${candidate.alert.tone}",
   ));
+  assert.ok(remittance.includes("severityChanged && isRemittanceDueAutomationAlert(alert)"));
   assert.ok(remittance.includes('trigger: "government.remittance_due"'));
 });
 
