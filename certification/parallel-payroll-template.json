@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "legalEntityCode": "REPLACE-WITH-REAL-EMPLOYER-CODE",
+  "cycles": [
+    {
+      "period": "YYYY-MM",
+      "incumbentPayroll": {
+        "filePath": "first-period-incumbent-payroll.csv",
+        "sha256": "REPLACE_WITH_LOCAL_SHA256"
+      },
+      "linawPayroll": {
+        "filePath": "first-period-linaw-payroll.csv",
+        "sha256": "REPLACE_WITH_LOCAL_SHA256"
+      },
+      "incumbentJournal": {
+        "filePath": "first-period-incumbent-journal.csv",
+        "sha256": "REPLACE_WITH_LOCAL_SHA256"
+      },
+      "linawJournal": {
+        "filePath": "first-period-linaw-journal.csv",
+        "sha256": "REPLACE_WITH_LOCAL_SHA256"
+      }
+    }
+  ]
+}
