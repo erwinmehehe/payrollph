@@ -3270,6 +3270,10 @@ ALTER TABLE "performance_review_items"
 CREATE INDEX IF NOT EXISTS "performance_review_items_skill_idx"
   ON "performance_review_items" ("organization_id","skill_id","job_profile_id");
 
+ALTER TABLE "performance_calibration_sessions"
+  ADD COLUMN IF NOT EXISTS "policy_version" integer,
+  ADD COLUMN IF NOT EXISTS "policy_snapshot" jsonb;
+
 CREATE TABLE IF NOT EXISTS "performance_calibration_policies" (
   "id" serial PRIMARY KEY NOT NULL,
   "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
