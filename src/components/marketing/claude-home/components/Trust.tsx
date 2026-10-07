@@ -79,10 +79,10 @@ export function PayrollWorkflow() {
           </Reveal>
         </div>
 
-        <div className="mt-9 grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+        <div className="mt-9 grid auto-cols-[82%] grid-flow-col gap-3 overflow-x-auto pb-3 snap-x snap-mandatory md:auto-cols-auto md:grid-flow-row md:grid-cols-2 md:overflow-visible md:pb-0 lg:grid-cols-5">
           {steps.map((step, index) => (
             <Reveal key={step.role} delay={index * 70}>
-              <article className="relative h-full rounded-[22px] border border-[#E2E4F0] bg-white p-5">
+              <article className="relative h-full snap-start rounded-[22px] border border-[#E2E4F0] bg-white p-5">
                 <div className="flex items-center justify-between gap-3">
                   <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${step.tone}`}>
                     <step.icon size={17} aria-hidden />
@@ -188,10 +188,10 @@ export function Security() {
           </article>
         </Reveal>
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid auto-cols-[82%] grid-flow-col gap-4 overflow-x-auto pb-3 snap-x snap-mandatory sm:auto-cols-auto sm:grid-flow-row sm:grid-cols-2 sm:overflow-visible sm:pb-0 lg:grid-cols-4">
           {securityControls.map((x, k) => (
             <Reveal key={x.t} delay={k * 70}>
-              <article className="card-hover h-full rounded-[24px] border border-[#E8EAF3] bg-white p-5">
+              <article className="card-hover h-full snap-start rounded-[24px] border border-[#E8EAF3] bg-white p-5">
                 <span className="flex h-11 w-11 items-center justify-center rounded-2xl" style={{ background: x.s }}>
                   <x.icon className="h-5 w-5" style={{ color: x.c }} aria-hidden />
                 </span>
