@@ -45,6 +45,7 @@ import {
   remainingOpenShiftSlots,
   rankCoverageCandidates,
   forecastCoverageRisk,
+  buildRosterPublishReadiness,
   type AvailabilityRule,
 } from "@/lib/workforce-coverage";
 import {
@@ -1095,6 +1096,35 @@ export async function GET(request: Request) {
     })),
   );
 
+  const guardrailPolicy = await loadGuardrailPolicy(organizationId);
+  const guardrailIssues = employeeIds.flatMap((employeeId) => {
+    const days = dates
+      .map((date) => coverageData.schedules.get(`${employeeId}|${date}`))
+      .filter((day): day is ResolvedDailySchedule => Boolean(day));
+    return evaluateScheduleGuardrails({ days, policy: guardrailPolicy })
+      .map((issue) => ({ ...issue, employeeId }));
+  });
+  const blockingGuardrailIssues = guardrailIssues.filter((issue) => issue.blocking);
+
+  const visibleOpenShiftIds = new Set(openShiftRows.map((row) => row.id));
+  const pendingRecoveryClaims = claimRows.filter((claim) =>
+    claim.status === "pending"
+    && visibleOpenShiftIds.has(claim.openShiftId)
+    && employeeIds.includes(claim.employeeId),
+  ).length;
+
+  const rosterReadiness = buildRosterPublishReadiness({
+    coverageRisk,
+    uncoveredRequirements: coverageData.coverage.filter((row) => row.gap > 0).length,
+    uncoveredSlots: coverageData.coverage.reduce((sum, row) => sum + row.gap, 0),
+    pendingRecoveryClaims,
+    blockingGuardrailIssues: blockingGuardrailIssues.length,
+    roleEvidenceIssues: coverageData.roleEvidenceIssues.length,
+    capabilityEvidenceIssues: coverageData.capabilityEvidenceIssues.length,
+    absenceEvidenceIssues: coverageData.absenceEvidenceIssues.length,
+    siteEvidenceIssues: coverageData.siteEvidenceIssues.length,
+  });
+
   const claimRecommendations = openShiftRows.map((openShift) => {
     const shift = shifts.find((row) => row.id === openShift.shiftDefinitionId);
     if (!shift) {
@@ -1180,6 +1210,13 @@ export async function GET(request: Request) {
     claimRecommendations,
     proactiveSuggestions,
     coverageRisk,
+    rosterReadiness,
+    guardrailReadiness: {
+      policy: guardrailPolicy,
+      issueCount: guardrailIssues.length,
+      blockingIssueCount: blockingGuardrailIssues.length,
+      issues: guardrailIssues.slice(0, 100),
+    },
     openShifts: openShiftRows.map((row) => {
       const approved = claimRows.filter((claim) =>
         claim.openShiftId === row.id && claim.status === "approved",
