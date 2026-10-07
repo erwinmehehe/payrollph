@@ -14,6 +14,7 @@ type OrgUnit = { id: number; parentId: number | null; name: string; code: string
 type LegalEntity = { id: number; code: string; displayName: string; legalName: string; active: boolean };
 type CostCenter = { id: number; code: string; name: string; active: boolean };
 type Worksite = { id: number; orgUnitId: number | null; code: string; name: string; active: boolean };
+type Shift = { id: number; code: string; name: string; startTime: string; endTime: string; active: boolean };
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null; status: string };
 type WorkforceScenario = {
   id: number;
@@ -46,6 +47,12 @@ type WorkforceForecast = {
     annualRunRateLaborCost: number | null;
     currentPeriodBasePayroll: number | null;
     expectedVacancyPeriodCost: number | null;
+    currentPeriodStatutoryEmployerCost: number | null;
+    currentPeriodBenefitEmployerCost: number | null;
+    currentPeriodRecurringCompensationCost: number | null;
+    expectedVacancyEmployerStatutoryCost: number | null;
+    sourceGroundedEmployerCost: number | null;
+    additionalScenarioLoadCost: number | null;
     employerLoadCost: number | null;
     forecastPeriodLaborCost: number | null;
     requiredHeadcountHours: number;
@@ -84,6 +91,9 @@ type WorkforceForecast = {
     staffingRequirements: number;
     requirementsMissingShift: number;
     roleEvidenceIssues: string[];
+    recurringCompensationIssues: string[];
+    employerCostRows: number;
+    vacanciesWithoutBenefitCost: number;
   };
 };
 
@@ -108,6 +118,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [legalEntities, setLegalEntities] = useState<LegalEntity[]>([]);
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [worksites, setWorksites] = useState<Worksite[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [scenarios, setScenarios] = useState<WorkforceScenario[]>([]);
   const [costVisible, setCostVisible] = useState(true);
@@ -125,13 +136,23 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [forecastEnd, setForecastEnd] = useState(addDays(initialForecastStart, 89));
   const [demandGrowthPercent, setDemandGrowthPercent] = useState("0");
   const [vacancyFillPercent, setVacancyFillPercent] = useState("100");
-  const [employerLoadPercent, setEmployerLoadPercent] = useState("15");
+  const [employerLoadPercent, setEmployerLoadPercent] = useState("0");
   const [forecastOrgUnitId, setForecastOrgUnitId] = useState("");
   const [forecastWorksiteId, setForecastWorksiteId] = useState("");
   const [scenarioName, setScenarioName] = useState("");
   const [scenarioPlanId, setScenarioPlanId] = useState("");
   const [scenarioSaving, setScenarioSaving] = useState(false);
   const [scenarioDecisionNote, setScenarioDecisionNote] = useState("");
+  const [handoffSaving, setHandoffSaving] = useState(false);
+  const [handoffForm, setHandoffForm] = useState({
+    planId: "",
+    jobProfileId: "",
+    worksiteId: "",
+    shiftDefinitionId: "",
+    startDate: initialForecastStart,
+    endDate: addDays(initialForecastStart, 6),
+    requiredHeadcount: "1",
+  });
 
   const [familyForm, setFamilyForm] = useState({ code: "", name: "" });
   const [levelForm, setLevelForm] = useState({ code: "", name: "", sequence: "0" });
@@ -159,6 +180,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       setLegalEntities(payload.legalEntities ?? []);
       setCostCenters(payload.costCenters ?? []);
       setWorksites(payload.worksites ?? []);
+      setShifts(payload.shifts ?? []);
       setEmployees(payload.employees ?? []);
       const scenarioResponse = await fetch(`/api/workforce-planning/scenarios?organizationId=${organizationId}`, { cache: "no-store" });
       const scenarioPayload = await scenarioResponse.json().catch(() => ({}));
@@ -184,6 +206,15 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const plannedCost = positions.filter((position) => position.status !== "closed").reduce((sum, position) => sum + Number(position.annualBudget), 0);
   const approvedOpen = positions.filter((position) => ["approved", "open"].includes(position.status)).length;
   const filled = positions.filter((position) => activeAssignmentByPosition.has(position.id)).length;
+  const selectedHandoffWorksite = worksites.find((site) => site.id === Number(handoffForm.worksiteId)) ?? null;
+  const authorizedHandoffPositions = positions.filter((position) =>
+    position.planId === Number(handoffForm.planId)
+    && position.jobProfileId === Number(handoffForm.jobProfileId)
+    && selectedHandoffWorksite?.orgUnitId != null
+    && position.orgUnitId === selectedHandoffWorksite.orgUnitId
+    && ["approved", "open", "filled"].includes(position.status)
+  );
+  const handoffAuthorizedHeadcount = authorizedHandoffPositions.length;
 
   async function runForecast() {
     if (!forecastStart || !forecastEnd || forecastEnd < forecastStart) {
@@ -399,6 +430,42 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not assign position."); }
   }
 
+  async function handoffPlanDemand(event: React.FormEvent) {
+    event.preventDefault();
+    if (!handoffForm.planId || !handoffForm.jobProfileId || !handoffForm.worksiteId || !handoffForm.shiftDefinitionId) {
+      setNotice("Choose a workforce plan, job profile, worksite, and shift.");
+      return;
+    }
+    setHandoffSaving(true);
+    try {
+      const response = await fetch("/api/workforce-planning/demand-handoff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          planId: Number(handoffForm.planId),
+          jobProfileId: Number(handoffForm.jobProfileId),
+          worksiteId: Number(handoffForm.worksiteId),
+          shiftDefinitionId: Number(handoffForm.shiftDefinitionId),
+          requiredHeadcount: Number(handoffForm.requiredHeadcount),
+          startDate: handoffForm.startDate,
+          endDate: handoffForm.endDate,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? "Could not hand approved headcount into WFM demand.");
+        return;
+      }
+      setNotice(`${payload.requirements?.length ?? 0} WFM staffing requirement(s) now carry authoritative workforce-plan evidence.`);
+      onPage("Coverage");
+    } catch {
+      setNotice("Could not reach the workforce-plan demand handoff service.");
+    } finally {
+      setHandoffSaving(false);
+    }
+  }
+
   async function updateStatus(position: Position, status: string) {
     const response = await fetch("/api/workforce-planning", {
       method: "PATCH",
@@ -458,9 +525,61 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       <article className="card" style={{ padding: 20, marginBottom: 16 }}>
         <div className="card-header">
           <div>
+            <div className="card-kicker">HCM → WFM DEMAND HANDOFF</div>
+            <h2>Turn approved headcount into operational staffing demand.</h2>
+            <p>Positions authorize the role and headcount. You explicitly choose the worksite, shift, and dates; Linaw does not guess operational demand from HCM records.</p>
+          </div>
+        </div>
+        <form className="setting-form" onSubmit={handoffPlanDemand}>
+          <label>Workforce plan
+            <select value={handoffForm.planId} onChange={(e) => setHandoffForm({ ...handoffForm, planId: e.target.value })} required>
+              <option value="">Choose active plan…</option>
+              {plans.filter((plan) => plan.status === "active").map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {plan.startDate}–{plan.endDate}</option>)}
+            </select>
+          </label>
+          <label>Job profile
+            <select value={handoffForm.jobProfileId} onChange={(e) => setHandoffForm({ ...handoffForm, jobProfileId: e.target.value })} required>
+              <option value="">Choose role…</option>
+              {profiles.filter((profile) => profile.active).map((profile) => <option key={profile.id} value={profile.id}>{profile.title} · {profile.level}</option>)}
+            </select>
+          </label>
+          <label>Worksite
+            <select value={handoffForm.worksiteId} onChange={(e) => setHandoffForm({ ...handoffForm, worksiteId: e.target.value })} required>
+              <option value="">Choose site…</option>
+              {worksites.filter((site) => site.active && site.orgUnitId != null).map((site) => <option key={site.id} value={site.id}>{site.code} · {site.name}</option>)}
+            </select>
+          </label>
+          <label>Shift
+            <select value={handoffForm.shiftDefinitionId} onChange={(e) => setHandoffForm({ ...handoffForm, shiftDefinitionId: e.target.value })} required>
+              <option value="">Choose shift…</option>
+              {shifts.map((shift) => <option key={shift.id} value={shift.id}>{shift.code} · {shift.name} · {shift.startTime}–{shift.endTime}</option>)}
+            </select>
+          </label>
+          <label>Demand start<input type="date" value={handoffForm.startDate} onChange={(e) => setHandoffForm({ ...handoffForm, startDate: e.target.value })} required /></label>
+          <label>Demand end<input type="date" min={handoffForm.startDate} value={handoffForm.endDate} onChange={(e) => setHandoffForm({ ...handoffForm, endDate: e.target.value })} required /></label>
+          <label>Required headcount
+            <input type="number" min="1" max={handoffAuthorizedHeadcount || undefined} value={handoffForm.requiredHeadcount} onChange={(e) => setHandoffForm({ ...handoffForm, requiredHeadcount: e.target.value })} required />
+          </label>
+          <div style={{ display: "flex", alignItems: "end" }}>
+            <button className="primary-button" type="submit" disabled={handoffSaving || handoffAuthorizedHeadcount < 1}>
+              <UsersRound size={15} /> {handoffSaving ? "Handing off…" : "Create WFM demand"}
+            </button>
+          </div>
+        </form>
+        <div className={handoffForm.planId && handoffForm.jobProfileId && handoffForm.worksiteId && handoffAuthorizedHeadcount < 1 ? "notice notice-amber" : "notice notice-slate"} style={{ marginTop: 14 }}>
+          <Building2 size={15} />
+          <span>
+            <strong>Authorized headcount: {handoffAuthorizedHeadcount}.</strong> Only approved, open, or filled positions in the selected plan, role, and worksite organization unit count toward this ceiling. The handoff is limited to 14 days at a time and preserves the source plan and position IDs on every WFM requirement.
+          </span>
+        </div>
+      </article>
+
+      <article className="card" style={{ padding: 20, marginBottom: 16 }}>
+        <div className="card-header">
+          <div>
             <div className="card-kicker">DEMAND & LABOR-COST FORECAST</div>
             <h2>Model workforce demand before adding headcount.</h2>
-            <p>Combine current payroll run-rate, approved vacancies, staffing requirements, and cost-center allocations. Assumptions never change payroll or position records.</p>
+            <p>Combine current payroll run-rate, PayrollPH employer statutory costs, active employer-paid benefits, recurring compensation, approved vacancies, staffing requirements, and cost-center allocations. Assumptions never change payroll or position records.</p>
           </div>
           <button className="primary-button" type="button" onClick={() => void runForecast()} disabled={forecastLoading}>
             <TrendingUp size={15} /> {forecastLoading ? "Calculating..." : "Run forecast"}
@@ -472,7 +591,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
           <label>Forecast end<input type="date" min={forecastStart} value={forecastEnd} onChange={(e) => setForecastEnd(e.target.value)} /></label>
           <label>Demand growth %<input type="number" min="-50" max="200" step="1" value={demandGrowthPercent} onChange={(e) => setDemandGrowthPercent(e.target.value)} /></label>
           <label>Vacancy fill %<input type="number" min="0" max="100" step="1" value={vacancyFillPercent} onChange={(e) => setVacancyFillPercent(e.target.value)} /></label>
-          <label>Employer load %<input type="number" min="0" max="100" step="0.5" value={employerLoadPercent} onChange={(e) => setEmployerLoadPercent(e.target.value)} /></label>
+          <label>Additional scenario load %<input type="number" min="0" max="100" step="0.5" value={employerLoadPercent} onChange={(e) => setEmployerLoadPercent(e.target.value)} /></label>
           <label>Organization unit<select value={forecastOrgUnitId} onChange={(e) => { setForecastOrgUnitId(e.target.value); setForecastWorksiteId(""); }}><option value="">All visible units</option>{orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</select></label>
           <label>Worksite<select value={forecastWorksiteId} onChange={(e) => setForecastWorksiteId(e.target.value)}><option value="">All visible worksites</option>{worksites.filter((site) => !forecastOrgUnitId || site.orgUnitId === Number(forecastOrgUnitId)).map((site) => <option key={site.id} value={site.id}>{site.code} · {site.name}</option>)}</select></label>
         </div>
@@ -494,8 +613,17 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
               <article className="stat-card"><div className="stat-icon purple"><UsersRound size={19} /></div><p>ACTIVE HEADCOUNT</p><h3>{forecast.summary.activeHeadcount}</h3><span>{forecast.summary.costedHeadcount} with valid pay profiles</span></article>
               <article className="stat-card"><div className="stat-icon blue"><Clock3 size={19} /></div><p>FORECAST DEMAND</p><h3>{forecast.summary.forecastHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs</h3><span>{forecast.summary.requiredHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} baseline hours</span></article>
               <article className="stat-card"><div className="stat-icon orange"><UserPlus size={19} /></div><p>EXPECTED FILLS</p><h3>{forecast.summary.expectedVacancyFills}</h3><span>{forecast.summary.vacantPositions} vacant planned / approved / open positions</span></article>
-              <article className="stat-card"><div className="stat-icon mint"><CircleDollarSign size={19} /></div><p>{costVisible ? "PERIOD LABOR COST" : "PROJECTED CAPACITY"}</p><h3>{costVisible ? peso(forecast.summary.forecastPeriodLaborCost) : `${forecast.summary.projectedCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs`}</h3><span>{costVisible ? `${forecast.assumptions.windowDays} days · includes ${forecast.assumptions.employerLoadPercent}% scenario load` : `${forecast.summary.capacityCoveragePercent.toFixed(1)}% demand coverage`}</span></article>
+              <article className="stat-card"><div className="stat-icon mint"><CircleDollarSign size={19} /></div><p>{costVisible ? "PERIOD LABOR COST" : "PROJECTED CAPACITY"}</p><h3>{costVisible ? peso(forecast.summary.forecastPeriodLaborCost) : `${forecast.summary.projectedCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs`}</h3><span>{costVisible ? `${forecast.assumptions.windowDays} days · PayrollPH costs + ${forecast.assumptions.employerLoadPercent}% extra scenario load` : `${forecast.summary.capacityCoveragePercent.toFixed(1)}% demand coverage`}</span></article>
             </section>
+            {costVisible && (
+              <section className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 16 }}>
+                <article className="stat-card"><p>STATUTORY EMPLOYER COST</p><h3>{peso(forecast.summary.currentPeriodStatutoryEmployerCost)}</h3><span>SSS/EC + PhilHealth + Pag-IBIG from payroll formulas</span></article>
+                <article className="stat-card"><p>EMPLOYER-PAID BENEFITS</p><h3>{peso(forecast.summary.currentPeriodBenefitEmployerCost)}</h3><span>active benefit enrollment plan shares</span></article>
+                <article className="stat-card"><p>RECURRING COMPENSATION</p><h3>{peso(forecast.summary.currentPeriodRecurringCompensationCost)}</h3><span>active monthly / per-cutoff components</span></article>
+                <article className="stat-card"><p>EXTRA SCENARIO LOAD</p><h3>{peso(forecast.summary.additionalScenarioLoadCost)}</h3><span>{forecast.assumptions.employerLoadPercent}% optional planning overlay</span></article>
+              </section>
+            )}
+
             <div className={forecast.summary.capacityGapAfterFills > 0 ? "notice notice-amber" : "notice notice-slate"} style={{ marginBottom: 16 }}>
               <UsersRound size={15} />
               <span><strong>{forecast.summary.capacityGapAfterFills > 0 ? "Capacity gap" : "Capacity covered"}:</strong> demand {forecast.summary.forecastHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs vs projected capacity {forecast.summary.projectedCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs after expected fills. Gap after fills: {forecast.summary.capacityGapAfterFills.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs.</span>
@@ -530,16 +658,16 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
               <div className="notice notice-slate" style={{ margin: 0 }}>
                 <Clock3 size={15} />
                 <span>
-                  <strong>{peso(forecast.summary.estimatedShiftDemandWageCost)} shift-demand estimate.</strong> This uses recorded staffing requirements, paid shift hours, average base hourly rate, growth, and the scenario load. It is not added to the labor plan again.
+                  <strong>{peso(forecast.summary.estimatedShiftDemandWageCost)} shift-demand estimate.</strong> This uses recorded staffing requirements, paid shift hours, average base hourly rate, source-grounded employer cost ratios, growth, and any optional scenario overlay. It is not added to the labor plan again.
                 </span>
               </div>
             </div>
 
-            {(forecast.quality.missingPayProfileEmployeeIds.length > 0 || forecast.quality.invalidPayProfileEmployeeIds.length > 0 || forecast.quality.allocationIssueEmployeeIds.length > 0 || forecast.quality.requirementsMissingShift > 0 || forecast.quality.roleEvidenceIssues.length > 0) && (
+            {(forecast.quality.missingPayProfileEmployeeIds.length > 0 || forecast.quality.invalidPayProfileEmployeeIds.length > 0 || forecast.quality.allocationIssueEmployeeIds.length > 0 || forecast.quality.requirementsMissingShift > 0 || forecast.quality.roleEvidenceIssues.length > 0 || forecast.quality.recurringCompensationIssues.length > 0) && (
               <div className="notice notice-amber" style={{ marginTop: 16 }}>
                 <CircleDollarSign size={15} />
                 <span>
-                  <strong>Forecast quality needs review.</strong> Missing pay profiles: {forecast.quality.missingPayProfileEmployeeIds.length}; invalid pay profiles: {forecast.quality.invalidPayProfileEmployeeIds.length}; allocation issues: {forecast.quality.allocationIssueEmployeeIds.length}; staffing rows missing a valid shift: {forecast.quality.requirementsMissingShift}; ambiguous role evidence: {forecast.quality.roleEvidenceIssues.length}.
+                  <strong>Forecast quality needs review.</strong> Missing pay profiles: {forecast.quality.missingPayProfileEmployeeIds.length}; invalid pay profiles: {forecast.quality.invalidPayProfileEmployeeIds.length}; allocation issues: {forecast.quality.allocationIssueEmployeeIds.length}; staffing rows missing a valid shift: {forecast.quality.requirementsMissingShift}; ambiguous role evidence: {forecast.quality.roleEvidenceIssues.length}; recurring compensation issues: {forecast.quality.recurringCompensationIssues.length}.
                 </span>
               </div>
             )}
@@ -563,7 +691,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
             <div className="notice notice-slate" style={{ marginTop: 16 }}>
               <Building2 size={15} />
               <span>
-                <strong>Planning boundary.</strong> Employer load is an explicit scenario assumption, not a statutory contribution calculation. Planned vacancy cost remains unallocated until a worker has an effective labor-cost allocation. Current unallocated base cost: {peso(forecast.unallocated.currentPeriodBaseCost)}.
+                <strong>Planning boundary.</strong> Existing-worker statutory employer cost uses the same SSS/EC, PhilHealth, and Pag-IBIG formulas as payroll, plus active employer-paid benefit shares and recurring compensation at the forecast start date. The additional load percentage is scenario-only. Vacancy statutory cost is estimated from the position salary budget; vacancy benefit cost remains unknown until coverage is assigned. Current unallocated base cost: {peso(forecast.unallocated.currentPeriodBaseCost)}.
               </span>
             </div>
           </>

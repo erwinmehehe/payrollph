@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  annualEmployerStatutoryCost,
   annualStandardCapacityHours,
   annualizePayProfile,
   buildWorkforceDemandForecast,
@@ -48,6 +49,48 @@ test("pay profiles annualize consistently across monthly, daily, and hourly base
     standardWorkDaysPerMonth: 22,
     standardHoursPerDay: 8,
   }), 2112);
+});
+
+test("fully loaded forecast uses the same employer statutory formulas as payroll", () => {
+  assert.equal(annualEmployerStatutoryCost(360000), 47760);
+
+  const result = buildWorkforceDemandForecast({
+    assumptions: {
+      startDate: "2026-01-01",
+      endDate: "2026-01-31",
+      demandGrowthPercent: 0,
+      vacancyFillPercent: 0,
+      employerLoadPercent: 0,
+    },
+    employees: [{ id: 1, status: "Active" }],
+    payProfiles: [
+      { employeeId: 1, payBasis: "monthly", rateAmount: 30000, standardWorkDaysPerMonth: 22, standardHoursPerDay: 8 },
+    ],
+    positions: [],
+    staffingRequirements: [],
+    shifts: [],
+    laborAllocations: [],
+    costCenters: [],
+    employerCosts: [{
+      employeeId: 1,
+      annualStatutoryEmployer: 47760,
+      annualBenefitEmployer: 30000,
+      annualRecurringCompensation: 12000,
+    }],
+  });
+
+  assert.ok((result.summary.currentPeriodStatutoryEmployerCost ?? 0) > 0);
+  assert.ok((result.summary.currentPeriodBenefitEmployerCost ?? 0) > 0);
+  assert.ok((result.summary.currentPeriodRecurringCompensationCost ?? 0) > 0);
+  assert.equal(result.summary.additionalScenarioLoadCost, 0);
+  const loadedIncrement =
+    (result.summary.forecastPeriodLaborCost ?? 0)
+    - (result.summary.currentPeriodBasePayroll ?? 0);
+  assert.ok(loadedIncrement > 0, "known employer costs must increase the loaded labor forecast");
+  assert.ok(
+    Math.abs(loadedIncrement - (result.summary.sourceGroundedEmployerCost ?? 0)) <= 0.02,
+    "display-rounded source-grounded employer cost must reconcile to the loaded forecast within cent rounding",
+  );
 });
 
 test("paid shift hours handle breaks and cross-midnight shifts", () => {
@@ -219,7 +262,7 @@ test("forecast API is read-only and delegates WFM scope plus salary redaction to
   const service = readFileSync("src/lib/workforce-forecast-server.ts", "utf8");
   assert.ok(route.includes("loadScopedWorkforceForecast"));
   assert.ok(route.includes("redactWorkforceForecastCosts"));
-  assert.ok(route.includes("Planning estimate only"));
+  assert.ok(route.includes("Planning estimate."));
   assert.ok(!route.includes("export async function POST"));
   assert.ok(!route.includes("export async function PATCH"));
   assert.ok(service.includes("WORKFORCE_MANAGER_ROLES"));
@@ -237,9 +280,9 @@ test("planning UI exposes explicit scenario assumptions and quality boundaries",
   assert.ok(source.includes("DEMAND & LABOR-COST FORECAST"));
   assert.ok(source.includes("Demand growth %"));
   assert.ok(source.includes("Vacancy fill %"));
-  assert.ok(source.includes("Employer load %"));
+  assert.ok(source.includes("Additional scenario load %"));
   assert.ok(source.includes("Forecast quality needs review"));
-  assert.ok(source.includes("not a statutory contribution calculation"));
+  assert.ok(source.includes("same SSS/EC, PhilHealth, and Pag-IBIG formulas as payroll"));
   assert.ok(source.includes("It is not added to the labor plan again."));
   assert.ok(source.includes("PROJECTED CAPACITY"));
   assert.ok(source.includes("capacityGapAfterFills"));

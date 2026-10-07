@@ -9,6 +9,7 @@ import {
   rankCoverageCandidates,
   forecastCoverageRisk,
   simulateBestFitCoverage,
+  buildRosterPublishReadiness,
   weekdayForDate,
 } from "../src/lib/workforce-coverage";
 
@@ -400,4 +401,60 @@ test("best-fit coverage simulation skips high workload risk unless explicitly al
     }],
   });
   assert.equal(override.projectedGap, 0);
+});
+
+test("roster publish readiness blocks critical coverage and blocking guardrails", () => {
+  const readiness = buildRosterPublishReadiness({
+    coverageRisk: [{ level: "critical" }, { level: "low" }],
+    uncoveredRequirements: 1,
+    uncoveredSlots: 2,
+    pendingRecoveryClaims: 0,
+    blockingGuardrailIssues: 2,
+    roleEvidenceIssues: 0,
+    capabilityEvidenceIssues: 0,
+    absenceEvidenceIssues: 0,
+    siteEvidenceIssues: 0,
+  });
+
+  assert.equal(readiness.status, "blocked");
+  assert.equal(readiness.blockerCount, 4);
+  assert.ok(readiness.signals.some((signal) => signal.code === "coverage_gap"));
+  assert.ok(readiness.signals.some((signal) => signal.code === "coverage_critical"));
+  assert.ok(readiness.signals.some((signal) => signal.code === "blocking_guardrail"));
+});
+
+test("roster publish readiness can carry warnings without blockers", () => {
+  const readiness = buildRosterPublishReadiness({
+    coverageRisk: [{ level: "high" }, { level: "medium" }],
+    uncoveredRequirements: 0,
+    uncoveredSlots: 0,
+    pendingRecoveryClaims: 2,
+    blockingGuardrailIssues: 0,
+    roleEvidenceIssues: 0,
+    capabilityEvidenceIssues: 1,
+    absenceEvidenceIssues: 0,
+    siteEvidenceIssues: 0,
+  });
+
+  assert.equal(readiness.status, "warning");
+  assert.equal(readiness.blockerCount, 0);
+  assert.equal(readiness.warningCount, 4);
+});
+
+test("roster publish readiness is ready only when no unresolved signals remain", () => {
+  const readiness = buildRosterPublishReadiness({
+    coverageRisk: [{ level: "low" }],
+    uncoveredRequirements: 0,
+    uncoveredSlots: 0,
+    pendingRecoveryClaims: 0,
+    blockingGuardrailIssues: 0,
+    roleEvidenceIssues: 0,
+    capabilityEvidenceIssues: 0,
+    absenceEvidenceIssues: 0,
+    siteEvidenceIssues: 0,
+  });
+
+  assert.equal(readiness.status, "ready");
+  assert.equal(readiness.blockerCount, 0);
+  assert.equal(readiness.warningCount, 0);
 });
