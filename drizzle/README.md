@@ -103,5 +103,7 @@ the first one, so it closes itself.
 
 - `0073_payout_destination_dual_control.sql` adds maker-checker requests for employee payout destination changes when treasury separation is enabled, preserving encrypted proposed bank data and immutable request evidence.
 
+- `0075_saml_enterprise_identity_foundation.sql` adds protocol-specific SAML provider metadata and replay-resistant SAML login-state persistence while keeping SAML authentication fail-closed until signed XML verification is available.
+
 
 - `0074_company_payout_profiles.sql` adds legal-employer payout profiles and explicit bank-adapter lifecycle metadata so bank configuration can progress from draft/spec/mapping/UAT to portal-validated without changing payroll computation.
