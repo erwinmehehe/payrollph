@@ -1,5 +1,5 @@
 import { ArrowRight, CheckCircle2, Database, ShieldCheck } from "lucide-react";
-import { WorkspacePreview } from "@/components/marketing/workspace-preview";
+import { ProductSimulation } from "@/components/marketing/product-simulation";
 import { Reveal, SectionHeading } from "./ui";
 
 export default function Demo() {
@@ -8,7 +8,7 @@ export default function Demo() {
       <div className="mx-auto max-w-[1320px] px-5 sm:px-8">
         <div className="grid gap-7 lg:grid-cols-[0.82fr_1.18fr] lg:items-end">
           <SectionHeading
-            title={<>See how payroll moves from <span className="text-[#6161FF]">preparation to approval.</span></>}
+            title={<>See how payroll moves from <span className="text-[#0877ff]">preparation to approval.</span></>}
             description="Explore a populated sample workspace, then open the role-based sandbox to see what the Payroll Officer, Checker, Owner and Employee each need to do next."
           />
 
@@ -44,7 +44,7 @@ export default function Demo() {
             </div>
 
             <div className="system-demo-product">
-              <WorkspacePreview mode="interactive" />
+              <ProductSimulation area="payroll" />
             </div>
           </div>
         </Reveal>

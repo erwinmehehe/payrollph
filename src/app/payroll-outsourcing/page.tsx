@@ -1,3 +1,4 @@
+import { ProductSimulation } from "@/components/marketing/product-simulation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -83,13 +84,13 @@ const SCOPE = [
     icon: Gauge,
     title: "Reviewed payroll register",
     copy: "A gross-to-net payroll register with calculation trace, statutory figures and the exceptions that still need a decision.",
-    tone: "bg-[#ECECFF] text-[#4A4AE0]",
+    tone: "bg-[#e5f0ff] text-[#0868dc]",
   },
   {
     icon: ShieldCheck,
     title: "Exception list",
     copy: "Missing inputs and business decisions are surfaced explicitly instead of being guessed or silently changed.",
-    tone: "bg-[#E3FAF0] text-[#0A8A53]",
+    tone: "bg-[#e5f8f2] text-[#00886e]",
   },
   {
     icon: FileSpreadsheet,
@@ -117,17 +118,17 @@ export default function PayrollOutsourcingPage() {
       <main>
         <section className="relative overflow-hidden border-b border-[#EDEFF7] py-16 sm:py-20">
           <div aria-hidden className="pointer-events-none absolute inset-0">
-            <div className="absolute -right-32 -top-52 h-[620px] w-[720px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-85 blur-3xl" />
+            <div className="absolute -right-32 -top-52 h-[620px] w-[720px] rounded-full bg-gradient-to-br from-[#e5f0ff] via-[#EAF4FF] to-[#e5f8f2] opacity-85 blur-3xl" />
           </div>
 
           <div className="relative mx-auto grid max-w-[1180px] items-center gap-10 px-5 sm:px-8 lg:grid-cols-[1.05fr_.95fr]">
             <div>
-              <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#4A4AE0] shadow-sm">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#0868dc] shadow-sm">
                 <ShieldCheck size={14} aria-hidden />
                 Payroll outsourcing Philippines · managed payroll
               </span>
               <h1 className="font-display mt-6 max-w-[720px] text-balance text-[44px] font-semibold leading-[1.02] tracking-[-0.045em] sm:text-[62px]">
-                Payroll outsourcing in the Philippines, without losing control.
+                Payroll Outsourcing Philippines
               </h1>
               <p className="mt-6 max-w-[680px] text-[17px] leading-relaxed text-[#5B6080]">
                 Linaw provides managed payroll processing for Philippine businesses: approved inputs come in, the run is
@@ -135,7 +136,7 @@ export default function PayrollOutsourcingPage() {
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <a href="#quote" className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#6161FF] px-7 py-4 text-[14.5px] font-semibold text-white">
+                <a href="#quote" className="group inline-flex items-center justify-center gap-2 rounded-full bg-[#0877ff] px-7 py-4 text-[14.5px] font-semibold text-white">
                   Get a payroll quote
                   <ArrowRight size={15} className="transition-transform group-hover:translate-x-0.5" />
                 </a>
@@ -151,7 +152,7 @@ export default function PayrollOutsourcingPage() {
                   "No bank credentials needed for an enquiry",
                 ].map((item) => (
                   <span key={item} className="flex items-start gap-2">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E3FAF0] text-[#0A8A53]">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#e5f8f2] text-[#00886e]">
                       <Check size={12} strokeWidth={2.8} />
                     </span>
                     {item}
@@ -179,6 +180,7 @@ export default function PayrollOutsourcingPage() {
             </aside>
           </div>
         </section>
+        <ProductSimulation area="payroll" />
 
         <section className="py-16 sm:py-20" id="process">
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
@@ -194,7 +196,7 @@ export default function PayrollOutsourcingPage() {
             <div className="mt-9 grid gap-4 md:grid-cols-5">
               {PROCESS.map((step, index) => (
                 <article key={step.title} className="rounded-[22px] border border-[#E5E7F0] bg-[#FAFBFD] p-5">
-                  <span className="mono text-[11px] font-bold text-[#6161FF]">{String(index + 1).padStart(2, "0")}</span>
+                  <span className="mono text-[11px] font-bold text-[#0877ff]">{String(index + 1).padStart(2, "0")}</span>
                   <h3 className="font-display mt-4 text-[17px] font-semibold leading-snug">{step.title}</h3>
                   <p className="mt-2 text-[12.5px] leading-relaxed text-[#6B718C]">{step.copy}</p>
                 </article>
@@ -215,7 +217,7 @@ export default function PayrollOutsourcingPage() {
 
             <div className="mt-9 grid gap-5 lg:grid-cols-2">
               <article className="rounded-[26px] border border-[#E2E4F0] bg-white p-6 sm:p-7">
-                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E3FAF0] text-[#0A8A53]">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e5f8f2] text-[#00886e]">
                   <ClipboardCheck size={19} />
                 </span>
                 <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Linaw payroll team</p>
@@ -229,7 +231,7 @@ export default function PayrollOutsourcingPage() {
                     "Coordinate missing inputs and questions with your payroll contact",
                   ].map((item) => (
                     <li key={item} className="flex gap-2.5 text-[14px] leading-relaxed text-[#3E435B]">
-                      <Check size={14} className="mt-1 shrink-0 text-[#0A8A53]" /> {item}
+                      <Check size={14} className="mt-1 shrink-0 text-[#00886e]" /> {item}
                     </li>
                   ))}
                 </ul>
@@ -297,7 +299,7 @@ export default function PayrollOutsourcingPage() {
                   "We only ask for the operating shape of your payroll",
                 ].map((item) => (
                   <span key={item} className="flex gap-2.5 text-[13.5px] leading-relaxed text-[#3E435B]">
-                    <Check size={14} className="mt-0.5 shrink-0 text-[#0A8A53]" /> {item}
+                    <Check size={14} className="mt-0.5 shrink-0 text-[#00886e]" /> {item}
                   </span>
                 ))}
               </div>

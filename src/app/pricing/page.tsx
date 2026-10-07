@@ -96,12 +96,12 @@ export default async function PricingPage() {
       <main>
         <section className="relative overflow-hidden border-b border-[#EDEFF7] py-16 sm:py-20">
           <div aria-hidden className="pointer-events-none absolute inset-0">
-            <div className="absolute -right-40 -top-52 h-[620px] w-[700px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-75 blur-3xl" />
+            <div className="absolute -right-40 -top-52 h-[620px] w-[700px] rounded-full bg-gradient-to-br from-[#e5f0ff] via-[#EAF4FF] to-[#e5f8f2] opacity-75 blur-3xl" />
           </div>
 
           <div className="relative mx-auto grid max-w-[1180px] gap-9 px-5 sm:px-8 lg:grid-cols-[1fr_.72fr] lg:items-end">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">
+              <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">
                 Payroll software pricing Philippines
               </p>
               <h1 className="font-display mt-4 max-w-[820px] text-balance text-[44px] font-semibold leading-[1.03] tracking-[-0.045em] sm:text-[60px]">
@@ -112,7 +112,7 @@ export default async function PricingPage() {
                 per-employee amount, included modules and the operating model each plan is designed to support.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
-                <Link href="/trial" className="rounded-full bg-[#6161FF] px-6 py-3.5 text-[14px] font-semibold text-white">
+                <Link href="/trial" className="rounded-full bg-[#0877ff] px-6 py-3.5 text-[14px] font-semibold text-white">
                   Request trial access
                 </Link>
                 <Link
@@ -126,7 +126,7 @@ export default async function PricingPage() {
 
             <aside className="rounded-[24px] border border-[#E2E4F0] bg-white/90 p-5 shadow-[0_18px_60px_-42px_rgba(30,34,70,.45)] backdrop-blur">
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#ECECFF] text-[#4A4AE0]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e5f0ff] text-[#0868dc]">
                   <ShieldCheck size={18} />
                 </span>
                 <div>
@@ -190,7 +190,7 @@ export default async function PricingPage() {
                         <ul className="mt-3 grid gap-2.5">
                           {modules.map((module) => (
                             <li key={module} className="flex gap-2 text-[12.5px] leading-relaxed text-[#34394F]">
-                              <Check size={14} className="mt-0.5 shrink-0 text-[#0A8A53]" />
+                              <Check size={14} className="mt-0.5 shrink-0 text-[#00886e]" />
                               {module}
                             </li>
                           ))}
@@ -213,7 +213,7 @@ export default async function PricingPage() {
           <div className="mx-auto max-w-[1080px] px-5 sm:px-8">
             <div className="grid gap-8 lg:grid-cols-[.72fr_1.28fr]">
               <div>
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#ECECFF] text-[#4A4AE0]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e5f0ff] text-[#0868dc]">
                   <Calculator size={18} />
                 </span>
                 <h2 className="font-display mt-4 text-[31px] font-semibold tracking-[-0.035em]">
@@ -232,7 +232,7 @@ export default async function PricingPage() {
                   ["3", "Scoped services", "Migration, managed payroll or custom work is confirmed separately when required."],
                 ].map(([step, title, body]) => (
                   <article key={step} className="rounded-[20px] border border-[#E2E4F0] bg-white p-5">
-                    <span className="text-[11px] font-bold text-[#6161FF]">0{step}</span>
+                    <span className="text-[11px] font-bold text-[#0877ff]">0{step}</span>
                     <h3 className="font-display mt-2 text-[19px] font-semibold">{title}</h3>
                     <p className="mt-2 text-[12.5px] leading-relaxed text-[#6B718C]">{body}</p>
                   </article>

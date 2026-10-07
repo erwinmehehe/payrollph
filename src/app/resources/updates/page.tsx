@@ -20,7 +20,7 @@ export default function RegulatoryUpdatesPage() {
       <main>
         <section className="border-b border-[#EDEFF7] py-16 sm:py-20">
           <div className="mx-auto max-w-[1000px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Regulatory update archive</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">Regulatory update archive</p>
             <h1 className="font-display mt-4 text-[44px] font-semibold tracking-[-0.045em] sm:text-[58px]">Dated payroll updates, separate from evergreen guidance.</h1>
             <p className="mt-5 max-w-[760px] text-[16px] leading-relaxed text-[#5B6080]">Each update records the issuing agency, publication date, source and affected payroll workflow so permanent guide pages do not become stale annual URLs.</p>
           </div>
@@ -28,11 +28,11 @@ export default function RegulatoryUpdatesPage() {
         <section className="py-14">
           <div className="mx-auto grid max-w-[1000px] gap-4 px-5 sm:px-8">
             {updates.map((update) => (
-              <Link key={update.slug} href={`/resources/updates/${update.slug}`} className="rounded-[22px] border border-[#E3E5EF] bg-[#FAFBFD] p-6 transition hover:border-[#CFCFFF]">
+              <Link key={update.slug} href={`/resources/updates/${update.slug}`} className="rounded-[22px] border border-[#E3E5EF] bg-[#FAFBFD] p-6 transition hover:border-[#b7d6ff]">
                 <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#7C82A1]">{update.agency} · {update.publishedDate}</p>
                 <h2 className="font-display mt-2 text-[23px] font-semibold">{update.title}</h2>
                 <p className="mt-3 text-[13.5px] leading-relaxed text-[#5B6080]">{update.summary}</p>
-                <span className="mt-4 inline-flex items-center gap-2 text-[12.5px] font-semibold text-[#4A4AE0]">Read update <ArrowRight size={13} /></span>
+                <span className="mt-4 inline-flex items-center gap-2 text-[12.5px] font-semibold text-[#0868dc]">Read update <ArrowRight size={13} /></span>
               </Link>
             ))}
           </div>

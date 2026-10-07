@@ -73,7 +73,7 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
                     className={cn(
                       "rounded-full border px-4 py-2 text-[13.5px] font-semibold transition-all",
                       heads === preset
-                        ? "border-[#6161FF] bg-[#6161FF] text-white shadow-md"
+                        ? "border-[#0877ff] bg-[#0877ff] text-white shadow-md"
                         : "border-[#E2E4F0] bg-white text-[#2B2F45] hover:border-[#B9BDE0]"
                     )}
                   >
@@ -116,19 +116,19 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
                   className={cn(
                     "pricing-plan-card relative flex h-full flex-col overflow-hidden rounded-[24px] border bg-white p-6 transition-all duration-300 hover:-translate-y-1",
                     featured
-                      ? "border-[#CFCFFF] shadow-[0_18px_50px_-26px_rgba(97,97,255,0.38)] ring-1 ring-[#E7E7FF]"
+                      ? "border-[#b7d6ff] shadow-[0_18px_50px_-26px_rgba(8,119,255,0.38)] ring-1 ring-[#E7E7FF]"
                       : "card-hover border-[#E8EAF3]"
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className={cn("text-[12px] font-bold uppercase tracking-[0.14em]", featured ? "text-[#6161FF]" : "text-[#7C82A1]")}>
+                      <p className={cn("text-[12px] font-bold uppercase tracking-[0.14em]", featured ? "text-[#0877ff]" : "text-[#7C82A1]")}>
                         {plan.name}
                       </p>
                       <h3 className="font-display mt-2 text-[21px] font-semibold leading-tight">{copy.tagline}</h3>
                     </div>
                     {featured && (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#D9D9FF] bg-[#F5F5FF] px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-[#4A4AE0]">
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#cddfff] bg-[#f2f7ff] px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-[#0868dc]">
                         <Sparkles className="h-3 w-3" aria-hidden />
                         Popular
                       </span>
@@ -159,7 +159,7 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
                     className={cn(
                       "group mt-6 inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 text-[14px] font-semibold transition-all",
                       featured
-                        ? "border border-[#6161FF] bg-[#6161FF] text-white shadow-[0_10px_24px_-12px_rgba(97,97,255,.6)] hover:bg-[#4F4FE6]"
+                        ? "border border-[#0877ff] bg-[#0877ff] text-white shadow-[0_10px_24px_-12px_rgba(8,119,255,.6)] hover:bg-[#4F4FE6]"
                         : "border border-[#D9DCEC] bg-white text-[#2B2F45] hover:border-[#B9BDE0] hover:bg-[#F7F8FC]"
                     )}
                   >
@@ -174,9 +174,9 @@ export default function Pricing({ plans }: { plans: PublicPlan[] }) {
 
         {hasSolo && (
           <Reveal delay={120}>
-            <div className="mt-4 flex flex-col items-start justify-between gap-4 rounded-[24px] border border-[#E2E4F0] bg-gradient-to-r from-[#E3FAF0]/60 via-white to-[#ECECFF]/60 p-5 sm:flex-row sm:items-center">
+            <div className="mt-4 flex flex-col items-start justify-between gap-4 rounded-[24px] border border-[#E2E4F0] bg-gradient-to-r from-[#e5f8f2]/60 via-white to-[#e5f0ff]/60 p-5 sm:flex-row sm:items-center">
               <div>
-                <p className="text-[12px] font-bold uppercase tracking-[0.13em] text-[#0A8A53]">Solo · Free</p>
+                <p className="text-[12px] font-bold uppercase tracking-[0.13em] text-[#00886e]">Solo · Free</p>
                 <p className="font-display mt-1 text-[19px] font-semibold">Self-employed or working independently?</p>
                 <p className="mt-1 text-[14px] text-[#5B6080]">Use Linaw without an employee payroll seat.</p>
               </div>

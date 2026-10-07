@@ -21,12 +21,12 @@ export default function BookDemoPage() {
       <main>
         <section className="relative overflow-hidden py-16 sm:py-20">
           <div aria-hidden className="pointer-events-none absolute inset-0">
-            <div className="absolute -left-40 -top-48 h-[560px] w-[620px] rounded-full bg-gradient-to-br from-[#E3FAF0] via-[#EAF4FF] to-[#ECECFF] opacity-80 blur-3xl" />
+            <div className="absolute -left-40 -top-48 h-[560px] w-[620px] rounded-full bg-gradient-to-br from-[#e5f8f2] via-[#EAF4FF] to-[#e5f0ff] opacity-80 blur-3xl" />
           </div>
 
           <div className="relative mx-auto grid max-w-[1120px] gap-9 px-5 sm:px-8 lg:grid-cols-[.86fr_1.14fr] lg:items-start">
             <div className="lg:sticky lg:top-24">
-              <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#4A4AE0] shadow-sm">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#0868dc] shadow-sm">
                 <ShieldCheck size={14} />
                 20-minute payroll walkthrough
               </span>
@@ -46,7 +46,7 @@ export default function BookDemoPage() {
                   "What government worksheets contain and why they remain DRAFT until validated",
                 ].map((line) => (
                   <span key={line} className="flex gap-2.5 text-[13.5px] leading-relaxed text-[#3E435B]">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E3FAF0] text-[#0A8A53]">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#e5f8f2] text-[#00886e]">
                       <Check size={12} strokeWidth={2.8} />
                     </span>
                     {line}

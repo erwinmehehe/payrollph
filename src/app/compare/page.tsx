@@ -29,7 +29,7 @@ export default function ComparePage() {
       <main>
         <section className="border-b border-[#EDEFF7] py-16 sm:py-20">
           <div className="mx-auto max-w-[1000px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Payroll comparisons</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">Payroll comparisons</p>
             <h1 className="font-display mt-4 text-[44px] font-semibold tracking-[-0.045em] sm:text-[58px]">Compare the operating model, not just the feature list.</h1>
             <p className="mt-5 max-w-[760px] text-[16px] leading-relaxed text-[#5B6080]">These guides focus on ownership, controls, implementation and recurring work rather than declaring one option universally right for every employer.</p>
           </div>
@@ -37,10 +37,10 @@ export default function ComparePage() {
         <section className="py-16">
           <div className="mx-auto grid max-w-[1000px] gap-4 px-5 sm:px-8 md:grid-cols-2">
             {comparisons.map((item) => (
-              <Link key={item.href} href={item.href} className="rounded-[22px] border border-[#E3E5EF] bg-[#FAFBFD] p-6 transition hover:border-[#CFCFFF]">
+              <Link key={item.href} href={item.href} className="rounded-[22px] border border-[#E3E5EF] bg-[#FAFBFD] p-6 transition hover:border-[#b7d6ff]">
                 <h2 className="font-display text-[23px] font-semibold">{item.title}</h2>
                 <p className="mt-3 text-[13.5px] leading-relaxed text-[#5B6080]">{item.description}</p>
-                <span className="mt-4 inline-flex items-center gap-2 text-[12.5px] font-semibold text-[#4A4AE0]">Compare options <ArrowRight size={13}/></span>
+                <span className="mt-4 inline-flex items-center gap-2 text-[12.5px] font-semibold text-[#0868dc]">Compare options <ArrowRight size={13}/></span>
               </Link>
             ))}
           </div>

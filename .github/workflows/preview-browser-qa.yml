@@ -144,7 +144,7 @@ jobs:
             check(response && response.ok(), `${name}: homepage did not return 2xx`);
 
             const h1 = (await page.locator("h1").first().innerText()).trim();
-            check(h1.includes("Philippine payroll you can verify before you pay."), `${name}: expected Linaw payroll hero heading not found; saw "${h1}"`);
+            check(h1.includes("Your people. Your payroll."), `${name}: expected Linaw payroll hero heading not found; saw "${h1}"`);
             const heroPrimary = page.locator(".hero-primary-cta");
             check((await heroPrimary.count()) === 1, `${name}: hero primary CTA is missing`);
             const heroPrimaryStyles = await heroPrimary.evaluate((el) => {
@@ -204,71 +204,52 @@ jobs:
 
             if (name === "desktop") {
               const hero = page.locator("#top");
-              check((await hero.locator(".payroll-hero-control-card").count()) === 1, "desktop: release-readiness proof card is missing");
-              check((await hero.getByRole("heading", { name: "Can I safely release this payroll?" }).count()) === 1, "desktop: release-readiness question is missing");
-              check((await hero.locator(".payroll-hero-owl").count()) === 0, "desktop: homepage mascot must stay removed");
-              check((await hero.locator(".payroll-hero-speech").count()) === 0, "desktop: mascot speech bubble must stay removed");
-              check((await hero.locator(".payroll-home-trust li").count()) === 3, "desktop: hero trust list must expose three proof points");
+              const areaButtons = hero.getByRole("group", { name: "Choose a product area" }).getByRole("button");
+              check((await areaButtons.count()) === 6, "desktop: six product areas must be available");
+              for (const button of await areaButtons.all()) {
+                await button.click();
+                check((await button.getAttribute("aria-pressed")) === "true", "desktop: product selection did not update");
+                check((await hero.locator(".frame.standalone").count()) === 1, "desktop: working simulation did not render");
+              }
+              check((await hero.getByText("Interactive simulation", { exact: false }).count()) === 1, "desktop: sample screen attribution is missing");
 
               const demo = page.locator("#demo");
               check((await demo.count()) === 1, "desktop: live demo section is missing");
-              check((await demo.getByText("Interactive payroll workflow").count()) === 1, "desktop: payroll workflow preview chrome did not render");
-              const systemPreview = demo.locator(".system-demo-product .frame.standalone");
+              check((await demo.getByText("Your team. One connected workspace.").count()) === 1, "desktop: payroll workflow preview chrome did not render");
+              const systemPreview = demo.locator(".frame.standalone");
               check((await systemPreview.count()) === 1, "desktop: shared Linaw workspace preview did not render");
-              const previewNav = systemPreview.locator(".nav-item");
-              check((await previewNav.count()) >= 8, "desktop: real workspace navigation is unexpectedly sparse");
-              const peopleNav = previewNav.filter({ hasText: /^People/ }).first();
-              check((await peopleNav.count()) === 1, "desktop: People module is missing from the real-system preview");
-              await peopleNav.click();
-              await page.waitForTimeout(100);
-              check((await peopleNav.getAttribute("aria-current")) === "page", "desktop: real-system preview navigation did not update");
-              const peopleShell = systemPreview.locator(".preview-people-shell");
-              check((await peopleShell.count()) === 1, "desktop: People preview shell is missing");
-              const firstPersonRow = peopleShell.locator(".preview-person-row").first();
-              check((await firstPersonRow.count()) === 1, "desktop: People preview rows are missing");
-              const personRowStyles = await firstPersonRow.evaluate((element) => ({
-                display: getComputedStyle(element).display,
-                columns: getComputedStyle(element).gridTemplateColumns,
-                width: element.getBoundingClientRect().width,
-                scrollWidth: element.scrollWidth,
-              }));
-              check(personRowStyles.display === "grid", `desktop: People preview row styling did not load; display=${personRowStyles.display}`);
-              check(personRowStyles.columns !== "none", "desktop: People preview row has no grid columns");
-              check(personRowStyles.scrollWidth <= personRowStyles.width + 1, `desktop: People preview row overflows ${personRowStyles.scrollWidth}px > ${personRowStyles.width}px`);
-              check((await peopleShell.locator(".preview-people-summary").count()) === 1, "desktop: People summary is missing");
-              check((await peopleShell.locator(".preview-people-controls").count()) === 1, "desktop: People filters/search are missing");
-
-              const migrationNav = previewNav.filter({ hasText: /^Migration/ }).first();
-              check((await migrationNav.count()) === 1, "desktop: Migration module is missing from the real-system preview");
-              await migrationNav.click();
-              await page.waitForTimeout(100);
-              const migrationCard = systemPreview.locator(".preview-migration-card");
-              check((await migrationCard.count()) === 1, "desktop: Migration preview card is missing");
-              const migrationStep = migrationCard.locator(".preview-migration-step").first();
-              const migrationStyles = await migrationStep.evaluate((element) => ({
-                display: getComputedStyle(element).display,
-                columns: getComputedStyle(element).gridTemplateColumns,
-                width: element.getBoundingClientRect().width,
-                scrollWidth: element.scrollWidth,
-              }));
-              check(migrationStyles.display === "grid", `desktop: Migration preview styling did not load; display=${migrationStyles.display}`);
-              check(migrationStyles.columns !== "none", "desktop: Migration preview has no grid columns");
-              check(migrationStyles.scrollWidth <= migrationStyles.width + 1, `desktop: Migration preview overflows ${migrationStyles.scrollWidth}px > ${migrationStyles.width}px`);
+              await page.getByRole("group", { name: "Choose a product area" }).getByRole("button", { name: "HRIS", exact: true }).click();
+              await systemPreview.getByRole("textbox", { name: "Search employees" }).fill("Maria");
+              await systemPreview.getByRole("button", { name: /Maria Santos/ }).click();
+              const employeeProfile = page.getByRole("dialog", { name: "Employee profile" });
+              await employeeProfile.getByRole("button", { name: "Pay profile", exact: true }).click();
+              check(await employeeProfile.getByText("₱32,000", { exact: true }).count() === 1, "HRIS pay profile must show the sample salary");
+              await page.keyboard.press("Escape");
+              check(await employeeProfile.count() === 0, "HRIS profile must dismiss with Escape");
+              const perspectives = systemPreview.getByRole("group", { name: "Choose a team perspective" });
+              await perspectives.getByRole("button", { name: "Checker", exact: true }).click();
+              await systemPreview.getByRole("button", { name: "Review exceptions", exact: true }).click();
+              await systemPreview.getByRole("button", { name: "Approve payroll", exact: true }).click();
+              await perspectives.getByRole("button", { name: "Owner", exact: true }).click();
+              check(await systemPreview.getByRole("button", { name: "Release sample payroll" }).isEnabled(), "owner release must unlock after checker approval");
+              await systemPreview.getByRole("button", { name: "Release sample payroll" }).click();
+              await perspectives.getByRole("button", { name: "Employee", exact: true }).click();
+              check(await systemPreview.getByText("Your payslip is ready to view.").count() === 1, "employee payday must reflect sample release");
               check((await demo.getByRole("link", { name: /Open role-based sandbox/i }).count()) === 1, "desktop: role-based sandbox handoff is missing");
-              report.modules.push({ module: "Release-readiness hero", active: true });
+              report.modules.push({ module: "Connected product area hero", active: true });
               report.modules.push({ module: "Shared Linaw workspace preview", active: true });
             }
 
             if (name === "mobile-390") {
               const normalizedHeading = h1.replace(/\s+/g, " ");
               check(
-                normalizedHeading.includes("Philippine payroll you can verify before you pay."),
+                normalizedHeading.includes("Your people. Your payroll."),
                 `mobile-390: hero words collided after responsive line-break removal; saw "${normalizedHeading}"`,
               );
 
               const mobileHero = page.locator("#top");
-              const mobileControlCard = mobileHero.locator(".payroll-hero-control-card").first();
-              check((await mobileControlCard.count()) === 1, "mobile-390: release-readiness proof card is missing");
+              const mobileControlCard = mobileHero.locator(".lp-picker").first();
+              check((await mobileControlCard.count()) === 1, "mobile-390: product area selector is missing");
               const controlFit = await mobileControlCard.evaluate((element) => ({
                 clientWidth: element.clientWidth,
                 scrollWidth: element.scrollWidth,
@@ -277,9 +258,9 @@ jobs:
                 controlFit.scrollWidth <= controlFit.clientWidth + 1,
                 `mobile-390: release-readiness card clips ${controlFit.scrollWidth}px > ${controlFit.clientWidth}px`,
               );
-              const securityProof = page.locator("#security article").first();
-              const securityHeading = securityProof.getByRole("heading", { name: "One workspace can never read another's payroll." });
-              const securityCopy = securityProof.locator("p").filter({ hasText: "Every session route passes one shared membership gate." }).first();
+              const securityProof = page.locator(".lp-boundaries").first();
+              const securityHeading = securityProof.getByRole("heading", { name: "The right view for the right role." });
+              const securityCopy = securityProof.locator("p").filter({ hasText: "Company membership, permissions, personal employee access" }).first();
 
               check(
                 !(await pricing.innerText()).includes("No credit card to start") &&
@@ -340,10 +321,15 @@ jobs:
             const routes = [
               { path: "/demo", heading: "See Linaw from the seat you actually use." },
               { path: "/signup", heading: "Request access to a Linaw trial workspace." },
-              { path: "/payroll-outsourcing", heading: "Payroll outsourcing in the Philippines, without losing control." },
-              { path: "/small-business-payroll", heading: "A clearer payroll process for Philippine small businesses." },
+              { path: "/payroll-outsourcing", heading: "Payroll Outsourcing Philippines" },
+              { path: "/small-business-payroll", heading: "A clearer path from inputs to payday." },
               { path: "/resources", heading: "Practical guidance for buying, migrating and operating Philippine payroll." },
               { path: "/industries", heading: "Payroll workflows shaped by how your workforce actually operates." },
+              { path: "/hcm", heading: "From new hire to what comes next." },
+              { path: "/workforce-management", heading: "Better time records. Clearer payroll inputs." },
+              { path: "/about", heading: "Payroll is people’s pay." },
+              { path: "/contact", heading: "Contact us" },
+              { path: "/calculators/withholding-tax", heading: "Monthly Withholding" },
               { path: "/calculators", heading: "Start with the payroll question you need to estimate." },
               { path: "/compliance", heading: "Compliance support with evidence, validation states and fewer hidden assumptions." },
               { path: "/industries/construction", heading: "Payroll and timekeeping for Philippine construction teams." },
@@ -595,7 +581,7 @@ jobs:
               const marketingResponse = await marketingPage.goto(base, { waitUntil: "networkidle", timeout: 90000 });
               check(marketingResponse && marketingResponse.ok(), "Owner: signed-in visit to / did not return 2xx");
               const marketingH1 = (await marketingPage.locator("h1").first().innerText()).trim();
-              check(marketingH1.includes("Philippine payroll you can verify before you pay."), `Owner: signed-in / should stay on the Linaw marketing homepage; saw "${marketingH1}"`);
+              check(marketingH1.includes("Your people. Your payroll."), `Owner: signed-in / should stay on the Linaw marketing homepage; saw "${marketingH1}"`);
               await marketingPage.close();
 
               const legacyPage = await context.newPage();

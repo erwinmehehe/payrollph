@@ -37,7 +37,7 @@ export default async function RegulatoryUpdatePage({ params }: { params: Promise
       <main>
         <section className="border-b border-[#EDEFF7] py-16 sm:py-20">
           <div className="mx-auto max-w-[900px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">{update.agency}</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">{update.agency}</p>
             <h1 className="font-display mt-4 text-[42px] font-semibold tracking-[-0.045em] sm:text-[54px]">{update.title}</h1>
             <p className="mt-4 text-[12px] font-semibold text-[#8B90AA]">Published {update.publishedDate} · Source reviewed {update.reviewedDate}</p>
             <p className="mt-6 text-[16px] leading-relaxed text-[#5B6080]">{update.summary}</p>
@@ -65,7 +65,7 @@ export default async function RegulatoryUpdatePage({ params }: { params: Promise
             </div>
 
             <h2 className="font-display mt-10 text-[26px] font-semibold">Affected payroll areas</h2>
-            <div className="mt-4 flex flex-wrap gap-2">{update.affected.map((item) => <span key={item} className="rounded-full bg-[#F1F1FF] px-3 py-2 text-[12px] font-semibold text-[#4A4AE0]">{item}</span>)}</div>
+            <div className="mt-4 flex flex-wrap gap-2">{update.affected.map((item) => <span key={item} className="rounded-full bg-[#F1F1FF] px-3 py-2 text-[12px] font-semibold text-[#0868dc]">{item}</span>)}</div>
             <a href={update.sourceUrl} target="_blank" rel="noreferrer" className="mt-7 inline-flex items-center gap-2 rounded-full border border-[#D9DCEC] px-5 py-3 text-[13px] font-semibold">Open {update.sourceLabel} <ExternalLink size={13} /></a>
             <h2 className="font-display mt-10 text-[26px] font-semibold">Evergreen guidance</h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">

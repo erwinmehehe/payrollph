@@ -12,7 +12,7 @@ export function Calculator() {
     { l: "SSS", sub: `MSC ₱${r.msc.toLocaleString()} · 5% EE · RA 11199`, v: r.sss, c: "#579BFC" },
     { l: "PhilHealth", sub: "5% premium, split 50/50 · RA 11223", v: r.ph, c: "#00CA72" },
     { l: "Pag-IBIG", sub: "2% EE, capped at ₱10,000 base · RA 9679", v: r.hdmf, c: "#FF7A29" },
-    { l: "Withholding tax", sub: "TRAIN annual brackets ÷ 12 · RA 10963", v: r.wtax, c: "#7C5CFF" },
+    { l: "Withholding tax", sub: "TRAIN annual brackets ÷ 12 · RA 10963", v: r.wtax, c: "#10b8a0" },
   ];
   const total = salary;
 
@@ -61,7 +61,7 @@ export function Calculator() {
               {rows.map((x) => (
                 <div key={x.l} className="transition-all duration-300" style={{ width: `${(x.v / total) * 100}%`, background: x.c }} />
               ))}
-              <div className="bg-[#E3FAF0] transition-all duration-300" style={{ width: `${(r.net / total) * 100}%` }} />
+              <div className="bg-[#e5f8f2] transition-all duration-300" style={{ width: `${(r.net / total) * 100}%` }} />
             </div>
 
             <ul className="mt-4 divide-y divide-[#F1F2F8]">
@@ -77,7 +77,7 @@ export function Calculator() {
               ))}
             </ul>
 
-            <div className="mt-2 flex items-center justify-between rounded-2xl bg-[#E3FAF0] px-4 py-4">
+            <div className="mt-2 flex items-center justify-between rounded-2xl bg-[#e5f8f2] px-4 py-4">
               <p className="text-[14.5px] font-bold text-[#0A6B41]">Take-home pay</p>
               <p className="mono text-[22px] font-bold text-[#0A6B41]" aria-live="polite">₱{fmt(r.net)}</p>
             </div>
@@ -140,7 +140,7 @@ export function Benchmarks() {
                   <div className="mt-3 flex items-center gap-3">
                     <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-white/10">
                       <Reveal delay={k * 100} className="h-full">
-                        <div className="h-full rounded-full bg-gradient-to-r from-[#7C5CFF] via-[#6161FF] to-[#579BFC]" style={{ width: `${(b.thr / 620) * 100}%` }} />
+                        <div className="h-full rounded-full bg-gradient-to-r from-[#10b8a0] via-[#0877ff] to-[#579BFC]" style={{ width: `${(b.thr / 620) * 100}%` }} />
                       </Reveal>
                     </div>
                     <span className="mono w-10 text-right text-[13px] font-bold">{b.thr}</span>
@@ -172,8 +172,8 @@ const exportGroups = [
   {
     t: "Accounting",
     icon: FileText,
-    c: "#6161FF",
-    soft: "#ECECFF",
+    c: "#0877ff",
+    soft: "#e5f0ff",
     items: [["Xero", "Journal CSV"], ["QuickBooks Online", "Journal CSV"], ["Report builder", "CSV"], ["Full company export", "Portable"]],
     note: "Your data leaves with you, anytime",
     preview: [
@@ -185,7 +185,7 @@ const exportGroups = [
   {
     t: "Government",
     icon: Landmark,
-    c: "#7C5CFF",
+    c: "#10b8a0",
     soft: "#F1EDFF",
     items: [["BIR 1601-C", "DRAFT"], ["Alphalist / 2316", "DRAFT"], ["SSS R-3", "DRAFT"], ["PhilHealth RF-1", "DRAFT"]],
     note: "Draft until agency acceptance evidence is recorded",

@@ -80,9 +80,9 @@ export function Avatar({ initials, bg }: { initials: string; bg: string }) {
 export function CheckItem({ children }: { children: ReactNode }) {
   return (
     <li className="flex items-start gap-2.5 text-[14.5px] leading-relaxed text-[#2B2F45]">
-      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E3FAF0]">
+      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#e5f8f2]">
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden>
-          <path d="M2.5 6.2L4.8 8.5L9.5 3.5" stroke="#0a8a53" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M2.5 6.2L4.8 8.5L9.5 3.5" stroke="#00886e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </span>
       {children}

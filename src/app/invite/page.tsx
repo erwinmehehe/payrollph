@@ -17,11 +17,11 @@ export default function InvitePage() {
       <SiteNav />
       <main className="relative overflow-hidden py-14 sm:py-18">
         <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div className="absolute -right-36 -top-52 h-[580px] w-[640px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-75 blur-3xl" />
+          <div className="absolute -right-36 -top-52 h-[580px] w-[640px] rounded-full bg-gradient-to-br from-[#e5f0ff] via-[#EAF4FF] to-[#e5f8f2] opacity-75 blur-3xl" />
         </div>
         <div className="relative mx-auto grid max-w-[960px] gap-8 px-5 sm:px-8 lg:grid-cols-[.88fr_1.12fr] lg:items-center">
           <section>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#4A4AE0] shadow-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#DDE0EF] bg-white px-3.5 py-2 text-[12px] font-bold text-[#0868dc] shadow-sm">
               <ShieldCheck size={14} /> Secure invitation
             </span>
             <h1 className="font-display mt-6 text-[40px] font-semibold leading-[1.03] tracking-[-0.045em] sm:text-[52px]">Join your team on Linaw.</h1>

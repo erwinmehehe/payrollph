@@ -20,12 +20,12 @@ export function FAQ() {
             />
             <Reveal delay={160}>
               <div className="mt-7 rounded-[24px] bg-[#F7F8FC] p-5">
-                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#ECECFF]">
-                  <MessageCircle className="h-5 w-5 text-[#4A4AE0]" aria-hidden />
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#e5f0ff]">
+                  <MessageCircle className="h-5 w-5 text-[#0868dc]" aria-hidden />
                 </span>
                 <p className="font-display mt-4 text-[17px] font-semibold">Talk to a payroll specialist</p>
                 <p className="mt-1 text-[14px] leading-relaxed text-[#5B6080]">Real humans, Philippine payroll experience, no hard sell.</p>
-                <a href="/book-demo" className="mt-4 inline-flex items-center gap-1.5 text-[14px] font-semibold text-[#4A4AE0]">
+                <a href="/book-demo" className="mt-4 inline-flex items-center gap-1.5 text-[14px] font-semibold text-[#0868dc]">
                   Book a 20-min walkthrough
                   <ArrowRight className="h-4 w-4" aria-hidden />
                 </a>
@@ -88,9 +88,9 @@ export function CTA() {
         <div className="relative mx-auto min-h-[360px] max-w-[1200px] overflow-hidden rounded-[34px] bg-[#11141F] px-6 py-16 text-center text-white sm:flex sm:min-h-[400px] sm:items-center sm:justify-center sm:px-12 sm:py-20">
           <div aria-hidden className="pointer-events-none absolute inset-0">
             <div className="bg-grid absolute inset-0 opacity-[0.12] [background-image:linear-gradient(to_right,rgba(255,255,255,0.5)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.5)_1px,transparent_1px)]" />
-            <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-[#6161FF] opacity-55 blur-[110px]" />
+            <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-[#0877ff] opacity-55 blur-[110px]" />
             <div className="absolute -bottom-24 -right-24 h-80 w-80 rounded-full bg-[#00CA72] opacity-32 blur-[110px]" />
-            <div className="absolute left-1/2 top-0 h-44 w-[680px] -translate-x-1/2 rounded-full bg-[#7C5CFF] opacity-30 blur-[90px]" />
+            <div className="absolute left-1/2 top-0 h-44 w-[680px] -translate-x-1/2 rounded-full bg-[#10b8a0] opacity-30 blur-[90px]" />
           </div>
 
           <div className="relative mx-auto max-w-[820px]">
@@ -155,7 +155,7 @@ export function Footer() {
               <ul className="mt-4 space-y-3">
                 {group.links.map((link) => (
                   <li key={link.href}>
-                    <a href={link.href} className="text-[14px] font-medium text-[#2B2F45] transition-colors hover:text-[#4A4AE0]">
+                    <a href={link.href} className="text-[14px] font-medium text-[#2B2F45] transition-colors hover:text-[#0868dc]">
                       {link.label}
                     </a>
                   </li>

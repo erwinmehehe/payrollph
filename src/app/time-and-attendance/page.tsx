@@ -44,6 +44,7 @@ export default function TimeAttendancePage() {
         faq={faq}
       />
       <SeoLandingPage
+      simulationArea="attendance"
       eyebrow="Timekeeping system Philippines"
       title="Time and attendance that payroll can actually use."
       intro="Linaw connects raw punches, work schedules, overtime, night differential, rest days and attendance exceptions directly to payroll calculation."

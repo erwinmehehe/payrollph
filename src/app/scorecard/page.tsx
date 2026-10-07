@@ -32,7 +32,7 @@ const statusLabel = (status: string) =>
 
 const statusClasses = (status: string) =>
   status === "verified"
-    ? "bg-[#E3FAF0] text-[#0A8A53]"
+    ? "bg-[#e5f8f2] text-[#00886e]"
     : status === "partial"
       ? "bg-[#FFF4D6] text-[#9A6B00]"
       : "bg-[#F1F2F8] text-[#6B718C]";
@@ -58,7 +58,7 @@ export default async function ScorecardPage() {
       <main>
         <section className="relative overflow-hidden border-b border-[#EDEFF7] bg-[#FAFBFD] py-14 sm:py-18">
           <div aria-hidden className="pointer-events-none absolute inset-0">
-            <div className="absolute -right-40 -top-56 h-[620px] w-[680px] rounded-full bg-gradient-to-br from-[#ECECFF] via-[#EAF4FF] to-[#E3FAF0] opacity-65 blur-3xl" />
+            <div className="absolute -right-40 -top-56 h-[620px] w-[680px] rounded-full bg-gradient-to-br from-[#e5f0ff] via-[#EAF4FF] to-[#e5f8f2] opacity-65 blur-3xl" />
           </div>
           <div className="relative mx-auto max-w-[1120px] px-5 sm:px-8">
             <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Capability scorecard</p>
@@ -73,7 +73,7 @@ export default async function ScorecardPage() {
 
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
               {[
-                { label: "Verified", value: report.counts.verified, detail: "implemented with executing evidence", cls: "bg-[#E3FAF0] text-[#0A8A53]" },
+                { label: "Verified", value: report.counts.verified, detail: "implemented with executing evidence", cls: "bg-[#e5f8f2] text-[#00886e]" },
                 { label: "Partial", value: report.counts.partial, detail: "working path with a remaining gate", cls: "bg-[#FFF4D6] text-[#9A6B00]" },
                 { label: "Not ready", value: report.counts.absent, detail: "not sold as complete", cls: "bg-[#F1F2F8] text-[#6B718C]" },
               ].map((item) => (

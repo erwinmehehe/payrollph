@@ -34,6 +34,8 @@ export const pagesSitemapEntries: SitemapEntry[] = [
 export const productSitemapEntries: SitemapEntry[] = [
   { path: "/", changeFrequency: "weekly" },
   { path: "/hris", changeFrequency: "monthly" },
+  { path: "/hcm", changeFrequency: "monthly" },
+  { path: "/workforce-management", changeFrequency: "monthly" },
   { path: "/time-and-attendance", changeFrequency: "monthly" },
   { path: "/employee-self-service", changeFrequency: "monthly" },
   { path: "/integrations", changeFrequency: "monthly" },

@@ -37,7 +37,7 @@ export default async function DeveloperDocPage({ params }: { params: Promise<{ s
       <main>
         <section className="border-b border-[#EDEFF7] bg-[#FAFBFD] py-16 sm:py-20">
           <div className="mx-auto max-w-[980px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#6161FF]">Developer documentation</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#0877ff]">Developer documentation</p>
             <h1 className="font-display mt-4 text-[44px] font-semibold tracking-[-0.045em] sm:text-[58px]">{doc.title}</h1>
             <p className="mt-5 max-w-[760px] text-[16px] leading-relaxed text-[#5B6080]">{doc.intro}</p>
           </div>
@@ -66,7 +66,7 @@ export default async function DeveloperDocPage({ params }: { params: Promise<{ s
               <Link key={item.href} href={item.href} className="rounded-[18px] border border-[#E3E5EF] bg-white p-4">
                 <strong className="text-[14px]">{item.label}</strong>
                 <p className="mt-2 text-[12px] leading-relaxed text-[#6B718C]">{item.description}</p>
-                <span className="mt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-[#4A4AE0]">Open <ArrowRight size={12}/></span>
+                <span className="mt-3 inline-flex items-center gap-1 text-[12px] font-semibold text-[#0868dc]">Open <ArrowRight size={12}/></span>
               </Link>
             ))}
           </div>

@@ -2,21 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import "./public-pages.css";
+import { LinawMark } from "@/components/linaw-mark";
 import { Menu, X } from "lucide-react";
 import { PUBLIC_FOOTER_GROUPS, PUBLIC_PRIMARY_LINKS } from "./public-navigation";
 
 export function BrandMark({ size = 32 }: { size?: number }) {
-  return (
-    <span
-      className="flex shrink-0 items-center justify-center rounded-[9px] bg-[#11141F] text-white"
-      style={{ width: size, height: size }}
-      aria-hidden
-    >
-      <svg width={Math.round(size * 0.5)} height={Math.round(size * 0.5)} viewBox="0 0 16 16" fill="none">
-        <path d="M3 8.5l3.2 3.2L13 5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </span>
-  );
+  return <span className="inline-flex shrink-0 items-center justify-center [&>svg]:h-full [&>svg]:w-full" style={{ width: size, height: size }}><LinawMark /></span>;
 }
 
 export function SiteNav() {
@@ -33,7 +25,7 @@ export function SiteNav() {
   return (
     <>
       <header
-        className={`sticky top-0 z-50 border-b transition-all duration-300 ${
+        className={`linaw-site-nav sticky top-0 z-50 border-b transition-all duration-300 ${
           stuck
             ? "border-[#E8EAF3] bg-white/92 shadow-[0_8px_24px_-18px_rgba(16,18,38,.28)] backdrop-blur-xl"
             : "border-transparent bg-white/85 backdrop-blur-lg"
@@ -45,7 +37,7 @@ export function SiteNav() {
               <BrandMark />
             </span>
             <span className="leading-none">
-              <span className="font-display block text-[19px] font-semibold tracking-tight text-[#0B0D1A]">linaw</span>
+              <span className="font-display block text-[19px] font-semibold tracking-tight text-[#0B0D1A]">Linaw</span>
               <span className="mt-1 block text-[8.5px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">Philippine Payroll</span>
             </span>
           </Link>
@@ -68,7 +60,7 @@ export function SiteNav() {
             </Link>
             <Link
               href="/signup"
-              className="inline-flex items-center rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-4 py-2.5 text-[14px] font-semibold text-[#4A4AE0] transition-all hover:border-[#C5C5FF] hover:bg-[#ECECFF]"
+              className="inline-flex items-center rounded-[10px] border border-[#cddfff] bg-[#f2f7ff] px-4 py-2.5 text-[14px] font-semibold text-[#0868dc] transition-all hover:border-[#abcfff] hover:bg-[#e5f0ff]"
             >
               Request trial access
             </Link>
@@ -103,7 +95,7 @@ export function SiteNav() {
               <Link href="/login" onClick={() => setDrawer(false)} className="flex-1 rounded-full border border-[#E8EAF3] px-5 py-3 text-center text-[14px] font-semibold">
                 Sign in
               </Link>
-              <Link href="/signup" onClick={() => setDrawer(false)} className="flex-1 rounded-[10px] border border-[#D9D9FF] bg-[#F5F5FF] px-5 py-3 text-center text-[14px] font-semibold text-[#4A4AE0]">
+              <Link href="/signup" onClick={() => setDrawer(false)} className="flex-1 rounded-[10px] border border-[#cddfff] bg-[#f2f7ff] px-5 py-3 text-center text-[14px] font-semibold text-[#0868dc]">
                 Request trial access
               </Link>
             </div>
@@ -123,7 +115,7 @@ export function SiteFooter() {
             <Link href="/" className="flex items-center gap-3" aria-label="Linaw home">
               <BrandMark size={40} />
               <span className="leading-none">
-                <span className="font-display block text-[22px] font-semibold tracking-tight text-[#0B0D1A]">linaw</span>
+                <span className="font-display block text-[22px] font-semibold tracking-tight text-[#0B0D1A]">Linaw</span>
                 <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">Philippine Payroll</span>
               </span>
             </Link>
@@ -138,7 +130,7 @@ export function SiteFooter() {
               <ul className="mt-4 space-y-3">
                 {group.links.map((link) => (
                   <li key={link.href}>
-                    <Link href={link.href} className="text-[14px] font-medium text-[#2B2F45] transition-colors hover:text-[#4A4AE0]">
+                    <Link href={link.href} className="text-[14px] font-medium text-[#2B2F45] transition-colors hover:text-[#0868dc]">
                       {link.label}
                     </Link>
                   </li>

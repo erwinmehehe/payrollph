@@ -11,7 +11,7 @@ export default function IntegrationsPage() {
   return (
     <SeoLandingPage
       eyebrow="Payroll integrations Philippines"
-      title="Connect payroll without pretending every logo is an integration."
+      title="Connect payroll to the systems around it."
       intro="Linaw's integration story is based on implemented interfaces: scoped API keys, employee and payroll-run APIs, signed webhooks, biometric synchronization, accounting exports and supported payout outputs."
       proof={[
         "Scoped API keys",
