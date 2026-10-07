@@ -7,6 +7,7 @@ import {
   preferredForShift,
   remainingOpenShiftSlots,
   rankCoverageCandidates,
+  forecastCoverageRisk,
   weekdayForDate,
 } from "../src/lib/workforce-coverage";
 
@@ -315,4 +316,29 @@ test("coverage candidate ranking flags high projected workload instead of hiding
   assert.equal(candidate?.workloadRisk, "high");
   assert.ok((candidate?.score ?? 100) < 50);
   assert.match(candidate?.reasons.join(" "), /Projected workload risk: high/);
+});
+
+
+test("coverage risk is critical when a staffing gap has no governed recovery candidate", () => {
+  const [risk] = forecastCoverageRisk([{
+    requirementId: 1,
+    gap: 2,
+    eligibleRecoveryCandidates: 0,
+    unavailableScheduledHeadcount: 1,
+  }]);
+
+  assert.equal(risk?.level, "critical");
+  assert.match(risk?.reasons.join(" "), /no governed eligible recovery candidate/i);
+});
+
+test("coverage risk distinguishes thin candidate benches from recoverable gaps", () => {
+  const risks = forecastCoverageRisk([
+    { requirementId: 2, gap: 3, eligibleRecoveryCandidates: 1 },
+    { requirementId: 3, gap: 2, eligibleRecoveryCandidates: 4 },
+    { requirementId: 4, gap: 0, eligibleRecoveryCandidates: 0 },
+  ]);
+
+  assert.equal(risks[0]?.level, "high");
+  assert.equal(risks[1]?.level, "medium");
+  assert.equal(risks[2]?.level, "low");
 });
