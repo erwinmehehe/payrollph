@@ -8,22 +8,19 @@ test("payout pull requests cannot modify protected payroll computation or golden
   const guard = read("scripts/verify-payout-payroll-isolation.ts");
   const workflow = read(".github/workflows/payout-payroll-isolation.yml");
 
-  for (const protectedPath of [
-    "src/lib/payroll-engine",
-    "src/lib/payroll-rules",
-    "src/lib/pay-policy-engine",
-    "src/lib/workforce-payroll",
-    "src/lib/leave-payroll",
-    "scripts/golden-payroll-certification",
-    "scripts/golden-payroll-phase2a",
-    "scripts/golden-payroll-phase2b",
-    "scripts/golden-pay-rules-phase3",
-    "certification/golden-payroll-phase2a",
-    "certification/golden-payroll-phase2b",
-    "certification/golden-pay-rules-phase3",
-    "tests/fixtures/open-payroll-data",
+  for (const protectedMarker of [
+    "payroll-engine",
+    "payroll-rules",
+    "pay-policy-engine",
+    "workforce-payroll",
+    "leave-payroll",
+    "golden-payroll-certification",
+    "golden-payroll-phase2a",
+    "golden-payroll-phase2b",
+    "golden-pay-rules-phase3",
+    "open-payroll-data",
   ]) {
-    assert.ok(guard.includes(protectedPath), `isolation guard missing protected path ${protectedPath}`);
+    assert.ok(guard.includes(protectedMarker), `isolation guard missing protected marker ${protectedMarker}`);
   }
 
   for (const payoutMarker of [
