@@ -40,6 +40,12 @@ export type PayrollPayoutState = {
     pending: number;
     failed: number;
     unknown: number;
+    expectedAmountCents: number;
+    settledAmountCents: number;
+    pendingAmountCents: number;
+    failedAmountCents: number;
+    unknownAmountCents: number;
+    settlementVarianceCents: number;
     checkedAt: string | null;
     canRetryFailed: boolean;
     settlementRegressed: boolean;
@@ -193,6 +199,31 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
   const unreported = Math.max(0, total - succeeded - failed - unknown - explicitPending);
   const pending = explicitPending + unreported;
 
+  const submittedExpectedAmounts = providerSubmissions
+    .map((event) => Number(metadata(event).expectedAmountCents))
+    .filter((value) => Number.isFinite(value) && value >= 0);
+  const snapshotExpectedAmount = Number(snapshotMeta.expectedAmountCents);
+  if (Number.isFinite(snapshotExpectedAmount) && snapshotExpectedAmount >= 0) {
+    submittedExpectedAmounts.push(snapshotExpectedAmount);
+  }
+  const expectedAmountCents =
+    submittedExpectedAmounts.length > 0
+      ? submittedExpectedAmounts.at(-1)!
+      : transfers.reduce((sum, transfer) => sum + transfer.amountCents, 0);
+  const amountFor = (status: PayrollPayoutTransferState["status"]) =>
+    transfers
+      .filter((transfer) => transfer.status === status)
+      .reduce((sum, transfer) => sum + transfer.amountCents, 0);
+  const settledAmountCents = amountFor("succeeded");
+  const explicitPendingAmountCents = amountFor("pending");
+  const failedAmountCents = amountFor("failed");
+  const unknownAmountCents = amountFor("unknown");
+  const reportedAmountCents =
+    settledAmountCents + explicitPendingAmountCents + failedAmountCents + unknownAmountCents;
+  const unreportedAmountCents = Math.max(0, expectedAmountCents - reportedAmountCents);
+  const pendingAmountCents = explicitPendingAmountCents + unreportedAmountCents;
+  const settlementVarianceCents = expectedAmountCents - settledAmountCents;
+
   const batchIds: string[] = [];
   const seenBatchIds = new Set<string>();
   for (const event of [...providerSubmissions].reverse()) {
@@ -339,6 +370,12 @@ export function derivePayrollPayoutState(events: AuditEvent[], runId: number): P
       pending,
       failed,
       unknown,
+      expectedAmountCents,
+      settledAmountCents,
+      pendingAmountCents,
+      failedAmountCents,
+      unknownAmountCents,
+      settlementVarianceCents,
       checkedAt: latestCheckedAt,
       canRetryFailed: failed > 0,
       settlementRegressed,
