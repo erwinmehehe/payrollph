@@ -286,6 +286,13 @@ const defaultAction = (id: string): ActionDraft => ({
 const formatDateTime = (value: string) =>
   new Date(value).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
 
+const formatPeso = (value: number) =>
+  new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    maximumFractionDigits: 0,
+  }).format(value);
+
 function conditionCount(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return 0;
   const row = value as Record<string, unknown>;
@@ -634,6 +641,20 @@ export function AutomationStudioPanel({
   }
 
   async function publishRule(rule: AutomationRule) {
+    const currentPreview = impactPreview
+      && impactPreview.draft.ruleId === rule.id
+      && impactPreview.draft.version === rule.draftVersion
+      ? impactPreview
+      : null;
+    if (!currentPreview) {
+      setNotice("Run Impact Preview for this exact draft before publishing.");
+      return;
+    }
+    if (currentPreview.preview.definitionError || currentPreview.preview.authoritativePolicyBlocks > 0) {
+      setNotice("Resolve the authoritative Impact Preview policy blocks before publishing.");
+      return;
+    }
+
     try {
       const response = await fetch("/api/automation-studio", {
         method: "POST",
@@ -645,7 +666,18 @@ export function AutomationStudioPanel({
         }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error ?? "Could not publish automation draft.");
+      if (!response.ok) {
+        if (payload.impactPreview) {
+          setImpactPreview({
+            draft: currentPreview.draft,
+            generatedAt: new Date().toISOString(),
+            dataNote: currentPreview.dataNote,
+            preview: payload.impactPreview,
+          });
+        }
+        throw new Error(payload.error ?? "Could not publish automation draft.");
+      }
+      setImpactPreview(null);
       await load();
       setNotice(`${rule.name} published as version ${payload.published?.version ?? ""}.`);
     } catch (error) {
