@@ -4,12 +4,14 @@ import {
   employees,
   orgUnits,
   performanceCalibrationEntries,
+  performanceCalibrationFlags,
   performanceCalibrationSessions,
   performanceCycles,
   performanceFeedback,
   performanceGoals,
   performanceOneOnOnes,
   performanceReminderTasks,
+  performanceReviewItems,
   performanceReviews,
   userOrganizations,
   users,
@@ -167,6 +169,14 @@ export async function GET(request: Request) {
     && item.occurredAt.getTime() <= cycleEnd,
   );
 
+  const reviewIds = new Set(reviews.map((review) => review.id));
+  const competencyItems = (await db.select().from(performanceReviewItems)
+    .where(eq(performanceReviewItems.organizationId, organizationId)))
+    .filter((item) => reviewIds.has(item.reviewId) && item.expectedProficiency != null && item.finalScore != null);
+  const belowRoleExpectation = competencyItems.filter((item) =>
+    Number(item.finalScore) < Number(item.expectedProficiency)
+  );
+
   const completed = reviews.filter((review) => review.status === "completed");
   const scores = completed
     .map((review) => review.finalScore == null ? null : Number(review.finalScore))
@@ -249,12 +259,21 @@ export async function GET(request: Request) {
     status: string;
     changedRatings: number;
     totalRatings: number;
+    openFlags: number;
+    acceptedFlags: number;
+    resolvedFlags: number;
   } = null;
   if (companyPeopleAdmin && calibrationSessions[0]) {
-    const entries = await db.select().from(performanceCalibrationEntries).where(and(
-      eq(performanceCalibrationEntries.organizationId, organizationId),
-      eq(performanceCalibrationEntries.sessionId, calibrationSessions[0].id),
-    ));
+    const [entries, flags] = await Promise.all([
+      db.select().from(performanceCalibrationEntries).where(and(
+        eq(performanceCalibrationEntries.organizationId, organizationId),
+        eq(performanceCalibrationEntries.sessionId, calibrationSessions[0].id),
+      )),
+      db.select().from(performanceCalibrationFlags).where(and(
+        eq(performanceCalibrationFlags.organizationId, organizationId),
+        eq(performanceCalibrationFlags.sessionId, calibrationSessions[0].id),
+      )),
+    ]);
     calibration = {
       status: calibrationSessions[0].status,
       changedRatings: entries.filter((entry) =>
@@ -262,6 +281,9 @@ export async function GET(request: Request) {
         && Math.abs(Number(entry.calibratedScore) - Number(entry.originalScore)) > 0.001
       ).length,
       totalRatings: entries.length,
+      openFlags: flags.filter((flag) => flag.status === "open").length,
+      acceptedFlags: flags.filter((flag) => flag.status === "accepted").length,
+      resolvedFlags: flags.filter((flag) => flag.status === "resolved").length,
     };
   }
 
@@ -276,6 +298,8 @@ export async function GET(request: Request) {
       oneOnOneCoverage: percentage(completedMeetingEmployeeIds.size, activeVisibleEmployees.length),
       openReminders: openReminders.length,
       overdueReminders: overdueReminders.length,
+      roleCompetencyItems: competencyItems.length,
+      belowRoleExpectation: belowRoleExpectation.length,
     },
     byManager,
     byOrgUnit,
