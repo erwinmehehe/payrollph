@@ -12,27 +12,48 @@ export type ApprovalChainStepDefinition = {
   approver: string;
   dueLabel?: string;
   priority?: string;
+  minimumAmount?: number;
 };
 
 function normalizeApprovalChainSteps(value: unknown): ApprovalChainStepDefinition[] | null {
   if (!Array.isArray(value) || value.length < 1 || value.length > 12) return null;
   const steps: ApprovalChainStepDefinition[] = [];
-  for (const raw of value) {
+  let previousMinimum = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const raw = value[index];
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
     const row = raw as Record<string, unknown>;
     const label = String(row.label ?? "").trim();
     const approver = String(row.approver ?? "").trim();
     const dueLabel = String(row.dueLabel ?? "Review required").trim();
     const priority = String(row.priority ?? "Normal").trim();
-    if (!label || !approver) return null;
+    const minimumRaw = row.minimumAmount == null || row.minimumAmount === "" ? 0 : Number(row.minimumAmount);
+    if (!label || !approver || !Number.isFinite(minimumRaw) || minimumRaw < 0 || minimumRaw > 999_999_999_999.99) {
+      return null;
+    }
+    const minimumAmount = Math.round(minimumRaw * 100) / 100;
+    if (index === 0 && minimumAmount !== 0) return null;
+    if (minimumAmount < previousMinimum) return null;
+    previousMinimum = minimumAmount;
     steps.push({
       label: label.slice(0, 120),
       approver: approver.slice(0, 120),
       dueLabel: dueLabel.slice(0, 80) || "Review required",
       priority: priority.slice(0, 32) || "Normal",
+      minimumAmount,
     });
   }
   return steps;
+}
+
+export function approvalStepsForAmount(
+  steps: ApprovalChainStepDefinition[],
+  amount?: number | null,
+) {
+  if (amount == null) return steps;
+  if (!Number.isFinite(amount) || amount < 0) throw new Error("Approval amount must be a non-negative finite number.");
+  const rounded = Math.round(amount * 100) / 100;
+  return steps.filter((step) => Number(step.minimumAmount ?? 0) <= rounded);
 }
 
 export function validateApprovalChainSteps(value: unknown) {
@@ -49,6 +70,9 @@ export async function createApprovalFromConfiguredChain(input: {
   fallbackApprover: string;
   dueLabel?: string;
   priority?: string;
+  amount?: number | null;
+  amountCurrency?: string;
+  amountBasis?: string;
 }) {
   const chainCode = String(input.chainCode ?? "").trim();
   if (!chainCode) {
@@ -72,6 +96,14 @@ export async function createApprovalFromConfiguredChain(input: {
 
   const steps = normalizeApprovalChainSteps(policy.steps);
   if (!steps) throw new Error(`Approval chain "${chainCode}" has an invalid step definition.`);
+  const amount = input.amount == null ? null : Math.round(Number(input.amount) * 100) / 100;
+  if (amount != null && (!Number.isFinite(amount) || amount < 0)) {
+    throw new Error("Approval amount must be a non-negative finite number.");
+  }
+  const amountCurrency = amount == null ? null : String(input.amountCurrency ?? "PHP").trim().toUpperCase().slice(0, 3);
+  const amountBasis = amount == null ? null : String(input.amountBasis ?? "declared_amount").trim().slice(0, 64);
+  const routedSteps = approvalStepsForAmount(steps, amount);
+  if (routedSteps.length < 1) throw new Error(`Approval chain "${chainCode}" has no applicable approval step.`);
 
   return db.transaction(async (tx) => {
     const [existing] = await tx.select().from(approvalChainInstances).where(and(
@@ -80,6 +112,15 @@ export async function createApprovalFromConfiguredChain(input: {
       eq(approvalChainInstances.sourceKey, input.sourceKey),
     )).limit(1);
     if (existing) {
+      const existingAmount = existing.amount == null ? null : Number(existing.amount);
+      if (
+        existing.policyCode !== policy.code
+        || existingAmount !== amount
+        || (existing.amountCurrency ?? null) !== amountCurrency
+        || (existing.amountBasis ?? null) !== amountBasis
+      ) {
+        throw new Error("Approval chain idempotency conflict: routing inputs changed after the chain started.");
+      }
       const [step] = await tx.select().from(approvalChainInstanceSteps).where(and(
         eq(approvalChainInstanceSteps.instanceId, existing.id),
         eq(approvalChainInstanceSteps.stepIndex, existing.currentStepIndex),
@@ -100,10 +141,20 @@ export async function createApprovalFromConfiguredChain(input: {
       sourceKey: input.sourceKey.slice(0, 160),
       status: "pending",
       currentStepIndex: 0,
-      stepsSnapshot: steps,
+      stepsSnapshot: routedSteps,
+      amount: amount == null ? null : amount.toFixed(2),
+      amountCurrency,
+      amountBasis,
+      routingSnapshot: {
+        amount,
+        amountCurrency,
+        amountBasis,
+        policySteps: steps,
+        appliedSteps: routedSteps,
+      },
     }).returning();
 
-    const first = steps[0];
+    const first = routedSteps[0];
     const [task] = await tx.insert(approvalTasks).values({
       organizationId: input.organizationId,
       title: input.title.slice(0, 180),
