@@ -7,6 +7,8 @@ import {
   performanceCalibrationEntries,
   performanceCalibrationFlags,
   performanceCalibrationSessions,
+  performanceCycleEvidenceAmendments,
+  performanceCycleEvidenceSeals,
   performanceCycles,
   performanceFeedback,
   performanceGoals,
@@ -224,6 +226,59 @@ export async function buildPerformanceEvidencePackage(input: {
     employee,
     sectionHashes,
   };
+  const snapshotHash = sha256(identity);
+
+  const cycleIdList = [...cycleIds];
+  const seals = cycleIdList.length
+    ? await db.select().from(performanceCycleEvidenceSeals).where(and(
+        eq(performanceCycleEvidenceSeals.organizationId, input.organizationId),
+        inArray(performanceCycleEvidenceSeals.cycleId, cycleIdList),
+      ))
+    : [];
+  const sealIds = seals.map((seal) => seal.id);
+  const amendments = sealIds.length
+    ? await db.select().from(performanceCycleEvidenceAmendments).where(and(
+        eq(performanceCycleEvidenceAmendments.organizationId, input.organizationId),
+        inArray(performanceCycleEvidenceAmendments.sealId, sealIds),
+      ))
+    : [];
+
+  const sealVerification = seals.map((seal) => {
+    const manifest = seal.manifest && typeof seal.manifest === "object" && !Array.isArray(seal.manifest)
+      ? seal.manifest as Record<string, unknown>
+      : {};
+    const employeeEvidence = Array.isArray(manifest.employeeEvidence)
+      ? manifest.employeeEvidence as Array<Record<string, unknown>>
+      : [];
+    const employeeEntry = employeeEvidence.find((entry) => Number(entry.employeeId) === input.employeeId) ?? null;
+    const expectedEvidenceHash = employeeEntry ? String(employeeEntry.evidenceHash ?? "") : null;
+    return {
+      cycleId: seal.cycleId,
+      sealId: seal.id,
+      sealedAt: seal.sealedAt,
+      retentionUntil: seal.retentionUntil,
+      legalHold: seal.legalHold,
+      manifestHash: seal.manifestHash,
+      expectedEmployeeEvidenceHash: expectedEvidenceHash,
+      currentEmployeeEvidenceHash: input.cycleId === seal.cycleId ? snapshotHash : null,
+      employeeEvidenceMatchesSeal:
+        input.cycleId === seal.cycleId && expectedEvidenceHash
+          ? expectedEvidenceHash === snapshotHash
+          : null,
+      latestAmendmentNumber: seal.latestAmendmentNumber,
+      amendments: amendments
+        .filter((item) => item.sealId === seal.id)
+        .map((item) => ({
+          amendmentNumber: item.amendmentNumber,
+          employeeId: item.employeeId,
+          reason: item.reason,
+          detail: item.detail,
+          chainHash: item.chainHash,
+          actorName: item.actorName,
+          createdAt: item.createdAt,
+        })),
+    };
+  });
 
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -246,7 +301,8 @@ export async function buildPerformanceEvidencePackage(input: {
     sections,
     snapshot: {
       sectionHashes,
-      sha256: sha256(identity),
+      sha256: snapshotHash,
     },
+    sealVerification,
   };
 }
