@@ -35,7 +35,7 @@ export default function Demo() {
             <div className="system-demo-toolbar">
               <div>
                 <span className="system-demo-kicker">Interactive payroll workflow</span>
-                <strong>Masigla Foods · Linaw workspace</strong>
+                <strong>Sample company · Linaw workspace</strong>
               </div>
               <a href="/demo" className="system-demo-open">
                 Open role-based sandbox
