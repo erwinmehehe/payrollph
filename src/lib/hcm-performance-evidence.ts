@@ -42,7 +42,7 @@ export async function buildPerformanceEvidencePackage(input: {
     title: employees.title,
     orgUnitId: employees.orgUnitId,
     status: employees.status,
-    hireDate: employees.hireDate,
+    startDate: employees.startDate,
     employmentType: employees.employmentType,
   }).from(employees).where(and(
     eq(employees.id, input.employeeId),
