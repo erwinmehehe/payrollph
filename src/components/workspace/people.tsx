@@ -28,6 +28,25 @@ import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, mo
 
 type SortKey = "name" | "basicRate" | "status";
 
+type PayoutDestinationChangeRequest = {
+  id: number;
+  employeeId: number;
+  status: string;
+  reason: string;
+  originalSnapshot: unknown;
+  proposedBankCode: string | null;
+  proposedMobile: string | null;
+  proposedMaskedAccount: string | null;
+  requestedByUserId: number;
+  requestedByName: string;
+  requestedAt: string;
+  decidedByUserId: number | null;
+  decidedByName: string | null;
+  decisionNote: string | null;
+  decidedAt: string | null;
+  appliedAt: string | null;
+};
+
 type ConnectedWorkerProfile = {
   position: null | {
     id: number;
@@ -716,7 +735,12 @@ function PersonDrawer({
   const [replacementBankAccount, setReplacementBankAccount] = useState("");
   const [bankCode, setBankCode] = useState(employee.bankCode ?? "");
   const [mobile, setMobile] = useState(employee.mobile ?? "");
+  const [payoutChangeReason, setPayoutChangeReason] = useState("");
   const [payoutError, setPayoutError] = useState("");
+  const [payoutNotice, setPayoutNotice] = useState("");
+  const [payoutChangeRequests, setPayoutChangeRequests] = useState<PayoutDestinationChangeRequest[]>([]);
+  const [payoutDecisionBusy, setPayoutDecisionBusy] = useState(false);
+  const [payoutDecisionNote, setPayoutDecisionNote] = useState("");
   const [connectedProfile, setConnectedProfile] = useState<ConnectedWorkerProfile | null>(null);
   const [connectedLoading, setConnectedLoading] = useState(false);
   const [connectedError, setConnectedError] = useState("");
