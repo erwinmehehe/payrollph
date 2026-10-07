@@ -1,6 +1,8 @@
 import { and, asc, eq, gte, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  benefitEnrollments,
+  benefitPlans,
   costCenters,
   employeeLaborAllocations,
   employeePayProfiles,
@@ -78,6 +80,8 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
     worksiteAssignmentRows,
     jobProfileRows,
     positionAssignmentRows,
+    benefitPlanRows,
+    benefitEnrollmentRows,
   ] = await Promise.all([
     db.select().from(employees)
       .where(eq(employees.organizationId, input.organizationId))
@@ -145,6 +149,14 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
         asc(positionAssignments.effectiveFrom),
         asc(positionAssignments.id),
       ),
+    db.select().from(benefitPlans).where(and(
+      eq(benefitPlans.active, true),
+      or(isNull(benefitPlans.organizationId), eq(benefitPlans.organizationId, input.organizationId)),
+    )),
+    db.select().from(benefitEnrollments).where(and(
+      eq(benefitEnrollments.organizationId, input.organizationId),
+      eq(benefitEnrollments.status, "active"),
+    )),
   ]);
 
   const requestedWorksite = input.worksiteId == null
@@ -236,6 +248,18 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
     jobProfileId: row.jobProfileId,
   })));
 
+  const benefitPlanById = new Map(benefitPlanRows.map((plan) => [plan.id, plan]));
+  const employerBenefitMonthlyByEmployee = new Map<number, number>();
+  for (const enrollment of benefitEnrollmentRows) {
+    if (!visibleEmployeeIds.has(enrollment.employeeId)) continue;
+    const plan = benefitPlanById.get(enrollment.planId);
+    if (!plan) continue;
+    employerBenefitMonthlyByEmployee.set(
+      enrollment.employeeId,
+      (employerBenefitMonthlyByEmployee.get(enrollment.employeeId) ?? 0) + Number(plan.employerShare),
+    );
+  }
+
   const forecast = buildWorkforceDemandForecast({
     assumptions: {
       startDate: input.startDate,
@@ -258,6 +282,10 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
         standardWorkDaysPerMonth: profile.standardWorkDaysPerMonth,
         standardHoursPerDay: profile.standardHoursPerDay,
       })),
+    employerBenefits: [...employerBenefitMonthlyByEmployee.entries()].map(([employeeId, monthlyEmployerCost]) => ({
+      employeeId,
+      monthlyEmployerCost,
+    })),
     positions: visiblePositions.map((position) => ({
       id: position.id,
       status: position.status,
@@ -341,18 +369,30 @@ export function redactWorkforceForecastCosts<T extends {
     summary: {
       ...forecast.summary,
       annualizedBasePayroll: null,
+      annualizedEmployerStatutory: null,
+      annualizedEmployerBenefits: null,
       vacantAnnualBudget: null,
+      annualRunRateEmployerStatutory: null,
+      annualRunRateEmployerBenefits: null,
       annualRunRateLaborCost: null,
       currentPeriodBasePayroll: null,
+      currentPeriodEmployerStatutory: null,
+      currentPeriodEmployerBenefits: null,
       expectedVacancyPeriodCost: null,
+      expectedVacancyPeriodStatutory: null,
+      expectedVacancyPeriodBenefits: null,
       employerLoadCost: null,
+      forecastPeriodEmployerStatutory: null,
+      forecastPeriodEmployerBenefits: null,
       forecastPeriodLaborCost: null,
       averageBaseHourlyRate: null,
+      averageLoadedHourlyRate: null,
       estimatedShiftDemandWageCost: null,
     },
     costCenters: [],
     unallocated: {
       currentPeriodBaseCost: null,
+      currentPeriodLoadedCost: null,
       plannedVacancyPeriodCost: null,
     },
   };
