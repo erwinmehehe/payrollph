@@ -3703,5 +3703,7 @@ export const attendanceExceptionEvents = pgTable(
     ),
     index("attendance_exception_events_open_idx").on(table.organizationId, table.status, table.workDate, table.employeeId),
     index("attendance_exception_events_employee_idx").on(table.organizationId, table.employeeId, table.workDate),
+    check("attendance_exception_events_severity_check", sql`${table.severity} in ('info','warning','blocker')`),
+    check("attendance_exception_events_status_check", sql`${table.status} in ('open','resolved')`),
   ],
 );
