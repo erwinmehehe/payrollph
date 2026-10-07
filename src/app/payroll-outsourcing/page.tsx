@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Payroll Outsourcing Philippines | Managed Payroll | Linaw",
   description: "Payroll outsourcing for Philippine businesses with approved inputs, payroll validation, exception review, approvals and supported payslip and reporting outputs.",
-  alternates: {canonical:"/payroll-outsourcing"},
+  alternates: { canonical: "/payroll-outsourcing" },
   openGraph: {title:"Payroll Outsourcing Philippines | Linaw",description:"Managed payroll processing with traceable inputs, approvals and supported outputs.",url:"/payroll-outsourcing"},
   twitter: {
     card: "summary_large_image",
