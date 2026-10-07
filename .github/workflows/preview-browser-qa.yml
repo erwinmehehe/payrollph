@@ -280,6 +280,26 @@ jobs:
               const h1 = (await page.locator("h1").first().innerText()).trim();
               check(h1.includes(route.heading), `${route.path}: expected heading "${route.heading}" not found; saw "${h1}"`);
               check((await page.getByRole("navigation", { name: "Primary" }).count()) >= 1, `${route.path}: shared primary navigation is missing`);
+              if (route.path === "/demo") {
+                const picker = page.getByRole("tablist", { name: "Demo roles" });
+                check((await picker.getByRole("tab").count()) === 6, "/demo must expose all six role contracts");
+                check((await page.getByTestId("app-role-preview").count()) === 1, "/demo must use the same product UI as the homepage");
+                await picker.getByRole("tab", { name: /Owner/ }).click();
+                check((await page.getByRole("heading", { name: "Ready for payday" }).count()) === 1, "/demo Owner preview must mirror the current app");
+                await picker.getByRole("tab", { name: /Bookkeeper/ }).click();
+                check((await page.getByRole("heading", { name: "Payroll close" }).count()) === 1, "/demo Bookkeeper preview missing");
+                check((await page.getByRole("button", { name: /Open Bookkeeper workspace/ }).count()) === 1, "/demo must keep functional persona launch action");
+                await picker.getByRole("tab", { name: /Payroll Officer/ }).click();
+                await page.screenshot({ path: outDir + "/demo-role-picker-desktop.png", fullPage: true });
+                await page.setViewportSize({ width: 390, height: 844 });
+                const narrow = await page.evaluate(() => ({
+                  inner: window.innerWidth,
+                  scroll: document.documentElement.scrollWidth,
+                }));
+                check(narrow.scroll <= narrow.inner+1, "/demo must not horizontally scroll on mobile");
+                await page.screenshot({ path: outDir + "/demo-role-picker-mobile.png", fullPage: true });
+                await page.setViewportSize({ width: 1280, height: 900 });
+              }
               if (route.path === "/login") {
                 check((await page.locator("footer").count()) === 0, "/login: marketing footer should not distract from authentication");
               } else {
