@@ -24,6 +24,7 @@ import type {
   OvertimeRequestKind,
   OvertimeRequestStatus,
 } from "@/lib/workforce-overtime";
+import { attendanceExceptionSlaDueAt } from "@/lib/workforce-attendance-exception-governance";
 
 export function attendanceExceptionFingerprint(input: {
   workDate: string;
@@ -223,6 +224,10 @@ export async function reconcileAttendanceExceptionEvents(input: {
         minutes: item.exception.minutes ?? null,
         message: item.exception.message,
         status: "open",
+        slaDueAt: found.slaDueAt ?? attendanceExceptionSlaDueAt({
+          firstDetectedAt: found.firstDetectedAt,
+          severity: item.exception.severity,
+        }),
         lastDetectedAt: now,
         resolvedAt: null,
         updatedAt: now,
@@ -241,6 +246,10 @@ export async function reconcileAttendanceExceptionEvents(input: {
       message: item.exception.message,
       fingerprintSha256: item.fingerprint,
       status: "open",
+      slaDueAt: attendanceExceptionSlaDueAt({
+        firstDetectedAt: now,
+        severity: item.exception.severity,
+      }),
       firstDetectedAt: now,
       lastDetectedAt: now,
       createdAt: now,
