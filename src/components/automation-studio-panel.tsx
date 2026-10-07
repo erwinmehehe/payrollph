@@ -538,7 +538,8 @@ export function AutomationStudioPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           organizationId,
-          action: "save-rule",
+          action: editingRuleId ? "save-draft" : "save-rule",
+          ...(editingRuleId ? { ruleId: editingRuleId } : {}),
           name,
           trigger,
           conditions: {
@@ -554,9 +555,81 @@ export function AutomationStudioPanel({
       resetBuilder();
       setShowBuilder(false);
       await load();
-      setNotice("Automation Studio rule saved.");
+      setNotice(editingRuleId
+        ? "Draft staged. The live workflow is unchanged until you publish it."
+        : "Automation Studio rule saved and published.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not save automation rule.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function publishDraft(rule: AutomationRule) {
+    setSaving(true);
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action: "publish-draft",
+          ruleId: rule.id,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not publish the staged draft.");
+      await load();
+      setNotice(`${rule.name} draft published as version ${payload.rule?.publishedVersion ?? payload.version?.version ?? ""}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not publish the staged draft.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function discardDraft(rule: AutomationRule) {
+    setSaving(true);
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action: "discard-draft",
+          ruleId: rule.id,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not discard the staged draft.");
+      await load();
+      setNotice(`${rule.name} draft pointer cleared. Version history was preserved.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not discard the staged draft.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function rollbackRule(rule: AutomationRule, targetVersion: number) {
+    setSaving(true);
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action: "rollback-rule",
+          ruleId: rule.id,
+          targetVersion,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not roll back this workflow.");
+      await load();
+      setNotice(`${rule.name} rolled back to version ${targetVersion}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not roll back this workflow.");
     } finally {
       setSaving(false);
     }
