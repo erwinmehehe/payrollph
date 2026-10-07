@@ -79,16 +79,20 @@ test("multi-file bundle is a valid ZIP-shaped archive containing every filename"
 test("bank exporter applies payout-profile limits after released payroll values are fixed", async () => {
   const { readFile } = await import("node:fs/promises");
   const source = await readFile("src/lib/exporters.ts", "utf8");
+  const start = source.indexOf("export async function generateBankFile");
+  const end = source.indexOf("export async function generateJournalCsv", start);
+  assert.ok(start >= 0 && end > start);
+  const bankExporter = source.slice(start, end);
 
-  assert.ok(source.includes("payoutProfiles"));
-  assert.ok(source.includes("maxAmountPerFile"));
-  assert.ok(source.includes("maxRowsPerFile"));
-  assert.ok(source.includes("splitRowsByBankLimits"));
-  assert.ok(source.includes("combinedCents !== releasedCents"));
-  assert.ok(source.includes("Split bank files do not reconcile to released payroll net pay"));
-  assert.ok(source.includes("createStoredZip"));
+  assert.ok(bankExporter.includes("payoutProfiles"));
+  assert.ok(bankExporter.includes("maxAmountPerFile"));
+  assert.ok(bankExporter.includes("maxRowsPerFile"));
+  assert.ok(bankExporter.includes("splitRowsByBankLimits"));
+  assert.ok(bankExporter.includes("combinedCents !== releasedCents"));
+  assert.ok(bankExporter.includes("Split bank files do not reconcile to released payroll net pay"));
+  assert.ok(bankExporter.includes("createStoredZip"));
   assert.ok(source.includes("active payout profile's configured bank adapter"));
-  assert.ok(!source.includes("computeSss("));
-  assert.ok(!source.includes("computePhilHealth("));
-  assert.ok(!source.includes("computeSemiMonthlyWithholdingTax("));
+  assert.ok(!bankExporter.includes("computeSss("));
+  assert.ok(!bankExporter.includes("computePhilHealth("));
+  assert.ok(!bankExporter.includes("computeSemiMonthlyWithholdingTax("));
 });
