@@ -125,9 +125,15 @@ export function dynamicGroupClauseMatches(
   }
 
   if (clause.operator === "eq") {
+    if (Array.isArray(actual)) {
+      return actual.some((item) => item === expected || String(item ?? "") === String(expected ?? ""));
+    }
     return actual === expected || String(actual ?? "") === String(expected ?? "");
   }
   if (clause.operator === "neq") {
+    if (Array.isArray(actual)) {
+      return !actual.some((item) => item === expected || String(item ?? "") === String(expected ?? ""));
+    }
     return !(actual === expected || String(actual ?? "") === String(expected ?? ""));
   }
 
