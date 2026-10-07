@@ -71,29 +71,6 @@ export async function createPayoutDestinationChangeRequest(input: {
   const policy = await treasuryControlPolicy(input.organizationId);
   if (!policy?.enabled) return null;
 
-  const [employee] = await db.select().from(employees).where(and(
-    eq(employees.id, input.employeeId),
-    eq(employees.organizationId, input.organizationId),
-  )).limit(1);
-  if (!employee) throw new Error("Employee not found.");
-
-  const proposedBankAccount = input.replacementBankAccount
-    ? encryptBankAccount(input.replacementBankAccount)
-    : employee.bankAccount;
-  const proposedBankCode = normalizeCode(input.bankCode);
-  const proposedMobile = normalizeMobile(input.mobile);
-
-  if (Boolean(proposedBankAccount) !== Boolean(proposedBankCode)) {
-    throw new Error("Bank account and bank code must be complete together before payroll payout.");
-  }
-
-  const accountChanged = !sameBankAccount(employee.bankAccount, proposedBankAccount);
-  const bankChanged = normalizeCode(employee.bankCode) !== proposedBankCode;
-  const mobileChanged = normalizeMobile(employee.mobile) !== proposedMobile;
-  if (!accountChanged && !bankChanged && !mobileChanged) {
-    throw new Error("The proposed payout destination is unchanged.");
-  }
-
   const reason = input.reason.trim();
   if (!reason) throw new Error("A reason is required for a payout destination change.");
 
@@ -109,6 +86,23 @@ export async function createPayoutDestinationChangeRequest(input: {
       eq(employees.organizationId, input.organizationId),
     )).limit(1);
     if (!currentEmployee) throw new Error("Employee not found.");
+
+    const proposedBankAccount = input.replacementBankAccount
+      ? encryptBankAccount(input.replacementBankAccount)
+      : currentEmployee.bankAccount;
+    const proposedBankCode = normalizeCode(input.bankCode);
+    const proposedMobile = normalizeMobile(input.mobile);
+
+    if (Boolean(proposedBankAccount) !== Boolean(proposedBankCode)) {
+      throw new Error("Bank account and bank code must be complete together before payroll payout.");
+    }
+
+    const accountChanged = !sameBankAccount(currentEmployee.bankAccount, proposedBankAccount);
+    const bankChanged = normalizeCode(currentEmployee.bankCode) !== proposedBankCode;
+    const mobileChanged = normalizeMobile(currentEmployee.mobile) !== proposedMobile;
+    if (!accountChanged && !bankChanged && !mobileChanged) {
+      throw new Error("The proposed payout destination is unchanged.");
+    }
 
     const [existing] = await tx.select().from(employeePayoutChangeRequests).where(and(
       eq(employeePayoutChangeRequests.organizationId, input.organizationId),
