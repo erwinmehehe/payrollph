@@ -17,6 +17,7 @@ type LockRow = {
 };
 
 type LockPayload = {
+  canManage: boolean;
   policy: { requirePayrollCutoffLock: boolean };
   locks: LockRow[];
 };
@@ -98,7 +99,14 @@ export function AttendanceLockControl({
         <Status value={cutoffLock ? "Payroll cutoff locked" : attendanceLock ? "Capture locked" : "Open"} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto auto", gap: 10, alignItems: "end", marginTop: 12 }}>
+      {!payload?.canManage && (
+        <div className="notice notice-slate" style={{ margin: "12px 0 0" }}>
+          <ShieldCheck size={14} className="i-green" />
+          <span>Lock status is visible here. Company-wide People or Payroll access is required to change period locks.</span>
+        </div>
+      )}
+
+      {payload?.canManage && <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto auto", gap: 10, alignItems: "end", marginTop: 12 }}>
         <label className="id" style={{ display: "grid", gap: 5 }}>
           Reason
           <input
@@ -134,9 +142,9 @@ export function AttendanceLockControl({
         >
           {busy ? <Spinner label="Saving" /> : <ShieldCheck size={14} />} Lock payroll cutoff
         </button>
-      </div>
+      </div>}
 
-      {(attendanceLock || cutoffLock) && (
+      {payload?.canManage && (attendanceLock || cutoffLock) && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
           {[attendanceLock, cutoffLock].filter((row): row is LockRow => Boolean(row)).map((row) => (
             <button
@@ -155,7 +163,7 @@ export function AttendanceLockControl({
         </div>
       )}
 
-      <label className="notice notice-slate" style={{ margin: "12px 0 0", display: "flex", gap: 8, alignItems: "center" }}>
+      {payload?.canManage && <label className="notice notice-slate" style={{ margin: "12px 0 0", display: "flex", gap: 8, alignItems: "center" }}>
         <input
           type="checkbox"
           checked={Boolean(payload?.policy.requirePayrollCutoffLock)}
@@ -168,7 +176,7 @@ export function AttendanceLockControl({
         <span>
           Require an active payroll-cutoff lock before payroll calculation.
         </span>
-      </label>
+      </label>}
     </article>
   );
 }
