@@ -1299,12 +1299,12 @@ export async function POST(request: Request) {
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return mfaDenied;
 
-    const requested = Array.isArray(body.assignments) ? body.assignments : [];
+    const requested: unknown[] = Array.isArray(body.assignments) ? body.assignments : [];
     if (requested.length === 0 || requested.length > 50) {
       return Response.json({ error: "Recovery plan must contain 1 to 50 proposed assignments." }, { status: 400 });
     }
 
-    const assignments = requested.map((row: unknown) => {
+    const assignments: Array<{ requirementId: number; employeeId: number }> = requested.map((row: unknown) => {
       const value = row as { requirementId?: unknown; employeeId?: unknown };
       return {
         requirementId: Number(value.requirementId),
@@ -1324,8 +1324,8 @@ export async function POST(request: Request) {
       duplicateKey.add(key);
     }
 
-    const requirementIds = [...new Set(assignments.map((row) => row.requirementId))];
-    const employeeIdsRequested = [...new Set(assignments.map((row) => row.employeeId))];
+    const requirementIds: number[] = [...new Set<number>(assignments.map((row) => row.requirementId))];
+    const employeeIdsRequested: number[] = [...new Set<number>(assignments.map((row) => row.employeeId))];
     const [requirementRows, employeeRows] = await Promise.all([
       db.select().from(staffingRequirements).where(and(
         eq(staffingRequirements.organizationId, organizationId),
@@ -1435,7 +1435,9 @@ export async function POST(request: Request) {
       const results: Array<{ requirementId: number; openShiftId: number; claimId: number; employeeId: number }> = [];
       for (const requirementId of requirementIds) {
         const requirement = requirementById.get(requirementId)!;
-        const proposals = assignments.filter((row) => row.requirementId === requirementId);
+        const proposals: Array<{ requirementId: number; employeeId: number }> = assignments.filter(
+          (row: { requirementId: number; employeeId: number }) => row.requirementId === requirementId,
+        );
         let [openShift] = await tx.select().from(openShifts).where(and(
           eq(openShifts.organizationId, organizationId),
           eq(openShifts.sourceRequirementId, requirementId),
