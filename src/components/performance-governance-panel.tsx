@@ -456,7 +456,6 @@ export function PerformanceGovernancePanel({
               {review.selfScore && <div className="notice notice-green"><span>{"Employee self-assessment: " + Number(review.selfScore).toFixed(1) + "/5 · " + (review.employeeReflection ?? "No reflection")}</span></div>}
               {items.map((item) => {
                 const template = templateById.get(item.templateId);
-                const link = cycleTemplates.find((row) => row.cycleId === review.cycleId && row.templateId === item.templateId);
                 return (
                   <div className="leave-request" key={item.id}>
                     <div style={{ flex: 1 }}>
