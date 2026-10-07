@@ -158,10 +158,10 @@ test("homepage buyer flow stays concise and ordered around the purchasing decisi
     "<Pricing plans={plans} />",
     "<FAQ />",
     "<PlatformFinalCTA />",
-  ].map(token => [token, home.indexOf(token)]);
+  ].map(token => ({ token, index: home.indexOf(token) }));
 
-  for (const [token,index] of order) assert.ok(index >= 0, "missing "+token);
-  for (let i=1;i<order.length;i++) assert.ok(order[i][1] > order[i-1][1], order[i][0]+" must follow "+order[i-1][0]);
+  for (const item of order) assert.ok(item.index >= 0, "missing "+item.token);
+  for (let i=1;i<order.length;i++) assert.ok(order[i].index > order[i-1].index, order[i].token+" must follow "+order[i-1].token);
 
   assert.ok(!home.includes("<Calculator />"), "salary calculator belongs in Resources, not the homepage conversion flow");
   assert.ok(!home.includes("<Audiences />"), "generic audience cards must not interrupt the payroll story");
