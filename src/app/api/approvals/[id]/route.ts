@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, auditEvents, leaveRequestIntervalSets, leaveRequests, payrollRuns } from "@/db/schema";
+import { approvalTasks, auditEvents, automationExecutions, leaveRequestIntervalSets, leaveRequests, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { dispatchWebhook } from "@/lib/webhooks";
@@ -10,6 +10,7 @@ import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { isPublicDemoIdentity } from "@/lib/demo-security";
 import { resumeAutomationExecutionFromApproval, runAutomationEventSafely } from "@/lib/automation";
 import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
+import { advanceApprovalChainAfterDecision } from "@/lib/approval-chains";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(request);
@@ -178,13 +179,34 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     throw error;
   }
 
+  const chain = await advanceApprovalChainAfterDecision({
+    taskId,
+    decision: status,
+    decidedBy: actor,
+  });
+
   let automationGate: unknown = null;
   try {
-    automationGate = await resumeAutomationExecutionFromApproval({
-      approvalTaskId: taskId,
-      decision: status,
-      decidedBy: actor,
-    });
+    if (chain.isChain && !chain.final && chain.nextTaskId) {
+      await db.update(automationExecutions).set({
+        waitingApprovalTaskId: chain.nextTaskId,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(automationExecutions.waitingApprovalTaskId, taskId),
+        eq(automationExecutions.status, "waiting_approval"),
+      ));
+      automationGate = {
+        status: "waiting_approval",
+        approvalChainInstanceId: chain.instanceId,
+        nextApprovalTaskId: chain.nextTaskId,
+      };
+    } else {
+      automationGate = await resumeAutomationExecutionFromApproval({
+        approvalTaskId: taskId,
+        decision: status,
+        decidedBy: actor,
+      });
+    }
   } catch (error) {
     automationGate = {
       status: "engine_error",
@@ -281,5 +303,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     leaveStaleTimesheetIds,
     automation,
     automationGate,
+    approvalChain: chain,
   });
 }
