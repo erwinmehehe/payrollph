@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useEffect, useState, type ReactNode } from "react";
 import { LinawMark } from "@/components/linaw-mark";
 import { DEMO_ROLES, type DemoRoleId } from "@/lib/demo-roles";
 import { workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
@@ -10,15 +12,21 @@ import {
 } from "lucide-react";
 
 /**
- * A deliberately static, clearly labelled marketing preview of the live app.
+ * A clearly labelled interactive marketing preview of the live app.
  * Mirrors the real CleanRoleDashboard / RoleOverviewV2 / EmployeeHomeDashboard
- * layout and role names, without invoking payroll APIs or representing sample
- * values as a real employer's records.
+ * role structure without invoking payroll APIs or representing sample values
+ * as a real employer's records.
  */
 export function AppProductPreview({ role, compact = false }: { role: DemoRoleId; compact?: boolean }) {
   const info = DEMO_ROLES.find((item) => item.id === role);
   const rawNav = workspacePrimaryPagesForRole(role) ?? ["My pay", "Attendance", "Leave"];
   const nav = rawNav.slice(0, compact ? 4 : 5);
+  const [selectedNav, setSelectedNav] = useState(nav[0] ?? "Overview");
+
+  useEffect(() => {
+    setSelectedNav(nav[0] ?? "Overview");
+  }, [role, compact]);
+
   const label = (value: string) => {
     if (value === "Overview") return ({ owner: "Home", payroll: "Home", checker: "Reviews", hr: "Today", bookkeeper: "Close" } as Record<string, string>)[role] ?? "Home";
     if (value === "People") return role === "owner" ? "Team" : "Employees";
@@ -27,6 +35,9 @@ export function AppProductPreview({ role, compact = false }: { role: DemoRoleId;
     if (value === "Audit trail" && role === "checker") return "Payroll history";
     return value;
   };
+  const selectedLabel = label(selectedNav);
+  const isHome = selectedNav === (nav[0] ?? "Overview");
+
   return (
     <div className={"linaw-app-preview " + (compact ? "linaw-app-preview-compact" : "")} data-testid={compact ? "payroll-hero-preview" : "app-role-preview"} aria-label={"Illustrative Linaw " + (info?.label ?? role) + " dashboard"}>
       <div className="linaw-app-preview-head">
@@ -36,39 +47,176 @@ export function AppProductPreview({ role, compact = false }: { role: DemoRoleId;
       <div className="linaw-app-preview-layout">
         <aside className="linaw-app-preview-rail" aria-label="Illustrative sidebar navigation">
           <div className="linaw-app-preview-role"><span className="linaw-app-preview-pulse" />{info?.shortLabel ?? role} workspace</div>
-          {nav.map((item, i) => {
+          {nav.map((item) => {
             const Icon = NAVIGATION.flatMap(group => group.items).find(link => link.name === item)?.icon ??
               (item === "My pay" ? WalletCards : item === "Attendance" ? Clock3 : Leaf);
+            const active = selectedNav === item;
             return (
-              <div key={item} className={"linaw-app-preview-nav " + (i === 0 ? "active" : "")}>
+              <button
+                type="button"
+                key={item}
+                className={"linaw-app-preview-nav " + (active ? "active" : "")}
+                aria-current={active ? "page" : undefined}
+                aria-label={label(item)}
+                onClick={() => setSelectedNav(item)}
+              >
                 <span className="linaw-app-preview-nav-symbol" aria-hidden><Icon size={12} strokeWidth={2} /></span>
                 <span>{label(item)}</span>
-              </div>
+              </button>
             );
           })}
           <span className="linaw-app-preview-rail-label">EXAMPLE WORKSPACE</span>
         </aside>
         <div className="linaw-app-preview-content">
           <div className="linaw-app-preview-toolbar">
-            <span>Sample company <ChevronRight size={12} aria-hidden="true"/> {role === "employee" ? "My pay" : label(nav[0] ?? "Overview")}</span>
+            <span>Sample company <ChevronRight size={12} aria-hidden="true"/> {selectedLabel}</span>
             <span className="linaw-app-preview-avatar">SL</span>
           </div>
-          <div className="linaw-app-preview-body">
-            {role === "payroll" && <PayrollPanel compact={compact}/>}
-            {role === "owner" && <OwnerPanel compact={compact}/>}
-            {role === "checker" && <CheckerPanel compact={compact}/>}
-            {role === "hr" && <HrPanel compact={compact}/>}
-            {role === "bookkeeper" && <BookkeeperPanel compact={compact}/>}
-            {role === "employee" && <EmployeePanel compact={compact}/>}
+          <div className="linaw-app-preview-body" key={selectedNav}>
+            {isHome ? (
+              <>
+                {role === "payroll" && <PayrollPanel compact={compact}/>}
+                {role === "owner" && <OwnerPanel compact={compact}/>}
+                {role === "checker" && <CheckerPanel compact={compact}/>}
+                {role === "hr" && <HrPanel compact={compact}/>}
+                {role === "bookkeeper" && <BookkeeperPanel compact={compact}/>}
+                {role === "employee" && <EmployeePanel compact={compact}/>}
+              </>
+            ) : (
+              <PreviewModulePanel item={selectedNav} label={selectedLabel} role={role} compact={compact}/>
+            )}
           </div>
         </div>
       </div>
       <div className="linaw-app-preview-foot">
-        <span>Static interface example, not a live payroll or filing result</span>
+        <span>Interactive interface example, not a live payroll or filing result</span>
         <span>PH-focused workflows</span>
       </div>
     </div>
   );
+}
+
+function PreviewModulePanel({ item, label, role, compact }: { item: string; label: string; role: DemoRoleId; compact: boolean }) {
+  const normalized = item.toLowerCase();
+  const module = normalized.includes("payroll") ? {
+    title: "Payroll runs",
+    subtitle: "Prepare, calculate and review each cutoff before release.",
+    status: "Payroll",
+    rows: [
+      ["Current sample cutoff", "48 employees · needs review", "warn" as const],
+      ["Previous payroll", "Released · example record", "good" as const],
+      ["Payroll register", "Preview employee-level results", "neutral" as const],
+    ],
+  } : normalized.includes("analytic") || normalized.includes("report") ? {
+    title: "Reports",
+    subtitle: "Review payroll movement, workforce context and exported evidence.",
+    status: "Reports",
+    rows: [
+      ["Payroll variance", "Compare against the previous run", "neutral" as const],
+      ["Payroll register", "Employee-level sample results", "neutral" as const],
+      ["Statutory summary", "Prepared output · external validation required", "warn" as const],
+    ],
+  } : normalized.includes("people") ? {
+    title: role === "owner" ? "Team" : "Employees",
+    subtitle: "Keep employee records and payroll-impacting changes together.",
+    status: "People",
+    rows: [
+      ["Employee records", "48 example employees", "neutral" as const],
+      ["Onboarding changes", "1 record needs review", "warn" as const],
+      ["Separation records", "No open sample exception", "good" as const],
+    ],
+  } : normalized.includes("setting") ? {
+    title: "Settings",
+    subtitle: "Configure organization, payroll and approval controls.",
+    status: "Settings",
+    rows: [
+      ["Payroll configuration", "Cutoffs, calendars and policies", "neutral" as const],
+      ["Approval roles", "Maker-checker access boundaries", "neutral" as const],
+      ["Organization details", "Company and workspace settings", "neutral" as const],
+    ],
+  } : normalized.includes("time") || normalized.includes("attendance") ? {
+    title: "Attendance",
+    subtitle: "Review worked time and exceptions before they reach payroll.",
+    status: "Workforce",
+    rows: [
+      ["Attendance summary", "46 complete · 2 need review", "warn" as const],
+      ["Overtime evidence", "Approved and pending sample items", "neutral" as const],
+      ["Schedule context", "Shifts and rest days connected", "good" as const],
+    ],
+  } : normalized.includes("audit") ? {
+    title: "Payroll history",
+    subtitle: "Trace review decisions and payroll events.",
+    status: "Audit",
+    rows: [
+      ["Checker review", "Pending decision · sample run", "warn" as const],
+      ["Payroll calculation", "Recorded in audit history", "good" as const],
+      ["Previous release", "Released sample payroll", "good" as const],
+    ],
+  } : normalized.includes("export") ? {
+    title: "Exports",
+    subtitle: "Prepare accounting and payroll outputs for review.",
+    status: "Exports",
+    rows: [
+      ["Payroll journal", "Accounting export preview", "neutral" as const],
+      ["Bank payout file", "Requires authorized release", "warn" as const],
+      ["Government worksheets", "Prepared output · not filing acceptance", "warn" as const],
+    ],
+  } : normalized.includes("compliance") || normalized.includes("readiness") ? {
+    title: label,
+    subtitle: "Review evidence and validation states before close.",
+    status: "Readiness",
+    rows: [
+      ["Statutory calculations", "Sample checks complete", "good" as const],
+      ["Government output", "External validation still required", "warn" as const],
+      ["Payroll evidence", "Available for review", "neutral" as const],
+    ],
+  } : normalized.includes("my pay") ? {
+    title: "My pay",
+    subtitle: "Your own payday details and payslips.",
+    status: "Employee",
+    rows: [
+      ["Latest payslip", "₱28,450 example net pay", "good" as const],
+      ["Next payday", "15 Oct · example date", "neutral" as const],
+      ["Previous payslip", "Released sample record", "neutral" as const],
+    ],
+  } : normalized.includes("leave") ? {
+    title: "Leave",
+    subtitle: "See balances and submitted leave requests.",
+    status: "Employee",
+    rows: [
+      ["Available balance", "5 days · sample balance", "good" as const],
+      ["Upcoming leave", "No pending sample request", "neutral" as const],
+      ["Leave history", "View approved requests", "neutral" as const],
+    ],
+  } : {
+    title: label,
+    subtitle: "Explore this role-specific workspace area.",
+    status: infoLabel(role),
+    rows: [
+      ["Current workspace", "Illustrative sample content", "neutral" as const],
+      ["Needs attention", "No blocking sample item", "good" as const],
+      ["Recent activity", "Example workspace history", "neutral" as const],
+    ],
+  };
+
+  return <>
+    <PreviewTitle title={module.title} subtitle={module.subtitle} status={module.status}/>
+    <div className="linaw-preview-two-panels">
+      <Card heading={module.title}>
+        {module.rows.slice(0, compact ? 2 : 3).map(([title, detail, tone]) => (
+          <SampleRow key={title} title={title} detail={detail} tone={tone}/>
+        ))}
+      </Card>
+      {!compact && <Card heading="Quick actions">
+        <SampleRow title={"Open "+module.title.toLowerCase()} detail="Illustrative action"/>
+        <SampleRow title="Review recent activity" detail="Example workspace history"/>
+      </Card>}
+    </div>
+  </>;
+}
+
+function infoLabel(role: DemoRoleId) {
+  return DEMO_ROLES.find((item) => item.id === role)?.shortLabel ?? role;
 }
 
 function PreviewTitle({ title, subtitle, status }: { title: string; subtitle: string; status?: string }) {
