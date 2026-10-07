@@ -26,6 +26,7 @@ test("payout pull requests cannot modify protected payroll computation or golden
   for (const payoutMarker of [
     "bank-validations",
     "payout-destination-changes",
+    "payout-profiles",
     "treasury-controls",
     "payroll-payout-",
     "paymongo",
@@ -49,6 +50,7 @@ test("bank and payout changes always trigger the fresh-tenant payroll pilot", ()
   for (const path of [
     'src/app/api/compliance/bank-validations/**',
     'src/app/api/payout-destination-changes/**',
+    'src/app/api/payout-profiles/**',
     'src/app/api/treasury-controls/**',
     'src/app/api/webhooks/paymongo/**',
     'src/lib/bank-**',
@@ -57,6 +59,7 @@ test("bank and payout changes always trigger the fresh-tenant payroll pilot", ()
     'src/lib/payout-**',
     'src/lib/treasury-**',
     'src/lib/exporters.ts',
+    'src/components/payout-profiles-panel.tsx',
     'tests/*bank*.test.ts',
     'tests/*paymongo*.test.ts',
     'tests/*payout*.test.ts',
