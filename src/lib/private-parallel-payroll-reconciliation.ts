@@ -198,10 +198,12 @@ function journalRows(bytes: Buffer, legalEntityCode: string, period: string): Pa
   return rows;
 }
 /**
- * Cross-check standardized accounting control accounts against the same
- * source payroll. Independent normalization must map any source accounts to:
- * PAYROLL_GROSS, BANK_NET, EMPLOYER_STATUTORY_EXPENSE,
- * EMPLOYER_STATUTORY_PAYABLE. A pair of equally-wrong journals must not pass.
+ * Independently bridge every core payroll liability to canonical accounting
+ * controls, rather than treating an equally misclassified pair of journals
+ * as evidence of correctness. Amounts here are integer centavos.
+ *
+ * Each source is normalized by an independent reviewer into these controls.
+ * Missing zero-amount controls are allowed; nonzero controls cannot be omitted.
  */
 function sourceJournalBridge(
   period: string, sourceName: string, payroll: ParsedFile, journal: ParsedFile,
@@ -209,21 +211,37 @@ function sourceJournalBridge(
   const issues: string[] = [];
   const sum = (field: string) =>
     [...payroll.values()].reduce((total, row) => total + row.amounts[field], 0);
-  const employerContributions = [
-    "sss_er", "ec_er", "philhealth_er", "pagibig_er",
-  ].reduce((total, field) => total + sum(field), 0);
-  const required = [
-    { account: "PAYROLL_GROSS", field: "debit", expected: sum("gross_pay") },
-    { account: "BANK_NET", field: "credit", expected: sum("net_pay") },
-    { account: "EMPLOYER_STATUTORY_EXPENSE", field: "debit", expected: employerContributions },
-    { account: "EMPLOYER_STATUTORY_PAYABLE", field: "credit", expected: employerContributions },
-  ] as const;
-  for (const item of required) {
-    const amount = journal.get(item.account)?.amounts[item.field];
-    if (amount === undefined) {
-      issues.push(period + " " + sourceName + ": missing canonical GL control " + item.account + ".");
-    } else if (Math.abs(amount - item.expected) > TOLERANCE_CENTS) {
-      issues.push(period + " " + sourceName + ": GL-to-payroll bridge differs at " + item.account + ".");
+
+  const statutoryEmployer = ["sss_er", "ec_er", "philhealth_er", "pagibig_er"]
+    .reduce((total, field) => total + sum(field), 0);
+
+  const expected = [
+    { account: "PAYROLL_GROSS", debit: sum("gross_pay"), credit: 0 },
+    { account: "BANK_NET", debit: 0, credit: sum("net_pay") },
+    { account: "EMPLOYER_STATUTORY_EXPENSE", debit: statutoryEmployer, credit: 0 },
+    { account: "SSS_PAYABLE", debit: 0, credit: sum("sss_ee") + sum("sss_er") + sum("ec_er") },
+    { account: "PHILHEALTH_PAYABLE", debit: 0, credit: sum("philhealth_ee") + sum("philhealth_er") },
+    { account: "PAGIBIG_PAYABLE", debit: 0, credit: sum("pagibig_ee") + sum("pagibig_er") },
+    { account: "BIR_WHT_PAYABLE", debit: 0, credit: sum("withholding_tax") },
+    { account: "GOVERNMENT_LOANS_PAYABLE", debit: 0, credit: sum("government_loans") },
+    { account: "COMPANY_LOANS_PAYABLE", debit: 0, credit: sum("company_loans") },
+    { account: "OTHER_DEDUCTIONS_PAYABLE", debit: 0, credit: sum("other_deductions") },
+  ];
+  for (const control of expected) {
+    // A net negative WHT/other-deductions balance is a refund/reversal.
+    const net = control.credit - control.debit;
+    const debit = Math.max(0, -net);
+    const credit = Math.max(0, net);
+    const actual = journal.get(control.account)?.amounts;
+    if (!actual) {
+      if (debit || credit) {
+        issues.push(period + " " + sourceName + ": missing canonical GL control " + control.account + ".");
+      }
+      continue;
+    }
+    if (Math.abs(actual.debit - debit) > TOLERANCE_CENTS
+      || Math.abs(actual.credit - credit) > TOLERANCE_CENTS) {
+      issues.push(period + " " + sourceName + ": GL-to-payroll bridge differs at " + control.account + ".");
     }
   }
   return issues;
