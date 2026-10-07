@@ -30,15 +30,17 @@ function stableFieldKey(value: string) {
 }
 
 export function fieldChangeContext(change: AutomationFieldChange) {
-  const previousNumericValue = finiteNumber(change.previousValue);
-  const newNumericValue = finiteNumber(change.newValue);
+  const previousNumericValue = change.sensitive ? null : finiteNumber(change.previousValue);
+  const newNumericValue = change.sensitive ? null : finiteNumber(change.newValue);
   const numeric = previousNumericValue != null && newNumericValue != null;
   const changeAmount = numeric ? newNumericValue - previousNumericValue : null;
   const changePercent = numeric && previousNumericValue !== 0
     ? ((newNumericValue - previousNumericValue) / Math.abs(previousNumericValue)) * 100
     : null;
 
-  const direction = numeric
+  const direction = change.sensitive
+    ? "changed"
+    : numeric
     ? changeAmount! > 0
       ? "increased"
       : changeAmount! < 0
