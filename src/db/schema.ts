@@ -1271,6 +1271,58 @@ export const approvalDelegations = pgTable("approval_delegations", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const integrationConnectors = pgTable(
+  "integration_connectors",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    provider: varchar("provider", { length: 32 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    credentialCiphertext: text("credential_ciphertext").notNull(),
+    config: jsonb("config").notNull().default({}),
+    active: boolean("active").notNull().default(true),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verifiedIdentity: jsonb("verified_identity"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("integration_connectors_org_name_unique").on(table.organizationId, table.name),
+    index("integration_connectors_org_provider_active_idx").on(table.organizationId, table.provider, table.active),
+    check("integration_connectors_provider_check", sql`${table.provider} in ('slack')`),
+  ],
+);
+
+export const integrationConnectorDeliveries = pgTable(
+  "integration_connector_deliveries",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    connectorId: integer("connector_id").notNull().references(() => integrationConnectors.id, { onDelete: "restrict" }),
+    automationExecutionId: integer("automation_execution_id").references(
+      (): AnyPgColumn => automationExecutions.id,
+      { onDelete: "set null" },
+    ),
+    actionIndex: integer("action_index"),
+    eventKey: varchar("event_key", { length: 240 }),
+    destination: varchar("destination", { length: 120 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    providerMessageId: varchar("provider_message_id", { length: 160 }),
+    providerChannelId: varchar("provider_channel_id", { length: 120 }),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("integration_connector_delivery_automation_unique")
+      .on(table.connectorId, table.automationExecutionId, table.actionIndex)
+      .where(sql`${table.automationExecutionId} is not null and ${table.actionIndex} is not null`),
+    index("integration_connector_deliveries_org_status_idx").on(table.organizationId, table.status, table.createdAt),
+    check("integration_connector_deliveries_status_check", sql`${table.status} in ('pending','succeeded','failed')`),
+  ],
+);
+
 export const apiKeys = pgTable("api_keys", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
