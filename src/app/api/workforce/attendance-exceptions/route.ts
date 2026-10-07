@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  attendanceExceptionEvents,
   employeeScheduleAssignments,
   employeeWorksiteAssignments,
   employees,
@@ -11,6 +12,8 @@ import {
   schedulePatterns,
   shiftDefinitions,
   timePunches,
+  userOrganizations,
+  users,
 } from "@/db/schema";
 import {
   assertOrganizationRole,
@@ -18,8 +21,18 @@ import {
   getAccess,
   PEOPLE_PAYROLL_ROLES,
 } from "@/lib/access";
+import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { analyzeAttendanceDay } from "@/lib/workforce-attendance";
+import {
+  attendanceExceptionAgeHours,
+  attendanceExceptionSlaStatus,
+} from "@/lib/workforce-attendance-exception-governance";
+import {
+  enforceSameOriginMutation,
+  enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
+} from "@/lib/security-request";
 import {
   resolveDailySchedule,
   type WorkforceScheduleOverrideSegment,
@@ -131,6 +144,7 @@ export async function GET(request: Request) {
     worksiteAssignments,
     punches,
     overtimeRows,
+    exceptionEventRows,
   ] = await Promise.all([
     db.select().from(shiftDefinitions)
       .where(eq(shiftDefinitions.organizationId, organizationId))
@@ -203,6 +217,17 @@ export async function GET(request: Request) {
       asc(overtimeRequests.employeeId),
       asc(overtimeRequests.workDate),
       asc(overtimeRequests.id),
+    ),
+    db.select().from(attendanceExceptionEvents).where(and(
+      eq(attendanceExceptionEvents.organizationId, organizationId),
+      inArray(attendanceExceptionEvents.employeeId, employeeIds),
+      gte(attendanceExceptionEvents.workDate, startDate),
+      lte(attendanceExceptionEvents.workDate, endDate),
+    )).orderBy(
+      asc(attendanceExceptionEvents.status),
+      asc(attendanceExceptionEvents.slaDueAt),
+      asc(attendanceExceptionEvents.firstDetectedAt),
+      asc(attendanceExceptionEvents.id),
     ),
   ]);
 
@@ -355,6 +380,18 @@ export async function GET(request: Request) {
       .map((row) => row.employee.id),
   );
 
+  const now = new Date();
+  const eventLedger = exceptionEventRows.map((event) => ({
+    ...event,
+    ageHours: attendanceExceptionAgeHours(event.firstDetectedAt, now),
+    slaStatus: attendanceExceptionSlaStatus({
+      status: event.status,
+      slaDueAt: event.slaDueAt,
+      now,
+    }),
+  }));
+  const openEvents = eventLedger.filter((event) => event.status === "open");
+
   return Response.json({
     range: { startDate, endDate, days: dates.length },
     summary: {
@@ -362,7 +399,156 @@ export async function GET(request: Request) {
       warnings: exceptions.filter((row) => row.severity === "warning").length,
       info: exceptions.filter((row) => row.severity === "info").length,
       employeesAffected: affected.size,
+      openPersistedExceptions: openEvents.length,
+      overduePersistedExceptions: openEvents.filter((event) => event.slaStatus === "overdue").length,
+      unassignedPersistedExceptions: openEvents.filter((event) => event.ownerUserId == null).length,
     },
     days: rows,
+    eventLedger,
   });
+}
+
+export async function POST(request: Request) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
+
+  const user = await getSessionUser();
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+  const body = await request.json().catch(() => ({}));
+  const organizationId = Number(body.organizationId);
+  const eventId = Number(body.eventId);
+  const action = String(body.action ?? "").trim();
+  if (!Number.isInteger(organizationId) || !Number.isInteger(eventId)) {
+    return Response.json({ error: "organizationId and eventId are required." }, { status: 400 });
+  }
+
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_PAYROLL_ROLES,
+    "Only People or Payroll roles can manage attendance exception operations.",
+  );
+  if (denied) return denied;
+
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id,
+    action: `workforce-attendance-exception-${action || "mutation"}`,
+    resourceId: eventId,
+    limit: 60,
+    windowMs: 5 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
+
+  const [event] = await db.select().from(attendanceExceptionEvents).where(and(
+    eq(attendanceExceptionEvents.id, eventId),
+    eq(attendanceExceptionEvents.organizationId, organizationId),
+  )).limit(1);
+  if (!event) return Response.json({ error: "Attendance exception event not found." }, { status: 404 });
+
+  const [employee] = await db.select().from(employees).where(and(
+    eq(employees.id, event.employeeId),
+    eq(employees.organizationId, organizationId),
+  )).limit(1);
+  if (!employee) return Response.json({ error: "Employee not found." }, { status: 404 });
+
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  const scope = assertScope(access, employee.orgUnitId);
+  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+
+  if (action === "assign") {
+    if (event.status !== "open") {
+      return Response.json({ error: "Only open attendance exceptions can be assigned." }, { status: 409 });
+    }
+    const ownerUserId = Number(body.ownerUserId);
+    if (!Number.isInteger(ownerUserId) || ownerUserId <= 0) {
+      return Response.json({ error: "ownerUserId is required." }, { status: 400 });
+    }
+    const [owner] = await db.select({
+      id: users.id,
+      name: users.name,
+      active: users.active,
+      orgUnitId: userOrganizations.orgUnitId,
+    }).from(userOrganizations)
+      .innerJoin(users, eq(userOrganizations.userId, users.id))
+      .where(and(
+        eq(userOrganizations.organizationId, organizationId),
+        eq(userOrganizations.userId, ownerUserId),
+        eq(userOrganizations.active, true),
+        eq(users.active, true),
+      )).limit(1);
+    if (!owner) {
+      return Response.json({ error: "The selected owner is not an active user in this organization." }, { status: 422 });
+    }
+    if (!access.companyWide && owner.orgUnitId != null && owner.orgUnitId !== access.orgUnitId) {
+      return Response.json({ error: "Scoped operators cannot assign exceptions outside their organization unit." }, { status: 403 });
+    }
+
+    const [updated] = await db.update(attendanceExceptionEvents).set({
+      ownerUserId: owner.id,
+      ownerName: owner.name,
+      updatedAt: new Date(),
+    }).where(eq(attendanceExceptionEvents.id, event.id)).returning();
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Attendance exception assigned",
+      resource: `Attendance exception #${event.id}`,
+      metadata: {
+        attendanceExceptionEventId: event.id,
+        employeeId: event.employeeId,
+        workDate: event.workDate,
+        ownerUserId: owner.id,
+        ownerName: owner.name,
+        slaDueAt: event.slaDueAt,
+      },
+    });
+
+    return Response.json({ event: updated });
+  }
+
+  if (action === "record_resolution") {
+    const resolutionNote = String(body.resolutionNote ?? "").trim().slice(0, 1000);
+    if (event.status !== "resolved") {
+      return Response.json({
+        error: "Resolution evidence can only be recorded after the authoritative attendance exception is resolved.",
+      }, { status: 409 });
+    }
+    if (resolutionNote.length < 3) {
+      return Response.json({ error: "resolutionNote is required." }, { status: 400 });
+    }
+
+    const recordedAt = new Date();
+    const [updated] = await db.update(attendanceExceptionEvents).set({
+      resolutionNote,
+      resolvedByUserId: user.id,
+      resolvedByName: user.name,
+      resolutionRecordedAt: recordedAt,
+      updatedAt: recordedAt,
+    }).where(eq(attendanceExceptionEvents.id, event.id)).returning();
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "Attendance exception resolution evidence recorded",
+      resource: `Attendance exception #${event.id}`,
+      metadata: {
+        attendanceExceptionEventId: event.id,
+        employeeId: event.employeeId,
+        workDate: event.workDate,
+        resolvedAt: event.resolvedAt,
+        resolutionRecordedAt: recordedAt,
+      },
+    });
+
+    return Response.json({ event: updated });
+  }
+
+  return Response.json({
+    error: "Unsupported action. Use assign or record_resolution.",
+  }, { status: 400 });
 }
