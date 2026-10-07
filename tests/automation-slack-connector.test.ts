@@ -37,8 +37,8 @@ test("Slack connector validates bot tokens and bounded allow-listed channels", (
   );
 });
 
-test("0077 persists encrypted provider configuration and idempotent delivery evidence", () => {
-  const migration = read("drizzle/0077_slack_connector.sql");
+test("0078 persists encrypted provider configuration and idempotent delivery evidence", () => {
+  const migration = read("drizzle/0078_slack_connector.sql");
   const schema = read("src/db/schema.ts");
   const baseline = read("drizzle/baseline.sql");
   for (const source of [migration, schema, baseline]) {
