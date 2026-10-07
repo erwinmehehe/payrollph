@@ -157,6 +157,12 @@ jobs:
             const cinematic = hero.getByTestId("cinematic-hero-demo");
             check((await cinematic.count()) === 1, name + ": cinematic hero demo missing");
             check((await cinematic.getByRole("button", {name:"Pause hero demo"}).count()) === 1, name + ": autoplay pause control missing");
+            if (name === "desktop") {
+              const beforeScene = (await cinematic.locator('[role="tab"][aria-selected="true"]').innerText()).trim();
+              await page.waitForTimeout(5600);
+              const afterScene = (await cinematic.locator('[role="tab"][aria-selected="true"]').innerText()).trim();
+              check(beforeScene !== afterScene, "desktop: cinematic hero did not auto-advance");
+            }
             await cinematic.getByRole("button", {name:"Pause hero demo"}).click();
             const prepareScene = cinematic.getByRole("tab", {name:/Prepare/});
             check((await prepareScene.count()) === 1, name + ": Prepare scene missing");
