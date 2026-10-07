@@ -68,11 +68,13 @@ test("newest released payslip is promoted above older pay history", () => {
 
   assert.ok(route.includes(".orderBy(desc(payrollRuns.payDate))"), "released payslips must stay newest-first");
   assert.ok(portal.includes("const latestPayslip = data?.payslips[0] ?? null"));
-  assert.ok(portal.includes('data-latest-payslip'));
-  assert.ok(portal.includes("LATEST PAYSLIP"));
-  assert.ok(portal.includes("Payslip available"));
+  const home = read("src/components/employee-home-dashboard.tsx");
+  assert.ok(portal.includes("<EmployeeHomeDashboard"));
+  assert.ok(home.includes('data-latest-payslip'));
+  assert.ok(home.includes("Latest payslip"));
+  assert.ok(home.includes("View payslip"));
   assert.ok(
-    portal.indexOf('data-latest-payslip') < portal.indexOf("PAY HISTORY"),
+    home.indexOf('data-latest-payslip') < home.indexOf("Recent payslips"),
     "latest payslip promotion must render before historical payslips",
   );
 });
@@ -106,7 +108,7 @@ test("employee app exposes pay time leave and profile as first-class sections", 
   assert.ok(portal.includes('["time", "Time"]'));
   assert.ok(portal.includes('["leave", "Leave"]'));
   assert.ok(portal.includes('["profile", "Profile"]'));
-  assert.ok(portal.includes("employee-latest-pay"));
+  assert.ok(read("src/components/employee-home-dashboard.tsx").includes("employee-latest-pay"));
   assert.ok(portal.includes("employee-pay-breakdown"));
 });
 
@@ -118,7 +120,7 @@ test("employee leave request does not guess chargeable days", () => {
 
 test("latest pay remains ahead of history in the polished employee app", () => {
   const portal = read("src/components/self-service-portal.tsx");
-  const latestAt = portal.indexOf("employee-latest-pay");
+  const latestAt = portal.indexOf("<EmployeeHomeDashboard");
   const historyAt = portal.indexOf("PAY HISTORY");
   assert.ok(latestAt > -1 && historyAt > -1 && latestAt < historyAt, "latest pay should render before pay history");
 });
