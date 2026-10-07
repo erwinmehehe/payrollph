@@ -94,3 +94,5 @@ the first one, so it closes itself.
 - `0068_automation_rule_version_governance.sql` adds Automation Studio draft/publish/rollback governance with immutable version history while preserving the current published rule row as the runtime snapshot.
 
 - `0069_automation_generated_document_provenance.sql` distinguishes generated employee documents from uploads, records stable generation provenance, and enforces organization-scoped idempotency for Automation Studio document creation.
+
+- `0070_configurable_approval_chains.sql` adds versioned, ordered approval-chain definitions and immutable per-request chain snapshots around the existing approval task queue.
