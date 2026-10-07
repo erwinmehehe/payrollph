@@ -16,6 +16,7 @@ import {
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { annualizePay, compaRatio } from "@/lib/compensation";
 import { resolvePayProfile } from "@/lib/pay-basis";
 
@@ -325,7 +326,39 @@ export async function applyScheduledCompensationProposal(
     warnings.push(`automation: ${error instanceof Error ? error.message : "unknown failure"}`);
   }
 
-  return { ...result, automation, warnings };
+  const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
+    organizationId: result.proposal.organizationId,
+    employeeId: result.proposal.employeeId,
+    eventKey: `compensation-applied:${result.proposal.id}:field-change`,
+    changes: [
+      {
+        field: "annualSalary",
+        previousValue: result.beforeAnnual,
+        newValue: result.afterAnnual,
+        effectiveDate: String(result.cycle.effectiveDate),
+        source: "compensation-governance",
+        metadata: {
+          compensationProposalId: result.proposal.id,
+          compensationCycleId: result.cycle.id,
+          payRevisionId: result.revision.id,
+        },
+      },
+      {
+        field: "monthlyEquivalentSalary",
+        previousValue: result.beforeAnnual / 12,
+        newValue: result.afterAnnual / 12,
+        effectiveDate: String(result.cycle.effectiveDate),
+        source: "compensation-governance",
+        metadata: {
+          compensationProposalId: result.proposal.id,
+          compensationCycleId: result.cycle.id,
+          payRevisionId: result.revision.id,
+        },
+      },
+    ],
+  });
+
+  return { ...result, automation, fieldChangeAutomation, warnings };
 }
 
 export async function activateCompensationComponentAssignment(
@@ -415,7 +448,24 @@ export async function activateCompensationComponentAssignment(
     warnings.push(`automation: ${error instanceof Error ? error.message : "unknown failure"}`);
   }
 
-  return { ...result, automation, warnings };
+  const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
+    organizationId: result.assignment.organizationId,
+    employeeId: result.assignment.employeeId,
+    eventKey: `compensation-component-active:${result.assignment.id}:field-change`,
+    changes: [{
+      field: "recurringCompensationAmount",
+      previousValue: 0,
+      newValue: Number(result.assignment.amount),
+      effectiveDate: String(result.assignment.effectiveFrom),
+      source: "compensation-component",
+      metadata: {
+        compensationComponentAssignmentId: result.assignment.id,
+        compensationComponentId: result.assignment.componentId,
+      },
+    }],
+  });
+
+  return { ...result, automation, fieldChangeAutomation, warnings };
 }
 
 export async function runScheduledCompensationGovernance({
