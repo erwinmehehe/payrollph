@@ -40,7 +40,7 @@ Money is PHP without separators, symbols or quotes; use at most two decimals. Em
 account_code,legal_entity_code,period,debit,credit
 ~~~
 
-One unique **normalized account code** per period and employer after documented mapping, including gross wage expense, employer statutory expense, liabilities, net pay, clearing and any suspense accounts. The reviewer must approve the mapping. Where a source account has debits and credits, independently net them to the correct side; never silently omit posted entries. Both journals must balance on their own, and corresponding normalized account lines must reconcile.
+One unique **normalized account code** per period and employer after documented mapping, including gross wage expense, employer statutory expense, liabilities, net pay, clearing and any suspense accounts. The reviewer must approve the mapping. Four canonical GL control accounts are required after mapping: **PAYROLL_GROSS** (debit equal to total employee gross), **BANK_NET** (credit equal to total employee net), **EMPLOYER_STATUTORY_EXPENSE** (debit equal to summed employer SSS/EC/PhilHealth/Pag-IBIG), and **EMPLOYER_STATUTORY_PAYABLE** (matching credit). These controls are checked *within each system*, even if the two journals match each other; document exact source accounts, amounts and mapping in the independent review. Where a source account has debits and credits, independently net them to the correct side; never silently omit posted entries. Both journals must balance on their own, and corresponding normalized account lines must reconcile.
 
 ## Verification and release boundary
 
