@@ -88,3 +88,5 @@ the first one, so it closes itself.
 - `0065_hcm_manager_attestation.sql` adds append-only manager attestations bound to the worker’s active reporting line and versions sealed employment-decision evidence so historical v1 hashes remain verifiable while new approvals seal v2 packets.
 
 - `0066_hcm_probation_review_acknowledgment.sql` adds structured probation reviews, immutable submitted-review evidence, employee receipt-only acknowledgments, and review lifecycle events without granting automatic employment-status authority.
+
+- `0067_attendance_exception_events.sql` persists idempotent attendance-exception lifecycle evidence so newly detected exceptions can emit the live Automation Studio `attendance.exception_created` trigger without duplicate workflow runs.

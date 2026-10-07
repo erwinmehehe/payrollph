@@ -3672,3 +3672,38 @@ export const compensationEvents = pgTable(
 );
 
 
+
+
+export const attendanceExceptionEvents = pgTable(
+  "attendance_exception_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    workDate: date("work_date").notNull(),
+    exceptionKind: varchar("exception_kind", { length: 40 }).notNull(),
+    severity: varchar("severity", { length: 16 }).notNull(),
+    punchId: integer("punch_id").references(() => timePunches.id, { onDelete: "set null" }),
+    minutes: integer("minutes"),
+    message: text("message").notNull(),
+    fingerprintSha256: varchar("fingerprint_sha256", { length: 64 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("open"),
+    firstDetectedAt: timestamp("first_detected_at", { withTimezone: true }).notNull().defaultNow(),
+    lastDetectedAt: timestamp("last_detected_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("attendance_exception_events_fingerprint_unique").on(
+      table.organizationId,
+      table.employeeId,
+      table.workDate,
+      table.fingerprintSha256,
+    ),
+    index("attendance_exception_events_open_idx").on(table.organizationId, table.status, table.workDate, table.employeeId),
+    index("attendance_exception_events_employee_idx").on(table.organizationId, table.employeeId, table.workDate),
+    check("attendance_exception_events_severity_check", sql`${table.severity} in ('info','warning','blocker')`),
+    check("attendance_exception_events_status_check", sql`${table.status} in ('open','resolved')`),
+  ],
+);

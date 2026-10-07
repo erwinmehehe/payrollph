@@ -23,6 +23,7 @@ import {
   type AttendancePunchSnapshot,
 } from "@/lib/workforce-attendance-correction";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
+import { reconcileAttendanceExceptionEvents } from "@/lib/workforce-attendance-exception-events";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -422,11 +423,31 @@ export async function POST(request: Request) {
         },
       });
 
+      let attendanceExceptionSync: Record<string, unknown>;
+      try {
+        const exceptionResult = await reconcileAttendanceExceptionEvents({
+          organizationId,
+          employeeId: existing.employeeId,
+          workDate: String(existing.workDate),
+        });
+        attendanceExceptionSync = {
+          status: "ok",
+          createdIds: exceptionResult.createdIds,
+          resolvedIds: exceptionResult.resolvedIds,
+        };
+      } catch (syncError) {
+        attendanceExceptionSync = {
+          status: "sync_error",
+          error: syncError instanceof Error ? syncError.message.slice(0, 1000) : "Attendance exception sync failed.",
+        };
+      }
+
       return Response.json({
         correction: result.updatedRequest,
         punch: result.updatedPunch,
         invalidatedPayrollRunIds: invalidatedRunIds,
         staleTimesheetIds: staleTimesheets.map((row) => row.id),
+        attendanceExceptionSync,
       });
     } catch (error) {
       return Response.json({

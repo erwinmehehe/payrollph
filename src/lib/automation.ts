@@ -64,6 +64,7 @@ export const AUTOMATION_LIVE_TRIGGERS = [
   "payroll.submitted",
   "payroll.approved",
   "payroll.released",
+  "attendance.exception_created",
   "overtime.requested",
   "overtime.approved",
   "leave.requested",
@@ -75,7 +76,6 @@ export const AUTOMATION_LIVE_TRIGGERS = [
 ] as const satisfies readonly AutomationTrigger[];
 
 export const AUTOMATION_PLANNED_TRIGGERS = [
-  "attendance.exception_created",
   "government.remittance_due",
   "contribution.discrepancy_detected",
 ] as const satisfies readonly AutomationTrigger[];
@@ -128,6 +128,9 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "tenureYears", label: "Tenure (years)", kind: "number" },
   { value: "payrollAmount", label: "Payroll amount", kind: "number" },
   { value: "overtimeMinutes", label: "Overtime minutes", kind: "number" },
+  { value: "attendanceExceptionKind", label: "Attendance exception type", kind: "string" },
+  { value: "attendanceExceptionSeverity", label: "Attendance exception severity", kind: "string" },
+  { value: "minutes", label: "Attendance exception minutes", kind: "number" },
   { value: "leaveType", label: "Leave type", kind: "string" },
   { value: "positionCode", label: "Position code", kind: "string" },
   { value: "employeeStatus", label: "Employee status", kind: "string" },

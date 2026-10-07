@@ -7,6 +7,7 @@ import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { rateLimitDistributed } from "@/lib/rate-limit";
 import { verifyBiometricDeviceCredential } from "@/lib/biometric-auth";
+import { reconcileAttendanceExceptionEvents } from "@/lib/workforce-attendance-exception-events";
 
 export const dynamic = "force-dynamic";
 
@@ -133,6 +134,7 @@ export async function POST(request: Request) {
   let duplicates = 0;
   let unmatched = 0;
   let invalid = 0;
+  const changedAttendance = new Map<string, { employeeId: number; workDate: string }>();
 
   for (const raw of logs) {
     if (!raw || typeof raw !== "object") {
@@ -227,6 +229,32 @@ export async function POST(request: Request) {
 
     if (applied) ingested += 1;
     else duplicates += 1;
+    if (applied) {
+      changedAttendance.set(`${employee.id}|${workDate}`, { employeeId: employee.id, workDate });
+    }
+  }
+
+  const attendanceExceptionSync = [];
+  for (const changed of changedAttendance.values()) {
+    try {
+      const result = await reconcileAttendanceExceptionEvents({
+        organizationId,
+        employeeId: changed.employeeId,
+        workDate: changed.workDate,
+      });
+      attendanceExceptionSync.push({
+        ...changed,
+        status: "ok",
+        createdIds: result.createdIds,
+        resolvedIds: result.resolvedIds,
+      });
+    } catch (error) {
+      attendanceExceptionSync.push({
+        ...changed,
+        status: "sync_error",
+        error: error instanceof Error ? error.message.slice(0, 1000) : "Attendance exception sync failed.",
+      });
+    }
   }
 
   await db.update(biometricDevices).set({
@@ -247,6 +275,7 @@ export async function POST(request: Request) {
       invalid,
       deviceSerial,
       authentication: user ? "session" : "device-secret",
+      attendanceExceptionSync,
     },
   });
 
@@ -258,6 +287,7 @@ export async function POST(request: Request) {
     unmatched,
     invalid,
     syncedAt: new Date().toISOString(),
+    attendanceExceptionSync,
   });
 }
 
