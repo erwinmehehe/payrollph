@@ -32,7 +32,9 @@ test("fresh database schema mirrors approval-chain persistence", () => {
 test("chain creation snapshots policy version and steps before creating first task", () => {
   const engine = read("src/lib/approval-chains.ts");
   assert.ok(engine.includes("policyVersion: policy.version"));
-  assert.ok(engine.includes("stepsSnapshot: steps"));
+  assert.ok(engine.includes("stepsSnapshot: routedSteps"));
+  assert.ok(engine.includes("policySteps: steps"));
+  assert.ok(engine.includes("appliedSteps: routedSteps"));
   assert.ok(engine.includes("approvalChainInstanceId: instance.id"));
   assert.ok(engine.includes("approvalChainStepIndex: 0"));
   assert.ok(engine.includes("approval_chain_instances"));
