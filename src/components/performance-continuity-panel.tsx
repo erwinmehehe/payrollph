@@ -11,6 +11,7 @@ import {
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
+import { PerformanceFollowThroughPanel } from "@/components/performance-follow-through-panel";
 
 type Employee = {
   id: number;
@@ -669,6 +670,12 @@ export function PerformanceContinuityPanel({
           ))}
         </article>
       </section>
+
+      <PerformanceFollowThroughPanel
+        organizationId={organizationId}
+        canGovern={Boolean(access?.companyPeopleAdmin)}
+        setNotice={setNotice}
+      />
 
       <article className="card">
         <div className="card-header">

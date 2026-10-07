@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BadgeCheck, CalendarClock, CheckCircle2, MessageSquare, RefreshCw, Target } from "lucide-react";
+import { PerformanceDevelopmentSelfPanel } from "@/components/performance-development-self-panel";
 
 type Goal = {
   id: number;
@@ -532,6 +533,8 @@ export function HcmSelfPerformance() {
           </div>
         ))}
       </article>
+
+      <PerformanceDevelopmentSelfPanel setNotice={setNotice} />
 
       <article className="employee-list-card" style={{ marginTop: 16 }}>
         <div className="employee-list-card-head">
