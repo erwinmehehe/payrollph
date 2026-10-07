@@ -62,7 +62,7 @@ export function ageHoursSince(value: Date, now = new Date()) {
   return Math.max(0, Math.floor((now.getTime() - value.getTime()) / 3_600_000));
 }
 
-async function emitPayrollPayDateEvents(now: Date, today: string) {
+async function emitPayrollPayDateEvents(today: string) {
   const rows = await db.select().from(payrollRuns)
     .where(ne(payrollRuns.status, "Released"));
   const outcomes = [];
@@ -98,7 +98,7 @@ async function emitPayrollPayDateEvents(now: Date, today: string) {
   return outcomes;
 }
 
-async function emitTimesheetCutoffEvents(now: Date, today: string) {
+async function emitTimesheetCutoffEvents(today: string) {
   const rows = await db.select().from(workforceTimesheets)
     .where(inArray(workforceTimesheets.status, ["submitted", "rejected", "stale"]));
   const outcomes = [];
@@ -169,7 +169,7 @@ async function emitAttendanceAgingEvents(now: Date) {
   return outcomes;
 }
 
-async function emitCoverageDeadlineEvents(now: Date, today: string) {
+async function emitCoverageDeadlineEvents(today: string) {
   const rows = await db.select().from(openShifts)
     .where(eq(openShifts.status, "open"));
   const outcomes = [];
@@ -222,10 +222,10 @@ export async function runScheduledAutomationTemporalEvents(options: {
 
   const today = phBusinessDate(now);
   const [payroll, timesheets, attendance, coverage] = await Promise.all([
-    emitPayrollPayDateEvents(now, today),
-    emitTimesheetCutoffEvents(now, today),
+    emitPayrollPayDateEvents(today),
+    emitTimesheetCutoffEvents(today),
     emitAttendanceAgingEvents(now),
-    emitCoverageDeadlineEvents(now, today),
+    emitCoverageDeadlineEvents(today),
   ]);
 
   const payload = {
