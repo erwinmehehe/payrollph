@@ -59,6 +59,29 @@ function denied(error: string, status = 403) {
   return Response.json({ error }, { status });
 }
 
+export function treasuryReleaseSeparationError(input: {
+  policyEnabledAt: Date | null;
+  releaseCreatedAt: Date;
+  releaseActor: string;
+  releasedByUserId: number | null;
+  userId: number;
+  userName: string;
+}) {
+  if (input.releasedByUserId === input.userId) {
+    return "Treasury separation: the user who released this payroll cannot also submit or confirm its payout.";
+  }
+  if (input.releasedByUserId == null) {
+    const enabledAt = input.policyEnabledAt?.getTime() ?? 0;
+    if (enabledAt > 0 && input.releaseCreatedAt.getTime() >= enabledAt) {
+      return "Stable release-user evidence is missing for a payroll released after treasury separation was enabled.";
+    }
+    if (input.releaseActor.trim().toLowerCase() === input.userName.trim().toLowerCase()) {
+      return "Treasury separation: legacy release evidence shows the same actor released this payroll.";
+    }
+  }
+  return null;
+}
+
 /**
  * Enterprise treasury gate.
  *
@@ -146,30 +169,19 @@ export async function authorizeTreasuryOperation(input: {
     const stableId = Number(metadata.releasedByUserId);
     releasedByUserId = Number.isInteger(stableId) && stableId > 0 ? stableId : null;
 
-    if (releasedByUserId === input.userId) {
-      return {
-        response: denied("Treasury separation: the user who released this payroll cannot also submit or confirm its payout."),
-        evidence: null,
-      };
+    const separationError = treasuryReleaseSeparationError({
+      policyEnabledAt: policy.enabledAt,
+      releaseCreatedAt: release.createdAt,
+      releaseActor: release.actor,
+      releasedByUserId,
+      userId: input.userId,
+      userName: input.userName,
+    });
+    if (separationError) {
+      const status = separationError.startsWith("Stable release-user evidence") ? 409 : 403;
+      return { response: denied(separationError, status), evidence: null };
     }
-
-    if (!releasedByUserId) {
-      const enabledAt = policy.enabledAt?.getTime() ?? 0;
-      const releasedAt = release.createdAt.getTime();
-      if (enabledAt > 0 && releasedAt >= enabledAt) {
-        return {
-          response: denied("Stable release-user evidence is missing for a payroll released after treasury separation was enabled.", 409),
-          evidence: null,
-        };
-      }
-      legacyReleaseEvidence = true;
-      if (release.actor.trim().toLowerCase() === input.userName.trim().toLowerCase()) {
-        return {
-          response: denied("Treasury separation: legacy release evidence shows the same actor released this payroll."),
-          evidence: null,
-        };
-      }
-    }
+    legacyReleaseEvidence = releasedByUserId == null;
   }
 
   return {
