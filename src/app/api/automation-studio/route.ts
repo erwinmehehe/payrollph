@@ -1,8 +1,9 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   automationExecutions,
   automationRules,
+  automationRuleVersions,
   benefitPlans,
   orgUnits,
   permissionSets,
@@ -32,6 +33,51 @@ import {
 } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
+
+class AutomationStudioMutationError extends Error {
+  status: number;
+  constructor(message: string, status = 409) {
+    super(message);
+    this.name = "AutomationStudioMutationError";
+    this.status = status;
+  }
+}
+
+function normalizeRuleDefinition(body: Record<string, unknown>) {
+  const name = String(body.name ?? "").trim();
+  const trigger = String(body.trigger ?? "") as AutomationTrigger;
+  const conditions = body.conditions ?? { version: 1, all: [], any: [] };
+  const actions = normalizeAutomationActions(body.actions);
+
+  if (
+    !name
+    || !(AUTOMATION_TRIGGERS as readonly string[]).includes(trigger)
+    || !validAutomationConditions(conditions)
+    || !actions
+  ) {
+    throw new AutomationStudioMutationError(
+      "Rule name, supported trigger, valid IF conditions, and at least one valid THEN action are required.",
+      400,
+    );
+  }
+  if (!automationTriggerIsLive(trigger)) {
+    throw new AutomationStudioMutationError(
+      "This trigger is visible on the Automation Studio roadmap but its authoritative event adapter is not connected yet.",
+      409,
+    );
+  }
+  const compatibilityError = validateAutomationActionTrigger(trigger, actions);
+  if (compatibilityError) {
+    throw new AutomationStudioMutationError(compatibilityError, 400);
+  }
+
+  return {
+    name: name.slice(0, 160),
+    trigger,
+    conditions,
+    actions,
+  };
+}
 
 async function assertStudioAdmin(userId: number, organizationId: number) {
   const denied = await assertOrganizationRole(
