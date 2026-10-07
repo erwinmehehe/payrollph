@@ -10,7 +10,7 @@ import {
 export type AutomationWorkflowTemplate = {
   id: string;
   version: number;
-  category: "People" | "Workforce" | "Compliance";
+  category: "People" | "Workforce" | "Compliance" | "Benefits";
   name: string;
   description: string;
   trigger: AutomationTrigger;
@@ -146,6 +146,65 @@ const RAW_AUTOMATION_WORKFLOW_TEMPLATES = [
         approver: "Payroll",
         dueLabel: "Contribution discrepancy review",
         priority: "High",
+      },
+    ],
+  },
+  {
+    id: "benefits-hmo-enrollment-handoff",
+    version: 1,
+    category: "Benefits",
+    name: "HMO enrollment carrier handoff",
+    description: "Creates a Benefits Ops handoff task and notifies the employee when a governed HMO enrollment is created.",
+    trigger: "benefit.enrollment_created",
+    conditions: { version: 1, all: [], any: [] },
+    actions: [
+      {
+        type: "create_task",
+        title: "Review HMO enrollment and prepare carrier submission",
+        owner: "Benefits Ops",
+        kind: "automation",
+      },
+      {
+        type: "send_email",
+        recipient: "employee",
+        subject: "Your HMO enrollment is being processed",
+        body: "Your HMO enrollment has been recorded. Benefits Ops will complete the provider handoff and confirm when coverage becomes active.",
+      },
+    ],
+  },
+  {
+    id: "benefits-hmo-dependent-review",
+    version: 1,
+    category: "Benefits",
+    name: "HMO dependent review",
+    description: "Routes a newly added HMO dependent through a governed Benefits Ops approval before carrier submission.",
+    trigger: "benefit.dependent_added",
+    conditions: { version: 1, all: [], any: [] },
+    actions: [
+      {
+        type: "request_approval",
+        title: "Review HMO dependent enrollment",
+        detail: "Verify dependent eligibility and required relationship evidence before submitting the dependent to the HMO provider.",
+        approver: "Benefits Ops",
+        dueLabel: "HMO dependent review",
+        priority: "Normal",
+      },
+    ],
+  },
+  {
+    id: "benefits-hmo-coverage-activated",
+    version: 1,
+    category: "Benefits",
+    name: "HMO coverage activation notice",
+    description: "Notifies the employee after HMO coverage is marked active from authoritative Benefits data.",
+    trigger: "benefit.coverage_activated",
+    conditions: { version: 1, all: [], any: [] },
+    actions: [
+      {
+        type: "send_email",
+        recipient: "employee",
+        subject: "Your HMO coverage is active",
+        body: "Your HMO coverage has been marked active. Review your Benefits workspace for the effective date and plan details.",
       },
     ],
   },
