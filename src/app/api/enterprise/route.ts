@@ -22,6 +22,14 @@ import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { enterpriseIdentityEncryptionConfigured, encryptEnterpriseSecret } from "@/lib/enterprise-secret";
 import { organizationMfaReadiness } from "@/lib/enterprise-session";
 import { discoverOidc } from "@/lib/oidc";
+import {
+  normalizeSamlCertificate,
+  normalizeSamlEntityId,
+  samlCertificateFingerprintSha256,
+  SAML_NAME_ID_FORMAT_EMAIL,
+  SAML_RUNTIME_BLOCK_REASON,
+  validateSamlSsoUrl,
+} from "@/lib/saml";
 import { ROLE_GATE_PERMISSIONS } from "@/lib/permissions";
 import { mintScimToken } from "@/lib/scim";
 import { LIFECYCLE_TRIGGERS, normalizeLifecycleActions, validLifecycleConditions } from "@/lib/automation";
@@ -107,6 +115,8 @@ export async function GET(request: Request) {
     mfaReadiness,
     identityEncryptionConfigured: enterpriseIdentityEncryptionConfigured(),
     oidcCallbackUrl: origin + "/api/auth/sso/callback",
+    samlRuntimeReady: false,
+    samlRuntimeBlockReason: SAML_RUNTIME_BLOCK_REASON,
     scimBaseUrl: origin + "/api/scim/v2",
     identityProviders: providers.map((provider) => ({
       id: provider.id,
@@ -116,9 +126,19 @@ export async function GET(request: Request) {
       clientId: provider.clientId,
       scopes: provider.scopes,
       emailClaim: provider.emailClaim,
+      samlEntityId: provider.samlEntityId,
+      samlSsoUrl: provider.samlSsoUrl,
+      samlNameIdFormat: provider.samlNameIdFormat,
+      samlEmailAttribute: provider.samlEmailAttribute,
+      samlMetadataVerifiedAt: provider.samlMetadataVerifiedAt,
+      samlCertificateFingerprintSha256: provider.samlX509Certificate
+        ? samlCertificateFingerprintSha256(provider.samlX509Certificate)
+        : null,
+      samlMetadataUrl: provider.protocol === "saml" ? `${origin}/api/auth/saml/metadata/${provider.id}` : null,
+      samlAcsUrl: provider.protocol === "saml" ? `${origin}/api/auth/saml/acs/${provider.id}` : null,
       enabled: provider.enabled,
       discoveryVerifiedAt: provider.discoveryVerifiedAt,
-      clientSecretConfigured: provider.clientSecretEncrypted.startsWith("enc:v1:"),
+      clientSecretConfigured: Boolean(provider.clientSecretEncrypted?.startsWith("enc:v1:")),
     })),
     identityDomains: domains.map((domain) => ({
       id: domain.id,
@@ -321,6 +341,102 @@ export async function POST(request: Request) {
     }
   }
 
+  if (action === "create-saml-provider") {
+    const name = String(body.name ?? "").trim();
+    const entityIdInput = String(body.entityId ?? "");
+    const ssoUrlInput = String(body.ssoUrl ?? "");
+    const certificateInput = String(body.x509Certificate ?? "");
+    const emailAttribute = String(body.emailAttribute ?? "email").trim();
+    const domain = normalizedDomain(body.domain);
+    if (!name || !entityIdInput || !ssoUrlInput || !certificateInput || !emailAttribute || !domain) {
+      return Response.json({
+        error: "Provider name, IdP entity ID, SSO URL, signing certificate, email attribute, and company email domain are required.",
+      }, { status: 400 });
+    }
+
+    let entityId: string;
+    let ssoUrl: string;
+    let certificate: string;
+    try {
+      entityId = normalizeSamlEntityId(entityIdInput);
+      ssoUrl = await validateSamlSsoUrl(ssoUrlInput);
+      certificate = normalizeSamlCertificate(certificateInput);
+    } catch (error) {
+      return Response.json({ error: error instanceof Error ? error.message : "SAML provider validation failed." }, { status: 422 });
+    }
+
+    const verificationToken = "linaw-sso-verification=" + randomToken(24);
+    try {
+      const result = await db.transaction(async (tx) => {
+        const [provider] = await tx.insert(identityProviders).values({
+          organizationId,
+          name: name.slice(0, 120),
+          protocol: "saml",
+          issuer: null,
+          clientId: null,
+          clientSecretEncrypted: null,
+          authorizationEndpoint: null,
+          tokenEndpoint: null,
+          jwksUri: null,
+          scopes: "",
+          emailClaim: "email",
+          samlEntityId: entityId,
+          samlSsoUrl: ssoUrl,
+          samlX509Certificate: certificate,
+          samlNameIdFormat: SAML_NAME_ID_FORMAT_EMAIL,
+          samlEmailAttribute: emailAttribute.slice(0, 180),
+          samlMetadataVerifiedAt: new Date(),
+          enabled: false,
+          discoveryVerifiedAt: null,
+          createdByUserId: user.id,
+        }).returning();
+
+        const [domainRow] = await tx.insert(identityDomains).values({
+          organizationId,
+          providerId: provider.id,
+          domain,
+          verificationTokenHash: sha256(verificationToken),
+          verified: false,
+        }).returning();
+        return { provider, domain: domainRow };
+      });
+
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "SAML provider configured",
+        resource: result.provider.name,
+        metadata: {
+          providerId: result.provider.id,
+          entityId,
+          ssoUrl,
+          certificateFingerprintSha256: samlCertificateFingerprintSha256(certificate),
+          domain,
+          runtimeReady: false,
+        },
+      });
+
+      return Response.json({
+        provider: {
+          id: result.provider.id,
+          name: result.provider.name,
+          protocol: result.provider.protocol,
+          samlEntityId: result.provider.samlEntityId,
+          samlSsoUrl: result.provider.samlSsoUrl,
+          enabled: result.provider.enabled,
+        },
+        domain: result.domain,
+        dnsTxtRecord: verificationToken,
+        metadataUrl: `${canonicalAppOrigin(request)}/api/auth/saml/metadata/${result.provider.id}`,
+        acsUrl: `${canonicalAppOrigin(request)}/api/auth/saml/acs/${result.provider.id}`,
+        runtimeReady: false,
+        warning: SAML_RUNTIME_BLOCK_REASON,
+      }, { status: 201 });
+    } catch {
+      return Response.json({ error: "Provider name or email domain is already configured." }, { status: 409 });
+    }
+  }
+
   if (action === "verify-domain") {
     const domainId = Number(body.domainId);
     if (!Number.isInteger(domainId)) return Response.json({ error: "domainId is required." }, { status: 400 });
@@ -358,7 +474,7 @@ export async function POST(request: Request) {
       eq(identityProviders.id, providerId),
       eq(identityProviders.organizationId, organizationId),
     )).limit(1);
-    if (!provider) return Response.json({ error: "OIDC provider not found." }, { status: 404 });
+    if (!provider) return Response.json({ error: "SSO provider not found." }, { status: 404 });
 
     if (!enabled) {
       const [policy] = await db.select().from(organizationSecurityPolicies)
@@ -377,13 +493,20 @@ export async function POST(request: Request) {
       }
     }
 
+    if (enabled && provider.protocol === "saml") {
+      return Response.json({ error: SAML_RUNTIME_BLOCK_REASON, code: "SAML_RUNTIME_NOT_READY" }, { status: 409 });
+    }
+
     if (enabled) {
       const [verifiedDomain] = await db.select({ id: identityDomains.id }).from(identityDomains).where(and(
         eq(identityDomains.organizationId, organizationId),
         eq(identityDomains.providerId, providerId),
         eq(identityDomains.verified, true),
       )).limit(1);
-      if (!verifiedDomain) return Response.json({ error: "Verify at least one provider email domain before enabling OIDC." }, { status: 409 });
+      if (!verifiedDomain) return Response.json({ error: "Verify at least one provider email domain before enabling SSO." }, { status: 409 });
+      if (provider.protocol !== "oidc" || !provider.issuer || !provider.authorizationEndpoint || !provider.tokenEndpoint || !provider.jwksUri) {
+        return Response.json({ error: "OIDC provider configuration is incomplete." }, { status: 409 });
+      }
       try {
         const discovery = await discoverOidc(provider.issuer);
         if (discovery.authorization_endpoint !== provider.authorizationEndpoint || discovery.token_endpoint !== provider.tokenEndpoint || discovery.jwks_uri !== provider.jwksUri) {
