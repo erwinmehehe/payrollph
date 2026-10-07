@@ -100,7 +100,13 @@ function safeFile(source: unknown, root: string): Buffer {
     || source.filePath.split(/[\\/]/).includes("..")) {
     throw new Error("Missing, malformed or unsafe file/hash reference.");
   }
-  const target = realpathSync(resolve(root, source.filePath));
+  let target: string;
+  try {
+    target = realpathSync(resolve(root, source.filePath));
+  } catch {
+    // Do not leak the local private evidence path in the CLI report.
+    throw new Error("Input file missing or unreadable.");
+  }
   const rel = relative(root, target);
   if (!rel || rel === ".." || rel.startsWith(".." + sep) || isAbsolute(rel)) {
     throw new Error("Evidence path escapes the private evidence directory.");
@@ -191,6 +197,38 @@ function journalRows(bytes: Buffer, legalEntityCode: string, period: string): Pa
   }
   return rows;
 }
+/**
+ * Cross-check standardized accounting control accounts against the same
+ * source payroll. Independent normalization must map any source accounts to:
+ * PAYROLL_GROSS, BANK_NET, EMPLOYER_STATUTORY_EXPENSE,
+ * EMPLOYER_STATUTORY_PAYABLE. A pair of equally-wrong journals must not pass.
+ */
+function sourceJournalBridge(
+  period: string, sourceName: string, payroll: ParsedFile, journal: ParsedFile,
+): string[] {
+  const issues: string[] = [];
+  const sum = (field: string) =>
+    [...payroll.values()].reduce((total, row) => total + row.amounts[field], 0);
+  const employerContributions = [
+    "sss_er", "ec_er", "philhealth_er", "pagibig_er",
+  ].reduce((total, field) => total + sum(field), 0);
+  const required = [
+    { account: "PAYROLL_GROSS", field: "debit", expected: sum("gross_pay") },
+    { account: "BANK_NET", field: "credit", expected: sum("net_pay") },
+    { account: "EMPLOYER_STATUTORY_EXPENSE", field: "debit", expected: employerContributions },
+    { account: "EMPLOYER_STATUTORY_PAYABLE", field: "credit", expected: employerContributions },
+  ] as const;
+  for (const item of required) {
+    const amount = journal.get(item.account)?.amounts[item.field];
+    if (amount === undefined) {
+      issues.push(period + " " + sourceName + ": missing canonical GL control " + item.account + ".");
+    } else if (Math.abs(amount - item.expected) > TOLERANCE_CENTS) {
+      issues.push(period + " " + sourceName + ": GL-to-payroll bridge differs at " + item.account + ".");
+    }
+  }
+  return issues;
+}
+
 function differenceCount(a: ParsedFile, b: ParsedFile, columns: readonly string[]) {
   const counts: Record<string, number> = {};
   for (const col of columns) counts[col] = 0;
@@ -264,6 +302,8 @@ export function evaluateParallelPayrollReconciliation(
     const linaw = loaded.linawPayroll!;
     const comparison = differenceCount(incumbent, linaw, PAYROLL_MONEY_COLUMNS);
     const journal = differenceCount(loaded.incumbentJournal!, loaded.linawJournal!, ["debit", "credit"]);
+    issues.push(...sourceJournalBridge(period, "incumbent", incumbent, loaded.incumbentJournal!));
+    issues.push(...sourceJournalBridge(period, "Linaw", linaw, loaded.linawJournal!));
     const payrollFields = Object.entries(comparison.counts).filter(([, count]) => count > 0);
     const journalFields = Object.entries(journal.counts).filter(([, count]) => count > 0);
     if (comparison.missing || comparison.extra) {
