@@ -775,6 +775,10 @@ export const staffingRequirements = pgTable(
     shiftDefinitionId: integer("shift_definition_id").notNull().references(() => shiftDefinitions.id, { onDelete: "restrict" }),
     jobProfileId: integer("job_profile_id").references(() => jobProfiles.id, { onDelete: "restrict" }),
     requiredHeadcount: integer("required_headcount").notNull(),
+    sourceType: varchar("source_type", { length: 32 }).notNull().default("manual"),
+    sourcePlanId: integer("source_plan_id").references(() => workforcePlans.id, { onDelete: "set null" }),
+    sourcePositionIds: jsonb("source_position_ids").notNull().default([]),
+    sourceHandoffKey: varchar("source_handoff_key", { length: 180 }),
     notes: varchar("notes", { length: 240 }),
     createdBy: varchar("created_by", { length: 120 }).notNull().default("System"),
     createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
@@ -791,6 +795,10 @@ export const staffingRequirements = pgTable(
     ),
     index("staffing_requirement_date_idx").on(table.organizationId, table.workDate),
     index("staffing_requirement_role_idx").on(table.organizationId, table.jobProfileId, table.workDate),
+    index("staffing_requirement_source_plan_idx").on(table.organizationId, table.sourcePlanId, table.workDate),
+    uniqueIndex("staffing_requirement_handoff_key_unique")
+      .on(table.organizationId, table.sourceHandoffKey)
+      .where(sql`${table.sourceHandoffKey} is not null`),
   ],
 );
 
