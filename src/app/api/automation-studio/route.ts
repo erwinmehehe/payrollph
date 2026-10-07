@@ -1,6 +1,7 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  automationEventLog,
   automationExecutions,
   automationRules,
   benefitPlans,
@@ -24,6 +25,7 @@ import {
   AUTOMATION_TRIGGERS,
   automationTriggerIsLive,
   normalizeAutomationActions,
+  simulateAutomationImpact,
   validAutomationConditions,
   validateAutomationActionTrigger,
   type AutomationTrigger,
@@ -120,6 +122,64 @@ export async function GET(request: Request) {
 
   const guard = await assertStudioAdmin(user.id, organizationId);
   if (guard.denied) return guard.denied;
+
+  const previewRuleId = Number(new URL(request.url).searchParams.get("previewRuleId"));
+  if (Number.isInteger(previewRuleId) && previewRuleId > 0) {
+    const versions = await listAutomationRuleVersions(organizationId);
+    const draft = versions.find((version) =>
+      version.ruleId === previewRuleId && version.status === "draft"
+    );
+    if (!draft) {
+      return Response.json({ error: "This workflow has no saved draft to preview." }, { status: 404 });
+    }
+    const trigger = draft.trigger as AutomationTrigger;
+    const actions = normalizeAutomationActions(draft.actions);
+    if (
+      !(AUTOMATION_TRIGGERS as readonly string[]).includes(trigger)
+      || !validAutomationConditions(draft.conditions)
+      || !actions
+    ) {
+      return Response.json({ error: "The saved draft definition is invalid and cannot be previewed." }, { status: 409 });
+    }
+    const connectorError = await validateConnectorActions(organizationId, actions);
+    if (connectorError) {
+      return Response.json({ error: connectorError }, { status: 409 });
+    }
+
+    const eventRows = await db.select().from(automationEventLog).where(and(
+      eq(automationEventLog.organizationId, organizationId),
+      eq(automationEventLog.trigger, trigger),
+    )).orderBy(desc(automationEventLog.occurredAt), desc(automationEventLog.id)).limit(200);
+
+    const preview = simulateAutomationImpact({
+      trigger,
+      conditions: draft.conditions,
+      actions,
+      events: eventRows.map((row) => ({
+        employeeId: row.employeeId,
+        eventKey: row.eventKey,
+        source: row.source,
+        context: row.context && typeof row.context === "object" && !Array.isArray(row.context)
+          ? row.context as Record<string, unknown>
+          : {},
+        occurredAt: row.occurredAt,
+      })),
+    });
+
+    return Response.json({
+      preview,
+      draft: {
+        ruleId: draft.ruleId,
+        version: draft.version,
+        name: draft.name,
+        trigger,
+      },
+      generatedAt: new Date().toISOString(),
+      dataNote: preview.legacyBackfillEvents > 0
+        ? "Legacy backfill contains only events that previously produced executions. New authoritative events are captured before rule matching."
+        : "All sampled ledger events were captured before rule matching.",
+    });
+  }
 
   const [rules, versions, executions, units, sets, plans, patterns, approvalChains, integrationConnectors] = await Promise.all([
     db.select().from(automationRules)
@@ -384,13 +444,45 @@ export async function POST(request: Request) {
 
     const versions = await listAutomationRuleVersions(organizationId);
     const draft = versions.find((version) => version.ruleId === ruleId && version.status === "draft");
-    const draftActions = draft ? normalizeAutomationActions(draft.actions) : null;
-    if (draft && !draftActions) {
-      return Response.json({ error: "Draft actions are invalid and cannot be published." }, { status: 409 });
+    if (!draft) {
+      return Response.json({ error: "This workflow has no saved draft to publish." }, { status: 409 });
     }
-    if (draftActions) {
-      const connectorError = await validateConnectorActions(organizationId, draftActions);
-      if (connectorError) return Response.json({ error: connectorError }, { status: 409 });
+    const draftTrigger = draft.trigger as AutomationTrigger;
+    const draftActions = normalizeAutomationActions(draft.actions);
+    if (
+      !(AUTOMATION_TRIGGERS as readonly string[]).includes(draftTrigger)
+      || !validAutomationConditions(draft.conditions)
+      || !draftActions
+    ) {
+      return Response.json({ error: "Draft definition is invalid and cannot be published." }, { status: 409 });
+    }
+    const connectorError = await validateConnectorActions(organizationId, draftActions);
+    if (connectorError) return Response.json({ error: connectorError }, { status: 409 });
+
+    const previewEvents = await db.select().from(automationEventLog).where(and(
+      eq(automationEventLog.organizationId, organizationId),
+      eq(automationEventLog.trigger, draftTrigger),
+    )).orderBy(desc(automationEventLog.occurredAt), desc(automationEventLog.id)).limit(200);
+    const impactPreview = simulateAutomationImpact({
+      trigger: draftTrigger,
+      conditions: draft.conditions,
+      actions: draftActions,
+      events: previewEvents.map((row) => ({
+        employeeId: row.employeeId,
+        eventKey: row.eventKey,
+        source: row.source,
+        context: row.context && typeof row.context === "object" && !Array.isArray(row.context)
+          ? row.context as Record<string, unknown>
+          : {},
+        occurredAt: row.occurredAt,
+      })),
+    });
+    if (impactPreview.definitionError || impactPreview.authoritativePolicyBlocks > 0) {
+      return Response.json({
+        error: impactPreview.definitionError
+          ?? "Impact Preview found authoritative events that would hit policy blocks. Resolve them before publishing.",
+        impactPreview,
+      }, { status: 409 });
     }
 
     try {
@@ -409,6 +501,16 @@ export async function POST(request: Request) {
           publishedVersion: result.published.version,
           trigger: result.rule.trigger,
           active: result.rule.active,
+          impactPreview: {
+            eventsEvaluated: impactPreview.eventsEvaluated,
+            matchedEvents: impactPreview.matchedEvents,
+            skippedEvents: impactPreview.skippedEvents,
+            authoritativeEvents: impactPreview.authoritativeEvents,
+            legacyBackfillEvents: impactPreview.legacyBackfillEvents,
+            projectedSteps: impactPreview.projectedSteps,
+            policyBlocks: impactPreview.policyBlocks,
+            projectedPayrollAdjustmentAbsoluteAmount: impactPreview.projectedPayrollAdjustmentAbsoluteAmount,
+          },
         },
       });
       return Response.json(result);

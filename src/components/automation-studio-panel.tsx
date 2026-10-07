@@ -121,6 +121,45 @@ type Execution = {
   createdAt: string;
 };
 
+type ImpactPreviewResponse = {
+  draft: {
+    ruleId: number;
+    version: number;
+    name: string;
+    trigger: string;
+  };
+  generatedAt: string;
+  dataNote: string;
+  preview: {
+    trigger: string;
+    eventsEvaluated: number;
+    matchedEvents: number;
+    skippedEvents: number;
+    projectedSteps: number;
+    approvalSteps: number;
+    waitSteps: number;
+    policyBlocks: number;
+    authoritativePolicyBlocks: number;
+    legacyPolicyBlocks: number;
+    projectedPayrollAdjustmentAmount: number;
+    projectedPayrollAdjustmentAbsoluteAmount: number;
+    actionCounts: Record<string, number>;
+    authoritativeEvents: number;
+    legacyBackfillEvents: number;
+    definitionError: string | null;
+    samples: Array<{
+      eventKey: string;
+      employeeId: number | null;
+      source: string;
+      occurredAt: string | null;
+      matched: boolean;
+      reason: string;
+      projectedSteps: string[];
+      policyBlocks: string[];
+    }>;
+  };
+};
+
 type StudioData = {
   rules: AutomationRule[];
   versions: AutomationRuleVersion[];
@@ -247,6 +286,13 @@ const defaultAction = (id: string): ActionDraft => ({
 const formatDateTime = (value: string) =>
   new Date(value).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
 
+const formatPeso = (value: number) =>
+  new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    maximumFractionDigits: 0,
+  }).format(value);
+
 function conditionCount(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return 0;
   const row = value as Record<string, unknown>;
@@ -286,6 +332,8 @@ export function AutomationStudioPanel({
   const [data, setData] = useState<StudioData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [previewingRuleId, setPreviewingRuleId] = useState<number | null>(null);
+  const [impactPreview, setImpactPreview] = useState<ImpactPreviewResponse | null>(null);
   const [showBuilder, setShowBuilder] = useState(false);
   const [name, setName] = useState("");
   const [trigger, setTrigger] = useState("employee.hired");
@@ -569,7 +617,44 @@ export function AutomationStudioPanel({
     }
   }
 
+  async function previewRule(rule: AutomationRule) {
+    if (!rule.draftVersion) return;
+    setPreviewingRuleId(rule.id);
+    try {
+      const response = await fetch(
+        `/api/automation-studio?organizationId=${organizationId}&previewRuleId=${rule.id}`,
+        { cache: "no-store" },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not preview automation impact.");
+      setImpactPreview(payload as ImpactPreviewResponse);
+      const preview = (payload as ImpactPreviewResponse).preview;
+      setNotice(
+        `Impact Preview: ${preview.matchedEvents} of ${preview.eventsEvaluated} sampled event(s) would match; ${preview.authoritativePolicyBlocks} authoritative policy block(s).`,
+      );
+    } catch (error) {
+      setImpactPreview(null);
+      setNotice(error instanceof Error ? error.message : "Could not preview automation impact.");
+    } finally {
+      setPreviewingRuleId(null);
+    }
+  }
+
   async function publishRule(rule: AutomationRule) {
+    const currentPreview = impactPreview
+      && impactPreview.draft.ruleId === rule.id
+      && impactPreview.draft.version === rule.draftVersion
+      ? impactPreview
+      : null;
+    if (!currentPreview) {
+      setNotice("Run Impact Preview for this exact draft before publishing.");
+      return;
+    }
+    if (currentPreview.preview.definitionError || currentPreview.preview.authoritativePolicyBlocks > 0) {
+      setNotice("Resolve the authoritative Impact Preview policy blocks before publishing.");
+      return;
+    }
+
     try {
       const response = await fetch("/api/automation-studio", {
         method: "POST",
@@ -581,7 +666,18 @@ export function AutomationStudioPanel({
         }),
       });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error ?? "Could not publish automation draft.");
+      if (!response.ok) {
+        if (payload.impactPreview) {
+          setImpactPreview({
+            draft: currentPreview.draft,
+            generatedAt: new Date().toISOString(),
+            dataNote: currentPreview.dataNote,
+            preview: payload.impactPreview,
+          });
+        }
+        throw new Error(payload.error ?? "Could not publish automation draft.");
+      }
+      setImpactPreview(null);
       await load();
       setNotice(`${rule.name} published as version ${payload.published?.version ?? ""}.`);
     } catch (error) {
@@ -1150,6 +1246,136 @@ export function AutomationStudioPanel({
         </form>
       )}
 
+      {impactPreview && (
+        <article className="card" style={{ marginTop: 16 }} data-automation-impact-preview>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">IMPACT PREVIEW · DRAFT V{impactPreview.draft.version}</div>
+              <h2>{impactPreview.draft.name}</h2>
+              <p>
+                Zero-write replay against up to 200 recent ledger events. Conditions and branches are evaluated exactly,
+                but tasks, approvals, payroll requests, schedules, messages, documents, access changes and webhooks are not executed.
+              </p>
+            </div>
+            <span className={
+              impactPreview.preview.definitionError || impactPreview.preview.authoritativePolicyBlocks > 0
+                ? "status status-failed"
+                : "status status-verified"
+            }>
+              {impactPreview.preview.definitionError || impactPreview.preview.authoritativePolicyBlocks > 0
+                ? "Blocked"
+                : "Safe to publish"}
+            </span>
+          </div>
+
+          <section className="stats-grid" style={{ padding: "0 18px 18px", gridTemplateColumns: "repeat(4, 1fr)" }}>
+            <article className="stat-card">
+              <div className="stat-icon blue"><Activity size={18} /></div>
+              <p>EVENTS EVALUATED</p>
+              <h3>{impactPreview.preview.eventsEvaluated}</h3>
+              <span>{impactPreview.preview.authoritativeEvents} authoritative · {impactPreview.preview.legacyBackfillEvents} legacy</span>
+            </article>
+            <article className="stat-card">
+              <div className="stat-icon green"><CheckCircle2 size={18} /></div>
+              <p>WOULD MATCH</p>
+              <h3>{impactPreview.preview.matchedEvents}</h3>
+              <span>{impactPreview.preview.skippedEvents} would skip</span>
+            </article>
+            <article className="stat-card">
+              <div className="stat-icon purple"><Workflow size={18} /></div>
+              <p>PROJECTED STEPS</p>
+              <h3>{impactPreview.preview.projectedSteps}</h3>
+              <span>{impactPreview.preview.approvalSteps} approval · {impactPreview.preview.waitSteps} wait</span>
+            </article>
+            <article className="stat-card">
+              <div className="stat-icon amber"><ShieldCheck size={18} /></div>
+              <p>POLICY BLOCKS</p>
+              <h3>{impactPreview.preview.authoritativePolicyBlocks}</h3>
+              <span>{impactPreview.preview.legacyPolicyBlocks} legacy-only signal(s)</span>
+            </article>
+          </section>
+
+          <div className={
+            impactPreview.preview.definitionError || impactPreview.preview.authoritativePolicyBlocks > 0
+              ? "notice notice-red"
+              : impactPreview.preview.authoritativeEvents === 0
+                ? "notice notice-amber"
+                : "notice notice-slate"
+          } style={{ margin: "0 18px 18px" }}>
+            <ShieldCheck size={16} />
+            <span>
+              {impactPreview.preview.definitionError
+                ? <><strong>Definition blocked.</strong> {impactPreview.preview.definitionError}</>
+                : impactPreview.preview.authoritativePolicyBlocks > 0
+                  ? <><strong>Publish blocked.</strong> Resolve {impactPreview.preview.authoritativePolicyBlocks} policy block(s) found on authoritative events.</>
+                  : impactPreview.preview.authoritativeEvents === 0
+                    ? <><strong>Limited evidence.</strong> No post-ledger authoritative event exists for this trigger yet. Legacy history is informative but does not block publication.</>
+                    : <><strong>Safe dry run.</strong> No authoritative sampled event would hit a known Automation Studio policy block.</>}
+            </span>
+          </div>
+
+          <div className="card-body" style={{ paddingTop: 0 }}>
+            <div className="module-grid two" style={{ marginBottom: 14 }}>
+              <div className="modal-note">
+                <strong>Projected action mix</strong><br />
+                {Object.entries(impactPreview.preview.actionCounts).length
+                  ? Object.entries(impactPreview.preview.actionCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([type, count]) => `${type.replaceAll("_", " ")} × ${count}`)
+                      .join(" · ")
+                  : "No actions would run for the sampled events."}
+              </div>
+              <div className="modal-note">
+                <strong>Payroll adjustment exposure</strong><br />
+                {formatPeso(impactPreview.preview.projectedPayrollAdjustmentAbsoluteAmount)} absolute requested amount
+                {impactPreview.preview.projectedPayrollAdjustmentAbsoluteAmount > 0
+                  ? ` · signed net ${formatPeso(impactPreview.preview.projectedPayrollAdjustmentAmount)}`
+                  : ""}
+              </div>
+            </div>
+            <div className="modal-note" style={{ marginBottom: 14 }}>
+              {impactPreview.dataNote} · Generated {formatDateTime(impactPreview.generatedAt)}
+            </div>
+
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr><th>EVENT</th><th>RESULT</th><th>PROJECTED FLOW</th><th>POLICY</th></tr>
+                </thead>
+                <tbody>
+                  {impactPreview.preview.samples.length === 0 && (
+                    <tr><td colSpan={4}><div className="empty-state">No recorded events for this trigger yet.</div></td></tr>
+                  )}
+                  {impactPreview.preview.samples.map((sample) => (
+                    <tr key={sample.eventKey + "-" + (sample.occurredAt ?? "")}>
+                      <td>
+                        <strong>{sample.eventKey}</strong>
+                        <small style={{ display: "block", color: "var(--muted)" }}>
+                          {sample.employeeId ? `Employee #${sample.employeeId}` : "Organization"} · {sample.source}
+                          {sample.occurredAt ? ` · ${formatDateTime(sample.occurredAt)}` : ""}
+                        </small>
+                      </td>
+                      <td>
+                        <span className={sample.matched ? "status status-verified" : "status"}>
+                          {sample.matched ? "Match" : "Skip"}
+                        </span>
+                        <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>{sample.reason}</small>
+                      </td>
+                      <td>{sample.projectedSteps.length ? sample.projectedSteps.join(" → ").replaceAll("_", " ") : "—"}</td>
+                      <td>
+                        {sample.policyBlocks.length
+                          ? sample.policyBlocks.map((block) => <small key={block} style={{ display: "block", color: "var(--danger)" }}>{block}</small>)
+                          : <span className="id">No known block</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+      )}
+
       <section className="module-grid two" style={{ marginTop: 16 }}>
         <article className="card">
           <div className="card-header">
@@ -1168,6 +1394,16 @@ export function AutomationStudioPanel({
             const rollbackTarget = versions.find((version) =>
               version.status !== "draft" && version.version !== rule.publishedVersion
             ) ?? null;
+            const currentPreview = impactPreview
+              && impactPreview.draft.ruleId === rule.id
+              && impactPreview.draft.version === rule.draftVersion
+              ? impactPreview
+              : null;
+            const previewSafe = Boolean(
+              currentPreview
+              && !currentPreview.preview.definitionError
+              && currentPreview.preview.authoritativePolicyBlocks === 0,
+            );
             return (
               <div className="leave-request" key={rule.id}>
                 <div className="inline-icon purple"><Workflow size={16} /></div>
@@ -1185,7 +1421,21 @@ export function AutomationStudioPanel({
                 </div>
                 <div className="run-actions" style={{ margin: 0 }}>
                   {rule.draftVersion && (
-                    <button className="primary-button" onClick={() => void publishRule(rule)}>
+                    <button
+                      className="secondary-button"
+                      onClick={() => void previewRule(rule)}
+                      disabled={previewingRuleId === rule.id}
+                    >
+                      <Activity size={14} /> {previewingRuleId === rule.id ? "Previewing…" : "Impact Preview"}
+                    </button>
+                  )}
+                  {rule.draftVersion && (
+                    <button
+                      className="primary-button"
+                      onClick={() => void publishRule(rule)}
+                      disabled={!previewSafe}
+                      title={previewSafe ? "Publish reviewed draft" : "Run a safe Impact Preview for this draft first"}
+                    >
                       Publish v{rule.draftVersion}
                     </button>
                   )}

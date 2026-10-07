@@ -4130,6 +4130,32 @@ export const automationRuleVersions = pgTable(
   ],
 );
 
+export const automationEventLog = pgTable(
+  "automation_event_log",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    trigger: varchar("trigger", { length: 64 }).notNull(),
+    eventKey: varchar("event_key", { length: 240 }).notNull(),
+    source: varchar("source", { length: 32 }).notNull().default("authoritative"),
+    context: jsonb("context").notNull().default({}),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("automation_event_log_org_trigger_event_unique").on(
+      table.organizationId,
+      table.trigger,
+      table.eventKey,
+    ),
+    index("automation_event_log_org_trigger_occurred_idx").on(
+      table.organizationId,
+      table.trigger,
+      table.occurredAt,
+    ),
+  ],
+);
+
 export const automationExecutions = pgTable(
   "automation_executions",
   {
