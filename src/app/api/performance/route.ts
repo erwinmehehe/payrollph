@@ -119,7 +119,7 @@ async function cycleCompletionReadiness(
     }),
   );
   const calibrationFinalized = calibrationSessions.some((session) => session.status === "finalized");
-  const calibrationRequiredAndOpen = cycle.requireCalibration && !calibrationFinalized;
+  const calibrationRequiredAndOpen = (cycle.requireCalibration || calibrationSessions.length > 0) && !calibrationFinalized;
 
   return {
     totalReviews: reviews.length,
