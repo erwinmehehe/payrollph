@@ -3105,6 +3105,97 @@ export const performanceOneOnOneActionItemEvents = pgTable(
   ],
 );
 
+export const performanceActionReminderPolicies = pgTable(
+  "performance_action_reminder_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    version: integer("version").notNull().default(1),
+    enabled: boolean("enabled").notNull().default(true),
+    reminderDaysBefore: integer("reminder_days_before").notNull().default(3),
+    escalationDaysOverdue: integer("escalation_days_overdue").notNull().default(3),
+    notifyManagerOnEmployeeItem: boolean("notify_manager_on_employee_item").notNull().default(true),
+    notifyPeopleAdminOnEscalation: boolean("notify_people_admin_on_escalation").notNull().default(true),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    updatedByName: varchar("updated_by_name", { length: 120 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_action_reminder_policies_org_unique").on(table.organizationId),
+    check("performance_action_reminder_policy_days_before_check", sql`${table.reminderDaysBefore} >= 0 AND ${table.reminderDaysBefore} <= 30`),
+    check("performance_action_reminder_policy_escalation_check", sql`${table.escalationDaysOverdue} >= 1 AND ${table.escalationDaysOverdue} <= 90`),
+  ],
+);
+
+export const performanceActionReminderPolicyEvents = pgTable(
+  "performance_action_reminder_policy_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    policyId: integer("policy_id").notNull().references(() => performanceActionReminderPolicies.id, { onDelete: "restrict" }),
+    fromVersion: integer("from_version"),
+    toVersion: integer("to_version").notNull(),
+    beforeSnapshot: jsonb("before_snapshot"),
+    afterSnapshot: jsonb("after_snapshot").notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+export const performanceActionItemReminderTasks = pgTable(
+  "performance_action_item_reminder_tasks",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    actionItemId: integer("action_item_id").notNull().references(() => performanceOneOnOneActionItems.id, { onDelete: "cascade" }),
+    oneOnOneId: integer("one_on_one_id").notNull().references(() => performanceOneOnOnes.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    sourceKey: varchar("source_key", { length: 180 }).notNull(),
+    stage: varchar("stage", { length: 32 }).notNull(),
+    dueDate: date("due_date").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    ownerUserId: integer("owner_user_id").references(() => users.id, { onDelete: "set null" }),
+    ownerEmployeeId: integer("owner_employee_id").references(() => employees.id, { onDelete: "set null" }),
+    ownerName: varchar("owner_name", { length: 120 }),
+    managerUserId: integer("manager_user_id").references(() => users.id, { onDelete: "set null" }),
+    managerName: varchar("manager_name", { length: 120 }),
+    escalatedToUserId: integer("escalated_to_user_id").references(() => users.id, { onDelete: "set null" }),
+    escalatedToName: varchar("escalated_to_name", { length: 120 }),
+    notificationEpisode: integer("notification_episode").notNull().default(1),
+    lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_action_item_reminder_source_unique").on(table.organizationId, table.sourceKey),
+    index("performance_action_item_reminder_status_idx").on(table.organizationId, table.status, table.dueDate, table.stage),
+    check("performance_action_item_reminder_stage_check", sql`${table.stage} IN ('upcoming','due','overdue','overdue_escalated')`),
+    check("performance_action_item_reminder_status_check", sql`${table.status} IN ('open','resolved')`),
+    check("performance_action_item_reminder_episode_check", sql`${table.notificationEpisode} >= 1`),
+  ],
+);
+
+export const performanceActionItemReminderEvents = pgTable(
+  "performance_action_item_reminder_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    taskId: integer("task_id").notNull().references(() => performanceActionItemReminderTasks.id, { onDelete: "cascade" }),
+    actionItemId: integer("action_item_id").notNull().references(() => performanceOneOnOneActionItems.id, { onDelete: "cascade" }),
+    eventType: varchar("event_type", { length: 32 }).notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_action_item_reminder_events_task_idx").on(table.organizationId, table.taskId, table.createdAt),
+  ],
+);
+
 export const performanceFeedback = pgTable(
   "performance_feedback",
   {
