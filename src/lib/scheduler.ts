@@ -15,6 +15,7 @@ import { runScheduledEmploymentTermDecisions } from "@/lib/hcm-employment-term-d
 import { runScheduledHcmLifecycleNotifications } from "@/lib/hcm-lifecycle-notifications";
 import { runScheduledPerformanceReminders } from "@/lib/hcm-performance-reminders";
 import { runScheduledPerformanceActionReminders } from "@/lib/hcm-performance-action-reminders";
+import { runScheduledPerformanceEvidenceSealing } from "@/lib/hcm-performance-evidence-sealing";
 import { resumeDueAutomationExecutions } from "@/lib/automation";
 import { runScheduledAutomationTemporalEvents } from "@/lib/automation-temporal-events";
 
@@ -132,6 +133,36 @@ export async function tickScheduler(force = false) {
     }
   }
 
+  const [performanceEvidenceState] = await db.select().from(schedulerState)
+    .where(eq(schedulerState.jobName, "hcm-performance-evidence-sealing"))
+    .limit(1);
+  const performanceEvidenceDue =
+    !performanceEvidenceState?.lastRunAt
+    || now.getTime() - performanceEvidenceState.lastRunAt.getTime() >= 6 * 60 * 60 * 1000;
+  const performanceEvidenceSealing = performanceEvidenceDue
+    ? await runScheduledPerformanceEvidenceSealing({ actor: "System scheduler", now })
+    : null;
+
+  if (performanceEvidenceDue) {
+    const performanceEvidencePayload = {
+      at: now.toISOString(),
+      sealedCycles: performanceEvidenceSealing?.length ?? 0,
+      results: performanceEvidenceSealing?.slice(0, 50) ?? [],
+    };
+    if (performanceEvidenceState) {
+      await db.update(schedulerState).set({
+        lastRunAt: now,
+        lastResult: performanceEvidencePayload,
+      }).where(eq(schedulerState.id, performanceEvidenceState.id));
+    } else {
+      await db.insert(schedulerState).values({
+        jobName: "hcm-performance-evidence-sealing",
+        lastRunAt: now,
+        lastResult: performanceEvidencePayload,
+      });
+    }
+  }
+
   if (hcmLifecycleNotificationsDue) {
     const lifecyclePayload = {
       at: now.toISOString(),
@@ -206,6 +237,7 @@ export async function tickScheduler(force = false) {
     hcmLifecycleNotifications,
     performanceReminders,
     performanceActionReminders,
+    performanceEvidenceSealing,
     at: now.toISOString(),
     results: {
       webhooks: webhookResults.slice(0, 10),
