@@ -62,6 +62,9 @@ test("skill development plans are created only from verified persistent gaps", (
 test("development plan completion requires milestone closure and cancellations require rationale", () => {
   assert.ok(developmentRoute.includes("Complete or cancel every development milestone before completing the plan."));
   assert.ok(developmentRoute.includes("A cancellation reason of at least 10 characters is required."));
+  assert.ok(developmentRoute.includes("Closed development plans are locked."));
+  assert.ok(developmentRoute.includes("Closed development milestones are locked."));
+  assert.ok(developmentRoute.includes("That development plan status transition is not allowed."));
   assert.ok(developmentRoute.includes('"status_changed"'));
   assert.ok(followThroughPanel.includes("Create from evidence"));
   assert.ok(followThroughPanel.includes("Complete plan"));
