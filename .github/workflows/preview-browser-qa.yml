@@ -250,8 +250,8 @@ jobs:
               check(controlFit.scrollWidth <= controlFit.clientWidth + 1, "mobile-390: payroll preview is clipped");
 
               const securityProof = page.locator("#security article").first();
-              const securityHeading = securityProof.getByRole("heading", { name: "One workspace can never read another's payroll." });
-              const securityCopy = securityProof.locator("p").filter({ hasText: "Every session route passes one shared membership gate." }).first();
+              const securityHeading = securityProof.getByRole("heading", { name: "Permissions are checked before payroll data moves." });
+              const securityCopy = securityProof.locator("p").filter({ hasText: "Requests are scoped to organization membership and resource permissions." }).first();
 
               check(
                 !(await pricing.innerText()).includes("No credit card to start") &&
