@@ -7,6 +7,7 @@ import {
   buildWorkforceDemandForecast,
   hourlyBaseRate,
   paidShiftHours,
+  monthlyEmployerStatutoryCost,
 } from "../src/lib/workforce-forecast";
 
 test("pay profiles annualize consistently across monthly, daily, and hourly bases", () => {
@@ -50,6 +51,12 @@ test("pay profiles annualize consistently across monthly, daily, and hourly base
   }), 2112);
 });
 
+test("loaded labor cost uses Philippine employer statutory contributions", () => {
+  const monthly = monthlyEmployerStatutoryCost(30000);
+  assert.ok(monthly > 0);
+  assert.ok(monthly < 10000);
+});
+
 test("paid shift hours handle breaks and cross-midnight shifts", () => {
   assert.equal(paidShiftHours({
     id: 1,
@@ -84,6 +91,10 @@ test("forecast combines current payroll, vacancy budget, staffing demand, and co
     payProfiles: [
       { employeeId: 1, payBasis: "monthly", rateAmount: 30000, standardWorkDaysPerMonth: 22, standardHoursPerDay: 8 },
       { employeeId: 2, payBasis: "hourly", rateAmount: 200, standardWorkDaysPerMonth: 22, standardHoursPerDay: 8 },
+    ],
+    employerBenefits: [
+      { employeeId: 1, monthlyEmployerCost: 2500 },
+      { employeeId: 2, monthlyEmployerCost: 1000 },
     ],
     positions: [
       { id: 11, status: "open", annualBudget: 600000, plannedStartDate: "2026-01-01" },
@@ -130,11 +141,17 @@ test("forecast combines current payroll, vacancy budget, staffing demand, and co
   assert.ok(result.summary.capacityCoveragePercent > 100);
   assert.equal(result.summary.annualizedBasePayroll, 782400);
   assert.equal(result.summary.vacantAnnualBudget, 600000);
+  assert.ok(result.summary.annualizedEmployerStatutory > 0);
+  assert.equal(result.summary.annualizedEmployerBenefits, 42000);
+  assert.ok(result.summary.currentPeriodEmployerStatutory > 0);
+  assert.ok(result.summary.currentPeriodEmployerBenefits > 0);
   assert.ok(result.summary.forecastPeriodLaborCost > result.summary.currentPeriodBasePayroll);
+  assert.ok(result.summary.averageLoadedHourlyRate > result.summary.averageBaseHourlyRate);
   assert.ok(result.summary.estimatedShiftDemandWageCost > 0);
   assert.equal(result.costCenters.length, 1);
   assert.equal(result.costCenters[0]?.code, "OPS");
   assert.ok(result.costCenters[0]!.currentPeriodBaseCost > 0);
+  assert.ok(result.costCenters[0]!.currentPeriodLoadedCost > result.costCenters[0]!.currentPeriodBaseCost);
   assert.ok(result.unallocated.currentPeriodBaseCost > 0);
   assert.equal(result.unallocated.plannedVacancyPeriodCost, result.summary.expectedVacancyPeriodCost);
 });
