@@ -48,8 +48,11 @@ test("sensitive field changes are redacted before entering automation evidence",
 
   assert.equal(context.sensitiveChange, true);
   assert.equal(context.changeField, "payoutDestination");
+  assert.equal(context.changeDirection, "changed");
   assert.equal("previousValue" in context, false);
   assert.equal("newValue" in context, false);
+  assert.equal("previousNumericValue" in context, false);
+  assert.equal("newNumericValue" in context, false);
   assert.equal(JSON.stringify(context).includes("raw-old-account"), false);
   assert.equal(JSON.stringify(context).includes("raw-new-account"), false);
 });
