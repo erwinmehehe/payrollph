@@ -283,6 +283,53 @@ export async function POST(request: Request) {
     return Response.json(dependent, { status: 201 });
   }
 
+  if (action === "update_dependent") {
+    const dependentId = Number(body.dependentId);
+    const status = String(body.status ?? "");
+    if (!Number.isInteger(dependentId) || !["pending", "active", "rejected", "ended"].includes(status)) {
+      return Response.json({ error: "dependentId and a valid dependent status are required." }, { status: 400 });
+    }
+
+    const [dependent] = await db.select().from(benefitDependents).where(and(
+      eq(benefitDependents.id, dependentId),
+      eq(benefitDependents.organizationId, organizationId),
+    )).limit(1);
+    if (!dependent) return Response.json({ error: "HMO dependent not found." }, { status: 404 });
+
+    const [employee] = await db.select().from(employees).where(and(
+      eq(employees.id, dependent.employeeId),
+      eq(employees.organizationId, organizationId),
+    )).limit(1);
+    if (!employee) return Response.json({ error: "Employee not found." }, { status: 404 });
+    const scope = assertScope(access, employee.orgUnitId);
+    if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+
+    const [updated] = await db.update(benefitDependents).set({
+      status,
+      providerMemberId: String(body.providerMemberId ?? dependent.providerMemberId ?? "").trim().slice(0, 80) || null,
+      updatedAt: new Date(),
+    }).where(eq(benefitDependents.id, dependent.id)).returning();
+
+    await db.insert(benefitEnrollmentEvents).values({
+      organizationId,
+      enrollmentId: dependent.enrollmentId,
+      employeeId: dependent.employeeId,
+      eventType: "dependent_updated",
+      status,
+      metadata: { dependentId: dependent.id, relationship: dependent.relationship },
+      actor: user.name,
+    });
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: "HMO dependent updated",
+      resource: `${employee.firstName} ${employee.lastName}`,
+      metadata: { dependentId: dependent.id, enrollmentId: dependent.enrollmentId, status },
+    });
+
+    return Response.json(updated);
+  }
+
   if (action === "update_enrollment") {
     const enrollmentId = Number(body.enrollmentId);
     if (!Number.isInteger(enrollmentId)) {
