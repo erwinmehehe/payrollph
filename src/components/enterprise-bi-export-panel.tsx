@@ -171,7 +171,7 @@ export function EnterpriseBiExportPanel({
                 setLegalEntityId(next);
                 if (orgUnitId) {
                   const unit = orgUnits.find((item) => String(item.id) === orgUnitId);
-                  if (unit?.legalEntityId != null && String(unit.legalEntityId) !== next) setOrgUnitId("");
+                  if (next && unit?.legalEntityId != null && String(unit.legalEntityId) !== next) setOrgUnitId("");
                 }
               }}
             >
