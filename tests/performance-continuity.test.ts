@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const migration = readFileSync("drizzle/0078_performance_continuity.sql", "utf8");
+const migration = readFileSync("drizzle/0079_performance_continuity.sql", "utf8");
 const schema = readFileSync("src/db/schema.ts", "utf8");
 const route = readFileSync("src/app/api/performance/continuous/route.ts", "utf8");
 const analytics = readFileSync("src/app/api/performance/analytics/route.ts", "utf8");
