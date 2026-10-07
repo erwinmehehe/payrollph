@@ -670,6 +670,12 @@ export function PerformanceContinuityPanel({
         </article>
       </section>
 
+      <PerformanceFollowThroughPanel
+        organizationId={organizationId}
+        canGovern={Boolean(access?.companyPeopleAdmin)}
+        setNotice={setNotice}
+      />
+
       <article className="card">
         <div className="card-header">
           <div>
