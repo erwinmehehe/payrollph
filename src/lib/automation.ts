@@ -24,6 +24,7 @@ import { dispatchWebhook } from "@/lib/webhooks";
 import { assignEmployeeScheduleGoverned } from "@/lib/workforce-schedule-assignment";
 import { generateAutomationEmployeeDocument } from "@/lib/automation-document-generation";
 import { createApprovalFromConfiguredChain } from "@/lib/approval-chains";
+import { deliverSlackAutomationMessage } from "@/lib/integration-connectors";
 import {
   getAutomationDocumentTemplate,
   type AutomationDocumentTrigger,
@@ -267,6 +268,13 @@ type DeactivateAccessAction = {
   type: "deactivate_access";
 };
 
+type SlackMessageAction = {
+  type: "send_slack_message";
+  connectorId: number;
+  channelId?: string;
+  text: string;
+};
+
 type WebhookAction = {
   type: "webhook";
 };
@@ -313,6 +321,7 @@ export type AutomationAction =
   | GenerateDocumentAction
   | RevokeSessionsAction
   | DeactivateAccessAction
+  | SlackMessageAction
   | WebhookAction
   | PayrollAdjustmentApprovalAction;
 
@@ -338,6 +347,7 @@ export const AUTOMATION_ACTION_CATALOG = [
   { value: "revoke_sessions", label: "Revoke active sessions", category: "Access" },
   { value: "deactivate_access", label: "Remove workspace access", category: "Access" },
   { value: "request_payroll_adjustment", label: "Request payroll adjustment approval", category: "Payroll" },
+  { value: "send_slack_message", label: "Send Slack message", category: "Integration" },
   { value: "webhook", label: "Call registered integration webhook", category: "Integration" },
   { value: "wait", label: "Wait / delay", category: "Flow Control" },
   { value: "approval_gate", label: "Pause until approval", category: "Governance" },
@@ -605,6 +615,21 @@ function normalizeAutomationSteps(
         reason: reason.slice(0, 240),
         approver: String(action.approver ?? "Payroll").trim().slice(0, 120) || "Payroll",
         approvalChainCode: String(action.approvalChainCode ?? "").trim().toLowerCase().slice(0, 64) || undefined,
+      });
+      continue;
+    }
+
+    if (type === "send_slack_message") {
+      const connectorId = Number(action.connectorId);
+      const channelId = String(action.channelId ?? "").trim();
+      const text = String(action.text ?? "").trim();
+      if (!Number.isInteger(connectorId) || connectorId < 1 || !text || text.length > 4_000) return null;
+      if (channelId && !/^[CGD][A-Z0-9]{6,20}$/.test(channelId)) return null;
+      actions.push({
+        type,
+        connectorId,
+        channelId: channelId || undefined,
+        text,
       });
       continue;
     }
@@ -1203,6 +1228,22 @@ async function executeAction(input: {
       requestedAmount: action.amount,
       approvalAmount: Math.abs(action.amount),
       appliedAutomatically: false,
+    };
+  }
+
+  if (action.type === "send_slack_message") {
+    const delivery = await deliverSlackAutomationMessage({
+      organizationId: input.organizationId,
+      connectorId: action.connectorId,
+      channelId: action.channelId,
+      text: action.text,
+      executionId: input.executionId,
+      actionIndex: input.actionIndex,
+      eventKey: input.eventKey,
+    });
+    return {
+      type: action.type,
+      ...delivery,
     };
   }
 
