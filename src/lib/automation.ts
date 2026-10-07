@@ -1,4 +1,4 @@
-import { and, eq, isNull, lte } from "drizzle-orm";
+import { and, eq, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
@@ -39,11 +39,7 @@ export const AUTOMATION_TRIGGERS = [
   "payroll.submitted",
   "payroll.approved",
   "payroll.released",
-  "payroll.pay_date_approaching",
-  "timesheet.cutoff_approaching",
   "attendance.exception_created",
-  "attendance.exception_aging",
-  "coverage.gap_approaching",
   "overtime.requested",
   "overtime.approved",
   "leave.requested",
@@ -54,6 +50,10 @@ export const AUTOMATION_TRIGGERS = [
   "document.expires",
   "government.remittance_due",
   "contribution.discrepancy_detected",
+  "benefit.enrollment_created",
+  "benefit.dependent_added",
+  "benefit.coverage_activated",
+  "benefit.coverage_ended",
 ] as const;
 
 export const LIFECYCLE_TRIGGERS = [
@@ -76,11 +76,7 @@ export const AUTOMATION_LIVE_TRIGGERS = [
   "payroll.submitted",
   "payroll.approved",
   "payroll.released",
-  "payroll.pay_date_approaching",
-  "timesheet.cutoff_approaching",
   "attendance.exception_created",
-  "attendance.exception_aging",
-  "coverage.gap_approaching",
   "overtime.requested",
   "overtime.approved",
   "leave.requested",
@@ -91,6 +87,10 @@ export const AUTOMATION_LIVE_TRIGGERS = [
   "document.expires",
   "government.remittance_due",
   "contribution.discrepancy_detected",
+  "benefit.enrollment_created",
+  "benefit.dependent_added",
+  "benefit.coverage_activated",
+  "benefit.coverage_ended",
 ] as const satisfies readonly AutomationTrigger[];
 
 export const AUTOMATION_PLANNED_TRIGGERS = [] as const satisfies readonly AutomationTrigger[];
@@ -115,11 +115,7 @@ export const AUTOMATION_TRIGGER_CATALOG: Array<{
   { value: "payroll.submitted", label: "Payroll submitted for review", category: "Payroll", employeeScoped: false },
   { value: "payroll.approved", label: "Payroll approved", category: "Payroll", employeeScoped: false },
   { value: "payroll.released", label: "Payroll released", category: "Payroll", employeeScoped: false },
-  { value: "payroll.pay_date_approaching", label: "Payroll pay date approaching", category: "Payroll", employeeScoped: false },
-  { value: "timesheet.cutoff_approaching", label: "Timesheet cutoff approaching", category: "Workforce", employeeScoped: true },
   { value: "attendance.exception_created", label: "Attendance exception created", category: "Workforce", employeeScoped: true },
-  { value: "attendance.exception_aging", label: "Attendance exception aging", category: "Workforce", employeeScoped: true },
-  { value: "coverage.gap_approaching", label: "Coverage gap approaching", category: "Workforce", employeeScoped: false },
   { value: "overtime.requested", label: "Overtime requested", category: "Workforce", employeeScoped: true },
   { value: "overtime.approved", label: "Overtime approved", category: "Workforce", employeeScoped: true },
   { value: "leave.requested", label: "Leave requested", category: "Workforce", employeeScoped: true },
@@ -130,6 +126,10 @@ export const AUTOMATION_TRIGGER_CATALOG: Array<{
   { value: "document.expires", label: "Document expires", category: "Compliance", employeeScoped: true },
   { value: "government.remittance_due", label: "Government remittance due", category: "Compliance", employeeScoped: false },
   { value: "contribution.discrepancy_detected", label: "Contribution discrepancy detected", category: "Compliance", employeeScoped: true },
+  { value: "benefit.enrollment_created", label: "Benefit enrollment created", category: "Benefits", employeeScoped: true },
+  { value: "benefit.dependent_added", label: "HMO dependent added", category: "Benefits", employeeScoped: true },
+  { value: "benefit.coverage_activated", label: "HMO coverage activated", category: "Benefits", employeeScoped: true },
+  { value: "benefit.coverage_ended", label: "HMO coverage ended", category: "Benefits", employeeScoped: true },
 ];
 
 export const AUTOMATION_CONDITION_FIELDS = [
@@ -147,21 +147,6 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "tenureDays", label: "Tenure (days)", kind: "number" },
   { value: "tenureYears", label: "Tenure (years)", kind: "number" },
   { value: "payrollAmount", label: "Payroll amount", kind: "number" },
-  { value: "payrollRunId", label: "Payroll run ID", kind: "number" },
-  { value: "payrollRunStatus", label: "Payroll run status", kind: "string" },
-  { value: "deadlineType", label: "Deadline type", kind: "string" },
-  { value: "deadlineBucket", label: "Deadline bucket", kind: "string" },
-  { value: "daysUntilDeadline", label: "Days until deadline", kind: "number" },
-  { value: "ageHours", label: "Age (hours)", kind: "number" },
-  { value: "ageBucket", label: "Age bucket", kind: "string" },
-  { value: "timesheetId", label: "Timesheet ID", kind: "number" },
-  { value: "timesheetStatus", label: "Timesheet status", kind: "string" },
-  { value: "timesheetBlockerCount", label: "Timesheet blocker count", kind: "number" },
-  { value: "openShiftId", label: "Open shift ID", kind: "number" },
-  { value: "worksiteId", label: "Worksite ID", kind: "number" },
-  { value: "workDate", label: "Work date", kind: "string" },
-  { value: "coverageSlots", label: "Coverage slots", kind: "number" },
-  { value: "coverageStatus", label: "Coverage status", kind: "string" },
   { value: "overtimeMinutes", label: "Overtime minutes", kind: "number" },
   { value: "attendanceExceptionKind", label: "Attendance exception type", kind: "string" },
   { value: "attendanceExceptionSeverity", label: "Attendance exception severity", kind: "string" },
@@ -195,6 +180,14 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "contributionSource", label: "Contribution discrepancy source", kind: "string" },
   { value: "contributionSeverity", label: "Contribution discrepancy severity", kind: "string" },
   { value: "contributionCaseId", label: "Contribution case ID", kind: "number" },
+  { value: "benefitCategory", label: "Benefit category", kind: "string" },
+  { value: "benefitPlanId", label: "Benefit plan ID", kind: "number" },
+  { value: "benefitPlanName", label: "Benefit plan name", kind: "string" },
+  { value: "benefitProvider", label: "Benefit provider", kind: "string" },
+  { value: "benefitStatus", label: "Benefit enrollment status", kind: "string" },
+  { value: "providerStatus", label: "Provider enrollment status", kind: "string" },
+  { value: "dependentRelationship", label: "Dependent relationship", kind: "string" },
+  { value: "dependentMonthlyContribution", label: "Dependent monthly contribution", kind: "number" },
   { value: "dynamicGroupCodes", label: "Dynamic group code", kind: "string_array" },
 ] as const;
 
@@ -1324,7 +1317,7 @@ async function executeAction(input: {
     const employeeId = requiredEmployeeId(input.employeeId, "Assign benefit");
     const [plan] = await db.select().from(benefitPlans).where(and(
       eq(benefitPlans.id, action.planId),
-      eq(benefitPlans.organizationId, input.organizationId),
+      or(isNull(benefitPlans.organizationId), eq(benefitPlans.organizationId, input.organizationId)),
       eq(benefitPlans.active, true),
     )).limit(1);
     if (!plan) throw new Error("The configured benefit plan is missing or inactive.");
