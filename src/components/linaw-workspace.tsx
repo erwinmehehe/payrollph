@@ -47,6 +47,7 @@ import {
   SettingsPage,
 } from "@/components/workspace/panels";
 import { PayrollRunView } from "@/components/workspace/payroll-run";
+import { PayoutControlCenter } from "@/components/workspace/payout-control-center";
 import { PeopleView } from "@/components/workspace/people";
 import { WorkspaceShell, buildNotifications } from "@/components/workspace/shell";
 import { TimeView } from "@/components/workspace/time";
@@ -429,6 +430,17 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
               await refresh();
             }}
             notify={notify}
+          />
+        )}
+
+        {page === "Payouts" && (
+          <PayoutControlCenter
+            data={data}
+            notify={notify}
+            onRefresh={async () => {
+              await refresh();
+            }}
+            onPage={setPage}
           />
         )}
 
