@@ -651,35 +651,6 @@ export function validateAutomationActionTrigger(trigger: AutomationTrigger, acti
       }
       continue;
     }
-    if (action.type === "generate_document") {
-    const employeeId = requiredEmployeeId(input.employeeId, "Generate employee document");
-    const template = getAutomationDocumentTemplate(action.templateId);
-    if (!template || !template.allowedTriggers.some((allowed) => allowed === input.trigger)) {
-      throw new Error("Generated-document template is not approved for this trigger.");
-    }
-
-    const result = await generateAutomationEmployeeDocument({
-      organizationId: input.organizationId,
-      employeeId,
-      trigger: input.trigger as AutomationDocumentTrigger,
-      templateId: action.templateId,
-      sourceKey: `Automation Studio document #${input.executionId}:${input.actionIndex}`,
-      context: input.context,
-      actor: "Automation Studio",
-    });
-
-    return {
-      type: action.type,
-      documentId: result.document.id,
-      templateId: action.templateId,
-      templateVersion: template.version,
-      fileName: result.document.fileName,
-      sha256: result.document.sha256,
-      idempotent: result.idempotent,
-      auditWarning: result.auditWarning,
-    };
-  }
-
   if (action.type === "assign_schedule") {
       if (!SCHEDULE_ASSIGNMENT_TRIGGERS.has(trigger)) {
         return "Schedule assignment automation is allowed only after employee hire, move, or promotion events.";
@@ -1009,6 +980,35 @@ async function executeAction(input: {
       },
     });
     return { type: action.type, recipient, deliveryStatus: delivery.status, outboxId: delivery.id };
+  }
+
+  if (action.type === "generate_document") {
+    const employeeId = requiredEmployeeId(input.employeeId, "Generate employee document");
+    const template = getAutomationDocumentTemplate(action.templateId);
+    if (!template || !template.allowedTriggers.some((allowed) => allowed === input.trigger)) {
+      throw new Error("Generated-document template is not approved for this trigger.");
+    }
+
+    const result = await generateAutomationEmployeeDocument({
+      organizationId: input.organizationId,
+      employeeId,
+      trigger: input.trigger as AutomationDocumentTrigger,
+      templateId: action.templateId,
+      sourceKey: `Automation Studio document #${input.executionId}:${input.actionIndex}`,
+      context: input.context,
+      actor: "Automation Studio",
+    });
+
+    return {
+      type: action.type,
+      documentId: result.document.id,
+      templateId: action.templateId,
+      templateVersion: template.version,
+      fileName: result.document.fileName,
+      sha256: result.document.sha256,
+      idempotent: result.idempotent,
+      auditWarning: result.auditWarning,
+    };
   }
 
   if (action.type === "assign_schedule") {
