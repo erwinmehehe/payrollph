@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   bankTemplates,
@@ -794,7 +794,14 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     ? (await db.select().from(payrollRuns)
         .where(and(
           eq(payrollRuns.organizationId, run.organizationId),
-          eq(payrollRuns.legalEntityId, legalEntityId),
+          // A legacy single-employer run can include historical unlabeled
+          // cutoffs only when its owner was resolved unambiguously above.
+          run.legalEntityId
+            ? eq(payrollRuns.legalEntityId, legalEntityId)
+            : or(
+                eq(payrollRuns.legalEntityId, legalEntityId),
+                isNull(payrollRuns.legalEntityId),
+              ),
         )))
         .filter((candidate) =>
           String(candidate.payDate).startsWith(monthPrefix)
