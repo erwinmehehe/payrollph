@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Wallet, CalendarClock, Users, ContactRound, ChartNoAxesCombined, UserRound } from "lucide-react";
-import { WorkspacePreview } from "@/components/marketing/workspace-preview";
+import { LinawSimulation } from "@/components/marketing/linaw-simulation";
 
 const productIcons = [Wallet, CalendarClock, Users, ContactRound, ChartNoAxesCombined, UserRound];
 
@@ -33,7 +33,7 @@ export function ProductHomeHero() {
       </div>
       <div id="product-screen" className="lp-showcase">
         <div className="lp-screen-heading"><div><h2>{selected.title}</h2><p>{selected.copy}</p></div><a href={selected.href}>Explore {selected.name.toLowerCase()} <span aria-hidden="true">↗</span></a></div>
-        <div id="demo" className="lp-simulation system-demo-product"><div className="lp-screen-heading"><strong>Interactive payroll workflow</strong><a href="/demo">Open role-based sandbox ↗</a></div><WorkspacePreview mode="interactive" page={previewPage} onPageChange={setPreviewPage} /></div>
+        <div id="demo" className="lp-simulation system-demo-product"><div className="lp-screen-heading"><strong>Your team. One connected workspace.</strong><a href="/demo">Open role-based sandbox ↗</a></div><LinawSimulation key={selected.id} initialRole={selected.id === "employee" ? "Employee" : "Payroll"} page={previewPage} onPageChange={setPreviewPage} /></div>
         <p className="lp-screen-note">Interactive simulation · Fictional sample data · Changes stay in this preview. Full role-based access is available in the sandbox.</p>
       </div>
       <span className="sr-only" aria-live="polite">{selected.title}</span>

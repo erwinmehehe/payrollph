@@ -68,8 +68,8 @@ test("the software homepage uses the real Linaw workspace preview", () => {
   const demo = read("src/components/marketing/product-home-hero.tsx");
   assert.ok(home.includes("<ProductHomeHero />"), "redesigned homepage must mount the product demo");
   assert.ok(demo.includes('id="demo"'), "homepage must expose a stable live-demo anchor");
-  assert.ok(demo.includes('from "@/components/marketing/workspace-preview"'), "homepage demo must use the shared Linaw workspace preview");
-  assert.ok(demo.includes('<WorkspacePreview mode="interactive"'), "homepage demo must expose the interactive real-system preview");
+  assert.ok(demo.includes('from "@/components/marketing/linaw-simulation"'), "homepage demo must use the shared Linaw workspace preview");
+  assert.ok(demo.includes('<LinawSimulation'), "homepage demo must expose the interactive real-system preview");
   assert.ok(demo.includes("Open role-based sandbox"), "homepage demo must hand off to the real role-based sandbox");
 });
 
@@ -257,7 +257,7 @@ test("homepage Leave and Migration modules perform local interactive workflows",
 test("homepage product screens hand off to the deeper interactive demo", () => {
   const hero = read("src/components/marketing/product-home-hero.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
-  assert.ok(hero.includes("WorkspacePreview"));
+  assert.ok(hero.includes("LinawSimulation"));
   assert.ok(hero.includes('href="/demo"'));
   assert.ok(demo.includes('mode="interactive"'));
   assert.ok(demo.includes("Interactive payroll workflow"));
