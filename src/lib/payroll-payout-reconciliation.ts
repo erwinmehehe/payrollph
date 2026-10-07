@@ -27,6 +27,12 @@ export type PaymongoPayrollReconciliation = {
   failed: number;
   unknown: number;
   total: number;
+  expectedAmountCents: number;
+  settledAmountCents: number;
+  pendingAmountCents: number;
+  failedAmountCents: number;
+  unknownAmountCents: number;
+  settlementVarianceCents: number;
   completed: boolean;
   retryableReferences: string[];
 };
@@ -95,6 +101,26 @@ export function reconcilePaymongoPayrollTransfers(input: {
   const failed = transfers.filter((transfer) => transfer.status === "failed").length;
   const unknown = transfers.filter((transfer) => transfer.status === "unknown").length;
 
+  const expectedAmountCents = input.expectedRows.reduce((sum, row) => sum + row.amountCents, 0);
+  const amountFor = (status: PaymongoTransferStatus) =>
+    transfers
+      .filter((transfer) => transfer.status === status)
+      .reduce((sum, transfer) => sum + transfer.amountCents, 0);
+  const settledAmountCents = amountFor("succeeded");
+  const pendingAmountCents = amountFor("pending");
+  const failedAmountCents = amountFor("failed");
+  const unknownAmountCents = amountFor("unknown");
+  const accountedAmountCents =
+    settledAmountCents + pendingAmountCents + failedAmountCents + unknownAmountCents;
+
+  if (accountedAmountCents !== expectedAmountCents) {
+    throw new Error(
+      `PayMongo payout amount reconciliation mismatch: provider rows account for ${accountedAmountCents} cents but released payroll expects ${expectedAmountCents} cents.`,
+    );
+  }
+
+  const settlementVarianceCents = expectedAmountCents - settledAmountCents;
+
   return {
     batchIds: input.batches.map((batch) => batch.batchId),
     transfers,
@@ -103,7 +129,16 @@ export function reconcilePaymongoPayrollTransfers(input: {
     failed,
     unknown,
     total: transfers.length,
-    completed: transfers.length > 0 && succeeded === transfers.length,
+    expectedAmountCents,
+    settledAmountCents,
+    pendingAmountCents,
+    failedAmountCents,
+    unknownAmountCents,
+    settlementVarianceCents,
+    completed:
+      transfers.length > 0
+      && succeeded === transfers.length
+      && settlementVarianceCents === 0,
     retryableReferences: transfers
       .filter((transfer) => transfer.status === "failed")
       .map((transfer) => transfer.referenceNumber),
