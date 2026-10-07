@@ -23,6 +23,7 @@ import {
   type OvertimeBudgetPolicyRecord,
 } from "@/lib/workforce-overtime-budget";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
+import { attendanceMutationLock, loadActiveAttendanceLocks } from "@/lib/workforce-attendance-lock";
 import { runAutomationEventSafely } from "@/lib/automation";
 import {
   enforceSameOriginMutation,
@@ -546,6 +547,8 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
+    const activeAttendanceLocks = await loadActiveAttendanceLocks(organizationId);
+
     const decisionResult = await db.transaction(async (tx) => {
       // Blocking OT budgets are authorization controls, so the read/check/write
       // sequence must be serialized. Without this lock, two managers could both
@@ -563,6 +566,25 @@ export async function POST(request: Request) {
       });
       if (candidates.error) {
         return { response: candidates.error, candidates: null, budget: null, updated: null };
+      }
+
+      const lockedCandidate = candidates.selected.find((item) =>
+        attendanceMutationLock(
+          activeAttendanceLocks,
+          String(item.request.workDate),
+          "correction",
+        ),
+      );
+      if (lockedCandidate) {
+        return {
+          response: Response.json({
+            error: `Overtime authorization for ${lockedCandidate.request.workDate} is frozen by the payroll cutoff. Reopen the cutoff before changing OT approval evidence.`,
+            code: "ATTENDANCE_PERIOD_LOCKED",
+          }, { status: 423 }),
+          candidates,
+          budget: null,
+          updated: null,
+        };
       }
 
       const budget = decision === "approved"
