@@ -2,17 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Menu, ShieldCheck, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { LinawMark } from "@/components/linaw-mark";
 import { PUBLIC_FOOTER_GROUPS, PUBLIC_PRIMARY_LINKS } from "./public-navigation";
 
 export function BrandMark({ size = 32 }: { size?: number }) {
   return (
-    <span
-      className="flex shrink-0 items-center justify-center rounded-[9px] bg-[#102A4C] text-white"
-      style={{ width: size, height: size }}
-      aria-hidden
-    >
-      <ShieldCheck size={Math.round(size * 0.56)} strokeWidth={2.1} />
+    <span className="flex shrink-0 items-center justify-center" style={{ width:size, height:size }} aria-hidden="true">
+      <LinawMark />
     </span>
   );
 }
