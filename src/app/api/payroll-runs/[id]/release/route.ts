@@ -169,6 +169,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       resource: run.periodLabel,
       metadata: {
         runId,
+        releasedByUserId: user.id,
         ruleVersion: run.ruleVersion,
         netPay: run.netPay,
         employees: entryCount,
@@ -348,6 +349,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       employeeCount: Number(entryCount),
       payDate: run.payDate,
       releasedAt,
+      releasedByUserId: user.id,
       approvalTaskId: payrollApproval.id,
     },
   });
