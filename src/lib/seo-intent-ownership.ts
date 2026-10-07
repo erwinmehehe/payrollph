@@ -19,6 +19,8 @@ export const SEO_PRIVATE_ROUTE_PREFIXES = [
 ] as const;
 
 export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
+  { primaryIntent: "hcm philippines", ownerPath: "/hcm", intentClass: "commercial", supportingIntents: ["human capital management philippines"] },
+  { primaryIntent: "workforce management philippines", ownerPath: "/workforce-management", intentClass: "commercial", supportingIntents: ["workforce scheduling philippines"] },
   {
     primaryIntent: "about linaw payrollph",
     ownerPath: "/about",
