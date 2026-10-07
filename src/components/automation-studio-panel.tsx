@@ -121,6 +121,45 @@ type Execution = {
   createdAt: string;
 };
 
+type ImpactPreviewResponse = {
+  draft: {
+    ruleId: number;
+    version: number;
+    name: string;
+    trigger: string;
+  };
+  generatedAt: string;
+  dataNote: string;
+  preview: {
+    trigger: string;
+    eventsEvaluated: number;
+    matchedEvents: number;
+    skippedEvents: number;
+    projectedSteps: number;
+    approvalSteps: number;
+    waitSteps: number;
+    policyBlocks: number;
+    authoritativePolicyBlocks: number;
+    legacyPolicyBlocks: number;
+    projectedPayrollAdjustmentAmount: number;
+    projectedPayrollAdjustmentAbsoluteAmount: number;
+    actionCounts: Record<string, number>;
+    authoritativeEvents: number;
+    legacyBackfillEvents: number;
+    definitionError: string | null;
+    samples: Array<{
+      eventKey: string;
+      employeeId: number | null;
+      source: string;
+      occurredAt: string | null;
+      matched: boolean;
+      reason: string;
+      projectedSteps: string[];
+      policyBlocks: string[];
+    }>;
+  };
+};
+
 type StudioData = {
   rules: AutomationRule[];
   versions: AutomationRuleVersion[];
@@ -286,6 +325,8 @@ export function AutomationStudioPanel({
   const [data, setData] = useState<StudioData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [previewingRuleId, setPreviewingRuleId] = useState<number | null>(null);
+  const [impactPreview, setImpactPreview] = useState<ImpactPreviewResponse | null>(null);
   const [showBuilder, setShowBuilder] = useState(false);
   const [name, setName] = useState("");
   const [trigger, setTrigger] = useState("employee.hired");
@@ -566,6 +607,29 @@ export function AutomationStudioPanel({
       setNotice(error instanceof Error ? error.message : "Could not create workflow draft from template.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function previewRule(rule: AutomationRule) {
+    if (!rule.draftVersion) return;
+    setPreviewingRuleId(rule.id);
+    try {
+      const response = await fetch(
+        `/api/automation-studio?organizationId=${organizationId}&previewRuleId=${rule.id}`,
+        { cache: "no-store" },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not preview automation impact.");
+      setImpactPreview(payload as ImpactPreviewResponse);
+      const preview = (payload as ImpactPreviewResponse).preview;
+      setNotice(
+        `Impact Preview: ${preview.matchedEvents} of ${preview.eventsEvaluated} sampled event(s) would match; ${preview.authoritativePolicyBlocks} authoritative policy block(s).`,
+      );
+    } catch (error) {
+      setImpactPreview(null);
+      setNotice(error instanceof Error ? error.message : "Could not preview automation impact.");
+    } finally {
+      setPreviewingRuleId(null);
     }
   }
 
