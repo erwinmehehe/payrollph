@@ -180,6 +180,7 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "contributionSource", label: "Contribution discrepancy source", kind: "string" },
   { value: "contributionSeverity", label: "Contribution discrepancy severity", kind: "string" },
   { value: "contributionCaseId", label: "Contribution case ID", kind: "number" },
+  { value: "benefitCategory", label: "Benefit category", kind: "string" },
   { value: "benefitPlanId", label: "Benefit plan ID", kind: "number" },
   { value: "benefitPlanName", label: "Benefit plan name", kind: "string" },
   { value: "benefitProvider", label: "Benefit provider", kind: "string" },
