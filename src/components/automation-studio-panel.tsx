@@ -1246,6 +1246,136 @@ export function AutomationStudioPanel({
         </form>
       )}
 
+      {impactPreview && (
+        <article className="card" style={{ marginTop: 16 }} data-automation-impact-preview>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">IMPACT PREVIEW · DRAFT V{impactPreview.draft.version}</div>
+              <h2>{impactPreview.draft.name}</h2>
+              <p>
+                Zero-write replay against up to 200 recent ledger events. Conditions and branches are evaluated exactly,
+                but tasks, approvals, payroll requests, schedules, messages, documents, access changes and webhooks are not executed.
+              </p>
+            </div>
+            <span className={
+              impactPreview.preview.definitionError || impactPreview.preview.authoritativePolicyBlocks > 0
+                ? "status status-failed"
+                : "status status-verified"
+            }>
+              {impactPreview.preview.definitionError || impactPreview.preview.authoritativePolicyBlocks > 0
+                ? "Blocked"
+                : "Safe to publish"}
+            </span>
+          </div>
+
+          <section className="stats-grid" style={{ padding: "0 18px 18px", gridTemplateColumns: "repeat(4, 1fr)" }}>
+            <article className="stat-card">
+              <div className="stat-icon blue"><Activity size={18} /></div>
+              <p>EVENTS EVALUATED</p>
+              <h3>{impactPreview.preview.eventsEvaluated}</h3>
+              <span>{impactPreview.preview.authoritativeEvents} authoritative · {impactPreview.preview.legacyBackfillEvents} legacy</span>
+            </article>
+            <article className="stat-card">
+              <div className="stat-icon green"><CheckCircle2 size={18} /></div>
+              <p>WOULD MATCH</p>
+              <h3>{impactPreview.preview.matchedEvents}</h3>
+              <span>{impactPreview.preview.skippedEvents} would skip</span>
+            </article>
+            <article className="stat-card">
+              <div className="stat-icon purple"><Workflow size={18} /></div>
+              <p>PROJECTED STEPS</p>
+              <h3>{impactPreview.preview.projectedSteps}</h3>
+              <span>{impactPreview.preview.approvalSteps} approval · {impactPreview.preview.waitSteps} wait</span>
+            </article>
+            <article className="stat-card">
+              <div className="stat-icon amber"><ShieldCheck size={18} /></div>
+              <p>POLICY BLOCKS</p>
+              <h3>{impactPreview.preview.authoritativePolicyBlocks}</h3>
+              <span>{impactPreview.preview.legacyPolicyBlocks} legacy-only signal(s)</span>
+            </article>
+          </section>
+
+          <div className={
+            impactPreview.preview.definitionError || impactPreview.preview.authoritativePolicyBlocks > 0
+              ? "notice notice-red"
+              : impactPreview.preview.authoritativeEvents === 0
+                ? "notice notice-amber"
+                : "notice notice-slate"
+          } style={{ margin: "0 18px 18px" }}>
+            <ShieldCheck size={16} />
+            <span>
+              {impactPreview.preview.definitionError
+                ? <><strong>Definition blocked.</strong> {impactPreview.preview.definitionError}</>
+                : impactPreview.preview.authoritativePolicyBlocks > 0
+                  ? <><strong>Publish blocked.</strong> Resolve {impactPreview.preview.authoritativePolicyBlocks} policy block(s) found on authoritative events.</>
+                  : impactPreview.preview.authoritativeEvents === 0
+                    ? <><strong>Limited evidence.</strong> No post-ledger authoritative event exists for this trigger yet. Legacy history is informative but does not block publication.</>
+                    : <><strong>Safe dry run.</strong> No authoritative sampled event would hit a known Automation Studio policy block.</>}
+            </span>
+          </div>
+
+          <div className="card-body" style={{ paddingTop: 0 }}>
+            <div className="module-grid two" style={{ marginBottom: 14 }}>
+              <div className="modal-note">
+                <strong>Projected action mix</strong><br />
+                {Object.entries(impactPreview.preview.actionCounts).length
+                  ? Object.entries(impactPreview.preview.actionCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([type, count]) => `${type.replaceAll("_", " ")} × ${count}`)
+                      .join(" · ")
+                  : "No actions would run for the sampled events."}
+              </div>
+              <div className="modal-note">
+                <strong>Payroll adjustment exposure</strong><br />
+                {formatPeso(impactPreview.preview.projectedPayrollAdjustmentAbsoluteAmount)} absolute requested amount
+                {impactPreview.preview.projectedPayrollAdjustmentAbsoluteAmount > 0
+                  ? ` · signed net ${formatPeso(impactPreview.preview.projectedPayrollAdjustmentAmount)}`
+                  : ""}
+              </div>
+            </div>
+            <div className="modal-note" style={{ marginBottom: 14 }}>
+              {impactPreview.dataNote} · Generated {formatDateTime(impactPreview.generatedAt)}
+            </div>
+
+            <div className="data-table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr><th>EVENT</th><th>RESULT</th><th>PROJECTED FLOW</th><th>POLICY</th></tr>
+                </thead>
+                <tbody>
+                  {impactPreview.preview.samples.length === 0 && (
+                    <tr><td colSpan={4}><div className="empty-state">No recorded events for this trigger yet.</div></td></tr>
+                  )}
+                  {impactPreview.preview.samples.map((sample) => (
+                    <tr key={sample.eventKey + "-" + (sample.occurredAt ?? "")}>
+                      <td>
+                        <strong>{sample.eventKey}</strong>
+                        <small style={{ display: "block", color: "var(--muted)" }}>
+                          {sample.employeeId ? `Employee #${sample.employeeId}` : "Organization"} · {sample.source}
+                          {sample.occurredAt ? ` · ${formatDateTime(sample.occurredAt)}` : ""}
+                        </small>
+                      </td>
+                      <td>
+                        <span className={sample.matched ? "status status-verified" : "status"}>
+                          {sample.matched ? "Match" : "Skip"}
+                        </span>
+                        <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>{sample.reason}</small>
+                      </td>
+                      <td>{sample.projectedSteps.length ? sample.projectedSteps.join(" → ").replaceAll("_", " ") : "—"}</td>
+                      <td>
+                        {sample.policyBlocks.length
+                          ? sample.policyBlocks.map((block) => <small key={block} style={{ display: "block", color: "var(--danger)" }}>{block}</small>)
+                          : <span className="id">No known block</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+      )}
+
       <section className="module-grid two" style={{ marginTop: 16 }}>
         <article className="card">
           <div className="card-header">
