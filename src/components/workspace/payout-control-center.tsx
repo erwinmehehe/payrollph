@@ -149,12 +149,22 @@ export function PayoutControlCenter({
   const expected = state.reconciliation.provider === "PayMongo"
     ? state.reconciliation.expectedAmountCents / 100
     : Number(run.netPay);
-  const settled = state.reconciliation.settledAmountCents / 100;
-  const pending = state.reconciliation.pendingAmountCents / 100;
+  const manuallyConfirmedBankFile =
+    state.payout.method === "bank-file" && state.payout.status === "completed";
+  const settled = state.reconciliation.provider === "PayMongo"
+    ? state.reconciliation.settledAmountCents / 100
+    : manuallyConfirmedBankFile
+      ? Number(run.netPay)
+      : 0;
+  const pending = state.reconciliation.provider === "PayMongo"
+    ? state.reconciliation.pendingAmountCents / 100
+    : 0;
   const failed = state.reconciliation.failedAmountCents / 100;
   const variance = state.reconciliation.provider === "PayMongo"
     ? state.reconciliation.settlementVarianceCents / 100
-    : Number(run.netPay);
+    : manuallyConfirmedBankFile
+      ? 0
+      : Number(run.netPay);
   const employeeByNo = new Map(data.employees.map((employee) => [employee.employeeNo, employee]));
 
   return (
@@ -305,8 +315,13 @@ export function PayoutControlCenter({
         </div>
 
         {state.reconciliation.transfers.length === 0 ? (
-          <EmptyState icon={<WalletCards size={22} />} title="No provider transfers yet">
-            Run the no-money preflight first. Once submitted, each employee transfer appears here with its provider status.
+          <EmptyState
+            icon={<WalletCards size={22} />}
+            title={manuallyConfirmedBankFile ? "Bank-file payout confirmed without employee-level provider statuses" : "No provider transfers yet"}
+          >
+            {manuallyConfirmedBankFile
+              ? "The corporate-bank confirmation closes the payout at run level. Employee-level settlement remains unverified unless the bank supplies a result file that can be reconciled."
+              : "Run the no-money preflight first. Once submitted, each employee transfer appears here with its provider status."}
           </EmptyState>
         ) : (
           <div className="audit-list">
