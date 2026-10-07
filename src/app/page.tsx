@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Payroll Software Philippines | Payroll System PH | Linaw",
-  description: "Philippine payroll software with workforce management, HCM, statutory calculation support, checker approvals, payroll review and employee payslips.",
+  description: "Philippine payroll software with workforce management, HCM, statutory calculations, checker approvals, employee payslips and controlled payroll release.",
   alternates: { canonical: "/" },
 };
 
