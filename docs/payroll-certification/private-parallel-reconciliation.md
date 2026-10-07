@@ -40,7 +40,26 @@ Money is PHP without separators, symbols or quotes; use at most two decimals. Em
 account_code,legal_entity_code,period,debit,credit
 ~~~
 
-One unique **normalized account code** per period and employer after documented mapping, including gross wage expense, employer statutory expense, liabilities, net pay, clearing and any suspense accounts. The reviewer must approve the mapping. Four canonical GL control accounts are required after mapping: **PAYROLL_GROSS** (debit equal to total employee gross), **BANK_NET** (credit equal to total employee net), **EMPLOYER_STATUTORY_EXPENSE** (debit equal to summed employer SSS/EC/PhilHealth/Pag-IBIG), and **EMPLOYER_STATUTORY_PAYABLE** (matching credit). These controls are checked *within each system*, even if the two journals match each other; document exact source accounts, amounts and mapping in the independent review. Where a source account has debits and credits, independently net them to the correct side; never silently omit posted entries. Both journals must balance on their own, and corresponding normalized account lines must reconcile.
+One unique **normalized account code** per period and employer after independently documented mapping. Every source journal must balance on its own. The reviewer must approve the conversion from the employer's actual chart of accounts to these **separate** canonical payroll controls:
+
+| Canonical account | Required reconciliation |
+| --- | --- |
+| `PAYROLL_GROSS` | Debit = total employee gross pay |
+| `BANK_NET` | Credit = total employee net pay |
+| `EMPLOYER_STATUTORY_EXPENSE` | Debit = employer SSS + EC + PhilHealth + Pag-IBIG |
+| `SSS_PAYABLE` | Credit = employee SSS + employer SSS + employer EC |
+| `PHILHEALTH_PAYABLE` | Credit = employee + employer PhilHealth |
+| `PAGIBIG_PAYABLE` | Credit = employee + employer Pag-IBIG |
+| `BIR_WHT_PAYABLE` | Credit = net employee withholding; net refund is a **debit** |
+| `GOVERNMENT_LOANS_PAYABLE` | Credit = employee government-loan deductions |
+| `COMPANY_LOANS_PAYABLE` | Credit = employee company-loan deductions |
+| `OTHER_DEDUCTIONS_PAYABLE` | Credit = other employee deductions; net reversal is a **debit** |
+
+All controls with a nonzero expected balance must be present. A zero-balance control may be absent, but if present must reconcile to zero. Net refunds/reversals are debits, not fictitious positive payables. **Do not combine SSS, PhilHealth, Pag-IBIG, BIR, or loan liabilities into a generic statutory account** that hides misclassification.
+
+These codes are normalized certification controls, not necessarily the employer's literal accounts. Preserve original journal files and a signed, independently reviewed mapping in the private evidence vault. Where one source account contains debit and credit postings, net to the correct side with documented proof; never omit entries, shift amounts between statutory categories, or insert a balancing suspense line to force a pass.
+
+**Why this bridge matters:** Two journals can agree while both misclassify BIR withholding as SSS payable. The ten-control bridge blocks that outcome even when both books independently balance and gross/net pay match.
 
 ## Verification and release boundary
 
