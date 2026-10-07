@@ -75,6 +75,8 @@ test("chain creation snapshots policy thresholds and rejects changed routing inp
   assert.ok(engine.includes("amountCurrency"));
   assert.ok(engine.includes("routing inputs changed after the chain started"));
   assert.ok(engine.includes("existingAmount !== amount"));
+  assert.ok(engine.includes("Approval currency must be a three-letter ISO-style code."));
+  assert.ok(engine.includes("Approval amount basis is required when an amount is supplied."));
 });
 
 test("payroll adjustments use absolute PHP magnitude for approval limits", () => {
