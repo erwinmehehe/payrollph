@@ -19,7 +19,8 @@
     "payroll:golden": "tsx scripts/golden-payroll-certification.ts",
     "payroll:golden:phase2a": "tsx scripts/golden-payroll-phase2a.ts",
     "payroll:golden:phase2b": "tsx scripts/golden-payroll-phase2b.ts",
-    "payroll:golden:pay-rules": "tsx scripts/golden-pay-rules-phase3.ts"
+    "payroll:golden:pay-rules": "tsx scripts/golden-pay-rules-phase3.ts",
+    "payroll:evidence:check": "tsx scripts/check-external-payroll-evidence.ts"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",
