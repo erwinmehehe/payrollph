@@ -2880,6 +2880,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS "bank_templates_name_version_unique"
   ON "bank_templates" ("name","version");
 CREATE INDEX IF NOT EXISTS "bank_templates_bank_stage_idx"
   ON "bank_templates" ("bank_code","adapter_stage");
+ALTER TABLE "bank_templates"
+  DROP CONSTRAINT IF EXISTS "bank_templates_adapter_stage_check";
+ALTER TABLE "bank_templates"
+  ADD CONSTRAINT "bank_templates_adapter_stage_check"
+  CHECK ("adapter_stage" IN ('draft','spec_obtained','mapping_ready','uat_ready','portal_validated','production_proven'));
+ALTER TABLE "bank_templates"
+  DROP CONSTRAINT IF EXISTS "bank_templates_spec_source_check";
+ALTER TABLE "bank_templates"
+  ADD CONSTRAINT "bank_templates_spec_source_check"
+  CHECK ("spec_source" IN ('unknown','bank_provided','provider_provided','official_public','internal_demo'));
 
 CREATE TABLE IF NOT EXISTS "payout_profiles" (
   "id" serial PRIMARY KEY NOT NULL,
