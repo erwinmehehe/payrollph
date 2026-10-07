@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BadgeCheck, RefreshCw, Target } from "lucide-react";
+import { BadgeCheck, CalendarClock, MessageSquare, RefreshCw, Target } from "lucide-react";
 
 type Goal = {
   id: number;
@@ -59,9 +59,31 @@ type Review = {
   items: ReviewItem[];
 };
 
+type OneOnOne = {
+  id: number;
+  scheduledFor: string;
+  status: string;
+  agenda: string | null;
+  sharedSummary: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  createdByName: string;
+};
+
+type SharedFeedback = {
+  id: number;
+  goalId: number | null;
+  authorName: string;
+  feedbackType: string;
+  content: string;
+  occurredAt: string;
+};
+
 export function HcmSelfPerformance() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [oneOnOnes, setOneOnOnes] = useState<OneOnOne[]>([]);
+  const [sharedFeedback, setSharedFeedback] = useState<SharedFeedback[]>([]);
   const [selectedReviewId, setSelectedReviewId] = useState<number | null>(null);
   const [selfScore, setSelfScore] = useState("3");
   const [reflection, setReflection] = useState("");
@@ -97,6 +119,8 @@ export function HcmSelfPerformance() {
       const nextReviews: Review[] = payload.reviews ?? [];
       setReviews(nextReviews);
       setGoals(payload.goals ?? []);
+      setOneOnOnes(payload.oneOnOnes ?? []);
+      setSharedFeedback(payload.feedback ?? []);
       const editable = nextReviews.find((review) => review.status !== "completed") ?? nextReviews[0];
       if (editable) {
         setSelectedReviewId(editable.id);
@@ -341,6 +365,51 @@ export function HcmSelfPerformance() {
           ))}
         </article>
       )}
+
+      <article className="employee-list-card" style={{ marginTop: 16 }}>
+        <div className="employee-list-card-head">
+          <div>
+            <span className="card-kicker">1:1s</span>
+            <h3>Manager check-ins</h3>
+            <p>Only shared agenda and summary content appears here. Manager-private notes stay private.</p>
+          </div>
+          <CalendarClock size={18} />
+        </div>
+        {oneOnOnes.length === 0 ? (
+          <div className="employee-empty-row">No 1:1 records yet.</div>
+        ) : oneOnOnes.map((meeting) => (
+          <div className="employee-leave-row" key={meeting.id}>
+            <div>
+              <strong>{new Date(meeting.scheduledFor).toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" })}</strong>
+              <span>{meeting.status} · with {meeting.createdByName}</span>
+              {meeting.agenda && <span>Agenda: {meeting.agenda}</span>}
+              {meeting.sharedSummary && <span>Summary: {meeting.sharedSummary}</span>}
+            </div>
+          </div>
+        ))}
+      </article>
+
+      <article className="employee-list-card" style={{ marginTop: 16 }}>
+        <div className="employee-list-card-head">
+          <div>
+            <span className="card-kicker">CONTINUOUS FEEDBACK</span>
+            <h3>Shared feedback</h3>
+            <p>Praise, coaching, and development feedback shared with you appears here.</p>
+          </div>
+          <MessageSquare size={18} />
+        </div>
+        {sharedFeedback.length === 0 ? (
+          <div className="employee-empty-row">No shared performance feedback yet.</div>
+        ) : sharedFeedback.map((item) => (
+          <div className="employee-leave-row" key={item.id}>
+            <div>
+              <strong>{item.feedbackType.replaceAll("_", " ")} · {item.authorName}</strong>
+              <span>{new Date(item.occurredAt).toLocaleDateString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium" })}</span>
+              <p>{item.content}</p>
+            </div>
+          </div>
+        ))}
+      </article>
     </section>
   );
 }
