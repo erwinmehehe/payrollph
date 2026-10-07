@@ -110,6 +110,28 @@ type ClaimRecommendation = {
   }>;
 };
 
+type ProactiveSuggestion = {
+  requirementId: number;
+  gap: number;
+  recommendations: Array<{
+    rank: number;
+    employeeId: number;
+    employeeName: string;
+    score: number;
+    preferred: boolean;
+    scheduledMinutesInWindow: number;
+    consecutiveWorkingDaysBeforeShift: number;
+    workloadRisk: "low" | "medium" | "high";
+    reasons: string[];
+  }>;
+};
+
+type CoverageRisk = {
+  requirementId: number;
+  level: "low" | "medium" | "high" | "critical";
+  reasons: string[];
+};
+
 type LaborVarianceRow = {
   requirementId: number;
   worksiteId: number;
@@ -183,6 +205,8 @@ type Payload = {
   openShifts: OpenShift[];
   claims: Claim[];
   claimRecommendations: ClaimRecommendation[];
+  proactiveSuggestions: ProactiveSuggestion[];
+  coverageRisk: CoverageRisk[];
   laborVariance: LaborVariance;
 };
 
