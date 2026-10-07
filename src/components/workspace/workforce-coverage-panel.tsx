@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CalendarClock, CircleAlert, Plus, RefreshCcw, UsersRound } from "lucide-react";
+import { CalendarClock, CircleAlert, Plus, RefreshCcw, ShieldCheck, UsersRound } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
 import { simulateBestFitCoverage } from "@/lib/workforce-coverage";
@@ -133,6 +133,39 @@ type CoverageRisk = {
   reasons: string[];
 };
 
+type RosterReadiness = {
+  status: "ready" | "warning" | "blocked";
+  blockerCount: number;
+  warningCount: number;
+  signals: Array<{
+    code: string;
+    level: "blocker" | "warning";
+    count: number;
+    message: string;
+  }>;
+};
+
+type GuardrailReadiness = {
+  policy: {
+    minimumRestMinutes: number;
+    maxConsecutiveWorkingDays: number;
+    rollingSevenDayMinutes: number;
+    enforcementMode: "advisory" | "block";
+    active: boolean;
+  };
+  issueCount: number;
+  blockingIssueCount: number;
+  issues: Array<{
+    employeeId: number;
+    code: string;
+    title: string;
+    detail: string;
+    date: string;
+    relatedDate?: string | null;
+    blocking: boolean;
+  }>;
+};
+
 type LaborVarianceRow = {
   requirementId: number;
   worksiteId: number;
@@ -208,6 +241,8 @@ type Payload = {
   claimRecommendations: ClaimRecommendation[];
   proactiveSuggestions: ProactiveSuggestion[];
   coverageRisk: CoverageRisk[];
+  rosterReadiness: RosterReadiness;
+  guardrailReadiness: GuardrailReadiness;
   laborVariance: LaborVariance;
 };
 
@@ -512,11 +547,55 @@ export function WorkforceCoveragePanel({
         <Metric label="Pending claims" value={String(pendingClaims)} hint="manager decision needed" icon={<UsersRound size={16} />} tone={pendingClaims ? "amber" : "slate"} />
       </section>
 
-      {(criticalRiskCount > 0 || highRiskCount > 0) && (
-        <div className={criticalRiskCount > 0 ? "notice notice-red" : "notice notice-amber"} style={{ margin: "0 18px 18px" }}>
-          <CircleAlert size={15} />
-          <span><strong>Pre-publish coverage risk:</strong> {criticalRiskCount} critical · {highRiskCount} high.</span>
-        </div>
+      {payload?.rosterReadiness && (
+        <section style={{ padding: "0 18px 18px" }} data-wfm-roster-readiness>
+          <article className="card" style={{ margin: 0 }}>
+            <div className="card-header">
+              <div>
+                <div className="card-kicker">Roster publish readiness</div>
+                <h3>
+                  {payload.rosterReadiness.status === "ready"
+                    ? "Roster is ready for operational use."
+                    : payload.rosterReadiness.status === "warning"
+                      ? "Roster is usable with unresolved warnings."
+                      : "Roster has blocking issues to resolve."}
+                </h3>
+                <p>
+                  Staffing coverage, recovery, schedule guardrails, role evidence, skills and credentials,
+                  approved leave, and worksite eligibility are evaluated together before the roster is treated as final.
+                </p>
+              </div>
+              <Status value={
+                payload.rosterReadiness.status === "ready"
+                  ? "Ready"
+                  : payload.rosterReadiness.status === "warning"
+                    ? "Warnings"
+                    : "Blocked"
+              } />
+            </div>
+            <section className="stats-grid" style={{ padding: "0 18px 18px" }}>
+              <Metric label="Publish blockers" value={String(payload.rosterReadiness.blockerCount)} hint="must be resolved before finalizing" icon={<ShieldCheck size={16} />} tone={payload.rosterReadiness.blockerCount ? "amber" : "mint"} />
+              <Metric label="Warnings" value={String(payload.rosterReadiness.warningCount)} hint="manager review recommended" icon={<CircleAlert size={16} />} tone={payload.rosterReadiness.warningCount ? "amber" : "slate"} />
+              <Metric label="Blocking guardrails" value={String(payload.guardrailReadiness?.blockingIssueCount ?? 0)} hint={payload.guardrailReadiness?.policy.enforcementMode === "block" ? "blocking policy active" : "advisory policy"} icon={<ShieldCheck size={16} />} tone={(payload.guardrailReadiness?.blockingIssueCount ?? 0) ? "amber" : "mint"} />
+              <Metric label="Critical coverage" value={String(criticalRiskCount)} hint={highRiskCount + " high-risk requirement(s)"} icon={<UsersRound size={16} />} tone={criticalRiskCount ? "amber" : "mint"} />
+            </section>
+            {payload.rosterReadiness.signals.length > 0 ? (
+              <div style={{ display: "grid", gap: 8, padding: "0 18px 18px" }}>
+                {payload.rosterReadiness.signals.map((signal) => (
+                  <div key={signal.code} className={signal.level === "blocker" ? "notice notice-red" : "notice notice-amber"} style={{ margin: 0 }}>
+                    {signal.level === "blocker" ? <ShieldCheck size={15} /> : <CircleAlert size={15} />}
+                    <span><strong>{signal.level === "blocker" ? "Blocker" : "Warning"} · {signal.count}</strong> · {signal.message}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
+                <ShieldCheck size={15} />
+                <span>No unresolved readiness signals in this planning window.</span>
+              </div>
+            )}
+          </article>
+        </section>
       )}
 
       <div className="setting-form" style={{ padding: "0 18px 18px" }}>
