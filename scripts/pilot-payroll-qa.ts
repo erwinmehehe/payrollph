@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../src/db";
-import { auditEvents, employees, payrollRuns, timePunches, userOrganizations, users } from "../src/db/schema";
+import { attendanceExceptionEvents, auditEvents, employees, payrollRuns, timePunches, userOrganizations, users } from "../src/db/schema";
 import { hashPassword } from "../src/lib/crypto";
 import { isEncryptedBankAccount } from "../src/lib/bank-account-crypto";
+import { reconcileAttendanceExceptionEvents } from "../src/lib/workforce-attendance-exception-events";
 
 const base = process.env.QA_URL ?? "http://127.0.0.1:3000";
 const setupToken = process.env.SETUP_TOKEN ?? "";
@@ -132,23 +133,151 @@ async function main() {
   report.roles = { owner: "Olivia Owner", payroll: payrollUser.name, checker: checkerUser.name, employee: employeeUser.name };
   (report.lifecycle as string[]).push("real-role-identities-created");
 
+  const shiftPayload = await expectOk(owner, "/api/workforce/schedules", {
+    method: "POST",
+    json: {
+      organizationId,
+      action: "create_shift",
+      code: "PILOT-DAY",
+      name: "Pilot Day Shift",
+      startTime: "09:00",
+      endTime: "18:00",
+      breakMinutes: 60,
+    },
+  });
+  const shiftDefinitionId = Number(shiftPayload.shift?.id);
+  assert.ok(shiftDefinitionId > 0, "WFM shift definition was not created.");
+
+  const patternPayload = await expectOk(owner, "/api/workforce/schedules", {
+    method: "POST",
+    json: {
+      organizationId,
+      action: "create_pattern",
+      code: "PILOT-1D",
+      name: "Pilot WFM Workday",
+      cycleDays: 1,
+      days: [{
+        isRestDay: false,
+        label: "Scheduled workday",
+        segments: [{ shiftDefinitionId }],
+      }],
+    },
+  });
+  const patternId = Number(patternPayload.pattern?.id);
+  assert.ok(patternId > 0, "WFM schedule pattern was not created.");
+
+  const scheduleAssignmentIds: number[] = [];
+  for (const person of created) {
+    const assigned = await expectOk(owner, "/api/workforce/schedules", {
+      method: "POST",
+      json: {
+        organizationId,
+        action: "assign_schedule",
+        employeeId: person.id,
+        patternId,
+        effectiveFrom: "2026-09-16",
+        effectiveUntil: "2026-09-18",
+        anchorDate: "2026-09-16",
+        reason: "Production pilot WFM-to-payroll proof",
+      },
+    });
+    const assignmentId = Number(assigned.assignment?.id);
+    assert.ok(assignmentId > 0, `WFM schedule assignment missing for ${person.employeeNo}.`);
+    scheduleAssignmentIds.push(assignmentId);
+  }
+  (report.lifecycle as string[]).push("advanced-wfm-schedules-assigned");
+
   const dates = ["2026-09-16", "2026-09-17", "2026-09-18"];
-  await db.insert(timePunches).values(created.flatMap((person) => dates.map((workDate) => ({
-    organizationId,
-    employeeId: person.id,
-    workDate,
-    timeIn: new Date(`${workDate}T01:00:00.000Z`),
-    timeOut: new Date(`${workDate}T10:00:00.000Z`),
-    shiftStart: "09:00",
-    shiftEnd: "18:00",
-    status: "Complete",
-    source: "pilot-qa",
-  }))));
+  const insertedPunches = await db.insert(timePunches).values(
+    created.flatMap((person) => dates.map((workDate) => {
+      const correctionTarget =
+        person.id === created[0].id && workDate === "2026-09-17";
+      return {
+        organizationId,
+        employeeId: person.id,
+        workDate,
+        timeIn: new Date(`${workDate}T01:00:00.000Z`),
+        timeOut: new Date(
+          `${workDate}T${correctionTarget ? "09:30" : "10:00"}:00.000Z`,
+        ),
+        breakStart: new Date(`${workDate}T04:00:00.000Z`),
+        breakEnd: new Date(`${workDate}T05:00:00.000Z`),
+        shiftStart: "09:00",
+        shiftEnd: "18:00",
+        status: "Complete",
+        source: "pilot-qa",
+      };
+    })),
+  ).returning();
   (report.lifecycle as string[]).push("attendance-recorded");
+
+  const correctionPunch = insertedPunches.find((punch) =>
+    punch.employeeId === created[0].id
+    && String(punch.workDate) === "2026-09-17"
+  );
+  assert.ok(correctionPunch?.id, "Pilot correction target punch was not created.");
+
+  const beforeCorrection = await reconcileAttendanceExceptionEvents({
+    organizationId,
+    employeeId: created[0].id,
+    workDate: "2026-09-17",
+  });
+  assert.ok(
+    beforeCorrection.analysis.exceptions.some((item) => item.kind === "early_departure"),
+    "WFM did not detect the deliberate early-departure exception.",
+  );
+  const exceptionRowsBefore = await db.select().from(attendanceExceptionEvents).where(and(
+    eq(attendanceExceptionEvents.organizationId, organizationId),
+    eq(attendanceExceptionEvents.employeeId, created[0].id),
+    eq(attendanceExceptionEvents.workDate, "2026-09-17"),
+  ));
+  assert.ok(
+    exceptionRowsBefore.some((item) => item.exceptionKind === "early_departure" && item.status === "open"),
+    "WFM attendance exception ledger did not persist the open early-departure exception.",
+  );
+  (report.lifecycle as string[]).push("wfm-attendance-exception-detected");
 
   const payroll = await login(payrollUser.email, credentials.payroll);
   const checker = await login(checkerUser.email, credentials.checker);
   const employee = await login(employeeUser.email, credentials.employee);
+
+  const correctionRequest = await expectOk(payroll, "/api/workforce/attendance-corrections", {
+    method: "POST",
+    json: {
+      organizationId,
+      action: "create_request",
+      punchId: correctionPunch!.id,
+      proposedTimeOut: "2026-09-17T18:00:00+08:00",
+      reason: "Production pilot correction before payroll",
+    },
+  });
+  const correctionRequestId = Number(correctionRequest.correction?.id);
+  assert.ok(correctionRequestId > 0, "Attendance correction request was not created.");
+
+  const correctionDecision = await expectOk(owner, "/api/workforce/attendance-corrections", {
+    method: "POST",
+    json: {
+      organizationId,
+      action: "decide_request",
+      requestId: correctionRequestId,
+      decision: "approved",
+      decisionNote: "Independent WFM correction approval for pilot payroll",
+    },
+  });
+  assert.equal(correctionDecision.punch?.status, "Corrected");
+  assert.deepEqual(correctionDecision.invalidatedPayrollRunIds ?? [], []);
+  assert.equal(correctionDecision.attendanceExceptionSync?.status, "ok");
+
+  const exceptionRowsAfter = await db.select().from(attendanceExceptionEvents).where(and(
+    eq(attendanceExceptionEvents.organizationId, organizationId),
+    eq(attendanceExceptionEvents.employeeId, created[0].id),
+    eq(attendanceExceptionEvents.workDate, "2026-09-17"),
+  ));
+  assert.ok(
+    exceptionRowsAfter.some((item) => item.exceptionKind === "early_departure" && item.status === "resolved"),
+    "Approved attendance correction did not resolve the WFM exception ledger.",
+  );
+  (report.lifecycle as string[]).push("wfm-attendance-correction-approved-four-eyes");
 
   const runPayload = await expectOk(payroll, "/api/payroll-runs", {
     method: "POST",
@@ -166,6 +295,43 @@ async function main() {
   assert.ok(register.entries.every((entry: any) => Number(entry.netPay) > 0));
   const employeeEntry = register.entries.find((entry: any) => Number(entry.employeeId) === created[0].id);
   assert.ok(employeeEntry?.id, "Pilot employee payroll entry is missing from the calculated register.");
+
+  for (const entry of register.entries ?? []) {
+    const trace = entry.trace as Record<string, any> | null;
+    assert.equal(
+      trace?.workforceSchedule?.mode,
+      "advanced-with-legacy-fallback",
+      `Payroll entry ${entry.id} did not retain advanced WFM schedule evidence.`,
+    );
+    const scheduleDays = Array.isArray(trace?.workforceSchedule?.days)
+      ? trace.workforceSchedule.days
+      : [];
+    for (const workDate of dates) {
+      const day = scheduleDays.find((item: any) => item.date === workDate);
+      assert.ok(day, `Payroll entry ${entry.id} is missing WFM schedule trace for ${workDate}.`);
+      assert.equal(day.source, "pattern");
+      assert.equal(day.patternId, patternId);
+      assert.ok(scheduleAssignmentIds.includes(Number(day.assignmentId)));
+      assert.equal(day.segments?.[0]?.shiftCode, "PILOT-DAY");
+    }
+    assert.equal(
+      trace?.payableTime?.mode,
+      "calendar-segmented",
+      `Payroll entry ${entry.id} did not use calendar-segmented WFM payable time.`,
+    );
+  }
+  report.wfmEvidence = {
+    shiftDefinitionId,
+    patternId,
+    scheduleAssignmentIds,
+    correctedPunchId: correctionPunch!.id,
+    correctionRequestId,
+    exceptionKind: "early_departure",
+    exceptionResolved: true,
+    payrollTraceMode: "advanced-with-legacy-fallback",
+    payableTimeMode: "calendar-segmented",
+  };
+  (report.lifecycle as string[]).push("wfm-schedule-evidence-reconciled-into-payroll");
 
   const before = await expectOk(payroll, `/api/payroll-runs/${runId}/release-checklist`);
   const blockers = (before.items ?? []).filter((item: any) => item.blocking && !item.passed);
@@ -235,7 +401,17 @@ async function main() {
 
   const events = await db.select().from(auditEvents).where(eq(auditEvents.organizationId, organizationId));
   const actions = new Set(events.map((event) => event.action));
-  const expectedActions = ["Payroll submitted for review", "Approval approved", "Payroll released", "PayMongo payroll preflight failed"];
+  const expectedActions = [
+    "Workforce shift definition created",
+    "Workforce schedule pattern created",
+    "Employee workforce schedule assigned",
+    "Attendance correction requested",
+    "Attendance correction approved and applied",
+    "Payroll submitted for review",
+    "Approval approved",
+    "Payroll released",
+    "PayMongo payroll preflight failed",
+  ];
   for (const action of expectedActions) assert.ok(actions.has(action), `Missing audit event: ${action}`);
   report.auditEventsVerified = expectedActions;
 
