@@ -351,7 +351,7 @@ export function HcmDocumentsPanel({
       <div className="page-heading">
         <div>
           <div className="eyebrow">DOCUMENTS &amp; POLICIES</div>
-          <h1>Turn employee files into governed HCM obligations.</h1>
+          <h1>Documents</h1>
           <p>Publish versioned policies, prove acknowledgements, require employee documents, track renewal dates and feed expiry events into Automation Studio.</p>
         </div>
         <div className="page-actions">

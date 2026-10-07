@@ -91,7 +91,7 @@ export function BenefitsPanel({ organizationId, setNotice }: { organizationId: n
     <>
       <PageHeading
         eyebrow="BENEFITS ADMINISTRATION"
-        title="Benefits bought inside payroll."
+        title="Benefits"
         copy="HMO, group insurance, Pag-IBIG MP2 and allowance enrolments deduct automatically on the next calculated run."
         actions={plans.length === 0 && <button className="primary-button" onClick={seed}><Plus size={16} className="i-green" /> Seed PH catalogue</button>}
       />

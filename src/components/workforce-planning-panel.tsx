@@ -436,7 +436,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       <div className="page-heading">
         <div>
           <div className="eyebrow">HCM STRUCTURE &amp; WORKFORCE PLANNING</div>
-          <h1>Define the organization before planning headcount.</h1>
+          <h1>Workforce planning</h1>
           <p>Keep one governed model for organization hierarchy, job architecture, positions, budgets, supervisory ownership, and effective-dated incumbents.</p>
         </div>
         <div className="page-actions">

@@ -5,6 +5,8 @@ import { PUBLIC_SITE_URL } from "@/lib/site-url";
 import { MarketingAttributionCapture } from "@/components/marketing/marketing-attribution-capture";
 import "./globals.css";
 import "./workspace-theme.css";
+import "./dashboard-design.css";
+import "./workspace-panels.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const jetBrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono", display: "swap" });

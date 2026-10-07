@@ -208,7 +208,7 @@ test("HR demo keeps the same compact shell when navigating from Today to People"
   assert.ok(css.includes(".app-shell[data-demo-role] .demo-sandbox"), "demo tools must not create a second page chrome after navigation");
   assert.ok(roles.includes('hr: ["Overview", "People"]'), "HR primary navigation must stay focused on Today and People with the rest under More");
   assert.ok(!people.includes("HrPayrollReadinessCenter"), "People must not repeat the Today payroll-readiness dashboard");
-  assert.ok(people.includes('title={hrMode ? "People."'), "HR People must present the employee directory as its own destination");
+  assert.ok(people.includes('title="Employees"'), "HR employees must present the employee directory as its own destination");
 });
 
 

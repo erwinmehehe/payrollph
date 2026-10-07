@@ -22,6 +22,8 @@ import {
   UserRound,
   WalletCards,
 } from "lucide-react";
+import { LinawMark } from "@/components/linaw-mark";
+import { EmployeeHomeDashboard } from "@/components/employee-home-dashboard";
 import { EmployeeContributionIssueModal } from "@/components/employee-contribution-issue-modal";
 import { EmployeeDocumentsPanel } from "@/components/employee-documents-panel";
 import { HcmSelfProbationReviews } from "@/components/hcm-self-probation-reviews";
@@ -457,15 +459,13 @@ export function SelfServicePortal() {
   }
 
   const today = data.attendance.today;
-  const pendingLeave = data.leave.requests.filter((request) => request.status === "Pending").length;
-  const totalAvailableLeave = data.leave.balances.reduce((sum, balance) => sum + balance.available, 0);
 
   return (
-    <div className="app-shell employee-workspace-shell" data-workspace-page={`employee-${tab}`} data-workspace-role="employee">
+    <div className="app-shell clean-shell employee-workspace-shell" data-workspace-page={`employee-${tab}`} data-workspace-role="employee">
       <aside className="sidebar employee-workspace-sidebar" aria-label="Employee navigation">
         <div className="sidebar-brand employee-shell-brand">
-          <span className="brand-mark employee-shell-brandmark"><ShieldCheck size={18} /></span>
-          <div><strong>PayrollPH</strong><span>Payroll &amp; HR</span></div>
+          <span className="brand-mark employee-shell-brandmark"><LinawMark /></span>
+          <div><strong>Linaw</strong><span>PayrollPH</span></div>
         </div>
         <div className="workspace-label employee-workspace-label"><span className="pulse-dot" />Employee workspace</div>
         <nav className="side-navigation employee-side-nav">
@@ -481,7 +481,7 @@ export function SelfServicePortal() {
               <span className="nav-icon t-green">
                 {value === "home" ? <House size={15} /> : value === "pay" ? <WalletCards size={15} /> : value === "time" ? <Clock size={15} /> : value === "leave" ? <CalendarDays size={15} /> : value === "documents" ? <FileText size={15} /> : <UserRound size={15} />}
               </span>
-              {label}
+              {value === "pay" ? "Payslips" : value === "time" ? "Attendance" : value === "profile" ? "My info" : label}
             </button>
           ))}
         </nav>
@@ -490,7 +490,6 @@ export function SelfServicePortal() {
       <div className="app-main employee-workspace-body">
         <header className="topbar employee-workspace-topbar">
           <div className="employee-topbar-greeting">
-            <span className="top-avatar employee-app-avatar">{data.employee.firstName.charAt(0)}{data.employee.lastName.charAt(0)}</span>
             <div>
               <strong>Hi, {data.employee.firstName} 👋</strong>
               <span>{data.employer?.name ?? "Your employer"} · {data.employee.title}</span>
@@ -510,6 +509,7 @@ export function SelfServicePortal() {
             )}
             <button className="top-profile-button employee-shell-profile" type="button" onClick={() => setTab("profile")} aria-label="Open profile">
               <span className="employee-app-avatar">{data.employee.firstName.charAt(0)}{data.employee.lastName.charAt(0)}</span>
+              <span className="clean-profile-copy"><strong>{data.employee.firstName} {data.employee.lastName}</strong><small>Employee</small></span>
             </button>
             <button className="employee-icon-button employee-shell-signout" type="button" disabled={busy} onClick={() => void signOut()} aria-label="Sign out">
               <LogOut size={14} />
@@ -533,7 +533,7 @@ export function SelfServicePortal() {
             <span className="employee-tab-icon">
               {value === "home" ? <House size={16} /> : value === "pay" ? <WalletCards size={16} /> : value === "time" ? <Clock size={16} /> : value === "leave" ? <CalendarDays size={16} /> : value === "documents" ? <FileText size={16} /> : <UserRound size={16} />}
             </span>
-            <span>{label}</span>
+            <span>{value === "pay" ? "Payslips" : value === "time" ? "Attendance" : value === "profile" ? "My info" : label}</span>
           </button>
         ))}
       </nav>
@@ -554,98 +554,14 @@ export function SelfServicePortal() {
       )}
 
       {tab === "home" && (
-        <div className="employee-home">
-          <section className="employee-latest-pay" data-legacy-hook="employee-pay-guide-card" data-latest-payslip={latestPayslip ? "" : undefined}>
-            {latestPayslip ? (
-              <div className="employee-pay-hero-layout">
-                <div className="employee-pay-hero-main">
-                  <div className="employee-pay-hero-meta">
-                    <span className="employee-contract-copy">LATEST PAYSLIP · Payslip available</span>
-                    <span>Latest payslip</span>
-                    <span className="employee-secure-chip"><ShieldCheck size={12} /> Payslip available</span>
-                  </div>
-                  <div className="employee-pay-period">
-                    <strong>{latestPayslip.period}</strong>
-                    <span>Paid {payDateLabel(latestPayslip.payDate)}</span>
-                  </div>
-                  <div className="employee-net-pay">
-                    <span>Take-home pay</span>
-                    <strong>{peso(latestPayslip.net)}</strong>
-                  </div>
-                  <p className="employee-pay-hero-note">Your released pay for this period is ready to review.</p>
-                  <div className="employee-latest-actions">
-                    <button className="primary-button brand" onClick={() => { setOpenPayslip(latestPayslip.entryId); setTab("pay"); }}>
-                      <FileText size={14} /> View payslip
-                    </button>
-                    <a className="employee-pdf-link" href={"/api/self/payslips/" + latestPayslip.entryId}>
-                      <Download size={13} /> PDF
-                    </a>
-                  </div>
-                </div>
-                <aside className="employee-pay-hero-side" aria-label="Latest pay summary">
-                  <div><span>Gross pay</span><strong>{peso(latestPayslip.gross)}</strong></div>
-                  <div><span>Deductions</span><strong>{peso(latestPayslip.deductions)}</strong></div>
-                  <div><span>Year-to-date net</span><strong>{peso(data.yearToDate.net)}</strong></div>
-                </aside>
-              </div>
-            ) : (
-              <div className="employee-empty-pay">
-                <div>
-                  <span className="employee-pay-empty-label">Latest payslip</span>
-                  <h2>No released payslip yet</h2>
-                  <p>Your pay appears here as soon as payroll is released.</p>
-                </div>
-                <WalletCards size={22} />
-              </div>
-            )}
-          </section>
-
-          <section className="employee-quick-grid">
-            <QuickCard
-              icon={<Clock size={16} />}
-              label="Today"
-              value={today?.timeIn ? (today.timeOut ? "Shift complete" : "Clocked in") : "Not clocked in"}
-              detail={today?.timeIn ? timeLabel(today.timeIn) + (today.timeOut ? " – " + timeLabel(today.timeOut) : "") : "Use the time clock when your shift starts."}
-              action="Open time"
-              onClick={() => setTab("time")}
-            />
-            <QuickCard
-              icon={<CalendarDays size={16} />}
-              label="Leave"
-              value={data.leave.balances.length ? totalAvailableLeave.toFixed(1) + " days available" : "No leave policy"}
-              detail={pendingLeave ? pendingLeave + " request(s) awaiting approval." : "No pending leave requests."}
-              action="Open leave"
-              onClick={() => setTab("leave")}
-            />
-            <QuickCard
-              icon={<History size={16} />}
-              label="Next pay"
-              value={data.nextPay?.period ?? "Not scheduled"}
-              detail={data.nextPay ? data.nextPay.label + " · " + payDateLabel(data.nextPay.payDate) : "Your next cycle will appear when you are included in a payroll run."}
-              action="Pay status"
-              onClick={() => setTab("pay")}
-            />
-          </section>
-
-          <HcmSelfProbationReviews />
-
-          <section className="employee-home-history">
-            <div className="employee-home-history-head">
-              <h2>Recent payslips</h2>
-              <button type="button" onClick={() => setTab("pay")}>See all payslips</button>
-            </div>
-            <div className="employee-home-history-list">
-              {data.payslips.slice(0, 3).map((slip) => (
-                <div className="employee-home-history-row" key={slip.entryId}>
-                  <span>{slip.period}</span>
-                  <strong>{peso(slip.net)}</strong>
-                  <button type="button" onClick={() => { setOpenPayslip(slip.entryId); setTab("pay"); }}>View</button>
-                  <a href={"/api/self/payslips/" + slip.entryId}><Download size={12} /> PDF</a>
-                </div>
-              ))}
-            </div>
-          </section>
-
+        <div>
+          <EmployeeHomeDashboard
+            data={data}
+            onPayslip={(id) => { setOpenPayslip(id); setTab("pay"); }}
+            onPay={() => setTab("pay")}
+            onAttendance={() => setTab("time")}
+            onLeave={() => { setTab("leave"); setLeaveOpen(true); }}
+          />
           {data.nextPay && (
             <div className="employee-contract-handoff" aria-hidden>
               <span>NEXT PAY STATUS</span>
@@ -1061,7 +977,7 @@ export function SelfServicePortal() {
       )}
 
       {leaveOpen && (
-        <div className="modal-backdrop" role="presentation">
+        <div className="modal-backdrop linaw-dialog" role="presentation">
           <section className="modal employee-leave-modal" role="dialog" aria-modal="true" aria-label="Request leave">
             <div className="card-kicker">REQUEST LEAVE</div>
             <h2>New leave request</h2>
@@ -1104,34 +1020,6 @@ export function SelfServicePortal() {
         </main>
       </div>
     </div>
-  );
-}
-
-function QuickCard({
-  icon,
-  label,
-  value,
-  detail,
-  action,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  detail: string;
-  action: string;
-  onClick: () => void;
-}) {
-  return (
-    <button className="employee-quick-card" onClick={onClick}>
-      <span className="employee-quick-icon">{icon}</span>
-      <span className="employee-quick-copy">
-        <small>{label}</small>
-        <strong>{value}</strong>
-        <em>{detail}</em>
-      </span>
-      <span className="employee-quick-action">{action}<ChevronRight size={13} /></span>
-    </button>
   );
 }
 

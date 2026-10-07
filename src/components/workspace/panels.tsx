@@ -221,7 +221,7 @@ export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData;
     <>
       <PageHeading
         eyebrow="LEAVE MANAGEMENT"
-        title="Keep leave human and payroll-safe."
+        title="Leave"
         copy="Every leave type has an explicit pay treatment. Approved leave flows into the payroll cutoff instead of silently disappearing from pay."
         actions={<button className="primary-button" onClick={() => setOpen(!open)}><Plus size={17} className="i-green" /> New leave request</button>}
       />
@@ -414,7 +414,7 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
     <>
       <PageHeading
         eyebrow="COMPLIANCE CENTER"
-        title="From payroll rule to proof."
+        title="Compliance"
         copy="See statutory rules, payroll exceptions, remittance evidence, year-end tax controls and government-output validation in one operational workspace."
         actions={
           <button className="primary-button" onClick={onOpenGovModal}>
@@ -625,7 +625,7 @@ export function FreelancerPage({ data, setNotice }: { data: DashboardData; setNo
 
   return (
     <>
-      <PageHeading eyebrow="SELF-EMPLOYED HUB" title="A better solo finance routine." copy="Model voluntary contributions and compare tax approaches without the overhead of a company setup." actions={<button className="secondary-button" onClick={() => setNotice("Solo planner values are session-local in this build.")}><RefreshCw size={16} className="i-blue" /> Save planner</button>} />
+      <PageHeading eyebrow="SELF-EMPLOYED HUB" title="Freelancer Hub" copy="Model voluntary contributions and compare tax approaches without the overhead of a company setup." actions={<button className="secondary-button" onClick={() => setNotice("Solo planner values are session-local in this build.")}><RefreshCw size={16} className="i-blue" /> Session-only planner</button>} />
       <section className="solo-hero" style={{ padding: "28px 32px", borderRadius: 14, background: "linear-gradient(135deg, #0e2e28 0%, #154c41 100%)", color: "white" }}>
         <div className="solo-hero-copy">
           <span className="solo-chip">FOR FREELANCERS & SELF-EMPLOYED</span>
@@ -694,7 +694,7 @@ export function IntegrationsPage({ onOpenOutbox }: { onOpenOutbox?: () => void }
     <>
       <PageHeading
         eyebrow="INTEGRATIONS"
-        title="Connect without pretending."
+        title="Integrations"
         copy="Integration cards clearly state their current mode: template, credential-required, or live."
         actions={onOpenOutbox ? <button className="primary-button" onClick={onOpenOutbox}><Mail size={16} className="i-pink" /> View Email Outbox</button> : undefined}
       />
@@ -757,7 +757,7 @@ export function DeveloperPage({ organizationId, setNotice }: { organizationId: n
 
   return (
     <>
-      <PageHeading eyebrow="DEVELOPER" title="Two-way integration, not just file exports." copy="Issue scoped API keys and subscribe to HMAC-signed webhook events. Delivery attempts are logged with real response codes and exponential backoff retry." actions={<a className="secondary-button" href="/api/v1"><BookOpen size={16} className="i-teal" /> API reference</a>} />
+      <PageHeading eyebrow="DEVELOPER" title="Developer access" copy="Issue scoped API keys and subscribe to HMAC-signed webhook events. Delivery attempts are logged with real response codes and exponential backoff retry." actions={<a className="secondary-button" href="/api/v1"><BookOpen size={16} className="i-teal" /> API reference</a>} />
       <section className="module-grid two">
         <article className="card">
           <div className="card-header"><div><div className="card-kicker">API KEYS</div><h2>Scoped access keys</h2><p>Keys are stored as SHA-256 hashes and shown once.</p></div><button className="primary-button" onClick={async () => { const created = await post({ action: "create-key", name: "ERP Sync Key" }); if (created?.key) { setFreshKey(created.key); setNotice("API key created. Copy it now, it is not retrievable later."); } }}><Plus size={16} className="i-green" /> New key</button></div>
@@ -786,7 +786,7 @@ export function PricingPage({ plans, onSelectPlan }: { plans: PricingPlan[]; onS
 
   return (
     <>
-      <PageHeading eyebrow="TRANSPARENT PRICING" title="Clear costs, from solo to scale." copy="Versioned published pricing with modular plans, and no hidden quote wall for growing teams." />
+      <PageHeading eyebrow="TRANSPARENT PRICING" title="Plans and billing" copy="Versioned published pricing with modular plans, and no hidden quote wall for growing teams." />
       <section className="pricing-calculator" style={{ padding: "18px 24px", borderRadius: 12 }}>
         <div>
           <div className="card-kicker">HEADCOUNT COST CALCULATOR</div>
@@ -829,7 +829,7 @@ export function PricingPage({ plans, onSelectPlan }: { plans: PricingPlan[]; onS
 export function AuditPage({ events, organizationId }: { events: AuditEvent[]; organizationId: number }) {
   return (
     <>
-      <PageHeading eyebrow="AUDIT TRAIL" title="A record you can inspect." copy="Approval, payroll, export and auth-adjacent actions use a shared server-side audit writer." actions={<a className="secondary-button" href={`/api/exports?organizationId=${organizationId}&kind=audit`}><Download size={16} className="i-teal" /> Export log</a>} />
+      <PageHeading eyebrow="AUDIT TRAIL" title="Audit trail" copy="Review who changed payroll, approvals, exports and account settings." actions={<a className="secondary-button" href={`/api/exports?organizationId=${organizationId}&kind=audit`}><Download size={16} className="i-teal" /> Export log</a>} />
       <article className="card audit-card">
         <div className="table-toolbar"><div className="search-field"><Search size={17} className="i-slate" /><input placeholder="Search actions, people, or resources" /></div><button className="filter-button">All activity <ChevronDown size={15} /></button></div>
         <div className="audit-list">
@@ -872,7 +872,7 @@ export function SettingsPage({ data, setNotice, initialTab = "organization" }: {
   const [tab, setTab] = useState<SettingsTab>(initialTab);
   return (
     <>
-      <PageHeading eyebrow="SETTINGS" title="Company and account controls." copy="Only the sections your role can change are editable. Everything here writes to the database." />
+      <PageHeading eyebrow="SETTINGS" title="Settings" copy="Manage company details, payroll policies and access for your role." />
       <section className="settings-layout">
         <article className="card settings-nav">
           {tabs.map((item) => {
@@ -1275,7 +1275,7 @@ export function NewPayrollModal({
   const invalidEntity = legalEntitiesLoading || !legalEntityId;
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop linaw-dialog" role="presentation">
       <section className="modal" role="dialog" aria-modal="true" aria-label="Create payroll draft">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><WalletCards size={22} className="i-green" /></div>
@@ -1471,7 +1471,7 @@ export function OutboxModal({ organizationId, onClose, setNotice }: { organizati
   };
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop linaw-dialog" role="presentation">
       <section className="modal large" role="dialog" aria-modal="true" aria-label="Email delivery outbox">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Mail size={22} className="i-pink" /></div>
@@ -1665,7 +1665,7 @@ export function CheckoutModal({ organizationId, plan, onClose, onUpgraded }: { o
   }
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop linaw-dialog" role="presentation">
       <section className="modal" role="dialog" aria-modal="true" aria-label="Plan Checkout">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><CreditCard size={22} className="i-blue" /></div>
@@ -1731,7 +1731,7 @@ export function GovValidationModal({ organizationId, onClose, setNotice }: { org
   }
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop linaw-dialog" role="presentation">
       <section className="modal large" role="dialog" aria-modal="true" aria-label="Government Compliance Seal Suite">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><ShieldCheck size={22} className="i-green" /></div>

@@ -435,12 +435,12 @@ jobs:
           }
 
           const personas = [
-            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Good morning, Andrea", taskPage: "Overview", dashboardRole: "owner" },
-            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "Good morning, Aira", taskPage: "People", dashboardRole: "hr" },
-            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Good morning, Paolo", taskPage: "Payroll", dashboardRole: "payroll" },
-            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Good morning, Mariel", taskPage: "Reviews", dashboardRole: "checker" },
-            { id: "bookkeeper", label: "Bookkeeper", short: "Bookkeeper", person: "Bea Navarro", landing: "Good morning, Bea", taskPage: "Exports", dashboardRole: "bookkeeper" },
-            { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay", taskPage: "My pay", dashboardRole: null },
+            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Ready for payday", taskPage: "Home", dashboardRole: "owner" },
+            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "Your team at a glance", taskPage: "Employees", dashboardRole: "hr" },
+            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Let’s make payday a good day.", taskPage: "Payroll", dashboardRole: "payroll" },
+            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Payroll review", taskPage: "Reviews", dashboardRole: "checker" },
+            { id: "bookkeeper", label: "Bookkeeper", short: "Bookkeeper", person: "Bea Navarro", landing: "payroll close", taskPage: "Exports", dashboardRole: "bookkeeper" },
+            { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "Good morning, Jonas", taskPage: "Payslips", dashboardRole: null },
           ];
 
           async function inspectPersonaViewport(page, persona, width, height, suffix) {
@@ -621,7 +621,7 @@ jobs:
                 })),
               ]);
               check(iconColors[0].color !== iconColors[1].color, "Owner: sidebar module icons were flattened to one color");
-              check(iconColors[0].background !== "rgba(0, 0, 0, 0)", "Owner: sidebar icon tint background is transparent");
+              check(await tonedItems.first().getAttribute("aria-current") === "page", "Owner: active navigation must be identified");
 
               const profile = page.locator("aside .side-profile");
               check((await profile.count()) === 1, "Owner: interactive profile control is missing");
@@ -633,13 +633,12 @@ jobs:
             if (persona.dashboardRole) {
               const dashboard = page.locator(`[data-role-dashboard="${persona.dashboardRole}"]`);
               check((await dashboard.count()) === 1, `${persona.label}: role-specific dashboard did not render`);
-              check((await dashboard.locator(".dashboard-alert-banner").count()) === 1, `${persona.label}: Needs Attention banner is missing`);
-              if (persona.id === "hr") {
-                check((await dashboard.locator(".dashboard-stat-card").count()) === 4, "HR: readiness summary must expose four compact signals");
-              } else {
-                check((await dashboard.locator(".payroll-focus-summary > div").count()) >= 3, `${persona.label}: payroll focus card must carry the primary financial summary`);
-                check((await dashboard.locator(".dashboard-stat-card").count()) === 0, `${persona.label}: duplicate KPI cards should stay off the focused landing view`);
-              }
+              check((await dashboard.locator("h1").count()) === 1, `${persona.label}: primary dashboard heading is missing`);
+              if (persona.id === "owner") check((await dashboard.locator(".clean-assurance").count()) === 1, "Owner: server release summary is missing");
+              if (persona.id === "payroll") check((await dashboard.locator(".clean-metrics").count()) >= 1, "Payroll: payroll figures are missing");
+              if (persona.id === "checker") check((await dashboard.getByRole("tablist").count()) === 1, "Checker: review tabs are missing");
+              if (persona.id === "hr") check((await dashboard.getByText("Employee record checks", { exact: true }).count()) === 1, "HR: employee record checks are missing");
+              if (persona.id === "bookkeeper") check((await dashboard.locator(".mockup-close-stage").count()) === 5, "Bookkeeper: close evidence stages are missing");
               const sandbox = page.locator(".demo-sandbox").first();
               if (await sandbox.count()) {
                 check((await sandbox.isVisible()) === false, `${persona.label}: bulky demo sandbox must stay off the landing view`);
@@ -654,14 +653,14 @@ jobs:
                 items.map((item) => item.getBoundingClientRect().height),
               );
               check(
-                employeeNavHeights.every((height) => height <= 42),
+                employeeNavHeights.every((height) => height >= 40 && height <= 48),
                 `Employee: desktop sidebar items are stretched: ${employeeNavHeights.join(", ")}`,
               );
-              check(body.includes("LATEST PAYSLIP"), "Employee: latest released payslip promotion is missing");
+              check(body.toLowerCase().includes("latest payslip"), "Employee: latest released payslip promotion is missing");
               check(body.includes("Payslip available"), "Employee: released payslip availability state is missing");
               check((await page.locator("[data-latest-payslip]").count()) === 1, "Employee: latest payslip card is missing");
-              check(body.includes("NEXT PAY STATUS"), "Employee: next pay status section is missing");
-              check(body.includes("Your pay amount stays private and hidden until payroll is released."), "Employee: unreleased-pay privacy copy is missing");
+              check(body.toLowerCase().includes("next payday"), "Employee: next pay status section is missing");
+              check(body.includes("Your payslip will be available after payroll is released."), "Employee: unreleased-pay privacy copy is missing");
               const handoff = page.locator("[data-payroll-handoff]").first();
               check((await handoff.count()) === 1, "Employee: payroll handoff is missing");
               check((await handoff.locator(".handoff-step").count()) === 5, "Employee: payroll handoff must show all five owners");
@@ -700,7 +699,7 @@ jobs:
               check((await sidebar.locator(".nav-item").filter({ hasText: /^Migration$/ }).count()) === 0, "HR: migration admin navigation must stay hidden");
             }
             if (persona.id === "checker") {
-              check((await sidebar.locator(".nav-item").filter({ hasText: /^People$/ }).count()) === 0, "Checker: people administration must stay hidden");
+              check((await sidebar.locator(".nav-item").filter({ hasText: /^(People|Employees|Team)$/ }).count()) === 0, "Checker: people administration must stay hidden");
               check((await sidebar.locator(".nav-item").filter({ hasText: /^Payroll$/ }).count()) === 0, "Checker: unsafe payroll-maker page must stay hidden");
             }
             if (persona.id === "payroll") {
@@ -719,7 +718,7 @@ jobs:
               check((await page.getByRole("button", { name: /^Decline$/ }).count()) === 0, "Payroll: Decline action must be hidden");
               check((await page.getByRole("button", { name: /Delegation settings/i }).count()) === 0, "Payroll: delegation controls must be hidden");
               check((await page.locator("[data-payroll-handoff]").count()) >= 1, "Payroll: approvals page should retain the shared handoff context");
-              const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^(Overview|Today)$/ }).first();
+              const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^(Home|Overview|Today)$/ }).first();
               await overviewNav.click();
               await page.waitForTimeout(100);
             }
@@ -760,12 +759,12 @@ jobs:
                   demoSidebar.evaluate((element) => getComputedStyle(element).backgroundColor),
                   demoTopbar.evaluate((element) => getComputedStyle(element).backgroundColor),
                 ]);
-                check(shellStyles[0] === "rgb(252, 252, 251)", `HR: People fell back to the old dark sidebar; saw ${shellStyles[0]}`);
+                check(shellStyles[0] === "rgb(251, 253, 255)", `HR: People fell back to the old dark sidebar; saw ${shellStyles[0]}`);
                 check(shellStyles[1] !== "rgb(15, 27, 24)", `HR: People fell back to the old dark topbar; saw ${shellStyles[1]}`);
                 check((await demoShell.locator(".demo-sandbox:visible").count()) === 0, "HR: People reintroduced the bulky demo tools strip");
 
                 const peopleHeading = (await page.locator(".page-heading h1").first().innerText()).trim();
-                check(peopleHeading === "People.", `HR: People should be a directory page, saw "${peopleHeading}"`);
+                check(peopleHeading === "Employees", `HR: People should be a directory page, saw "${peopleHeading}"`);
                 const peopleText = (await page.locator(".content-area").innerText()).trim();
                 check(!peopleText.includes("Payroll readiness."), "HR: People duplicates the Today payroll-readiness dashboard");
 
@@ -781,7 +780,7 @@ jobs:
                 await page.waitForTimeout(180);
                 check((await page.locator('.app-shell[data-demo-role="hr"]').count()) === 1, "HR: demo shell marker was lost after opening a secondary module");
                 check(
-                  (await page.locator("aside.sidebar").first().evaluate((element) => getComputedStyle(element).backgroundColor)) === "rgb(252, 252, 251)",
+                  (await page.locator("aside.sidebar").first().evaluate((element) => getComputedStyle(element).backgroundColor)) === "rgb(251, 253, 255)",
                   "HR: secondary module navigation fell back to the old dark sidebar",
                 );
                 check((await page.locator(".demo-sandbox:visible").count()) === 0, "HR: secondary module reintroduced the bulky demo tools strip");

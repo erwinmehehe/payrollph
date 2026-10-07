@@ -132,7 +132,7 @@ test("Studio management is company-wide admin, MFA, rate-limit, and same-origin 
 
 test("WHEN IF THEN builder exposes multiple ordered actions and execution evidence", () => {
   assert.ok(panel.includes("AUTOMATION STUDIO"));
-  assert.ok(panel.includes("Build governed WHEN / IF / THEN workflows."));
+  assert.ok(panel.includes("<h1>Automation Studio</h1>"));
   assert.ok(panel.includes("WHEN"));
   assert.ok(panel.includes("IF"));
   assert.ok(panel.includes("THEN"));

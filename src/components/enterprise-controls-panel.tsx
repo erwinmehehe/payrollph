@@ -255,7 +255,7 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
       <div className="page-heading">
         <div>
           <div className="eyebrow">ENTERPRISE</div>
-          <h1>Identity, access, session policy, and lifecycle automation.</h1>
+          <h1>Enterprise controls</h1>
           <p>Configure verified company SSO and SCIM, narrow role access with deny-only permission sets, and automate joiner/mover/leaver follow-through without allowing rules to bypass authoritative HR transactions.</p>
         </div>
         <div className="page-actions"><button className="secondary-button" onClick={() => void load()} disabled={loading}><RefreshCw size={15} /> Refresh</button></div>
