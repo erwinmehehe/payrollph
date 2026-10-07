@@ -86,8 +86,6 @@ export const legalEntities = pgTable(
     disbursementAccount: varchar("disbursement_account", { length: 160 }),
     primaryEntity: boolean("primary_entity").notNull().default(false),
     active: boolean("active").notNull().default(true),
-    publishedVersion: integer("published_version").notNull().default(1),
-    draftVersion: integer("draft_version"),
     createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
