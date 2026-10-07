@@ -86,6 +86,10 @@ export const legalEntities = pgTable(
     disbursementAccount: varchar("disbursement_account", { length: 160 }),
     primaryEntity: boolean("primary_entity").notNull().default(false),
     active: boolean("active").notNull().default(true),
+    publishedVersion: integer("published_version").notNull().default(1),
+    draftVersion: integer("draft_version"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    publishedByUserId: integer("published_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -3477,6 +3481,27 @@ export const automationRules = pgTable(
   (table) => [
     uniqueIndex("automation_rules_org_name_unique").on(table.organizationId, table.name),
     index("automation_rules_org_trigger_idx").on(table.organizationId, table.trigger),
+  ],
+);
+
+export const automationRuleVersions = pgTable(
+  "automation_rule_versions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    ruleId: integer("rule_id").notNull().references(() => automationRules.id, { onDelete: "cascade" }),
+    version: integer("version").notNull(),
+    trigger: varchar("trigger", { length: 64 }).notNull(),
+    conditions: jsonb("conditions").notNull().default({}),
+    actions: jsonb("actions").notNull().default([]),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdByName: varchar("created_by_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("automation_rule_versions_rule_version_unique").on(table.ruleId, table.version),
+    index("automation_rule_versions_org_rule_idx").on(table.organizationId, table.ruleId, table.version),
+    check("automation_rule_versions_version_check", sql`${table.version} > 0`),
   ],
 );
 
