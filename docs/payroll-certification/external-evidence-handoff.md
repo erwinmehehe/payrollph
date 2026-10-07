@@ -32,6 +32,10 @@ Mandatory manifest links:
 
 Calculate each SHA-256 locally on the unchanged original file (for example `sha256sum` on Linux/macOS or `Get-FileHash -Algorithm SHA256` on PowerShell) and record the exact output. Do **not** upload this bundle to the public repository or attach it to PR comments.
 
+## Numerically reconcile the actual parallel cycles first
+
+Before attaching a signed variance-analysis document for a real parallel cycle, use the *private offline* employee and GL comparator in [private-parallel-reconciliation.md](private-parallel-reconciliation.md). It compares normalized incumbent and Linaw payroll figures and journal lines across at least two real months, and rejects missing employees, wrong legal employer, unexplained monetary differences and mismatched accounting. Run this against actual independently obtained files and retain its result plus the original source hashes and reviewer-approved normalization mapping under the employer's private evidence vault. A passing arithmetic result is **not** a checker signature, independent CPA approval or real portal/bank acceptance.
+
 ## Check a completed bundle locally
 
 ```bash

@@ -36,6 +36,17 @@ type ActionCatalog = {
   category: string;
 };
 
+type WorkflowTemplateCatalog = {
+  id: string;
+  version: number;
+  category: string;
+  name: string;
+  description: string;
+  trigger: string;
+  conditionCount: number;
+  actionCount: number;
+};
+
 type AutomationRule = {
   id: number;
   name: string;
@@ -88,6 +99,7 @@ type StudioData = {
     conditions: ConditionCatalog[];
     operators: string[];
     actions: ActionCatalog[];
+    templates: WorkflowTemplateCatalog[];
   };
   orgUnits: Array<{ id: number; name: string; code: string }>;
   permissionSets: Array<{ id: number; name: string; active: boolean }>;
@@ -98,6 +110,13 @@ type StudioData = {
     active: boolean;
     employeeShare: string;
     cap: string | null;
+  }>;
+  schedulePatterns: Array<{
+    id: number;
+    code: string;
+    name: string;
+    cycleDays: number;
+    active: boolean;
   }>;
   analytics: {
     activeRules: number;
@@ -142,6 +161,10 @@ type ActionDraft = {
   branchValue: string;
   branchThenTitle: string;
   branchElseTitle: string;
+  schedulePatternId: string;
+  scheduleEffectiveDateSource: string;
+  scheduleOffsetDays: string;
+  scheduleReason: string;
 };
 
 const defaultAction = (id: string): ActionDraft => ({
@@ -169,6 +192,10 @@ const defaultAction = (id: string): ActionDraft => ({
   branchValue: "",
   branchThenTitle: "",
   branchElseTitle: "",
+  schedulePatternId: "",
+  scheduleEffectiveDateSource: "event_effective_date",
+  scheduleOffsetDays: "0",
+  scheduleReason: "Automation Studio approved schedule assignment",
 });
 
 const formatDateTime = (value: string) =>
@@ -192,6 +219,9 @@ function actionAllowed(trigger: TriggerCatalog | undefined, type: string) {
   if (["revoke_sessions", "deactivate_access"].includes(type)) return trigger.value === "employee.separated";
   if (["assign_permission_set", "assign_benefit"].includes(type)) {
     return ["employee.hired", "employee.updated", "employee.moved", "employee.promoted", "candidate.hired"].includes(trigger.value);
+  }
+  if (type === "assign_schedule") {
+    return ["employee.hired", "employee.moved", "employee.promoted"].includes(trigger.value);
   }
   if (["create_task", "create_onboarding_checklist"].includes(type)) return trigger.employeeScoped;
   return true;
@@ -357,6 +387,15 @@ export function AutomationStudioPanel({
         body: row.body,
       };
     }
+    if (row.type === "assign_schedule") {
+      return {
+        type: row.type,
+        patternId: Number(row.schedulePatternId),
+        effectiveDateSource: row.scheduleEffectiveDateSource,
+        offsetDays: Number(row.scheduleOffsetDays || "0"),
+        reason: row.scheduleReason,
+      };
+    }
     if (row.type === "assign_permission_set") {
       return { type: row.type, permissionSetId: Number(row.permissionSetId) };
     }
@@ -390,6 +429,13 @@ export function AutomationStudioPanel({
       setNotice("One or more THEN actions are not allowed for this trigger.");
       return;
     }
+    const unsafeScheduleIndex = actions.findIndex((row, index) =>
+      row.type === "assign_schedule" && actions[index - 1]?.type !== "approval_gate"
+    );
+    if (unsafeScheduleIndex >= 0) {
+      setNotice("Schedule assignment must be immediately preceded by an approval gate.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -418,6 +464,33 @@ export function AutomationStudioPanel({
       setNotice("Automation draft saved. Publish it from the workflow list when it is ready to go live.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not save automation rule.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function instantiateTemplate(template: WorkflowTemplateCatalog) {
+    const requestedName = window.prompt("Draft workflow name", template.name)?.trim();
+    if (!requestedName) return;
+
+    setSaving(true);
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action: "create-from-template",
+          templateId: template.id,
+          name: requestedName,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not create workflow draft from template.");
+      await load();
+      setNotice(`${requestedName} created as draft v${payload.draft?.version ?? 1}. Review it before publishing.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not create workflow draft from template.");
     } finally {
       setSaving(false);
     }
@@ -549,6 +622,42 @@ export function AutomationStudioPanel({
           </span>
         </div>
       </article>
+
+      <section className="card" style={{ marginTop: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">WORKFLOW TEMPLATES</div>
+            <h2>Start from a governed workflow pattern</h2>
+            <p>Templates are code-reviewed starter definitions. Using one creates an unpublished draft; it cannot execute until an administrator separately publishes it.</p>
+          </div>
+          <Workflow size={17} className="i-purple" />
+        </div>
+        <div className="card-body">
+          <div className="module-grid two">
+            {data.catalogs.templates.map((template) => {
+              const triggerInfo = data.catalogs.triggers.find((item) => item.value === template.trigger);
+              return (
+                <article className="card" key={template.id} style={{ boxShadow: "none", padding: 14 }}>
+                  <div className="card-kicker">{template.category} · TEMPLATE V{template.version}</div>
+                  <h3 style={{ margin: "6px 0" }}>{template.name}</h3>
+                  <p style={{ margin: "0 0 10px" }}>{template.description}</p>
+                  <div className="modal-note" style={{ marginBottom: 10 }}>
+                    WHEN {triggerInfo?.label ?? template.trigger} · {template.conditionCount} IF · {template.actionCount} THEN
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={saving}
+                    onClick={() => void instantiateTemplate(template)}
+                  >
+                    <Plus size={14} /> Create draft
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
       {showBuilder && (
         <form onSubmit={saveRule} className="card" style={{ marginTop: 16 }}>
@@ -685,7 +794,20 @@ export function AutomationStudioPanel({
                       </div>
                       <select
                         value={row.type}
-                        onChange={(event) => updateAction(row.id, { type: event.target.value })}
+                        onChange={(event) => {
+                          const nextType = event.target.value;
+                          updateAction(row.id, {
+                            type: nextType,
+                            ...(nextType === "assign_schedule"
+                              ? {
+                                  scheduleEffectiveDateSource:
+                                    selectedTrigger?.value === "employee.hired"
+                                      ? "employee_start_date"
+                                      : "event_effective_date",
+                                }
+                              : {}),
+                          });
+                        }}
                         style={{ width: "100%", marginBottom: 10 }}
                       >
                         {data.catalogs.actions.map((item) => (
@@ -765,6 +887,55 @@ export function AutomationStudioPanel({
                           {row.recipient === "custom" && <label>Email<input required type="email" value={row.email} onChange={(event) => updateAction(row.id, { email: event.target.value })} /></label>}
                           <label>Subject<input required value={row.subject} onChange={(event) => updateAction(row.id, { subject: event.target.value })} /></label>
                           <label>Message<textarea required value={row.body} onChange={(event) => updateAction(row.id, { body: event.target.value })} rows={4} /></label>
+                        </div>
+                      )}
+
+                      {row.type === "assign_schedule" && (
+                        <div className="setting-form">
+                          <label>Schedule pattern
+                            <select
+                              required
+                              value={row.schedulePatternId}
+                              onChange={(event) => updateAction(row.id, { schedulePatternId: event.target.value })}
+                            >
+                              <option value="">Choose active schedule pattern</option>
+                              {data.schedulePatterns.map((pattern) => (
+                                <option key={pattern.id} value={pattern.id}>
+                                  {pattern.code} · {pattern.name} · {pattern.cycleDays}-day cycle
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>Effective date source
+                            <select
+                              value={row.scheduleEffectiveDateSource}
+                              onChange={(event) => updateAction(row.id, { scheduleEffectiveDateSource: event.target.value })}
+                            >
+                              <option value="event_effective_date">Trigger event effective date</option>
+                              <option value="employee_start_date">Employee start date</option>
+                              <option value="today">Current Philippine business date</option>
+                            </select>
+                          </label>
+                          <label>Days after source date
+                            <input
+                              required
+                              type="number"
+                              min="0"
+                              max="365"
+                              value={row.scheduleOffsetDays}
+                              onChange={(event) => updateAction(row.id, { scheduleOffsetDays: event.target.value })}
+                            />
+                          </label>
+                          <label>Assignment reason
+                            <input
+                              required
+                              value={row.scheduleReason}
+                              onChange={(event) => updateAction(row.id, { scheduleReason: event.target.value })}
+                            />
+                          </label>
+                          <div className="modal-note">
+                            This action must immediately follow an approval gate. It will not replace an existing effective schedule, will not backdate a schedule, and still runs WFM schedule guardrails before assignment.
+                          </div>
                         </div>
                       )}
 
