@@ -131,6 +131,7 @@ export async function POST(request: Request) {
     eventKey: `benefit-enrollment:${row.id}`,
     context: {
       benefitEnrollmentId: row.id,
+      benefitCategory: plan.category,
       benefitPlanId: plan.id,
       benefitPlanName: plan.name,
       benefitProvider: plan.provider,
