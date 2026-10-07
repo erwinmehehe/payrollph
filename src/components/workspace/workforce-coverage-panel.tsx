@@ -94,6 +94,22 @@ type Claim = {
   requestedBy: string;
 };
 
+type ClaimRecommendation = {
+  openShiftId: number;
+  recommendations: Array<{
+    rank: number;
+    claimId: number | null;
+    employeeId: number;
+    employeeName: string;
+    score: number;
+    preferred: boolean;
+    scheduledMinutesInWindow: number;
+    consecutiveWorkingDaysBeforeShift: number;
+    workloadRisk: "low" | "medium" | "high";
+    reasons: string[];
+  }>;
+};
+
 type LaborVarianceRow = {
   requirementId: number;
   worksiteId: number;
@@ -166,6 +182,7 @@ type Payload = {
   availability: Availability[];
   openShifts: OpenShift[];
   claims: Claim[];
+  claimRecommendations: ClaimRecommendation[];
   laborVariance: LaborVariance;
 };
 
@@ -347,6 +364,15 @@ export function WorkforceCoveragePanel({
     () => new Map(data.employees.map((employee) => [employee.id, employee])),
     [data.employees],
   );
+  const recommendationByClaimId = useMemo(() => {
+    const rows = new Map<number, ClaimRecommendation["recommendations"][number]>();
+    for (const group of payload?.claimRecommendations ?? []) {
+      for (const recommendation of group.recommendations) {
+        if (recommendation.claimId != null) rows.set(recommendation.claimId, recommendation);
+      }
+    }
+    return rows;
+  }, [payload?.claimRecommendations]);
 
   const gapCount = (payload?.coverage ?? []).filter((row) => row.gap > 0).length;
   const missingSlots = (payload?.coverage ?? []).reduce((sum, row) => sum + row.gap, 0);
@@ -649,6 +675,13 @@ export function WorkforceCoveragePanel({
       {(payload?.openShifts.length ?? 0) > 0 && (
         <div style={{ padding: 18 }}>
           <div className="card-kicker" style={{ marginBottom: 8 }}>Open shifts and claims</div>
+          <div className="notice notice-slate" style={{ margin: "0 0 12px" }}>
+            <span>
+              <strong>Coverage recommendations are advisory.</strong> Pending claims are ranked using preferred availability,
+              current scheduled workload, and consecutive working days. Approval still revalidates job profile, skills and
+              credentials, worksite eligibility, leave, availability, schedule conflicts, and blocking guardrails.
+            </span>
+          </div>
           <div className="policy-lines">
             {(payload?.openShifts ?? []).map((shift) => {
               const claims = (payload?.claims ?? []).filter((claim) => claim.openShiftId === shift.id);
@@ -658,17 +691,35 @@ export function WorkforceCoveragePanel({
                   <small style={{ display: "block", color: "var(--muted)" }}>
                     {shift.remainingSlots} of {shift.slots} slot(s) remaining · {shift.status} · {shift.reason}
                   </small>
-                  {claims.map((claim) => {
+                  {[...claims].sort((a, b) => {
+                    const ar = recommendationByClaimId.get(a.id)?.rank ?? 999;
+                    const br = recommendationByClaimId.get(b.id)?.rank ?? 999;
+                    return ar - br || a.id - b.id;
+                  }).map((claim) => {
                     const employee = employeeById.get(claim.employeeId);
+                    const recommendation = recommendationByClaimId.get(claim.id);
                     return (
-                      <small key={claim.id} style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+                      <small key={claim.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
                         <strong>{employee ? `${employee.firstName} ${employee.lastName}` : `Employee #${claim.employeeId}`}</strong>
                         <Status value={claim.status} />
+                        {recommendation && claim.status === "pending" && (
+                          <>
+                            <Status value={`#${recommendation.rank} recommended`} />
+                            {recommendation.preferred && <Status value="Preferred availability" />}
+                            <Status value={`${(recommendation.scheduledMinutesInWindow / 60).toFixed(1)}h planned`} />
+                            <Status value={`${recommendation.workloadRisk} workload risk`} />
+                          </>
+                        )}
                         {claim.status === "pending" && canManage && (
                           <>
                             <button className="secondary-button" onClick={() => void decideClaim(claim.id, "approved")} disabled={saving !== null}>Approve</button>
                             <button className="secondary-button" onClick={() => void decideClaim(claim.id, "rejected")} disabled={saving !== null}>Reject</button>
                           </>
+                        )}
+                        {recommendation && claim.status === "pending" && (
+                          <span className="id" style={{ flexBasis: "100%", paddingLeft: 2 }}>
+                            {recommendation.reasons.join(" · ")}
+                          </span>
                         )}
                       </small>
                     );
