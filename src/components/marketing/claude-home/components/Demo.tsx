@@ -30,10 +30,10 @@ export default function Demo() {
           <div className="max-w-[800px]">
             <p className="text-[11px] font-bold uppercase tracking-[.16em] text-[#316fae]">The actual product design</p>
             <h2 className="font-display mt-3 text-balance text-[35px] font-semibold leading-[1.12] tracking-[-.04em] text-[#10213d] sm:text-[47px]">
-              One platform. Six different ways to work.
+              See the product from every seat involved in payday.
             </h2>
             <p className="mt-4 max-w-[660px] text-[15px] leading-[1.8] text-[#64748b]">
-              Explore the new Linaw dashboard design as a payroll officer, owner, checker, HR admin, bookkeeper or employee. This preview mirrors the interface structure; use the sandbox for working controls.
+              Switch between the six roles that prepare, review, release, close and receive payroll. These previews mirror the current Linaw interface; the sandbox contains the working controls.
             </p>
           </div>
           <Link href="/demo" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#d0ddec] bg-white px-5 py-3 text-[13px] font-bold text-[#075ee3] hover:bg-[#edf5ff]">
