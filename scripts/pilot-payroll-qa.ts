@@ -148,6 +148,48 @@ async function main() {
   const shiftDefinitionId = Number(shiftPayload.shift?.id);
   assert.ok(shiftDefinitionId > 0, "WFM shift definition was not created.");
 
+  const splitAmPayload = await expectOk(owner, "/api/workforce/schedules", {
+    method: "POST",
+    json: {
+      organizationId,
+      action: "create_shift",
+      code: "PILOT-SPLIT-AM",
+      name: "Pilot Split AM",
+      startTime: "09:00",
+      endTime: "13:00",
+      breakMinutes: 0,
+    },
+  });
+  const splitPmPayload = await expectOk(owner, "/api/workforce/schedules", {
+    method: "POST",
+    json: {
+      organizationId,
+      action: "create_shift",
+      code: "PILOT-SPLIT-PM",
+      name: "Pilot Split PM",
+      startTime: "16:00",
+      endTime: "20:00",
+      breakMinutes: 0,
+    },
+  });
+  const overnightPayload = await expectOk(owner, "/api/workforce/schedules", {
+    method: "POST",
+    json: {
+      organizationId,
+      action: "create_shift",
+      code: "PILOT-NIGHT",
+      name: "Pilot Overnight",
+      startTime: "22:00",
+      endTime: "06:00",
+      breakMinutes: 0,
+      spansMidnight: true,
+    },
+  });
+  const splitAmShiftId = Number(splitAmPayload.shift?.id);
+  const splitPmShiftId = Number(splitPmPayload.shift?.id);
+  const overnightShiftId = Number(overnightPayload.shift?.id);
+  assert.ok(splitAmShiftId > 0 && splitPmShiftId > 0 && overnightShiftId > 0);
+
   const patternPayload = await expectOk(owner, "/api/workforce/schedules", {
     method: "POST",
     json: {
@@ -187,28 +229,105 @@ async function main() {
   }
   (report.lifecycle as string[]).push("advanced-wfm-schedules-assigned");
 
+  const splitOverride = await expectOk(owner, "/api/workforce/schedules", {
+    method: "POST",
+    json: {
+      organizationId,
+      action: "create_override",
+      employeeId: created[0].id,
+      workDate: "2026-09-18",
+      kind: "split_shift",
+      reason: "Pilot split-shift payroll evidence",
+      segments: [
+        { shiftDefinitionId: splitAmShiftId },
+        { shiftDefinitionId: splitPmShiftId },
+      ],
+    },
+  });
+  const overnightOverride = await expectOk(owner, "/api/workforce/schedules", {
+    method: "POST",
+    json: {
+      organizationId,
+      action: "create_override",
+      employeeId: created[1].id,
+      workDate: "2026-09-18",
+      kind: "shift",
+      reason: "Pilot overnight payroll evidence",
+      segments: [{ shiftDefinitionId: overnightShiftId }],
+    },
+  });
+  const splitOverrideId = Number(splitOverride.override?.id);
+  const overnightOverrideId = Number(overnightOverride.override?.id);
+  assert.ok(splitOverrideId > 0 && overnightOverrideId > 0);
+  (report.lifecycle as string[]).push("wfm-split-and-overnight-overrides-approved");
+
   const dates = ["2026-09-16", "2026-09-17", "2026-09-18"];
-  const insertedPunches = await db.insert(timePunches).values(
-    created.flatMap((person) => dates.map((workDate) => {
-      const correctionTarget =
-        person.id === created[0].id && workDate === "2026-09-17";
-      return {
+  const punchDrafts = created.flatMap((person) => dates.flatMap((workDate) => {
+    if (person.id === created[0].id && workDate === "2026-09-18") {
+      return [
+        {
+          organizationId,
+          employeeId: person.id,
+          workDate,
+          timeIn: new Date("2026-09-18T01:00:00.000Z"),
+          timeOut: new Date("2026-09-18T05:00:00.000Z"),
+          breakStart: null,
+          breakEnd: null,
+          shiftStart: "09:00",
+          shiftEnd: "13:00",
+          status: "Complete",
+          source: "pilot-qa",
+        },
+        {
+          organizationId,
+          employeeId: person.id,
+          workDate,
+          timeIn: new Date("2026-09-18T08:00:00.000Z"),
+          timeOut: new Date("2026-09-18T12:00:00.000Z"),
+          breakStart: null,
+          breakEnd: null,
+          shiftStart: "16:00",
+          shiftEnd: "20:00",
+          status: "Complete",
+          source: "pilot-qa",
+        },
+      ];
+    }
+    if (person.id === created[1].id && workDate === "2026-09-18") {
+      return [{
         organizationId,
         employeeId: person.id,
         workDate,
-        timeIn: new Date(`${workDate}T01:00:00.000Z`),
-        timeOut: new Date(
-          `${workDate}T${correctionTarget ? "09:30" : "10:00"}:00.000Z`,
-        ),
-        breakStart: new Date(`${workDate}T04:00:00.000Z`),
-        breakEnd: new Date(`${workDate}T05:00:00.000Z`),
-        shiftStart: "09:00",
-        shiftEnd: "18:00",
+        timeIn: new Date("2026-09-18T14:00:00.000Z"),
+        timeOut: new Date("2026-09-18T22:00:00.000Z"),
+        breakStart: null,
+        breakEnd: null,
+        shiftStart: "22:00",
+        shiftEnd: "06:00",
         status: "Complete",
         source: "pilot-qa",
-      };
-    })),
-  ).returning();
+      }];
+    }
+
+    const correctionTarget =
+      person.id === created[0].id && workDate === "2026-09-17";
+    return [{
+      organizationId,
+      employeeId: person.id,
+      workDate,
+      timeIn: new Date(`${workDate}T01:00:00.000Z`),
+      timeOut: new Date(
+        `${workDate}T${correctionTarget ? "09:30" : "10:00"}:00.000Z`,
+      ),
+      breakStart: new Date(`${workDate}T04:00:00.000Z`),
+      breakEnd: new Date(`${workDate}T05:00:00.000Z`),
+      shiftStart: "09:00",
+      shiftEnd: "18:00",
+      status: "Complete",
+      source: "pilot-qa",
+    }];
+  }));
+  const insertedPunches = await db.insert(timePunches).values(punchDrafts).returning();
   (report.lifecycle as string[]).push("attendance-recorded");
 
   const correctionPunch = insertedPunches.find((punch) =>
@@ -309,11 +428,29 @@ async function main() {
     for (const workDate of dates) {
       const day = scheduleDays.find((item: any) => item.date === workDate);
       assert.ok(day, `Payroll entry ${entry.id} is missing WFM schedule trace for ${workDate}.`);
-      assert.equal(day.source, "pattern");
       assert.equal(day.patternId, patternId);
       assert.ok(scheduleAssignmentIds.includes(Number(day.assignmentId)));
-      assert.equal(day.segments?.[0]?.shiftCode, "PILOT-DAY");
+      if (workDate !== "2026-09-18") {
+        assert.equal(day.source, "pattern");
+        assert.equal(day.segments?.[0]?.shiftCode, "PILOT-DAY");
+      }
     }
+
+    const finalDay = scheduleDays.find((item: any) => item.date === "2026-09-18");
+    if (Number(entry.employeeId) === created[0].id) {
+      assert.equal(finalDay.source, "override");
+      assert.equal(Number(finalDay.overrideId), splitOverrideId);
+      assert.deepEqual(
+        finalDay.segments?.map((segment: any) => segment.shiftCode),
+        ["PILOT-SPLIT-AM", "PILOT-SPLIT-PM"],
+      );
+    } else if (Number(entry.employeeId) === created[1].id) {
+      assert.equal(finalDay.source, "override");
+      assert.equal(Number(finalDay.overrideId), overnightOverrideId);
+      assert.equal(finalDay.segments?.[0]?.shiftCode, "PILOT-NIGHT");
+      assert.equal(finalDay.segments?.[0]?.spansMidnight, true);
+    }
+
     assert.equal(
       trace?.payableTime?.mode,
       "calendar-segmented",
@@ -322,8 +459,13 @@ async function main() {
   }
   report.wfmEvidence = {
     shiftDefinitionId,
+    splitAmShiftId,
+    splitPmShiftId,
+    overnightShiftId,
     patternId,
     scheduleAssignmentIds,
+    splitOverrideId,
+    overnightOverrideId,
     correctedPunchId: correctionPunch!.id,
     correctionRequestId,
     exceptionKind: "early_departure",
@@ -405,6 +547,7 @@ async function main() {
     "Workforce shift definition created",
     "Workforce schedule pattern created",
     "Employee workforce schedule assigned",
+    "Employee schedule override created",
     "Attendance correction requested",
     "Attendance correction approved and applied",
     "Payroll submitted for review",
