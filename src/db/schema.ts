@@ -3491,6 +3491,7 @@ export const automationRuleVersions = pgTable(
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     ruleId: integer("rule_id").notNull().references(() => automationRules.id, { onDelete: "cascade" }),
     version: integer("version").notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
     trigger: varchar("trigger", { length: 64 }).notNull(),
     conditions: jsonb("conditions").notNull().default({}),
     actions: jsonb("actions").notNull().default([]),
