@@ -102,3 +102,6 @@ the first one, so it closes itself.
 - `0072_treasury_separation.sql` adds opt-in enterprise treasury separation with stable-user payout operators and release-vs-disbursement actor separation.
 
 - `0073_payout_destination_dual_control.sql` adds maker-checker requests for employee payout destination changes when treasury separation is enabled, preserving encrypted proposed bank data and immutable request evidence.
+
+
+- `0074_company_payout_profiles.sql` adds legal-employer payout profiles and explicit bank-adapter lifecycle metadata so bank configuration can progress from draft/spec/mapping/UAT to portal-validated without changing payroll computation.

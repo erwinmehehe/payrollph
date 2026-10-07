@@ -14,6 +14,7 @@ import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { DisciplinePanel } from "@/components/discipline-panel";
 import { LoansPanel } from "@/components/loans-panel";
 import { LegalEntitiesPanel } from "@/components/legal-entities-panel";
+import { PayoutProfilesPanel } from "@/components/payout-profiles-panel";
 import { MigrationCenter } from "@/components/migration-center";
 import { NewHireModal } from "@/components/new-hire-modal";
 import { RecruitmentPanel } from "@/components/recruitment-panel";
@@ -532,6 +533,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         {page === "Enterprise" && (
           <>
             <LegalEntitiesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />
+            <PayoutProfilesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />
             <EnterpriseControlsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />
           </>
         )}

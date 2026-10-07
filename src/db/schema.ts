@@ -1059,14 +1059,85 @@ export const calamityAdvisories = pgTable("calamity_advisories", {
   active: boolean("active").notNull().default(true),
 });
 
-export const bankTemplates = pgTable("bank_templates", {
-  id: serial("id").primaryKey(),
-  name: varchar("name", { length: 100 }).notNull(),
-  version: varchar("version", { length: 32 }).notNull(),
-  format: varchar("format", { length: 32 }).notNull(),
-  mappings: jsonb("mappings").notNull().default({}),
-  active: boolean("active").notNull().default(true),
-});
+export const bankTemplates = pgTable(
+  "bank_templates",
+  {
+    id: serial("id").primaryKey(),
+    name: varchar("name", { length: 100 }).notNull(),
+    version: varchar("version", { length: 32 }).notNull(),
+    format: varchar("format", { length: 32 }).notNull(),
+    bankCode: varchar("bank_code", { length: 32 }),
+    productName: varchar("product_name", { length: 120 }),
+    adapterStage: varchar("adapter_stage", { length: 24 }).notNull().default("draft"),
+    specSource: varchar("spec_source", { length: 24 }).notNull().default("unknown"),
+    specReference: text("spec_reference"),
+    mappings: jsonb("mappings").notNull().default({}),
+    active: boolean("active").notNull().default(true),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("bank_templates_name_version_unique").on(table.name, table.version),
+    index("bank_templates_bank_stage_idx").on(table.bankCode, table.adapterStage),
+    check(
+      "bank_templates_adapter_stage_check",
+      sql`${table.adapterStage} IN ('draft','spec_obtained','mapping_ready','uat_ready','portal_validated','production_proven')`,
+    ),
+    check(
+      "bank_templates_spec_source_check",
+      sql`${table.specSource} IN ('unknown','bank_provided','provider_provided','official_public','internal_demo')`,
+    ),
+  ],
+);
+
+export const payoutProfiles = pgTable(
+  "payout_profiles",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "cascade" }),
+    bankTemplateId: integer("bank_template_id").references(() => bankTemplates.id, { onDelete: "set null" }),
+    defaultMethod: varchar("default_method", { length: 24 }).notNull().default("bank_file"),
+    bankProduct: varchar("bank_product", { length: 120 }),
+    sourceAccountType: varchar("source_account_type", { length: 32 }),
+    companyCode: varchar("company_code", { length: 80 }),
+    presentingOffice: varchar("presenting_office", { length: 80 }),
+    branchCode: varchar("branch_code", { length: 32 }),
+    remarks: varchar("remarks", { length: 240 }),
+    maxAmountPerFile: numeric("max_amount_per_file", { precision: 16, scale: 2 }),
+    maxRowsPerFile: integer("max_rows_per_file"),
+    transactionLimit: numeric("transaction_limit", { precision: 16, scale: 2 }),
+    dailyLimit: numeric("daily_limit", { precision: 16, scale: 2 }),
+    active: boolean("active").notNull().default(false),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("payout_profiles_legal_entity_unique").on(table.legalEntityId),
+    index("payout_profiles_org_active_idx").on(table.organizationId, table.active),
+    check(
+      "payout_profiles_default_method_check",
+      sql`${table.defaultMethod} IN ('bank_file','paymongo','manual')`,
+    ),
+    check(
+      "payout_profiles_max_amount_check",
+      sql`${table.maxAmountPerFile} IS NULL OR ${table.maxAmountPerFile} > 0`,
+    ),
+    check(
+      "payout_profiles_max_rows_check",
+      sql`${table.maxRowsPerFile} IS NULL OR ${table.maxRowsPerFile} > 0`,
+    ),
+    check(
+      "payout_profiles_transaction_limit_check",
+      sql`${table.transactionLimit} IS NULL OR ${table.transactionLimit} > 0`,
+    ),
+    check(
+      "payout_profiles_daily_limit_check",
+      sql`${table.dailyLimit} IS NULL OR ${table.dailyLimit} > 0`,
+    ),
+  ],
+);
 
 export const bankFileValidations = pgTable(
   "bank_file_validations",
