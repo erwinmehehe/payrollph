@@ -62,8 +62,8 @@ export const BI_EXPORT_DEFINITIONS: Array<{
       { key: "employeeId", label: "Employee ID", description: "Stable Linaw employee identifier." },
       { key: "employeeNo", label: "Employee number", description: "Employer-assigned employee number." },
       { key: "employeeName", label: "Employee name", description: "Employee display name." },
-      { key: "legalEntityCode", label: "Legal entity", description: "Employee legal-employer code." },
-      { key: "orgUnitCode", label: "Organization unit", description: "Employee organization-unit code." },
+      { key: "legalEntityCode", label: "Payroll legal entity", description: "Legal-employer code stored on the payroll run." },
+      { key: "orgUnitCode", label: "Payroll scope unit", description: "Organization-unit code stored as the payroll-run scope; blank for company-wide runs." },
       { key: "grossPay", label: "Gross pay", description: "Stored employee gross pay." },
       { key: "deductions", label: "Deductions", description: "Stored employee deductions." },
       { key: "netPay", label: "Net pay", description: "Stored employee net pay." },
@@ -80,8 +80,8 @@ export const BI_EXPORT_DEFINITIONS: Array<{
       { key: "employeeId", label: "Employee ID", description: "Stable Linaw employee identifier." },
       { key: "employeeNo", label: "Employee number", description: "Employer-assigned employee number." },
       { key: "employeeName", label: "Employee name", description: "Employee display name." },
-      { key: "legalEntityCode", label: "Legal entity", description: "Employee legal-employer code." },
-      { key: "orgUnitCode", label: "Organization unit", description: "Employee organization-unit code." },
+      { key: "currentLegalEntityCode", label: "Current legal entity", description: "Employee legal-employer code at export time; not a historical timesheet snapshot." },
+      { key: "currentOrgUnitCode", label: "Current organization unit", description: "Employee organization-unit code at export time; not a historical timesheet snapshot." },
       { key: "periodStart", label: "Period start", description: "Timesheet period start date." },
       { key: "periodEnd", label: "Period end", description: "Timesheet period end date." },
       { key: "version", label: "Version", description: "Immutable timesheet version." },
@@ -182,8 +182,8 @@ async function payrollEntryRows(organizationId: number, filters: BiExportFilters
     gte(payrollRuns.payDate, filters.startDate),
     lte(payrollRuns.payDate, filters.endDate),
   ];
-  if (filters.legalEntityId != null) conditions.push(eq(employees.legalEntityId, filters.legalEntityId));
-  if (filters.orgUnitId != null) conditions.push(eq(employees.orgUnitId, filters.orgUnitId));
+  if (filters.legalEntityId != null) conditions.push(eq(payrollRuns.legalEntityId, filters.legalEntityId));
+  if (filters.orgUnitId != null) conditions.push(eq(payrollRuns.scopeOrgUnitId, filters.orgUnitId));
 
   const rows = await db.select({
     payrollRunId: payrollRuns.id,
@@ -203,8 +203,8 @@ async function payrollEntryRows(organizationId: number, filters: BiExportFilters
   }).from(payrollEntries)
     .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
     .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
-    .leftJoin(legalEntities, eq(employees.legalEntityId, legalEntities.id))
-    .leftJoin(orgUnits, eq(employees.orgUnitId, orgUnits.id))
+    .leftJoin(legalEntities, eq(payrollRuns.legalEntityId, legalEntities.id))
+    .leftJoin(orgUnits, eq(payrollRuns.scopeOrgUnitId, orgUnits.id))
     .where(and(...conditions))
     .orderBy(desc(payrollRuns.payDate), payrollRuns.id, employees.employeeNo)
     .limit(BI_EXPORT_MAX_ROWS + 1);
@@ -241,8 +241,8 @@ async function timesheetRows(organizationId: number, filters: BiExportFilters): 
     employeeNo: employees.employeeNo,
     firstName: employees.firstName,
     lastName: employees.lastName,
-    legalEntityCode: legalEntities.code,
-    orgUnitCode: orgUnits.code,
+    currentLegalEntityCode: legalEntities.code,
+    currentOrgUnitCode: orgUnits.code,
     periodStart: workforceTimesheets.periodStart,
     periodEnd: workforceTimesheets.periodEnd,
     version: workforceTimesheets.version,
@@ -266,8 +266,8 @@ async function timesheetRows(organizationId: number, filters: BiExportFilters): 
     employeeId: row.employeeId,
     employeeNo: row.employeeNo,
     employeeName: `${row.firstName} ${row.lastName}`,
-    legalEntityCode: row.legalEntityCode ?? "",
-    orgUnitCode: row.orgUnitCode ?? "",
+    currentLegalEntityCode: row.currentLegalEntityCode ?? "",
+    currentOrgUnitCode: row.currentOrgUnitCode ?? "",
     periodStart: row.periodStart,
     periodEnd: row.periodEnd,
     version: row.version,
