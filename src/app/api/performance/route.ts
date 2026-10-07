@@ -175,14 +175,10 @@ async function cycleCompletionReadiness(
   organizationId: number,
   cycle: typeof performanceCycles.$inferSelect,
 ) {
-  const [reviews, cycleLinks, calibrationSessions] = await Promise.all([
+  const [reviews, calibrationSessions] = await Promise.all([
     db.select().from(performanceReviews).where(and(
       eq(performanceReviews.organizationId, organizationId),
       eq(performanceReviews.cycleId, cycle.id),
-    )),
-    db.select().from(performanceCycleTemplates).where(and(
-      eq(performanceCycleTemplates.organizationId, organizationId),
-      eq(performanceCycleTemplates.cycleId, cycle.id),
     )),
     db.select().from(performanceCalibrationSessions).where(and(
       eq(performanceCalibrationSessions.organizationId, organizationId),
@@ -196,15 +192,15 @@ async function cycleCompletionReadiness(
     : [];
   const reviewIds = new Set(reviews.map((row) => row.id));
   const relevantItems = reviewItems.filter((row) => reviewIds.has(row.reviewId));
-  const requiredTemplateIds = new Set(cycleLinks.filter((row) => row.required).map((row) => row.templateId));
 
   const openReviews = reviews.filter((row) => row.status !== "completed");
   const missingFinalRatings = reviews.filter((row) => row.status === "completed" && !row.finalScore);
   const missingRequiredItems = reviews.filter((review) =>
-    [...requiredTemplateIds].some((templateId) => {
-      const item = relevantItems.find((row) => row.reviewId === review.id && row.templateId === templateId);
-      return !item?.managerScore || !item?.finalScore;
-    }),
+    relevantItems.some((item) =>
+      item.reviewId === review.id
+      && item.required
+      && (!item.managerScore || !item.finalScore)
+    ),
   );
   const calibrationFinalized = calibrationSessions.some((session) => session.status === "finalized");
   const calibrationRequiredAndOpen = (cycle.requireCalibration || calibrationSessions.length > 0) && !calibrationFinalized;
