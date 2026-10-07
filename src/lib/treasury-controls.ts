@@ -72,6 +72,7 @@ export async function authorizeTreasuryOperation(input: {
   userId: number;
   userName: string;
   requireReleaseSeparation?: boolean;
+  legacyAllowedRoles?: readonly string[];
 }): Promise<{ response: Response | null; evidence: TreasuryEvidence | null }> {
   const policy = await treasuryControlPolicy(input.organizationId);
 
@@ -79,8 +80,10 @@ export async function authorizeTreasuryOperation(input: {
     const response = await assertOrganizationRole(
       input.userId,
       input.organizationId,
-      PAYROLL_DISBURSEMENT_ROLES,
-      "Only the workspace owner can perform payroll treasury operations until enterprise treasury separation is enabled.",
+      input.legacyAllowedRoles ?? PAYROLL_DISBURSEMENT_ROLES,
+      input.legacyAllowedRoles
+        ? "Your current role cannot perform this treasury operation."
+        : "Only the workspace owner can perform payroll treasury operations until enterprise treasury separation is enabled.",
     );
     return {
       response,
