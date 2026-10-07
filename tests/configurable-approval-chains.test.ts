@@ -56,8 +56,9 @@ test("approval decisions and chain advancement share the same transaction", () =
 
 test("intermediate chain approval keeps Automation Studio waiting on the next task", () => {
   const route = read("src/app/api/approvals/[id]/route.ts");
+  assert.ok(route.includes("chainResult.isChain && !chainResult.final && chainResult.nextTaskId"));
+  assert.ok(route.includes("waitingApprovalTaskId: chainResult.nextTaskId"));
   assert.ok(route.includes("chain.isChain && !chain.final && chain.nextTaskId"));
-  assert.ok(route.includes("waitingApprovalTaskId: chain.nextTaskId"));
   assert.ok(route.includes('status: "waiting_approval"'));
 });
 
