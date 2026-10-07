@@ -678,7 +678,18 @@ export function AutomationStudioPanel({
           <button className="secondary-button" onClick={() => void load()} disabled={loading}>
             <RefreshCw size={15} /> Refresh
           </button>
-          <button className="primary-button" onClick={() => setShowBuilder((value) => !value)}>
+          <button
+            className="primary-button"
+            onClick={() => {
+              if (showBuilder) {
+                resetBuilder();
+                setShowBuilder(false);
+              } else {
+                resetBuilder();
+                setShowBuilder(true);
+              }
+            }}
+          >
             <Plus size={15} /> Workflow
           </button>
         </div>
@@ -724,9 +735,13 @@ export function AutomationStudioPanel({
         <form onSubmit={saveRule} className="card" style={{ marginTop: 16 }}>
           <div className="card-header">
             <div>
-              <div className="card-kicker">WORKFLOW BUILDER</div>
-              <h2>Configure one deterministic automation</h2>
-              <p>Steps execute from top to bottom. Waits resume from the scheduler, approval gates pause until a decision, and branches evaluate the original event context.</p>
+              <div className="card-kicker">{editingRuleId ? "STAGED REVISION" : "WORKFLOW BUILDER"}</div>
+              <h2>{editingRuleId ? "Edit a staged workflow revision" : "Configure one deterministic automation"}</h2>
+              <p>
+                {editingRuleId
+                  ? "Saving creates an immutable draft version. The currently published workflow keeps running until you explicitly publish this draft."
+                  : "Steps execute from top to bottom. Waits resume from the scheduler, approval gates pause until a decision, and branches evaluate the original event context."}
+              </p>
             </div>
           </div>
 
@@ -977,7 +992,7 @@ export function AutomationStudioPanel({
             <div className="run-actions" style={{ marginTop: 16 }}>
               <button type="button" className="secondary-button" onClick={() => { resetBuilder(); setShowBuilder(false); }}>Cancel</button>
               <button className="primary-button" disabled={saving || !name.trim() || !selectedTrigger?.live}>
-                <Play size={14} /> {saving ? "Saving…" : "Save workflow"}
+                <Play size={14} /> {saving ? "Saving…" : editingRuleId ? "Stage draft" : "Save & publish"}
               </button>
             </div>
           </div>
@@ -996,19 +1011,71 @@ export function AutomationStudioPanel({
           {data.rules.length === 0 && <div className="empty-state">No Automation Studio workflows yet.</div>}
           {data.rules.map((rule) => {
             const triggerInfo = data.catalogs.triggers.find((item) => item.value === rule.trigger);
+            const versions = versionsByRule.get(rule.id) ?? [];
             return (
-              <div className="leave-request" key={rule.id}>
-                <div className="inline-icon purple"><Workflow size={16} /></div>
-                <div style={{ flex: 1 }}>
-                  <strong>{rule.name}</strong>
-                  <span>
-                    {triggerInfo?.label ?? rule.trigger} · {conditionCount(rule.conditions)} IF · {actionCount(rule.actions)} THEN · {rule.active ? "active" : "disabled"}
-                    {triggerInfo && !triggerInfo.live ? " · adapter planned" : ""}
-                  </span>
+              <div key={rule.id} style={{ borderBottom: "1px solid var(--border)", paddingBottom: 10, marginBottom: 10 }}>
+                <div className="leave-request" style={{ borderBottom: 0, paddingBottom: 6 }}>
+                  <div className="inline-icon purple"><Workflow size={16} /></div>
+                  <div style={{ flex: 1 }}>
+                    <strong>{rule.name}</strong>
+                    <span>
+                      {triggerInfo?.label ?? rule.trigger} · {conditionCount(rule.conditions)} IF · {actionCount(rule.actions)} THEN · {rule.active ? "active" : "disabled"}
+                      {triggerInfo && !triggerInfo.live ? " · adapter planned" : ""}
+                    </span>
+                    <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
+                      Version {rule.publishedVersion} published
+                      {rule.draftVersion ? ` · draft v${rule.draftVersion} staged` : " · no staged draft"}
+                    </small>
+                  </div>
+                  <div className="run-actions" style={{ margin: 0 }}>
+                    <button className="secondary-button" disabled={saving} onClick={() => editRule(rule)}>
+                      Edit draft
+                    </button>
+                    {rule.draftVersion && (
+                      <>
+                        <button className="primary-button" disabled={saving} onClick={() => void publishDraft(rule)}>
+                          Publish v{rule.draftVersion}
+                        </button>
+                        <button className="secondary-button" disabled={saving} onClick={() => void discardDraft(rule)}>
+                          Discard
+                        </button>
+                      </>
+                    )}
+                    <button className="secondary-button" disabled={saving} onClick={() => void setRuleActive(rule, !rule.active)}>
+                      {rule.active ? "Disable" : "Enable"}
+                    </button>
+                  </div>
                 </div>
-                <button className="secondary-button" onClick={() => void setRuleActive(rule, !rule.active)}>
-                  {rule.active ? "Disable" : "Enable"}
-                </button>
+
+                {versions.length > 0 && (
+                  <div style={{ marginLeft: 38, display: "grid", gap: 4 }}>
+                    {versions.slice(0, 6).map((version) => {
+                      const isPublished = version.version === rule.publishedVersion;
+                      const isDraft = version.version === rule.draftVersion;
+                      return (
+                        <div className="payslip-line" key={version.id} style={{ gridTemplateColumns: "1fr auto", padding: "5px 0" }}>
+                          <span>
+                            v{version.version} · {version.createdByName}
+                            <em>
+                              {formatDateTime(version.createdAt)} · {isPublished ? "published" : isDraft ? "staged draft" : "history"}
+                            </em>
+                          </span>
+                          {!isPublished && !isDraft ? (
+                            <button
+                              className="secondary-button"
+                              disabled={saving}
+                              onClick={() => void rollbackRule(rule, version.version)}
+                            >
+                              Roll back
+                            </button>
+                          ) : (
+                            <b>{isPublished ? "Live" : "Draft"}</b>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
