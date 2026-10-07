@@ -63,7 +63,7 @@ export async function authorizeAssignedTreasuryOperator(input: {
 
   const permission = await roleGateAllowed(input.userId, input.organizationId, "payroll.disburse");
   if (!permission.allowed) {
-    return denied(permission.reason ?? "Payroll disbursement permission is denied.");
+    return denied("Payroll disbursement permission is denied by the assigned permission set.");
   }
 
   return null;
