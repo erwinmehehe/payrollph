@@ -66,12 +66,16 @@ test("public SEO origin is payrollsoftware.ph and is independent of app deployme
 test("marketing previews reuse the current app's role and navigation contracts", () => {
   const home = read("src/components/marketing/claude-home/App.tsx");
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
+  const cinematic = read("src/components/marketing/claude-home/components/CinematicHeroDemo.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
   const preview = read("src/components/marketing/claude-home/components/AppProductPreview.tsx");
   const roleDashboard = read("src/components/workspace/clean-role-dashboard.tsx");
 
   assert.ok(home.includes("<Demo />"), "homepage must include product walkthrough");
-  assert.ok(hero.includes('<AppProductPreview role="payroll" compact />'), "hero must use the same dashboard component");
+  assert.ok(hero.includes("<CinematicHeroDemo />"), "hero must mount the cinematic product walkthrough");
+  assert.ok(cinematic.includes("<AppProductPreview role={current.role} compact/>"), "cinematic scenes must reuse the current dashboard component");
+  assert.ok(cinematic.includes('href="/demo"'), "cinematic product frame must be clickable");
+  assert.ok(cinematic.includes("SCENE_DURATION"), "cinematic walkthrough must auto-advance");
   assert.ok(demo.includes("<AppProductPreview role={role} />"), "role previews must share the exact marketing dashboard chrome");
   assert.ok(demo.includes('id="demo"'), "homepage must keep its anchor");
   assert.ok(demo.includes("DEMO_ROLES"), "demo must derive roles from the live sandbox");
@@ -94,7 +98,9 @@ test("homepage is payroll-led, product-proven and avoids repetitive feature wall
   assert.ok(hero.includes("before money moves."), "hero must make release control explicit");
   assert.ok(hero.includes("built for the Philippines"), "hero must identify the Philippine market immediately");
   assert.ok(hero.includes('href="/book-demo"'), "request-demo CTA must remain visible");
-  assert.ok(hero.includes("Not a live payroll result."), "hero must qualify illustrative content");
+  const cinematic = read("src/components/marketing/claude-home/components/CinematicHeroDemo.tsx");
+  assert.ok(cinematic.includes("Illustrative sample data"), "cinematic hero must qualify illustrative content");
+  assert.ok(cinematic.includes("prefers-reduced-motion"), "cinematic hero must respect reduced-motion preference");
   assert.ok(preview.includes("not a live payroll or filing result"), "preview must not imply government acceptance");
 
   for (const component of ["SolutionsGrid", "Demo", "PhilippineCompliance", "PayrollWorkflow", "Security", "Pricing", "FAQ", "PlatformFinalCTA"]) {
@@ -294,17 +300,19 @@ test("homepage Leave and Migration modules perform local interactive workflows",
 });
 
 
-test("hero and demo mirror the current six-role app without embedding a second app", () => {
+test("cinematic hero and deeper demo reuse the current role-based app chrome", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
+  const cinematic = read("src/components/marketing/claude-home/components/CinematicHeroDemo.tsx");
   const demo = read("src/components/marketing/claude-home/components/Demo.tsx");
   const preview = read("src/components/marketing/claude-home/components/AppProductPreview.tsx");
-  assert.ok(hero.includes("AppProductPreview"), "hero must use role-based preview");
-  assert.ok(demo.includes("AppProductPreview"), "demo must share preview");
-  assert.ok(!hero.includes("WorkspacePreview"), "hero must not embed the legacy simulated app");
-  assert.ok(!demo.includes("WorkspacePreview"), "marketing demo must not reintroduce a disconnected second application");
-  assert.ok(demo.includes("DEMO_ROLES"), "six roles must come from real sandbox contract");
-  assert.ok(demo.includes('role="tablist"'), "tabs are keyboard navigable");
-  assert.ok(demo.includes("ArrowRight") && demo.includes("ArrowLeft"), "keyboard arrow navigation must work");
+  assert.ok(hero.includes("CinematicHeroDemo"), "hero must mount cinematic walkthrough");
+  assert.ok(cinematic.includes("AppProductPreview"), "cinematic hero must share current app preview");
+  assert.ok(demo.includes("AppProductPreview"), "deeper demo must share current app preview");
+  assert.ok(!hero.includes("WorkspacePreview") && !cinematic.includes("WorkspacePreview"), "hero must not revive the legacy fake app");
+  assert.ok(cinematic.includes('role="tablist"'), "cinematic scenes must be clickable");
+  assert.ok(cinematic.includes("Pause hero demo") && cinematic.includes("Play hero demo"), "autoplay must have a visible pause/play control");
+  assert.ok(cinematic.includes("Previous hero scene") && cinematic.includes("Next hero scene"), "cinematic demo must support manual navigation");
+  assert.ok(demo.includes("DEMO_ROLES"), "six-role deeper demo must come from real sandbox contract");
   assert.ok(preview.includes("Payroll Officer") || preview.includes('role === "payroll"'), "payroll view must match the app");
 });
 
