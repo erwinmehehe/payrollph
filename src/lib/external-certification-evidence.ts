@@ -73,9 +73,9 @@ const VALID_KINDS = new Set<EvidenceKind>([
   "bank-accepted-test", "bank-rejected-test",
 ]);
 
-function nonPlaceholder(value: unknown) {
+function nonPlaceholder(value: unknown, minimumLength = 6) {
   return typeof value === "string"
-    && value.trim().length >= 6
+    && value.trim().length >= minimumLength
     && !PLACEHOLDER.test(value.trim())
     && !/[<>]/.test(value);
 }
@@ -134,7 +134,7 @@ export function evaluateExternalCertificationEvidence(
     if (!VALID_KINDS.has(doc.kind)) issues.push(doc.id + ": invalid kind.");
     if (doc.legalEntityCode !== legalEntityCode) issues.push(doc.id + ": different legal employer.");
     if (!nonPlaceholder(doc.externalReference)) issues.push(doc.id + ": external reference missing or placeholder.");
-    if (!nonPlaceholder(doc.issuer)) issues.push(doc.id + ": issuer missing or placeholder.");
+    if (!nonPlaceholder(doc.issuer, 3)) issues.push(doc.id + ": issuer missing or placeholder.");
     if (!isValidDate(doc.issuedAt)) issues.push(doc.id + ": issuedAt must be a real, nonfuture ISO date.");
     if (
       ["independent-review", "professional-license", "government-receipt", "bank-accepted-test", "bank-rejected-test"].includes(doc.kind)
