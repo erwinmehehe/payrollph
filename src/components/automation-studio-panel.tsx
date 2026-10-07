@@ -448,6 +448,7 @@ export function AutomationStudioPanel({
         amount: Number(row.amount),
         reason: row.reason,
         approver: row.approver || "Payroll",
+        approvalChainCode: row.approvalChainCode || undefined,
       };
     }
     return { type: row.type };
@@ -1048,8 +1049,9 @@ export function AutomationStudioPanel({
                         <div className="setting-form">
                           <label>Requested amount<input required type="number" step="0.01" value={row.amount} onChange={(event) => updateAction(row.id, { amount: event.target.value })} /></label>
                           <label>Approver<input value={row.approver || "Payroll"} onChange={(event) => updateAction(row.id, { approver: event.target.value })} /></label>
+                          <label>Approval chain<select value={row.approvalChainCode} onChange={(event) => updateAction(row.id, { approvalChainCode: event.target.value })}><option value="">Single approver</option>{data.approvalChains.map((chain) => <option key={chain.id} value={chain.code}>{chain.name} · v{chain.version}</option>)}</select></label>
                           <label>Reason<input required value={row.reason} onChange={(event) => updateAction(row.id, { reason: event.target.value })} /></label>
-                          <div className="modal-note">This creates a high-priority approval request. Automation never posts money directly to payroll.</div>
+                          <div className="modal-note">This creates a high-priority approval request. If a chain is selected, the absolute PHP adjustment amount determines which configured approval tiers are required. Automation never posts money directly to payroll.</div>
                         </div>
                       )}
 
