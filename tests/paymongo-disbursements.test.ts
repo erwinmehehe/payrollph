@@ -151,6 +151,13 @@ test("only available funds count, and a shortfall is reported to the centavo", (
   assert.doesNotThrow(() => assertWalletFunded(wallet, 2_600_000));
 });
 
+test("direct payout rows are locked to immutable payroll payment snapshots", () => {
+  const source = readFileSync("src/lib/paymongo-disbursements.ts", "utf8");
+  assert.ok(source.includes("readPayrollPaymentSnapshot(entry.trace)"));
+  assert.ok(source.includes("will not use mutable employee bank details for a live payout"));
+  assert.ok(!source.includes("accountNumber: decryptBankAccount(employee.bankAccount)"));
+});
+
 test("submission reads the wallet before creating the batch and attaches its source account", () => {
   const source = readFileSync("src/lib/paymongo-disbursements.ts", "utf8");
   const walletRead = source.search(/await getPaymongoWallet\(\);\s+assertWalletFunded/);
@@ -198,6 +205,14 @@ test("PayMongo payroll preflight validates live bank mapping without creating a 
       grossPay: "30000",
       deductions: "5000",
       netPay: "25000",
+      trace: {
+        payment: {
+          employeeNo: "PAY-001",
+          employeeName: "Juan Dela Cruz",
+          bankAccount: "1234567890",
+          bankCode: "BDO",
+        },
+      },
     });
 
     process.env.PAYMONGO_SECRET_KEY = "sk_test_preflight_only";
