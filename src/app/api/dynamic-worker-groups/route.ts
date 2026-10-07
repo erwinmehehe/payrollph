@@ -159,7 +159,7 @@ export async function POST(request: Request) {
 
         const [group] = await db.update(dynamicWorkerGroups).set({
           name: name.slice(0, 160),
-          code,
+          code: existing.code,
           description: description ? description.slice(0, 500) : null,
           conditions,
           version: existing.version + 1,
