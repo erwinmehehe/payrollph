@@ -2798,6 +2798,7 @@ export const performanceTemplates = pgTable(
     type: varchar("type", { length: 24 }).notNull(),
     description: text("description"),
     jobProfileId: integer("job_profile_id").references((): AnyPgColumn => jobProfiles.id, { onDelete: "set null" }),
+    skillId: integer("skill_id").references((): AnyPgColumn => hcmSkills.id, { onDelete: "set null" }),
     defaultWeight: numeric("default_weight", { precision: 5, scale: 2 }).notNull().default("0"),
     ratingAnchors: jsonb("rating_anchors").notNull().default({}),
     active: boolean("active").notNull().default(true),
@@ -2808,6 +2809,9 @@ export const performanceTemplates = pgTable(
   (table) => [
     uniqueIndex("performance_templates_org_code_unique").on(table.organizationId, table.code),
     index("performance_templates_org_type_idx").on(table.organizationId, table.type, table.active),
+    uniqueIndex("performance_templates_org_skill_competency_unique")
+      .on(table.organizationId, table.skillId)
+      .where(sql`${table.skillId} is not null and ${table.type} = 'competency'`),
     check("performance_templates_type_check", sql`${table.type} IN ('competency','kra')`),
     check("performance_templates_weight_check", sql`${table.defaultWeight} >= 0 AND ${table.defaultWeight} <= 100`),
   ],
@@ -2838,6 +2842,11 @@ export const performanceReviewItems = pgTable(
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     reviewId: integer("review_id").notNull().references(() => performanceReviews.id, { onDelete: "cascade" }),
     templateId: integer("template_id").notNull().references(() => performanceTemplates.id, { onDelete: "restrict" }),
+    jobProfileId: integer("job_profile_id").references((): AnyPgColumn => jobProfiles.id, { onDelete: "set null" }),
+    skillId: integer("skill_id").references((): AnyPgColumn => hcmSkills.id, { onDelete: "set null" }),
+    expectedProficiency: integer("expected_proficiency"),
+    required: boolean("required").notNull().default(true),
+    weight: numeric("weight", { precision: 5, scale: 2 }).notNull().default("0"),
     selfScore: numeric("self_score", { precision: 4, scale: 2 }),
     managerScore: numeric("manager_score", { precision: 4, scale: 2 }),
     finalScore: numeric("final_score", { precision: 4, scale: 2 }),
@@ -2849,9 +2858,12 @@ export const performanceReviewItems = pgTable(
   (table) => [
     uniqueIndex("performance_review_items_unique").on(table.reviewId, table.templateId),
     index("performance_review_items_org_review_idx").on(table.organizationId, table.reviewId),
+    index("performance_review_items_skill_idx").on(table.organizationId, table.skillId, table.jobProfileId),
     check("performance_review_items_self_score_check", sql`${table.selfScore} IS NULL OR (${table.selfScore} >= 1 AND ${table.selfScore} <= 5)`),
     check("performance_review_items_manager_score_check", sql`${table.managerScore} IS NULL OR (${table.managerScore} >= 1 AND ${table.managerScore} <= 5)`),
     check("performance_review_items_final_score_check", sql`${table.finalScore} IS NULL OR (${table.finalScore} >= 1 AND ${table.finalScore} <= 5)`),
+    check("performance_review_items_expected_proficiency_check", sql`${table.expectedProficiency} IS NULL OR (${table.expectedProficiency} >= 1 AND ${table.expectedProficiency} <= 5)`),
+    check("performance_review_items_weight_check", sql`${table.weight} >= 0 AND ${table.weight} <= 100`),
   ],
 );
 
@@ -2864,6 +2876,8 @@ export const performanceCalibrationSessions = pgTable(
     name: varchar("name", { length: 180 }).notNull(),
     status: varchar("status", { length: 24 }).notNull().default("open"),
     notes: text("notes"),
+    policyVersion: integer("policy_version"),
+    policySnapshot: jsonb("policy_snapshot"),
     createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdByName: varchar("created_by_name", { length: 120 }).notNull(),
     finalizedByUserId: integer("finalized_by_user_id").references(() => users.id, { onDelete: "set null" }),
@@ -2900,6 +2914,87 @@ export const performanceCalibrationEntries = pgTable(
     index("performance_calibration_entries_org_session_idx").on(table.organizationId, table.sessionId),
     check("performance_calibration_entries_original_score_check", sql`${table.originalScore} >= 1 AND ${table.originalScore} <= 5`),
     check("performance_calibration_entries_calibrated_score_check", sql`${table.calibratedScore} IS NULL OR (${table.calibratedScore} >= 1 AND ${table.calibratedScore} <= 5)`),
+  ],
+);
+
+export const performanceCalibrationPolicies = pgTable(
+  "performance_calibration_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    version: integer("version").notNull().default(1),
+    minimumManagerSample: integer("minimum_manager_sample").notNull().default(3),
+    managerMeanDeviationThreshold: numeric("manager_mean_deviation_threshold", { precision: 4, scale: 2 }).notNull().default("0.75"),
+    highRatingThreshold: numeric("high_rating_threshold", { precision: 4, scale: 2 }).notNull().default("4.50"),
+    highRatingShareThreshold: numeric("high_rating_share_threshold", { precision: 5, scale: 2 }).notNull().default("60.00"),
+    lowRatingThreshold: numeric("low_rating_threshold", { precision: 4, scale: 2 }).notNull().default("2.00"),
+    lowRatingShareThreshold: numeric("low_rating_share_threshold", { precision: 5, scale: 2 }).notNull().default("40.00"),
+    largeScoreChangeThreshold: numeric("large_score_change_threshold", { precision: 4, scale: 2 }).notNull().default("1.00"),
+    requireFlagResolution: boolean("require_flag_resolution").notNull().default(true),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    updatedByName: varchar("updated_by_name", { length: 120 }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_calibration_policies_org_unique").on(table.organizationId),
+    check("performance_calibration_policy_manager_sample_check", sql`${table.minimumManagerSample} >= 2 AND ${table.minimumManagerSample} <= 1000`),
+    check("performance_calibration_policy_mean_threshold_check", sql`${table.managerMeanDeviationThreshold} >= 0.10 AND ${table.managerMeanDeviationThreshold} <= 4.00`),
+    check("performance_calibration_policy_high_rating_check", sql`${table.highRatingThreshold} >= 1 AND ${table.highRatingThreshold} <= 5`),
+    check("performance_calibration_policy_high_share_check", sql`${table.highRatingShareThreshold} >= 0 AND ${table.highRatingShareThreshold} <= 100`),
+    check("performance_calibration_policy_low_rating_check", sql`${table.lowRatingThreshold} >= 1 AND ${table.lowRatingThreshold} <= 5`),
+    check("performance_calibration_policy_low_share_check", sql`${table.lowRatingShareThreshold} >= 0 AND ${table.lowRatingShareThreshold} <= 100`),
+    check("performance_calibration_policy_large_change_check", sql`${table.largeScoreChangeThreshold} >= 0.10 AND ${table.largeScoreChangeThreshold} <= 4.00`),
+  ],
+);
+
+export const performanceCalibrationPolicyEvents = pgTable(
+  "performance_calibration_policy_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    policyId: integer("policy_id").notNull().references(() => performanceCalibrationPolicies.id, { onDelete: "restrict" }),
+    fromVersion: integer("from_version"),
+    toVersion: integer("to_version").notNull(),
+    beforeSnapshot: jsonb("before_snapshot"),
+    afterSnapshot: jsonb("after_snapshot").notNull(),
+    actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: varchar("actor_name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("performance_calibration_policy_events_org_idx").on(table.organizationId, table.createdAt),
+  ],
+);
+
+export const performanceCalibrationFlags = pgTable(
+  "performance_calibration_flags",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    sessionId: integer("session_id").notNull().references(() => performanceCalibrationSessions.id, { onDelete: "cascade" }),
+    reviewId: integer("review_id").references(() => performanceReviews.id, { onDelete: "cascade" }),
+    reviewerUserId: integer("reviewer_user_id").references(() => users.id, { onDelete: "set null" }),
+    flagType: varchar("flag_type", { length: 40 }).notNull(),
+    severity: varchar("severity", { length: 16 }).notNull().default("warning"),
+    title: varchar("title", { length: 180 }).notNull(),
+    detail: varchar("detail", { length: 600 }).notNull(),
+    observedValue: numeric("observed_value", { precision: 8, scale: 2 }),
+    thresholdValue: numeric("threshold_value", { precision: 8, scale: 2 }),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    resolutionNote: text("resolution_note"),
+    resolvedByUserId: integer("resolved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    resolvedByName: varchar("resolved_by_name", { length: 120 }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("performance_calibration_flags_unique").on(table.sessionId, table.flagType, table.reviewerUserId, table.reviewId),
+    index("performance_calibration_flags_status_idx").on(table.organizationId, table.sessionId, table.status),
+    check("performance_calibration_flags_type_check", sql`${table.flagType} IN ('manager_mean_outlier','high_rating_concentration','low_rating_concentration','large_score_change')`),
+    check("performance_calibration_flags_severity_check", sql`${table.severity} IN ('warning','blocker')`),
+    check("performance_calibration_flags_status_check", sql`${table.status} IN ('open','accepted','resolved')`),
   ],
 );
 

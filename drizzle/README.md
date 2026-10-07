@@ -115,3 +115,5 @@ the first one, so it closes itself.
 - `0078_slack_connector.sql` adds encrypted provider-specific Slack connectors plus idempotent Automation Studio delivery evidence.
 
 - `0079_performance_continuity.sql` adds manager 1:1 records, append-only performance feedback, and durable review reminder tasks/events without changing compensation or payroll.
+
+- `0080_performance_job_competency_calibration_controls.sql` connects performance competencies to governed job-profile skills, snapshots expected proficiency into reviews, and adds configurable calibration distribution/outlier policies and resolution flags.

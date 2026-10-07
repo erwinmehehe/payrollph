@@ -200,12 +200,7 @@ export async function PATCH(request: Request) {
   }
 
   if (cycle.requireSelfAssessment && items.length) {
-    const links = await db.select().from(performanceCycleTemplates).where(and(
-      eq(performanceCycleTemplates.organizationId, context.employee.organizationId),
-      eq(performanceCycleTemplates.cycleId, existing.cycleId),
-    ));
-    const requiredTemplateIds = new Set(links.filter((link) => link.required).map((link) => link.templateId));
-    for (const item of items.filter((row) => requiredTemplateIds.has(row.templateId))) {
+    for (const item of items.filter((row) => row.required)) {
       const submitted = normalizedItems.find((candidate) => candidate.id === item.id);
       if (!submitted && !item.selfScore) {
         return Response.json({ error: "Rate every required competency/KRA item before submitting this self-assessment." }, { status: 409 });

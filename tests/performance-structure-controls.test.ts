@@ -27,7 +27,7 @@ test("competency and KRA templates create structured review evidence", () => {
   assert.ok(schema.includes("export const performanceTemplates = pgTable("));
   assert.ok(schema.includes("export const performanceReviewItems = pgTable("));
   assert.ok(route.includes('entityType === "cycle_template"'));
-  assert.ok(route.includes("structuredItems: links.length"));
+  assert.ok(route.includes("structuredItems: structure.items.length"));
 });
 
 test("review structure freezes once completion begins", () => {

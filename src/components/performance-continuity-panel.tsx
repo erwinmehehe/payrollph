@@ -73,6 +73,8 @@ type Analytics = {
     oneOnOneCoverage: number;
     openReminders: number;
     overdueReminders: number;
+    roleCompetencyItems: number;
+    belowRoleExpectation: number;
   };
   byManager: Array<{
     managerUserId: number | null;
@@ -92,7 +94,7 @@ type Analytics = {
   }>;
   ratingDistribution: Array<{ bucket: string; count: number; percentage: number }>;
   activity: { completedOneOnOnes: number; feedbackEntries: number };
-  calibration: null | { status: string; changedRatings: number; totalRatings: number };
+  calibration: null | { status: string; changedRatings: number; totalRatings: number; openFlags: number; acceptedFlags: number; resolvedFlags: number };
 };
 
 function localDateTime(value: string) {
@@ -316,6 +318,9 @@ export function PerformanceContinuityPanel({
             <article className="stat-card"><p>GOAL ATTAINMENT</p><h3>{analytics.summary.goalAttainment}%</h3><span>Average employee-goal progress</span></article>
             <article className="stat-card"><p>1:1 COVERAGE</p><h3>{analytics.summary.oneOnOneCoverage}%</h3><span>{analytics.activity.completedOneOnOnes} completed check-ins</span></article>
           </section>
+          <div className="notice notice-amber" style={{ marginTop: 14 }}>
+            <span>Role competency gaps: {analytics.summary.belowRoleExpectation}/{analytics.summary.roleCompetencyItems} scored job-linked competency item(s) are below the frozen role expectation.</span>
+          </div>
 
           <section className="module-grid two" style={{ marginTop: 14 }}>
             <div>
@@ -347,7 +352,7 @@ export function PerformanceContinuityPanel({
 
           {analytics.calibration && (
             <div className="notice notice-amber" style={{ marginTop: 14 }}>
-              <span>Calibration {analytics.calibration.status}: {analytics.calibration.changedRatings}/{analytics.calibration.totalRatings} rating(s) changed.</span>
+              <span>Calibration {analytics.calibration.status}: {analytics.calibration.changedRatings}/{analytics.calibration.totalRatings} rating(s) changed · {analytics.calibration.openFlags} open flag(s) · {analytics.calibration.acceptedFlags} accepted · {analytics.calibration.resolvedFlags} resolved.</span>
             </div>
           )}
         </article>
