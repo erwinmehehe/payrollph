@@ -1,9 +1,13 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
+  hcmJobProfileSkillRequirements,
+  hcmSkills,
   jobProfiles,
   orgUnits,
+  positionAssignments,
+  positions,
   performanceCalibrationSessions,
   performanceCycleTemplates,
   performanceCycles,
@@ -61,6 +65,90 @@ async function cycleInOrganization(organizationId: number, cycleId: number) {
     .where(and(eq(performanceCycles.id, cycleId), eq(performanceCycles.organizationId, organizationId)))
     .limit(1);
   return cycle ?? null;
+}
+
+async function reviewStructureForEmployee(
+  organizationId: number,
+  employeeId: number,
+  cycleId: number,
+) {
+  const [assignment] = await db.select({
+    jobProfileId: positions.jobProfileId,
+  })
+    .from(positionAssignments)
+    .innerJoin(positions, eq(positionAssignments.positionId, positions.id))
+    .where(and(
+      eq(positionAssignments.organizationId, organizationId),
+      eq(positionAssignments.employeeId, employeeId),
+      eq(positionAssignments.assignmentType, "primary"),
+      isNull(positionAssignments.effectiveUntil),
+    ))
+    .orderBy(desc(positionAssignments.effectiveFrom))
+    .limit(1);
+
+  const jobProfileId = assignment?.jobProfileId ?? null;
+  const links = await db.select().from(performanceCycleTemplates).where(and(
+    eq(performanceCycleTemplates.organizationId, organizationId),
+    eq(performanceCycleTemplates.cycleId, cycleId),
+  ));
+  if (!links.length) {
+    return { jobProfileId, items: [], missingMandatorySkills: [] as Array<{ skillId: number; code: string; name: string }> };
+  }
+
+  const templates = await db.select().from(performanceTemplates).where(and(
+    eq(performanceTemplates.organizationId, organizationId),
+    inArray(performanceTemplates.id, links.map((link) => link.templateId)),
+  ));
+  const templateById = new Map(templates.map((template) => [template.id, template]));
+
+  const requirements = jobProfileId
+    ? await db.select({
+        skillId: hcmJobProfileSkillRequirements.skillId,
+        minimumProficiency: hcmJobProfileSkillRequirements.minimumProficiency,
+        mandatory: hcmJobProfileSkillRequirements.mandatory,
+        code: hcmSkills.code,
+        name: hcmSkills.name,
+      })
+        .from(hcmJobProfileSkillRequirements)
+        .innerJoin(hcmSkills, eq(hcmJobProfileSkillRequirements.skillId, hcmSkills.id))
+        .where(and(
+          eq(hcmJobProfileSkillRequirements.organizationId, organizationId),
+          eq(hcmJobProfileSkillRequirements.jobProfileId, jobProfileId),
+        ))
+    : [];
+
+  const requirementBySkillId = new Map(requirements.map((requirement) => [requirement.skillId, requirement]));
+  const applicable = links
+    .map((link) => ({ link, template: templateById.get(link.templateId) }))
+    .filter((row): row is { link: typeof links[number]; template: typeof performanceTemplates.$inferSelect } =>
+      Boolean(row.template)
+      && (row.template!.jobProfileId == null || row.template!.jobProfileId === jobProfileId)
+    );
+
+  const mappedSkillIds = new Set(
+    applicable
+      .filter((row) => row.template.type === "competency" && row.template.skillId != null)
+      .map((row) => row.template.skillId!),
+  );
+  const missingMandatorySkills = requirements
+    .filter((requirement) => requirement.mandatory && !mappedSkillIds.has(requirement.skillId))
+    .map((requirement) => ({ skillId: requirement.skillId, code: requirement.code, name: requirement.name }));
+
+  return {
+    jobProfileId,
+    missingMandatorySkills,
+    items: applicable.map(({ link, template }) => {
+      const requirement = template.skillId ? requirementBySkillId.get(template.skillId) : null;
+      return {
+        templateId: template.id,
+        jobProfileId,
+        skillId: template.skillId,
+        expectedProficiency: requirement?.minimumProficiency ?? null,
+        required: link.required || Boolean(requirement?.mandatory),
+        weight: link.weight,
+      };
+    }),
+  };
 }
 
 async function assertGoalAccess(userId: number, goal: typeof performanceGoals.$inferSelect) {
