@@ -20,6 +20,13 @@ type Employee = {
   orgUnitId: number | null;
 };
 
+type AgendaContribution = {
+  id: number;
+  authorName: string;
+  content: string;
+  createdAt: string;
+};
+
 type OneOnOne = {
   id: number;
   employeeId: number;
@@ -30,6 +37,7 @@ type OneOnOne = {
   sharedSummary: string | null;
   privateManagerNotes: string | null;
   completedAt: string | null;
+  agendaContributions: AgendaContribution[];
 };
 
 type Feedback = {
@@ -374,7 +382,15 @@ export function PerformanceContinuityPanel({
                   </div>
                   <Clock3 size={17} />
                 </div>
-                {meeting.agenda && <p><strong>Agenda:</strong> {meeting.agenda}</p>}
+                {meeting.agenda && <p><strong>Manager agenda:</strong> {meeting.agenda}</p>}
+                {(meeting.agendaContributions ?? []).length > 0 && (
+                  <div className="notice notice-green" style={{ marginBottom: 10 }}>
+                    <span>
+                      <strong>Employee agenda contributions</strong><br />
+                      {(meeting.agendaContributions ?? []).map((item) => item.content).join(" · ")}
+                    </span>
+                  </div>
+                )}
                 {meeting.status === "completed" && meeting.sharedSummary && <p><strong>Shared summary:</strong> {meeting.sharedSummary}</p>}
                 {meeting.status === "completed" && meeting.privateManagerNotes && <p><strong>Manager-private:</strong> {meeting.privateManagerNotes}</p>}
                 {mayEdit && (
