@@ -160,7 +160,9 @@ export async function POST(request: Request) {
   }
 
   const positionIds = role?.positionIds ?? [];
-  const createdOrUpdated = await db.transaction(async (tx) => {
+  let createdOrUpdated: Array<typeof staffingRequirements.$inferSelect & { handoffAction: "created" | "updated" }>;
+  try {
+    createdOrUpdated = await db.transaction(async (tx) => {
     const rows = [];
     for (const workDate of dates) {
       const [existing] = await tx.select().from(staffingRequirements).where(and(
@@ -219,9 +221,12 @@ export async function POST(request: Request) {
       rows.push({ ...created, handoffAction: "created" as const });
     }
     return rows;
-  }).catch((error) => {
-    throw error;
-  });
+    });
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Could not hand approved headcount into WFM demand.",
+    }, { status: 409 });
+  }
 
   await recordAuditEvent({
     organizationId,
