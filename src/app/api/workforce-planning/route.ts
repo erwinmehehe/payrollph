@@ -13,6 +13,7 @@ import {
   orgUnits,
   positionAssignments,
   positions,
+  shiftDefinitions,
   workforcePlans,
   worksites,
   workerEffectiveChanges,
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
-  const [profiles, families, levels, grades, plans, allPositions, assignments, units, entityRows, costCenterRows, staff, requisitions, siteRows] = await Promise.all([
+  const [profiles, families, levels, grades, plans, allPositions, assignments, units, entityRows, costCenterRows, staff, requisitions, siteRows, shiftRows] = await Promise.all([
     db.select().from(jobProfiles).where(eq(jobProfiles.organizationId, organizationId)).orderBy(jobProfiles.title),
     db.select().from(jobFamilies).where(eq(jobFamilies.organizationId, organizationId)).orderBy(jobFamilies.name),
     db.select().from(jobLevels).where(eq(jobLevels.organizationId, organizationId)).orderBy(jobLevels.sequence, jobLevels.name),
@@ -103,6 +104,9 @@ export async function GET(request: Request) {
     db.select().from(worksites)
       .where(eq(worksites.organizationId, organizationId))
       .orderBy(worksites.name),
+    db.select().from(shiftDefinitions)
+      .where(and(eq(shiftDefinitions.organizationId, organizationId), eq(shiftDefinitions.active, true)))
+      .orderBy(shiftDefinitions.code),
   ]);
 
   const visiblePositions = access.companyWide
@@ -145,6 +149,7 @@ export async function GET(request: Request) {
     worksites: access.companyWide
       ? siteRows
       : siteRows.filter((site) => site.orgUnitId === access.orgUnitId),
+    shifts: shiftRows,
     employees: visibleEmployees,
     access,
   });
