@@ -406,6 +406,16 @@ export async function PATCH(request: Request) {
       eq(performanceSkillDevelopmentPlans.organizationId, organizationId),
     )).limit(1);
     if (!existing) return Response.json({ error: "Development plan not found." }, { status: 404 });
+    if (existing.status === "completed" || existing.status === "cancelled") {
+      return Response.json({ error: "Closed development plans are locked." }, { status: 409 });
+    }
+    const allowedPlanTransitions: Record<string, string[]> = {
+      planned: ["in_progress", "cancelled"],
+      in_progress: ["completed", "cancelled"],
+    };
+    if (!allowedPlanTransitions[existing.status]?.includes(status)) {
+      return Response.json({ error: "That development plan status transition is not allowed." }, { status: 409 });
+    }
     const [employee] = await db.select().from(employees).where(eq(employees.id, existing.employeeId)).limit(1);
     const scoped = employee ? assertScope(gate.access, employee.orgUnitId) : { ok: false as const, error: "Employee not found.", status: 404 };
     if (!scoped.ok) return Response.json({ error: scoped.error }, { status: scoped.status });
@@ -459,8 +469,14 @@ export async function PATCH(request: Request) {
       eq(performanceSkillDevelopmentMilestones.organizationId, organizationId),
     )).limit(1);
     if (!existing) return Response.json({ error: "Development milestone not found." }, { status: 404 });
+    if (existing.status === "completed" || existing.status === "cancelled") {
+      return Response.json({ error: "Closed development milestones are locked." }, { status: 409 });
+    }
     const [plan] = await db.select().from(performanceSkillDevelopmentPlans).where(eq(performanceSkillDevelopmentPlans.id, existing.planId)).limit(1);
     if (!plan) return Response.json({ error: "Development plan not found." }, { status: 404 });
+    if (plan.status === "completed" || plan.status === "cancelled") {
+      return Response.json({ error: "Closed development plans cannot change milestones." }, { status: 409 });
+    }
     const [employee] = await db.select().from(employees).where(eq(employees.id, plan.employeeId)).limit(1);
     const scoped = employee ? assertScope(gate.access, employee.orgUnitId) : { ok: false as const, error: "Employee not found.", status: 404 };
     if (!scoped.ok) return Response.json({ error: scoped.error }, { status: scoped.status });
