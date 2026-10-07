@@ -192,3 +192,67 @@ export function remainingOpenShiftSlots(input: {
 }) {
   return Math.max(0, input.slots - input.approvedClaims);
 }
+
+
+export type CoverageCandidateInput = {
+  employeeId: number;
+  employeeName: string;
+  preferred: boolean;
+  scheduledMinutesInWindow: number;
+  consecutiveWorkingDaysBeforeShift: number;
+  alreadyWorkingThatDay: boolean;
+};
+
+export type RankedCoverageCandidate = CoverageCandidateInput & {
+  score: number;
+  workloadRisk: "low" | "medium" | "high";
+  reasons: string[];
+};
+
+export function rankCoverageCandidates(input: {
+  candidates: CoverageCandidateInput[];
+  shiftPaidMinutes: number;
+  maxRecommendations?: number;
+}) {
+  const maxRecommendations = Math.max(1, Math.min(20, input.maxRecommendations ?? 5));
+  const shiftPaidMinutes = Math.max(0, input.shiftPaidMinutes);
+
+  return input.candidates
+    .filter((candidate) => !candidate.alreadyWorkingThatDay)
+    .map((candidate): RankedCoverageCandidate => {
+      const projectedMinutes = candidate.scheduledMinutesInWindow + shiftPaidMinutes;
+      const projectedHours = projectedMinutes / 60;
+      const fairnessBonus = Math.max(0, Math.min(30, Math.round((48 - Math.min(48, candidate.scheduledMinutesInWindow / 60)) * 0.625)));
+      const preferenceBonus = candidate.preferred ? 20 : 0;
+      const consecutivePenalty = Math.max(0, candidate.consecutiveWorkingDaysBeforeShift - 4) * 8;
+      const workloadPenalty = projectedHours > 48 ? 25 : projectedHours > 40 ? 10 : 0;
+      const score = 50 + fairnessBonus + preferenceBonus - consecutivePenalty - workloadPenalty;
+      const workloadRisk: RankedCoverageCandidate["workloadRisk"] =
+        projectedHours > 48 || candidate.consecutiveWorkingDaysBeforeShift >= 6
+          ? "high"
+          : projectedHours > 40 || candidate.consecutiveWorkingDaysBeforeShift >= 5
+            ? "medium"
+            : "low";
+      const reasons = [
+        candidate.preferred ? "Matches preferred availability" : "Available for the shift",
+        `${(candidate.scheduledMinutesInWindow / 60).toFixed(1)}h currently scheduled in the planning window`,
+      ];
+      if (candidate.consecutiveWorkingDaysBeforeShift > 0) {
+        reasons.push(`${candidate.consecutiveWorkingDaysBeforeShift} consecutive working day(s) before this shift`);
+      }
+      if (workloadRisk !== "low") reasons.push(`Projected workload risk: ${workloadRisk}`);
+
+      return {
+        ...candidate,
+        score,
+        workloadRisk,
+        reasons,
+      };
+    })
+    .sort((a, b) =>
+      b.score - a.score
+      || a.scheduledMinutesInWindow - b.scheduledMinutesInWindow
+      || a.employeeName.localeCompare(b.employeeName),
+    )
+    .slice(0, maxRecommendations);
+}
