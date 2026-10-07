@@ -35,6 +35,44 @@ type WorkforceScenario = {
   snapshot: { forecast?: WorkforceForecast; scope?: { worksiteName?: string | null } } | null;
 };
 
+type HeadcountPlanSummaryView = {
+  requestedHeadcount: number;
+  approvedHeadcount: number;
+  filledHeadcount: number;
+  vacantApprovedHeadcount: number;
+  requestedFte: number;
+  approvedFte: number;
+  filledFte: number;
+  annualPositionBudget: number | null;
+};
+
+type WorkforcePlanBaseline = {
+  id: number;
+  planId: number;
+  scenarioId: number;
+  version: number;
+  current: boolean;
+  snapshotHash: string;
+  publishedBy: string;
+  publishedAt: string;
+  snapshot: {
+    plan?: { id?: number; name?: string; startDate?: string; endDate?: string; budget?: number | null };
+    scenario?: { id?: number; name?: string; version?: number };
+    headcount?: HeadcountPlanSummaryView;
+  } | null;
+  actual: HeadcountPlanSummaryView;
+  variance: {
+    requestedHeadcount: number;
+    approvedHeadcount: number;
+    filledHeadcount: number;
+    vacantApprovedHeadcount: number;
+    requestedFte: number;
+    approvedFte: number;
+    filledFte: number;
+    annualPositionBudget: number | null;
+  } | null;
+};
+
 type WorkforceForecast = {
   assumptions: { startDate: string; endDate: string; windowDays: number; demandGrowthPercent: number; vacancyFillPercent: number; employerLoadPercent: number };
   summary: {
@@ -121,6 +159,8 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [scenarios, setScenarios] = useState<WorkforceScenario[]>([]);
+  const [baselines, setBaselines] = useState<WorkforcePlanBaseline[]>([]);
+  const [baselinePublishing, setBaselinePublishing] = useState<number | null>(null);
   const [costVisible, setCostVisible] = useState(true);
   const [loading, setLoading] = useState(true);
   const [showArchitecture, setShowArchitecture] = useState(false);
@@ -188,6 +228,12 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         setScenarios(scenarioPayload.scenarios ?? []);
         setCostVisible(scenarioPayload.costVisible !== false);
       }
+      const baselineResponse = await fetch(`/api/workforce-planning/baselines?organizationId=${organizationId}`, { cache: "no-store" });
+      const baselinePayload = await baselineResponse.json().catch(() => ({}));
+      if (baselineResponse.ok) {
+        setBaselines(baselinePayload.baselines ?? []);
+        setCostVisible(baselinePayload.costVisible !== false);
+      }
     } finally {
       setLoading(false);
     }
@@ -215,6 +261,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     && ["approved", "open", "filled"].includes(position.status)
   );
   const handoffAuthorizedHeadcount = authorizedHandoffPositions.length;
+  const currentBaselineByPlan = useMemo(() => new Map(baselines.filter((row) => row.current).map((row) => [row.planId, row])), [baselines]);
 
   async function runForecast() {
     if (!forecastStart || !forecastEnd || forecastEnd < forecastStart) {
@@ -304,6 +351,28 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     setScenarioDecisionNote("");
     await load();
     setNotice(`Staffing scenario ${action === "submit" ? "submitted" : action === "approve" ? "approved" : "rejected"}.`);
+  }
+
+  async function publishBaseline(scenarioId: number) {
+    setBaselinePublishing(scenarioId);
+    try {
+      const response = await fetch("/api/workforce-planning/baselines", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenarioId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? "Could not publish the headcount baseline.");
+        return;
+      }
+      await load();
+      setNotice(`Published workforce-plan baseline v${payload.baseline?.version ?? ""}. Live headcount is now reconciled against this locked version.`);
+    } catch {
+      setNotice("Could not reach published headcount plan management.");
+    } finally {
+      setBaselinePublishing(null);
+    }
   }
 
   async function post(body: Record<string, unknown>) {
@@ -534,7 +603,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
           <label>Workforce plan
             <select value={handoffForm.planId} onChange={(e) => setHandoffForm({ ...handoffForm, planId: e.target.value })} required>
               <option value="">Choose active plan…</option>
-              {plans.filter((plan) => plan.status === "active").map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {plan.startDate}–{plan.endDate}</option>)}
+              {plans.filter((plan) => ["active", "approved", "published"].includes(plan.status)).map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {plan.startDate}–{plan.endDate}</option>)}
             </select>
           </label>
           <label>Job profile
@@ -726,13 +795,85 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
                           <button className="secondary-button" onClick={() => void scenarioAction(scenario.id, "reject")}><XCircle size={14} /> Reject</button>
                           <button className="primary-button" onClick={() => void scenarioAction(scenario.id, "approve")}><CheckCircle2 size={14} /> Approve</button>
                         </>}
-                        {scenario.status === "approved" && <span className="status status-verified"><CheckCircle2 size={13} /> Locked evidence</span>}
+                        {scenario.status === "approved" && (() => {
+                          const currentBaseline = scenario.planId ? currentBaselineByPlan.get(scenario.planId) : null;
+                          if (currentBaseline?.scenarioId === scenario.id) {
+                            return <span className="status status-verified"><CheckCircle2 size={13} /> Current baseline</span>;
+                          }
+                          if (!scenario.planId) {
+                            return <span className="status">Link plan to publish</span>;
+                          }
+                          if (scenario.scopeOrgUnitId != null || scenario.worksiteId != null) {
+                            return <span className="status">What-if only</span>;
+                          }
+                          return (
+                            <button
+                              className="primary-button"
+                              disabled={baselinePublishing === scenario.id}
+                              onClick={() => void publishBaseline(scenario.id)}
+                            >
+                              <CheckCircle2 size={14} /> {baselinePublishing === scenario.id ? "Publishing..." : currentBaseline ? "Publish new baseline" : "Publish baseline"}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>
                 );
               })}
               {scenarios.length === 0 && <tr><td colSpan={5}><div className="empty-state">No saved staffing scenarios yet. Run a forecast, name it, and save the snapshot.</div></td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">PUBLISHED HEADCOUNT PLAN</div>
+            <h2>Baseline vs live workforce</h2>
+            <p>Approved company-wide scenarios become immutable planning baselines. Live positions and assignments remain operational records and are reconciled here without rewriting the approved evidence.</p>
+          </div>
+        </div>
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead><tr><th>PLAN VERSION</th><th>APPROVED BASELINE</th><th>LIVE ACTUAL</th><th>VARIANCE</th><th className="right">POSITION BUDGET</th></tr></thead>
+            <tbody>
+              {baselines.map((baseline) => {
+                const locked = baseline.snapshot?.headcount;
+                const delta = baseline.variance;
+                return (
+                  <tr key={baseline.id}>
+                    <td>
+                      <strong>{baseline.snapshot?.plan?.name ?? `Plan #${baseline.planId}`} · v{baseline.version}</strong>
+                      <small style={{ display: "block", color: "var(--muted)" }}>
+                        Published by {baseline.publishedBy} · {new Date(baseline.publishedAt).toLocaleDateString("en-PH")} · {baseline.snapshotHash.slice(0, 10)}
+                      </small>
+                    </td>
+                    <td>
+                      {locked
+                        ? <><strong>{locked.requestedHeadcount} requested · {locked.approvedHeadcount} approved · {locked.filledHeadcount} filled</strong><small style={{ display: "block", color: "var(--muted)" }}>{locked.filledFte.toFixed(2)} filled FTE</small></>
+                        : "Baseline evidence unavailable"}
+                    </td>
+                    <td>
+                      <strong>{baseline.actual.requestedHeadcount} requested · {baseline.actual.approvedHeadcount} approved · {baseline.actual.filledHeadcount} filled</strong>
+                      <small style={{ display: "block", color: "var(--muted)" }}>{baseline.actual.filledFte.toFixed(2)} filled FTE · {baseline.actual.vacantApprovedHeadcount} authorized vacancy</small>
+                    </td>
+                    <td>
+                      {delta
+                        ? <><strong>{delta.filledHeadcount >= 0 ? "+" : ""}{delta.filledHeadcount} filled</strong><small style={{ display: "block", color: "var(--muted)" }}>{delta.requestedHeadcount >= 0 ? "+" : ""}{delta.requestedHeadcount} requested · {delta.approvedHeadcount >= 0 ? "+" : ""}{delta.approvedHeadcount} approved · {delta.filledFte >= 0 ? "+" : ""}{delta.filledFte.toFixed(2)} FTE</small></>
+                        : "—"}
+                    </td>
+                    <td className="right">
+                      <strong>{peso(baseline.actual.annualPositionBudget)}</strong>
+                      <small style={{ display: "block", color: "var(--muted)" }}>
+                        {delta?.annualPositionBudget == null ? "cost restricted" : `${delta.annualPositionBudget >= 0 ? "+" : ""}${peso(delta.annualPositionBudget)} vs baseline`}
+                      </small>
+                    </td>
+                  </tr>
+                );
+              })}
+              {baselines.length === 0 && <tr><td colSpan={5}><div className="empty-state">No published headcount baseline yet. Approve a company-wide scenario linked to a workforce plan, then publish it here.</div></td></tr>}
             </tbody>
           </table>
         </div>
