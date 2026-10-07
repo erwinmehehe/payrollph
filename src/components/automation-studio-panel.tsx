@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApprovalChainAdmin } from "@/components/approval-chain-admin";
 import { SlackConnectorAdmin } from "@/components/slack-connector-admin";
+import { DynamicWorkerGroupsPanel } from "@/components/dynamic-worker-groups-panel";
 import {
   Activity,
   Bot,
@@ -409,7 +410,7 @@ export function AutomationStudioPanel({
       return {
         field: row.field,
         operator: row.operator,
-        value: field?.kind === "number" ? values.map(Number) : values,
+        value: field?.kind === "number" || field?.kind === "number_array" ? values.map(Number) : values,
       };
     }
     return {
@@ -830,6 +831,8 @@ export function AutomationStudioPanel({
 
       <ApprovalChainAdmin organizationId={organizationId} setNotice={setNotice} onChanged={load} />
       <SlackConnectorAdmin organizationId={organizationId} setNotice={setNotice} onChanged={load} />
+
+      <DynamicWorkerGroupsPanel organizationId={organizationId} setNotice={setNotice} />
 
       {showBuilder && (
         <form onSubmit={saveRule} className="card" style={{ marginTop: 16 }}>
