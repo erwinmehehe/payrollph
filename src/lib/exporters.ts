@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
+import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
 import { computePagIbig, computePhilHealth, computeSss } from "@/lib/payroll-rules";
 import { escapeCsvCell } from "@/lib/csv";
 import {
@@ -746,16 +747,14 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   }
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found");
-  if (!run.legalEntityId) {
-    throw new Error("Government export cannot be generated because this payroll run has no legal employer.");
-  }
-  const [legalEntity] = await db.select().from(legalEntities).where(and(
-    eq(legalEntities.id, run.legalEntityId),
-    eq(legalEntities.organizationId, run.organizationId),
-  )).limit(1);
-  if (!legalEntity) {
-    throw new Error("Government export cannot be generated because the payroll run's legal employer no longer exists.");
-  }
+  // Legacy payroll runs may predate legal-employer ownership. Resolve only
+  // when the organization has exactly one active employer; a multi-employer
+  // organization must never infer which registration owns a government filing.
+  const legalEntity = await resolveComplianceLegalEntity({
+    organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
+  });
+  const legalEntityId = legalEntity.id;
 
   const entries = await db.select({
     entry: payrollEntries,
@@ -795,7 +794,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
     ? (await db.select().from(payrollRuns)
         .where(and(
           eq(payrollRuns.organizationId, run.organizationId),
-          eq(payrollRuns.legalEntityId, run.legalEntityId),
+          eq(payrollRuns.legalEntityId, legalEntityId),
         )))
         .filter((candidate) =>
           String(candidate.payDate).startsWith(monthPrefix)
@@ -1025,7 +1024,7 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   const annualRuns = (await db.select().from(payrollRuns)
     .where(and(
       eq(payrollRuns.organizationId, run.organizationId),
-      eq(payrollRuns.legalEntityId, run.legalEntityId),
+      eq(payrollRuns.legalEntityId, legalEntityId),
     )))
     .filter((candidate) =>
       candidate.status === "Released"
