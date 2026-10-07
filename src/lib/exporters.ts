@@ -1031,7 +1031,12 @@ export async function generateGovernmentDraft(runId: number, kind: string) {
   const annualRuns = (await db.select().from(payrollRuns)
     .where(and(
       eq(payrollRuns.organizationId, run.organizationId),
-      eq(payrollRuns.legalEntityId, legalEntityId),
+      run.legalEntityId
+        ? eq(payrollRuns.legalEntityId, legalEntityId)
+        : or(
+            eq(payrollRuns.legalEntityId, legalEntityId),
+            isNull(payrollRuns.legalEntityId),
+          ),
     )))
     .filter((candidate) =>
       candidate.status === "Released"
