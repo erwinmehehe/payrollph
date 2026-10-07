@@ -29,6 +29,7 @@ import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { fixedMonthlyBasicForTimeline, resolvePayProfile, resolvePayTimeline } from "@/lib/pay-basis";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automation";
+import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
 
@@ -898,11 +899,12 @@ export async function PATCH(request: Request) {
     employeeId,
   });
 
+  const automationEventKey = `employee-update:${audit?.id ?? employeeId + ":" + String(updated.startDate)}`;
   const automation = await runAutomationEventSafely({
     organizationId,
     employeeId,
     trigger: "employee.updated",
-    eventKey: `employee-update:${audit?.id ?? employeeId + ":" + String(updated.startDate)}`,
+    eventKey: automationEventKey,
     context: {
       orgUnitId: updated.orgUnitId,
       employmentType: updated.employmentType,
@@ -913,6 +915,83 @@ export async function PATCH(request: Request) {
         : undefined,
       changedFields: [...Object.keys(patch), ...(nextPayProfile ? ["payBasis", "rateAmount"] : [])],
     },
+  });
+
+  const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
+    organizationId,
+    employeeId,
+    eventKey: automationEventKey + ":field-change",
+    changes: [
+      ...(changedStartDate ? [{
+        field: "startDate",
+        previousValue: String(employee.startDate),
+        newValue: String(updated.startDate),
+        effectiveDate: String(updated.startDate),
+        source: "employee-profile",
+      }] : []),
+      ...(changedRestDay ? [{
+        field: "restDay",
+        previousValue: employee.restDay,
+        newValue: updated.restDay,
+        effectiveDate: restDayEffectiveDate,
+        source: "employee-profile",
+      }] : []),
+      ...(nextPagIbigVoluntaryMonthly !== undefined ? [{
+        field: "pagIbigVoluntaryMonthly",
+        previousValue: Number(employee.pagIbigVoluntaryMonthly),
+        newValue: Number(updated.pagIbigVoluntaryMonthly),
+        source: "employee-profile",
+      }] : []),
+      ...(body.nationality !== undefined ? [{
+        field: "nationality",
+        previousValue: employee.nationality,
+        newValue: updated.nationality,
+        source: "employee-profile",
+      }] : []),
+      ...(nextPayProfile ? [
+        {
+          field: "payBasis",
+          previousValue: existingPayProfile?.payBasis ?? "monthly",
+          newValue: nextPayProfile.payBasis,
+          effectiveDate: payEffectiveDate,
+          source: "direct-pay-edit",
+        },
+        {
+          field: "monthlyEquivalentSalary",
+          previousValue: Number(employee.basicRate),
+          newValue: nextPayProfile.monthlyEquivalent,
+          effectiveDate: payEffectiveDate,
+          source: "direct-pay-edit",
+        },
+        {
+          field: "standardWorkDaysPerMonth",
+          previousValue: Number(existingPayProfile?.standardWorkDaysPerMonth ?? 22),
+          newValue: nextPayProfile.standardWorkDaysPerMonth,
+          effectiveDate: payEffectiveDate,
+          source: "direct-pay-edit",
+        },
+        {
+          field: "standardHoursPerDay",
+          previousValue: Number(existingPayProfile?.standardHoursPerDay ?? 8),
+          newValue: nextPayProfile.standardHoursPerDay,
+          effectiveDate: payEffectiveDate,
+          source: "direct-pay-edit",
+        },
+      ] : []),
+      ...(changedGovernment ? [{
+        field: "governmentIdentity",
+        sensitive: true,
+        source: "employee-profile",
+        metadata: {
+          changedGovernmentFields: governmentFields.filter((field) => field in patch),
+        },
+      }] : []),
+      ...(wantsPayoutUpdate ? [{
+        field: "payoutDestination",
+        sensitive: true,
+        source: "employee-profile",
+      }] : []),
+    ],
   });
 
   return Response.json({
@@ -945,5 +1024,6 @@ export async function PATCH(request: Request) {
     } : null,
     hcmObligations,
     automation,
+    fieldChangeAutomation,
   });
 }
