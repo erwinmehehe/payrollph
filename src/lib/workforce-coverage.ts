@@ -256,3 +256,51 @@ export function rankCoverageCandidates(input: {
     )
     .slice(0, maxRecommendations);
 }
+
+
+export type CoverageRiskInput = {
+  requirementId: number;
+  gap: number;
+  eligibleRecoveryCandidates: number;
+  unavailableScheduledHeadcount?: number;
+  capabilityIneligibleHeadcount?: number;
+  approvedLeaveScheduledHeadcount?: number;
+  siteIneligibleHeadcount?: number;
+};
+
+export type CoverageRisk = {
+  requirementId: number;
+  level: "low" | "medium" | "high" | "critical";
+  reasons: string[];
+};
+
+export function forecastCoverageRisk(rows: CoverageRiskInput[]): CoverageRisk[] {
+  return rows.map((row) => {
+    const exclusions =
+      (row.unavailableScheduledHeadcount ?? 0)
+      + (row.capabilityIneligibleHeadcount ?? 0)
+      + (row.approvedLeaveScheduledHeadcount ?? 0)
+      + (row.siteIneligibleHeadcount ?? 0);
+    const reasons: string[] = [];
+    let level: CoverageRisk["level"] = "low";
+
+    if (row.gap > 0 && row.eligibleRecoveryCandidates === 0) {
+      level = "critical";
+      reasons.push(`${row.gap} uncovered slot(s) with no governed eligible recovery candidate`);
+    } else if (row.gap > 0 && row.eligibleRecoveryCandidates < row.gap) {
+      level = "high";
+      reasons.push(`${row.gap} uncovered slot(s) but only ${row.eligibleRecoveryCandidates} eligible recovery candidate(s)`);
+    } else if (row.gap > 0) {
+      level = "medium";
+      reasons.push(`${row.gap} uncovered slot(s) remain before publish`);
+    }
+
+    if (exclusions > 0) {
+      reasons.push(`${exclusions} scheduled worker exclusion(s) from availability, qualification, leave, or worksite rules`);
+      if (level === "low") level = "medium";
+    }
+
+    if (reasons.length === 0) reasons.push("Recorded staffing demand is covered with no current exclusion signal");
+    return { requirementId: row.requirementId, level, reasons };
+  });
+}
