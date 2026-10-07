@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  employees,
   performanceActionItemReminderTasks,
   performanceActionReminderPolicies,
   performanceActionReminderPolicyEvents,
@@ -351,6 +352,15 @@ export async function PATCH(request: Request) {
       return Response.json({
         error: "Amendment reason (10+ chars), detail (20+ chars), and an optional valid employeeId are required.",
       }, { status: 400 });
+    }
+    if (employeeId != null) {
+      const [employee] = await db.select({ id: employees.id }).from(employees).where(and(
+        eq(employees.id, employeeId),
+        eq(employees.organizationId, organizationId),
+      )).limit(1);
+      if (!employee) {
+        return Response.json({ error: "Amendment employee is not in this workspace." }, { status: 404 });
+      }
     }
     const row = await amendPerformanceCycleSeal({
       organizationId,
