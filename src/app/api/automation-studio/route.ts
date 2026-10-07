@@ -13,6 +13,7 @@ import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access
 import { recordAuditEvent } from "@/lib/audit";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { listApprovalChainPolicies } from "@/lib/approval-chains";
+import { listSafeIntegrationConnectors } from "@/lib/integration-connectors";
 import {
   AUTOMATION_ACTION_CATALOG,
   AUTOMATION_CONDITION_FIELDS,
@@ -90,7 +91,7 @@ export async function GET(request: Request) {
   const guard = await assertStudioAdmin(user.id, organizationId);
   if (guard.denied) return guard.denied;
 
-  const [rules, versions, executions, units, sets, plans, patterns] = await Promise.all([
+  const [rules, versions, executions, units, sets, plans, patterns, approvalChains, integrationConnectors] = await Promise.all([
     db.select().from(automationRules)
       .where(eq(automationRules.organizationId, organizationId))
       .orderBy(desc(automationRules.id)),
@@ -126,6 +127,8 @@ export async function GET(request: Request) {
     }).from(schedulePatterns)
       .where(eq(schedulePatterns.organizationId, organizationId))
       .orderBy(schedulePatterns.name),
+    listApprovalChainPolicies(organizationId),
+    listSafeIntegrationConnectors(organizationId),
   ]);
 
   const completed = executions.filter((row) => row.status === "completed").length;
@@ -175,6 +178,8 @@ export async function GET(request: Request) {
     orgUnits: units,
     permissionSets: sets,
     benefitPlans: plans,
+    approvalChains: approvalChains.filter((chain) => chain.active),
+    integrationConnectors: integrationConnectors.filter((connector) => connector.active),
     schedulePatterns: patterns.filter((pattern) => pattern.active),
     analytics: {
       activeRules: rules.filter((row) => row.active).length,
