@@ -1555,10 +1555,19 @@ export const documents = pgTable("documents", {
   sha256: varchar("sha256", { length: 64 }).notNull(),
   scannedClean: boolean("scanned_clean").notNull().default(false),
   scanNote: varchar("scan_note", { length: 200 }).notNull().default(""),
+  sourceType: varchar("source_type", { length: 24 }).notNull().default("upload"),
+  sourceKey: varchar("source_key", { length: 160 }),
+  generationMetadata: jsonb("generation_metadata").notNull().default({}),
   uploadedBy: varchar("uploaded_by", { length: 120 }).notNull(),
   content: text("content").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("documents_org_source_key_unique")
+    .on(table.organizationId, table.sourceKey)
+    .where(sql`${table.sourceKey} is not null`),
+  index("documents_org_employee_source_idx").on(table.organizationId, table.employeeId, table.sourceType, table.createdAt),
+  check("documents_source_type_check", sql`${table.sourceType} in ('upload','generated')`),
+]);
 
 export const hcmPolicyVersions = pgTable(
   "hcm_policy_versions",

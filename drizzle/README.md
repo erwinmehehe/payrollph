@@ -92,3 +92,5 @@ the first one, so it closes itself.
 - `0067_attendance_exception_events.sql` persists idempotent attendance-exception lifecycle evidence so newly detected exceptions can emit the live Automation Studio `attendance.exception_created` trigger without duplicate workflow runs.
 
 - `0068_automation_rule_version_governance.sql` adds Automation Studio draft/publish/rollback governance with immutable version history while preserving the current published rule row as the runtime snapshot.
+
+- `0069_automation_generated_document_provenance.sql` distinguishes generated employee documents from uploads, records stable generation provenance, and enforces organization-scoped idempotency for Automation Studio document creation.

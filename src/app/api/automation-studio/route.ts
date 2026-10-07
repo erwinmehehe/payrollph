@@ -26,6 +26,7 @@ import {
   validateAutomationActionTrigger,
   type AutomationTrigger,
 } from "@/lib/automation";
+import { AUTOMATION_DOCUMENT_TEMPLATES } from "@/lib/automation-document-templates";
 import {
   AUTOMATION_WORKFLOW_TEMPLATES,
   getAutomationWorkflowTemplate,
@@ -146,6 +147,13 @@ export async function GET(request: Request) {
       conditions: AUTOMATION_CONDITION_FIELDS,
       operators: AUTOMATION_OPERATORS,
       actions: AUTOMATION_ACTION_CATALOG,
+      documentTemplates: AUTOMATION_DOCUMENT_TEMPLATES.map((template) => ({
+        id: template.id,
+        version: template.version,
+        name: template.name,
+        description: template.description,
+        allowedTriggers: [...template.allowedTriggers],
+      })),
       templates: AUTOMATION_WORKFLOW_TEMPLATES.map((template) => ({
         id: template.id,
         version: template.version,

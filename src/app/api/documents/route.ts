@@ -38,6 +38,8 @@ export async function GET(request: Request) {
       byteSize: documents.byteSize,
       scannedClean: documents.scannedClean,
       scanNote: documents.scanNote,
+      sourceType: documents.sourceType,
+      generationMetadata: documents.generationMetadata,
       uploadedBy: documents.uploadedBy,
       createdAt: documents.createdAt,
     }).from(documents)

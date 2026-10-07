@@ -36,6 +36,14 @@ type ActionCatalog = {
   category: string;
 };
 
+type DocumentTemplateCatalog = {
+  id: string;
+  version: number;
+  name: string;
+  description: string;
+  allowedTriggers: string[];
+};
+
 type WorkflowTemplateCatalog = {
   id: string;
   version: number;
@@ -99,6 +107,7 @@ type StudioData = {
     conditions: ConditionCatalog[];
     operators: string[];
     actions: ActionCatalog[];
+    documentTemplates: DocumentTemplateCatalog[];
     templates: WorkflowTemplateCatalog[];
   };
   orgUnits: Array<{ id: number; name: string; code: string }>;
@@ -165,6 +174,7 @@ type ActionDraft = {
   scheduleEffectiveDateSource: string;
   scheduleOffsetDays: string;
   scheduleReason: string;
+  documentTemplateId: string;
 };
 
 const defaultAction = (id: string): ActionDraft => ({
@@ -196,6 +206,7 @@ const defaultAction = (id: string): ActionDraft => ({
   scheduleEffectiveDateSource: "event_effective_date",
   scheduleOffsetDays: "0",
   scheduleReason: "Automation Studio approved schedule assignment",
+  documentTemplateId: "",
 });
 
 const formatDateTime = (value: string) =>
@@ -222,6 +233,9 @@ function actionAllowed(trigger: TriggerCatalog | undefined, type: string) {
   }
   if (type === "assign_schedule") {
     return ["employee.hired", "employee.moved", "employee.promoted"].includes(trigger.value);
+  }
+  if (type === "generate_document") {
+    return ["employee.hired", "employee.moved", "employee.promoted", "employee.separated"].includes(trigger.value);
   }
   if (["create_task", "create_onboarding_checklist"].includes(type)) return trigger.employeeScoped;
   return true;
@@ -387,6 +401,12 @@ export function AutomationStudioPanel({
         body: row.body,
       };
     }
+    if (row.type === "generate_document") {
+      return {
+        type: row.type,
+        templateId: row.documentTemplateId,
+      };
+    }
     if (row.type === "assign_schedule") {
       return {
         type: row.type,
@@ -434,6 +454,13 @@ export function AutomationStudioPanel({
     );
     if (unsafeScheduleIndex >= 0) {
       setNotice("Schedule assignment must be immediately preceded by an approval gate.");
+      return;
+    }
+    const unsafeDocumentIndex = actions.findIndex((row, index) =>
+      row.type === "generate_document" && actions[index - 1]?.type !== "approval_gate"
+    );
+    if (unsafeDocumentIndex >= 0) {
+      setNotice("Document generation must be immediately preceded by an approval gate.");
       return;
     }
 
@@ -695,11 +722,17 @@ export function AutomationStudioPanel({
                     value={trigger}
                     onChange={(event) => {
                       setTrigger(event.target.value);
-                      setActions((rows) => rows.map((row) => (
-                        actionAllowed(data.catalogs.triggers.find((item) => item.value === event.target.value), row.type)
-                          ? row
-                          : { ...row, type: "request_approval" }
-                      )));
+                      const nextTrigger = data.catalogs.triggers.find((item) => item.value === event.target.value);
+                      setActions((rows) => rows.map((row) => {
+                        if (!actionAllowed(nextTrigger, row.type)) return { ...row, type: "request_approval" };
+                        if (row.type === "generate_document") {
+                          const template = data.catalogs.documentTemplates.find((item) => item.id === row.documentTemplateId);
+                          if (template && !template.allowedTriggers.includes(event.target.value)) {
+                            return { ...row, documentTemplateId: "" };
+                          }
+                        }
+                        return row;
+                      }));
                     }}
                     style={{ width: "100%" }}
                   >
@@ -806,6 +839,14 @@ export function AutomationStudioPanel({
                                       : "event_effective_date",
                                 }
                               : {}),
+                            ...(nextType === "generate_document"
+                              ? {
+                                  documentTemplateId:
+                                    data.catalogs.documentTemplates.find((template) =>
+                                      template.allowedTriggers.includes(selectedTrigger?.value ?? "")
+                                    )?.id ?? "",
+                                }
+                              : {}),
                           });
                         }}
                         style={{ width: "100%", marginBottom: 10 }}
@@ -887,6 +928,34 @@ export function AutomationStudioPanel({
                           {row.recipient === "custom" && <label>Email<input required type="email" value={row.email} onChange={(event) => updateAction(row.id, { email: event.target.value })} /></label>}
                           <label>Subject<input required value={row.subject} onChange={(event) => updateAction(row.id, { subject: event.target.value })} /></label>
                           <label>Message<textarea required value={row.body} onChange={(event) => updateAction(row.id, { body: event.target.value })} rows={4} /></label>
+                        </div>
+                      )}
+
+                      {row.type === "generate_document" && (
+                        <div className="setting-form">
+                          <label>Document template
+                            <select
+                              required
+                              value={row.documentTemplateId}
+                              onChange={(event) => updateAction(row.id, { documentTemplateId: event.target.value })}
+                            >
+                              <option value="">Choose approved document template</option>
+                              {data.catalogs.documentTemplates
+                                .filter((template) => template.allowedTriggers.includes(selectedTrigger?.value ?? ""))
+                                .map((template) => (
+                                  <option key={template.id} value={template.id}>
+                                    {template.name} · v{template.version}
+                                  </option>
+                                ))}
+                            </select>
+                          </label>
+                          {row.documentTemplateId && (() => {
+                            const template = data.catalogs.documentTemplates.find((item) => item.id === row.documentTemplateId);
+                            return template ? <div className="modal-note">{template.description}</div> : null;
+                          })()}
+                          <div className="modal-note">
+                            This action must immediately follow an approval gate. PayrollPH generates an immutable employee-scoped text artifact from a server-owned template; the generated record does not replace signed contracts, statutory notices, legal advice, or employee acknowledgement.
+                          </div>
                         </div>
                       )}
 
