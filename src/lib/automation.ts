@@ -835,6 +835,8 @@ export type AutomationImpactPreview = {
   approvalSteps: number;
   waitSteps: number;
   policyBlocks: number;
+  authoritativePolicyBlocks: number;
+  legacyPolicyBlocks: number;
   projectedPayrollAdjustmentAmount: number;
   projectedPayrollAdjustmentAbsoluteAmount: number;
   actionCounts: Record<string, number>;
@@ -931,6 +933,8 @@ export function simulateAutomationImpact(input: {
   let approvalSteps = 0;
   let waitSteps = 0;
   let policyBlocks = 0;
+  let authoritativePolicyBlocks = 0;
+  let legacyPolicyBlocks = 0;
   let projectedPayrollAdjustmentAmount = 0;
   let projectedPayrollAdjustmentAbsoluteAmount = 0;
   const samples: AutomationImpactSample[] = [];
@@ -962,6 +966,11 @@ export function simulateAutomationImpact(input: {
         }));
       }
       policyBlocks += eventBlocks.length;
+      if (event.source === "execution_backfill") {
+        legacyPolicyBlocks += eventBlocks.length;
+      } else {
+        authoritativePolicyBlocks += eventBlocks.length;
+      }
     }
 
     if (samples.length < sampleLimit) {
@@ -991,6 +1000,8 @@ export function simulateAutomationImpact(input: {
     approvalSteps,
     waitSteps,
     policyBlocks,
+    authoritativePolicyBlocks,
+    legacyPolicyBlocks,
     projectedPayrollAdjustmentAmount: Math.round(projectedPayrollAdjustmentAmount * 100) / 100,
     projectedPayrollAdjustmentAbsoluteAmount: Math.round(projectedPayrollAdjustmentAbsoluteAmount * 100) / 100,
     actionCounts,
