@@ -90,5 +90,6 @@ test("runtime engine remains pinned to published automation_rules snapshots", ()
   assert.ok(engine.includes("from(automationRules)"));
   assert.ok(engine.includes("eq(automationRules.active, true)"));
   assert.equal(engine.includes("automationRuleVersions"), false);
-  assert.ok(engine.includes("workflow: plan"));
+  assert.ok(engine.includes("const workflow = compileAutomationPlan"));
+  assert.ok(engine.includes("workflow,"));
 });
