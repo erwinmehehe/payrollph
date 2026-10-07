@@ -2,15 +2,36 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { dynamicWorkerGroups } from "@/db/schema";
 import {
-  AUTOMATION_OPERATORS,
-  type AutomationConditionClause,
-  type AutomationOperator,
-  type StudioConditions,
-} from "@/lib/automation";
-import {
   loadWorkerAttributeContexts,
   type WorkerAttributeContext,
 } from "@/lib/worker-attribute-context";
+
+
+export const DYNAMIC_WORKER_GROUP_OPERATORS = [
+  "eq",
+  "neq",
+  "gt",
+  "gte",
+  "lt",
+  "lte",
+  "contains",
+  "in",
+  "exists",
+] as const;
+
+export type DynamicWorkerGroupOperator = (typeof DYNAMIC_WORKER_GROUP_OPERATORS)[number];
+
+export type DynamicWorkerGroupConditionClause = {
+  field: string;
+  operator: DynamicWorkerGroupOperator;
+  value?: unknown;
+};
+
+export type DynamicWorkerGroupConditions = {
+  version?: 1;
+  all?: DynamicWorkerGroupConditionClause[];
+  any?: DynamicWorkerGroupConditionClause[];
+};
 
 export const DYNAMIC_WORKER_GROUP_FIELDS = [
   { value: "orgUnitId", label: "Org unit ID", kind: "number" },
@@ -38,13 +59,13 @@ function scalar(value: unknown) {
   return ["string", "number", "boolean"].includes(typeof value) || value === null;
 }
 
-function validClause(value: unknown): value is AutomationConditionClause {
+function validClause(value: unknown): value is DynamicWorkerGroupConditionClause {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
   const field = String(row.field ?? "").trim();
-  const operator = String(row.operator ?? "") as AutomationOperator;
+  const operator = String(row.operator ?? "") as DynamicWorkerGroupOperator;
   if (!FIELD_SET.has(field as never)) return false;
-  if (!(AUTOMATION_OPERATORS as readonly string[]).includes(operator)) return false;
+  if (!(DYNAMIC_WORKER_GROUP_OPERATORS as readonly string[]).includes(operator)) return false;
   if (operator === "exists") {
     return row.value === undefined || typeof row.value === "boolean";
   }
@@ -57,7 +78,7 @@ function validClause(value: unknown): value is AutomationConditionClause {
   return scalar(row.value);
 }
 
-export function validDynamicWorkerGroupConditions(value: unknown): value is StudioConditions {
+export function validDynamicWorkerGroupConditions(value: unknown): value is DynamicWorkerGroupConditions {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
   const keys = Object.keys(row);
@@ -80,7 +101,7 @@ function valueAtPath(context: Record<string, unknown>, path: string) {
 }
 
 export function dynamicGroupClauseMatches(
-  clause: AutomationConditionClause,
+  clause: DynamicWorkerGroupConditionClause,
   context: Record<string, unknown>,
 ) {
   const actual = valueAtPath(context, clause.field);
@@ -130,7 +151,7 @@ export function dynamicGroupClauseMatches(
 }
 
 export function workerMatchesDynamicGroup(
-  conditions: StudioConditions,
+  conditions: DynamicWorkerGroupConditions,
   context: WorkerAttributeContext | Record<string, unknown>,
 ) {
   const all = conditions.all ?? [];
@@ -184,7 +205,7 @@ export async function resolveWorkerDynamicGroups(input: {
 
 export async function previewDynamicWorkerGroup(input: {
   organizationId: number;
-  conditions: StudioConditions;
+  conditions: DynamicWorkerGroupConditions;
   limit?: number;
 }) {
   const contexts = await loadWorkerAttributeContexts({
