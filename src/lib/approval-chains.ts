@@ -102,6 +102,12 @@ export async function createApprovalFromConfiguredChain(input: {
   }
   const amountCurrency = amount == null ? null : String(input.amountCurrency ?? "PHP").trim().toUpperCase().slice(0, 3);
   const amountBasis = amount == null ? null : String(input.amountBasis ?? "declared_amount").trim().slice(0, 64);
+  if (amount != null && (!amountCurrency || !/^[A-Z]{3}$/.test(amountCurrency))) {
+    throw new Error("Approval currency must be a three-letter ISO-style code.");
+  }
+  if (amount != null && !amountBasis) {
+    throw new Error("Approval amount basis is required when an amount is supplied.");
+  }
   const routedSteps = approvalStepsForAmount(steps, amount);
   if (routedSteps.length < 1) throw new Error(`Approval chain "${chainCode}" has no applicable approval step.`);
 
