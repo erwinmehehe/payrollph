@@ -151,9 +151,11 @@ export async function GET(request: Request) {
   const reviews = visibleReviews.filter((review) => review.cycleId === cycle.id);
   const goals = allGoals.filter((goal) =>
     goal.cycleId === cycle.id
-    && (goal.scope === "company"
-    || (goal.scope === "team" && (access.companyWide || goal.orgUnitId === access.orgUnitId))
-    || (goal.employeeId != null && visibleEmployeeIds.has(goal.employeeId))),
+    && (
+      goal.scope === "company"
+      || (goal.scope === "team" && (access.companyWide || goal.orgUnitId === access.orgUnitId))
+      || (goal.employeeId != null && visibleEmployeeIds.has(goal.employeeId))
+    )
   );
   const reminders = allReminders.filter((task) => visibleEmployeeIds.has(task.employeeId));
   const cycleStart = Date.parse(cycle.startDate + "T00:00:00Z");
