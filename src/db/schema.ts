@@ -1110,7 +1110,78 @@ export const approvalTasks = pgTable("approval_tasks", {
   decidedBy: varchar("decided_by", { length: 120 }),
   decidedOnBehalfOf: varchar("decided_on_behalf_of", { length: 120 }),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
+  approvalChainInstanceId: integer("approval_chain_instance_id").references(
+    (): AnyPgColumn => approvalChainInstances.id,
+    { onDelete: "set null" },
+  ),
+  approvalChainStepIndex: integer("approval_chain_step_index"),
 });
+
+export const approvalChainPolicies = pgTable(
+  "approval_chain_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    purpose: varchar("purpose", { length: 40 }).notNull().default("automation"),
+    version: integer("version").notNull().default(1),
+    steps: jsonb("steps").notNull().default([]),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("approval_chain_policies_org_code_unique").on(table.organizationId, table.code),
+    index("approval_chain_policies_org_active_idx").on(table.organizationId, table.active, table.purpose),
+  ],
+);
+
+export const approvalChainInstances = pgTable(
+  "approval_chain_instances",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    policyId: integer("policy_id").notNull().references(() => approvalChainPolicies.id, { onDelete: "restrict" }),
+    policyCode: varchar("policy_code", { length: 64 }).notNull(),
+    policyVersion: integer("policy_version").notNull(),
+    sourceType: varchar("source_type", { length: 48 }).notNull(),
+    sourceKey: varchar("source_key", { length: 160 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    currentStepIndex: integer("current_step_index").notNull().default(0),
+    stepsSnapshot: jsonb("steps_snapshot").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("approval_chain_instances_source_unique").on(table.organizationId, table.sourceType, table.sourceKey),
+    index("approval_chain_instances_status_idx").on(table.organizationId, table.status, table.createdAt),
+    check("approval_chain_instances_status_check", sql`${table.status} in ('pending','approved','declined','cancelled')`),
+  ],
+);
+
+export const approvalChainInstanceSteps = pgTable(
+  "approval_chain_instance_steps",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    instanceId: integer("instance_id").notNull().references(() => approvalChainInstances.id, { onDelete: "cascade" }),
+    stepIndex: integer("step_index").notNull(),
+    label: varchar("label", { length: 120 }).notNull(),
+    approver: varchar("approver", { length: 120 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    approvalTaskId: integer("approval_task_id").references(() => approvalTasks.id, { onDelete: "set null" }),
+    decidedBy: varchar("decided_by", { length: 120 }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("approval_chain_instance_steps_unique").on(table.instanceId, table.stepIndex),
+    index("approval_chain_instance_steps_task_idx").on(table.approvalTaskId),
+    check("approval_chain_instance_steps_status_check", sql`${table.status} in ('pending','approved','declined','cancelled')`),
+  ],
+);
 
 export const approvalDelegations = pgTable("approval_delegations", {
   id: serial("id").primaryKey(),

@@ -12,6 +12,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
+import { listApprovalChainPolicies } from "@/lib/approval-chains";
 import {
   AUTOMATION_ACTION_CATALOG,
   AUTOMATION_CONDITION_FIELDS,
