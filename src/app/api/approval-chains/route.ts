@@ -115,7 +115,7 @@ export async function POST(request: Request) {
         actor: user.name,
         action: "Approval chain policy updated",
         resource: updated.name,
-        metadata: { policyId: updated.id, code: updated.code, version: updated.version, stepCount: steps.length },
+        metadata: { policyId: updated.id, code: updated.code, version: updated.version, stepCount: steps.length, minimumAmounts: steps.map((step) => step.minimumAmount ?? 0) },
       });
       return Response.json(updated);
     }
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
         actor: user.name,
         action: "Approval chain policy created",
         resource: created.name,
-        metadata: { policyId: created.id, code: created.code, version: created.version, stepCount: steps.length },
+        metadata: { policyId: created.id, code: created.code, version: created.version, stepCount: steps.length, minimumAmounts: steps.map((step) => step.minimumAmount ?? 0) },
       });
       return Response.json(created, { status: 201 });
     } catch {
