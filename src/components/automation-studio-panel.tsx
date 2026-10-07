@@ -1264,6 +1264,16 @@ export function AutomationStudioPanel({
             const rollbackTarget = versions.find((version) =>
               version.status !== "draft" && version.version !== rule.publishedVersion
             ) ?? null;
+            const currentPreview = impactPreview
+              && impactPreview.draft.ruleId === rule.id
+              && impactPreview.draft.version === rule.draftVersion
+              ? impactPreview
+              : null;
+            const previewSafe = Boolean(
+              currentPreview
+              && !currentPreview.preview.definitionError
+              && currentPreview.preview.authoritativePolicyBlocks === 0,
+            );
             return (
               <div className="leave-request" key={rule.id}>
                 <div className="inline-icon purple"><Workflow size={16} /></div>
@@ -1281,7 +1291,21 @@ export function AutomationStudioPanel({
                 </div>
                 <div className="run-actions" style={{ margin: 0 }}>
                   {rule.draftVersion && (
-                    <button className="primary-button" onClick={() => void publishRule(rule)}>
+                    <button
+                      className="secondary-button"
+                      onClick={() => void previewRule(rule)}
+                      disabled={previewingRuleId === rule.id}
+                    >
+                      <Activity size={14} /> {previewingRuleId === rule.id ? "Previewing…" : "Impact Preview"}
+                    </button>
+                  )}
+                  {rule.draftVersion && (
+                    <button
+                      className="primary-button"
+                      onClick={() => void publishRule(rule)}
+                      disabled={!previewSafe}
+                      title={previewSafe ? "Publish reviewed draft" : "Run a safe Impact Preview for this draft first"}
+                    >
                       Publish v{rule.draftVersion}
                     </button>
                   )}
