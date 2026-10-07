@@ -67,7 +67,7 @@ export async function GET(request: Request) {
         : redactWorkforceForecastCosts(result.forecast),
       costVisible: result.canViewCost,
       scope: result.scope,
-      boundary: "Planning estimate only. Capacity and employer-load assumptions are not payroll calculations or statutory liabilities.",
+      boundary: "Planning estimate only. Employer statutory burden uses the current payroll contribution rules and employer benefits use active enrollment evidence; final liabilities remain payroll-period calculations.",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Workforce forecast could not be calculated.";
