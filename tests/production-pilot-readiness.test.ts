@@ -45,7 +45,7 @@ test("real employee payout details are captured and encrypted", () => {
   assert.ok(hire.includes('bankCode: ""'));
   assert.ok(hire.includes("encrypted at rest"));
   assert.ok(people.includes("PAYOUT DETAILS"));
-  assert.ok(people.includes("Save payout details"));
+  assert.ok(people.includes("Submit payout change"));
   assert.ok(people.includes("replacementBankAccount"));
 });
 
