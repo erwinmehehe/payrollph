@@ -392,13 +392,15 @@ test("login route omits the marketing footer", () => {
 });
 
 
-test("homepage hero stays focused without a mascot or embedded app demo", () => {
+test("homepage hero uses one cinematic product walkthrough without mascot baggage", () => {
   const hero = read("src/components/marketing/claude-home/components/Hero.tsx");
+  const cinematic = read("src/components/marketing/claude-home/components/CinematicHeroDemo.tsx");
   assert.ok(!hero.includes('from "@/components/payroll-owl"'), "homepage hero must not import mascot assets");
   assert.ok(!hero.includes("PayrollOwlArt"), "homepage hero must not render an owl mascot");
   assert.ok(!hero.includes("payroll-hero-speech"), "homepage hero must not render mascot speech");
-  assert.ok(!hero.includes("WorkspacePreview"), "homepage hero must not embed a miniature app");
-  assert.ok(hero.includes("AppProductPreview"), "homepage hero must share the actual app-inspired preview");
+  assert.ok(!hero.includes("WorkspacePreview"), "homepage hero must not embed the obsolete workspace simulation");
+  assert.ok(hero.includes("CinematicHeroDemo"), "homepage hero must mount the cinematic product walkthrough");
+  assert.ok(cinematic.includes("AppProductPreview"), "cinematic walkthrough must share the current app-inspired preview");
 });
 
 
