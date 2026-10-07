@@ -103,4 +103,4 @@ the first one, so it closes itself.
 
 - `0073_payout_destination_dual_control.sql` adds maker-checker requests for employee payout destination changes when treasury separation is enabled, preserving encrypted proposed bank data and immutable request evidence.
 
-- `0074_slack_connector.sql` adds encrypted provider-specific Slack connectors plus idempotent Automation Studio delivery evidence.
+- `0077_slack_connector.sql` adds encrypted provider-specific Slack connectors plus idempotent Automation Studio delivery evidence.
