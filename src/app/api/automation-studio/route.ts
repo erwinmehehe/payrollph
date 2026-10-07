@@ -112,7 +112,7 @@ export async function GET(request: Request) {
   const guard = await assertStudioAdmin(user.id, organizationId);
   if (guard.denied) return guard.denied;
 
-  const [rules, executions, units, sets, plans] = await Promise.all([
+  const [rules, executions, units, sets, plans, ruleVersions] = await Promise.all([
     db.select().from(automationRules)
       .where(eq(automationRules.organizationId, organizationId))
       .orderBy(desc(automationRules.id)),
@@ -138,6 +138,10 @@ export async function GET(request: Request) {
     }).from(benefitPlans)
       .where(eq(benefitPlans.organizationId, organizationId))
       .orderBy(benefitPlans.name),
+    db.select().from(automationRuleVersions)
+      .where(eq(automationRuleVersions.organizationId, organizationId))
+      .orderBy(desc(automationRuleVersions.ruleId), desc(automationRuleVersions.version))
+      .limit(500),
   ]);
 
   const completed = executions.filter((row) => row.status === "completed").length;
@@ -148,6 +152,7 @@ export async function GET(request: Request) {
 
   return Response.json({
     rules,
+    ruleVersions,
     executions,
     catalogs: {
       triggers: AUTOMATION_TRIGGER_CATALOG.map((trigger) => ({
