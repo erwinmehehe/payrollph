@@ -1,5 +1,6 @@
 import { encryptBankAccount, maskBankAccount } from "@/lib/bank-account-crypto";
 import { createPayoutDestinationChangeRequest } from "@/lib/payout-destination-controls";
+import { treasuryControlPolicy } from "@/lib/treasury-controls";
 import { encryptGovernmentId, maskGovernmentId } from "@/lib/government-id-crypto";
 import {
   enforceSameOriginMutation,
@@ -566,6 +567,13 @@ export async function PATCH(request: Request) {
         "nationality",
       ].some((field) => body[field] !== undefined);
 
+    const treasuryPolicy = await treasuryControlPolicy(organizationId);
+    if (treasuryPolicy?.enabled && hasNonPayoutMutation) {
+      return Response.json({
+        error: "When treasury separation is enabled, submit payout destination changes separately from other employee profile edits.",
+      }, { status: 409 });
+    }
+
     const payoutChangeRequest = await createPayoutDestinationChangeRequest({
       organizationId,
       employeeId,
@@ -584,11 +592,6 @@ export async function PATCH(request: Request) {
     }
 
     if (payoutChangeRequest) {
-      if (hasNonPayoutMutation) {
-        return Response.json({
-          error: "When treasury separation is enabled, submit payout destination changes separately from other employee profile edits.",
-        }, { status: 409 });
-      }
       return Response.json({
         pendingApproval: true,
         payoutChangeRequest,
