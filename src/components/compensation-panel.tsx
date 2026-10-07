@@ -259,7 +259,7 @@ export function CompensationPanel({
       <div className="page-heading">
         <div>
           <div className="eyebrow">HCM COMPENSATION</div>
-          <h1>Structure pay before payroll consumes it.</h1>
+          <h1>Compensation</h1>
           <p>
             Govern grade ranges, salary changes, promotion pay and recurring cash components with effective dates,
             maker-checker approval and a permanent compensation history.

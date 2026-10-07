@@ -34,7 +34,7 @@ export function TimeView({
     return { complete, incomplete, byStatus, peopleWithPunches };
   }, [punches]);
 
-  const rows = useMemo(() => {
+  const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return punches
       .filter((punch) => (view === "incomplete" ? !isComplete(punch) : true))
@@ -45,8 +45,9 @@ export function TimeView({
           .toLowerCase()
           .includes(needle);
       })
-      .slice(0, 60);
+      .sort((a, b) => b.punch.workDate.localeCompare(a.punch.workDate) || b.punch.id - a.punch.id);
   }, [punches, data.employees, view, query]);
+  const rows = filtered.slice(0, 60);
 
   const completionPercent = punches.length ? (stats.complete.length / punches.length) * 100 : 0;
 
@@ -54,8 +55,8 @@ export function TimeView({
     <>
       <PageHeading
         eyebrow="Time &amp; attendance"
-        title="Time that stands up to payroll."
-        copy="Raw punches are classified against the shift policy on the server. Tardiness, undertime, overtime and night differential are derived, never entered by hand."
+        title="Attendance"
+        copy="Review time records, resolve missing punches and check payroll exceptions."
         actions={
           canManage ? (
             <>
@@ -106,6 +107,90 @@ export function TimeView({
           tone={data.payrollEntries.some((entry) => entry.status === "Exception") ? "red" : "slate"}
         />
       </section>
+
+      <article className="card table-card" style={{ marginTop: 16 }}>
+        <div className="table-toolbar">
+          <div className="search-field">
+            <Search size={15} className="i-slate" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search punches by person or status"
+              aria-label="Search punches"
+            />
+          </div>
+          <div className="toolbar-spacer" />
+          <Segmented
+            label="Punch filter"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: "all", label: `All (${punches.length})` },
+              { value: "incomplete", label: `Incomplete (${stats.incomplete.length})` },
+            ]}
+          />
+        </div>
+
+        <div className="data-table-wrap slim-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Employee</th>
+                <th>Work date</th>
+                <th>Time in</th>
+                <th>Time out</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ punch, employee }) => (
+                <tr key={punch.id}>
+                  <td>
+                    <div className="person-cell">
+                      <Avatar initials={employee?.avatarInitials ?? "??"} index={punch.employeeId} />
+                      <div>
+                        <strong>{employee ? `${employee.firstName} ${employee.lastName}` : `Employee #${punch.employeeId}`}</strong>
+                        <span>
+                          <span className="id">{employee?.employeeNo ?? "-"}</span>
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                      <CalendarDays size={13} style={{ color: "var(--muted-light)" }} />
+                      {formatDate(punch.workDate)}
+                    </span>
+                  </td>
+                  <td className="num">{formatTimeOnly(punch.timeIn)}</td>
+                  <td className="num">{formatTimeOnly(punch.timeOut)}</td>
+                  <td>
+                    <Status value={isComplete(punch) ? punch.status : "Incomplete punch"} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {rows.length === 0 && (
+            <EmptyState icon={<Search size={20} className="i-slate" />} title={punches.length ? "Nothing matches" : "No punches yet"}>
+              {punches.length
+                ? "Clear the search or switch back to all punches."
+                : "Capture time through the web bundy or sync a biometric device."}
+            </EmptyState>
+          )}
+          {rows.length === 0 && (query || view !== "all") && <div className="empty-state-action"><button type="button" className="secondary-button" onClick={() => { setQuery(""); setView("all"); }}>Clear filters</button></div>}
+        </div>
+
+        {rows.length > 0 && (
+          <div className="pagination">
+            <span>
+              Showing <span className="mono">{rows.length}</span> of <span className="mono">{filtered.length}</span> matching punches{filtered.length !== punches.length ? ` (${punches.length} total)` : ""},
+              newest first
+            </span>
+          </div>
+        )}
+      </article>
 
       <section className="module-grid two" style={{ marginTop: 0 }}>
         <article className="card time-summary">
@@ -200,88 +285,7 @@ export function TimeView({
         currentUserId={data.user?.id ?? null}
       />
 
-      <article className="card table-card" style={{ marginTop: 16 }}>
-        <div className="table-toolbar">
-          <div className="search-field">
-            <Search size={15} className="i-slate" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search punches by person or status"
-              aria-label="Search punches"
-            />
-          </div>
-          <div className="toolbar-spacer" />
-          <Segmented
-            label="Punch filter"
-            value={view}
-            onChange={setView}
-            options={[
-              { value: "all", label: `All (${punches.length})` },
-              { value: "incomplete", label: `Incomplete (${stats.incomplete.length})` },
-            ]}
-          />
-        </div>
 
-        <div className="data-table-wrap slim-scroll">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th>Work date</th>
-                <th>Time in</th>
-                <th>Time out</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ punch, employee }) => (
-                <tr key={punch.id}>
-                  <td>
-                    <div className="person-cell">
-                      <Avatar initials={employee?.avatarInitials ?? "??"} index={punch.employeeId} />
-                      <div>
-                        <strong>{employee ? `${employee.firstName} ${employee.lastName}` : `Employee #${punch.employeeId}`}</strong>
-                        <span>
-                          <span className="id">{employee?.employeeNo ?? "-"}</span>
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-                      <CalendarDays size={13} style={{ color: "var(--muted-light)" }} />
-                      {formatDate(punch.workDate)}
-                    </span>
-                  </td>
-                  <td className="num">{formatTimeOnly(punch.timeIn)}</td>
-                  <td className="num">{formatTimeOnly(punch.timeOut)}</td>
-                  <td>
-                    <Status value={isComplete(punch) ? punch.status : "Incomplete punch"} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          {rows.length === 0 && (
-            <EmptyState icon={<Search size={20} className="i-slate" />} title={punches.length ? "Nothing matches" : "No punches yet"}>
-              {punches.length
-                ? "Clear the search or switch back to all punches."
-                : "Capture time through the web bundy or sync a biometric device."}
-            </EmptyState>
-          )}
-        </div>
-
-        {rows.length > 0 && (
-          <div className="pagination">
-            <span>
-              Showing <span className="mono">{rows.length}</span> of <span className="mono">{punches.length}</span> punches,
-              newest first
-            </span>
-          </div>
-        )}
-      </article>
     </>
   );
 }

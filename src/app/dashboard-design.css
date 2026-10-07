@@ -1,0 +1,1105 @@
+/* Approved Linaw dashboard design. Scoped to the workspace, after its legacy theme. */
+.app-shell.clean-shell {
+  font-family: var(--font-inter, "Segoe UI"), Arial, sans-serif;
+  --canvas: #f8fafc;
+  --paper: #fff;
+  --ink: #10213d;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --brand: #0866ed;
+  --brand-hover: #0754c5;
+  --brand-bg: #edf5ff;
+  --sidebar-w: 220px;
+  --sidebar-w-collapsed: 64px;
+  --topbar-h: 68px;
+  background: var(--canvas);
+  color: var(--ink);
+}
+.app-shell.clean-shell .sidebar {
+  width: var(--sidebar-w);
+  padding: 18px 12px;
+  background: #fbfdff;
+  border-right: 1px solid var(--line);
+}
+.app-shell.clean-shell.rail .sidebar {
+  width: var(--sidebar-w-collapsed);
+}
+.app-shell.clean-shell .sidebar-brand {
+  margin: 0 0 12px;
+  border: 0;
+  background: transparent;
+  min-height: 54px;
+  gap: 10px;
+  padding: 0 6px 12px;
+}
+.app-shell.clean-shell .sidebar-brand .sidebar-collapse {
+  color: #64748b;
+}
+.app-shell.clean-shell.employee-workspace-shell .employee-workspace-sidebar {
+  background: #fbfdff;
+  border-color: #e2e8f0;
+}
+.app-shell.clean-shell.employee-workspace-shell .employee-shell-brandmark {
+  width: 34px;
+  height: 40px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app-shell.clean-shell.employee-workspace-shell
+  .employee-shell-brand
+  > div
+  strong {
+  color: #10213d;
+  font-size: 24px;
+}
+.app-shell.clean-shell .clean-dashboard .status {
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.app-shell.clean-shell .brand-mark {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 40px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app-shell.clean-shell .linaw-mark {
+  display: block;
+  width: 34px;
+  height: 40px;
+}
+.app-shell.clean-shell .sidebar-brand strong {
+  font-size: 24px;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  color: #10213d;
+}
+.app-shell.clean-shell .sidebar-brand .brand-subtitle,
+.app-shell.clean-shell .employee-shell-brand > div span {
+  display: block;
+  margin-top: 3px;
+  color: #0866ed;
+  font-size: 12px;
+  font-weight: 500;
+}
+.app-shell.clean-shell .workspace-label {
+  margin: 10px 5px 16px;
+  font-size: 11px;
+}
+.app-shell.clean-shell .side-navigation {
+  padding: 0;
+}
+.app-shell.clean-shell .side-navigation .nav-item {
+  /* The shell already applies role permissions. Legacy overview CSS must not
+     hide permitted modules or the More button. */
+  display: flex !important;
+  min-height: 44px;
+  padding: 10px 12px;
+  gap: 12px;
+  border: 0;
+  border-radius: 8px;
+  color: #425472;
+  font-size: 13px;
+}
+.app-shell.clean-shell .side-navigation .nav-item.active {
+  background: #e7f1ff;
+  color: #075ee3;
+  box-shadow: none;
+}
+.app-shell.clean-shell .side-navigation .nav-icon {
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  color: inherit;
+}
+.app-shell.clean-shell .side-navigation .nav-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.app-shell.clean-shell .nav-group {
+  margin-bottom: 10px;
+}
+.app-shell.clean-shell .topbar {
+  min-height: 68px;
+  height: auto;
+  padding: 12px 28px;
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+.app-shell.clean-shell .topbar-left {
+  display: flex;
+}
+.app-shell.clean-shell .topbar-left .client-switcher-wrap {
+  display: block !important;
+}
+.app-shell.clean-shell .company-switcher {
+  min-height: 40px;
+}
+.app-shell.clean-shell .company-switcher strong {
+  font-size: 12px;
+}
+.app-shell.clean-shell .topbar-actions {
+  min-width: 0;
+}
+.app-shell.clean-shell.employee-workspace-shell .employee-side-nav .nav-icon {
+  color: #526582;
+  background: transparent;
+}
+.app-shell.clean-shell.employee-workspace-shell
+  .employee-side-nav
+  .active
+  .nav-icon {
+  color: #0866ed;
+}
+.app-shell.clean-shell .clean-dashboard .status-processed,
+.app-shell.clean-shell .clean-dashboard .status-pending-approval,
+.app-shell.clean-shell .clean-dashboard .status-draft {
+  color: #075ee3;
+  background: #edf5ff;
+}
+.app-shell.clean-shell .palette-trigger {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #64748b;
+}
+.app-shell.clean-shell .content-area {
+  width: 100%;
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 30px 32px 56px;
+}
+.app-shell.clean-shell .employee-topbar-greeting strong {
+  font-size: 13px;
+}
+.app-shell.clean-shell .employee-topbar-greeting span {
+  font-size: 11px;
+}
+.app-shell.clean-shell .employee-clock-button {
+  min-height: 38px;
+  background: #0866ed;
+  color: #fff;
+}
+.app-shell.clean-shell.employee-workspace-shell .employee-shell-profile {
+  width: auto;
+  height: 38px;
+  gap: 9px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app-shell.clean-shell.employee-workspace-shell .employee-app-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  border-radius: 50%;
+  background: #1454a1;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.app-shell.clean-shell .clean-profile-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  color: #10213d;
+}
+.app-shell.clean-shell .clean-profile-copy strong {
+  font-size: 12px;
+}
+.app-shell.clean-shell .clean-profile-copy small {
+  color: #64748b;
+  font-size: 11px;
+}
+.app-shell.clean-shell .employee-tabs {
+  display: none;
+}
+.app-shell.clean-shell button:focus-visible,
+.app-shell.clean-shell a:focus-visible {
+  outline: 3px solid #78b2ff;
+  outline-offset: 3px;
+}
+.app-shell.clean-shell .clean-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  color: #10213d;
+}
+.app-shell.clean-shell .clean-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 0 0 2px;
+}
+.app-shell.clean-shell .clean-heading h1 {
+  margin: 0;
+  color: #10213d;
+  font-size: clamp(24px, 2.4vw, 32px);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+}
+.app-shell.clean-shell .clean-heading p {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.app-shell.clean-shell .clean-period {
+  color: #526582;
+  font-size: 13px;
+  text-align: right;
+}
+.app-shell.clean-shell .clean-card {
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 6px rgb(15 23 42 / 2%);
+}
+.app-shell.clean-shell .clean-card-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.app-shell.clean-shell .clean-card h2 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.35;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.app-shell.clean-shell .clean-card h3 {
+  margin: 18px 0 10px;
+  font-size: 14px;
+}
+.app-shell.clean-shell .clean-eyebrow {
+  display: block;
+  margin-bottom: 10px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.app-shell.clean-shell .clean-muted {
+  margin: 8px 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.app-shell.clean-shell .clean-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 12px 18px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: #0866ed;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.app-shell.clean-shell .clean-button:hover {
+  background: #0754c5;
+}
+.app-shell.clean-shell .clean-button.release {
+  background: #059669;
+}
+.app-shell.clean-shell .clean-button.release:hover {
+  background: #047857;
+}
+.app-shell.clean-shell .clean-button.secondary {
+  border-color: #d9e3f0;
+  background: #fff;
+  color: #24405f;
+}
+.app-shell.clean-shell .clean-button.secondary:hover {
+  background: #f1f6fc;
+}
+.app-shell.clean-shell .clean-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.app-shell.clean-shell .clean-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: #0866ed;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+.app-shell.clean-shell .clean-link:hover {
+  text-decoration: underline;
+}
+.app-shell.clean-shell .clean-payroll-top {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr);
+  gap: 20px;
+}
+.app-shell.clean-shell .clean-current-payroll h2 {
+  font-size: 23px;
+}
+.app-shell.clean-shell .clean-payday {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  background: #edf5ff;
+  border-color: #cfe3ff;
+}
+.app-shell.clean-shell .clean-payday > svg {
+  display: none;
+}
+.app-shell.clean-shell .clean-payday > strong {
+  color: #0866ed;
+  font-size: 64px;
+  line-height: 1.1;
+  letter-spacing: -0.06em;
+}
+.app-shell.clean-shell .clean-payday > span {
+  color: #425472;
+  font-size: 13px;
+}
+.app-shell.clean-shell .clean-payday p {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  margin: auto 0 0;
+  padding-top: 14px;
+  border-top: 1px solid #d3e5fc;
+  color: #425472;
+  font-size: 13px;
+}
+.app-shell.clean-shell .clean-steps {
+  display: flex;
+  align-items: flex-start;
+  list-style: none;
+  margin: 26px 0;
+  padding: 0;
+}
+.app-shell.clean-shell .clean-steps li {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  color: #64748b;
+}
+.app-shell.clean-shell .clean-steps li::before {
+  position: absolute;
+  z-index: 0;
+  top: 17px;
+  left: -50%;
+  width: 100%;
+  height: 2px;
+  background: #e2e8f0;
+  content: "";
+}
+.app-shell.clean-shell .clean-steps li:first-child::before {
+  display: none;
+}
+.app-shell.clean-shell .clean-steps li > span {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 35px;
+  height: 35px;
+  border: 1px solid #d9e3f0;
+  border-radius: 50%;
+  background: #fff;
+  font-size: 13px;
+}
+.app-shell.clean-shell .clean-steps li strong {
+  font-size: 12px;
+  font-weight: 500;
+}
+.app-shell.clean-shell .clean-steps li.current {
+  color: #075ee3;
+}
+.app-shell.clean-shell .clean-steps li.current > span {
+  border-color: #0866ed;
+  background: #0866ed;
+  color: #fff;
+}
+.app-shell.clean-shell .clean-steps li.done > span {
+  border-color: #bae9d8;
+  background: #e9f9f2;
+  color: #047857;
+}
+.app-shell.clean-shell .clean-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #edf1f6;
+}
+.app-shell.clean-shell .clean-card-footer > span {
+  flex: 1;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.app-shell.clean-shell .clean-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.app-shell.clean-shell .clean-metric {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px;
+}
+.app-shell.clean-shell .clean-metric > div {
+  min-width: 0;
+}
+.app-shell.clean-shell .clean-metric span:not(.clean-icon) {
+  font-size: 12px;
+}
+.app-shell.clean-shell .clean-metric strong {
+  display: block;
+  margin: 8px 0;
+  font-size: clamp(18px, 1.8vw, 25px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.app-shell.clean-shell .clean-metric small {
+  display: block;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.app-shell.clean-shell .clean-icon {
+  display: inline-grid;
+  flex: 0 0 40px;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #edf5ff;
+  color: #0866ed;
+}
+.app-shell.clean-shell .clean-icon.green {
+  background: #e9f9f2;
+  color: #059669;
+}
+.app-shell.clean-shell .clean-icon.amber {
+  background: #fff6e7;
+  color: #b76a00;
+}
+.app-shell.clean-shell .clean-icon.rose {
+  background: #fff0f0;
+  color: #d74848;
+}
+.app-shell.clean-shell .clean-work-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 20px;
+}
+.app-shell.clean-shell .clean-action-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  min-height: 65px;
+  padding: 14px 0;
+  border: 0;
+  border-top: 1px solid #edf1f6;
+  background: transparent;
+  color: #10213d;
+  text-align: left;
+  cursor: pointer;
+}
+.app-shell.clean-shell .clean-action-row:hover {
+  background: #f8fbff;
+}
+.app-shell.clean-shell .clean-action-row > span:not(.clean-icon) {
+  flex: 1;
+  min-width: 0;
+}
+.app-shell.clean-shell .clean-action-row strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.app-shell.clean-shell .clean-action-row small {
+  display: block;
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.app-shell.clean-shell .clean-action-row > svg {
+  flex-shrink: 0;
+  color: #7b8ba5;
+}
+.app-shell.clean-shell .clean-count {
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: #e9f9f2;
+  color: #047857;
+  font-size: 12px;
+}
+.app-shell.clean-shell .clean-count.attention {
+  background: #fff0f0;
+  color: #c53b4d;
+}
+.app-shell.clean-shell .clean-table-scroll {
+  overflow-x: auto;
+}
+.app-shell.clean-shell .clean-history {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.app-shell.clean-shell .clean-history th {
+  padding: 10px 10px 10px 0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+}
+.app-shell.clean-shell .clean-history td {
+  padding: 14px 10px 14px 0;
+  border-top: 1px solid #edf1f6;
+  white-space: nowrap;
+}
+.app-shell.clean-shell .clean-history td:first-child {
+  min-width: 160px;
+  white-space: normal;
+}
+.app-shell.clean-shell .clean-history .clean-link {
+  color: #10213d;
+}
+.app-shell.clean-shell .clean-owner {
+  width: 100%;
+  max-width: 920px;
+}
+.app-shell.clean-shell [data-role-dashboard="owner"] {
+  max-width: 720px;
+  margin: 0 auto;
+  gap: 16px;
+}
+.app-shell.clean-shell [data-role-dashboard="owner"] .clean-heading h1 {
+  font-size: 28px;
+}
+.app-shell.clean-shell [data-role-dashboard="owner"] .clean-heading {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.app-shell.clean-shell .clean-owner.clean-card {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.app-shell.clean-shell .clean-owner .clean-assurance {
+  margin: 0 0 16px;
+  padding: 20px;
+}
+.app-shell.clean-shell .clean-owner .clean-funding {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.app-shell.clean-shell .clean-owner .clean-funding > div {
+  min-width: 0;
+  padding: 18px;
+  background: #fff;
+}
+.app-shell.clean-shell .clean-owner .clean-funding-note strong {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+.app-shell.clean-shell .clean-owner .clean-funding-note .clean-link {
+  margin-top: 10px;
+}
+.app-shell.clean-shell .clean-owner > .clean-button {
+  min-height: 48px;
+  font-size: 15px;
+}
+.app-shell.clean-shell .clean-assurance {
+  display: flex;
+  align-items: flex-start;
+  gap: 17px;
+  margin: 24px 0;
+  padding: 24px;
+  border: 1px solid #f0dfbd;
+  border-radius: 10px;
+  background: #fffbf3;
+  color: #7d5b18;
+}
+.app-shell.clean-shell .clean-assurance.clear {
+  border-color: #d7eee4;
+  background: #f0fbf6;
+  color: #047857;
+}
+.app-shell.clean-shell .clean-assurance h2 {
+  margin: 0 0 14px;
+  color: #10213d;
+}
+.app-shell.clean-shell .clean-check-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  color: #425472;
+  font-size: 13px;
+}
+.app-shell.clean-shell .clean-check-line span {
+  display: grid;
+  flex: 0 0 17px;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+}
+.app-shell.clean-shell .verified {
+  background: #059669;
+  color: #fff;
+}
+.app-shell.clean-shell .unverified {
+  background: #fff0cc;
+  color: #9a6500;
+}
+.app-shell.clean-shell .clean-funding {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.app-shell.clean-shell .clean-funding > div {
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+.app-shell.clean-shell .clean-funding strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  overflow-wrap: anywhere;
+}
+.app-shell.clean-shell .clean-funding p {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 12px;
+}
+.app-shell.clean-shell .clean-funding-note {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #526582;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.app-shell.clean-shell .clean-funding-note svg {
+  flex-shrink: 0;
+  color: #0866ed;
+}
+.app-shell.clean-shell .clean-owner > .clean-button {
+  width: 100%;
+}
+.app-shell.clean-shell .clean-footnote {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+.app-shell.clean-shell .clean-checker {
+  max-width: 1040px;
+}
+.app-shell.clean-shell .clean-net-strip {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  margin: 24px 0 12px;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fbff;
+}
+.app-shell.clean-shell .clean-net-strip span {
+  color: #526582;
+  font-size: 13px;
+}
+.app-shell.clean-shell .clean-net-strip strong {
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+.app-shell.clean-shell .clean-tabs {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.app-shell.clean-shell .clean-tabs button {
+  padding: 14px 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  cursor: pointer;
+}
+.app-shell.clean-shell .clean-tabs button.active {
+  border-color: #0866ed;
+  color: #0866ed;
+}
+.app-shell.clean-shell .clean-checker .clean-action-row {
+  min-height: 56px;
+  padding: 10px 0;
+}
+.app-shell.clean-shell
+  .clean-checker
+  .clean-action-row
+  > span:not(.clean-icon) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.app-shell.clean-shell .clean-checker .clean-action-row small {
+  margin: 0;
+}
+.app-shell.clean-shell .clean-checker .clean-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.app-shell.clean-shell .clean-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 14px;
+  border: 1px solid #f0dfbd;
+  border-radius: 8px;
+  background: #fffbf3;
+  color: #9a6500;
+  font-size: 13px;
+}
+.app-shell.clean-shell .clean-notice p {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+.app-shell.clean-shell .clean-employee-home {
+  max-width: 680px;
+  margin: 0 auto;
+  gap: 14px;
+}
+.app-shell.clean-shell .clean-employee-home .clean-card {
+  padding: 18px;
+}
+.app-shell.clean-shell .clean-employee-home .clean-heading h1 {
+  font-size: 28px;
+}
+.app-shell.clean-shell .clean-employee-home .clean-heading p {
+  margin-top: 5px;
+}
+.app-shell.clean-shell .clean-employee-home .clean-card-header {
+  margin-bottom: 6px;
+}
+.app-shell.clean-shell .clean-employee-home .clean-leave-balance {
+  margin: 8px 0;
+}
+.app-shell.clean-shell .clean-employee-home .clean-action-row {
+  min-height: 54px;
+  padding: 10px 0;
+}
+.app-shell.clean-shell .clean-employee-home .clean-eyebrow {
+  margin-bottom: 5px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  color: #10213d;
+}
+.app-shell.clean-shell .clean-employee-next {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+.app-shell.clean-shell .clean-employee-home .clean-employee-next {
+  padding: 15px 18px;
+}
+.app-shell.clean-shell .clean-employee-next h2 {
+  margin: 4px 0 0;
+  font-size: 21px;
+}
+.app-shell.clean-shell .clean-employee-next p,
+.app-shell.clean-shell .clean-employee-next small {
+  display: block;
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.app-shell.clean-shell .clean-employee-payslip.employee-latest-pay {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #10213d;
+  box-shadow: none;
+}
+.app-shell.clean-shell .clean-employee-payslip p {
+  margin: 0 0 8px;
+  color: #526582;
+  font-size: 14px;
+}
+.app-shell.clean-shell .clean-employee-payslip strong {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.25;
+  margin: 0;
+}
+.app-shell.clean-shell .clean-employee-payslip small {
+  display: block;
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+}
+.app-shell.clean-shell .clean-payslip-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+}
+.app-shell.clean-shell .clean-employee-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.app-shell.clean-shell .clean-employee-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+.app-shell.clean-shell .clean-employee-actions .clean-button {
+  background: #fff;
+  justify-content: center;
+  padding: 10px;
+}
+.app-shell.clean-shell .clean-leave-balance {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 12px 0;
+}
+.app-shell.clean-shell .clean-leave-balance strong {
+  font-size: 26px;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+.app-shell.clean-shell .clean-leave-balance span {
+  color: #64748b;
+  font-size: 12px;
+}
+.app-shell.clean-shell .clean-employee-grid .clean-button {
+  margin-top: 12px;
+}
+@media (min-width: 1500px) {
+  .app-shell.clean-shell .clean-metric strong {
+    font-size: 25px;
+  }
+}
+@media (max-width: 1200px) {
+  .app-shell.clean-shell .clean-metric {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .app-shell.clean-shell .clean-payroll-top {
+    grid-template-columns: minmax(0, 2fr) minmax(200px, 1fr);
+  }
+}
+@media (max-width: 900px) {
+  .app-shell.clean-shell .content-area {
+    padding: 24px 20px 48px;
+  }
+  .app-shell.clean-shell .clean-payroll-top,
+  .app-shell.clean-shell .clean-work-grid {
+    grid-template-columns: 1fr;
+  }
+  .app-shell.clean-shell .clean-payday {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 10px 20px;
+  }
+  .app-shell.clean-shell .clean-payday > strong {
+    grid-row: 1 / 3;
+    grid-column: 1;
+    font-size: 48px;
+  }
+  .app-shell.clean-shell .clean-payday h2,
+  .app-shell.clean-shell .clean-payday > span {
+    grid-column: 2;
+  }
+  .app-shell.clean-shell .clean-payday p {
+    grid-column: 1 / -1;
+  }
+  .app-shell.clean-shell .clean-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+  .app-shell.clean-shell .clean-metric {
+    flex-direction: row;
+  }
+  .app-shell.clean-shell .clean-period {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .app-shell.clean-shell .clean-profile-copy {
+    display: none;
+  }
+  .app-shell.clean-shell .clean-owner .clean-funding {
+    grid-template-columns: 1fr;
+  }
+  .app-shell.clean-shell .content-area {
+    padding-bottom: 100px;
+  }
+  .app-shell.clean-shell.employee-workspace-shell .employee-tabs {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0;
+    overflow-x: auto;
+    margin: 0;
+  }
+  .app-shell.clean-shell.employee-workspace-shell .employee-tabs button {
+    font-size: 9px;
+  }
+  .app-shell.clean-shell .mobile-bottom-nav > button.active,
+  .app-shell.clean-shell.employee-workspace-shell .employee-tabs button.active {
+    background: #e7f1ff;
+    color: #0866ed;
+  }
+  .app-shell.clean-shell .sidebar {
+    width: 240px;
+  }
+  .app-shell.clean-shell .topbar {
+    padding: 10px 16px;
+  }
+  .app-shell.clean-shell .employee-tabs {
+    display: flex;
+    overflow-x: auto;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+  .app-shell.clean-shell .employee-tabs button {
+    flex-shrink: 0;
+    min-height: 44px;
+  }
+  .app-shell.clean-shell .employee-topbar-greeting span {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .app-shell.clean-shell .clean-card {
+    padding: 20px;
+  }
+  .app-shell.clean-shell .clean-funding {
+    grid-template-columns: 1fr;
+  }
+  .app-shell.clean-shell .clean-checker .clean-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 480px) {
+  .app-shell.clean-shell .content-area {
+    padding: 20px 14px 40px;
+  }
+  .app-shell.clean-shell .clean-card {
+    padding: 17px;
+  }
+  .app-shell.clean-shell .clean-metrics {
+    gap: 10px;
+  }
+  .app-shell.clean-shell .clean-metric {
+    flex-direction: column;
+    padding: 15px;
+  }
+  .app-shell.clean-shell .clean-metric strong {
+    font-size: 19px;
+  }
+  .app-shell.clean-shell .clean-current-payroll h2 {
+    font-size: 21px;
+  }
+  .app-shell.clean-shell .clean-card-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .app-shell.clean-shell .clean-card-footer .clean-button {
+    width: 100%;
+  }
+  .app-shell.clean-shell .clean-employee-grid {
+    grid-template-columns: 1fr;
+  }
+  .app-shell.clean-shell .clean-employee-actions {
+    grid-template-columns: 1fr;
+  }
+  .app-shell.clean-shell .clean-employee-payslip.employee-latest-pay {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .app-shell.clean-shell .clean-payslip-actions {
+    flex-direction: row;
+    gap: 24px;
+  }
+  .app-shell.clean-shell .clean-employee-next h2 {
+    font-size: 19px;
+  }
+  .app-shell.clean-shell
+    .clean-checker
+    .clean-action-row
+    > span:not(.clean-icon) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .app-shell.clean-shell .clean-net-strip {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}

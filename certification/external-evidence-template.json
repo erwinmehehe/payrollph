@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "legalEntityCode": "REPLACE-WITH-REAL-LEGAL-EMPLOYER-CODE",
+  "documents": [],
+  "independentReview": {
+    "reviewId": "",
+    "professionalLicenseId": ""
+  },
+  "parallelCycles": [],
+  "governmentFilings": [],
+  "bankUat": {
+    "bankName": "",
+    "acceptedTransferId": "",
+    "rejectedTransferId": ""
+  }
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ApprovalChainAdmin } from "@/components/approval-chain-admin";
 import {
   Activity,
   Bot,
@@ -36,6 +37,25 @@ type ActionCatalog = {
   category: string;
 };
 
+type DocumentTemplateCatalog = {
+  id: string;
+  version: number;
+  name: string;
+  description: string;
+  allowedTriggers: string[];
+};
+
+type WorkflowTemplateCatalog = {
+  id: string;
+  version: number;
+  category: string;
+  name: string;
+  description: string;
+  trigger: string;
+  conditionCount: number;
+  actionCount: number;
+};
+
 type AutomationRule = {
   id: number;
   name: string;
@@ -43,8 +63,33 @@ type AutomationRule = {
   conditions: unknown;
   actions: unknown;
   active: boolean;
+  publishedVersion: number;
+  draftVersion: number | null;
   createdAt: string;
   updatedAt: string;
+};
+
+type ApprovalChainPolicy = {
+  id: number;
+  code: string;
+  name: string;
+  purpose: string;
+  version: number;
+  steps: unknown;
+  active: boolean;
+};
+
+type AutomationRuleVersion = {
+  id: number;
+  ruleId: number;
+  version: number;
+  status: "draft" | "published" | "superseded";
+  name: string;
+  trigger: string;
+  active: boolean;
+  sourceVersion: number | null;
+  createdAt: string;
+  publishedAt: string | null;
 };
 
 type Execution = {
@@ -64,6 +109,7 @@ type Execution = {
 
 type StudioData = {
   rules: AutomationRule[];
+  versions: AutomationRuleVersion[];
   executions: Execution[];
   catalogs: {
     triggers: TriggerCatalog[];
@@ -72,6 +118,8 @@ type StudioData = {
     conditions: ConditionCatalog[];
     operators: string[];
     actions: ActionCatalog[];
+    documentTemplates: DocumentTemplateCatalog[];
+    templates: WorkflowTemplateCatalog[];
   };
   orgUnits: Array<{ id: number; name: string; code: string }>;
   permissionSets: Array<{ id: number; name: string; active: boolean }>;
@@ -82,6 +130,14 @@ type StudioData = {
     active: boolean;
     employeeShare: string;
     cap: string | null;
+  }>;
+  approvalChains: ApprovalChainPolicy[];
+  schedulePatterns: Array<{
+    id: number;
+    code: string;
+    name: string;
+    cycleDays: number;
+    active: boolean;
   }>;
   analytics: {
     activeRules: number;
@@ -108,6 +164,7 @@ type ActionDraft = {
   owner: string;
   detail: string;
   approver: string;
+  approvalChainCode: string;
   priority: string;
   recipient: string;
   email: string;
@@ -126,6 +183,11 @@ type ActionDraft = {
   branchValue: string;
   branchThenTitle: string;
   branchElseTitle: string;
+  schedulePatternId: string;
+  scheduleEffectiveDateSource: string;
+  scheduleOffsetDays: string;
+  scheduleReason: string;
+  documentTemplateId: string;
 };
 
 const defaultAction = (id: string): ActionDraft => ({
@@ -135,6 +197,7 @@ const defaultAction = (id: string): ActionDraft => ({
   owner: "People Ops",
   detail: "",
   approver: "People Ops",
+  approvalChainCode: "",
   priority: "Normal",
   recipient: "employee",
   email: "",
@@ -153,6 +216,11 @@ const defaultAction = (id: string): ActionDraft => ({
   branchValue: "",
   branchThenTitle: "",
   branchElseTitle: "",
+  schedulePatternId: "",
+  scheduleEffectiveDateSource: "event_effective_date",
+  scheduleOffsetDays: "0",
+  scheduleReason: "Automation Studio approved schedule assignment",
+  documentTemplateId: "",
 });
 
 const formatDateTime = (value: string) =>
@@ -176,6 +244,12 @@ function actionAllowed(trigger: TriggerCatalog | undefined, type: string) {
   if (["revoke_sessions", "deactivate_access"].includes(type)) return trigger.value === "employee.separated";
   if (["assign_permission_set", "assign_benefit"].includes(type)) {
     return ["employee.hired", "employee.updated", "employee.moved", "employee.promoted", "candidate.hired"].includes(trigger.value);
+  }
+  if (type === "assign_schedule") {
+    return ["employee.hired", "employee.moved", "employee.promoted"].includes(trigger.value);
+  }
+  if (type === "generate_document") {
+    return ["employee.hired", "employee.moved", "employee.promoted", "employee.separated"].includes(trigger.value);
   }
   if (["create_task", "create_onboarding_checklist"].includes(type)) return trigger.employeeScoped;
   return true;
@@ -286,6 +360,7 @@ export function AutomationStudioPanel({
         title: row.title,
         detail: row.detail,
         approver: row.approver,
+        approvalChainCode: row.approvalChainCode || undefined,
         priority: row.priority,
         dueLabel: "Workflow paused for approval",
       };
@@ -329,6 +404,7 @@ export function AutomationStudioPanel({
         title: row.title,
         detail: row.detail,
         approver: row.approver,
+        approvalChainCode: row.approvalChainCode || undefined,
         priority: row.priority,
       };
     }
@@ -339,6 +415,21 @@ export function AutomationStudioPanel({
         ...(row.recipient === "custom" ? { email: row.email } : {}),
         subject: row.subject,
         body: row.body,
+      };
+    }
+    if (row.type === "generate_document") {
+      return {
+        type: row.type,
+        templateId: row.documentTemplateId,
+      };
+    }
+    if (row.type === "assign_schedule") {
+      return {
+        type: row.type,
+        patternId: Number(row.schedulePatternId),
+        effectiveDateSource: row.scheduleEffectiveDateSource,
+        offsetDays: Number(row.scheduleOffsetDays || "0"),
+        reason: row.scheduleReason,
       };
     }
     if (row.type === "assign_permission_set") {
@@ -357,6 +448,7 @@ export function AutomationStudioPanel({
         amount: Number(row.amount),
         reason: row.reason,
         approver: row.approver || "Payroll",
+        approvalChainCode: row.approvalChainCode || undefined,
       };
     }
     return { type: row.type };
@@ -372,6 +464,20 @@ export function AutomationStudioPanel({
     const invalidAction = actions.find((row) => !actionAllowed(selectedTrigger, row.type));
     if (invalidAction) {
       setNotice("One or more THEN actions are not allowed for this trigger.");
+      return;
+    }
+    const unsafeScheduleIndex = actions.findIndex((row, index) =>
+      row.type === "assign_schedule" && actions[index - 1]?.type !== "approval_gate"
+    );
+    if (unsafeScheduleIndex >= 0) {
+      setNotice("Schedule assignment must be immediately preceded by an approval gate.");
+      return;
+    }
+    const unsafeDocumentIndex = actions.findIndex((row, index) =>
+      row.type === "generate_document" && actions[index - 1]?.type !== "approval_gate"
+    );
+    if (unsafeDocumentIndex >= 0) {
+      setNotice("Document generation must be immediately preceded by an approval gate.");
       return;
     }
 
@@ -399,11 +505,80 @@ export function AutomationStudioPanel({
       resetBuilder();
       setShowBuilder(false);
       await load();
-      setNotice("Automation Studio rule saved.");
+      setNotice("Automation draft saved. Publish it from the workflow list when it is ready to go live.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not save automation rule.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function instantiateTemplate(template: WorkflowTemplateCatalog) {
+    const requestedName = window.prompt("Draft workflow name", template.name)?.trim();
+    if (!requestedName) return;
+
+    setSaving(true);
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action: "create-from-template",
+          templateId: template.id,
+          name: requestedName,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not create workflow draft from template.");
+      await load();
+      setNotice(`${requestedName} created as draft v${payload.draft?.version ?? 1}. Review it before publishing.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not create workflow draft from template.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function publishRule(rule: AutomationRule) {
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action: "publish-rule",
+          ruleId: rule.id,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not publish automation draft.");
+      await load();
+      setNotice(`${rule.name} published as version ${payload.published?.version ?? ""}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not publish automation draft.");
+    }
+  }
+
+  async function rollbackRule(rule: AutomationRule, targetVersion: number) {
+    if (!window.confirm(`Roll back ${rule.name} to the definition from version ${targetVersion}? This creates a new published version and preserves history.`)) return;
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action: "rollback-rule",
+          ruleId: rule.id,
+          targetVersion,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not roll back automation rule.");
+      await load();
+      setNotice(`${rule.name} restored from version ${targetVersion} as new published version ${payload.published?.version ?? ""}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not roll back automation rule.");
     }
   }
 
@@ -441,7 +616,7 @@ export function AutomationStudioPanel({
       <div className="page-heading">
         <div>
           <div className="eyebrow">AUTOMATION STUDIO</div>
-          <h1>Build governed WHEN / IF / THEN workflows. Add waits, approvals and branches.</h1>
+          <h1>Automation Studio</h1>
           <p>
             Connect authoritative payroll, workforce, HCM, access and integration events without letting automation bypass approval, payroll or security controls.
           </p>
@@ -487,10 +662,48 @@ export function AutomationStudioPanel({
         <div className="notice notice-slate" style={{ margin: 0 }}>
           <ShieldCheck size={16} className="i-purple" />
           <span>
-            <strong>Governed execution.</strong> Studio runs after authoritative transactions commit. Timed waits persist across worker restarts and approval gates pause the exact execution. Payroll adjustments become approval requests, access removal is separation-only, and external calls use registered signed webhooks rather than arbitrary URLs.
+            <strong>Governed execution.</strong> Workflow edits are saved as drafts and do not affect production until separately published. Published versions remain auditable and rollback creates a new version instead of rewriting history. Studio runs after authoritative transactions commit. Timed waits persist across worker restarts and approval gates pause the exact execution. Payroll adjustments become approval requests, access removal is separation-only, and external calls use registered signed webhooks rather than arbitrary URLs.
           </span>
         </div>
       </article>
+
+      <section className="card" style={{ marginTop: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">WORKFLOW TEMPLATES</div>
+            <h2>Start from a governed workflow pattern</h2>
+            <p>Templates are code-reviewed starter definitions. Using one creates an unpublished draft; it cannot execute until an administrator separately publishes it.</p>
+          </div>
+          <Workflow size={17} className="i-purple" />
+        </div>
+        <div className="card-body">
+          <div className="module-grid two">
+            {data.catalogs.templates.map((template) => {
+              const triggerInfo = data.catalogs.triggers.find((item) => item.value === template.trigger);
+              return (
+                <article className="card" key={template.id} style={{ boxShadow: "none", padding: 14 }}>
+                  <div className="card-kicker">{template.category} · TEMPLATE V{template.version}</div>
+                  <h3 style={{ margin: "6px 0" }}>{template.name}</h3>
+                  <p style={{ margin: "0 0 10px" }}>{template.description}</p>
+                  <div className="modal-note" style={{ marginBottom: 10 }}>
+                    WHEN {triggerInfo?.label ?? template.trigger} · {template.conditionCount} IF · {template.actionCount} THEN
+                  </div>
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={saving}
+                    onClick={() => void instantiateTemplate(template)}
+                  >
+                    <Plus size={14} /> Create draft
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <ApprovalChainAdmin organizationId={organizationId} setNotice={setNotice} onChanged={load} />
 
       {showBuilder && (
         <form onSubmit={saveRule} className="card" style={{ marginTop: 16 }}>
@@ -528,11 +741,17 @@ export function AutomationStudioPanel({
                     value={trigger}
                     onChange={(event) => {
                       setTrigger(event.target.value);
-                      setActions((rows) => rows.map((row) => (
-                        actionAllowed(data.catalogs.triggers.find((item) => item.value === event.target.value), row.type)
-                          ? row
-                          : { ...row, type: "request_approval" }
-                      )));
+                      const nextTrigger = data.catalogs.triggers.find((item) => item.value === event.target.value);
+                      setActions((rows) => rows.map((row) => {
+                        if (!actionAllowed(nextTrigger, row.type)) return { ...row, type: "request_approval" };
+                        if (row.type === "generate_document") {
+                          const template = data.catalogs.documentTemplates.find((item) => item.id === row.documentTemplateId);
+                          if (template && !template.allowedTriggers.includes(event.target.value)) {
+                            return { ...row, documentTemplateId: "" };
+                          }
+                        }
+                        return row;
+                      }));
                     }}
                     style={{ width: "100%" }}
                   >
@@ -627,7 +846,28 @@ export function AutomationStudioPanel({
                       </div>
                       <select
                         value={row.type}
-                        onChange={(event) => updateAction(row.id, { type: event.target.value })}
+                        onChange={(event) => {
+                          const nextType = event.target.value;
+                          updateAction(row.id, {
+                            type: nextType,
+                            ...(nextType === "assign_schedule"
+                              ? {
+                                  scheduleEffectiveDateSource:
+                                    selectedTrigger?.value === "employee.hired"
+                                      ? "employee_start_date"
+                                      : "event_effective_date",
+                                }
+                              : {}),
+                            ...(nextType === "generate_document"
+                              ? {
+                                  documentTemplateId:
+                                    data.catalogs.documentTemplates.find((template) =>
+                                      template.allowedTriggers.includes(selectedTrigger?.value ?? "")
+                                    )?.id ?? "",
+                                }
+                              : {}),
+                          });
+                        }}
                         style={{ width: "100%", marginBottom: 10 }}
                       >
                         {data.catalogs.actions.map((item) => (
@@ -653,6 +893,7 @@ export function AutomationStudioPanel({
                         <div className="setting-form">
                           <label>Approval title<input required value={row.title} onChange={(event) => updateAction(row.id, { title: event.target.value })} /></label>
                           <label>Approver<input value={row.approver} onChange={(event) => updateAction(row.id, { approver: event.target.value })} placeholder="manager or named approver" /></label>
+                          <label>Approval chain<select value={row.approvalChainCode} onChange={(event) => updateAction(row.id, { approvalChainCode: event.target.value })}><option value="">Single approver</option>{data.approvalChains.map((chain) => <option key={chain.id} value={chain.code}>{chain.name} · v{chain.version}</option>)}</select></label>
                           <label>Detail<input required value={row.detail} onChange={(event) => updateAction(row.id, { detail: event.target.value })} /></label>
                           <label>Priority<select value={row.priority} onChange={(event) => updateAction(row.id, { priority: event.target.value })}><option>Normal</option><option>High</option></select></label>
                           <div className="modal-note">This is a true gate: later workflow steps do not execute until the task is approved. A decline ends the execution as failed evidence.</div>
@@ -696,6 +937,7 @@ export function AutomationStudioPanel({
                         <div className="setting-form">
                           <label>Approval title<input required value={row.title} onChange={(event) => updateAction(row.id, { title: event.target.value })} /></label>
                           <label>Approver<input value={row.approver} onChange={(event) => updateAction(row.id, { approver: event.target.value })} placeholder="manager or named approver" /></label>
+                          <label>Approval chain<select value={row.approvalChainCode} onChange={(event) => updateAction(row.id, { approvalChainCode: event.target.value })}><option value="">Single approver</option>{data.approvalChains.map((chain) => <option key={chain.id} value={chain.code}>{chain.name} · v{chain.version}</option>)}</select></label>
                           <label>Detail<input required value={row.detail} onChange={(event) => updateAction(row.id, { detail: event.target.value })} /></label>
                           <label>Priority<select value={row.priority} onChange={(event) => updateAction(row.id, { priority: event.target.value })}><option>Normal</option><option>High</option></select></label>
                         </div>
@@ -707,6 +949,83 @@ export function AutomationStudioPanel({
                           {row.recipient === "custom" && <label>Email<input required type="email" value={row.email} onChange={(event) => updateAction(row.id, { email: event.target.value })} /></label>}
                           <label>Subject<input required value={row.subject} onChange={(event) => updateAction(row.id, { subject: event.target.value })} /></label>
                           <label>Message<textarea required value={row.body} onChange={(event) => updateAction(row.id, { body: event.target.value })} rows={4} /></label>
+                        </div>
+                      )}
+
+                      {row.type === "generate_document" && (
+                        <div className="setting-form">
+                          <label>Document template
+                            <select
+                              required
+                              value={row.documentTemplateId}
+                              onChange={(event) => updateAction(row.id, { documentTemplateId: event.target.value })}
+                            >
+                              <option value="">Choose approved document template</option>
+                              {data.catalogs.documentTemplates
+                                .filter((template) => template.allowedTriggers.includes(selectedTrigger?.value ?? ""))
+                                .map((template) => (
+                                  <option key={template.id} value={template.id}>
+                                    {template.name} · v{template.version}
+                                  </option>
+                                ))}
+                            </select>
+                          </label>
+                          {row.documentTemplateId && (() => {
+                            const template = data.catalogs.documentTemplates.find((item) => item.id === row.documentTemplateId);
+                            return template ? <div className="modal-note">{template.description}</div> : null;
+                          })()}
+                          <div className="modal-note">
+                            This action must immediately follow an approval gate. PayrollPH generates an immutable employee-scoped text artifact from a server-owned template; the generated record does not replace signed contracts, statutory notices, legal advice, or employee acknowledgement.
+                          </div>
+                        </div>
+                      )}
+
+                      {row.type === "assign_schedule" && (
+                        <div className="setting-form">
+                          <label>Schedule pattern
+                            <select
+                              required
+                              value={row.schedulePatternId}
+                              onChange={(event) => updateAction(row.id, { schedulePatternId: event.target.value })}
+                            >
+                              <option value="">Choose active schedule pattern</option>
+                              {data.schedulePatterns.map((pattern) => (
+                                <option key={pattern.id} value={pattern.id}>
+                                  {pattern.code} · {pattern.name} · {pattern.cycleDays}-day cycle
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>Effective date source
+                            <select
+                              value={row.scheduleEffectiveDateSource}
+                              onChange={(event) => updateAction(row.id, { scheduleEffectiveDateSource: event.target.value })}
+                            >
+                              <option value="event_effective_date">Trigger event effective date</option>
+                              <option value="employee_start_date">Employee start date</option>
+                              <option value="today">Current Philippine business date</option>
+                            </select>
+                          </label>
+                          <label>Days after source date
+                            <input
+                              required
+                              type="number"
+                              min="0"
+                              max="365"
+                              value={row.scheduleOffsetDays}
+                              onChange={(event) => updateAction(row.id, { scheduleOffsetDays: event.target.value })}
+                            />
+                          </label>
+                          <label>Assignment reason
+                            <input
+                              required
+                              value={row.scheduleReason}
+                              onChange={(event) => updateAction(row.id, { scheduleReason: event.target.value })}
+                            />
+                          </label>
+                          <div className="modal-note">
+                            This action must immediately follow an approval gate. It will not replace an existing effective schedule, will not backdate a schedule, and still runs WFM schedule guardrails before assignment.
+                          </div>
                         </div>
                       )}
 
@@ -730,8 +1049,9 @@ export function AutomationStudioPanel({
                         <div className="setting-form">
                           <label>Requested amount<input required type="number" step="0.01" value={row.amount} onChange={(event) => updateAction(row.id, { amount: event.target.value })} /></label>
                           <label>Approver<input value={row.approver || "Payroll"} onChange={(event) => updateAction(row.id, { approver: event.target.value })} /></label>
+                          <label>Approval chain<select value={row.approvalChainCode} onChange={(event) => updateAction(row.id, { approvalChainCode: event.target.value })}><option value="">Single approver</option>{data.approvalChains.map((chain) => <option key={chain.id} value={chain.code}>{chain.name} · v{chain.version}</option>)}</select></label>
                           <label>Reason<input required value={row.reason} onChange={(event) => updateAction(row.id, { reason: event.target.value })} /></label>
-                          <div className="modal-note">This creates a high-priority approval request. Automation never posts money directly to payroll.</div>
+                          <div className="modal-note">This creates a high-priority approval request. If a chain is selected, the absolute PHP adjustment amount determines which configured approval tiers are required. Automation never posts money directly to payroll.</div>
                         </div>
                       )}
 
@@ -749,7 +1069,7 @@ export function AutomationStudioPanel({
             <div className="run-actions" style={{ marginTop: 16 }}>
               <button type="button" className="secondary-button" onClick={() => { resetBuilder(); setShowBuilder(false); }}>Cancel</button>
               <button className="primary-button" disabled={saving || !name.trim() || !selectedTrigger?.live}>
-                <Play size={14} /> {saving ? "Saving…" : "Save workflow"}
+                <Play size={14} /> {saving ? "Saving…" : "Save draft"}
               </button>
             </div>
           </div>
@@ -768,19 +1088,44 @@ export function AutomationStudioPanel({
           {data.rules.length === 0 && <div className="empty-state">No Automation Studio workflows yet.</div>}
           {data.rules.map((rule) => {
             const triggerInfo = data.catalogs.triggers.find((item) => item.value === rule.trigger);
+            const versions = data.versions
+              .filter((version) => version.ruleId === rule.id)
+              .sort((a, b) => b.version - a.version);
+            const rollbackTarget = versions.find((version) =>
+              version.status !== "draft" && version.version !== rule.publishedVersion
+            ) ?? null;
             return (
               <div className="leave-request" key={rule.id}>
                 <div className="inline-icon purple"><Workflow size={16} /></div>
                 <div style={{ flex: 1 }}>
                   <strong>{rule.name}</strong>
                   <span>
-                    {triggerInfo?.label ?? rule.trigger} · {conditionCount(rule.conditions)} IF · {actionCount(rule.actions)} THEN · {rule.active ? "active" : "disabled"}
+                    {triggerInfo?.label ?? rule.trigger} · {conditionCount(rule.conditions)} IF · {actionCount(rule.actions)} THEN · {rule.publishedVersion > 0 ? (rule.active ? "active" : "disabled") : "not published"}
                     {triggerInfo && !triggerInfo.live ? " · adapter planned" : ""}
                   </span>
+                  <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
+                    {rule.publishedVersion > 0 ? `Published v${rule.publishedVersion}` : "No published version"}
+                    {rule.draftVersion ? ` · Draft v${rule.draftVersion} waiting to publish` : ""}
+                    {rollbackTarget ? ` · Prior v${rollbackTarget.version} available` : ""}
+                  </small>
                 </div>
-                <button className="secondary-button" onClick={() => void setRuleActive(rule, !rule.active)}>
-                  {rule.active ? "Disable" : "Enable"}
-                </button>
+                <div className="run-actions" style={{ margin: 0 }}>
+                  {rule.draftVersion && (
+                    <button className="primary-button" onClick={() => void publishRule(rule)}>
+                      Publish v{rule.draftVersion}
+                    </button>
+                  )}
+                  {rollbackTarget && rule.publishedVersion > 0 && (
+                    <button className="secondary-button" onClick={() => void rollbackRule(rule, rollbackTarget.version)}>
+                      Rollback to v{rollbackTarget.version}
+                    </button>
+                  )}
+                  {rule.publishedVersion > 0 && (
+                    <button className="secondary-button" onClick={() => void setRuleActive(rule, !rule.active)}>
+                      {rule.active ? "Disable" : "Enable"}
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}

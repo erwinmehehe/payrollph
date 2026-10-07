@@ -15,6 +15,7 @@ import { contributionCaseServiceTargets } from "@/lib/statutory-contribution-cas
 import { canConfirmMemberPosting } from "@/lib/statutory-remittance";
 import { postingCsvEvidence } from "@/lib/statutory-posting-evidence";
 import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
+import { emitContributionDiscrepancyAutomation } from "@/lib/statutory-contribution-automation";
 import {
   parseStatutoryPostingCsv,
   STATUTORY_POSTING_TEMPLATE,
@@ -169,6 +170,7 @@ export async function POST(request: Request) {
 
   if (errors.length > 0) {
     let autoCaseIds: number[] = [];
+    let autoCaseAutomationEvents = 0;
 
     if (openMismatchCases && amountMismatchCandidates.length > 0) {
       const candidateEmployeeIds = [...new Set(
@@ -180,6 +182,7 @@ export async function POST(request: Request) {
             employeeId: statutoryContributionIssueCases.employeeId,
           }).from(statutoryContributionIssueCases).where(and(
             eq(statutoryContributionIssueCases.organizationId, organizationId),
+            eq(statutoryContributionIssueCases.legalEntityId, batch.legalEntityId),
             eq(statutoryContributionIssueCases.agency, batch.agency),
             eq(statutoryContributionIssueCases.applicableMonth, batch.applicableMonth),
             eq(statutoryContributionIssueCases.issueType, "wrong_posted_amount"),
@@ -213,7 +216,7 @@ export async function POST(request: Request) {
         )).limit(1))[0];
         if (!artifact) throw new Error("Could not persist posting evidence artifact.");
 
-        const createdIds: number[] = [];
+        const createdIssues: Array<typeof statutoryContributionIssueCases.$inferSelect> = [];
         for (const candidate of amountMismatchCandidates) {
           if (existingEmployeeIds.has(candidate.member.employeeId)) continue;
 
@@ -223,6 +226,7 @@ export async function POST(request: Request) {
 
           const [issue] = await tx.insert(statutoryContributionIssueCases).values({
             organizationId,
+            legalEntityId: batch.legalEntityId,
             employeeId: candidate.member.employeeId,
             batchId: batch.id,
             remittanceMemberId: candidate.member.id,
@@ -275,12 +279,29 @@ export async function POST(request: Request) {
             actorName: `Posting import · ${user.name}`.slice(0, 120),
           });
 
-          createdIds.push(issue.id);
+          createdIssues.push(issue);
           existingEmployeeIds.add(candidate.member.employeeId);
         }
-        return { createdIds, artifact };
+        return { createdIssues, artifact };
       });
-      autoCaseIds = mismatchResult.createdIds;
+      autoCaseIds = mismatchResult.createdIssues.map((issue) => issue.id);
+      for (const issue of mismatchResult.createdIssues) {
+        await emitContributionDiscrepancyAutomation({
+          organizationId,
+          employeeId: issue.employeeId,
+          legalEntityId: issue.legalEntityId,
+          caseId: issue.id,
+          issueType: issue.issueType,
+          agency: issue.agency,
+          applicableMonth: issue.applicableMonth,
+          source: "statutory_posting_import",
+          severity: "danger",
+          batchId: issue.batchId,
+          remittanceMemberId: issue.remittanceMemberId,
+          evidenceArtifactId: mismatchResult.artifact.id,
+        });
+        autoCaseAutomationEvents += 1;
+      }
 
       if (autoCaseIds.length > 0) {
         await recordAuditEvent({
@@ -296,11 +317,13 @@ export async function POST(request: Request) {
             evidenceByteSize: mismatchResult.artifact.byteSize,
             caseIds: autoCaseIds,
             mismatchCount: autoCaseIds.length,
+            automationEvents: autoCaseAutomationEvents,
           },
         });
 
         const invalidatedClosures = await invalidateStatutoryRemittanceMonthCertification({
           organizationId,
+          legalEntityId: batch.legalEntityId,
           applicableMonth: batch.applicableMonth,
           reason: `Agency posting import opened ${autoCaseIds.length} contribution mismatch case(s).`,
         });
@@ -344,6 +367,7 @@ export async function POST(request: Request) {
             )).limit(1))[0]?.id ?? null
           : null,
       casesOpened: openMismatchCases && autoCaseIds.length > 0,
+      automationEvents: autoCaseAutomationEvents,
       message: openMismatchCases && autoCaseIds.length > 0
         ? `${autoCaseIds.length} employee contribution compliance case${autoCaseIds.length === 1 ? "" : "s"} opened from agency amount mismatches. No posting rows were applied.`
         : "No posting rows were applied because the file did not pass full validation.",

@@ -137,7 +137,7 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
       <div className="page-heading">
         <div>
           <div className="eyebrow">TALENT &amp; PERFORMANCE</div>
-          <h1>Turn payroll records into an HCM system.</h1>
+          <h1>Performance</h1>
           <p>Run review cycles, connect measurable goals to each employee, and keep performance decisions in the same governed employee record.</p>
         </div>
         <div className="page-actions">

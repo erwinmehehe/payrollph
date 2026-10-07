@@ -449,6 +449,7 @@ export function PayrollRunView({
       {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
         <StatutoryRemittancePanel
           organizationId={data.selectedOrganization.id}
+          legalEntityId={run.legalEntityId}
           defaultMonth={String(run.periodEnd).slice(0, 7)}
           notify={notify}
         />
@@ -464,6 +465,7 @@ export function PayrollRunView({
       {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
         <StatutoryContributionIssueCasesPanel
           organizationId={data.selectedOrganization.id}
+          legalEntityId={run.legalEntityId}
           notify={notify}
         />
       )}
@@ -478,6 +480,7 @@ export function PayrollRunView({
       {["owner", "admin", "checker"].includes(data.access?.role ?? "") && (
         <StatutoryRemittanceMonthClose
           organizationId={data.selectedOrganization.id}
+          legalEntityId={run.legalEntityId}
           applicableMonth={String(run.periodEnd).slice(0, 7)}
           notify={notify}
         />

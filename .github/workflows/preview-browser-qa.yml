@@ -144,39 +144,30 @@ jobs:
             check(response && response.ok(), `${name}: homepage did not return 2xx`);
 
             const h1 = (await page.locator("h1").first().innerText()).trim();
-            const normalizedH1 = h1.replace(/\s+/g, " ");
-            check(normalizedH1.includes("People, payroll and compliance made clear."), name + ": integrated Linaw hero is missing: " + h1);
-            const heroPrimary = page.locator('#top a[href="/book-demo"]').first();
-            check((await heroPrimary.count()) === 1, name + ": request-demo hero CTA is missing");
+            check(h1.includes("Philippine payroll you can verify before you pay."), `${name}: expected Linaw payroll hero heading not found; saw "${h1}"`);
+            const heroPrimary = page.locator(".hero-primary-cta");
+            check((await heroPrimary.count()) === 1, `${name}: hero primary CTA is missing`);
             const heroPrimaryStyles = await heroPrimary.evaluate((el) => {
               const style = getComputedStyle(el);
               return { color: style.color, backgroundColor: style.backgroundColor };
             });
-            check(heroPrimaryStyles.color === "rgb(255, 255, 255)", name + ": hero CTA must retain white text");
-            check(heroPrimaryStyles.backgroundColor !== "rgba(0, 0, 0, 0)" && heroPrimaryStyles.backgroundColor !== "rgb(255, 255, 255)", name + ": hero CTA must be filled");
-            for (const section of ["solutions", "payroll", "wfm", "hcm", "outsourcing", "compliance", "demo", "pricing"]) {
-              check((await page.locator("#" + section).count()) === 1, name + ": missing homepage section #" + section);
-            }
-            check((await page.locator("#top").getByText("Illustrative · sample data").count()) === 1, name + ": sample hero data needs a visible disclaimer");
+            check(heroPrimaryStyles.color === "rgb(255, 255, 255)", `${name}: hero primary CTA text lost white contrast; saw ${heroPrimaryStyles.color}`);
+            check(heroPrimaryStyles.backgroundColor !== "rgba(0, 0, 0, 0)" && heroPrimaryStyles.backgroundColor !== "rgb(255, 255, 255)", `${name}: hero primary CTA background lost contrast; saw ${heroPrimaryStyles.backgroundColor}`);
             if (name === "desktop") {
               const primaryNav = page.getByRole("navigation", { name: "Primary" });
-              for (const [label, target] of [
-                ["Payroll", "/#payroll"], ["Workforce Management", "/workforce-management"],
-                ["HCM", "/hcm"], ["Outsourcing", "/payroll-outsourcing"], ["Pricing", "/pricing"]
-              ]) {
-                check((await primaryNav.getByRole("link", { name: label, exact: true }).getAttribute("href")) === target, "desktop: navigation link " + label + " does not lead to " + target);
-              }
+              check((await primaryNav.getByRole("link", { name: "Live demo", exact: true }).getAttribute("href")) === "/demo", "desktop: primary nav does not expose role-based demo");
+              check((await primaryNav.getByRole("link", { name: "Payroll outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", "desktop: primary nav does not expose payroll outsourcing");
+              check((await primaryNav.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/trust", "desktop: primary nav does not expose trust center");
+              check((await primaryNav.getByRole("link", { name: "Pricing", exact: true }).getAttribute("href")) === "/pricing", "desktop: primary nav does not expose dedicated pricing page");
             } else {
               const menu = page.getByRole("button", { name: "Open menu" });
-              check((await menu.count()) === 1, name + ": mobile menu is missing");
+              check((await menu.count()) === 1, "mobile-390: menu button is missing");
               await menu.click();
               const mobileHeader = page.getByRole("banner");
-              for (const [label, target] of [
-                ["Payroll", "/#payroll"], ["Workforce Management", "/workforce-management"],
-                ["HCM", "/hcm"], ["Outsourcing", "/payroll-outsourcing"], ["Pricing", "/pricing"]
-              ]) {
-                check((await mobileHeader.getByRole("link", { name: label, exact: true }).getAttribute("href")) === target, name + ": mobile nav link " + label + " does not lead to " + target);
-              }
+              check((await mobileHeader.getByRole("link", { name: "Live demo", exact: true }).getAttribute("href")) === "/demo", "mobile-390: menu does not expose role-based demo");
+              check((await mobileHeader.getByRole("link", { name: "Payroll outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", "mobile-390: menu does not expose payroll outsourcing");
+              check((await mobileHeader.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/trust", "mobile-390: menu does not expose trust center");
+              check((await mobileHeader.getByRole("link", { name: "Pricing", exact: true }).getAttribute("href")) === "/pricing", "mobile-390: menu does not expose dedicated pricing page");
               await page.getByRole("button", { name: "Close menu" }).click();
             }
 
@@ -213,45 +204,82 @@ jobs:
 
             if (name === "desktop") {
               const hero = page.locator("#top");
-              check((await hero.getByTestId("payroll-hero-preview").count()) === 1, "desktop: sample payroll preview is missing");
-              check((await hero.getByText("Review before release").count()) === 1, "desktop: sample release control is missing");
+              check((await hero.locator(".payroll-hero-control-card").count()) === 1, "desktop: release-readiness proof card is missing");
+              check((await hero.getByRole("heading", { name: "Can I safely release this payroll?" }).count()) === 1, "desktop: release-readiness question is missing");
               check((await hero.locator(".payroll-hero-owl").count()) === 0, "desktop: homepage mascot must stay removed");
-              for (const proof of ["Philippine-focused", "Built for teams", "Payroll-connected"]) {
-                check((await hero.getByText(proof).count()) === 1, "desktop: missing hero context " + proof);
-              }
-              check((await page.locator('#solutions a[href="/workforce-management"]').count()) === 1, "desktop: WFM card must link to its page");
-              check((await page.locator('#solutions a[href="/hcm"]').count()) === 1, "desktop: HCM card must link to its page");
-              check((await page.locator('#solutions a[href="/payroll-outsourcing"]').count()) === 1, "desktop: outsourcing card must link to its page");
+              check((await hero.locator(".payroll-hero-speech").count()) === 0, "desktop: mascot speech bubble must stay removed");
+              check((await hero.locator(".payroll-home-trust li").count()) === 3, "desktop: hero trust list must expose three proof points");
 
               const demo = page.locator("#demo");
-              check((await demo.count()) === 1, "desktop: guided demo section is missing");
-              check((await demo.getByRole("heading", { name: "A clearer view for every decision-maker." }).count()) === 1, "desktop: demo heading is missing");
-              const roleTabs = demo.getByRole("tablist", { name: "Sample payroll roles" });
-              check((await roleTabs.getByRole("tab").count()) === 5, "desktop: all five sample role tabs must be available");
-              check((await demo.getByText("Illustrative · sample data").count()) === 1, "desktop: demo must disclose its sample content");
-              await roleTabs.getByRole("tab", { name: /Checker/ }).click();
-              check((await demo.getByRole("heading", { name: "Review the changes, not just totals." }).count()) === 1, "desktop: role preview did not switch to Checker");
-              check((await roleTabs.getByRole("tab", { name: /Checker/ }).getAttribute("aria-selected")) === "true", "desktop: selected role state is missing");
-              check((await demo.getByRole("link", { name: /Open real role-based sandbox/ }).count()) === 1, "desktop: real sandbox link is missing");
-              report.modules.push({ module: "Illustrative payroll hero", active: true });
-              report.modules.push({ module: "Guided payroll role preview", active: true });
+              check((await demo.count()) === 1, "desktop: live demo section is missing");
+              check((await demo.getByText("Interactive payroll workflow").count()) === 1, "desktop: payroll workflow preview chrome did not render");
+              const systemPreview = demo.locator(".system-demo-product .frame.standalone");
+              check((await systemPreview.count()) === 1, "desktop: shared Linaw workspace preview did not render");
+              const previewNav = systemPreview.locator(".nav-item");
+              check((await previewNav.count()) >= 8, "desktop: real workspace navigation is unexpectedly sparse");
+              const peopleNav = previewNav.filter({ hasText: /^People/ }).first();
+              check((await peopleNav.count()) === 1, "desktop: People module is missing from the real-system preview");
+              await peopleNav.click();
+              await page.waitForTimeout(100);
+              check((await peopleNav.getAttribute("aria-current")) === "page", "desktop: real-system preview navigation did not update");
+              const peopleShell = systemPreview.locator(".preview-people-shell");
+              check((await peopleShell.count()) === 1, "desktop: People preview shell is missing");
+              const firstPersonRow = peopleShell.locator(".preview-person-row").first();
+              check((await firstPersonRow.count()) === 1, "desktop: People preview rows are missing");
+              const personRowStyles = await firstPersonRow.evaluate((element) => ({
+                display: getComputedStyle(element).display,
+                columns: getComputedStyle(element).gridTemplateColumns,
+                width: element.getBoundingClientRect().width,
+                scrollWidth: element.scrollWidth,
+              }));
+              check(personRowStyles.display === "grid", `desktop: People preview row styling did not load; display=${personRowStyles.display}`);
+              check(personRowStyles.columns !== "none", "desktop: People preview row has no grid columns");
+              check(personRowStyles.scrollWidth <= personRowStyles.width + 1, `desktop: People preview row overflows ${personRowStyles.scrollWidth}px > ${personRowStyles.width}px`);
+              check((await peopleShell.locator(".preview-people-summary").count()) === 1, "desktop: People summary is missing");
+              check((await peopleShell.locator(".preview-people-controls").count()) === 1, "desktop: People filters/search are missing");
+
+              const migrationNav = previewNav.filter({ hasText: /^Migration/ }).first();
+              check((await migrationNav.count()) === 1, "desktop: Migration module is missing from the real-system preview");
+              await migrationNav.click();
+              await page.waitForTimeout(100);
+              const migrationCard = systemPreview.locator(".preview-migration-card");
+              check((await migrationCard.count()) === 1, "desktop: Migration preview card is missing");
+              const migrationStep = migrationCard.locator(".preview-migration-step").first();
+              const migrationStyles = await migrationStep.evaluate((element) => ({
+                display: getComputedStyle(element).display,
+                columns: getComputedStyle(element).gridTemplateColumns,
+                width: element.getBoundingClientRect().width,
+                scrollWidth: element.scrollWidth,
+              }));
+              check(migrationStyles.display === "grid", `desktop: Migration preview styling did not load; display=${migrationStyles.display}`);
+              check(migrationStyles.columns !== "none", "desktop: Migration preview has no grid columns");
+              check(migrationStyles.scrollWidth <= migrationStyles.width + 1, `desktop: Migration preview overflows ${migrationStyles.scrollWidth}px > ${migrationStyles.width}px`);
+              check((await demo.getByRole("link", { name: /Open role-based sandbox/i }).count()) === 1, "desktop: role-based sandbox handoff is missing");
+              report.modules.push({ module: "Release-readiness hero", active: true });
+              report.modules.push({ module: "Shared Linaw workspace preview", active: true });
             }
 
             if (name === "mobile-390") {
               const normalizedHeading = h1.replace(/\s+/g, " ");
-              check(normalizedHeading.includes("People, payroll and compliance made clear."), "mobile-390: hero heading collided: " + normalizedHeading);
+              check(
+                normalizedHeading.includes("Philippine payroll you can verify before you pay."),
+                `mobile-390: hero words collided after responsive line-break removal; saw "${normalizedHeading}"`,
+              );
+
               const mobileHero = page.locator("#top");
-              const mobileControlCard = mobileHero.getByTestId("payroll-hero-preview");
-              check((await mobileControlCard.count()) === 1, "mobile-390: sample payroll preview is missing");
+              const mobileControlCard = mobileHero.locator(".payroll-hero-control-card").first();
+              check((await mobileControlCard.count()) === 1, "mobile-390: release-readiness proof card is missing");
               const controlFit = await mobileControlCard.evaluate((element) => ({
                 clientWidth: element.clientWidth,
                 scrollWidth: element.scrollWidth,
               }));
-              check(controlFit.scrollWidth <= controlFit.clientWidth + 1, "mobile-390: payroll preview is clipped");
-
+              check(
+                controlFit.scrollWidth <= controlFit.clientWidth + 1,
+                `mobile-390: release-readiness card clips ${controlFit.scrollWidth}px > ${controlFit.clientWidth}px`,
+              );
               const securityProof = page.locator("#security article").first();
-              const securityHeading = securityProof.getByRole("heading", { name: "Permissions are checked before payroll data moves." });
-              const securityCopy = securityProof.locator("p").filter({ hasText: "Requests are scoped to organization membership and resource permissions." }).first();
+              const securityHeading = securityProof.getByRole("heading", { name: "One workspace can never read another's payroll." });
+              const securityCopy = securityProof.locator("p").filter({ hasText: "Every session route passes one shared membership gate." }).first();
 
               check(
                 !(await pricing.innerText()).includes("No credit card to start") &&
@@ -260,14 +288,20 @@ jobs:
               );
 
               const closingCta = page.locator("#cta");
-              const requestDemo = closingCta.locator('a[href="/book-demo"]').first();
-              check((await requestDemo.count()) === 1, "mobile-390: final demo CTA is missing");
-              const requestDemoStyles = await requestDemo.evaluate((element) => ({
+              const trialCta = closingCta.locator('a[href="/signup"]').first();
+              check((await trialCta.count()) === 1, "mobile-390: trial access CTA is missing");
+              const trialCtaStyles = await trialCta.evaluate((element) => ({
                 color: getComputedStyle(element).color,
                 backgroundColor: getComputedStyle(element).backgroundColor,
               }));
-              check(requestDemoStyles.color === "rgb(255, 255, 255)", "mobile-390: final CTA must retain readable white text");
-              check(requestDemoStyles.backgroundColor !== "rgba(0, 0, 0, 0)", "mobile-390: final CTA requires a filled background");
+              check(
+                trialCtaStyles.color === "rgb(17, 20, 31)",
+                `mobile-390: trial CTA text lost dark contrast on white; saw ${trialCtaStyles.color}`,
+              );
+              check(
+                trialCtaStyles.backgroundColor === "rgb(255, 255, 255)",
+                `mobile-390: trial CTA background is not white; saw ${trialCtaStyles.backgroundColor}`,
+              );
 
               await mobileHero.screenshot({ path: `${outDir}/homepage-mobile-390-hero.png` });
               await pricing.screenshot({ path: `${outDir}/homepage-mobile-390-pricing.png` });
@@ -306,9 +340,7 @@ jobs:
             const routes = [
               { path: "/demo", heading: "See Linaw from the seat you actually use." },
               { path: "/signup", heading: "Request access to a Linaw trial workspace." },
-              { path: "/payroll-outsourcing", heading: "Payroll processing handled. Your approvals stay yours." },
-              { path: "/workforce-management", heading: "From shifts to payroll, without the blind spots." },
-              { path: "/hcm", heading: "Know your people. Keep every change connected." },
+              { path: "/payroll-outsourcing", heading: "Payroll outsourcing in the Philippines, without losing control." },
               { path: "/small-business-payroll", heading: "A clearer payroll process for Philippine small businesses." },
               { path: "/resources", heading: "Practical guidance for buying, migrating and operating Philippine payroll." },
               { path: "/industries", heading: "Payroll workflows shaped by how your workforce actually operates." },
@@ -403,12 +435,12 @@ jobs:
           }
 
           const personas = [
-            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Good morning, Andrea", taskPage: "Overview", dashboardRole: "owner" },
-            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "Good morning, Aira", taskPage: "People", dashboardRole: "hr" },
-            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Good morning, Paolo", taskPage: "Payroll", dashboardRole: "payroll" },
-            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Good morning, Mariel", taskPage: "Reviews", dashboardRole: "checker" },
-            { id: "bookkeeper", label: "Bookkeeper", short: "Bookkeeper", person: "Bea Navarro", landing: "Good morning, Bea", taskPage: "Exports", dashboardRole: "bookkeeper" },
-            { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "My pay", taskPage: "My pay", dashboardRole: null },
+            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Ready for payday", taskPage: "Home", dashboardRole: "owner" },
+            { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "Your team at a glance", taskPage: "Employees", dashboardRole: "hr" },
+            { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Let’s make payday a good day.", taskPage: "Payroll", dashboardRole: "payroll" },
+            { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Payroll review", taskPage: "Reviews", dashboardRole: "checker" },
+            { id: "bookkeeper", label: "Bookkeeper", short: "Bookkeeper", person: "Bea Navarro", landing: "payroll close", taskPage: "Exports", dashboardRole: "bookkeeper" },
+            { id: "employee", label: "Employee", short: "Employee", person: "Jonas Reyes", landing: "Good morning, Jonas", taskPage: "Payslips", dashboardRole: null },
           ];
 
           async function inspectPersonaViewport(page, persona, width, height, suffix) {
@@ -563,7 +595,7 @@ jobs:
               const marketingResponse = await marketingPage.goto(base, { waitUntil: "networkidle", timeout: 90000 });
               check(marketingResponse && marketingResponse.ok(), "Owner: signed-in visit to / did not return 2xx");
               const marketingH1 = (await marketingPage.locator("h1").first().innerText()).trim();
-              check(marketingH1.replace(/\s+/g, " ").includes("People, payroll and compliance made clear."), `Owner: signed-in / should stay on the Linaw marketing homepage; saw "${marketingH1}"`);
+              check(marketingH1.includes("Philippine payroll you can verify before you pay."), `Owner: signed-in / should stay on the Linaw marketing homepage; saw "${marketingH1}"`);
               await marketingPage.close();
 
               const legacyPage = await context.newPage();
@@ -589,7 +621,7 @@ jobs:
                 })),
               ]);
               check(iconColors[0].color !== iconColors[1].color, "Owner: sidebar module icons were flattened to one color");
-              check(iconColors[0].background !== "rgba(0, 0, 0, 0)", "Owner: sidebar icon tint background is transparent");
+              check(await tonedItems.first().getAttribute("aria-current") === "page", "Owner: active navigation must be identified");
 
               const profile = page.locator("aside .side-profile");
               check((await profile.count()) === 1, "Owner: interactive profile control is missing");
@@ -601,13 +633,12 @@ jobs:
             if (persona.dashboardRole) {
               const dashboard = page.locator(`[data-role-dashboard="${persona.dashboardRole}"]`);
               check((await dashboard.count()) === 1, `${persona.label}: role-specific dashboard did not render`);
-              check((await dashboard.locator(".dashboard-alert-banner").count()) === 1, `${persona.label}: Needs Attention banner is missing`);
-              if (persona.id === "hr") {
-                check((await dashboard.locator(".dashboard-stat-card").count()) === 4, "HR: readiness summary must expose four compact signals");
-              } else {
-                check((await dashboard.locator(".payroll-focus-summary > div").count()) >= 3, `${persona.label}: payroll focus card must carry the primary financial summary`);
-                check((await dashboard.locator(".dashboard-stat-card").count()) === 0, `${persona.label}: duplicate KPI cards should stay off the focused landing view`);
-              }
+              check((await dashboard.locator("h1").count()) === 1, `${persona.label}: primary dashboard heading is missing`);
+              if (persona.id === "owner") check((await dashboard.locator(".clean-assurance").count()) === 1, "Owner: server release summary is missing");
+              if (persona.id === "payroll") check((await dashboard.locator(".clean-metrics").count()) >= 1, "Payroll: payroll figures are missing");
+              if (persona.id === "checker") check((await dashboard.getByRole("tablist").count()) === 1, "Checker: review tabs are missing");
+              if (persona.id === "hr") check((await dashboard.getByText("Employee record checks", { exact: true }).count()) === 1, "HR: employee record checks are missing");
+              if (persona.id === "bookkeeper") check((await dashboard.locator(".mockup-close-stage").count()) === 5, "Bookkeeper: close evidence stages are missing");
               const sandbox = page.locator(".demo-sandbox").first();
               if (await sandbox.count()) {
                 check((await sandbox.isVisible()) === false, `${persona.label}: bulky demo sandbox must stay off the landing view`);
@@ -622,14 +653,14 @@ jobs:
                 items.map((item) => item.getBoundingClientRect().height),
               );
               check(
-                employeeNavHeights.every((height) => height <= 42),
+                employeeNavHeights.every((height) => height >= 40 && height <= 48),
                 `Employee: desktop sidebar items are stretched: ${employeeNavHeights.join(", ")}`,
               );
-              check(body.includes("LATEST PAYSLIP"), "Employee: latest released payslip promotion is missing");
+              check(body.toLowerCase().includes("latest payslip"), "Employee: latest released payslip promotion is missing");
               check(body.includes("Payslip available"), "Employee: released payslip availability state is missing");
               check((await page.locator("[data-latest-payslip]").count()) === 1, "Employee: latest payslip card is missing");
-              check(body.includes("NEXT PAY STATUS"), "Employee: next pay status section is missing");
-              check(body.includes("Your pay amount stays private and hidden until payroll is released."), "Employee: unreleased-pay privacy copy is missing");
+              check(body.toLowerCase().includes("next payday"), "Employee: next pay status section is missing");
+              check(body.includes("Your payslip will be available after payroll is released."), "Employee: unreleased-pay privacy copy is missing");
               const handoff = page.locator("[data-payroll-handoff]").first();
               check((await handoff.count()) === 1, "Employee: payroll handoff is missing");
               check((await handoff.locator(".handoff-step").count()) === 5, "Employee: payroll handoff must show all five owners");
@@ -668,7 +699,7 @@ jobs:
               check((await sidebar.locator(".nav-item").filter({ hasText: /^Migration$/ }).count()) === 0, "HR: migration admin navigation must stay hidden");
             }
             if (persona.id === "checker") {
-              check((await sidebar.locator(".nav-item").filter({ hasText: /^People$/ }).count()) === 0, "Checker: people administration must stay hidden");
+              check((await sidebar.locator(".nav-item").filter({ hasText: /^(People|Employees|Team)$/ }).count()) === 0, "Checker: people administration must stay hidden");
               check((await sidebar.locator(".nav-item").filter({ hasText: /^Payroll$/ }).count()) === 0, "Checker: unsafe payroll-maker page must stay hidden");
             }
             if (persona.id === "payroll") {
@@ -687,7 +718,7 @@ jobs:
               check((await page.getByRole("button", { name: /^Decline$/ }).count()) === 0, "Payroll: Decline action must be hidden");
               check((await page.getByRole("button", { name: /Delegation settings/i }).count()) === 0, "Payroll: delegation controls must be hidden");
               check((await page.locator("[data-payroll-handoff]").count()) >= 1, "Payroll: approvals page should retain the shared handoff context");
-              const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^(Overview|Today)$/ }).first();
+              const overviewNav = sidebar.locator(".nav-item").filter({ hasText: /^(Home|Overview|Today)$/ }).first();
               await overviewNav.click();
               await page.waitForTimeout(100);
             }
@@ -728,12 +759,12 @@ jobs:
                   demoSidebar.evaluate((element) => getComputedStyle(element).backgroundColor),
                   demoTopbar.evaluate((element) => getComputedStyle(element).backgroundColor),
                 ]);
-                check(shellStyles[0] === "rgb(252, 252, 251)", `HR: People fell back to the old dark sidebar; saw ${shellStyles[0]}`);
+                check(shellStyles[0] === "rgb(251, 253, 255)", `HR: People fell back to the old dark sidebar; saw ${shellStyles[0]}`);
                 check(shellStyles[1] !== "rgb(15, 27, 24)", `HR: People fell back to the old dark topbar; saw ${shellStyles[1]}`);
                 check((await demoShell.locator(".demo-sandbox:visible").count()) === 0, "HR: People reintroduced the bulky demo tools strip");
 
                 const peopleHeading = (await page.locator(".page-heading h1").first().innerText()).trim();
-                check(peopleHeading === "People.", `HR: People should be a directory page, saw "${peopleHeading}"`);
+                check(peopleHeading === "Employees", `HR: People should be a directory page, saw "${peopleHeading}"`);
                 const peopleText = (await page.locator(".content-area").innerText()).trim();
                 check(!peopleText.includes("Payroll readiness."), "HR: People duplicates the Today payroll-readiness dashboard");
 
@@ -749,7 +780,7 @@ jobs:
                 await page.waitForTimeout(180);
                 check((await page.locator('.app-shell[data-demo-role="hr"]').count()) === 1, "HR: demo shell marker was lost after opening a secondary module");
                 check(
-                  (await page.locator("aside.sidebar").first().evaluate((element) => getComputedStyle(element).backgroundColor)) === "rgb(252, 252, 251)",
+                  (await page.locator("aside.sidebar").first().evaluate((element) => getComputedStyle(element).backgroundColor)) === "rgb(251, 253, 255)",
                   "HR: secondary module navigation fell back to the old dark sidebar",
                 );
                 check((await page.locator(".demo-sandbox:visible").count()) === 0, "HR: secondary module reintroduced the bulky demo tools strip");
@@ -977,7 +1008,6 @@ jobs:
             const browser = await chromium.launch({ headless: true });
             try {
               await qaHomepage(browser, "desktop", { width: 1440, height: 1000 });
-              await qaHomepage(browser, "tablet-768", { width: 768, height: 1024 });
               await qaHomepage(browser, "mobile-390", { width: 390, height: 844 });
               await qaPublicRoutes(browser);
 

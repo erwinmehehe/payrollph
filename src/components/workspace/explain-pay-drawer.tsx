@@ -69,7 +69,7 @@ export function ExplainPayDrawer({
   const changePositive = Number(explanation?.netDelta ?? 0) >= 0;
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Explain this pay">
+    <div className="modal-backdrop linaw-dialog" role="dialog" aria-modal="true" aria-label="Explain this pay">
       <div className="modal" style={{ width: "min(920px, calc(100vw - 28px))", maxHeight: "88vh", overflow: "auto" }}>
         <button className="modal-close" onClick={onClose} aria-label="Close explanation"><X size={16} /></button>
         <div className="modal-icon"><FileSearch size={18} className="i-purple" /></div>

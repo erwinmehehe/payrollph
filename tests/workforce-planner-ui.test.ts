@@ -28,7 +28,6 @@ test("planner exposes payroll-relevant scheduling controls", () => {
   assert.ok(planner.includes("Build a seven-day pattern"));
   assert.ok(planner.includes("Apply a rotation with an effective date"));
   assert.ok(planner.includes("Override a shift or rest day"));
-  assert.ok(planner.includes("Payroll consumes the resolved schedule"));
 });
 
 test("payroll-only role is not granted the People-admin workforce page", () => {

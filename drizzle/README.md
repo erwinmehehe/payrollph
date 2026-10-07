@@ -13,13 +13,13 @@ DATABASE_URL="postgresql://..." npm run db:push
 `db:push` reads `src/db/schema.ts` and creates everything it finds there, which
 is the whole current schema. **Check that it actually created tables**: push has
 been seen to report success and create nothing against a non-standard Postgres.
-Expect 148 tables. If it creates nothing, apply `baseline.sql` instead, which is
+Expect 167 tables. If it creates nothing, apply `baseline.sql` instead, which is
 the same schema as plain SQL and can be pasted into the Neon or Supabase SQL
 editor without any tooling.
 
 ## The files
 
-- `baseline.sql` is the complete current schema, 90 tables, generated from
+- `baseline.sql` is the complete current schema, 167 tables, generated from
   `src/db/schema.ts`. It is deliberately unnumbered: it is a starting point for
   an empty database, not the next step in the numbered sequence below.
 - `0001_payroll_periods_rbac.sql` and `0002_final_pay_reconciliation.sql` are
@@ -86,3 +86,15 @@ the first one, so it closes itself.
 - `0063_hcm_lifecycle_policy.sql` adds organization-specific lifecycle action windows, reminder/escalation cadence, optional decision-evidence requirements, optimistic versioning, and immutable policy-change snapshots.
 
 - `0065_hcm_manager_attestation.sql` adds append-only manager attestations bound to the worker’s active reporting line and versions sealed employment-decision evidence so historical v1 hashes remain verifiable while new approvals seal v2 packets.
+
+- `0066_hcm_probation_review_acknowledgment.sql` adds structured probation reviews, immutable submitted-review evidence, employee receipt-only acknowledgments, and review lifecycle events without granting automatic employment-status authority.
+
+- `0067_attendance_exception_events.sql` persists idempotent attendance-exception lifecycle evidence so newly detected exceptions can emit the live Automation Studio `attendance.exception_created` trigger without duplicate workflow runs.
+
+- `0068_automation_rule_version_governance.sql` adds Automation Studio draft/publish/rollback governance with immutable version history while preserving the current published rule row as the runtime snapshot.
+
+- `0069_automation_generated_document_provenance.sql` distinguishes generated employee documents from uploads, records stable generation provenance, and enforces organization-scoped idempotency for Automation Studio document creation.
+
+- `0070_configurable_approval_chains.sql` adds versioned, ordered approval-chain definitions and immutable per-request chain snapshots around the existing approval task queue.
+
+- `0071_amount_based_approval_limits.sql` adds immutable amount/routing evidence so configurable approval chains can require higher approval levels only after governed monetary thresholds are crossed.

@@ -2541,3 +2541,261 @@ CREATE INDEX IF NOT EXISTS "hcm_decision_manager_attestations_decision_idx"
 
 CREATE INDEX IF NOT EXISTS "hcm_decision_manager_attestations_manager_idx"
   ON "hcm_employment_decision_manager_attestations" ("organization_id","manager_employee_id","created_at");
+
+-- HCM Core 3.9: structured probation review and receipt evidence.
+-- HCM Core 3.9: structured probation reviews and employee receipt acknowledgments.
+-- Reviews are evidence/recommendations only. They never approve or change employment status by themselves.
+
+CREATE TABLE IF NOT EXISTS "hcm_probation_reviews" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
+  "employment_term_id" integer NOT NULL REFERENCES "hcm_employment_terms"("id") ON DELETE restrict,
+  "status" varchar(24) NOT NULL DEFAULT 'draft'
+    CHECK ("status" IN ('draft','submitted')),
+  "recommendation" varchar(32)
+    CHECK ("recommendation" IS NULL OR "recommendation" IN ('confirm_regular','non_renew','needs_hr_review')),
+  "overall_rating" integer CHECK ("overall_rating" IS NULL OR "overall_rating" BETWEEN 1 AND 5),
+  "role_expectations_rating" integer CHECK ("role_expectations_rating" IS NULL OR "role_expectations_rating" BETWEEN 1 AND 5),
+  "work_quality_rating" integer CHECK ("work_quality_rating" IS NULL OR "work_quality_rating" BETWEEN 1 AND 5),
+  "reliability_rating" integer CHECK ("reliability_rating" IS NULL OR "reliability_rating" BETWEEN 1 AND 5),
+  "conduct_collaboration_rating" integer CHECK ("conduct_collaboration_rating" IS NULL OR "conduct_collaboration_rating" BETWEEN 1 AND 5),
+  "summary" text,
+  "strengths" text,
+  "development_areas" text,
+  "reviewer_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "reviewer_employee_id" integer REFERENCES "employees"("id") ON DELETE set null,
+  "reviewer_name" varchar(120) NOT NULL,
+  "submitted_at" timestamptz,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "hcm_probation_reviews_term_unique"
+  ON "hcm_probation_reviews" ("organization_id","employment_term_id");
+
+CREATE INDEX IF NOT EXISTS "hcm_probation_reviews_employee_idx"
+  ON "hcm_probation_reviews" ("organization_id","employee_id","status");
+
+CREATE TABLE IF NOT EXISTS "hcm_probation_review_acknowledgments" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "review_id" integer NOT NULL REFERENCES "hcm_probation_reviews"("id") ON DELETE restrict,
+  "employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
+  "response" varchar(32) NOT NULL DEFAULT 'acknowledged_receipt'
+    CHECK ("response" = 'acknowledged_receipt'),
+  "employee_comment" text,
+  "statement_version" varchar(40) NOT NULL DEFAULT 'receipt-only-v1',
+  "acknowledged_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "acknowledged_by_name" varchar(120) NOT NULL,
+  "created_at" timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "hcm_probation_review_ack_unique"
+  ON "hcm_probation_review_acknowledgments" ("review_id","employee_id");
+
+CREATE INDEX IF NOT EXISTS "hcm_probation_review_ack_employee_idx"
+  ON "hcm_probation_review_acknowledgments" ("organization_id","employee_id","created_at");
+
+CREATE TABLE IF NOT EXISTS "hcm_probation_review_events" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "review_id" integer NOT NULL REFERENCES "hcm_probation_reviews"("id") ON DELETE restrict,
+  "employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
+  "event_type" varchar(32) NOT NULL,
+  "actor_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "actor_name" varchar(120) NOT NULL,
+  "metadata" jsonb NOT NULL DEFAULT '{}'::jsonb,
+  "created_at" timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS "hcm_probation_review_events_review_idx"
+  ON "hcm_probation_review_events" ("organization_id","review_id","created_at");
+
+
+-- Persist authoritative attendance exceptions and make lifecycle automation event emission idempotent.
+
+CREATE TABLE IF NOT EXISTS "attendance_exception_events" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "employee_id" integer NOT NULL REFERENCES "employees"("id") ON DELETE cascade,
+  "work_date" date NOT NULL,
+  "exception_kind" varchar(40) NOT NULL,
+  "severity" varchar(16) NOT NULL
+    CHECK ("severity" IN ('info','warning','blocker')),
+  "punch_id" integer REFERENCES "time_punches"("id") ON DELETE set null,
+  "minutes" integer,
+  "message" text NOT NULL,
+  "fingerprint_sha256" varchar(64) NOT NULL,
+  "status" varchar(16) NOT NULL DEFAULT 'open'
+    CHECK ("status" IN ('open','resolved')),
+  "first_detected_at" timestamptz NOT NULL DEFAULT now(),
+  "last_detected_at" timestamptz NOT NULL DEFAULT now(),
+  "resolved_at" timestamptz,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "attendance_exception_events_fingerprint_unique"
+  ON "attendance_exception_events" ("organization_id","employee_id","work_date","fingerprint_sha256");
+
+CREATE INDEX IF NOT EXISTS "attendance_exception_events_open_idx"
+  ON "attendance_exception_events" ("organization_id","status","work_date","employee_id");
+
+CREATE INDEX IF NOT EXISTS "attendance_exception_events_employee_idx"
+  ON "attendance_exception_events" ("organization_id","employee_id","work_date");
+
+
+-- Automation Studio version governance: draft, publish, rollback and immutable history.
+
+ALTER TABLE "automation_rules"
+  ADD COLUMN IF NOT EXISTS "published_version" integer NOT NULL DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS "draft_version" integer;
+
+CREATE TABLE IF NOT EXISTS "automation_rule_versions" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "rule_id" integer NOT NULL REFERENCES "automation_rules"("id") ON DELETE cascade,
+  "version" integer NOT NULL,
+  "status" varchar(16) NOT NULL DEFAULT 'draft'
+    CHECK ("status" IN ('draft','published','superseded')),
+  "name" varchar(160) NOT NULL,
+  "trigger" varchar(64) NOT NULL,
+  "conditions" jsonb NOT NULL DEFAULT '{}'::jsonb,
+  "actions" jsonb NOT NULL DEFAULT '[]'::jsonb,
+  "active" boolean NOT NULL DEFAULT true,
+  "source_version" integer,
+  "created_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "published_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "published_at" timestamptz
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "automation_rule_versions_rule_version_unique"
+  ON "automation_rule_versions" ("rule_id","version");
+
+CREATE UNIQUE INDEX IF NOT EXISTS "automation_rule_versions_one_draft_unique"
+  ON "automation_rule_versions" ("rule_id")
+  WHERE "status" = 'draft';
+
+CREATE INDEX IF NOT EXISTS "automation_rule_versions_org_rule_idx"
+  ON "automation_rule_versions" ("organization_id","rule_id","version");
+
+INSERT INTO "automation_rule_versions" (
+  "organization_id","rule_id","version","status","name","trigger",
+  "conditions","actions","active","created_by_user_id","created_at",
+  "published_by_user_id","published_at"
+)
+SELECT
+  r."organization_id", r."id", 1, 'published', r."name", r."trigger",
+  r."conditions", r."actions", r."active", r."created_by_user_id", r."created_at",
+  r."created_by_user_id", r."updated_at"
+FROM "automation_rules" r
+WHERE NOT EXISTS (
+  SELECT 1 FROM "automation_rule_versions" v WHERE v."rule_id" = r."id"
+);
+
+UPDATE "automation_rules"
+SET "published_version" = 1
+WHERE "published_version" IS NULL OR "published_version" < 1;
+
+
+-- Governed Automation Studio generated-document provenance and idempotency.
+
+ALTER TABLE "documents"
+  ADD COLUMN IF NOT EXISTS "source_type" varchar(24) NOT NULL DEFAULT 'upload',
+  ADD COLUMN IF NOT EXISTS "source_key" varchar(160),
+  ADD COLUMN IF NOT EXISTS "generation_metadata" jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+ALTER TABLE "documents"
+  DROP CONSTRAINT IF EXISTS "documents_source_type_check";
+
+ALTER TABLE "documents"
+  ADD CONSTRAINT "documents_source_type_check"
+  CHECK ("source_type" IN ('upload','generated'));
+
+CREATE UNIQUE INDEX IF NOT EXISTS "documents_org_source_key_unique"
+  ON "documents" ("organization_id","source_key")
+  WHERE "source_key" IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS "documents_org_employee_source_idx"
+  ON "documents" ("organization_id","employee_id","source_type","created_at");
+
+
+-- Configurable approval chains with immutable per-request snapshots.
+
+ALTER TABLE "approval_tasks"
+  ADD COLUMN IF NOT EXISTS "approval_chain_instance_id" integer,
+  ADD COLUMN IF NOT EXISTS "approval_chain_step_index" integer;
+
+CREATE TABLE IF NOT EXISTS "approval_chain_policies" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "code" varchar(64) NOT NULL,
+  "name" varchar(160) NOT NULL,
+  "purpose" varchar(40) NOT NULL DEFAULT 'automation',
+  "version" integer NOT NULL DEFAULT 1,
+  "steps" jsonb NOT NULL DEFAULT '[]'::jsonb,
+  "active" boolean NOT NULL DEFAULT true,
+  "created_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "updated_at" timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "approval_chain_policies_org_code_unique"
+  ON "approval_chain_policies" ("organization_id","code");
+CREATE INDEX IF NOT EXISTS "approval_chain_policies_org_active_idx"
+  ON "approval_chain_policies" ("organization_id","active","purpose");
+
+CREATE TABLE IF NOT EXISTS "approval_chain_instances" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "policy_id" integer NOT NULL REFERENCES "approval_chain_policies"("id") ON DELETE restrict,
+  "policy_code" varchar(64) NOT NULL,
+  "policy_version" integer NOT NULL,
+  "source_type" varchar(48) NOT NULL,
+  "source_key" varchar(160) NOT NULL,
+  "status" varchar(24) NOT NULL DEFAULT 'pending'
+    CHECK ("status" IN ('pending','approved','declined','cancelled')),
+  "current_step_index" integer NOT NULL DEFAULT 0,
+  "steps_snapshot" jsonb NOT NULL,
+  "amount" numeric(14,2),
+  "amount_currency" varchar(3),
+  "amount_basis" varchar(64),
+  "routing_snapshot" jsonb NOT NULL DEFAULT '{}'::jsonb,
+  "created_at" timestamptz NOT NULL DEFAULT now(),
+  "completed_at" timestamptz,
+  CONSTRAINT "approval_chain_instances_amount_nonnegative_check"
+    CHECK ("amount" IS NULL OR "amount" >= 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "approval_chain_instances_source_unique"
+  ON "approval_chain_instances" ("organization_id","source_type","source_key");
+CREATE INDEX IF NOT EXISTS "approval_chain_instances_status_idx"
+  ON "approval_chain_instances" ("organization_id","status","created_at");
+
+CREATE TABLE IF NOT EXISTS "approval_chain_instance_steps" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "instance_id" integer NOT NULL REFERENCES "approval_chain_instances"("id") ON DELETE cascade,
+  "step_index" integer NOT NULL,
+  "label" varchar(120) NOT NULL,
+  "approver" varchar(120) NOT NULL,
+  "status" varchar(24) NOT NULL DEFAULT 'pending'
+    CHECK ("status" IN ('pending','approved','declined','cancelled')),
+  "approval_task_id" integer REFERENCES "approval_tasks"("id") ON DELETE set null,
+  "decided_by" varchar(120),
+  "decided_at" timestamptz,
+  "created_at" timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "approval_chain_instance_steps_unique"
+  ON "approval_chain_instance_steps" ("instance_id","step_index");
+CREATE INDEX IF NOT EXISTS "approval_chain_instance_steps_task_idx"
+  ON "approval_chain_instance_steps" ("approval_task_id");
+
+ALTER TABLE "approval_tasks"
+  ADD CONSTRAINT "approval_tasks_chain_instance_fk"
+  FOREIGN KEY ("approval_chain_instance_id")
+  REFERENCES "approval_chain_instances"("id")
+  ON DELETE set null;

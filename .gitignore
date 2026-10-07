@@ -10,3 +10,7 @@ next-env.d.ts
 # Local-only demo scaffolding (PGlite stand-in database)
 pg-server.local.mjs
 pgdata/
+
+# Never publish private payroll, government acceptance or bank UAT proof
+/certification/external-private/
+/qa-artifacts/

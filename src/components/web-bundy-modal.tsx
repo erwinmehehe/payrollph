@@ -126,7 +126,7 @@ export function WebBundyModal({
   const canClockOut = Boolean(selectedEmployeeId && todayPunch?.timeIn && !todayPunch?.timeOut && !breakActive);
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop linaw-dialog" role="presentation">
       <section className="modal" role="dialog" aria-modal="true" aria-label="Web Bundy Time Clock">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Clock size={22} className="i-cyan" /></div>

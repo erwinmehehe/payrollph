@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { LinawMark } from "@/components/linaw-mark";
 import {
   Bell,
   Check,
@@ -32,16 +33,16 @@ export type Notification = {
 };
 
 const WORKSPACE_LABELS: Record<string, string> = {
-  Overview: "Overview",
-  People: "People",
+  Overview: "Home",
+  People: "Employees",
   Analytics: "Reports",
 };
 
 function workspaceLabel(page: string, role?: string | null) {
   if (role === "owner" && page === "Analytics") return "Reports";
   if (role === "owner" && page === "People") return "Team";
-  if (role === "payroll" && page === "Overview") return "Today";
-  if (role === "payroll" && page === "Time & attendance") return "Time";
+  if (role === "payroll" && page === "Overview") return "Home";
+  if (role === "payroll" && page === "Time & attendance") return "Attendance";
   if (role === "checker" && page === "Overview") return "Reviews";
   if (role === "checker" && page === "Audit trail") return "Payroll history";
   if (role === "hr" && page === "Overview") return "Today";
@@ -159,7 +160,7 @@ export function WorkspaceShell({
 
   return (
     <div
-      className={`app-shell ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`}
+      className={`app-shell clean-shell ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`}
       data-workspace-page={page}
       data-workspace-role={workspaceRole ?? undefined}
       data-demo-role={displayRole ?? undefined}
@@ -169,11 +170,11 @@ export function WorkspaceShell({
       <aside className="sidebar" aria-label="Workspace navigation">
         <div className="sidebar-brand">
           <span className="brand-mark" aria-hidden>
-            <ShieldCheck size={20} aria-hidden />
+            <LinawMark />
           </span>
           <div>
-            <strong>PayrollPH</strong>
-            <span className="brand-subtitle">Payroll &amp; HR</span>
+            <strong>Linaw</strong>
+            <span className="brand-subtitle">PayrollPH</span>
           </div>
           <button
             className="sidebar-collapse"

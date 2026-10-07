@@ -21,6 +21,13 @@ import {
 } from "@/db/schema";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
+import { assignEmployeeScheduleGoverned } from "@/lib/workforce-schedule-assignment";
+import { generateAutomationEmployeeDocument } from "@/lib/automation-document-generation";
+import { createApprovalFromConfiguredChain } from "@/lib/approval-chains";
+import {
+  getAutomationDocumentTemplate,
+  type AutomationDocumentTrigger,
+} from "@/lib/automation-document-templates";
 
 export const AUTOMATION_TRIGGERS = [
   "employee.hired",
@@ -64,6 +71,7 @@ export const AUTOMATION_LIVE_TRIGGERS = [
   "payroll.submitted",
   "payroll.approved",
   "payroll.released",
+  "attendance.exception_created",
   "overtime.requested",
   "overtime.approved",
   "leave.requested",
@@ -72,13 +80,11 @@ export const AUTOMATION_LIVE_TRIGGERS = [
   "candidate.hired",
   "position.opened",
   "document.expires",
-] as const satisfies readonly AutomationTrigger[];
-
-export const AUTOMATION_PLANNED_TRIGGERS = [
-  "attendance.exception_created",
   "government.remittance_due",
   "contribution.discrepancy_detected",
 ] as const satisfies readonly AutomationTrigger[];
+
+export const AUTOMATION_PLANNED_TRIGGERS = [] as const satisfies readonly AutomationTrigger[];
 
 export function automationTriggerIsLive(trigger: AutomationTrigger) {
   return (AUTOMATION_LIVE_TRIGGERS as readonly string[]).includes(trigger);
@@ -128,6 +134,9 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "tenureYears", label: "Tenure (years)", kind: "number" },
   { value: "payrollAmount", label: "Payroll amount", kind: "number" },
   { value: "overtimeMinutes", label: "Overtime minutes", kind: "number" },
+  { value: "attendanceExceptionKind", label: "Attendance exception type", kind: "string" },
+  { value: "attendanceExceptionSeverity", label: "Attendance exception severity", kind: "string" },
+  { value: "minutes", label: "Attendance exception minutes", kind: "number" },
   { value: "leaveType", label: "Leave type", kind: "string" },
   { value: "positionCode", label: "Position code", kind: "string" },
   { value: "employeeStatus", label: "Employee status", kind: "string" },
@@ -137,6 +146,15 @@ export const AUTOMATION_CONDITION_FIELDS = [
   { value: "documentRequirementCode", label: "Document requirement code", kind: "string" },
   { value: "documentStatus", label: "Document compliance status", kind: "string" },
   { value: "daysUntilExpiry", label: "Days until document expiry", kind: "number" },
+  { value: "statutoryAgency", label: "Statutory agency", kind: "string" },
+  { value: "applicableMonth", label: "Applicable month", kind: "string" },
+  { value: "daysUntilDue", label: "Days until remittance due", kind: "number" },
+  { value: "remittanceAlertTone", label: "Remittance alert severity", kind: "string" },
+  { value: "complianceActionTaskId", label: "Compliance action task ID", kind: "number" },
+  { value: "contributionIssueType", label: "Contribution issue type", kind: "string" },
+  { value: "contributionSource", label: "Contribution discrepancy source", kind: "string" },
+  { value: "contributionSeverity", label: "Contribution discrepancy severity", kind: "string" },
+  { value: "contributionCaseId", label: "Contribution case ID", kind: "number" },
 ] as const;
 
 export const AUTOMATION_OPERATORS = [
@@ -204,6 +222,7 @@ type RequestApprovalAction = {
   title: string;
   detail: string;
   approver?: string;
+  approvalChainCode?: string;
   dueLabel?: string;
   priority?: string;
 };
@@ -227,6 +246,19 @@ type AssignBenefitAction = {
   monthlyContribution?: number;
 };
 
+type AssignScheduleAction = {
+  type: "assign_schedule";
+  patternId: number;
+  effectiveDateSource: "event_effective_date" | "employee_start_date" | "today";
+  offsetDays?: number;
+  reason: string;
+};
+
+type GenerateDocumentAction = {
+  type: "generate_document";
+  templateId: string;
+};
+
 type RevokeSessionsAction = {
   type: "revoke_sessions";
 };
@@ -244,6 +276,7 @@ type PayrollAdjustmentApprovalAction = {
   amount: number;
   reason: string;
   approver?: string;
+  approvalChainCode?: string;
 };
 
 type WaitAction = {
@@ -257,6 +290,7 @@ type ApprovalGateAction = {
   title: string;
   detail: string;
   approver?: string;
+  approvalChainCode?: string;
   dueLabel?: string;
   priority?: string;
 };
@@ -275,6 +309,8 @@ export type AutomationAction =
   | SendEmailAction
   | AssignPermissionSetAction
   | AssignBenefitAction
+  | AssignScheduleAction
+  | GenerateDocumentAction
   | RevokeSessionsAction
   | DeactivateAccessAction
   | WebhookAction
@@ -297,6 +333,8 @@ export const AUTOMATION_ACTION_CATALOG = [
   { value: "send_email", label: "Send email / notification", category: "Communication" },
   { value: "assign_permission_set", label: "Assign access policy", category: "Access" },
   { value: "assign_benefit", label: "Assign benefit", category: "Benefits" },
+  { value: "assign_schedule", label: "Assign schedule pattern", category: "Workforce" },
+  { value: "generate_document", label: "Generate employee document", category: "People" },
   { value: "revoke_sessions", label: "Revoke active sessions", category: "Access" },
   { value: "deactivate_access", label: "Remove workspace access", category: "Access" },
   { value: "request_payroll_adjustment", label: "Request payroll adjustment approval", category: "Payroll" },
@@ -312,6 +350,12 @@ const EMPLOYEE_ACCESS_TRIGGERS = new Set<AutomationTrigger>([
   "employee.moved",
   "employee.promoted",
   "candidate.hired",
+]);
+
+const SCHEDULE_ASSIGNMENT_TRIGGERS = new Set<AutomationTrigger>([
+  "employee.hired",
+  "employee.moved",
+  "employee.promoted",
 ]);
 
 function todayPh() {
@@ -418,6 +462,7 @@ function normalizeAutomationSteps(
         title: title.slice(0, 180),
         detail: detail.slice(0, 240),
         approver: String(action.approver ?? "People Ops").trim().slice(0, 120) || "People Ops",
+        approvalChainCode: String(action.approvalChainCode ?? "").trim().toLowerCase().slice(0, 64) || undefined,
         dueLabel: String(action.dueLabel ?? "Workflow paused for approval").trim().slice(0, 80) || "Workflow paused for approval",
         priority: String(action.priority ?? "Normal").trim().slice(0, 32) || "Normal",
       });
@@ -469,6 +514,7 @@ function normalizeAutomationSteps(
         title: title.slice(0, 180),
         detail: detail.slice(0, 240),
         approver: String(action.approver ?? "People Ops").trim().slice(0, 120) || "People Ops",
+        approvalChainCode: String(action.approvalChainCode ?? "").trim().toLowerCase().slice(0, 64) || undefined,
         dueLabel: String(action.dueLabel ?? "Review required").trim().slice(0, 80) || "Review required",
         priority: String(action.priority ?? "Normal").trim().slice(0, 32) || "Normal",
       });
@@ -488,6 +534,37 @@ function normalizeAutomationSteps(
         email,
         subject: subject.slice(0, 200),
         body: body.slice(0, 8000),
+      });
+      continue;
+    }
+
+    if (type === "generate_document") {
+      const templateId = String(action.templateId ?? "").trim();
+      if (!templateId || !getAutomationDocumentTemplate(templateId)) return null;
+      actions.push({ type, templateId });
+      continue;
+    }
+
+    if (type === "assign_schedule") {
+      const patternId = Number(action.patternId);
+      const effectiveDateSource = String(action.effectiveDateSource ?? "event_effective_date") as AssignScheduleAction["effectiveDateSource"];
+      const offsetDays = Number(action.offsetDays ?? 0);
+      const reason = String(action.reason ?? "").trim();
+      if (
+        !Number.isInteger(patternId)
+        || patternId <= 0
+        || !["event_effective_date", "employee_start_date", "today"].includes(effectiveDateSource)
+        || !Number.isInteger(offsetDays)
+        || offsetDays < 0
+        || offsetDays > 365
+        || !reason
+      ) return null;
+      actions.push({
+        type,
+        patternId,
+        effectiveDateSource,
+        offsetDays,
+        reason: reason.slice(0, 240),
       });
       continue;
     }
@@ -527,6 +604,7 @@ function normalizeAutomationSteps(
         amount,
         reason: reason.slice(0, 240),
         approver: String(action.approver ?? "Payroll").trim().slice(0, 120) || "Payroll",
+        approvalChainCode: String(action.approvalChainCode ?? "").trim().toLowerCase().slice(0, 64) || undefined,
       });
       continue;
     }
@@ -551,7 +629,8 @@ export function normalizeLifecycleActions(value: unknown): AutomationWorkflowSte
 }
 
 export function validateAutomationActionTrigger(trigger: AutomationTrigger, actions: AutomationWorkflowStep[]): string | null {
-  for (const action of actions) {
+  for (let actionIndex = 0; actionIndex < actions.length; actionIndex += 1) {
+    const action = actions[actionIndex];
     if (action.type === "branch") {
       const thenError = validateAutomationActionTrigger(trigger, action.then);
       if (thenError) return thenError;
@@ -566,6 +645,25 @@ export function validateAutomationActionTrigger(trigger: AutomationTrigger, acti
         && !AUTOMATION_TRIGGER_CATALOG.find((item) => item.value === trigger)?.employeeScoped
       ) {
         return "Manager-routed approval gates require an employee-scoped trigger.";
+      }
+      continue;
+    }
+    if (action.type === "generate_document") {
+      const template = getAutomationDocumentTemplate(action.templateId);
+      if (!template || !template.allowedTriggers.some((allowed) => allowed === trigger)) {
+        return "Generated-document template is not approved for this trigger.";
+      }
+      if (actions[actionIndex - 1]?.type !== "approval_gate") {
+        return "Document generation must be immediately preceded by an approval gate.";
+      }
+      continue;
+    }
+  if (action.type === "assign_schedule") {
+      if (!SCHEDULE_ASSIGNMENT_TRIGGERS.has(trigger)) {
+        return "Schedule assignment automation is allowed only after employee hire, move, or promotion events.";
+      }
+      if (actions[actionIndex - 1]?.type !== "approval_gate") {
+        return "Schedule assignment automation must be immediately preceded by an approval gate.";
       }
       continue;
     }
@@ -773,6 +871,7 @@ async function enrichEmployeeContext(input: {
     employeeName: `${employee.firstName} ${employee.lastName}`,
     employeeEmail: employee.email,
     employeeStatus: employee.status,
+    employeeStartDate: String(employee.startDate),
     orgUnitId: employee.orgUnitId,
     department: unitRows[0]?.name ?? null,
     location: employee.region,
@@ -849,15 +948,23 @@ async function executeAction(input: {
   }
 
   if (action.type === "request_approval") {
-    const [task] = await db.insert(approvalTasks).values({
+    const routed = await createApprovalFromConfiguredChain({
       organizationId: input.organizationId,
+      chainCode: action.approvalChainCode,
+      sourceType: "automation_request_approval",
+      sourceKey: `${input.executionId}:${input.actionIndex}`,
       title: action.title,
       detail: action.detail,
-      approver: resolveApprover(action.approver, input.context),
+      fallbackApprover: resolveApprover(action.approver, input.context),
       dueLabel: action.dueLabel ?? "Review required",
       priority: action.priority ?? "Normal",
-    }).returning();
-    return { type: action.type, approvalTaskId: task.id };
+    });
+    return {
+      type: action.type,
+      approvalTaskId: routed.task.id,
+      approvalChainInstanceId: routed.chainInstance?.id ?? null,
+      approvalChainCode: routed.chainInstance?.policyCode ?? null,
+    };
   }
 
   if (action.type === "send_email") {
@@ -888,6 +995,74 @@ async function executeAction(input: {
       },
     });
     return { type: action.type, recipient, deliveryStatus: delivery.status, outboxId: delivery.id };
+  }
+
+  if (action.type === "generate_document") {
+    const employeeId = requiredEmployeeId(input.employeeId, "Generate employee document");
+    const template = getAutomationDocumentTemplate(action.templateId);
+    if (!template || !template.allowedTriggers.some((allowed) => allowed === input.trigger)) {
+      throw new Error("Generated-document template is not approved for this trigger.");
+    }
+
+    const result = await generateAutomationEmployeeDocument({
+      organizationId: input.organizationId,
+      employeeId,
+      trigger: input.trigger as AutomationDocumentTrigger,
+      templateId: action.templateId,
+      sourceKey: `Automation Studio document #${input.executionId}:${input.actionIndex}`,
+      context: input.context,
+      actor: "Automation Studio",
+    });
+
+    return {
+      type: action.type,
+      documentId: result.document.id,
+      templateId: action.templateId,
+      templateVersion: template.version,
+      fileName: result.document.fileName,
+      sha256: result.document.sha256,
+      idempotent: result.idempotent,
+      auditWarning: result.auditWarning,
+    };
+  }
+
+  if (action.type === "assign_schedule") {
+    const employeeId = requiredEmployeeId(input.employeeId, "Assign schedule pattern");
+    const rawDate = action.effectiveDateSource === "event_effective_date"
+      ? String(input.context.effectiveDate ?? "")
+      : action.effectiveDateSource === "employee_start_date"
+        ? String(input.context.employeeStartDate ?? "")
+        : todayPh();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+      throw new Error(
+        action.effectiveDateSource === "event_effective_date"
+          ? "Schedule assignment requires a valid effectiveDate in the triggering event."
+          : "Schedule assignment could not resolve a valid employee start date.",
+      );
+    }
+    const date = new Date(`${rawDate}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + (action.offsetDays ?? 0));
+    const effectiveFrom = date.toISOString().slice(0, 10);
+
+    const result = await assignEmployeeScheduleGoverned({
+      organizationId: input.organizationId,
+      employeeId,
+      patternId: action.patternId,
+      effectiveFrom,
+      reason: action.reason,
+      sourceKey: `Automation Studio #${input.executionId}:${input.actionIndex}`,
+      actor: "Automation Studio",
+    });
+    return {
+      type: action.type,
+      assignmentId: result.assignment.id,
+      patternId: action.patternId,
+      effectiveFrom,
+      idempotent: result.idempotent,
+      staleTimesheetIds: result.staleTimesheetIds,
+      guardrailIssues: result.guardrailIssues,
+      auditWarning: result.auditWarning,
+    };
   }
 
   if (action.type === "assign_permission_set") {
@@ -1006,18 +1181,27 @@ async function executeAction(input: {
 
   if (action.type === "request_payroll_adjustment") {
     const employeeSuffix = input.employeeId ? ` · employee #${input.employeeId}` : "";
-    const [task] = await db.insert(approvalTasks).values({
+    const routed = await createApprovalFromConfiguredChain({
       organizationId: input.organizationId,
+      chainCode: action.approvalChainCode,
+      sourceType: "automation_payroll_adjustment",
+      sourceKey: `${input.executionId}:${input.actionIndex}`,
       title: "Review automation-requested payroll adjustment",
       detail: `${action.reason} · PHP ${action.amount.toFixed(2)}${employeeSuffix}`.slice(0, 240),
-      approver: resolveApprover(action.approver ?? "Payroll", input.context),
+      fallbackApprover: resolveApprover(action.approver ?? "Payroll", input.context),
       dueLabel: "Approval required before payroll mutation",
       priority: "High",
-    }).returning();
+      amount: Math.abs(action.amount),
+      amountCurrency: "PHP",
+      amountBasis: "absolute_requested_adjustment",
+    });
     return {
       type: action.type,
-      approvalTaskId: task.id,
+      approvalTaskId: routed.task.id,
+      approvalChainInstanceId: routed.chainInstance?.id ?? null,
+      approvalChainCode: routed.chainInstance?.policyCode ?? null,
       requestedAmount: action.amount,
+      approvalAmount: Math.abs(action.amount),
       appliedAutomatically: false,
     };
   }
@@ -1090,19 +1274,25 @@ export async function advanceAutomationExecution(executionId: number) {
     }
 
     if (step.type === "approval_gate") {
-      const [task] = await db.insert(approvalTasks).values({
+      const routed = await createApprovalFromConfiguredChain({
         organizationId: execution.organizationId,
+        chainCode: step.approvalChainCode,
+        sourceType: "automation_approval_gate",
+        sourceKey: `${execution.id}:${cursor}`,
         title: step.title,
         detail: step.detail,
-        approver: resolveApprover(step.approver ?? "People Ops", context),
+        fallbackApprover: resolveApprover(step.approver ?? "People Ops", context),
         dueLabel: step.dueLabel ?? "Workflow paused for approval",
         priority: step.priority ?? "Normal",
-      }).returning();
+      });
+      const task = routed.task;
       result.push({
         type: step.type,
         stepIndex: cursor,
         status: "pending",
         approvalTaskId: task.id,
+        approvalChainInstanceId: routed.chainInstance?.id ?? null,
+        approvalChainCode: routed.chainInstance?.policyCode ?? null,
       });
       const [waiting] = await db.update(automationExecutions).set({
         status: "waiting_approval",

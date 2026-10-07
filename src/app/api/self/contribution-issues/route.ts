@@ -12,6 +12,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { notifyPayrollOfContributionCase } from "@/lib/statutory-contribution-case-notifications";
 import { contributionCaseServiceStatus, contributionCaseServiceTargets } from "@/lib/statutory-contribution-case-aging";
 import { invalidateStatutoryRemittanceMonthCertification } from "@/lib/statutory-remittance-certification";
+import { emitContributionDiscrepancyAutomation } from "@/lib/statutory-contribution-automation";
 import { getSessionUser } from "@/lib/auth";
 import {
   enforceSameOriginMutation,
@@ -53,10 +54,14 @@ export async function GET() {
   if (context.denied) return context.denied;
   const user = context.user!;
   const employee = context.employee!;
+  if (!employee.legalEntityId) {
+    return Response.json({ error: "Your employee record has no legal employer. Contact payroll before reviewing contribution evidence." }, { status: 409 });
+  }
 
   const cases = await db.select().from(statutoryContributionIssueCases)
     .where(and(
       eq(statutoryContributionIssueCases.organizationId, employee.organizationId),
+      eq(statutoryContributionIssueCases.legalEntityId, employee.legalEntityId),
       eq(statutoryContributionIssueCases.employeeId, employee.id),
     ))
     .orderBy(desc(statutoryContributionIssueCases.createdAt), desc(statutoryContributionIssueCases.id))
@@ -104,6 +109,10 @@ export async function POST(request: Request) {
   if (context.denied) return context.denied;
   const user = context.user!;
   const employee = context.employee!;
+  const legalEntityId = employee.legalEntityId;
+  if (!legalEntityId) {
+    return Response.json({ error: "Your employee record has no legal employer. Contact payroll before reporting a contribution issue." }, { status: 409 });
+  }
 
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id,
@@ -146,6 +155,7 @@ export async function POST(request: Request) {
       .where(and(
         eq(statutoryRemittanceMembers.id, memberId),
         eq(statutoryRemittanceMembers.organizationId, employee.organizationId),
+        eq(statutoryRemittanceMembers.legalEntityId, legalEntityId),
         eq(statutoryRemittanceMembers.employeeId, employee.id),
       ))
       .limit(1);
@@ -153,7 +163,7 @@ export async function POST(request: Request) {
     if (!row) {
       return Response.json({ error: "That contribution record is not part of your employee account." }, { status: 404 });
     }
-    if (row.batch.agency !== agency || row.batch.applicableMonth !== applicableMonth) {
+    if (row.batch.legalEntityId !== legalEntityId || row.batch.agency !== agency || row.batch.applicableMonth !== applicableMonth) {
       return Response.json({ error: "The selected contribution record does not match the agency/month being reported." }, { status: 409 });
     }
     member = row.member;
@@ -164,6 +174,7 @@ export async function POST(request: Request) {
     .from(statutoryContributionIssueCases)
     .where(and(
       eq(statutoryContributionIssueCases.organizationId, employee.organizationId),
+      eq(statutoryContributionIssueCases.legalEntityId, legalEntityId),
       eq(statutoryContributionIssueCases.employeeId, employee.id),
       eq(statutoryContributionIssueCases.agency, agency),
       eq(statutoryContributionIssueCases.applicableMonth, applicableMonth),
@@ -206,6 +217,7 @@ export async function POST(request: Request) {
   const created = await db.transaction(async (tx) => {
     const [issue] = await tx.insert(statutoryContributionIssueCases).values({
       organizationId: employee.organizationId,
+      legalEntityId: legalEntityId,
       employeeId: employee.id,
       batchId: batch?.id ?? null,
       remittanceMemberId: member?.id ?? null,
@@ -250,6 +262,20 @@ export async function POST(request: Request) {
     return issue;
   });
 
+  const automation = await emitContributionDiscrepancyAutomation({
+    organizationId: employee.organizationId,
+    employeeId: employee.id,
+    legalEntityId,
+    caseId: created.id,
+    issueType: created.issueType,
+    agency: created.agency,
+    applicableMonth: created.applicableMonth,
+    source: "employee_report",
+    severity: member?.postingStatus === "exception" ? "danger" : "warning",
+    batchId: created.batchId,
+    remittanceMemberId: created.remittanceMemberId,
+  });
+
   await recordAuditEvent({
     organizationId: employee.organizationId,
     actor: user.name,
@@ -257,6 +283,7 @@ export async function POST(request: Request) {
     resource: `${agency} · ${applicableMonth} · ${employee.employeeNo}`,
     metadata: {
       caseId: created.id,
+      legalEntityId: legalEntityId,
       employeeId: employee.id,
       issueType,
       memberId: member?.id ?? null,
@@ -267,6 +294,7 @@ export async function POST(request: Request) {
 
   const invalidatedClosures = await invalidateStatutoryRemittanceMonthCertification({
     organizationId: employee.organizationId,
+    legalEntityId: legalEntityId,
     applicableMonth,
     reason: `Employee contribution case #${created.id} was reported after month certification.`,
   });
@@ -303,5 +331,6 @@ export async function POST(request: Request) {
       createdAt: created.createdAt,
       service: contributionCaseServiceStatus(created),
     },
+    automation,
   }, { status: 201 });
 }
