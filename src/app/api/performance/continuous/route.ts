@@ -11,6 +11,7 @@ import {
   assertOrganizationRole,
   assertScope,
   getAccess,
+  type AccessScope,
   PEOPLE_ADMIN_ROLES,
   roleAllowed,
   WORKFORCE_MANAGER_ROLES,
@@ -31,7 +32,7 @@ function parseScheduledFor(value: unknown) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-async function continuousAccess(userId: number, organizationId: number) {
+async function continuousAccess(userId: number, organizationId: number): Promise<{ access: AccessScope } | { error: Response }> {
   const denied = await assertOrganizationRole(
     userId,
     organizationId,
@@ -48,7 +49,7 @@ async function employeeInScope(
   userId: number,
   organizationId: number,
   employeeId: number,
-) {
+): Promise<{ access: AccessScope; employee: typeof employees.$inferSelect } | { error: Response }> {
   const gate = await continuousAccess(userId, organizationId);
   if ("error" in gate) return gate;
   const [employee] = await db.select().from(employees).where(and(
