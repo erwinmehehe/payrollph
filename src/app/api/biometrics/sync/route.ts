@@ -297,7 +297,13 @@ export async function POST(request: Request) {
   });
 
   return Response.json({
-    ok: true,
+    ok: locked === 0,
+    ...(locked > 0
+      ? {
+          error: "Some biometric logs fall inside a locked attendance period. Retry the batch after the period is reopened.",
+          code: "ATTENDANCE_PERIOD_LOCKED",
+        }
+      : {}),
     deviceSerial,
     ingested,
     duplicates,
@@ -306,7 +312,7 @@ export async function POST(request: Request) {
     invalid,
     syncedAt: new Date().toISOString(),
     attendanceExceptionSync,
-  });
+  }, { status: locked > 0 ? 423 : 200 });
 }
 
 function acceptsDeviceSecret(request: Request, organizationId: number, deviceSerial: string) {
