@@ -20,7 +20,6 @@ import { generateBankFile, generateGovernmentDraft, generateJournalCsv } from "@
 import {
   assertOrganizationRole,
   assertOrganizationUnitAccess,
-  PAYROLL_DISBURSEMENT_ROLES,
   PAYROLL_OPERATOR_ROLES,
 } from "@/lib/access";
 import {
@@ -28,6 +27,7 @@ import {
   preflightPaymongoPayrollDisbursement,
 } from "@/lib/paymongo-disbursements";
 import { withPayrollPayoutSubmissionLock } from "@/lib/payout-submission-lock";
+import { authorizeTreasuryOperation, type TreasuryEvidence } from "@/lib/treasury-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -67,11 +67,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (scopeDenied) return scopeDenied;
 
   const actor = user.name;
+  let finalBankTreasuryEvidence: TreasuryEvidence | null = null;
 
   if (kind === "bank" && !dryRun && run.status !== "Released") {
     return Response.json({
       error: `Final bank files are available only after payroll release (currently ${run.status}). Use dryRun=true before release.`,
     }, { status: 409 });
+  }
+
+  if (kind === "bank" && !dryRun) {
+    const treasury = await authorizeTreasuryOperation({
+      organizationId: run.organizationId,
+      runId: run.id,
+      userId: user.id,
+      userName: user.name,
+      requireReleaseSeparation: true,
+      legacyAllowedRoles: PAYROLL_OPERATOR_ROLES,
+    });
+    if (treasury.response) return treasury.response;
+    finalBankTreasuryEvidence = treasury.evidence;
   }
 
   if (kind === "payslip" && run.status !== "Released") {
@@ -155,6 +169,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       filename: file.filename,
       dryRun: kind === "bank" ? dryRun : false,
       ruleVersion: "PH-2026.01",
+      treasury: kind === "bank" && !dryRun ? finalBankTreasuryEvidence : null,
     },
   });
 
@@ -198,17 +213,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         ? "complete-manual"
         : "disburse";
 
-  const denied = await assertOrganizationRole(
-    user.id,
-    run.organizationId,
-    mode === "preflight" ? PAYROLL_OPERATOR_ROLES : PAYROLL_DISBURSEMENT_ROLES,
-    mode === "preflight"
-      ? "Only payroll operators can run a payout preflight."
-      : mode === "complete-manual"
-        ? "Only the workspace owner can record payroll payout completion."
-        : "Only the workspace owner can trigger a live payroll disbursement.",
-  );
-  if (denied) return denied;
+  let treasuryEvidence: TreasuryEvidence | null = null;
+  if (mode === "preflight") {
+    const denied = await assertOrganizationRole(
+      user.id,
+      run.organizationId,
+      PAYROLL_OPERATOR_ROLES,
+      "Only payroll operators can run a payout preflight.",
+    );
+    if (denied) return denied;
+  } else {
+    const treasury = await authorizeTreasuryOperation({
+      organizationId: run.organizationId,
+      runId: run.id,
+      userId: user.id,
+      userName: user.name,
+      requireReleaseSeparation: true,
+    });
+    if (treasury.response) return treasury.response;
+    treasuryEvidence = treasury.evidence;
+  }
   const scopeDenied = await assertOrganizationUnitAccess(
     user.id,
     run.organizationId,
@@ -362,6 +386,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         bankValidationId: acceptedTemplateValidation.id,
         moneyMovedByLinaw: false,
         completionRecordedBy: user.name,
+        completionRecordedByUserId: user.id,
+        treasury: treasuryEvidence,
       },
     });
 
@@ -496,6 +522,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         transfers: result.transfers,
         completedAt,
         moneyMovedByLinaw: true,
+        treasury: treasuryEvidence,
       },
     });
     return Response.json({ ...result, completed: everyTransferCompleted, completedAt });
@@ -506,7 +533,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       actor: user.name,
       action: "Payroll disbursement failed",
       resource: run.periodLabel,
-      metadata: { runId: run.id, error: message },
+      metadata: { runId: run.id, error: message, treasury: treasuryEvidence },
     });
     return Response.json({ error: message }, { status: 502 });
   }

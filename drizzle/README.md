@@ -98,3 +98,5 @@ the first one, so it closes itself.
 - `0070_configurable_approval_chains.sql` adds versioned, ordered approval-chain definitions and immutable per-request chain snapshots around the existing approval task queue.
 
 - `0071_amount_based_approval_limits.sql` adds immutable amount/routing evidence so configurable approval chains can require higher approval levels only after governed monetary thresholds are crossed.
+
+- `0072_treasury_separation.sql` adds opt-in enterprise treasury separation with stable-user payout operators and release-vs-disbursement actor separation.

@@ -3545,6 +3545,34 @@ export const userPermissionAssignments = pgTable(
   ],
 );
 
+export const treasuryControlPolicies = pgTable("treasury_control_policies", {
+  organizationId: integer("organization_id").primaryKey().references(() => organizations.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  requireReleaseSubmitterSeparation: boolean("require_release_submitter_separation").notNull().default(true),
+  enabledAt: timestamp("enabled_at", { withTimezone: true }),
+  createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const treasuryOperatorAssignments = pgTable(
+  "treasury_operator_assignments",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("treasury_operator_assignments_org_user_unique").on(table.organizationId, table.userId),
+    index("treasury_operator_assignments_org_active_idx").on(table.organizationId, table.active),
+  ],
+);
+
 export const automationRules = pgTable(
   "automation_rules",
   {
