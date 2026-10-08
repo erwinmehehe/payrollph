@@ -58,7 +58,7 @@ export function PeopleIntelligenceOverview({ report }: { report: PeopleIntellige
         />
         <Metric
           label="Released payroll gross"
-          value={shortMoney(report.releasedPayrollGross)}
+          value={report.releasedPayrollGross == null ? "Unverified" : shortMoney(report.releasedPayrollGross)}
           hint={`${report.releasedRunCount} released run(s) · PHP · ${report.windowDays} days`}
           icon={<WalletCards size={16} className="i-teal" />}
           tone="mint"
@@ -118,7 +118,7 @@ export function PeopleIntelligenceOverview({ report }: { report: PeopleIntellige
           <p style={{ padding: "0 18px 18px" }}>No source-coverage exceptions detected in this snapshot. Figures still require normal HR and Finance reconciliation.</p>
         )}
         <p style={{ padding: "0 18px 18px", fontSize: 12, opacity: 0.8 }}>
-          Released gross payroll: {money(report.releasedPayrollGross)} PHP · released net: {money(report.releasedPayrollNet)} PHP.
+          Released gross payroll: {report.releasedPayrollGross == null ? "Unverified" : money(report.releasedPayrollGross)} PHP · released net: {report.releasedPayrollNet == null ? "Unverified" : money(report.releasedPayrollNet)} PHP.
           Approved salary-cycle movement is an annual proposal delta, not an additional payroll expense.
           Historical reporting is reconstructed from effective dates; it is not a reconstruction of what users knew on an earlier publication date.
         </p>
