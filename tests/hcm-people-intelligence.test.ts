@@ -124,6 +124,17 @@ test("future hires do not appear in a prior snapshot; applied lifecycle events o
   assert.equal(historic.approvedCompensationDeltaAnnual, null);
 });
 
+test("future transitions cannot backfill unknown employment history", () => {
+  const worker: HcmAnalyticsWorker = {
+    id: 40, startDate: "2024-01-01", status: "Active", orgUnitId: 1, employmentType: "Regular",
+  };
+  const later: HcmAnalyticsEmploymentEvent = {
+    id: 400, employeeId: 40, effectiveDate: "2026-10-01", eventType: "transfer",
+    fromStatus: "Active", toStatus: "Active", fromOrgUnitId: 1, toOrgUnitId: 2,
+  };
+  assert.equal(hcmWorkerStatusAt(worker, [later], "2025-09-01", AS_OF), "unverified");
+});
+
 test("missing historical status is never replaced by today's active status", () => {
   const absentHistory = events.filter((row) => row.employeeId !== 2);
   assert.equal(hcmWorkerStatusAt(workers[1], absentHistory, "2026-09-01", AS_OF), "unverified");
