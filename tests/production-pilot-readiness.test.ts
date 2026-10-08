@@ -210,11 +210,16 @@ test("production pilot sign-off verifies independent figures server-side instead
   assert.ok(route.includes("Math.abs(variance) > 0.01"), "money reconciliation must fail outside one-cent tolerance");
   assert.ok(route.includes('mismatches.push("employeeCount")'), "employee count must match exactly");
   assert.ok(route.includes("independentSourceConfirmed"), "sign-off must confirm figures came from an independent source");
+  assert.ok(route.includes("employeeLevelReconciliationConfirmed"), "human independent reviewer must attest to per-employee reconciliation");
+  assert.ok(route.includes('"Bank file dry-run generated"'), "no-money parallel trial must accept audited bank-file dry-run evidence");
+  assert.ok(route.includes("!payoutCompleted && !dryRunBankExport"), "sign-off must require either completed payout proof or no-money bank export");
   assert.ok(route.includes("independentFigures"), "audit evidence must preserve the submitted independent totals");
   assert.ok(route.includes("verifiedFigures"), "audit evidence must preserve the server-derived totals");
   assert.ok(route.includes("reconciliationVariances"), "audit evidence must preserve reconciliation variances");
   assert.ok(!route.includes("REQUIRED_CHECKS"), "server must not accept checkbox-only reconciliation");
   assert.ok(card.includes("INDEPENDENT FIGURES"), "owner UI must collect the external reconciliation totals");
+  assert.ok(card.includes("employeeLevelReconciliationConfirmed"), "owner UI must require employee-level reconciliation attestation");
+  assert.ok(card.includes("A recorded bank-file dry-run"), "owner UI must disclose no-money bank-file sign-off path");
   assert.ok(card.includes("Verify figures & sign off pilot"), "owner UI must make server verification explicit");
   assert.ok(!card.includes("matches the independently prepared expected result"), "old trust-me match toggles must be removed");
 });
