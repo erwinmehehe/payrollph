@@ -1064,6 +1064,12 @@ export async function POST(request: Request) {
         impactPreview,
       }, { status: 409 });
     }
+    if (impactPreview.authoritativeEvents === 0 && body.limitedEvidenceAcknowledged !== true) {
+      return Response.json({
+        error: "Impact Preview has no authoritative event samples. Explicitly acknowledge limited evidence before publishing.",
+        impactPreview,
+      }, { status: 409 });
+    }
 
     try {
       const result = await publishAutomationRuleDraft({
@@ -1082,6 +1088,7 @@ export async function POST(request: Request) {
           publishedVersion: result.published.version,
           trigger: result.rule.trigger,
           active: result.rule.active,
+          limitedEvidenceAcknowledged: impactPreview.authoritativeEvents === 0,
           impactPreview: {
             eventsEvaluated: impactPreview.eventsEvaluated,
             matchedEvents: impactPreview.matchedEvents,
