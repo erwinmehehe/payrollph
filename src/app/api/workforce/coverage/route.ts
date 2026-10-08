@@ -77,6 +77,7 @@ import { resolveLeaveIntervalsForSchedule, type PreciseLeaveInterval } from "@/l
 import { loadSiteEligibilityEvidence, employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
 import { evaluateSiteEligibility } from "@/lib/hcm-worksite-eligibility";
 import { listDynamicWorkerGroups, resolveDynamicWorkerGroupMembers } from "@/lib/dynamic-worker-groups";
+import { currentRosterApprovalHandoffGate } from "@/lib/governed-approval-handoffs";
 
 export const dynamic = "force-dynamic";
 
@@ -2014,6 +2015,17 @@ export async function POST(request: Request) {
         metadata: { claimId, openShiftId: openShift.id, employeeId: employee.id, decisionNote },
       });
       return Response.json({ claim: updated });
+    }
+
+    // Optional handoff becomes binding once requested: a roster manager may
+    // still reject a risky claim, but may not approve around pending/declined
+    // or stale human chain evidence. No chain means existing WFM rules apply.
+    const handoffGate = await currentRosterApprovalHandoffGate(organizationId, claimId);
+    if (!handoffGate.permitted) {
+      return Response.json({
+        error: handoffGate.reason,
+        approvalChainId: handoffGate.approvalChainId,
+      }, { status: 409 });
     }
 
     if (openShift.status !== "open") {
