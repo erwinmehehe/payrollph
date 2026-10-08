@@ -59,6 +59,39 @@ test("condition typechecking rejects invented fields, mixed modes and invalid nu
   }).valid, true);
 });
 
+test("model language conditions cannot infer record IDs or tenant-specific codes", () => {
+  for (const field of [
+    "orgUnitId",
+    "previousOrgUnitId",
+    "payrollRunId",
+    "timesheetId",
+    "timesheetExpectationId",
+    "timesheetExpectationVersion",
+    "worksiteId",
+    "legalEntityId",
+    "complianceActionTaskId",
+    "contributionCaseId",
+    "benefitPlanId",
+    "positionCode",
+    "documentRequirementCode",
+    "dynamicGroupCodes",
+  ]) {
+    const result = validateNaturalLanguageDraft({
+      ...validBase,
+      conditions: {
+        version: 1,
+        all: [{ field, operator: "eq", value: field.endsWith("Code") || field.endsWith("Codes") ? "some-code" : 1 }],
+        any: [],
+      },
+    });
+    assert.equal(result.valid, false, field + " must require a verified tenant lookup");
+  }
+  assert.equal(validateNaturalLanguageDraft({
+    ...validBase,
+    conditions: { version: 1, all: [{ field: "location", operator: "eq", value: "Manila" }], any: [] },
+  }).valid, true, "Plain-language location labels remain supported");
+});
+
 test("typed condition operators, scope and step ownership fail closed", () => {
   const base = { ...validBase };
   assert.equal(validateNaturalLanguageDraft(base).valid, true);
