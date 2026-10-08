@@ -161,6 +161,9 @@ test("tenant-specific identifiers are blocked before any external model request"
       "When a new employee is hired, filter by payroll run id and create a task.",
       "When a new employee is hired, filter by organization id and create a task.",
       "When a new employee is hired, filter by position code and notify their manager.",
+      "When a new employee is hired, filter by timesheet expectation version and create a task.",
+      "When a new employee is hired, filter by benefit plan id and create a task.",
+      "When a new employee is hired, filter by legal entity id and create a task.",
     ]) {
       await assert.rejects(
         draftAutomationFromLanguage(request),
