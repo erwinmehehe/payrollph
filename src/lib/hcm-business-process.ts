@@ -2,6 +2,7 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
+  compensationProposals,
   hcmBusinessProcessDefinitions,
   hcmBusinessProcessInstances,
   hcmBusinessProcessInstanceSteps,
@@ -762,6 +763,38 @@ export async function finalizeHcmBusinessProcessSource(input: {
   if (!instance) throw new Error("Business-process instance not found.");
   if (instance.sourceType === "position_creation" || instance.sourceType === "position_closure") {
     return finalizePositionBusinessProcessSource(instance, input);
+  }
+  if (instance.sourceType === "compensation_proposal") {
+    const proposalId = Number(instance.sourceKey);
+    if (!Number.isSafeInteger(proposalId) || proposalId <= 0
+      || instance.processType !== "compensation_change") {
+      throw new Error("Invalid compensation business-process source.");
+    }
+    if (instance.status === "declined") {
+      // A rejected BP cannot leave an approvable pay recommendation behind.
+      // No pay revision, payroll release, or money-bearing state is modified.
+      const [declined] = await db.update(compensationProposals).set({
+        status: "declined",
+        updatedAt: new Date(),
+      }).where(and(
+        eq(compensationProposals.id, proposalId),
+        eq(compensationProposals.organizationId, instance.organizationId),
+        eq(compensationProposals.status, "proposed"),
+      )).returning({ id: compensationProposals.id });
+      if (declined) {
+        await recordAuditEvent({
+          organizationId: instance.organizationId,
+          actor: input.actorName,
+          action: "Compensation proposal declined through HCM business process",
+          resource: `Proposal #${proposalId}`,
+          metadata: { businessProcessInstanceId: instance.id, proposalId },
+        });
+      }
+      return { instance, sourceFinalized: Boolean(declined), sourceStatus: "declined" as const };
+    }
+    // HR/manager approval only makes the proposal eligible for the separate
+    // owner/finance approval; the HCM BP never schedules or applies salary.
+    return { instance, sourceFinalized: false, sourceStatus: instance.status };
   }
   if (instance.sourceType !== "worker_effective_change") return { instance, sourceFinalized: false };
 
