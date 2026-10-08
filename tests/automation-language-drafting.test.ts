@@ -39,7 +39,14 @@ test("natural-language Studio UI requires human review and gated publish", () =>
   assert.ok(ui.includes("NATURAL-LANGUAGE DRAFTING"));
   assert.ok(ui.includes('action: "draft-from-language"'));
   assert.ok(ui.includes("JSON.stringify(languageProposal.draft, null, 2)"));
-  assert.ok(ui.includes("active: false, // A language proposal never activates a workflow on save."));
+  assert.ok(ui.includes('action: "save-language-draft"'));
+  assert.ok(ui.includes("proposalReceipt: languageProposal.proposalReceipt"));
+  assert.ok(api.includes('action === "save-language-draft"'));
+  const signedSave = api.slice(api.indexOf('action === "save-language-draft"'), api.indexOf('action === "create-from-template"'));
+  assert.ok(signedSave.includes("validateNaturalLanguageDraft(body.draft)"));
+  assert.ok(signedSave.includes("verifyLanguageProposalReceipt"));
+  assert.ok(signedSave.includes("active: false"));
+  assert.equal(signedSave.includes("publishAutomationRuleDraft("), false);
   assert.ok(ui.includes("Save inactive draft"));
   assert.ok(ui.includes("setLanguageProposal(null)"));
   assert.ok(ui.includes("Run Impact Preview for its exact draft version"));
