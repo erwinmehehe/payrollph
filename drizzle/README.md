@@ -123,3 +123,26 @@ the first one, so it closes itself.
 - `0083_performance_action_items_skill_trends_evidence.sql` adds governed 1:1 action items with owner, due date, employee visibility, completion state, and immutable event history; skill trends and evidence exports use existing performance evidence tables.
 
 - `0084_performance_follow_through_automation.sql` adds configurable 1:1 action reminders/escalations, governed skill development plans, and versioned completed-cycle evidence retention/sealing with legal holds and tamper-evident amendments.
+
+## Compensation outbox: governed staging migration
+
+The retained SQL for the durable compensation automation outbox is
+`0100_compensation_automation_intents.sql` (not the older proposed
+`0099_compensation_automation_intents.sql`). Main also uses migration number
+0099 for talent/requisition skills, so the distinct 0100 name prevents
+ambiguous version labels. This repository still does **not** have an ordered
+Drizzle migration journal; numbered files must not be automatically replayed
+as an incremental migration sequence.
+
+Before enabling the compensation salary/application worker on an existing
+staging database, have a DBA independently review and apply the approved SQL,
+then run `npm run compensation:release:schema:check` using an explicitly
+selected read-only database credential. It validates the live table, indexes,
+foreign keys and status constraints, with fail-closed return codes. CI also
+rehearses the SQL transactionally in a disposable local schema; the rehearsal
+cannot establish that a real employer's staging schema has been migrated.
+
+See [Compensation staging release gate](../docs/compensation-staging-release-gate.md).
+Do not run `db:push` or paste a historical baseline into a production
+employer database without a separate signed, reviewed migration and rollback
+plan. Neither schema compatibility nor CI supplies payroll GA authorization.

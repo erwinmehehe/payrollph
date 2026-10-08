@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "../src/db";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
 import {
@@ -9,6 +9,7 @@ import {
   auditEvents,
   compensationComponents,
   compensationEvents,
+  compensationAutomationIntents,
   employeeCompensationComponents,
   employeePayProfiles,
   employees,
@@ -304,5 +305,164 @@ test("ended recurring compensation remains payable for an earlier overlapping cu
     const allowance = lines.find((line) => line.code === `COMP-${fixture.assignmentId}`);
     assert.ok(allowance, "ended but historically effective compensation must remain in payroll");
     assert.equal(Number(allowance.amount), 200);
+  });
+});
+
+
+test("scheduled activation commits financial event and linked operational audit exactly once", async () => {
+  await withFixture("scheduled", async (fixture) => {
+    const activated = await activateCompensationComponentAssignment(fixture.assignmentId, {
+      actor: "Atomic activation scheduler",
+      now: new Date("2026-10-11T08:00:00Z"),
+    });
+    assert.equal(activated.skipped, false);
+    assert.ok(activated.event.id > 0);
+    assert.ok(activated.audit.id > 0);
+    const after = await state(fixture);
+    assert.equal(after.assignment.status, "active");
+    assert.equal(after.events.filter((e) => e.eventType === "component_activated").length, 1);
+    const audits = after.audits.filter((row) =>
+      row.action === "Recurring compensation component activated"
+      && (row.metadata as { componentAssignmentId?: number }).componentAssignmentId === fixture.assignmentId,
+    );
+    assert.equal(audits.length, 1);
+    assert.equal((audits[0].metadata as { compensationEventId: number }).compensationEventId, activated.event.id);
+
+    const repeated = await activateCompensationComponentAssignment(fixture.assignmentId, {
+      actor: "Atomic activation scheduler",
+      now: new Date("2026-10-11T08:01:00Z"),
+    });
+    assert.equal(repeated.skipped, true);
+    assert.equal(repeated.reason, "already_active");
+    assert.equal((await state(fixture)).audits.filter((a) => a.action === "Recurring compensation component activated").length, 1);
+  });
+});
+
+test("concurrent scheduled activation workers cannot double-write financial or audit evidence", async () => {
+  await withFixture("scheduled", async (fixture) => {
+    const attempts = await Promise.all([
+      activateCompensationComponentAssignment(fixture.assignmentId, {
+        actor: "Activation worker 1", now: new Date("2026-10-11T08:00:00Z"),
+      }),
+      activateCompensationComponentAssignment(fixture.assignmentId, {
+        actor: "Activation worker 2", now: new Date("2026-10-11T08:00:00Z"),
+      }),
+    ]);
+    assert.equal(attempts.filter((v) => !v.skipped).length, 1);
+    const after = await state(fixture);
+    assert.equal(after.assignment.status, "active");
+    assert.equal(after.events.filter((v) => v.eventType === "component_activated").length, 1);
+    assert.equal(after.audits.filter((v) => v.action === "Recurring compensation component activated").length, 1);
+  });
+});
+
+test("failed audit insertion rolls back activation and the financial event for a clean retry", async () => {
+  await withFixture("scheduled", async (fixture) => {
+    // Synthetic PostgreSQL fault injection, restricted to this test's
+    // assignment ID. The trigger is always removed before the fixture ends.
+    const suffix = randomUUID().replaceAll("-", "");
+    const functionName = `qa_act_audit_${suffix}`;
+    const triggerName = `qa_trg_${suffix}`;
+    await db.execute(sql.raw(`CREATE FUNCTION "${functionName}"() RETURNS trigger AS $$
+      BEGIN
+        IF NEW.action = 'Recurring compensation component activated'
+          AND NEW.metadata->>'componentAssignmentId' = '${fixture.assignmentId}'
+        THEN
+          RAISE EXCEPTION 'QA synthetic audit insertion failure';
+        END IF;
+        RETURN NEW;
+      END;
+    $$ LANGUAGE plpgsql`));
+    try {
+      await db.execute(sql.raw(`CREATE TRIGGER "${triggerName}"
+        BEFORE INSERT ON "audit_events" FOR EACH ROW EXECUTE FUNCTION "${functionName}"()`));
+      await assert.rejects(activateCompensationComponentAssignment(fixture.assignmentId, {
+        actor: "Audit failure regression", now: new Date("2026-10-11T08:00:00Z"),
+      }));
+      const failed = await state(fixture);
+      assert.equal(failed.assignment.status, "scheduled");
+      assert.equal(failed.events.filter((v) => v.eventType === "component_activated").length, 0);
+      assert.equal(failed.audits.filter((v) => v.action === "Recurring compensation component activated").length, 0);
+      assert.equal(failed.run.status, "Needs review");
+      assert.equal(failed.entries.length, 1);
+      assert.equal(failed.task.status, "Approved");
+    } finally {
+      await db.execute(sql.raw(`DROP TRIGGER IF EXISTS "${triggerName}" ON "audit_events"`));
+      await db.execute(sql.raw(`DROP FUNCTION IF EXISTS "${functionName}"()`));
+    }
+
+    const retried = await activateCompensationComponentAssignment(fixture.assignmentId, {
+      actor: "Audit retry regression", now: new Date("2026-10-11T08:02:00Z"),
+    });
+    assert.equal(retried.skipped, false);
+    const complete = await state(fixture);
+    assert.equal(complete.assignment.status, "active");
+    assert.equal(complete.events.filter((v) => v.eventType === "component_activated").length, 1);
+    assert.equal(complete.audits.filter((v) => v.action === "Recurring compensation component activated").length, 1);
+  });
+});
+
+test("activation cannot create audit evidence before the approved effective date", async () => {
+  await withFixture("scheduled", async (fixture) => {
+    const early = await activateCompensationComponentAssignment(fixture.assignmentId, {
+      now: new Date("2026-10-09T12:00:00Z"),
+    });
+    assert.equal(early.skipped, true);
+    assert.equal(early.reason, "not_due");
+    const after = await state(fixture);
+    assert.equal(after.assignment.status, "scheduled");
+    assert.equal(after.events.filter((v) => v.eventType === "component_activated").length, 0);
+    assert.equal(after.audits.filter((v) => v.action === "Recurring compensation component activated").length, 0);
+  });
+});
+
+
+test("activation and its audit roll back if the transactional notification intent cannot be saved", async () => {
+  await withFixture("scheduled", async (fixture) => {
+    const token = randomUUID().replaceAll("-", "");
+    const functionName = `qa_comp_outbox_${token}`;
+    const triggerName = `qa_comp_outbox_trigger_${token}`;
+    const target = `compensation-component-active:${fixture.assignmentId}`;
+    await db.execute(sql.raw(`CREATE FUNCTION "${functionName}"() RETURNS trigger AS $$
+      BEGIN
+        IF NEW.event_key = '${target}' THEN
+          RAISE EXCEPTION 'QA transactional outbox failure';
+        END IF;
+        RETURN NEW;
+      END;
+    $$ LANGUAGE plpgsql`));
+    try {
+      await db.execute(sql.raw(`CREATE TRIGGER "${triggerName}" BEFORE INSERT ON "compensation_automation_intents"
+        FOR EACH ROW EXECUTE FUNCTION "${functionName}"()`));
+      await assert.rejects(activateCompensationComponentAssignment(fixture.assignmentId, {
+        actor: "Outbox fault injection", now: new Date("2026-10-11T08:00:00Z"),
+      }));
+      const after = await state(fixture);
+      assert.equal(after.assignment.status, "scheduled");
+      assert.equal(after.events.filter((e) => e.eventType === "component_activated").length, 0);
+      assert.equal(after.audits.filter((e) => e.action === "Recurring compensation component activated").length, 0);
+      assert.equal(after.run.status, "Needs review");
+      assert.equal(after.entries.length, 1);
+    } finally {
+      await db.execute(sql.raw(`DROP TRIGGER IF EXISTS "${triggerName}" ON "compensation_automation_intents"`));
+      await db.execute(sql.raw(`DROP FUNCTION IF EXISTS "${functionName}"()`));
+    }
+
+    const done = await activateCompensationComponentAssignment(fixture.assignmentId, {
+      actor: "Reliable activation retry", now: new Date("2026-10-11T08:02:00Z"),
+    });
+    assert.equal(done.skipped, false);
+    const after = await state(fixture);
+    assert.equal(after.assignment.status, "active");
+    assert.equal(after.events.filter((e) => e.eventType === "component_activated").length, 1);
+    assert.equal(after.audits.filter((e) => e.action === "Recurring compensation component activated").length, 1);
+    const intents = await db.select().from(compensationAutomationIntents).where(
+      eq(compensationAutomationIntents.compensationEventId, done.event.id),
+    );
+    assert.equal(intents.length, 2);
+    assert.deepEqual(intents.map((v) => v.eventKey).sort(), [
+      `compensation-component-active:${fixture.assignmentId}`,
+      `compensation-component-active:${fixture.assignmentId}:field-change:recurringcompensationamount`,
+    ]);
   });
 });
