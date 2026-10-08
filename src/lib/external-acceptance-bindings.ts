@@ -13,14 +13,6 @@ export const REQUIRED_ACCEPTANCE_FORMS = [
   { agency: "Pag-IBIG", form: "eSRS/MCRF" },
 ] as const;
 
-type SourceDocument = {
-  id: string;
-  kind: string;
-  legalEntityCode: string;
-  sha256: string;
-  externalReference: string;
-};
-
 type FilingBinding = {
   agency: string;
   form: string;

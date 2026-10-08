@@ -9,6 +9,7 @@ import {
   type CertificationEvidenceResult,
   evaluateExternalCertificationEvidence,
 } from "@/lib/external-certification-evidence";
+import { type AcceptanceBindingResult, evaluateExternalAcceptanceBindings } from "@/lib/external-acceptance-bindings";
 
 /**
  * Private, offline inspection of the last-mile operational package.
@@ -83,6 +84,9 @@ export type LaunchEvidenceResult = {
   minimumMatchedEmployeesPerCycle: number;
   verifiedExternalEvidenceFiles: number;
   verifiedOperationalEvidenceFiles: number;
+  acceptanceBindingStatus: AcceptanceBindingResult["status"];
+  boundGovernmentFilings: number;
+  boundBankCases: number;
   issues: string[];
   disclaimer: string;
 };
@@ -262,6 +266,7 @@ export function combineProductionCertificationEvidence(input: {
   parallel: ParallelReconciliationResult;
   external: CertificationEvidenceResult;
   operational: OperationalReadinessResult;
+  acceptanceBindings: AcceptanceBindingResult;
   parallelMonths: string[];
   externalMonths: string[];
   parallelEmployerCode: string;
@@ -273,6 +278,7 @@ export function combineProductionCertificationEvidence(input: {
     ...input.parallel.issues.map((issue) => "Parallel reconciliation: " + issue),
     ...input.external.issues.map((issue) => "External evidence: " + issue),
     ...input.operational.issues.map((issue) => "Operational evidence: " + issue),
+    ...input.acceptanceBindings.issues.map((issue) => "Acceptance bindings: " + issue),
   ];
   if (input.parallel.status !== "arithmetic-reconciled-pending-independent-review") {
     issues.push("Independent parallel reconciliation has not passed.");
@@ -282,6 +288,9 @@ export function combineProductionCertificationEvidence(input: {
   }
   if (input.operational.status !== "operational-evidence-ready-for-human-review") {
     issues.push("Operational recovery/security evidence is incomplete.");
+  }
+  if (input.acceptanceBindings.status !== "structurally-bound-pending-authenticity-review") {
+    issues.push("Employer, government, independent reviewer and bank acceptance bindings have not passed.");
   }
   if (!input.parallelEmployerCode
     || input.parallelEmployerCode !== input.externalEmployerCode
@@ -313,6 +322,9 @@ export function combineProductionCertificationEvidence(input: {
     minimumMatchedEmployeesPerCycle,
     verifiedExternalEvidenceFiles: input.external.verifiedFileHashCount,
     verifiedOperationalEvidenceFiles: input.operational.verifiedProofCount,
+    acceptanceBindingStatus: input.acceptanceBindings.status,
+    boundGovernmentFilings: input.acceptanceBindings.boundGovernmentFilings,
+    boundBankCases: input.acceptanceBindings.boundBankCases,
     issues,
     disclaimer: DISCLAIMER,
   };
@@ -327,6 +339,7 @@ export function evaluateProductionCertificationBundle(input: {
   parallelManifest: unknown;
   externalManifest: unknown;
   operationalManifest: unknown;
+  bindingsManifest: unknown;
   privateRoot: string;
   expectedEngineCommitSha: string;
 }): LaunchEvidenceResult {
@@ -335,10 +348,19 @@ export function evaluateProductionCertificationBundle(input: {
   const operational = evaluateOperationalReadiness(
     input.operationalManifest, input.privateRoot, input.expectedEngineCommitSha,
   );
+  const acceptanceBindings = evaluateExternalAcceptanceBindings({
+    bindings: input.bindingsManifest,
+    parallelManifest: input.parallelManifest,
+    externalManifest: input.externalManifest,
+    parallelReport: parallel,
+    externalReport: external,
+    expectedEngineCommitSha: input.expectedEngineCommitSha,
+  });
   return combineProductionCertificationEvidence({
     parallel,
     external,
     operational,
+    acceptanceBindings,
     parallelMonths: periods(input.parallelManifest, "cycles"),
     externalMonths: periods(input.externalManifest, "parallelCycles"),
     parallelEmployerCode: String(asObject(input.parallelManifest).legalEntityCode ?? ""),
