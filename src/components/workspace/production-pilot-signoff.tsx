@@ -57,6 +57,10 @@ export function ProductionPilotSignoffCard({
     employeeCount: "",
   });
   const [saving, setSaving] = useState(false);
+  const [upgradeNoMoneyPilot, setUpgradeNoMoneyPilot] = useState(false);
+  const recordedPilotMode = existing?.metadata && typeof existing.metadata === "object"
+    ? (existing.metadata as Record<string, unknown>).payoutEvidenceMode
+    : null;
 
   if (!releasedRun) return null;
 
@@ -67,6 +71,7 @@ export function ProductionPilotSignoffCard({
         value={releasedRun.id}
         onChange={(event) => {
           setSelectedRunId(Number(event.target.value));
+          setUpgradeNoMoneyPilot(false);
           setEvidenceReference("");
           setIndependentPreparedBy("");
           setReconciliationReportSha256("");
@@ -135,7 +140,7 @@ export function ProductionPilotSignoffCard({
     }
   }
 
-  if (existing) {
+  if (existing && !(recordedPilotMode === "no-money-bank-file-dry-run" && upgradeNoMoneyPilot)) {
     const metadata = existing.metadata && typeof existing.metadata === "object"
       ? existing.metadata as Record<string, unknown>
       : {};
@@ -145,15 +150,30 @@ export function ProductionPilotSignoffCard({
         <div className="card-header">
           <div>
             <div className="card-kicker"><ShieldCheck size={14} /> PRODUCTION PILOT</div>
-            <h2>Independent payroll pilot signed off</h2>
+            <h2>{recordedPilotMode === "no-money-bank-file-dry-run"
+              ? "No-money payroll pilot reconciled"
+              : "Independent payroll pilot signed off"}</h2>
             <p>
-              The released cycle has independently reviewed payroll figures and export evidence on the audit trail. A no-money pilot does not certify bank settlement.
+              {recordedPilotMode === "no-money-bank-file-dry-run"
+                ? "The payroll arithmetic and dry-run bank file were recorded. No bank transfer or settlement has been proven, so the broad-launch payout pilot gate remains blocked."
+                : "The payroll evidence and completed-payout attestation were recorded. Government, bank, privacy and production recovery acceptance remain separate gates."}
             </p>
             {typeof metadata.evidenceReference === "string" && (
               <small>Evidence: {metadata.evidenceReference}</small>
             )}
           </div>
-          <Status value="Signed off" />
+          <div style={{ display: "grid", gap: 8 }}>
+            <Status value={recordedPilotMode === "no-money-bank-file-dry-run" ? "Pilot only" : "Signed off"} />
+            {recordedPilotMode === "no-money-bank-file-dry-run" && (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setUpgradeNoMoneyPilot(true)}
+              >
+                Record completed-payout evidence
+              </button>
+            )}
+          </div>
         </div>
       </article>
     );
@@ -174,6 +194,13 @@ export function ProductionPilotSignoffCard({
 
       <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 14 }}>
         {runSelector}
+        {upgradeNoMoneyPilot && (
+          <div className="notice notice-amber">
+            The previous no-money reconciliation remains intact. Only continue after the bank
+            confirms settlement and an independent reviewer has verified the paid period.
+            This form does not initiate any payment.
+          </div>
+        )}
         <div className="run-stats" style={{ margin: 0 }}>
           <div>
             <span>Run</span>
