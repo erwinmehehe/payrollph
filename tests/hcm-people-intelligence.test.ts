@@ -196,3 +196,31 @@ test("audit report is explicitly company-wide, with same as-of scope in CSV and 
   assert.match(overview, /Headcount by org unit/);
   assert.doesNotMatch(overview, /bankAccount|taxId|ssn|employeeNo/);
 });
+
+test("duplicate final-pay release evidence is not double-counted as separate exits", () => {
+  const report = summarizeHcmPeopleIntelligence({
+    ...input, separations: [...input.separations, input.separations[0]],
+  });
+  assert.equal(report.completedExits, 1);
+});
+
+test("invalid released payroll amounts are withheld rather than misrepresented as zero", () => {
+  const report = summarizeHcmPeopleIntelligence({
+    ...input,
+    payrollRuns: [{ status: "Released", payDate: "2026-10-01", grossPay: "-1.00", netPay: "120.00" }],
+  });
+  assert.equal(report.releasedPayrollGross, null);
+  assert.equal(report.releasedPayrollNet, 120);
+  assert.ok(report.warnings.some((message) => message.includes("invalid recorded amounts")));
+});
+
+test("hire-to-requisition days obey Asia/Manila business date boundaries", () => {
+  const report = summarizeHcmPeopleIntelligence({
+    ...input,
+    requisitions: [{ id: 11, positionId: null, status: "filled", createdAt: "2026-10-07T16:30:00.000Z" }],
+    applicants: [{ requisitionId: 11, hiredAt: "2026-10-08T15:30:00.000Z" }],
+  });
+  // Requisition created Oct 8 at 00:30 Manila; hire completed Oct 8 at
+  // 23:30 Manila. The UTC date is different but the local interval is zero.
+  assert.equal(report.medianHireDays, 0);
+});
