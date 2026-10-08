@@ -59,6 +59,24 @@ test("condition typechecking rejects invented fields, mixed modes and invalid nu
   }).valid, true);
 });
 
+test("typed condition operators, scope and step ownership fail closed", () => {
+  const base = { ...validBase };
+  assert.equal(validateNaturalLanguageDraft(base).valid, true);
+  assert.ok(validateNaturalLanguageDraft(base).warnings.some((warning) => warning.includes("No IF filter")));
+
+  const invalids = [
+    { ...base, conditions: { version: 1, all: [{ field: "department", operator: "gt", value: "Sales" }], any: [] } },
+    { ...base, conditions: { version: 1, all: [{ field: "payrollAmount", operator: "contains", value: 300 }], any: [] } },
+    { ...base, conditions: { version: 1, all: Array.from({ length: 7 }, () => ({ field: "department", operator: "eq", value: "Sales" })), any: [] } },
+    { ...base, actions: [{ type: "create_task", title: "Check documentation" }] },
+    { ...base, actions: [{ type: "approval_gate", title: "Sign-off", detail: "Check documents" }] },
+    { ...base, actions: [{ type: "request_approval", title: "Sign-off", detail: "Check documents" }] },
+  ];
+  for (const candidate of invalids) {
+    assert.equal(validateNaturalLanguageDraft(candidate).valid, false, JSON.stringify(candidate));
+  }
+});
+
 test("keyless fallback matches only complete, unqualified reviewed intents", () => {
   const example = "When a new employee is hired, create an onboarding checklist and send them a welcome email.";
   assert.equal(matchApprovedLanguageTemplate(example)?.trigger, "employee.hired");
