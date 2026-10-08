@@ -1,10 +1,11 @@
-import { and, asc, eq, ilike } from "drizzle-orm";
+import { and, asc, eq, ilike, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, orgUnits, scimIdentities, userOrganizations, users } from "@/db/schema";
+import { employees, orgUnits, scimIdentities, sessions, userOrganizations, users } from "@/db/schema";
 import { hashPassword } from "@/lib/crypto";
 import { randomToken } from "@/lib/crypto";
 import { authenticateScim, scimError } from "@/lib/scim";
 import { recordAuditEvent } from "@/lib/audit";
+import { EnterpriseProvisioningError, parseScimActive, parseScimMemberRole, scimProvisioningOrgUnit, assertScimWorkerScope, shouldRevokeScimSessions } from "@/lib/enterprise-identity-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,7 @@ type EnterpriseExtension = {
 };
 
 function scimRole(value: unknown) {
-  const candidate = typeof value === "string" ? value.toLowerCase() : "";
-  return (SAFE_SCIM_ROLES as readonly string[]).includes(candidate) ? candidate : "employee";
+  return parseScimMemberRole(value);
 }
 
 function resource(input: {
@@ -25,6 +25,7 @@ function resource(input: {
   externalId: string;
   user: { email: string; name: string; active: boolean; createdAt: Date };
   membership: { role: string; orgUnitId: number | null; active: boolean };
+  identityActive?: boolean;
   unitName?: string | null;
   employeeNo?: string | null;
 }) {
@@ -38,7 +39,7 @@ function resource(input: {
     userName: input.user.email,
     displayName: input.user.name,
     name: { formatted: input.user.name },
-    active: input.user.active && input.membership.active,
+    active: input.user.active && input.membership.active && input.identityActive !== false,
     roles: [{ value: input.membership.role, primary: true }],
     "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
       department: input.unitName ?? undefined,
@@ -67,19 +68,14 @@ async function resolvedUnit(organizationId: number, department: string | undefin
   return byCode ?? null;
 }
 
-async function resolvedEmployee(organizationId: number, employeeNumber: string | undefined, email: string) {
-  if (employeeNumber?.trim()) {
-    const [employee] = await db.select().from(employees).where(and(
-      eq(employees.organizationId, organizationId),
-      eq(employees.employeeNo, employeeNumber.trim()),
-    )).limit(1);
-    if (employee) return employee;
-  }
-  const [byEmail] = await db.select().from(employees).where(and(
+async function resolvedEmployee(organizationId: number, employeeNumber: string | undefined) {
+  // Never bind payroll or ESS identity from an email coincidence.
+  if (!employeeNumber?.trim()) return null;
+  const [employee] = await db.select().from(employees).where(and(
     eq(employees.organizationId, organizationId),
-    ilike(employees.email, email),
+    eq(employees.employeeNo, employeeNumber.trim()),
   )).limit(1);
-  return byEmail ?? null;
+  return employee ?? null;
 }
 
 export async function GET(request: Request) {
@@ -115,16 +111,24 @@ export async function GET(request: Request) {
     )).limit(1);
     if (!user || !membership) continue;
     const unit = membership.orgUnitId
-      ? (await db.select().from(orgUnits).where(eq(orgUnits.id, membership.orgUnitId)).limit(1))[0]
+      ? (await db.select().from(orgUnits).where(and(
+          eq(orgUnits.id, membership.orgUnitId),
+          eq(orgUnits.organizationId, auth.organizationId),
+        )).limit(1))[0]
       : null;
-    const employee = user.employeeId
-      ? (await db.select({ employeeNo: employees.employeeNo }).from(employees).where(eq(employees.id, user.employeeId)).limit(1))[0]
+    const workerId = membership.workerEmployeeId ?? user.employeeId;
+    const employee = workerId
+      ? (await db.select({ employeeNo: employees.employeeNo }).from(employees).where(and(
+          eq(employees.id, workerId),
+          eq(employees.organizationId, auth.organizationId),
+        )).limit(1))[0]
       : null;
     resources.push(resource({
       scimId: identity.id,
       externalId: identity.externalId,
       user,
       membership,
+      identityActive: identity.active,
       unitName: unit?.name ?? null,
       employeeNo: employee?.employeeNo ?? null,
     }));
@@ -147,8 +151,15 @@ export async function POST(request: Request) {
   const email = String(body.userName ?? "").trim().toLowerCase();
   const name = String(body.displayName ?? body.name?.formatted ?? [body.name?.givenName, body.name?.familyName].filter(Boolean).join(" ")).trim();
   const externalId = String(body.externalId ?? email).trim();
-  const active = body.active !== false;
-  const role = scimRole(Array.isArray(body.roles) ? body.roles[0]?.value : body.role);
+  let active: boolean;
+  let role: (typeof SAFE_SCIM_ROLES)[number];
+  try {
+    active = body.active === undefined ? true : parseScimActive(body.active);
+    role = body.roles === undefined && body.role === undefined
+      ? "employee" : scimRole(body.roles ?? body.role);
+  } catch (error) {
+    return scimError(400, error instanceof Error ? error.message : "Invalid SCIM active or role.");
+  }
   const enterprise = (body["urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"] ?? {}) as EnterpriseExtension;
 
   if (!email || !email.includes("@") || email.length > 180 || !name || !externalId) {
@@ -165,12 +176,54 @@ export async function POST(request: Request) {
   if (emailOwner && !emailOwner.active) {
     return scimError(409, "An inactive global Linaw account already uses this userName. Reactivation requires an account administrator.");
   }
+  if (enterprise.department !== undefined && !enterprise.department.trim()) {
+    return scimError(400, "SCIM department cannot be blank.");
+  }
+  const employee = await resolvedEmployee(auth.organizationId, enterprise.employeeNumber);
+  if (enterprise.employeeNumber?.trim() && !employee) {
+    return scimError(404, "SCIM employeeNumber does not match an authoritative employee.");
+  }
   const unit = await resolvedUnit(auth.organizationId, enterprise.department);
-  const employee = await resolvedEmployee(auth.organizationId, enterprise.employeeNumber, email);
+  if (enterprise.department?.trim() && !unit) {
+    return scimError(404, "SCIM department does not match an organization unit.");
+  }
+  const inferredUnit = unit ?? (employee?.orgUnitId
+    ? (await db.select().from(orgUnits).where(and(
+        eq(orgUnits.organizationId, auth.organizationId),
+        eq(orgUnits.id, employee.orgUnitId),
+      )).limit(1))[0] ?? null
+    : null);
 
   try {
     const created = await db.transaction(async (tx) => {
+      // Serialize account linking across competing SCIM providers. A global
+      // account's identity fields cannot be overwritten by another employer.
+      if (emailOwner) await tx.execute(sql`select id from users where id = ${emailOwner.id} for update`);
+      const activeElsewhere = emailOwner ? await tx.select({ id: userOrganizations.id })
+        .from(userOrganizations).where(and(
+          eq(userOrganizations.userId, emailOwner.id),
+          ne(userOrganizations.organizationId, auth.organizationId),
+          eq(userOrganizations.active, true),
+        )).limit(1) : [];
+      const shared = activeElsewhere.length > 0;
       let user = emailOwner;
+      const [existingMembership] = user
+        ? await tx.select().from(userOrganizations).where(and(
+            eq(userOrganizations.userId, user.id),
+            eq(userOrganizations.organizationId, auth.organizationId),
+          )).limit(1)
+        : [];
+      const orgUnitId = scimProvisioningOrgUnit({
+        requestedUnitId: inferredUnit?.id ?? null,
+        requestedRole: role,
+        existingMembership: existingMembership ?? null,
+      });
+      if (employee) {
+        assertScimWorkerScope({
+          workerOrgUnitId: employee.orgUnitId,
+          membershipOrgUnitId: orgUnitId,
+        });
+      }
       if (!user) {
         [user] = await tx.insert(users).values({
           email,
@@ -181,36 +234,41 @@ export async function POST(request: Request) {
           localPasswordEnabled: false,
           employeeId: employee?.id ?? null,
         }).returning();
-      } else {
+      } else if (!shared) {
         if (employee?.id && user.employeeId && user.employeeId !== employee.id) {
-          throw new Error("Existing Linaw user is already linked to a different employee record.");
+          throw new EnterpriseProvisioningError("Existing ESS worker identity differs. Rebinding requires an account administrator.");
         }
-        const [updated] = await tx.update(users).set({
+        [user] = await tx.update(users).set({
           name: name.slice(0, 120),
           ...(employee?.id && !user.employeeId ? { employeeId: employee.id } : {}),
         }).where(eq(users.id, user.id)).returning();
-        user = updated;
       }
       if (!user) throw new Error("SCIM user creation returned no account.");
 
-      const [existingMembership] = await tx.select().from(userOrganizations).where(and(
-        eq(userOrganizations.userId, user.id),
-        eq(userOrganizations.organizationId, auth.organizationId),
-      )).limit(1);
       let membership = existingMembership;
       if (membership) {
+        if (employee?.id && membership.workerEmployeeId && membership.workerEmployeeId !== employee.id) {
+          throw new EnterpriseProvisioningError("An existing SCIM worker link cannot be changed without account reconciliation.");
+        }
         [membership] = await tx.update(userOrganizations).set({
-          role,
-          active,
-          orgUnitId: unit?.id ?? membership.orgUnitId,
+          role, active, orgUnitId,
+          ...(employee ? { workerEmployeeId: employee.id } : {}),
         }).where(eq(userOrganizations.id, membership.id)).returning();
+        if (shouldRevokeScimSessions({
+          activeChanged: membership.active !== existingMembership.active,
+          roleChanged: membership.role !== existingMembership.role,
+          orgUnitChanged: membership.orgUnitId !== existingMembership.orgUnitId,
+          workerLinkChanged: membership.workerEmployeeId !== existingMembership.workerEmployeeId,
+          emailChanged: false, nameChanged: false,
+        })) {
+          await tx.update(sessions).set({ revokedAt: new Date() }).where(and(
+            eq(sessions.userId, user.id), isNull(sessions.revokedAt),
+          ));
+        }
       } else {
         [membership] = await tx.insert(userOrganizations).values({
-          userId: user.id,
-          organizationId: auth.organizationId,
-          role,
-          active,
-          orgUnitId: unit?.id ?? null,
+          userId: user.id, organizationId: auth.organizationId,
+          role, active, orgUnitId, workerEmployeeId: employee?.id ?? null,
         }).returning();
       }
       if (!membership) throw new Error("SCIM membership creation returned no membership.");
@@ -224,7 +282,7 @@ export async function POST(request: Request) {
       }).returning();
       if (!identity) throw new Error("SCIM identity creation returned no record.");
 
-      return { user, membership, identity };
+      return { user, membership, identity, shared };
     });
 
     await recordAuditEvent({
@@ -232,7 +290,11 @@ export async function POST(request: Request) {
       actor: "SCIM token #" + auth.tokenId,
       action: "SCIM user provisioned",
       resource: email,
-      metadata: { scimIdentityId: created.identity.id, userId: created.user.id, role, orgUnitId: created.membership.orgUnitId, employeeId: created.user.employeeId },
+      metadata: {
+        scimIdentityId: created.identity.id, userId: created.user.id, role,
+        orgUnitId: created.membership.orgUnitId, employeeId: created.membership.workerEmployeeId,
+        sharedAccount: created.shared,
+      },
     });
 
     return Response.json(resource({
@@ -240,7 +302,8 @@ export async function POST(request: Request) {
       externalId: created.identity.externalId,
       user: created.user,
       membership: created.membership,
-      unitName: unit?.name ?? null,
+      identityActive: created.identity.active,
+      unitName: inferredUnit?.name ?? null,
       employeeNo: employee?.employeeNo ?? null,
     }), {
       status: 201,
@@ -249,7 +312,9 @@ export async function POST(request: Request) {
         Location: "/api/scim/v2/Users/" + created.identity.id,
       },
     });
-  } catch {
-    return scimError(409, "The SCIM user could not be provisioned because the email or membership conflicts with an existing account.");
+  } catch (error) {
+    return scimError(409, error instanceof EnterpriseProvisioningError
+      ? error.message
+      : "The SCIM user could not be provisioned because the email or membership conflicts with an existing account.");
   }
 }
