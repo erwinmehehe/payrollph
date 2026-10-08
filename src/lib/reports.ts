@@ -3,8 +3,9 @@ import { db } from "@/db";
 import { employees, leaveRequests, openShiftClaims, openShifts, overtimeRequests, payrollEntries, payrollRuns, staffingRequirements, timePunches, workforceTimesheets } from "@/db/schema";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { buildEmploymentLifecycleGovernanceReport } from "@/lib/hcm-lifecycle-analytics";
+import { buildHcmPeopleIntelligenceReport } from "@/lib/hcm-people-intelligence-server";
 
-export type ReportKey = "headcount" | "cost" | "turnover" | "compliance" | "assurance" | "workforce" | "lifecycle";
+export type ReportKey = "headcount" | "cost" | "turnover" | "compliance" | "assurance" | "workforce" | "lifecycle" | "people";
 
 export const REPORT_DEFINITIONS: Array<{ key: ReportKey; name: string; description: string; columns: string[] }> = [
   { key: "headcount", name: "Headcount movement", description: "Active, leave, disciplinary and separating counts by employment type", columns: ["Employment type", "Status", "People", "Avg monthly basic"] },
@@ -14,9 +15,17 @@ export const REPORT_DEFINITIONS: Array<{ key: ReportKey; name: string; descripti
   { key: "assurance", name: "Payroll assurance", description: "Latest payroll controls and employee variances against the previous run", columns: ["Severity", "Employee", "Control", "Detail", "Current", "Delta"] },
   { key: "workforce", name: "Workforce operations", description: "Trailing 30-day overtime, absence, coverage, schedule adherence, payroll variance and labor cost", columns: ["Metric", "Current", "Context"] },
   { key: "lifecycle", name: "Lifecycle governance", description: "Employment-term deadlines, decision flow, evidence coverage, non-renewal handoffs and notification escalations", columns: ["Metric", "Current", "Context"] },
+  { key: "people", name: "People Intelligence", description: "Verified as-of headcount, hires and released exits, effective-dated FTE, current vacancies, recruitment and payroll-grounded cost", columns: ["Area", "Metric", "Value", "Evidence / definition"] },
 ];
 
-export async function runReport(key: ReportKey, organizationId: number) {
+export async function runReport(
+  key: ReportKey,
+  organizationId: number,
+  options: { asOf?: string; windowDays?: number } = {},
+) {
+  if (key === "people") {
+    return buildHcmPeopleIntelligenceReport({ organizationId, ...options });
+  }
   if (key === "lifecycle") {
     return buildEmploymentLifecycleGovernanceReport({ organizationId });
   }
