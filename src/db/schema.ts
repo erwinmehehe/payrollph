@@ -4497,6 +4497,7 @@ export const hcmBusinessProcessInstanceSteps = pgTable(
     stepType: varchar("step_type", { length: 24 }).notNull(),
     label: varchar("label", { length: 120 }).notNull(),
     assignee: varchar("assignee", { length: 120 }).notNull(),
+    priority: varchar("priority", { length: 16 }).notNull().default("Normal"),
     status: varchar("status", { length: 24 }).notNull().default("waiting"),
     dueAt: timestamp("due_at", { withTimezone: true }),
     approvalTaskId: integer("approval_task_id").references(() => approvalTasks.id, { onDelete: "set null" }),
