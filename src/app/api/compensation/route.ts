@@ -911,12 +911,28 @@ export async function PATCH(request: Request) {
 
   if (decision === "declined") {
     if (proposal.status !== "proposed") return Response.json({ error: "Only proposed compensation changes can be declined." }, { status: 409 });
-    const [row] = await db.update(compensationProposals).set({
-      status: "declined",
-      approvedByUserId: user.id,
-      approvedAt: new Date(),
-      updatedAt: new Date(),
-    }).where(and(eq(compensationProposals.id, id), eq(compensationProposals.status, "proposed"))).returning();
+    const row = await db.transaction(async (tx) => {
+      const [updated] = await tx.update(compensationProposals).set({
+        status: "declined",
+        approvedByUserId: user.id,
+        approvedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(and(
+        eq(compensationProposals.id, id),
+        eq(compensationProposals.organizationId, proposal.organizationId),
+        eq(compensationProposals.status, "proposed"),
+      )).returning();
+      if (updated) {
+        await cancelHcmBusinessProcessForSourceTx(tx, {
+          organizationId: proposal.organizationId,
+          sourceType: "compensation_proposal",
+          sourceKey: String(id),
+          actorUserId: user.id,
+          actorName: user.name,
+        });
+      }
+      return updated ?? null;
+    });
     if (!row) return Response.json({ error: "This proposal was already decided." }, { status: 409 });
     await recordAuditEvent({ organizationId: proposal.organizationId, actor: user.name, action: "Compensation proposal declined", resource: `Proposal #${id}`, metadata: { employeeId: proposal.employeeId } });
     return Response.json(row);
@@ -957,6 +973,13 @@ export async function PATCH(request: Request) {
         eq(compensationProposals.status, proposal.status),
       )).returning();
       if (!updated) return null;
+      await cancelHcmBusinessProcessForSourceTx(tx, {
+        organizationId: updated.organizationId,
+        sourceType: "compensation_proposal",
+        sourceKey: String(updated.id),
+        actorUserId: user.id,
+        actorName: user.name,
+      });
 
       if (cycle) {
         await tx.insert(compensationEvents).values({
