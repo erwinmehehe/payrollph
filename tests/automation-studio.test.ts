@@ -120,7 +120,7 @@ test("automation failures cannot roll back authoritative HR or payroll transacti
   assert.ok(engine.includes('status: "engine_error"'));
   assert.ok(engine.includes("Automation outages or malformed secondary integrations"));
   assert.ok(engine.includes(".onConflictDoNothing().returning()"));
-  assert.ok(engine.includes('const status = failed.length === 0 ? "completed"'));
+  assert.ok(engine.includes('status: failed.length === 0 ? "completed"'));
   assert.ok(engine.includes('"partial"'));
   assert.ok(engine.includes('"waiting"'));
   assert.ok(engine.includes('"waiting_approval"'));

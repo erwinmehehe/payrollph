@@ -26,6 +26,8 @@ import {
   AUTOMATION_TRIGGERS,
   automationTriggerIsLive,
   normalizeAutomationActions,
+  replayAutomationExecutionSnapshot,
+  retryAutomationExecutionFailedStep,
   simulateAutomationImpact,
   validAutomationConditions,
   validateAutomationActionTrigger,
@@ -61,6 +63,39 @@ function uniqueConstraintViolation(error: unknown) {
     && (error as { code?: string }).code === "23505",
   );
 }
+
+
+function executionResultRows(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object" && !Array.isArray(row))
+    : [];
+}
+
+function latestExecutionSteps(value: unknown) {
+  const latest = new Map<number, Record<string, unknown>>();
+  for (const row of executionResultRows(value)) {
+    const type = String(row.type ?? "");
+    if (["wait", "approval_gate", "approval_gate_decision"].includes(type)) continue;
+    const stepIndex = Number(row.stepIndex);
+    if (!Number.isInteger(stepIndex) || stepIndex < 0) continue;
+    latest.set(stepIndex, row);
+  }
+  return [...latest.entries()].sort(([a], [b]) => a - b).map(([, row]) => row);
+}
+
+const NON_RETRYABLE_EXECUTION_ACTIONS = new Set([
+  "create_task",
+  "create_onboarding_checklist",
+  "send_slack_message",
+  "webhook",
+]);
+
+const SAFE_REPLAY_EXECUTION_ACTIONS = new Set([
+  "assign_permission_set",
+  "assign_benefit",
+  "revoke_sessions",
+  "deactivate_access",
+]);
 
 async function validateConnectorActions(organizationId: number, actions: AutomationWorkflowStep[]) {
   const connectors = await listSafeIntegrationConnectors(organizationId);
@@ -241,7 +276,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const [rules, versions, executions, units, sets, plans, patterns, approvalChains, integrationConnectors, dynamicGroups] = await Promise.all([
+  const [rules, versions, executions, units, sets, plans, patterns, approvalChains, integrationConnectors, dynamicGroups, eventRows] = await Promise.all([
     db.select().from(automationRules)
       .where(eq(automationRules.organizationId, organizationId))
       .orderBy(desc(automationRules.id)),
@@ -280,6 +315,10 @@ export async function GET(request: Request) {
     listApprovalChainPolicies(organizationId),
     listSafeIntegrationConnectors(organizationId),
     listDynamicWorkerGroups(organizationId, true),
+    db.select().from(automationEventLog)
+      .where(eq(automationEventLog.organizationId, organizationId))
+      .orderBy(desc(automationEventLog.occurredAt), desc(automationEventLog.id))
+      .limit(60),
   ]);
 
   const completed = executions.filter((row) => row.status === "completed").length;
@@ -288,10 +327,127 @@ export async function GET(request: Request) {
   const waiting = executions.filter((row) => ["waiting", "waiting_approval", "in_progress"].includes(row.status)).length;
   const terminal = completed + partial + failed;
 
+
+  const executionByRuleEvent = new Map(
+    executions.map((row) => [`${row.ruleId}:${row.eventKey}`, row]),
+  );
+  const attentionQueue = executions
+    .filter((row) => ["failed", "partial"].includes(row.status))
+    .map((row) => {
+      const latest = latestExecutionSteps(row.result);
+      const failedSteps = latest.filter((step) => step.status === "failed");
+      const workflow = normalizeAutomationActions(row.workflow);
+      const retryableFailedStepIndices = failedSteps
+        .filter((step) => !NON_RETRYABLE_EXECUTION_ACTIONS.has(String(step.type ?? "")))
+        .map((step) => Number(step.stepIndex))
+        .filter((stepIndex) => Number.isInteger(stepIndex));
+      const replayEligible = Boolean(
+        workflow
+        && workflow.length > 0
+        && !workflow.some((step) => step.type === "branch" || step.type === "wait" || step.type === "approval_gate")
+        && workflow.every((step) => SAFE_REPLAY_EXECUTION_ACTIONS.has(step.type)),
+      );
+      const ageMinutes = Math.max(0, Math.floor((Date.now() - new Date(row.updatedAt).getTime()) / 60_000));
+      return {
+        executionId: row.id,
+        ruleId: row.ruleId,
+        status: row.status,
+        error: row.error,
+        failedSteps: failedSteps.map((step) => ({
+          stepIndex: Number(step.stepIndex),
+          type: String(step.type ?? "unknown"),
+          error: String(step.error ?? "Automation action failed."),
+        })),
+        retryableFailedStepIndices,
+        replayEligible,
+        ageMinutes,
+        slaState: ageMinutes >= 240 ? "breached" : ageMinutes >= 60 ? "aging" : "fresh",
+      };
+    });
+
+  const decisionDiagnostics = eventRows.flatMap((event) => {
+    const candidates = rules.filter((rule) => rule.trigger === event.trigger);
+    return candidates.map((rule) => {
+      const actual = executionByRuleEvent.get(`${rule.id}:${event.eventKey}`);
+      if (actual) {
+        return {
+          eventId: event.id,
+          eventKey: event.eventKey,
+          trigger: event.trigger,
+          occurredAt: event.occurredAt,
+          ruleId: rule.id,
+          ruleName: rule.name,
+          outcome: "ran",
+          reason: `Execution #${actual.id} is ${actual.status}.`,
+          executionId: actual.id,
+        };
+      }
+      if (!rule.active) {
+        return {
+          eventId: event.id,
+          eventKey: event.eventKey,
+          trigger: event.trigger,
+          occurredAt: event.occurredAt,
+          ruleId: rule.id,
+          ruleName: rule.name,
+          outcome: "skipped",
+          reason: "Rule is currently inactive.",
+          executionId: null,
+        };
+      }
+      const actions = normalizeAutomationActions(rule.actions);
+      if (!actions || !validAutomationConditions(rule.conditions)) {
+        return {
+          eventId: event.id,
+          eventKey: event.eventKey,
+          trigger: event.trigger,
+          occurredAt: event.occurredAt,
+          ruleId: rule.id,
+          ruleName: rule.name,
+          outcome: "invalid",
+          reason: "Current published rule definition is invalid.",
+          executionId: null,
+        };
+      }
+      const preview = simulateAutomationImpact({
+        trigger: event.trigger as AutomationTrigger,
+        conditions: rule.conditions,
+        actions,
+        events: [{
+          employeeId: event.employeeId,
+          eventKey: event.eventKey,
+          source: event.source,
+          context: event.context && typeof event.context === "object" && !Array.isArray(event.context)
+            ? event.context as Record<string, unknown>
+            : {},
+          occurredAt: event.occurredAt,
+        }],
+      });
+      const sample = preview.samples[0];
+      return {
+        eventId: event.id,
+        eventKey: event.eventKey,
+        trigger: event.trigger,
+        occurredAt: event.occurredAt,
+        ruleId: rule.id,
+        ruleName: rule.name,
+        outcome: sample?.matched ? "matched_diagnostic" : "skipped",
+        reason: sample?.reason ?? "No diagnostic evidence available.",
+        executionId: null,
+      };
+    });
+  }).slice(0, 120);
+
   return Response.json({
     rules,
     versions,
     executions,
+    executionCenter: {
+      attentionQueue,
+      decisionDiagnostics,
+      generatedAt: new Date().toISOString(),
+      diagnosticNote: "Ran outcomes are backed by stored execution evidence. Skipped/matched-without-execution diagnostics evaluate the current published rule against the immutable event ledger and are not a historical reconstruction of an older rule version.",
+    },
     catalogs: {
       triggers: AUTOMATION_TRIGGER_CATALOG.map((trigger) => ({
         ...trigger,
@@ -382,6 +538,68 @@ export async function POST(request: Request) {
     windowMs: 5 * 60_000,
   });
   if (rateDenied) return rateDenied;
+
+
+  if (action === "retry-execution-step") {
+    const executionId = Number(body.executionId);
+    const stepIndex = body.stepIndex == null ? null : Number(body.stepIndex);
+    if (!Number.isInteger(executionId) || (stepIndex != null && !Number.isInteger(stepIndex))) {
+      return Response.json({ error: "executionId and an optional integer stepIndex are required." }, { status: 400 });
+    }
+    try {
+      const execution = await retryAutomationExecutionFailedStep({
+        organizationId,
+        executionId,
+        stepIndex,
+      });
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Automation execution failed step retried",
+        resource: `Execution #${executionId}`,
+        metadata: {
+          executionId,
+          requestedStepIndex: stepIndex,
+          resultingStatus: execution.status,
+        },
+      });
+      return Response.json({ execution });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Automation failed-step retry failed.",
+      }, { status: 409 });
+    }
+  }
+
+  if (action === "replay-execution") {
+    const executionId = Number(body.executionId);
+    if (!Number.isInteger(executionId)) {
+      return Response.json({ error: "executionId is required." }, { status: 400 });
+    }
+    try {
+      const execution = await replayAutomationExecutionSnapshot({
+        organizationId,
+        executionId,
+      });
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Automation execution stored snapshot replayed",
+        resource: `Execution #${executionId}`,
+        metadata: {
+          sourceExecutionId: executionId,
+          replayExecutionId: execution.id,
+          resultingStatus: execution.status,
+          replayMode: "idempotent-state-actions-only",
+        },
+      });
+      return Response.json({ execution }, { status: 201 });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Automation stored-snapshot replay failed.",
+      }, { status: 409 });
+    }
+  }
 
   if (action === "create-from-template") {
     const templateId = String(body.templateId ?? "").trim();

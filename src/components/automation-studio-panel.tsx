@@ -165,6 +165,32 @@ type StudioData = {
   rules: AutomationRule[];
   versions: AutomationRuleVersion[];
   executions: Execution[];
+  executionCenter: {
+    attentionQueue: Array<{
+      executionId: number;
+      ruleId: number;
+      status: string;
+      error: string | null;
+      failedSteps: Array<{ stepIndex: number; type: string; error: string }>;
+      retryableFailedStepIndices: number[];
+      replayEligible: boolean;
+      ageMinutes: number;
+      slaState: "fresh" | "aging" | "breached";
+    }>;
+    decisionDiagnostics: Array<{
+      eventId: number;
+      eventKey: string;
+      trigger: string;
+      occurredAt: string;
+      ruleId: number;
+      ruleName: string;
+      outcome: string;
+      reason: string;
+      executionId: number | null;
+    }>;
+    generatedAt: string;
+    diagnosticNote: string;
+  };
   catalogs: {
     triggers: TriggerCatalog[];
     liveTriggers: string[];
@@ -334,6 +360,7 @@ export function AutomationStudioPanel({
   const [data, setData] = useState<StudioData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [mutatingExecutionId, setMutatingExecutionId] = useState<number | null>(null);
   const [previewingRuleId, setPreviewingRuleId] = useState<number | null>(null);
   const [impactPreview, setImpactPreview] = useState<ImpactPreviewResponse | null>(null);
   const [showBuilder, setShowBuilder] = useState(false);
@@ -370,6 +397,39 @@ export function AutomationStudioPanel({
     () => new Map((data?.rules ?? []).map((rule) => [rule.id, rule])),
     [data],
   );
+
+
+  async function runExecutionControl(
+    action: "retry-execution-step" | "replay-execution",
+    executionId: number,
+    stepIndex?: number,
+  ) {
+    setMutatingExecutionId(executionId);
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action,
+          executionId,
+          ...(stepIndex == null ? {} : { stepIndex }),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Execution Center action failed.");
+      await load();
+      setNotice(
+        action === "retry-execution-step"
+          ? `Execution #${executionId} retried only its failed step. Successful steps were not rerun.`
+          : `Execution #${executionId} replayed from its stored snapshot using idempotent state-setting actions only.`,
+      );
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Execution Center action failed.");
+    } finally {
+      setMutatingExecutionId(null);
+    }
+  }
 
   function resetBuilder() {
     setName("");
@@ -1503,6 +1563,103 @@ export function AutomationStudioPanel({
           </div>
         </article>
       </section>
+
+      <article className="card" style={{ marginTop: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">EXECUTION CENTER</div>
+            <h2>Failures, retries and replay</h2>
+            <p>Retry only the failed step. Stored-snapshot replay is available only when every action is an idempotent state change; unsafe messaging, task, approval, document, webhook and schedule replays stay blocked.</p>
+          </div>
+          <RefreshCw size={17} className="i-purple" />
+        </div>
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead><tr><th>WORKFLOW</th><th>FAILURE</th><th>AGE / SLA</th><th>CONTROLS</th></tr></thead>
+            <tbody>
+              {data.executionCenter.attentionQueue.length === 0 && (
+                <tr><td colSpan={4}><div className="empty-state">No failed or partial executions need attention.</div></td></tr>
+              )}
+              {data.executionCenter.attentionQueue.map((item) => {
+                const firstRetryable = item.retryableFailedStepIndices[0];
+                return (
+                  <tr key={item.executionId}>
+                    <td>
+                      <strong>{ruleById.get(item.ruleId)?.name ?? `Rule #${item.ruleId}`}</strong>
+                      <small style={{ display: "block", color: "var(--muted)" }}>Execution #{item.executionId} · {item.status}</small>
+                    </td>
+                    <td>
+                      {item.failedSteps.map((step) => (
+                        <small key={step.stepIndex} style={{ display: "block", color: "var(--danger)", maxWidth: 420 }}>
+                          Step {step.stepIndex + 1} · {step.type}: {step.error}
+                        </small>
+                      ))}
+                    </td>
+                    <td>
+                      <span className={item.slaState === "breached" ? "status status-failed" : "status"}>
+                        {item.slaState}
+                      </span>
+                      <small style={{ display: "block", color: "var(--muted)" }}>{item.ageMinutes} min since update</small>
+                    </td>
+                    <td>
+                      <div className="run-actions">
+                        <button
+                          className="secondary-button"
+                          disabled={firstRetryable == null || mutatingExecutionId === item.executionId}
+                          onClick={() => firstRetryable != null && void runExecutionControl("retry-execution-step", item.executionId, firstRetryable)}
+                        >
+                          <RefreshCw size={13} /> Retry failed step
+                        </button>
+                        <button
+                          className="secondary-button"
+                          disabled={!item.replayEligible || mutatingExecutionId === item.executionId}
+                          onClick={() => void runExecutionControl("replay-execution", item.executionId)}
+                        >
+                          <Play size={13} /> Replay snapshot
+                        </button>
+                      </div>
+                      {firstRetryable == null && item.failedSteps.length > 0 && (
+                        <small style={{ display: "block", color: "var(--muted)", marginTop: 6 }}>
+                          Failed action requires manual side-effect review.
+                        </small>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article className="card" style={{ marginTop: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">WHY RAN / WHY SKIPPED</div>
+            <h2>Event decision diagnostics</h2>
+            <p>{data.executionCenter.diagnosticNote}</p>
+          </div>
+          <Activity size={17} className="i-purple" />
+        </div>
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead><tr><th>EVENT</th><th>WORKFLOW</th><th>OUTCOME</th><th>REASON</th></tr></thead>
+            <tbody>
+              {data.executionCenter.decisionDiagnostics.length === 0 && (
+                <tr><td colSpan={4}><div className="empty-state">No authoritative event diagnostics yet.</div></td></tr>
+              )}
+              {data.executionCenter.decisionDiagnostics.slice(0, 50).map((item) => (
+                <tr key={`${item.eventId}:${item.ruleId}`}>
+                  <td><strong>{item.trigger}</strong><small style={{ display: "block", color: "var(--muted)" }}>{item.eventKey}</small></td>
+                  <td>{item.ruleName}</td>
+                  <td><span className={item.outcome === "ran" ? "status status-verified" : "status"}>{item.outcome}</span></td>
+                  <td>{item.reason}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </article>
 
       <article className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
