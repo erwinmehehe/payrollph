@@ -564,6 +564,63 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     }
   }
 
+  async function previewPositionExecution(baseline: WorkforcePlanBaseline) {
+    setPositionExecutionPreviewing(baseline.id);
+    try {
+      const response = await fetch("/api/workforce-planning/position-executions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, planId: baseline.planId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? "Could not create a position execution preview.");
+        return;
+      }
+      await load();
+      const summary = payload.execution?.executionPlan?.preview?.summary;
+      setNotice(
+        summary
+          ? `Position execution preview ready: ${summary.createCount} create, ${summary.updateCount} update, ${summary.noopCount} unchanged, ${summary.blockerCount} blocker(s).`
+          : "Position execution preview created.",
+      );
+    } catch {
+      setNotice("Could not reach workforce position execution.");
+    } finally {
+      setPositionExecutionPreviewing(null);
+    }
+  }
+
+  async function positionExecutionAction(executionId: number, action: "apply" | "cancel") {
+    setPositionExecutionActing(executionId);
+    try {
+      const response = await fetch("/api/workforce-planning/position-executions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ executionId, action }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? `Could not ${action} the position execution.`);
+        return;
+      }
+      await load();
+      if (action === "apply") {
+        const result = payload.execution?.result;
+        setNotice(
+          `Published plan applied to positions: ${result?.createdPositions?.length ?? 0} created, ${result?.updatedPositions?.length ?? 0} updated. Recruitment and incumbency remain separate governed actions.`,
+        );
+      } else {
+        setNotice("Position execution preview cancelled.");
+      }
+    } catch {
+      setNotice("Could not reach workforce position execution.");
+    } finally {
+      setPositionExecutionActing(null);
+    }
+  }
+
+
   async function post(body: Record<string, unknown>) {
     const response = await fetch("/api/workforce-planning", {
       method: "POST",
