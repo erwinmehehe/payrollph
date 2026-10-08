@@ -18,6 +18,15 @@ function requireOperatorOptIn() {
     || !process.env.OPENAI_API_KEY?.trim()) {
     throw new Error("A staging-only model key and enabled drafting flag are required.");
   }
+  if (process.env.GITHUB_ACTIONS === "true") {
+    const exactCommitApproved = Boolean(process.env.GITHUB_SHA)
+      && process.env.AUTOMATION_LANGUAGE_APPROVED_COMMIT === process.env.GITHUB_SHA;
+    if (process.env.GITHUB_EVENT_NAME !== "workflow_dispatch"
+      || !process.env.GITHUB_REF?.startsWith("refs/heads/")
+      || !exactCommitApproved) {
+      throw new Error("GitHub live-provider acceptance requires a manually approved exact branch commit.");
+    }
+  }
   if (process.env.DATABASE_URL) {
     throw new Error("Unset DATABASE_URL to prevent any live database access.");
   }
