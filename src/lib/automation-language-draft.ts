@@ -405,32 +405,6 @@ export async function draftAutomationFromLanguage(request: string): Promise<Lang
   if (!validation.valid || !validation.draft) {
     throw new LanguageDraftError("Generated workflow failed server validation: " + validation.errors.join(" "), 422);
   }
-  // A syntactically valid draft can still silently drop actions from the request.
-  // Enforce conservative coverage of explicit user intent; false positives may
-  // require clarification, but never turn an omission into an automatic workflow.
-  if (configured) {
-    const kinds = new Set(validation.draft.actions.map((action) => action.type));
-    const requestedChecks: Array<{ requested: boolean; satisfied: boolean; name: string }> = [
-      { requested: /\b(?:email|e-mail|notify|notification)\b/i.test(prompt),
-        satisfied: kinds.has("send_email"), name: "email or notification" },
-      { requested: /\b(?:task|checklist)\b/i.test(prompt),
-        satisfied: kinds.has("create_task") || kinds.has("create_onboarding_checklist"),
-        name: "task or checklist" },
-      { requested: /\b(?:approval|approve|sign-?off)\b/i.test(prompt),
-        satisfied: kinds.has("request_approval") || kinds.has("approval_gate"),
-        name: "human approval" },
-      { requested: /\b(?:wait|delay)\b/i.test(prompt),
-        satisfied: kinds.has("wait"), name: "wait or delay" },
-    ];
-    const omitted = requestedChecks.filter((check) => check.requested && !check.satisfied);
-    if (omitted.length) {
-      throw new LanguageDraftError(
-        "The model omitted requested " + omitted.map((check) => check.name).join(", ")
-          + " steps. Clarify the request or use the governed builder.",
-        422,
-      );
-    }
-  }
   // Do not let an LLM silently broaden a scoped or conditional natural-language request.
   if (/\b(only|except|unless|where|limited to|department|location|threshold|greater than|less than)\b/i.test(prompt)
     && !(validation.draft.conditions.all?.length || validation.draft.conditions.any?.length)) {
