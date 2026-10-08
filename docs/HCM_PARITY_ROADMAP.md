@@ -159,9 +159,9 @@ Built:
 - Plan owners can set org-unit headcount and annual-budget allocations; managers can create versioned bottom-up requests within those ceilings, with maker-checker decisions and accepted-version supersession
 - Published baselines reconcile named organization-unit and cost-center headcount/FTE/position-budget evidence against the live ledger, with payroll-cost redaction preserved
 - Governed scenarios support annual attrition and backfill assumptions, role-level expected exits/backfills, ending headcount, capacity loss/recovery and payroll-grounded backfill cost evidence; assumptions are hashed, approved and carried into published baselines/revisions without mutating employment or positions
+- Published baselines freeze exact executable position specifications; company-wide People admins can create immutable execution previews and explicitly apply only baseline-authorized create/restore/approve actions after MFA, rate limiting, live-state rehashing, lifecycle checks and database locks, without creating requisitions, incumbents or payroll changes
 
 Remaining:
-- Controlled publish-to-execution actions for bulk position creation/changes from an approved plan
 
 This should remain a differentiator because Linaw can use actual Philippine payroll burden and employer contribution data instead of generic salary-only planning.
 

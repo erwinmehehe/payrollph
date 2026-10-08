@@ -112,6 +112,7 @@ type WorkforcePlanBaseline = {
     plan?: { id?: number; name?: string; startDate?: string; endDate?: string; budget?: number | null };
     scenario?: { id?: number; name?: string; version?: number };
     headcount?: HeadcountPlanSummaryView;
+    positionExecutionSource?: { version?: string; positionCount?: number };
   } | null;
   actual: HeadcountPlanSummaryView;
   variance: {
@@ -127,6 +128,40 @@ type WorkforcePlanBaseline = {
   dimensionVariance: {
     orgUnits: HeadcountPlanDimensionVarianceView[];
     costCenters: HeadcountPlanDimensionVarianceView[];
+  } | null;
+};
+
+type WorkforcePositionExecution = {
+  id: number;
+  planId: number;
+  baselineId: number;
+  baselineSnapshotHash: string;
+  status: "preview" | "applied" | "cancelled";
+  executionHash: string;
+  createdBy: string;
+  createdAt: string;
+  appliedBy: string | null;
+  appliedAt: string | null;
+  executionPlan: {
+    baselineVersion?: number;
+    liveStateHash?: string;
+    preview?: {
+      summary?: {
+        baselinePositions: number;
+        createCount: number;
+        updateCount: number;
+        noopCount: number;
+        blockerCount: number;
+        executable: boolean;
+      };
+      actions?: Array<{ kind: string; code: string; changedFields?: string[] }>;
+      blockers?: Array<{ code: string; positionId: number | null; positionCode: string | null; message: string }>;
+    };
+  } | null;
+  result: {
+    createdPositions?: Array<{ sourcePositionId: number; positionId: number; code: string }>;
+    updatedPositions?: Array<{ positionId: number; code: string; changedFields: string[] }>;
+    noopCount?: number;
   } | null;
 };
 
@@ -269,7 +304,11 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [scenarios, setScenarios] = useState<WorkforceScenario[]>([]);
   const [approvalConfiguration, setApprovalConfiguration] = useState<WorkforceApprovalConfiguration>({ configured: false, conflict: false, policy: null });
   const [baselines, setBaselines] = useState<WorkforcePlanBaseline[]>([]);
+  const [positionExecutions, setPositionExecutions] = useState<WorkforcePositionExecution[]>([]);
+  const [positionExecutionCanApply, setPositionExecutionCanApply] = useState(false);
   const [baselinePublishing, setBaselinePublishing] = useState<number | null>(null);
+  const [positionExecutionPreviewing, setPositionExecutionPreviewing] = useState<number | null>(null);
+  const [positionExecutionActing, setPositionExecutionActing] = useState<number | null>(null);
   const [forecastPlanCreating, setForecastPlanCreating] = useState<number | null>(null);
   const [costVisible, setCostVisible] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -345,6 +384,12 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       if (baselineResponse.ok) {
         setBaselines(baselinePayload.baselines ?? []);
         setCostVisible(baselinePayload.costVisible !== false);
+      }
+      const executionResponse = await fetch(`/api/workforce-planning/position-executions?organizationId=${organizationId}`, { cache: "no-store" });
+      const executionPayload = await executionResponse.json().catch(() => ({}));
+      if (executionResponse.ok) {
+        setPositionExecutions(executionPayload.executions ?? []);
+        setPositionExecutionCanApply(Boolean(executionPayload.access?.canApply));
       }
     } finally {
       setLoading(false);
@@ -518,6 +563,63 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       setForecastPlanCreating(null);
     }
   }
+
+  async function previewPositionExecution(baseline: WorkforcePlanBaseline) {
+    setPositionExecutionPreviewing(baseline.id);
+    try {
+      const response = await fetch("/api/workforce-planning/position-executions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, planId: baseline.planId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? "Could not create a position execution preview.");
+        return;
+      }
+      await load();
+      const summary = payload.execution?.executionPlan?.preview?.summary;
+      setNotice(
+        summary
+          ? `Position execution preview ready: ${summary.createCount} create, ${summary.updateCount} update, ${summary.noopCount} unchanged, ${summary.blockerCount} blocker(s).`
+          : "Position execution preview created.",
+      );
+    } catch {
+      setNotice("Could not reach workforce position execution.");
+    } finally {
+      setPositionExecutionPreviewing(null);
+    }
+  }
+
+  async function positionExecutionAction(executionId: number, action: "apply" | "cancel") {
+    setPositionExecutionActing(executionId);
+    try {
+      const response = await fetch("/api/workforce-planning/position-executions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ executionId, action }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? `Could not ${action} the position execution.`);
+        return;
+      }
+      await load();
+      if (action === "apply") {
+        const result = payload.execution?.result;
+        setNotice(
+          `Published plan applied to positions: ${result?.createdPositions?.length ?? 0} created, ${result?.updatedPositions?.length ?? 0} updated. Recruitment and incumbency remain separate governed actions.`,
+        );
+      } else {
+        setNotice("Position execution preview cancelled.");
+      }
+    } catch {
+      setNotice("Could not reach workforce position execution.");
+    } finally {
+      setPositionExecutionActing(null);
+    }
+  }
+
 
   async function post(body: Record<string, unknown>) {
     const response = await fetch("/api/workforce-planning", {
@@ -1077,14 +1179,24 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
                         {delta?.annualPositionBudget == null ? "cost restricted" : `${delta.annualPositionBudget >= 0 ? "+" : ""}${peso(delta.annualPositionBudget)} vs baseline`}
                       </small>
                       {baseline.current && (
-                        <button
-                          className="secondary-button"
-                          type="button"
-                          disabled={forecastPlanCreating === baseline.id}
-                          onClick={() => void createForecastRevision(baseline)}
-                        >
-                          <RefreshCw size={14} /> {forecastPlanCreating === baseline.id ? "Creating..." : "Start forecast revision"}
-                        </button>
+                        <div className="run-actions" style={{ justifyContent: "flex-end" }}>
+                          <button
+                            className="secondary-button"
+                            type="button"
+                            disabled={forecastPlanCreating === baseline.id}
+                            onClick={() => void createForecastRevision(baseline)}
+                          >
+                            <RefreshCw size={14} /> {forecastPlanCreating === baseline.id ? "Creating..." : "Start forecast revision"}
+                          </button>
+                          <button
+                            className="primary-button"
+                            type="button"
+                            disabled={positionExecutionPreviewing === baseline.id}
+                            onClick={() => void previewPositionExecution(baseline)}
+                          >
+                            <CheckCircle2 size={14} /> {positionExecutionPreviewing === baseline.id ? "Preparing..." : "Preview position execution"}
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -1094,6 +1206,110 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
             </tbody>
           </table>
         </div>
+      </article>
+
+      <article className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">CONTROLLED PLAN EXECUTION</div>
+            <h2>Published plan → position ledger</h2>
+            <p>
+              Preview the exact creates and changes authorized by the current published baseline. Apply is an explicit MFA-gated action and revalidates the baseline, live position state, active incumbents, and recruiting state before committing anything.
+            </p>
+          </div>
+        </div>
+
+        <div className="notice notice-slate" style={{ marginBottom: 16 }}>
+          <Building2 size={15} />
+          <span>
+            <strong>Execution boundary.</strong> This step can create missing approved positions or restore/approve unoccupied planning positions from frozen baseline evidence. It never creates requisitions, hires employees, changes assignments, schedules attendance, or modifies payroll.
+          </span>
+        </div>
+
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>PLAN / BASELINE</th>
+                <th>PREVIEW</th>
+                <th>BLOCKERS</th>
+                <th>STATUS</th>
+                <th className="right">ACTION</th>
+              </tr>
+            </thead>
+            <tbody>
+              {positionExecutions.map((execution) => {
+                const summary = execution.executionPlan?.preview?.summary;
+                const blockers = execution.executionPlan?.preview?.blockers ?? [];
+                const baseline = baselines.find((row) => row.id === execution.baselineId);
+                const planName = baseline?.snapshot?.plan?.name
+                  ?? plans.find((plan) => plan.id === execution.planId)?.name
+                  ?? `Plan #${execution.planId}`;
+                return (
+                  <tr key={execution.id}>
+                    <td>
+                      <strong>{planName}</strong>
+                      <small style={{ display: "block", color: "var(--muted)" }}>
+                        Baseline v{execution.executionPlan?.baselineVersion ?? baseline?.version ?? "?"} · {execution.baselineSnapshotHash.slice(0, 10)} · execution {execution.executionHash.slice(0, 10)}
+                      </small>
+                    </td>
+                    <td>
+                      {summary
+                        ? <><strong>{summary.createCount} create · {summary.updateCount} update</strong><small style={{ display: "block", color: "var(--muted)" }}>{summary.noopCount} already aligned · {summary.baselinePositions} frozen positions</small></>
+                        : "Preview evidence unavailable"}
+                    </td>
+                    <td>
+                      {blockers.length > 0
+                        ? <><span className="status status-pending">{blockers.length} blocker{blockers.length === 1 ? "" : "s"}</span><small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>{blockers.slice(0, 2).map((item) => item.message).join(" · ")}</small></>
+                        : <span className="status status-verified">Ready</span>}
+                    </td>
+                    <td>
+                      <span className={execution.status === "applied" ? "status status-verified" : execution.status === "cancelled" ? "status status-rejected" : "status"}>{execution.status}</span>
+                      <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
+                        {execution.status === "applied"
+                          ? `${execution.result?.createdPositions?.length ?? 0} created · ${execution.result?.updatedPositions?.length ?? 0} updated`
+                          : `Previewed by ${execution.createdBy}`}
+                      </small>
+                    </td>
+                    <td className="right">
+                      {execution.status === "preview" ? (
+                        <div className="run-actions" style={{ justifyContent: "flex-end" }}>
+                          <button
+                            className="secondary-button"
+                            type="button"
+                            disabled={positionExecutionActing === execution.id}
+                            onClick={() => void positionExecutionAction(execution.id, "cancel")}
+                          >
+                            <XCircle size={14} /> Cancel
+                          </button>
+                          <button
+                            className="primary-button"
+                            type="button"
+                            disabled={!positionExecutionCanApply || positionExecutionActing === execution.id || (summary?.blockerCount ?? 1) > 0}
+                            onClick={() => void positionExecutionAction(execution.id, "apply")}
+                          >
+                            <CheckCircle2 size={14} /> {positionExecutionActing === execution.id ? "Applying..." : "Apply positions"}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="status">{execution.appliedBy ? `By ${execution.appliedBy}` : "No action"}</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {positionExecutions.length === 0 && (
+                <tr><td colSpan={5}><div className="empty-state">No position execution preview yet. Use a current published baseline to generate one.</div></td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {!positionExecutionCanApply && positionExecutions.some((execution) => execution.status === "preview") && (
+          <div className="notice notice-amber" style={{ marginTop: 16 }}>
+            <span>Applying a published plan requires company-wide People-admin permission plus an MFA-verified sensitive-action session.</span>
+          </div>
+        )}
       </article>
 
       <article className="card" style={{ marginBottom: 16 }}>

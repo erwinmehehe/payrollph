@@ -3960,6 +3960,36 @@ export const workforcePlanBaselines = pgTable(
   ],
 );
 
+export const workforcePlanPositionExecutions = pgTable(
+  "workforce_plan_position_executions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    planId: integer("plan_id").notNull().references(() => workforcePlans.id, { onDelete: "cascade" }),
+    baselineId: integer("baseline_id").notNull().references(() => workforcePlanBaselines.id, { onDelete: "restrict" }),
+    baselineSnapshotHash: varchar("baseline_snapshot_hash", { length: 64 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("preview"),
+    executionPlan: jsonb("execution_plan").notNull().default({}),
+    executionHash: varchar("execution_hash", { length: 64 }).notNull(),
+    result: jsonb("result").notNull().default({}),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    createdBy: varchar("created_by", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    appliedByUserId: integer("applied_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    appliedBy: varchar("applied_by", { length: 120 }),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("workforce_plan_position_executions_org_hash_unique").on(table.organizationId, table.executionHash),
+    index("workforce_plan_position_executions_plan_status_idx").on(table.organizationId, table.planId, table.status),
+    index("workforce_plan_position_executions_baseline_idx").on(table.baselineId),
+    check(
+      "workforce_plan_position_executions_status_check",
+      sql`${table.status} in ('preview','applied','cancelled')`,
+    ),
+  ],
+);
+
 export const positions = pgTable(
   "positions",
   {

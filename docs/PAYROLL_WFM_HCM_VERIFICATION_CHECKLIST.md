@@ -69,6 +69,7 @@ This checklist turns the product roadmap into evidence gates. A capability is no
 - [x] Top-down org-unit headcount/budget allocations and versioned bottom-up manager submissions with maker-checker decisions.
 - [x] Published-baseline budget variance by named org unit and cost center, with headcount/FTE deltas and payroll-cost redaction.
 - [x] Attrition/backfill planning uses bounded annual attrition/backfill assumptions, role-level headcount/capacity/cost evidence, immutable scenario hashes, shared maker-checker approval, and no direct employment/position/payroll mutation.
+- [x] Controlled published-plan -> position execution freezes exact position specs in the baseline, requires explicit company-wide People-admin preview/apply, MFA and rate limiting, revalidates baseline/live hashes under locks, fails closed on occupied/recruiting drift, and never creates requisitions, incumbents, schedules, attendance or payroll.
 - [ ] Salary bands by job profile + level + location.
 - [ ] Compa-ratio and range penetration.
 - [ ] Compensation review cycles, budget pools, recommendations, approvals, and audit.
@@ -137,8 +138,8 @@ This checklist turns the product roadmap into evidence gates. A capability is no
 
 ## Current priority
 
-1. Add controlled approved-plan -> bulk position creation/change execution.
-2. Extend Dynamic Groups into permission assignments and approval routing.
+1. Extend Dynamic Groups into permission assignments and approval routing.
+2. Add deeper non-destructive WFM/payroll orchestration and recovery actions.
 3. Keep the fresh-tenant WFM -> payroll pilot green while expanding production proof.
 4. Complete real-employer payroll reconciliation, attendance hardware certification, and external government/bank acceptance evidence.
 

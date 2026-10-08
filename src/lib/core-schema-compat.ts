@@ -2140,6 +2140,36 @@ CREATE INDEX IF NOT EXISTS bir_withholding_remittance_filing_idx
           ON workforce_plan_baselines(organization_id, published_at);
       `);
 
+      // Published-plan position execution stores an immutable preview and applies
+      // it once only after the current baseline and live position state are revalidated.
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS workforce_plan_position_executions (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          plan_id integer NOT NULL REFERENCES workforce_plans(id) ON DELETE CASCADE,
+          baseline_id integer NOT NULL REFERENCES workforce_plan_baselines(id) ON DELETE RESTRICT,
+          baseline_snapshot_hash varchar(64) NOT NULL,
+          status varchar(24) NOT NULL DEFAULT 'preview',
+          execution_plan jsonb NOT NULL DEFAULT '{}'::jsonb,
+          execution_hash varchar(64) NOT NULL,
+          result jsonb NOT NULL DEFAULT '{}'::jsonb,
+          created_by_user_id integer NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          created_by varchar(120) NOT NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          applied_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          applied_by varchar(120),
+          applied_at timestamptz,
+          CONSTRAINT workforce_plan_position_executions_status_check
+            CHECK (status IN ('preview','applied','cancelled'))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS workforce_plan_position_executions_org_hash_unique
+          ON workforce_plan_position_executions(organization_id, execution_hash);
+        CREATE INDEX IF NOT EXISTS workforce_plan_position_executions_plan_status_idx
+          ON workforce_plan_position_executions(organization_id, plan_id, status);
+        CREATE INDEX IF NOT EXISTS workforce_plan_position_executions_baseline_idx
+          ON workforce_plan_position_executions(baseline_id);
+      `);
+
       // Workforce Planning 2.0 top-down allocations and manager submissions.
       // Allocations are plan-owner ceilings; manager submissions remain planning
       // evidence and never create positions or mutate payroll by themselves.

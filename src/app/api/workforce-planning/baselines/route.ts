@@ -27,6 +27,7 @@ import {
   type HeadcountPlanSummary,
 } from "@/lib/workforce-plan-baseline";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { normalizePositionSpec } from "@/lib/workforce-plan-position-execution";
 
 export const dynamic = "force-dynamic";
 
@@ -109,10 +110,21 @@ function redactSnapshotCosts(snapshot: unknown) {
   const headcount = baselineSummary(snapshot);
   const plan = snapshotRecord(root.plan);
   const forecast = snapshotRecord(root.forecast);
+  const executionSource = snapshotRecord(root.positionExecutionSource);
+  const executionPositions = Array.isArray(executionSource.positions)
+    ? executionSource.positions.map((position) =>
+        position && typeof position === "object" && !Array.isArray(position)
+          ? { ...(position as Record<string, unknown>), annualBudget: null }
+          : position
+      )
+    : executionSource.positions;
   return {
     ...root,
     plan: { ...plan, budget: null },
     headcount: headcount ? redactSummaryCosts(headcount) : root.headcount,
+    positionExecutionSource: Object.keys(executionSource).length
+      ? { ...executionSource, positions: executionPositions }
+      : root.positionExecutionSource,
     forecast: Object.keys(forecast).length
       ? {
           ...forecast,
@@ -307,6 +319,25 @@ export async function POST(request: Request) {
     })),
   });
   const forecast = extractForecastSummary(scenario.snapshot);
+  const positionExecutionSource = positionRows
+    .filter((position) => position.planId === plan.id && position.status !== "closed")
+    .map((position) => normalizePositionSpec({
+      sourcePositionId: position.id,
+      code: position.code,
+      jobProfileId: position.jobProfileId,
+      orgUnitId: position.orgUnitId,
+      supervisoryOrgUnitId: position.supervisoryOrgUnitId,
+      legalEntityId: position.legalEntityId,
+      costCenterId: position.costCenterId,
+      planId: plan.id,
+      managerEmployeeId: position.managerEmployeeId,
+      employmentType: position.employmentType,
+      status: position.status,
+      plannedStartDate: position.plannedStartDate ? String(position.plannedStartDate) : null,
+      annualBudget: position.annualBudget,
+      notes: position.notes,
+    }))
+    .sort((a, b) => a.sourcePositionId - b.sourcePositionId);
 
   const publishedAt = new Date();
   const snapshotBase = {
@@ -340,6 +371,12 @@ export async function POST(request: Request) {
     },
     headcount,
     forecast,
+    positionExecutionSource: {
+      version: "hcm-position-execution-source-v1",
+      positions: positionExecutionSource,
+      positionCount: positionExecutionSource.length,
+      boundary: "This exact position set is the only position ledger evidence authorized for controlled execution from this published baseline.",
+    },
     boundary: "This immutable baseline records approved workforce-plan evidence at publication. Live position, assignment, requisition, payroll, and scheduling records continue to change independently and are reconciled as actuals.",
   };
   try {
@@ -413,6 +450,7 @@ export async function POST(request: Request) {
         attritionBackfillPercent: Number(scenario.attritionBackfillPercent),
         expectedAttritionExits: forecast?.expectedAttritionExits ?? null,
         plannedAttritionBackfills: forecast?.plannedAttritionBackfills ?? null,
+        positionExecutionSourceCount: positionExecutionSource.length,
       },
     });
 
