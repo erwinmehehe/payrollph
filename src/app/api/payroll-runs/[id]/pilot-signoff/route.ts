@@ -207,11 +207,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return meta.kind === "journal";
   });
   const dryRunBankExport = runEvents.find((event) => {
-    if (event.action !== "Bank file dry-run generated") return false;
+    if (event.action !== "Bank file dry-run generated" || !releaseReceipt) return false;
     const metadata = event.metadata && typeof event.metadata === "object"
       ? event.metadata as Record<string, unknown>
       : {};
-    return metadata.kind === "bank" && metadata.dryRun === true;
+    // A preview prepared before the final release or containing placeholder
+    // destinations cannot stand in for a real employer's no-money bank-file proof.
+    return metadata.kind === "bank"
+      && metadata.dryRun === true
+      && event.createdAt >= releaseReceipt.createdAt
+      && Number(metadata.bankExportRowCount) === entries.length
+      && Math.abs(Number(metadata.bankExportTotalNet) - Number(run.netPay)) <= 0.01
+      && Number(metadata.bankExportMissingDestinations) === 0
+      && Number(metadata.bankExportMissingPaymentSnapshots) === 0
+      && metadata.bankExportSyntheticDemoDestinations === false
+      && typeof metadata.bankExportSha256 === "string"
+      && /^[0-9a-f]{64}$/.test(metadata.bankExportSha256);
   });
   const alreadySigned = runEvents.find((event) => event.action === "Production payroll pilot signed off");
 
@@ -230,7 +241,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (entries.length === 0) evidenceFailures.push("released payroll entries");
   if (!releaseReceipt) evidenceFailures.push("release receipt");
   if (!payoutCompleted && !dryRunBankExport) {
-    evidenceFailures.push("completed payout or bank-file dry-run evidence");
+    evidenceFailures.push("completed payout or post-release bank-file dry-run with complete real destinations, immutable snapshots, correct employee count, matching net sum and SHA-256 proof");
   }
   if (slips.length < entries.length) evidenceFailures.push("payslips for every released entry");
   if (!accountingExport) evidenceFailures.push("accounting journal export");
@@ -293,6 +304,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       employeeLevelReconciliationConfirmed: true,
       operatorCompletedWithoutDeveloper: true,
       payoutEvidenceMode: payoutCompleted ? "completed-payout" : "no-money-bank-file-dry-run",
+      bankPreviewSha256: dryRunBankExport && typeof (dryRunBankExport.metadata as Record<string, unknown>).bankExportSha256 === "string"
+        ? (dryRunBankExport.metadata as Record<string, unknown>).bankExportSha256
+        : null,
       independentFigures,
       verifiedFigures,
       reconciliationVariances: variances,
