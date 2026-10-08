@@ -249,6 +249,25 @@ export function buildPositionExecutionPreview(input: {
     const structuralChanges = changedStructuralFields(spec, liveSpec);
     const baselineTarget = approvedTarget(spec);
 
+    if (assignmentIds.has(live.id) && live.status !== "filled") {
+      blockers.push({
+        code: "OCCUPIED_POSITION_DRIFT",
+        positionId: live.id,
+        positionCode: live.code,
+        message: "The live position has an incumbent but is not in the filled lifecycle state.",
+      });
+      continue;
+    }
+    if (requisitionIds.has(live.id) && live.status !== "open") {
+      blockers.push({
+        code: "RECRUITING_POSITION_DRIFT",
+        positionId: live.id,
+        positionCode: live.code,
+        message: "The live position has an active requisition but is not in the open lifecycle state.",
+      });
+      continue;
+    }
+
     if (structuralChanges.length > 0) {
       if (assignmentIds.has(live.id)) {
         blockers.push({
