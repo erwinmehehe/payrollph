@@ -361,3 +361,47 @@ test("queue review is read-only, tenant-scoped and excludes stored compensation 
     });
   });
 });
+
+
+test("tenant and worker source mismatch cannot enqueue, dispatch or manually retry compensation automation", async () => {
+  await withFixture(async (first) => {
+    await withFixture(async (second) => {
+      // The underlying column foreign keys allow valid foreign rows from
+      // another tenant, so the outbox must bind the three IDs itself.
+      await assert.rejects(
+        db.transaction(async (tx) => enqueueCompensationAutomationIntents(tx, {
+          organizationId: first.organizationId,
+          employeeId: second.employeeId,
+          compensationEventId: first.compensationEventId,
+          intents: [{
+            trigger: "compensation.changed",
+            eventKey: first.eventKey + ":forged",
+            context: { mustNeverDispatch: true },
+          }],
+        })),
+        /source must match/i,
+      );
+
+      const id = await persist(first);
+      await db.update(compensationAutomationIntents).set({
+        employeeId: second.employeeId,
+      }).where(eq(compensationAutomationIntents.id, id));
+      const outcome = await dispatchCompensationAutomationIntent(id);
+      assert.equal(outcome.status, "needs_review");
+      const quarantined = await readIntent(id);
+      assert.equal(quarantined.status, "needs_review");
+      assert.match(quarantined.lastError ?? "", /source mismatch/i);
+      const delivered = await db.select().from(automationEventLog).where(and(
+        eq(automationEventLog.organizationId, first.organizationId),
+        eq(automationEventLog.eventKey, first.eventKey),
+      ));
+      assert.equal(delivered.length, 0, "a mismatched worker must never reach the automation ledger");
+      await assert.rejects(retryUnstartedCompensationAutomationIntent({
+        organizationId: first.organizationId,
+        intentId: id,
+        reviewer: "Independent security reviewer",
+      }), /source mismatch/i);
+      assert.equal((await readIntent(id)).status, "needs_review");
+    });
+  });
+});
