@@ -61,7 +61,7 @@ test("planned positions enter HCM business process before becoming approved", ()
   assert.match(engine, /finalizePositionBusinessProcessSource/);
   assert.match(engine, /positionControlFingerprint\(current\) !== evidence.fingerprint/);
   assert.match(engine, /pg_advisory_xact_lock\(4102/);
-  assert.match(engine, /inArray\(hcmBusinessProcessInstances.status, \["in_progress", "approved"\]\)/.source ? /hcmBusinessProcessInstances.status/ : /approval/);
+  assert.match(api, /inArray\(hcmBusinessProcessInstances.status, \["in_progress", "approved"\]\)/);
 });
 
 test("position finalization never bypasses incumbency, recruitment or source-approval gates", () => {
