@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { draftAutomationFromLanguage } from "../src/lib/automation-language-draft";
 
 /**
  * Optional, operator-initiated live-provider contract check.
@@ -51,6 +50,18 @@ function assertProtectedOptIn() {
 
 async function main() {
   assertProtectedOptIn();
+  // The shared automation module imports the database pool at module load.
+  // Provide an intentionally unreachable local DSN; this contract test
+  // must never initialize a pool against a production or remote database.
+  const existingDb = process.env.DATABASE_URL;
+  if (existingDb) {
+    const url = new URL(existingDb);
+    assert.ok(["127.0.0.1", "localhost"].includes(url.hostname),
+      "Live-provider acceptance must not point at any remote database.");
+  } else {
+    process.env.DATABASE_URL = "postgresql://synthetic:synthetic@127.0.0.1:5432/synthetic_only";
+  }
+  const { draftAutomationFromLanguage } = await import("../src/lib/automation-language-draft");
   const results: Array<{ scenario: number; result: "PASS"; source: string; steps: number }> = [];
   for (let i = 0; i < syntheticPrompts.length; i++) {
     const expected = syntheticPrompts[i];
