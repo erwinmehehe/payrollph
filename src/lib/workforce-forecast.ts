@@ -64,6 +64,8 @@ export type WorkforceForecastAssumptions = {
   demandGrowthPercent: number;
   vacancyFillPercent: number;
   employerLoadPercent: number;
+  annualAttritionPercent: number;
+  attritionBackfillPercent: number;
 };
 
 const VACANT_POSITION_STATUSES = new Set(["planned", "approved", "open"]);
@@ -180,6 +182,8 @@ export function buildWorkforceDemandForecast(input: {
     demandGrowthPercent,
     vacancyFillPercent,
     employerLoadPercent,
+    annualAttritionPercent,
+    attritionBackfillPercent,
   } = input.assumptions;
 
   const windowDays = inclusiveDays(startDate, endDate);
@@ -193,9 +197,27 @@ export function buildWorkforceDemandForecast(input: {
   if (employerLoadPercent < 0 || employerLoadPercent > 100) {
     throw new Error("Employer load must be between 0% and 100%.");
   }
+  if (annualAttritionPercent < 0 || annualAttritionPercent > 100) {
+    throw new Error("Annual attrition must be between 0% and 100%.");
+  }
+  if (attritionBackfillPercent < 0 || attritionBackfillPercent > 100) {
+    throw new Error("Attrition backfill must be between 0% and 100%.");
+  }
+
+  const windowAttritionRate = Math.min(
+    1,
+    annualAttritionPercent / 100 * windowDays / 365.25,
+  );
+  const backfillRate = attritionBackfillPercent / 100;
 
   const profileByEmployee = new Map(input.payProfiles.map((profile) => [profile.employeeId, profile]));
   const activeEmployees = input.employees.filter((employee) => employee.status.trim().toLowerCase() === "active");
+  const expectedAttritionExits = activeEmployees.length * windowAttritionRate;
+  const plannedAttritionBackfills = expectedAttritionExits * backfillRate;
+  const netAttritionRate = windowAttritionRate * (1 - backfillRate);
+  // Attrition is modeled as evenly distributed through the window. Approved
+  // backfill is treated as same-role replacement for planning only.
+  const averageNetAttritionRate = netAttritionRate / 2;
   const missingPayProfileEmployeeIds: number[] = [];
   const invalidPayProfileEmployeeIds: number[] = [];
   const annualCostByEmployee = new Map<number, number>();
