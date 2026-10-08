@@ -40,6 +40,7 @@ export function ProductionPilotSignoffCard({
   const [independentPreparedBy, setIndependentPreparedBy] = useState("");
   const [independentSourceConfirmed, setIndependentSourceConfirmed] = useState(false);
   const [operatorCompletedWithoutDeveloper, setOperatorCompletedWithoutDeveloper] = useState(false);
+  const [employeeLevelReconciliationConfirmed, setEmployeeLevelReconciliationConfirmed] = useState(false);
   const [figures, setFigures] = useState<Record<FigureKey, string>>({
     grossPay: "",
     deductions: "",
@@ -75,6 +76,7 @@ export function ProductionPilotSignoffCard({
           evidenceReference: evidenceReference.trim(),
           independentPreparedBy: independentPreparedBy.trim(),
           independentSourceConfirmed,
+          employeeLevelReconciliationConfirmed,
           operatorCompletedWithoutDeveloper,
           independentFigures,
         }),
@@ -109,7 +111,7 @@ export function ProductionPilotSignoffCard({
             <div className="card-kicker"><ShieldCheck size={14} /> PRODUCTION PILOT</div>
             <h2>Independent payroll pilot signed off</h2>
             <p>
-              The released cycle has server-verified reconciliation figures and payout/export evidence on the audit trail.
+              The released cycle has independently reviewed payroll figures and export evidence on the audit trail. A no-money pilot does not certify bank settlement.
             </p>
             {typeof metadata.evidenceReference === "string" && (
               <small>Evidence: {metadata.evidenceReference}</small>
@@ -207,6 +209,15 @@ export function ProductionPilotSignoffCard({
           <label className="switch">
             <input
               type="checkbox"
+              checked={employeeLevelReconciliationConfirmed}
+              onChange={(event) => setEmployeeLevelReconciliationConfirmed(event.target.checked)}
+            />
+            <i aria-hidden />
+            <span>Every employee was compared against the independent payroll source within ₱0.01, with all exceptions explained and recorded in the private evidence reference</span>
+          </label>
+          <label className="switch">
+            <input
+              type="checkbox"
               checked={operatorCompletedWithoutDeveloper}
               onChange={(event) => setOperatorCompletedWithoutDeveloper(event.target.checked)}
             />
@@ -218,7 +229,7 @@ export function ProductionPilotSignoffCard({
         <div className="notice notice-amber" style={{ margin: 0 }}>
           <ClipboardCheck size={15} />
           <span>
-            Sign-off is accepted only when every independent total matches the released payroll to the cent, employee count matches exactly, payout is completed, every payslip exists, and the accounting journal export was generated.
+            Sign-off requires independently reconciled employee figures, matching totals and headcount, payslips, and an accounting journal export. A recorded bank-file dry-run is sufficient for this no-money pilot; actual bank acceptance is a separate launch gate.
           </span>
         </div>
 
@@ -231,6 +242,7 @@ export function ProductionPilotSignoffCard({
               || independentPreparedBy.trim().length < 3
               || !allFiguresPresent
               || !independentSourceConfirmed
+              || !employeeLevelReconciliationConfirmed
               || !operatorCompletedWithoutDeveloper
             }
             onClick={() => void signOff()}
