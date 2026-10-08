@@ -192,6 +192,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       bankExportTotalNet: bankExportValidation?.totalNet ?? null,
       bankExportMissingDestinations: missingBankPreviewDestinations,
       bankExportMissingPaymentSnapshots: bankExportValidation?.missingPaymentSnapshots ?? null,
+      bankExportMissingIdentitySnapshots: bankExportValidation?.missingIdentitySnapshots ?? null,
       bankExportSyntheticDemoDestinations: bankExportValidation?.syntheticDemoDestinations ?? null,
       bankExportSha256: bankPreviewDigest,
       payoutProfileId: bankExportValidation?.payoutProfileId ?? null,
