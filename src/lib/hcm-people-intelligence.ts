@@ -159,14 +159,10 @@ export function hcmWorkerStatusAt(
     const related = events.filter((row) => row.employeeId === worker.id)
       .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate) || a.id - b.id);
     const earlier = related.filter((row) => row.effectiveDate <= asOf && row.toStatus);
-    if (earlier.length > 0) {
-      status = earlier[earlier.length - 1].toStatus;
-    } else {
-      // The first future applied event may document the prior state. A
-      // scheduled/approval event is not present in this applied event ledger.
-      const future = related.find((row) => row.effectiveDate > asOf && row.fromStatus);
-      status = future?.fromStatus ?? null;
-    }
+    // Even if a later transition records fromStatus, that value proves only
+    // the state immediately before THAT transaction, not every preceding day.
+    // Never back-propagate a future event through an unrecorded history gap.
+    status = earlier.length > 0 ? earlier[earlier.length - 1].toStatus : null;
   }
   if (status == null) return "unverified";
   const normalized = status.trim().toLowerCase();
