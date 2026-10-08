@@ -356,14 +356,27 @@ test("declining pending component writes audit without mutating calculated payro
   });
 });
 
-test("scheduled component effective today cannot be silently cancelled", async () => {
+test("a component effective today cannot be silently cancelled even if a scheduler wins activation", async () => {
   await withFixture("scheduled", async (fixture) => {
-    await assert.rejects(decision(fixture, "cancel"), /COMPONENT_CANCELLATION_RETROACTIVE/);
+    let rejection = "";
+    await assert.rejects(decision(fixture, "cancel"), (error: unknown) => {
+      rejection = error instanceof Error ? error.message : String(error);
+      return /COMPONENT_CANCELLATION_RETROACTIVE|COMPONENT_ASSIGNMENT_STALE/.test(rejection);
+    });
     const current = await state(fixture);
-    assert.equal(current.assignment.status, "scheduled");
+    assert.ok(["scheduled", "active"].includes(current.assignment.status));
+    if (rejection.includes("COMPONENT_ASSIGNMENT_STALE")) {
+      assert.equal(current.assignment.status, "active");
+    }
     assert.equal(current.run.status, "Needs review");
     assert.equal(current.entries.length, 1);
-    assert.equal(current.audits.length, 0);
+    assert.equal(current.events.filter((event) => event.eventType === "component_cancelled").length, 0);
+    if (current.assignment.status === "active") {
+      assert.equal(current.events.filter((event) => event.eventType === "component_activated").length, 1);
+      assert.equal(current.audits.filter((event) => event.action === "Recurring compensation component activated").length, 1);
+    } else {
+      assert.equal(current.audits.length, 0);
+    }
   }, "2026-10-08");
 });
 
