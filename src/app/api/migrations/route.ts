@@ -2,9 +2,10 @@ import { encryptBankAccount } from "@/lib/bank-account-crypto";
 import { encryptGovernmentId } from "@/lib/government-id-crypto";
 import { employeeMasterMigrationBlockers } from "@/lib/hcm-migration-safety";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   employeeLoans,
   employeePayProfiles,
   employees,
@@ -425,7 +426,152 @@ export async function POST(request: Request) {
       return Response.json({
         error: "Government-ID encryption is unavailable. No employee migration rows have been written.",
         code: "HCM_MIGRATION_PII_ENCRYPTION_UNAVAILABLE",
-      }, { status: 503 });
+      }, { status:  if (kind === "employees") {
+    try {
+      const committedBatch = await db.transaction(async (tx) => {
+        // Serialize initial employee migrations and roll back worker/pay/audit
+        // changes together. Other operational routes must share a migration
+        // lock before simultaneous live cutovers can be certified.
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(4213, ${organizationId})`);
+        const lateBlockers = await employeeMasterMigrationBlockers(organizationId);
+        if (lateBlockers.length) throw new Error("HCM_MIGRATION_LOCKED");
+        const currentStaff = await tx.select({ id: employees.id, employeeNo: employees.employeeNo })
+          .from(employees).where(eq(employees.organizationId, organizationId));
+        const expectedIds = new Set(staff.map((worker) => worker.id));
+        if (currentStaff.length !== staff.length || currentStaff.some((worker) => !expectedIds.has(worker.id))) {
+          throw new Error("HCM_MIGRATION_WORKER_STATE_CHANGED");
+        }
+      const [batch] = await tx.insert(importBatches).values({
+        organizationId,
+        fileName,
+        sourceSystem: source,
+        importKind: kind,
+        totalRows,
+        createdCount,
+        updatedCount,
+        errorCount: rowErrors.length,
+        status: rowErrors.length > 0 ? "partial" : "completed",
+        errors: rowErrors.slice(0, 100),
+        createdBy: user.name,
+      }).returning();
+
+
+
+        const rows = importRows as MigratedEmployee[];
+        const seen = new Set<string>();
+        for (const row of rows) {
+          const key = row.employeeNo.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const existing = employeeByNo.get(key);
+          if (!existing && !row.startDate) continue;
+          const encryptedIds = protectedGovernmentIds.get(key);
+          if (!encryptedIds) {
+            throw new Error("Government-ID encryption preflight was incomplete.");
+          }
+          const values = {
+            firstName: row.firstName,
+            middleName: row.middleName,
+            lastName: row.lastName,
+            title: row.title,
+            employmentType: row.employmentType,
+            status: row.status,
+            basicRate: cents(row.monthlyBasic),
+            mwe: row.mwe,
+            region: row.region,
+            email: row.email,
+            mobile: row.mobile,
+            bankAccount: encryptBankAccount(row.bankAccount),
+            bankCode: row.bankCode,
+            ...encryptedIds,
+          };
+          let employeeId: number;
+          if (existing) {
+            await tx.update(employees).set(values).where(and(
+              eq(employees.organizationId, organizationId),
+              eq(employees.id, existing.id),
+            ));
+            employeeId = existing.id;
+          } else {
+            const [createdEmployee] = await tx.insert(employees).values({
+              organizationId,
+              employeeNo: row.employeeNo,
+              ...values,
+              avatarInitials: `${row.firstName[0] ?? "?"}${row.lastName[0] ?? "?"}`.toUpperCase(),
+              startDate: row.startDate!,
+            }).returning({ id: employees.id });
+            employeeId = createdEmployee.id;
+          }
+
+          // Employee migration currently maps a field explicitly named monthly
+          // basic salary. Preserve that source meaning as an explicit monthly pay
+          // profile rather than letting payroll infer behavior from attendance.
+          await tx.insert(employeePayProfiles).values({
+            employeeId,
+            organizationId,
+            payBasis: "monthly",
+            rateAmount: cents(row.monthlyBasic),
+            standardWorkDaysPerMonth: "22.00",
+            standardHoursPerDay: "8.00",
+          }).onConflictDoUpdate({
+            target: employeePayProfiles.employeeId,
+            set: {
+              payBasis: "monthly",
+              rateAmount: cents(row.monthlyBasic),
+              standardWorkDaysPerMonth: "22.00",
+              standardHoursPerDay: "8.00",
+              updatedAt: new Date(),
+            },
+          });
+        }
+
+        await tx.insert(auditEvents).values({
+          organizationId,
+          actor: user.name,
+          action: "Initial employee-master migration completed",
+          resource: fileName,
+          metadata: {
+            batchId: batch.id,
+            source, kind,
+            created: createdCount,
+            updated: updatedCount,
+            errors: rowErrors.length,
+            duplicateCount,
+            mappings: parsed.mappings,
+            unmappedColumns: parsed.unmappedColumns,
+            evidenceReference,
+            migrationSafetyPreflight: "pre-live-only",
+          },
+        });
+        return batch;
+      });
+      return Response.json({
+        batchId: committedBatch.id,
+        dryRun: false, source, kind, fileName,
+        totalRows: committedBatch.totalRows,
+        readyCount, attentionCount, duplicateCount,
+        createdCount, updatedCount,
+        errorCount: rowErrors.length,
+        errors: rowErrors.slice(0, 50),
+        mappings: parsed.mappings,
+        unmappedColumns: parsed.unmappedColumns,
+        seatUsage: seatInfo,
+      });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "HCM_MIGRATION_LOCKED") {
+        return Response.json({
+          error: "Payroll or governed HCM activity appeared before migration commit. Revalidate.",
+          code,
+        }, { status: 409 });
+      }
+      if (code === "HCM_MIGRATION_WORKER_STATE_CHANGED") {
+        return Response.json({
+          error: "Employee records changed during preflight. Refresh and reconcile before retrying.",
+          code,
+        }, { status: 409 });
+      }
+      throw error;
     }
   }
 
@@ -443,72 +589,6 @@ export async function POST(request: Request) {
     createdBy: user.name,
   }).returning();
 
-  if (kind === "employees") {
-    const rows = importRows as MigratedEmployee[];
-    const seen = new Set<string>();
-    for (const row of rows) {
-      const key = row.employeeNo.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const existing = employeeByNo.get(key);
-      if (!existing && !row.startDate) continue;
-      const encryptedIds = protectedGovernmentIds.get(key);
-      if (!encryptedIds) {
-        throw new Error("Government-ID encryption preflight was incomplete.");
-      }
-      const values = {
-        firstName: row.firstName,
-        middleName: row.middleName,
-        lastName: row.lastName,
-        title: row.title,
-        employmentType: row.employmentType,
-        status: row.status,
-        basicRate: cents(row.monthlyBasic),
-        mwe: row.mwe,
-        region: row.region,
-        email: row.email,
-        mobile: row.mobile,
-        bankAccount: encryptBankAccount(row.bankAccount),
-        bankCode: row.bankCode,
-        ...encryptedIds,
-      };
-      let employeeId: number;
-      if (existing) {
-        await db.update(employees).set(values).where(and(
-          eq(employees.organizationId, organizationId),
-          eq(employees.id, existing.id),
-        ));
-        employeeId = existing.id;
-      } else {
-        const [createdEmployee] = await db.insert(employees).values({
-          organizationId,
-          employeeNo: row.employeeNo,
-          ...values,
-          avatarInitials: `${row.firstName[0] ?? "?"}${row.lastName[0] ?? "?"}`.toUpperCase(),
-          startDate: row.startDate,
-        }).returning({ id: employees.id });
-        employeeId = createdEmployee.id;
-      }
-
-      // Employee migration currently maps a field explicitly named monthly
-      // basic salary. Preserve that source meaning as an explicit monthly pay
-      // profile rather than letting payroll infer behavior from attendance.
-      await db.insert(employeePayProfiles).values({
-        employeeId,
-        organizationId,
-        payBasis: "monthly",
-        rateAmount: cents(row.monthlyBasic),
-        standardWorkDaysPerMonth: "22.00",
-        standardHoursPerDay: "8.00",
-      }).onConflictDoUpdate({
-        target: employeePayProfiles.employeeId,
-        set: {
-          payBasis: "monthly",
-          rateAmount: cents(row.monthlyBasic),
-          standardWorkDaysPerMonth: "22.00",
-          standardHoursPerDay: "8.00",
-          updatedAt: new Date(),
-        },
       });
     }
   }
