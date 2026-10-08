@@ -103,6 +103,23 @@ function money(value: string) {
   return numeric;
 }
 
+/**
+ * Locale-independent Philippine business date. `en-CA` formatting is not
+ * guaranteed to produce YYYY-MM-DD on every Node/ICU deployment.
+ */
+export function hcmManilaDay(value: Date | string): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) throw new Error("Invalid People Intelligence timestamp.");
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(date);
+  const part = (kind: "year" | "month" | "day") =>
+    parts.find((entry) => entry.type === kind)?.value;
+  const year = part("year"), month = part("month"), day = part("day");
+  if (!year || !month || !day) throw new Error("Cannot construct Philippine business date.");
+  return `${year}-${month}-${day}`;
+}
+
 function validDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const utc = new Date(value + "T00:00:00Z");
@@ -281,11 +298,11 @@ export function summarizeHcmPeopleIntelligence(input: {
   const hireDays: number[] = [];
   for (const applicant of input.applicants) {
     if (!applicant.hiredAt) continue;
-    const hiredDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date(applicant.hiredAt));
+    const hiredDate = hcmManilaDay(applicant.hiredAt);
     if (hiredDate < windowStart || hiredDate > asOf) continue;
     const req = recruitments.get(applicant.requisitionId);
     if (!req) continue;
-    const reqCreated = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date(req.createdAt));
+    const reqCreated = hcmManilaDay(req.createdAt);
     const days = daysBetween(reqCreated, hiredDate);
     if (days >= 0 && days <= 3650) hireDays.push(days);
   }
