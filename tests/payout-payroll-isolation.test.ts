@@ -37,6 +37,10 @@ test("payout pull requests cannot modify protected payroll computation or golden
     assert.ok(guard.includes(payoutMarker), `isolation guard missing payout marker ${payoutMarker}`);
   }
 
+  assert.ok(guard.includes('"merge-base"'),
+    "payout guard must compare changes from an actual merge-base");
+  assert.ok(guard.includes('"refs/remotes/origin/main"'),
+    "payout guard must use the current base branch, not stale PR webhook base SHA");
   assert.ok(guard.includes("PAYOUT/PAYROLL ISOLATION FAILED"));
   assert.ok(guard.includes("Split payroll math changes into a separate pull request."));
   assert.ok(workflow.includes("PAYOUT_GUARD_BASE_SHA"));

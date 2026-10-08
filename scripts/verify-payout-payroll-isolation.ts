@@ -8,9 +8,27 @@ if (!baseSha || !headSha) {
   process.exit(2);
 }
 
+// GitHub's PR webhook base SHA can be stale after an existing PR branch is
+// brought forward to newer main. Compare against the *current* target branch,
+// not an outdated event snapshot that would falsely include unrelated changes.
+// The merge-base preserves all PR-owned changes, including branch merge commits.
+// A missing remote ref is an error: never silently skip the isolation policy.
+const currentTargetBase = execFileSync(
+  "git",
+  ["rev-parse", "--verify", "refs/remotes/origin/main"],
+  { encoding: "utf8" },
+).trim();
+const comparisonBase = execFileSync(
+  "git",
+  ["merge-base", currentTargetBase, headSha],
+  { encoding: "utf8" },
+).trim();
+if (!comparisonBase || !/^[0-9a-f]{40}$/.test(comparisonBase)) {
+  throw new Error("Cannot prove the current target-branch diff for payout/payroll isolation.");
+}
 const changedFiles = execFileSync(
   "git",
-  ["diff", "--name-only", "--diff-filter=ACMR", baseSha, headSha],
+  ["diff", "--name-only", "--diff-filter=ACMR", comparisonBase, headSha],
   { encoding: "utf8" },
 )
   .split("\n")
