@@ -33,6 +33,7 @@ import {
 } from "@/lib/compensation";
 import {
   applyScheduledCompensationProposal,
+  cancelGovernedCompensationProposal,
   decideRecurringCompensationComponent,
   compensationPayrollConflicts,
   invalidatePayrollRunsForCompensationChange,
@@ -766,60 +767,45 @@ export async function PATCH(request: Request) {
   }
 
   if (decision === "cancel") {
-    if (!["proposed", "scheduled", "failed"].includes(proposal.status)) return Response.json({ error: "Only proposed, scheduled, or failed compensation changes can be cancelled." }, { status: 409 });
-
-    const [cycle] = await db.select().from(compensationCycles).where(eq(compensationCycles.id, proposal.cycleId)).limit(1);
+    // Role and worker scope are validated here; the helper re-reads the entire
+    // proposal, cycle, employee and revision under transaction locks.
     const scoped = await employeeInScope(user.id, proposal.organizationId, proposal.employeeId);
     if ("error" in scoped) return scoped.error;
 
-    if (["scheduled", "failed"].includes(proposal.status) && cycle) {
-      try {
-        const affectedRuns = await compensationPayrollConflicts({
-          organizationId: proposal.organizationId,
-          employeeOrgUnitId: scoped.employee.orgUnitId,
-          effectiveFrom: String(cycle.effectiveDate),
-          effectiveUntil: null,
-        });
-        await invalidatePayrollRunsForCompensationChange(proposal.organizationId, affectedRuns);
-      } catch (error) {
-        return Response.json({ error: error instanceof Error ? error.message : "Cancellation conflicts with payroll state." }, { status: 409 });
+    try {
+      const result = await cancelGovernedCompensationProposal({
+        proposalId: proposal.id,
+        organizationId: proposal.organizationId,
+        employeeId: proposal.employeeId,
+        actorUserId: user.id,
+        actorName: user.name,
+      });
+      return Response.json({
+        ...result.proposal,
+        invalidatedPayrollRunIds: result.invalidatedPayrollRunIds,
+        cancelledPayRevisionId: result.cancelledPayRevisionId,
+      });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "COMPENSATION_CANCELLATION_STALE") {
+        return Response.json({ error: "The proposal or worker state changed. Refresh before cancelling." }, { status: 409 });
       }
+      if (code === "COMPENSATION_CANCELLATION_RETROACTIVE") {
+        return Response.json({ error: "This salary change is already effective. Use an audited payroll correction instead of deleting earned-pay history." }, { status: 409 });
+      }
+      if (code === "COMPENSATION_CANCELLATION_DOWNSTREAM_REVISION") {
+        return Response.json({ error: "A later pay revision depends on this salary change. Review or cancel downstream changes first." }, { status: 409 });
+      }
+      if (code === "COMPENSATION_CANCELLATION_REVISION_STALE") {
+        return Response.json({ error: "The proposal's pay revision is missing, changed or shared. Refresh and reconcile governed pay before cancelling." }, { status: 409 });
+      }
+      if (/^(Payroll run #|Compensation cannot change)/.test(code)) {
+        return Response.json({ error: code }, { status: 409 });
+      }
+      return Response.json({
+        error: "Salary cancellation could not be committed. Payroll entries and approval records were not reset.",
+      }, { status: 409 });
     }
-
-    const row = await db.transaction(async (tx) => {
-      if (proposal.appliedPayRevisionId) {
-        await tx.delete(employeePayRevisions).where(eq(employeePayRevisions.id, proposal.appliedPayRevisionId));
-      }
-      const [updated] = await tx.update(compensationProposals).set({
-        status: "cancelled",
-        appliedPayRevisionId: null,
-        failure: null,
-        updatedAt: new Date(),
-      }).where(and(
-        eq(compensationProposals.id, proposal.id),
-        eq(compensationProposals.status, proposal.status),
-      )).returning();
-      if (!updated) return null;
-
-      if (cycle) {
-        await tx.insert(compensationEvents).values({
-          organizationId: updated.organizationId,
-          employeeId: updated.employeeId,
-          eventType: "salary_change_cancelled",
-          effectiveDate: String(cycle.effectiveDate),
-          bandId: updated.bandId,
-          proposalId: updated.id,
-          metadata: { reason: updated.reason },
-          actorUserId: user.id,
-          actorName: user.name,
-        });
-      }
-      return updated;
-    });
-    if (!row) return Response.json({ error: "The compensation proposal changed before cancellation." }, { status: 409 });
-
-    await recordAuditEvent({ organizationId: row.organizationId, actor: user.name, action: "Scheduled compensation proposal cancelled", resource: `Proposal #${row.id}`, metadata: { employeeId: row.employeeId } });
-    return Response.json(row);
   }
 
   if (decision === "retry") {
