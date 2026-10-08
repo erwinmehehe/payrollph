@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BarChart3, CheckCircle2, Flag, Plus, RefreshCw, Target, Trophy } from "lucide-react";
 import { PerformanceGovernancePanel } from "@/components/performance-governance-panel";
+import { TalentContinuityPanel } from "@/components/talent-continuity-panel";
 
 type Employee = { id: number; firstName: string; lastName: string; title: string; orgUnitId: number | null; status: string };
 type Cycle = { id: number; name: string; startDate: string; endDate: string; status: string; requireSelfAssessment: boolean; requireManagerSummary: boolean; requireCalibration: boolean };
@@ -142,6 +143,7 @@ export function PerformancePanel({ organizationId, setNotice }: { organizationId
         <article className="stat-card"><div className="stat-icon orange"><BarChart3 size={19} /></div><p>AVERAGE SCORE</p><h3>{averageScore}</h3><span>{completedReviews.length ? "Out of 5.00" : "No completed reviews"}</span></article>
       </section>
 
+      <TalentContinuityPanel key={organizationId} organizationId={organizationId} />
       <PerformanceGovernancePanel organizationId={organizationId} setNotice={setNotice} />
 
       {showCycle && (
