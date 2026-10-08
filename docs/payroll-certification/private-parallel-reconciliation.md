@@ -43,6 +43,16 @@ The normal command **without `--pilot`** continues to require **at least two**
 distinct real-employer payroll months for broader certification evidence.
 Neither mode substitutes for external agency acceptance or bank portal UAT.
 
+**Readiness separation:** An Owner may sign off a no-money reconciled pilot with
+an audited post-release bank-file preview, but that evidence is recorded as
+`payoutEvidenceMode: "no-money-bank-file-dry-run"`. It never clears the
+`production-pilot-signoff` broad-launch readiness gate. A separate actual
+completed-payout evidence record and external bank/agency/privacy/recovery
+acceptance are still required. The Owner can record the completed-payout
+evidence later without overwriting the original no-money audit event.
+Legacy pilot records without a verified payout mode are not automatically
+grandfathered into the broader-launch gate.
+
 ## Run locally (never in CI with production data)
 
 ~~~bash
