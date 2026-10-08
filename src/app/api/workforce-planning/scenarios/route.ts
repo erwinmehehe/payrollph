@@ -70,6 +70,7 @@ function redactScenarioSnapshot(snapshot: unknown) {
     forecast: redactWorkforceForecastCosts(
       forecast as {
         summary: Record<string, unknown>;
+        backfillPlan?: Array<Record<string, unknown>>;
         costCenters: unknown[];
         unallocated: Record<string, unknown>;
       },
@@ -205,6 +206,8 @@ export async function POST(request: Request) {
   const demandGrowthPercent = finite(body.demandGrowthPercent, 0);
   const vacancyFillPercent = finite(body.vacancyFillPercent, 100);
   const employerLoadPercent = finite(body.employerLoadPercent, 0);
+  const annualAttritionPercent = finite(body.annualAttritionPercent, 0);
+  const attritionBackfillPercent = finite(body.attritionBackfillPercent, 100);
 
   if (
     !Number.isInteger(organizationId)
@@ -218,6 +221,8 @@ export async function POST(request: Request) {
     || !Number.isFinite(demandGrowthPercent)
     || !Number.isFinite(vacancyFillPercent)
     || !Number.isFinite(employerLoadPercent)
+    || !Number.isFinite(annualAttritionPercent)
+    || !Number.isFinite(attritionBackfillPercent)
   ) {
     return Response.json({ error: "Valid scenario name, dates, scope and assumptions are required." }, { status: 400 });
   }
@@ -246,6 +251,8 @@ export async function POST(request: Request) {
       demandGrowthPercent,
       vacancyFillPercent,
       employerLoadPercent,
+      annualAttritionPercent,
+      attritionBackfillPercent,
       orgUnitId,
       worksiteId,
     });
@@ -260,7 +267,7 @@ export async function POST(request: Request) {
       .limit(1);
     const version = (previous?.version ?? 0) + 1;
     const snapshot = {
-      version: "wfm-staffing-scenario-v2",
+      version: "wfm-staffing-scenario-v3",
       generatedAt: new Date().toISOString(),
       forecast: result.forecast,
       scope: result.scope,
@@ -268,6 +275,8 @@ export async function POST(request: Request) {
         demandGrowthPercent,
         vacancyFillPercent,
         employerLoadPercent,
+        annualAttritionPercent,
+        attritionBackfillPercent,
       },
       linkedPlan: linkedPlan ? {
         id: linkedPlan.id,
@@ -277,7 +286,7 @@ export async function POST(request: Request) {
         endDate: String(linkedPlan.endDate),
         status: linkedPlan.status,
       } : null,
-      boundary: "Approved scenario evidence is immutable planning data. It does not mutate payroll, schedules, positions, or staffing requirements.",
+      boundary: "Approved scenario evidence is immutable planning data. Attrition/backfill remains a governed planning assumption and does not mutate payroll, schedules, positions, staffing requirements, or employment status.",
     };
     const hash = snapshotHash(snapshot);
 
@@ -293,6 +302,8 @@ export async function POST(request: Request) {
       demandGrowthPercent: String(demandGrowthPercent),
       vacancyFillPercent: String(vacancyFillPercent),
       employerLoadPercent: String(employerLoadPercent),
+      annualAttritionPercent: String(annualAttritionPercent),
+      attritionBackfillPercent: String(attritionBackfillPercent),
       status: "draft",
       snapshot,
       snapshotHash: hash,
@@ -309,6 +320,10 @@ export async function POST(request: Request) {
         planId,
         scopeOrgUnitId: created.scopeOrgUnitId,
         worksiteId: created.worksiteId,
+        annualAttritionPercent,
+        attritionBackfillPercent,
+        expectedAttritionExits: result.forecast.summary.expectedAttritionExits,
+        plannedAttritionBackfills: result.forecast.summary.plannedAttritionBackfills,
         snapshotHash: hash,
       },
     });
