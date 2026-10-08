@@ -52,6 +52,18 @@ function baselineHeadcount(snapshot: unknown): HeadcountPlanSummary | null {
   return Number.isFinite(Number(summary.requestedHeadcount)) ? summary : null;
 }
 
+function headcountEvidenceWithoutCosts(summary: HeadcountPlanSummary) {
+  return {
+    ...summary,
+    annualPositionBudget: null,
+    dimensions: {
+      orgUnits: summary.dimensions.orgUnits.map((row) => ({ ...row, annualPositionBudget: null })),
+      costCenters: summary.dimensions.costCenters.map((row) => ({ ...row, annualPositionBudget: null })),
+      jobProfiles: summary.dimensions.jobProfiles.map((row) => ({ ...row, annualPositionBudget: null })),
+    },
+  };
+}
+
 function baselineAssumptions(snapshot: unknown) {
   const root = snapshotRecord(snapshot);
   const scenario = snapshotRecord(root.scenario);
@@ -186,9 +198,12 @@ export async function POST(request: Request) {
         baselineSnapshotHash: baseline.snapshotHash,
         baselinePublishedAt: baseline.publishedAt.toISOString(),
         actualAsOf: asOf,
-        lockedHeadcount,
-        actualHeadcount,
-        varianceFromBaseline: actualVariance,
+        lockedHeadcount: headcountEvidenceWithoutCosts(lockedHeadcount),
+        actualHeadcount: headcountEvidenceWithoutCosts(actualHeadcount),
+        varianceFromBaseline: {
+          ...actualVariance,
+          annualPositionBudget: null,
+        },
       },
       boundary: "This draft is a new forecast revision seeded from the current published baseline and recalculated from current authoritative workforce actuals. It does not mutate the published baseline, positions, schedules, attendance, or payroll.",
     };
