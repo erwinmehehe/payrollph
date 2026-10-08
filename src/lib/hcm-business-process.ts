@@ -545,7 +545,7 @@ export async function cancelHcmBusinessProcessForSourceTx(
   `);
 
   const [lockedInstance] = await tx.select().from(hcmBusinessProcessInstances)
-    .where(eq(hcmBusinessProcessInstances.id, lockedInstance.id))
+    .where(eq(hcmBusinessProcessInstances.id, instance.id))
     .limit(1);
   if (!lockedInstance) return null;
   if (lockedInstance.status !== "in_progress") return lockedInstance;
@@ -590,7 +590,7 @@ export async function cancelHcmBusinessProcessForSourceTx(
     eq(hcmBusinessProcessInstances.status, "in_progress"),
   )).returning();
 
-  return cancelled ?? instance;
+  return cancelled ?? lockedInstance;
 }
 
 export async function findHcmBusinessProcessForSource(input: {
