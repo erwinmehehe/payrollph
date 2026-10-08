@@ -224,9 +224,9 @@ test("same-day approval rolls back invalidation, activation and audit if durable
     const trg = "qa_today_outbox_trigger_" + token;
     const target = "compensation-component-active:" + fixture.assignmentId;
     await db.execute(sql.raw(
-      'CREATE FUNCTION "' + fn + '"() RETURNS trigger AS $ BEGIN ' +
+      'CREATE FUNCTION "' + fn + '"() RETURNS trigger AS $compfn$ BEGIN ' +
       "IF NEW.event_key = '" + target + "' THEN RAISE EXCEPTION 'QA same-day notification storage failure'; END IF; " +
-      'RETURN NEW; END; $ LANGUAGE plpgsql'
+      'RETURN NEW; END; $compfn$ LANGUAGE plpgsql'
     ));
     try {
       await db.execute(sql.raw(
