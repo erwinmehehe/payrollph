@@ -28,6 +28,18 @@ const BUSY_PAYROLL_STATUSES = new Set(["Queued", "Processing", "Recalculating", 
 // payroll run even if the later proposal approval fails.
 type CompensationTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+/**
+ * A missing financial audit is a transient storage failure, not a defective
+ * salary proposal. The transaction rolls back and the scheduled proposal is
+ * preserved so the next governed scheduler pass can retry safely.
+ */
+export class ScheduledCompensationAuditWriteError extends Error {
+  constructor() {
+    super("Scheduled salary application audit could not be saved. Salary was not changed; retry when audit storage recovers.");
+    this.name = "ScheduledCompensationAuditWriteError";
+  }
+}
+
 export function philippineBusinessDate(now = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(now);
 }
@@ -323,6 +335,9 @@ export async function applyScheduledCompensationProposal(
         return { skipped: true as const, reason: "claimed" as const, proposal: proposal ?? null };
       }
 
+      // Lock in the same proposal -> cycle -> worker order as cancellation.
+      // Avoid applying a salary while the governing review cycle is changing.
+      await tx.execute(sql`select pg_advisory_xact_lock(4230, ${proposal.cycleId})`);
       await tx.execute(sql`select pg_advisory_xact_lock(4221, ${proposal.employeeId})`);
 
       const [[cycle], [revision], [pay], [employee], [band]] = await Promise.all([
@@ -446,42 +461,54 @@ export async function applyScheduledCompensationProposal(
       )).returning();
       if (!applied) throw new Error("The compensation proposal changed before application.");
 
-      return { skipped: false as const, proposal: applied, employee, revision, cycle, band, event, beforeAnnual, afterAnnual };
+      // Financial state, salary event and operational audit must commit as
+      // one unit. A committed salary with missing audit linkage cannot be
+      // repaired by blindly re-running a previously applied proposal.
+      let audit;
+      try {
+        [audit] = await tx.insert(auditEvents).values({
+          organizationId: proposal.organizationId,
+          actor,
+          action: "Scheduled compensation change applied",
+          resource: `Employee #${proposal.employeeId}`,
+          metadata: {
+            proposalId: proposal.id,
+            payRevisionId: revision.id,
+            compensationEventId: event.id,
+            compensationCycleId: cycle.id,
+            effectiveDate: String(cycle.effectiveDate),
+            previousAnnual: beforeAnnual,
+            newAnnual: afterAnnual,
+            workerEffectiveChangeId: proposal.workerEffectiveChangeId,
+          },
+        }).returning({ id: auditEvents.id });
+      } catch {
+        throw new ScheduledCompensationAuditWriteError();
+      }
+
+      return { skipped: false as const, proposal: applied, employee, revision, cycle, band, event, audit, beforeAnnual, afterAnnual };
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown compensation application failure.";
-    await db.update(compensationProposals).set({
-      status: "failed",
-      failure: message.slice(0, 4000),
-      updatedAt: now,
-    }).where(and(
-      eq(compensationProposals.id, proposalId),
-      eq(compensationProposals.status, "scheduled"),
-    ));
+    // A failed audit insert rolled back EVERY financial write. Do not
+    // poison an otherwise valid scheduled proposal with "failed": it must
+    // remain available for governed retry once audit storage is healthy.
+    if (!(error instanceof ScheduledCompensationAuditWriteError)) {
+      const message = error instanceof Error ? error.message : "Unknown compensation application failure.";
+      await db.update(compensationProposals).set({
+        status: "failed",
+        failure: message.slice(0, 4000),
+        updatedAt: now,
+      }).where(and(
+        eq(compensationProposals.id, proposalId),
+        eq(compensationProposals.status, "scheduled"),
+      ));
+    }
     throw error;
   }
 
   if (result.skipped) return result;
 
   const warnings: string[] = [];
-  try {
-    await recordAuditEvent({
-      organizationId: result.proposal.organizationId,
-      actor,
-      action: "Scheduled compensation change applied",
-      resource: `Employee #${result.proposal.employeeId}`,
-      metadata: {
-        proposalId: result.proposal.id,
-        payRevisionId: result.revision.id,
-        compensationEventId: result.event.id,
-        effectiveDate: result.cycle.effectiveDate,
-        previousAnnual: result.beforeAnnual,
-        newAnnual: result.afterAnnual,
-      },
-    });
-  } catch (error) {
-    warnings.push(`audit: ${error instanceof Error ? error.message : "unknown failure"}`);
-  }
 
   let automation: Awaited<ReturnType<typeof runAutomationEventSafely>> = [];
   try {
@@ -505,7 +532,9 @@ export async function applyScheduledCompensationProposal(
     warnings.push(`automation: ${error instanceof Error ? error.message : "unknown failure"}`);
   }
 
-  const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
+  let fieldChangeAutomation: Awaited<ReturnType<typeof runEmployeeFieldChangeAutomations>> = [];
+  try {
+    fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
     organizationId: result.proposal.organizationId,
     employeeId: result.proposal.employeeId,
     eventKey: `compensation-applied:${result.proposal.id}:field-change`,
@@ -535,7 +564,12 @@ export async function applyScheduledCompensationProposal(
         },
       },
     ],
-  });
+    });
+  } catch (error) {
+    // The pay and its audit have already committed. Secondary automation
+    // errors must not be presented as failed or rolled-back salary changes.
+    warnings.push(`field-change automation: ${error instanceof Error ? error.message : "unknown failure"}`);
+  }
 
   return { ...result, automation, fieldChangeAutomation, warnings };
 }
@@ -828,7 +862,12 @@ export async function runScheduledCompensationGovernance({
   for (const row of dueProposals) {
     try {
       const result = await applyScheduledCompensationProposal(row.id, { actor, now });
-      proposalResults.push({ id: row.id, status: result.skipped ? "skipped" : "applied", reason: result.skipped ? result.reason : undefined });
+      proposalResults.push({
+        id: row.id,
+        status: result.skipped ? "skipped" : "applied",
+        reason: result.skipped ? result.reason : undefined,
+        ...(!result.skipped && result.warnings.length > 0 ? { warnings: result.warnings } : {}),
+      });
     } catch (error) {
       proposalResults.push({ id: row.id, status: "failed", error: error instanceof Error ? error.message : "Unknown failure" });
     }
