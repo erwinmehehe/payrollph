@@ -214,10 +214,8 @@ export function buildWorkforceDemandForecast(input: {
   const activeEmployees = input.employees.filter((employee) => employee.status.trim().toLowerCase() === "active");
   const expectedAttritionExits = activeEmployees.length * windowAttritionRate;
   const plannedAttritionBackfills = expectedAttritionExits * backfillRate;
-  const netAttritionRate = windowAttritionRate * (1 - backfillRate);
   // Attrition is modeled as evenly distributed through the window. Approved
   // backfill is treated as same-role replacement for planning only.
-  const averageNetAttritionRate = netAttritionRate / 2;
   const missingPayProfileEmployeeIds: number[] = [];
   const invalidPayProfileEmployeeIds: number[] = [];
   const annualCostByEmployee = new Map<number, number>();
