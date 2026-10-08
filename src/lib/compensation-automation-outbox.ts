@@ -164,6 +164,33 @@ export async function dispatchCompensationAutomationIntent(
 }
 
 /**
+ * Opportunistic dispatch after financial commit. If the process dies before
+ * this call, the scheduler still has the durable intents. The result only
+ * contains IDs and statuses, never immutable pay-context snapshots.
+ */
+export async function dispatchCompensationAutomationEvent(input: {
+  organizationId: number;
+  compensationEventId: number;
+}) {
+  const intents = await db.select({ id: compensationAutomationIntents.id })
+    .from(compensationAutomationIntents).where(and(
+      eq(compensationAutomationIntents.organizationId, input.organizationId),
+      eq(compensationAutomationIntents.compensationEventId, input.compensationEventId),
+    )).orderBy(asc(compensationAutomationIntents.id)).limit(10);
+  const results: DispatchResult[] = [];
+  for (const intent of intents) {
+    results.push(await dispatchCompensationAutomationIntent(intent.id));
+  }
+  return {
+    attempted: results.length,
+    dispatched: results.filter((result) => result.status === "dispatched").length,
+    retry: results.filter((result) => result.status === "retry").length,
+    needsReview: results.filter((result) => result.status === "needs_review").length,
+    results,
+  };
+}
+
+/**
  * A crashed or hung leased worker is ambiguous even if the event log is not
  * visible yet. Quarantine rather than re-running a possibly live side effect.
  */
@@ -248,6 +275,9 @@ export async function retryUnstartedCompensationAutomationIntent(input: {
       eq(compensationAutomationIntents.organizationId, input.organizationId),
     )).limit(1);
     if (!intent || intent.status !== "needs_review") throw new Error("Compensation automation intent is not in review.");
+    if (intent.lastError?.includes("lease expired")) {
+      throw new Error("An expired dispatch lease may have external side effects; require separate execution evidence review.");
+    }
     const [[event], [execution]] = await Promise.all([
       tx.select({ id: automationEventLog.id }).from(automationEventLog).where(and(
         eq(automationEventLog.organizationId, input.organizationId),
