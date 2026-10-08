@@ -430,7 +430,7 @@ export async function decideRecurringCompensationComponent(input: {
       // Scheduled rows are payroll-visible on the original effective date,
       // even before the activation scheduler runs. Past changes need a signed
       // correction/retro workflow, not a silent cancellation.
-      if (current.status === "scheduled" && effectiveFrom < today) {
+      if (current.status === "scheduled" && effectiveFrom <= today) {
         throw new Error("COMPONENT_CANCELLATION_RETROACTIVE");
       }
       nextStatus = "cancelled";
