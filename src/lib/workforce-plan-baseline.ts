@@ -145,6 +145,52 @@ export function summarizeHeadcountPlan(input: {
   };
 }
 
+function emptyDimensionRow(key: number | null): HeadcountPlanDimensionRow {
+  return {
+    key,
+    requestedHeadcount: 0,
+    approvedHeadcount: 0,
+    filledHeadcount: 0,
+    requestedFte: 0,
+    approvedFte: 0,
+    filledFte: 0,
+    annualPositionBudget: 0,
+  };
+}
+
+export function compareHeadcountPlanDimensions(
+  baselineRows: HeadcountPlanDimensionRow[],
+  actualRows: HeadcountPlanDimensionRow[],
+) {
+  const baselineByKey = new Map(baselineRows.map((row) => [row.key, row]));
+  const actualByKey = new Map(actualRows.map((row) => [row.key, row]));
+  const keys = new Set<number | null>([
+    ...baselineRows.map((row) => row.key),
+    ...actualRows.map((row) => row.key),
+  ]);
+
+  return [...keys]
+    .sort((a, b) => (a ?? -1) - (b ?? -1))
+    .map((key) => {
+      const baseline = baselineByKey.get(key) ?? emptyDimensionRow(key);
+      const actual = actualByKey.get(key) ?? emptyDimensionRow(key);
+      return {
+        key,
+        baseline,
+        actual,
+        variance: {
+          requestedHeadcount: actual.requestedHeadcount - baseline.requestedHeadcount,
+          approvedHeadcount: actual.approvedHeadcount - baseline.approvedHeadcount,
+          filledHeadcount: actual.filledHeadcount - baseline.filledHeadcount,
+          requestedFte: round4(actual.requestedFte - baseline.requestedFte),
+          approvedFte: round4(actual.approvedFte - baseline.approvedFte),
+          filledFte: round4(actual.filledFte - baseline.filledFte),
+          annualPositionBudget: round2(actual.annualPositionBudget - baseline.annualPositionBudget),
+        },
+      };
+    });
+}
+
 export function compareHeadcountPlanSummary(
   baseline: HeadcountPlanSummary,
   actual: HeadcountPlanSummary,
