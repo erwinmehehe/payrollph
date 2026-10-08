@@ -898,7 +898,11 @@ export function AutomationStudioPanel({
       return;
     }
 
-    if (!window.confirm(`Approve and publish ${rule.name} draft v${rule.draftVersion}? Publishing can activate this workflow for future authoritative events.`)) return;
+    const limitedEvidence = currentPreview.preview.authoritativeEvents === 0;
+    const publishQuestion = limitedEvidence
+      ? `Approve and publish ${rule.name} draft v${rule.draftVersion}? IMPORTANT: No authoritative events were available for this trigger. This is an evidence-limited publication. Continue?`
+      : `Approve and publish ${rule.name} draft v${rule.draftVersion}? Publishing can activate this workflow for future authoritative events.`;
+    if (!window.confirm(publishQuestion)) return;
     try {
       const response = await fetch("/api/automation-studio", {
         method: "POST",
@@ -909,6 +913,7 @@ export function AutomationStudioPanel({
           ruleId: rule.id,
           previewReceipt: currentPreview.previewReceipt,
           humanApproved: true,
+          limitedEvidenceAcknowledged: limitedEvidence,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -1640,11 +1645,15 @@ export function AutomationStudioPanel({
             <span className={
               impactPreview.preview.definitionError || impactPreview.preview.authoritativePolicyBlocks > 0
                 ? "status status-failed"
-                : "status status-verified"
+                : impactPreview.preview.authoritativeEvents === 0
+                  ? "status"
+                  : "status status-verified"
             }>
               {impactPreview.preview.definitionError || impactPreview.preview.authoritativePolicyBlocks > 0
                 ? "Blocked"
-                : "Safe to publish"}
+                : impactPreview.preview.authoritativeEvents === 0
+                  ? "Limited evidence"
+                  : "Safe to publish"}
             </span>
           </div>
 
