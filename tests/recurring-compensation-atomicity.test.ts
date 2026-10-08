@@ -179,6 +179,88 @@ test("approved recurring component and payroll reset/audit commit as one decisio
   });
 });
 
+test("same-day component approval records immutable notification snapshots in the financial commit", async () => {
+  await withFixture("pending_approval", async (fixture) => {
+    const approved = await decision(fixture, "approve");
+    assert.equal(approved.nextStatus, "active");
+    assert.deepEqual(approved.invalidatedPayrollRunIds, [fixture.payrollRunId]);
+
+    const current = await state(fixture);
+    assert.equal(current.assignment.status, "active");
+    assert.equal(current.run.status, "Draft");
+    assert.equal(current.entries.length, 0);
+    const activationEvents = current.events.filter((event) => event.eventType === "component_activated");
+    assert.equal(activationEvents.length, 1);
+    const audits = current.audits.filter((event) =>
+      event.action === "Recurring compensation component approved and activated"
+    );
+    assert.equal(audits.length, 1);
+    assert.equal(
+      (audits[0].metadata as { compensationEventId?: number }).compensationEventId,
+      activationEvents[0].id,
+      "the operational approval audit must link to the immediate financial activation",
+    );
+
+    const intents = await db.select().from(compensationAutomationIntents)
+      .where(eq(compensationAutomationIntents.compensationEventId, activationEvents[0].id));
+    assert.equal(intents.length, 2);
+    assert.deepEqual(intents.map((row) => row.eventKey).sort(), [
+      "compensation-component-active:" + fixture.assignmentId,
+      "compensation-component-active:" + fixture.assignmentId + ":field-change:recurringcompensationamount",
+    ]);
+    assert.ok(intents.every((row) => row.status === "pending" && row.attempts === 0));
+
+    const scheduler = await activateCompensationComponentAssignment(fixture.assignmentId, { now: NOW });
+    assert.equal(scheduler.skipped, true);
+    assert.equal(scheduler.reason, "already_active");
+    assert.equal((await state(fixture)).events.filter((event) => event.eventType === "component_activated").length, 1);
+  }, "2026-10-08");
+});
+
+test("same-day approval rolls back invalidation, activation and audit if durable delivery cannot be recorded", async () => {
+  await withFixture("pending_approval", async (fixture) => {
+    const token = randomUUID().replaceAll("-", "");
+    const fn = "qa_today_outbox_" + token;
+    const trg = "qa_today_outbox_trigger_" + token;
+    const target = "compensation-component-active:" + fixture.assignmentId;
+    await db.execute(sql.raw(
+      'CREATE FUNCTION "' + fn + '"() RETURNS trigger AS $ BEGIN ' +
+      "IF NEW.event_key = '" + target + "' THEN RAISE EXCEPTION 'QA same-day notification storage failure'; END IF; " +
+      'RETURN NEW; END; $ LANGUAGE plpgsql'
+    ));
+    try {
+      await db.execute(sql.raw(
+        'CREATE TRIGGER "' + trg + '" BEFORE INSERT ON "compensation_automation_intents" ' +
+        'FOR EACH ROW EXECUTE FUNCTION "' + fn + '"()'
+      ));
+      await assert.rejects(decision(fixture, "approve"));
+
+      const failed = await state(fixture);
+      assert.equal(failed.assignment.status, "pending_approval");
+      assert.equal(failed.run.status, "Needs review");
+      assert.equal(failed.run.employeeCount, 1);
+      assert.equal(failed.entries.length, 1);
+      assert.equal(failed.task.status, "Approved");
+      assert.equal(failed.events.length, 0);
+      assert.equal(failed.audits.length, 0);
+      const orphaned = await db.select().from(compensationAutomationIntents)
+        .where(eq(compensationAutomationIntents.organizationId, fixture.organizationId));
+      assert.equal(orphaned.length, 0);
+    } finally {
+      await db.execute(sql.raw('DROP TRIGGER IF EXISTS "' + trg + '" ON "compensation_automation_intents"'));
+      await db.execute(sql.raw('DROP FUNCTION IF EXISTS "' + fn + '"()'));
+    }
+
+    const retried = await decision(fixture, "approve");
+    assert.equal(retried.nextStatus, "active");
+    const recovered = await state(fixture);
+    assert.equal(recovered.events.filter((event) => event.eventType === "component_activated").length, 1);
+    const committed = await db.select().from(compensationAutomationIntents)
+      .where(eq(compensationAutomationIntents.organizationId, fixture.organizationId));
+    assert.equal(committed.length, 2);
+  }, "2026-10-08");
+});
+
 test("cancelling scheduled compensation atomically invalidates payroll and prevents later activation", async () => {
   await withFixture("scheduled", async (fixture) => {
     const result = await decision(fixture, "cancel");
