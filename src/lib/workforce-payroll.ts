@@ -173,6 +173,17 @@ export function segmentPayableTime(input: {
   }
 
   const attendanceCalendarDates = calendarDatesTouched(actualIn, actualOut);
+  // The boundary enumerator is deliberately capped at eight PH calendar dates.
+  // Never silently price the remainder of a longer punch without its midnight
+  // and night-differential boundaries. Such evidence requires manual correction.
+  if (attendanceCalendarDates.at(-1) !== phDateText(new Date(actualOut.getTime() - 1))) {
+    return {
+      segments: [],
+      attendanceCalendarDates,
+      allocationComplete: false,
+      flags: ["Attendance punch exceeds eight Philippine calendar dates; premium allocation requires correction before payroll approval."],
+    };
+  }
   const crossesMidnight =
     Boolean(input.shift.spansMidnight) || input.shift.end <= input.shift.start;
   const shiftEndDate = crossesMidnight
