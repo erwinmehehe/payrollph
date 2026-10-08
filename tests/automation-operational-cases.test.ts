@@ -141,6 +141,8 @@ test("dead letters preserve step evidence and require manual disposition without
   assert.ok(source.includes('caseType: "execution_dead_letter"'));
   assert.ok(source.includes("manualReviewRequired: true"));
   assert.ok(source.includes("actionsReplayed: false"));
+  assert.ok(source.includes("latestStep.status !== \"failed\""));
+  assert.ok(source.includes("before a new automation can complete"));
   assert.ok(route.includes('action === "quarantine-execution-step"'));
   assert.ok(route.includes("latestExecutionSteps(execution.result)"));
   assert.ok(route.includes('step.status === "failed"'));
@@ -175,6 +177,7 @@ test("failed-step recovery uses an explicit safe allowlist and a transaction-sco
   assert.ok(engine.includes("!SAFE_FAILED_STEP_RETRY_ACTIONS.has(step.type)"));
   assert.ok(engine.includes('deadLetter?.status === "open"'));
   assert.ok(engine.includes('deadLetter?.status === "resolved"'));
+  assert.ok(engine.includes('quarantines.some((letter) => letter.status !== "acknowledged")'));
   assert.ok(engine.includes("latestBusinessStepResults(result)"));
   assert.ok(engine.includes("retryAttempt: true"));
   const api = read("src/app/api/automation-studio/route.ts");
