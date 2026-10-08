@@ -1,9 +1,10 @@
-import { and, eq, isNull, lte, or } from "drizzle-orm";
+import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
   automationEventLog,
   automationExecutions,
+  automationOperationalCases,
   automationRules,
   benefitEnrollments,
   benefitPlans,
@@ -1597,88 +1598,105 @@ export async function retryAutomationExecutionFailedStep(input: {
   executionId: number;
   stepIndex?: number | null;
 }) {
-  const [execution] = await db.select().from(automationExecutions).where(and(
-    eq(automationExecutions.id, input.executionId),
-    eq(automationExecutions.organizationId, input.organizationId),
-  )).limit(1);
-  if (!execution) throw new Error("Automation execution not found.");
-  if (!["failed", "partial"].includes(execution.status)) {
-    throw new Error("Only failed or partial executions can retry a failed step.");
-  }
+  // A transaction-scoped advisory lock serializes concurrent operators'
+  // retries before the result array is read. Never execute a failed action
+  // twice simply because two admins pressed Retry at the same time.
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${input.organizationId}, ${input.executionId})`);
+    const [execution] = await tx.select().from(automationExecutions).where(and(
+      eq(automationExecutions.id, input.executionId),
+      eq(automationExecutions.organizationId, input.organizationId),
+    )).limit(1);
+    if (!execution) throw new Error("Automation execution not found.");
+    if (!["failed", "partial"].includes(execution.status)) {
+      throw new Error("Only failed or partial executions can retry a failed step.");
+    }
 
-  const trigger = execution.trigger as AutomationTrigger;
-  if (!(AUTOMATION_TRIGGERS as readonly string[]).includes(trigger)) {
-    throw new Error("Stored automation execution has an unsupported trigger.");
-  }
-  const normalized = normalizeAutomationActions(execution.workflow);
-  if (!normalized || normalized.some((step) => step.type === "branch")) {
-    throw new Error("Stored automation execution workflow is invalid.");
-  }
-  const workflow = normalized as RunnableAutomationStep[];
-  const result = executionResultArray(execution.result);
-  const failedSteps = latestBusinessStepResults(result)
-    .filter((row) => row.status === "failed")
-    .map((row) => Number(row.stepIndex))
-    .filter((stepIndex) => Number.isInteger(stepIndex));
+    const trigger = execution.trigger as AutomationTrigger;
+    if (!(AUTOMATION_TRIGGERS as readonly string[]).includes(trigger)) {
+      throw new Error("Stored automation execution has an unsupported trigger.");
+    }
+    const normalized = normalizeAutomationActions(execution.workflow);
+    if (!normalized || normalized.some((step) => step.type === "branch")) {
+      throw new Error("Stored automation execution workflow is invalid.");
+    }
+    const workflow = normalized as RunnableAutomationStep[];
+    const result = executionResultArray(execution.result);
+    const failedSteps = latestBusinessStepResults(result)
+      .filter((row) => row.status === "failed")
+      .map((row) => Number(row.stepIndex))
+      .filter((stepIndex) => Number.isInteger(stepIndex));
 
-  const stepIndex = input.stepIndex == null ? failedSteps[0] : input.stepIndex;
-  if (!Number.isInteger(stepIndex) || !failedSteps.includes(stepIndex as number)) {
-    throw new Error("The requested automation step is not currently failed.");
-  }
+    const stepIndex = input.stepIndex == null ? failedSteps[0] : input.stepIndex;
+    if (!Number.isInteger(stepIndex) || !failedSteps.includes(stepIndex as number)) {
+      throw new Error("The requested automation step is not currently failed.");
+    }
 
-  const step = workflow[stepIndex as number];
-  if (!step || step.type === "wait" || step.type === "approval_gate") {
-    throw new Error("Only failed business-action steps can be retried.");
-  }
-  if (!SAFE_FAILED_STEP_RETRY_ACTIONS.has(step.type)) {
-    throw new Error(
-      `The failed ${step.type} action is not safe for automatic retry. Quarantine it in the dead-letter queue and review any side effects manually.`,
-    );
-  }
+    const step = workflow[stepIndex as number];
+    if (!step || step.type === "wait" || step.type === "approval_gate") {
+      throw new Error("Only failed business-action steps can be retried.");
+    }
+    if (!SAFE_FAILED_STEP_RETRY_ACTIONS.has(step.type)) {
+      throw new Error(
+        `The failed ${step.type} action is not safe for automatic retry. Quarantine it in the dead-letter queue and review any side effects manually.`,
+      );
+    }
 
-  try {
-    const evidence = await executeAction({
-      organizationId: execution.organizationId,
-      employeeId: execution.employeeId,
-      trigger,
-      eventKey: execution.eventKey,
-      executionId: execution.id,
-      actionIndex: stepIndex as number,
-      action: step,
-      context: executionContextObject(execution.context),
-    });
-    result.push({
-      ...evidence,
-      stepIndex,
-      status: "completed",
-      retryAttempt: true,
-      retriedAt: new Date().toISOString(),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Automation action retry failed.";
-    result.push({
-      type: step.type,
-      stepIndex,
-      status: "failed",
-      error: message,
-      retryAttempt: true,
-      retriedAt: new Date().toISOString(),
-    });
-  }
+    const [deadLetter] = await tx.select().from(automationOperationalCases).where(and(
+      eq(automationOperationalCases.organizationId, input.organizationId),
+      eq(automationOperationalCases.caseType, "execution_dead_letter"),
+      eq(automationOperationalCases.sourceId, execution.id),
+      eq(automationOperationalCases.stepIndex, stepIndex as number),
+    )).limit(1);
+    if (deadLetter?.status === "open") {
+      throw new Error("A dead-letter record is awaiting human acknowledgement. Inspect the evidence before retrying.");
+    }
+    if (deadLetter?.status === "resolved") {
+      throw new Error("This dead letter was closed through an explicit manual disposition; reopen it before attempting another retry.");
+    }
 
-  const terminal = terminalExecutionState(result);
-  const [updated] = await db.update(automationExecutions).set({
-    status: terminal.status,
-    result,
-    error: terminal.error,
-    updatedAt: new Date(),
-  }).where(and(
-    eq(automationExecutions.id, execution.id),
-    eq(automationExecutions.organizationId, input.organizationId),
-  )).returning();
-  return updated ?? execution;
+    try {
+      const evidence = await executeAction({
+        organizationId: execution.organizationId,
+        employeeId: execution.employeeId,
+        trigger,
+        eventKey: execution.eventKey,
+        executionId: execution.id,
+        actionIndex: stepIndex as number,
+        action: step,
+        context: executionContextObject(execution.context),
+      });
+      result.push({
+        ...evidence,
+        stepIndex,
+        status: "completed",
+        retryAttempt: true,
+        retriedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      result.push({
+        type: step.type,
+        stepIndex,
+        status: "failed",
+        error: error instanceof Error ? error.message : "Automation action retry failed.",
+        retryAttempt: true,
+        retriedAt: new Date().toISOString(),
+      });
+    }
+
+    const terminal = terminalExecutionState(result);
+    const [updated] = await tx.update(automationExecutions).set({
+      status: terminal.status,
+      result,
+      error: terminal.error,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(automationExecutions.id, execution.id),
+      eq(automationExecutions.organizationId, input.organizationId),
+    )).returning();
+    return updated ?? execution;
+  });
 }
-
 export async function replayAutomationExecutionSnapshot(input: {
   organizationId: number;
   executionId: number;
