@@ -1,0 +1,56 @@
+name: Isolated Backup and Restore Rehearsal
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  restore-rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      DR_REHEARSAL_MODE: isolated-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PG_CONTAINER: ${{ job.services.postgres.id }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run db:push
+      - name: Verify disposable PostgreSQL dump, restore, checksums, constraints, rollback
+        run: bash scripts/verify-backup-restore.sh
+      - name: Upload sanitized engineering DR report (never database dumps)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: payrollph-isolated-dr-rehearsal
+          path: qa-artifacts/dr-rehearsal.json
+          retention-days: 14
+          if-no-files-found: warn

@@ -89,6 +89,8 @@ const report: Record<string, unknown> = {
   baseUrl,
   rolloutMode,
   expectedCommitSha: expectedCommitSha || null,
+  externalCertification: "not-assessed-by-live-readiness-probe",
+  gaApproved: false,
   checkedAt: new Date().toISOString(),
   publicSurfaces: [],
   deployment: null,
@@ -338,7 +340,7 @@ async function main() {
     : await verifySanitizedReadiness();
 
   writeReport();
-  console.log(JSON.stringify({ ok: true, rolloutMode, ...result }, null, 2));
+  console.log(JSON.stringify({ ok: true, rolloutMode, gaApproved: false, externalCertification: "not-assessed-by-live-readiness-probe", ...result }, null, 2));
 }
 
 main().catch((error) => {

@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "legalEntityCode": "REPLACE-WITH-REAL-LEGAL-EMPLOYER-CODE",
+  "engineCommitSha": "REPLACE-WITH-EXACT-40-CHAR-PAYROLL-ENGINE-COMMIT",
+  "documents": [
+    {
+      "kind": "bir-2316-sample-reviewed",
+      "filePath": "REPLACE-WITH-PRIVATE-RELATIVE-EVIDENCE-FILE",
+      "sha256": "REPLACE-WITH-ACTUAL-SHA256",
+      "issuedAt": "YYYY-MM-DD",
+      "issuer": "REPLACE-WITH-PREPARER-NAME",
+      "independentlyReviewedBy": "REPLACE-WITH-SEPARATE-REVIEWER-NAME"
+    },
+    {
+      "kind": "filing-format-reviewed",
+      "filePath": "REPLACE-WITH-PRIVATE-RELATIVE-EVIDENCE-FILE",
+      "sha256": "REPLACE-WITH-ACTUAL-SHA256",
+      "issuedAt": "YYYY-MM-DD",
+      "issuer": "REPLACE-WITH-PREPARER-NAME",
+      "independentlyReviewedBy": "REPLACE-WITH-SEPARATE-REVIEWER-NAME"
+    },
+    {
+      "kind": "low-value-payout-authorization",
+      "filePath": "REPLACE-WITH-PRIVATE-RELATIVE-EVIDENCE-FILE",
+      "sha256": "REPLACE-WITH-ACTUAL-SHA256",
+      "issuedAt": "YYYY-MM-DD",
+      "issuer": "REPLACE-WITH-PREPARER-NAME",
+      "independentlyReviewedBy": "REPLACE-WITH-SEPARATE-REVIEWER-NAME"
+    },
+    {
+      "kind": "negative-and-reversal-uat",
+      "filePath": "REPLACE-WITH-PRIVATE-RELATIVE-EVIDENCE-FILE",
+      "sha256": "REPLACE-WITH-ACTUAL-SHA256",
+      "issuedAt": "YYYY-MM-DD",
+      "issuer": "REPLACE-WITH-PREPARER-NAME",
+      "independentlyReviewedBy": "REPLACE-WITH-SEPARATE-REVIEWER-NAME"
+    },
+    {
+      "kind": "encrypted-backup-control",
+      "filePath": "REPLACE-WITH-PRIVATE-RELATIVE-EVIDENCE-FILE",
+      "sha256": "REPLACE-WITH-ACTUAL-SHA256",
+      "issuedAt": "YYYY-MM-DD",
+      "issuer": "REPLACE-WITH-PREPARER-NAME",
+      "independentlyReviewedBy": "REPLACE-WITH-SEPARATE-REVIEWER-NAME"
+    },
+    {
+      "kind": "isolated-restore-rehearsal",
+      "filePath": "REPLACE-WITH-PRIVATE-RELATIVE-EVIDENCE-FILE",
+      "sha256": "REPLACE-WITH-ACTUAL-SHA256",
+      "issuedAt": "YYYY-MM-DD",
+      "issuer": "REPLACE-WITH-PREPARER-NAME",
+      "independentlyReviewedBy": "REPLACE-WITH-SEPARATE-REVIEWER-NAME"
+    },
+    {
+      "kind": "rollback-rehearsal",
+      "filePath": "REPLACE-WITH-PRIVATE-RELATIVE-EVIDENCE-FILE",
+      "sha256": "REPLACE-WITH-ACTUAL-SHA256",
+      "issuedAt": "YYYY-MM-DD",
+      "issuer": "REPLACE-WITH-PREPARER-NAME",
+      "independentlyReviewedBy": "REPLACE-WITH-SEPARATE-REVIEWER-NAME"
+    },
+    {
+      "kind": "security-access-review",
+      "filePath": "REPLACE-WITH-PRIVATE-RELATIVE-EVIDENCE-FILE",
+      "sha256": "REPLACE-WITH-ACTUAL-SHA256",
+      "issuedAt": "YYYY-MM-DD",
+      "issuer": "REPLACE-WITH-PREPARER-NAME",
+      "independentlyReviewedBy": "REPLACE-WITH-SEPARATE-REVIEWER-NAME"
+    },
+    {
+      "kind": "privacy-retention-approval",
+      "filePath": "REPLACE-WITH-PRIVATE-RELATIVE-EVIDENCE-FILE",
+      "sha256": "REPLACE-WITH-ACTUAL-SHA256",
+      "issuedAt": "YYYY-MM-DD",
+      "issuer": "REPLACE-WITH-PREPARER-NAME",
+      "independentlyReviewedBy": "REPLACE-WITH-SEPARATE-REVIEWER-NAME"
+    }
+  ],
+  "recovery": {
+    "exerciseEnvironment": "isolated-production-like-staging",
+    "snapshotCapturedAt": "YYYY-MM-DDTHH:MM:SSZ",
+    "incidentDeclaredAt": "YYYY-MM-DDTHH:MM:SSZ",
+    "restoreVerifiedAt": "YYYY-MM-DDTHH:MM:SSZ",
+    "rpoObjectiveMinutes": 0,
+    "rtoObjectiveMinutes": 0,
+    "backupEncrypted": false,
+    "isolatedRestoreConfirmed": false,
+    "sourceAndRestoreChecksumsMatch": false,
+    "rollbackSuccessfullyRehearsed": false,
+    "representativeDatasetPrivacyReviewed": false
+  },
+  "separationOfDuties": {
+    "preparedBy": "REPLACE",
+    "independentlyCheckedBy": "REPLACE",
+    "releaseDecisionOwner": "REPLACE",
+    "reviewedAt": "YYYY-MM-DD"
+  }
+}

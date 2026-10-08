@@ -51,3 +51,17 @@ A successful check returns **`package-ready-for-human-verification`**, never `ce
 ## Acceptance checkpoint
 
 Do not mark issue #192's external checkboxes complete until real evidence and its human verification are recorded. If a source system changes, a filing is rejected, the evidence expires, or the employer/engine version differs from what was reviewed, stop release and obtain new evidence. Golden-payout CI results and internal pilot simulations remain engineering proof only.
+
+
+## Combined operational and GA evidence gate
+
+For real-employer GA, the above manifest alone is not enough. Run the private
+[production/GA release gate](production-ga-gates.md) with
+`certification/operational-evidence-template.json` completed in the private
+vault. This adds independently reviewed BIR 2316 samples, approved low-value
+transfer/negative reversal UAT, encrypted backup and witnessed isolated restore,
+rollback, security/privacy evidence, measured RPO/RTO, employer and month
+agreement, and at least 10 matched employees per month.
+
+The combined validator **never issues GA approval**. Final signature and
+government/bank evidence authentication remain human, external decisions.
