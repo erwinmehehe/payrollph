@@ -19,8 +19,8 @@ export const SEO_PRIVATE_ROUTE_PREFIXES = [
 ] as const;
 
 export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
-  { primaryIntent: "hcm philippines", ownerPath: "/hcm", intentClass: "commercial", supportingIntents: ["human capital management philippines"] },
-  { primaryIntent: "workforce management philippines", ownerPath: "/workforce-management", intentClass: "commercial", supportingIntents: ["workforce scheduling philippines"] },
+  { primaryIntent: "hcm philippines", ownerPath: "/hcm", intentClass: "commercial", supportingIntents: ["human capital management philippines", "hcm software philippines"] },
+  { primaryIntent: "workforce management philippines", ownerPath: "/workforce-management", intentClass: "commercial", supportingIntents: ["workforce scheduling philippines", "workforce management software philippines"] },
   {
     primaryIntent: "about linaw payrollph",
     ownerPath: "/about",
@@ -57,7 +57,7 @@ export const SEO_INTENT_OWNERS: SeoIntentOwner[] = [
     primaryIntent: "employee self service philippines",
     ownerPath: "/employee-self-service",
     intentClass: "commercial",
-    supportingIntents: ["ess philippines", "employee self service software philippines"],
+    supportingIntents: ["ess philippines", "employee self service software philippines", "employee self service portal philippines"],
   },
   {
     primaryIntent: "payroll outsourcing philippines",

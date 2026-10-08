@@ -3,7 +3,7 @@ import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 import { StructuredData } from "@/components/marketing/structured-data";
 
 export const metadata: Metadata = {
-  title: "Timekeeping System Philippines | Payroll Software | Linaw",
+  title: "Timekeeping System Philippines | Time & Attendance | Linaw",
   description: "Philippine timekeeping and attendance software with raw punches, schedules, overtime workflows, night differential and payroll-connected attendance processing.",
   alternates: { canonical: "/time-and-attendance" },
 };
@@ -44,11 +44,13 @@ export default function TimeAttendancePage() {
         faq={faq}
       />
       <SeoLandingPage
+      ctaTitle="Follow a missing punch through review."
+      ctaBody="Try the sample attendance workflow. For a walkthrough, bring your shift patterns, correction process and overtime approval responsibilities."
       workflow={{"title":"A missing punch should lead to a decision.","steps":[{"title":"Spot the exception","owner":"Time administrator","detail":"Review recorded punches against the schedule and identify incomplete sequences."},{"title":"Review the correction","owner":"Authorized reviewer","detail":"Resolve the exception through the attendance workflow, retaining the decision evidence."},{"title":"Prepare payroll inputs","owner":"Payroll team","detail":"Review derived hours and remaining exceptions before calculating and releasing the run."}]}}
       simulationArea="attendance"
       eyebrow="Timekeeping system Philippines"
       title="Time and attendance that payroll can actually use."
-      intro="Linaw connects raw punches, work schedules, overtime, night differential, rest days and attendance exceptions directly to payroll calculation."
+      intro="Linaw timekeeping software helps Philippine teams chasing missing punches at cutoff: review recorded time against schedules, resolve attendance exceptions and give payroll a traceable basis for hours and premiums."
       proof={[
         "Raw punch processing for hours, tardiness, undertime and overtime",
         "Night differential calculation",
@@ -82,7 +84,7 @@ export default function TimeAttendancePage() {
       ]}
       faq={faq}
       related={[
-        { label: "Payroll software", href: "/", description: "See how attendance becomes a traceable payroll run." },
+        { label: "Payroll preparation & review", href: "/small-business-payroll", description: "See how attendance becomes a traceable payroll run." },
         { label: "BPO payroll", href: "/industries/bpo", description: "Explore shift-heavy payroll requirements for Philippine BPO teams." },
         { label: "Compliance", href: "/compliance", description: "See how statutory and payroll-rule evidence is handled." },
       ]}

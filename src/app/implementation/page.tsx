@@ -44,9 +44,11 @@ export default function ImplementationPage() {
         faq={faq}
       />
       <SeoLandingPage
+      ctaTitle="Plan your first cutoff before choosing a go-live date."
+      ctaBody="Request a walkthrough of your data, approval chain and reconciliation requirements. The implementation scope and timing depend on that review."
       eyebrow="Payroll implementation Philippines"
       title="Move payroll systems with visible validation at every handoff."
-      intro="Linaw includes migration and rollout workflows designed to make payroll implementation reviewable: import existing employee data, configure payroll rules and roles, validate outputs, run controlled payroll and keep launch gates explicit."
+      intro="For teams moving from spreadsheets or another payroll system: agree what must move, who reviews it and how the first run will be reconciled. The rollout starts with your current operation and ends with an explicit go-live decision."
       proof={[
         "CSV employee migration with validation",
         "Migration center workflow",

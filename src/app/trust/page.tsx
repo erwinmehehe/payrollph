@@ -10,11 +10,13 @@ export const metadata: Metadata = {
 export default function TrustPage() {
   return (
     <SeoLandingPage
+      ctaTitle="Review the evidence with your buying team."
+      ctaBody="Use the scorecard, security details and evidence methodology above. Bring unresolved procurement or payroll-validation questions to a walkthrough."
       directoryTitle="Find the evidence for your buying decision."
       directoryGroups={[{"title":"Product claims","description":"Inspect what is implemented and how capability evidence is classified.","links":[{"label":"Capability scorecard","href":"/scorecard","description":"Review verified, partial and absent capabilities."},{"label":"Evidence methodology","href":"/methodology","description":"Understand the limits of the evidence."}]},{"title":"Access and operation","description":"Review security implementation and the public status surface separately.","links":[{"label":"Security controls","href":"/security","description":"Authentication, authorization and sensitive-data protection."},{"label":"System status","href":"/status","description":"Inspect reported operational health."}]},{"title":"Payroll rollout","description":"Review implementation requirements and supported compliance workflows.","links":[{"label":"Implementation","href":"/implementation","description":"Prepare data, reconcile payroll and assign sign-off owners."},{"label":"Compliance","href":"/compliance","description":"Distinguish calculations and prepared outputs from filing acceptance."}]}]}
       eyebrow="Linaw Trust Center"
       title="Inspect the evidence behind your payroll decision."
-      intro="Linaw separates implemented controls, partial capabilities, external dependencies and absent features so buyers can distinguish working product paths from roadmap or validation gaps."
+      intro="For buyers reviewing payroll risk: inspect capability evidence, access controls and operational status separately. Use the linked sources to distinguish tested product behavior from external acceptance and certification."
       proof={[
         "Public capability scorecard",
         "Public system status page",

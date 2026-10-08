@@ -221,7 +221,7 @@ export default function PayrollOutsourcingPage() {
                   <ClipboardCheck size={19} />
                 </span>
                 <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Linaw payroll team</p>
-                <h3 className="font-display mt-2 text-[25px] font-semibold tracking-[-0.03em]">We handle the cycle work.</h3>
+                <h3 className="font-display mt-2 text-[25px] font-semibold tracking-[-0.03em]">Processing support, with a defined handoff.</h3>
                 <ul className="mt-5 grid gap-3">
                   {[
                     "Process the approved payroll inputs provided for the cycle",
@@ -242,7 +242,7 @@ export default function PayrollOutsourcingPage() {
                   <Users size={19} />
                 </span>
                 <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Your team</p>
-                <h3 className="font-display mt-2 text-[25px] font-semibold tracking-[-0.03em]">You keep control of the business decisions.</h3>
+                <h3 className="font-display mt-2 text-[25px] font-semibold tracking-[-0.03em]">Your team owns the inputs and approval.</h3>
                 <ul className="mt-5 grid gap-3">
                   {[
                     "Provide complete and approved payroll inputs",

@@ -64,7 +64,7 @@ export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact
         <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#0B0D1A]">
           Your request is in.
         </h2>
-                <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">{variant === "contact" ? "Your inquiry has been recorded. This confirmation does not book a demo or promise a response time." : "We recorded your payroll brief so the walkthrough can focus on your headcount, structure and cutoff questions."}</p>
+                <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">{variant === "contact" ? "Your inquiry has been recorded. A product walkthrough is a separate request through Book Demo." : "We recorded your payroll brief so the walkthrough can focus on your headcount, structure and cutoff questions."}</p>
 
         <div className="mt-6 flex flex-wrap gap-2.5">
           <Link href="/demo" className="inline-flex items-center gap-2 rounded-full bg-[#11141F] px-5 py-3 text-[13.5px] font-semibold text-white">
@@ -147,7 +147,7 @@ export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact
             className={`${inputClass} min-h-[120px] resize-y`}
             value={form.notes}
             onChange={set("notes")}
-            placeholder="Example: semi-monthly payroll across two branches, BIR worksheets, and how approvals work when our approver is on leave."
+            placeholder={variant === "contact" ? "Tell us your question and the context we need to understand it." : "Example: semi-monthly payroll across two branches, attendance corrections, and approval cover when our checker is on leave."}
           />
           <small className="mt-2 block text-[11px] font-normal text-[#8B90AA]">Optional. Use a company-level brief. Employee records, bank details, and payroll files belong in your signed-in workspace.</small>
         </label>

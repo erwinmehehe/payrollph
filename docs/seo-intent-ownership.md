@@ -47,10 +47,10 @@ An evergreen guide explains the rule or process. A calculator owns estimation/ac
 
 Examples:
 
-- `/resources/13th-month-pay-philippines` → guide intent.
-- `/calculators/13th-month-pay` → calculator intent.
-- `/resources/overtime-pay-philippines` → guide intent.
-- `/calculators/overtime-pay` → calculator intent.
+- `/resources/13th-month-pay-philippines` â†’ guide intent.
+- `/calculators/13th-month-pay` â†’ calculator intent.
+- `/resources/overtime-pay-philippines` â†’ guide intent.
+- `/calculators/overtime-pay` â†’ calculator intent.
 
 ### Compliance vs glossary
 
@@ -60,9 +60,9 @@ A glossary entry defines terminology.
 
 Example:
 
-- `/compliance/withholding-tax` → payroll compliance workflow.
-- `/glossary/withholding-tax` → definition.
-- `/calculators/withholding-tax` → estimate/calculation intent.
+- `/compliance/withholding-tax` â†’ payroll compliance workflow.
+- `/glossary/withholding-tax` â†’ definition.
+- `/calculators/withholding-tax` â†’ estimate/calculation intent.
 
 ### Commercial vs industry
 
@@ -70,8 +70,8 @@ Industry pages qualify the commercial product for a specific operating environme
 
 Example:
 
-- `/` → payroll software Philippines.
-- `/industries/bpo` → BPO payroll software Philippines.
+- `/` â†’ payroll software Philippines.
+- `/industries/bpo` â†’ BPO payroll software Philippines.
 
 ## Audit failure conditions
 
@@ -142,8 +142,39 @@ The retroactive-pay page owns payroll correction mechanics for effective-dated p
 The competitor-alternative page owns branded comparison intent only.
 
 It must not replace or compete with:
-- `payroll software Philippines` → `/`
-- `best payroll software Philippines` → `/resources/best-payroll-software-philippines`
-- `payroll system comparison Philippines` → `/resources/payroll-system-comparison`
+- `payroll software Philippines` â†’ `/`
+- `best payroll software Philippines` â†’ `/resources/best-payroll-software-philippines`
+- `payroll system comparison Philippines` â†’ `/resources/payroll-system-comparison`
 
 Competitor pages must use current public evidence, link the source material, state the review date and avoid unsupported superiority, security, compliance, pricing or product-defect claims.
+
+
+## Landing-page copy alignment - October 2026
+
+The category language below is a qualitative intent hypothesis, not a search-volume or ranking estimate. Existing canonical ownership remains unchanged.
+
+| Page | Buyer question the copy answers |
+| --- | --- |
+| Homepage | Can employee records, time and Philippine payroll work together? |
+| Small-business payroll | How do we move from spreadsheets to a controlled cutoff? |
+| HRIS | How do we maintain and import accurate employee records? |
+| HCM | Who owns onboarding, employment changes and compensation decisions? |
+| Workforce Management | Can qualified employees cover the planned shifts? |
+| Time & Attendance | How do we resolve recorded-time exceptions before payroll? |
+| Employee Self-Service | Can employees access their own released payslips and pay history? |
+| Workforce Analytics | What changed in headcount or payroll, and can we trace it? |
+| Outsourcing | What does the service handle, and what remains with our team? |
+| Pricing | What plan, cost and scope should we evaluate? |
+| Implementation | How do we reconcile data and prepare the first cutoff? |
+| Trust / About | What evidence and product identity can a buying team verify? |
+| Contact / Book Demo | Do we have a general question or need a workflow walkthrough? |
+
+Product-related links lead to the detailed payroll workflow rather than sending every visitor back to the homepage. Category names appear in titles and introductory copy; outcome-led H1s are preserved. The outsourcing H1 remains Payroll Outsourcing Philippines.
+
+Research references:
+
+- [Google Search Central: helpful, reliable, people-first content](https://developers.google.com/search/docs/fundamentals/creating-helpful-content): descriptive headings, useful content and accurate claims guide the copy approach.
+- [ADP Philippines: time and attendance](https://ph.adp.com/what-we-offer/products/adp-securtime/solution.aspx): a primary vendor reference for the time-and-attendance category, separate from broader staffing planning.
+- [Parfait Philippines](https://www.parfait.com.ph/): search-result category wording includes payroll and HRIS. This is vocabulary context, not evidence of demand or Linaw capability.
+
+Validate these hypotheses after publication with Search Console query/page data and qualified demo requests. Do not change canonical URLs merely to insert more keywords.

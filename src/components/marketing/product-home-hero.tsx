@@ -22,14 +22,14 @@ export function ProductHomeHero() {
   return (
     <section id="top" className="linaw-product-hero" aria-label="Linaw payroll and people platform">
       <div className="lp-intro">
-        <p className="lp-eyebrow">Payroll & people for Philippine teams</p>
+        <p className="lp-eyebrow">Payroll software for Philippine teams</p>
         <h1>Your people. Your payroll.<br /><span>Working together.</span></h1>
-        <p className="lp-description">Bring employee records, time, payroll, and approvals into one connected workspace. Give every team a clearer view of what comes next.</p>
+        <p className="lp-description">Linaw connects Philippine payroll, employee records and attendance. Stop rebuilding the same payroll story across employee files, time records and approval messages. Prepare the cutoff, review exceptions and keep the release decision with the right person.</p>
         <div className="lp-picker" role="group" aria-label="Choose a product area">
           {areas.map((area, index) => { const Icon = productIcons[index]; return <button key={area.id} type="button" aria-pressed={selected.id === area.id} aria-controls="product-screen" onClick={() => { setSelected(area); setPreviewPage(destinations[area.id]); }} style={{ "--area-color": area.color } as React.CSSProperties}><span className="lp-product-icon" aria-hidden="true"><Icon size={22} strokeWidth={1.7} /></span><span>{area.name}</span></button>; })}
         </div>
-        <div className="lp-actions"><a className="lp-button lp-primary hero-primary-cta" href="/demo">Explore the demo <span aria-hidden="true">→</span></a><a className="lp-button" href="/book-demo">Talk to us</a></div>
-        <p className="lp-micro">One connected workflow. Clear responsibilities at every step.</p>
+        <div className="lp-actions"><a className="lp-button lp-primary hero-primary-cta" href="/demo">Explore the demo <span aria-hidden="true">→</span></a><a className="lp-button" href="/book-demo">Book a walkthrough</a></div>
+        <p className="lp-micro">Explore sample data first. Bring your cutoff questions to the walkthrough.</p>
       </div>
       <div id="product-screen" className="lp-showcase">
         <div className="lp-screen-heading"><div><h2>{selected.title}</h2><p>{selected.copy}</p></div><a href={selected.href}>Explore {selected.name.toLowerCase()} <span aria-hidden="true">↗</span></a></div>

@@ -8,8 +8,8 @@ import { absolutePublicUrl } from "@/lib/site-url";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Payroll Software Philippines | Payroll System PH | Linaw",
-  description: "Philippine payroll software for attendance, statutory deductions, TRAIN withholding, approvals, payslips, reporting, audit trails and payroll release.",
+  title: "Payroll Software Philippines | People, Time & Pay | Linaw",
+  description: "Connect employee records, attendance and Philippine payroll in Linaw. Review calculations, exceptions, approvals and payslips in the sample-data demo.",
   alternates: { canonical: "/" },
 };
 

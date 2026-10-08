@@ -20,11 +20,13 @@ export default function WorkforceAnalyticsPage() {
         }}
       />
       <SeoLandingPage
+      ctaTitle="Bring the payroll change you need to explain."
+      ctaBody="Explore sample reporting, or request a walkthrough of your period comparisons, organization scope and finance handoff."
       workflow={{"title":"Explain a payroll change before the next decision.","steps":[{"title":"Choose the comparison","owner":"Payroll or finance","detail":"Review recorded payroll periods and the organization scope relevant to your question."},{"title":"Investigate the movement","owner":"Authorized reviewer","detail":"Inspect cost totals, headcount and payroll variance categories rather than relying on a single headline number."},{"title":"Prepare the handoff","owner":"Finance team","detail":"Export supported report results as CSV and retain the audit record of the export."}]}}
       simulationArea="reports"
         eyebrow="Workforce analytics Philippines"
         title="What changed in payroll—and what needs a closer look?"
-        intro="Linaw's analytics layer focuses on operational reporting: headcount movement, payroll cost history, workforce-status indicators, compliance exceptions and payroll variance. The reports come from organization-scoped application data rather than a separate predictive analytics product."
+        intro="For payroll and finance teams explaining a changed total: compare recorded runs, inspect headcount and variance categories, and export supported reports with an audit record. Start with the question behind the number."
         proof={[
           "Headcount movement report",
           "Payroll cost history",
@@ -86,7 +88,7 @@ export default function WorkforceAnalyticsPage() {
           },
         ]}
         related={[
-          { label: "Payroll software", href: "/", description: "See the payroll workflow that generates the underlying payroll-run data." },
+          { label: "Payroll preparation & review", href: "/small-business-payroll", description: "See the payroll workflow that generates the underlying payroll-run data." },
           { label: "Time & attendance", href: "/time-and-attendance", description: "Review the attendance inputs behind payroll and compliance exceptions." },
           { label: "Payroll compliance audit", href: "/compliance/payroll-audit", description: "Use reconciliation and exception evidence after payroll release." },
           { label: "Security", href: "/security", description: "Review role, tenant and sensitive-data controls around workforce reporting." },

@@ -3,7 +3,7 @@ import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 import { StructuredData } from "@/components/marketing/structured-data";
 
 export const metadata: Metadata = {
-  title: "Employee Self-Service Philippines | Payroll Portal | Linaw",
+  title: "Employee Self-Service Portal Philippines | Linaw",
   description: "Employee self-service for Philippine payroll with personal payslips, year-to-date figures, payroll history, PDF downloads and employee-scoped access controls.",
   alternates: { canonical: "/employee-self-service" },
 };
@@ -44,11 +44,13 @@ export default function EmployeeSelfServicePage() {
         faq={faq}
       />
       <SeoLandingPage
+      ctaTitle="See payday from the employee’s side."
+      ctaBody="Explore the sample employee role, then review how your team will link employee accounts and make released payslips available."
       workflow={{"title":"Answer “what was I paid?” without another email.","steps":[{"title":"Open your own portal","owner":"Employee","detail":"Sign in to the personal view linked to your employee record."},{"title":"Inspect the pay period","owner":"Employee","detail":"Review released payslip details, deductions and available year-to-date figures."},{"title":"Keep your copy","owner":"Employee","detail":"Download the PDF payslip for your records. Company-wide payroll stays with authorized staff."}]}}
       simulationArea="employee"
       eyebrow="Employee self-service Philippines"
       title="Your payslip. Your pay history. Your own view."
-      intro="Give employees a clear place to review their released payslips, deductions and year-to-date figures. Personal access keeps company-wide payroll information with the authorized team."
+      intro="For payroll teams repeatedly resending payslips: give employees one place to review released pay details, deductions and year-to-date figures. Each employee gets their own view; company payroll stays with authorized staff."
       proof={[
         "Personal payslip history",
         "Downloadable PDF payslips",
@@ -82,7 +84,7 @@ export default function EmployeeSelfServicePage() {
       faq={faq}
       related={[
         { label: "HRIS", href: "/hris", description: "See the employee record and lifecycle system behind self-service." },
-        { label: "Payroll software", href: "/", description: "Explore the payroll engine that produces employee results." },
+        { label: "Payroll preparation & review", href: "/small-business-payroll", description: "Explore the payroll engine that produces employee results." },
         { label: "Security", href: "/security", description: "Review the access and tenant-isolation controls around payroll data." },
       ]}
     />

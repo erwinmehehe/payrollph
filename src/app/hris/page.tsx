@@ -3,7 +3,7 @@ import { SeoLandingPage } from "@/components/marketing/seo-landing-page";
 import { StructuredData } from "@/components/marketing/structured-data";
 
 export const metadata: Metadata = {
-  title: "HRIS Philippines | Employee Data & Payroll Software | Linaw",
+  title: "HRIS Software Philippines | Employee Records | Linaw",
   description: "Philippine HRIS software for employee records, payroll-ready data, onboarding, lifecycle tasks, approvals and role-based workforce administration tools.",
   alternates: { canonical: "/hris" },
 };
@@ -44,11 +44,13 @@ export default function HrisPage() {
         faq={faq}
       />
       <SeoLandingPage
+      ctaTitle="See one employee record through to payroll."
+      ctaBody="Try the sample employee workflow, or request a walkthrough of your roster import, access scope and payroll handoff."
       workflow={{"title":"From a roster import to a payroll-ready employee.","steps":[{"title":"Validate the roster","owner":"HR administrator","detail":"Import employee records, review row-level issues and match employee numbers before applying updates."},{"title":"Prepare the record","owner":"HR + payroll","detail":"Review employment details, pay configuration and organization scope before the next cutoff."},{"title":"Control the handoff","owner":"Authorized team","detail":"Keep sensitive changes traceable and connect the record to employee self-service."}]}}
       simulationArea="people"
-      eyebrow="HRIS Philippines"
+      eyebrow="HRIS software Philippines"
       title="HRIS software connected to the payroll work that follows."
-      intro="Linaw keeps employee records, organizational access, onboarding and payroll workflows in one Philippine HR and payroll workspace instead of making HR maintain disconnected records."
+      intro="Linaw HRIS software helps Philippine HR and payroll teams maintaining the same employee details in several files: keep records, pay configuration and organization access connected. Validate roster imports and review sensitive changes before they affect the next cutoff."
       proof={[
         "Employee records with payroll-relevant fields and organization scope",
         "CSV employee import with row-level validation and update-by-employee-number behavior",
