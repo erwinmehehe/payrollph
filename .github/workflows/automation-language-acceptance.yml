@@ -11,6 +11,7 @@ on:
       - "src/lib/automation-versioning.ts"
       - "scripts/automation-language-acceptance.ts"
       - "scripts/automation-language-browser-acceptance.mjs"
+      - "scripts/automation-language-disabled-acceptance.mjs"
       - ".github/workflows/automation-language-acceptance.yml"
   workflow_dispatch:
 
@@ -95,3 +96,26 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Browser acceptance — human-driven draft review, preview and inactive publish
         run: node scripts/automation-language-browser-acceptance.mjs
+      - name: Start independent default-off instance on disposable loopback port
+        shell: bash
+        env:
+          AUTOMATION_LANGUAGE_STUDIO_ENABLED: "false"
+          APP_BASE_URL: http://127.0.0.1:3001
+        run: |
+          nohup npm start -- -p 3001 -H 127.0.0.1 > /tmp/payrollph-language-disabled.log 2>&1 &
+          echo $! > /tmp/payrollph-language-disabled.pid
+          for attempt in {1..40}; do
+            if curl -fsS "http://127.0.0.1:3001/login" >/dev/null; then
+              echo "Default-off synthetic application ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Default-off synthetic application failed readiness."
+          exit 1
+      - name: Browser and HTTP acceptance — rollout OFF blocks real receipts but retains manual Studio
+        env:
+          AUTOMATION_ACCEPTANCE_URL: http://127.0.0.1:3001
+          APP_BASE_URL: http://127.0.0.1:3001
+          AUTOMATION_LANGUAGE_STUDIO_ENABLED: "false"
+        run: node scripts/automation-language-disabled-acceptance.mjs
