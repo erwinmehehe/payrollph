@@ -175,7 +175,7 @@ test("position FTE fails closed on overlaps and impossible values", () => {
 test("unit-level breakdown suppresses the whole table if any group has fewer than five", () => {
   const few = summarizeHcmPeopleIntelligence({
     ...input,
-    workers: input.workers.map((worker) => worker.id === 2
+    workers: input.workers.map((worker) => worker.id === 2 || worker.id === 3
       ? { ...worker, orgUnitId: 2 } : worker),
   });
   assert.equal(few.units, null);
