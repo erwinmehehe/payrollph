@@ -6,6 +6,7 @@ import {
   compensationCycles,
   compensationEvents,
   compensationProposals,
+  hcmBusinessProcessInstances,
   employeeCompensationComponents,
   employeePayProfiles,
   employeePayRevisions,
@@ -38,6 +39,8 @@ import {
   philippineBusinessDate,
 } from "@/lib/hcm-compensation";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { cancelHcmBusinessProcessForSourceTx, findHcmBusinessProcessForSource, startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
+import { compensationEvidenceFromDefinition, compensationReviewFingerprint, freezeCompensationReview, type HcmCompensationReview } from "@/lib/hcm-compensation-business-process";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +63,33 @@ function dateRangesOverlap(
   const leftFinal = leftEnd ?? "9999-12-31";
   const rightFinal = rightEnd ?? "9999-12-31";
   return leftStart <= rightFinal && rightStart <= leftFinal;
+}
+
+function compensationReviewContext(input: {
+  proposal: typeof compensationProposals.$inferSelect;
+  cycle: typeof compensationCycles.$inferSelect;
+  band: typeof compensationBands.$inferSelect;
+  employee: typeof employees.$inferSelect;
+}): HcmCompensationReview {
+  const { proposal, cycle, band, employee } = input;
+  return {
+    organizationId: proposal.organizationId,
+    proposalId: proposal.id,
+    employeeId: proposal.employeeId,
+    employeeOrgUnitId: employee.orgUnitId,
+    cycleId: cycle.id,
+    cycleStatus: cycle.status,
+    cycleEffectiveDate: String(cycle.effectiveDate),
+    cycleBudgetPool: Number(cycle.budgetPool).toFixed(2),
+    bandId: band.id,
+    bandMinimumAnnual: Number(band.minimumAnnual).toFixed(2),
+    bandMidpointAnnual: Number(band.midpointAnnual).toFixed(2),
+    bandMaximumAnnual: Number(band.maximumAnnual).toFixed(2),
+    currentAnnual: Number(proposal.currentAnnual).toFixed(2),
+    proposedAnnual: Number(proposal.proposedAnnual).toFixed(2),
+    reason: proposal.reason,
+    workerEffectiveChangeId: proposal.workerEffectiveChangeId,
+  };
 }
 
 async function employeeInScope(userId: number, organizationId: number, employeeId: number) {
@@ -222,6 +252,7 @@ export async function GET(request: Request) {
     bands,
     cycles,
     proposals,
+    compensationReviews,
     assignments,
     positionRows,
     profilesByJob,
@@ -237,6 +268,14 @@ export async function GET(request: Request) {
     db.select().from(compensationBands).where(eq(compensationBands.organizationId, organizationId)).orderBy(desc(compensationBands.effectiveFrom), desc(compensationBands.id)),
     db.select().from(compensationCycles).where(eq(compensationCycles.organizationId, organizationId)).orderBy(desc(compensationCycles.startDate)),
     db.select().from(compensationProposals).where(eq(compensationProposals.organizationId, organizationId)).orderBy(desc(compensationProposals.id)),
+    db.select({
+      id: hcmBusinessProcessInstances.id,
+      sourceKey: hcmBusinessProcessInstances.sourceKey,
+      status: hcmBusinessProcessInstances.status,
+    }).from(hcmBusinessProcessInstances).where(and(
+      eq(hcmBusinessProcessInstances.organizationId, organizationId),
+      eq(hcmBusinessProcessInstances.sourceType, "compensation_proposal"),
+    )),
     db.select().from(positionAssignments).where(and(
       eq(positionAssignments.organizationId, organizationId),
       eq(positionAssignments.assignmentType, "primary"),
@@ -316,8 +355,10 @@ export async function GET(request: Request) {
     cycles,
     proposals: proposals.filter((row) => visibleIds.has(row.employeeId)).map((proposal) => {
       const band = bands.find((row) => row.id === proposal.bandId);
+      const review = compensationReviews.find((item) => item.sourceKey === String(proposal.id));
       return {
         ...proposal,
+        hcmReview: review ? { id: review.id, status: review.status } : null,
         compaRatio: band ? compaRatio(Number(proposal.proposedAnnual), Number(band.midpointAnnual)) : null,
         rangePosition: band ? rangePosition(Number(proposal.proposedAnnual), Number(band.minimumAnnual), Number(band.maximumAnnual)) : null,
       };
@@ -609,30 +650,67 @@ export async function POST(request: Request) {
     if ("error" in effectivePay) return Response.json({ error: effectivePay.error }, { status: 409 });
     const currentAnnual = annualizePay(effectivePay);
 
+    const supervisoryOrgUnitId = await supervisoryOrgForEffectiveChange({
+      organizationId,
+      employeeId,
+    });
     try {
-      const [row] = await db.insert(compensationProposals).values({
-        organizationId,
-        cycleId,
-        employeeId,
-        bandId,
-        currentAnnual: currentAnnual.toFixed(2),
-        proposedAnnual: proposedAnnual.toFixed(2),
-        reason: reason.slice(0, 500),
-        status: "proposed",
-        submittedByUserId: user.id,
-        workerEffectiveChangeId,
-      }).returning();
+      // The salary recommendation and its frozen HCM policy snapshot are one
+      // atomic request. Creating it never schedules a pay revision.
+      const { row, review } = await db.transaction(async (tx) => {
+        const [row] = await tx.insert(compensationProposals).values({
+          organizationId,
+          cycleId,
+          employeeId,
+          bandId,
+          currentAnnual: currentAnnual.toFixed(2),
+          proposedAnnual: proposedAnnual.toFixed(2),
+          reason: reason.slice(0, 500),
+          status: "proposed",
+          submittedByUserId: user.id,
+          workerEffectiveChangeId,
+        }).returning();
+
+        const review = await startHcmBusinessProcessTx(tx, {
+          organizationId,
+          processType: "compensation_change",
+          sourceType: "compensation_proposal",
+          sourceKey: String(row.id),
+          employeeId,
+          employeeLabel: `${scoped.employee.firstName} ${scoped.employee.lastName}`,
+          supervisoryOrgUnitId,
+          effectiveDate: String(cycle.effectiveDate),
+          initiatedByUserId: user.id,
+          initiatedByName: user.name,
+          sourceEvidence: {
+            ...freezeCompensationReview(compensationReviewContext({
+              proposal: row, cycle, band, employee: scoped.employee,
+            })),
+          },
+        });
+        return { row, review };
+      });
 
       await recordAuditEvent({
         organizationId,
         actor: user.name,
-        action: "Compensation proposal submitted",
+        action: "Compensation proposal submitted for independent HCM review",
         resource: `Employee #${employeeId}`,
-        metadata: { proposalId: row.id, cycleId, currentAnnual, proposedAnnual, workerEffectiveChangeId },
+        metadata: {
+          proposalId: row.id, cycleId, currentAnnual, proposedAnnual,
+          workerEffectiveChangeId, businessProcessInstanceId: review.id,
+        },
       });
-      return Response.json(row, { status: 201 });
-    } catch {
-      return Response.json({ error: "This employee already has a proposal in that compensation cycle." }, { status: 409 });
+      return Response.json({
+        ...row,
+        hcmReview: { id: review.id, status: review.status },
+        approvalRequired: true,
+      }, { status: 201 });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error && /[Bb]usiness[- ]process/.test(error.message)
+          ? error.message : "This employee already has a proposal in the cycle, or the HCM review could not start.",
+      }, { status: 409 });
     }
   }
 
@@ -918,6 +996,18 @@ export async function PATCH(request: Request) {
   }
 
   if (proposal.status !== "proposed") return Response.json({ error: "This compensation proposal has already been decided." }, { status: 409 });
+  const businessProcess = await findHcmBusinessProcessForSource({
+    organizationId: proposal.organizationId,
+    sourceType: "compensation_proposal",
+    sourceKey: String(proposal.id),
+  });
+  if (!businessProcess || businessProcess.status !== "approved") {
+    return Response.json({
+      error: "Complete the independent HCM compensation business-process approvals before scheduling a pay revision. Legacy proposals must be declined and resubmitted for review.",
+      businessProcessInstanceId: businessProcess?.id ?? null,
+      businessProcessStatus: businessProcess?.status ?? "missing",
+    }, { status: 409 });
+  }
   if (proposal.submittedByUserId === user.id) {
     return Response.json({ error: "Maker-checker control: the person who submitted this compensation proposal cannot approve it." }, { status: 403 });
   }
@@ -932,6 +1022,16 @@ export async function PATCH(request: Request) {
   ]);
   const employee = employeeRows[0];
   if (!cycle || !band || !pay || !employee) return Response.json({ error: "Compensation cycle, band, employee, or pay profile is missing." }, { status: 409 });
+  const frozen = compensationEvidenceFromDefinition(businessProcess.definitionSnapshot);
+  if (!frozen || frozen.organizationId !== proposal.organizationId
+    || frozen.proposalId !== proposal.id || frozen.employeeId !== proposal.employeeId
+    || frozen.fingerprint !== compensationReviewFingerprint(
+      compensationReviewContext({ proposal, cycle, band, employee }),
+    )) {
+    return Response.json({
+      error: "Compensation review evidence no longer matches the current cycle, band, pay recommendation, or employee scope. Obtain a fresh independent HCM review.",
+    }, { status: 409 });
+  }
   if (cycle.status !== "active") return Response.json({ error: "Compensation cycle is no longer active." }, { status: 409 });
   if (String(cycle.effectiveDate) < philippineBusinessDate()) {
     return Response.json({ error: "This proposal is now retroactive. Use the audited pay-correction/retro workflow instead." }, { status: 409 });
@@ -1021,6 +1121,17 @@ export async function PATCH(request: Request) {
         eq(compensationProposals.status, "proposed"),
       )).returning();
       if (!updated) throw new Error("PROPOSAL_DECISION_CONFLICT");
+
+      const [appliedProcess] = await tx.update(hcmBusinessProcessInstances)
+        .set({ status: "applied", updatedAt: new Date() })
+        .where(and(
+          eq(hcmBusinessProcessInstances.id, businessProcess.id),
+          eq(hcmBusinessProcessInstances.organizationId, proposal.organizationId),
+          eq(hcmBusinessProcessInstances.sourceType, "compensation_proposal"),
+          eq(hcmBusinessProcessInstances.sourceKey, String(proposal.id)),
+          eq(hcmBusinessProcessInstances.status, "approved"),
+        )).returning({ id: hcmBusinessProcessInstances.id });
+      if (!appliedProcess) throw new Error("PROPOSAL_DECISION_CONFLICT");
 
       await tx.insert(compensationEvents).values({
         organizationId: proposal.organizationId,
