@@ -111,7 +111,12 @@ test("overnight payable-time evidence crosses calendar days without losing night
 });
 
 test("approved schedule-swap override preserves split schedule identity for payroll trace", () => {
-  const incoming = scheduleSwapSnapshot(splitSchedule());
+  const incoming = scheduleSwapSnapshot({
+    ...splitSchedule(),
+    source: "pattern",
+    overrideId: null,
+    audit: ["Split schedule from pattern"],
+  });
   const values = scheduleSwapOverrideValues(incoming, "Approved swap #55");
   assert.equal(values.kind, "split_shift");
 
