@@ -1,6 +1,6 @@
 # PayrollPH verification checklist and roadmap gates
 
-Updated: 2026-10-06
+Updated: 2026-10-08
 
 This checklist turns the product roadmap into evidence gates. A capability is not "done" because code exists; it is done only when its calculation, authorization, audit, recovery, production, and reconciliation evidence is complete.
 
@@ -34,38 +34,38 @@ This checklist turns the product roadmap into evidence gates. A capability is no
 
 ## Gate C — WFM depth tied to payroll
 
-- [ ] Schedule templates, assignments, overrides, swaps, split shifts, and overnight shifts have regression coverage.
+- [x] Schedule templates, assignments, overrides, swaps, split shifts, and overnight shifts have regression coverage. (#569)
 - [ ] Punch pairing and break allocation fail visibly on ambiguous evidence.
-- [ ] Attendance corrections require governed approval and snapshot protection.
-- [ ] Actual OT is preserved even when authorization is missing or rejected.
+- [x] Attendance corrections require governed approval and snapshot protection. (#435, #448, #569)
+- [x] Actual OT is preserved even when authorization is missing or rejected. (#454, #571)
 - [ ] OT authorization failures become payroll review exceptions and never suppress statutory entitlement.
-- [ ] Required vs scheduled vs actual coverage reconciles hours.
-- [ ] Labor cost forecast vs actual reconciles to payroll-grade rates.
+- [x] Required vs scheduled vs actual coverage reconciles hours. (#458, #558)
+- [x] Labor cost forecast vs actual reconciles to payroll-grade rates. (#558, #569)
 - [ ] Holiday/rest-day/worksite/shift classifications flow consistently from WFM evidence into payroll.
-- [ ] Leave treatment is explicit and payroll fails closed when treatment is missing.
-- [ ] WFM exceptions have owner, status, SLA/age, evidence, resolution, and audit trail.
-- [ ] Employee self-service schedule/attendance actions respect tenant and role scope.
+- [x] Leave treatment is explicit and payroll fails closed when treatment is missing. (#569)
+- [x] WFM exceptions have owner, status, SLA/age, evidence, resolution, and audit trail. (#569)
+- [x] Employee self-service schedule/attendance actions respect tenant and role scope. (#569)
 - [x] WFM-to-payroll handoff has an end-to-end fresh-tenant pilot covering schedule -> punches -> persisted exception -> four-eyes correction approval -> payroll trace (`scripts/pilot-payroll-qa.ts`; CI: Production Pilot Payroll QA).
 
 ## Gate D — HCM core supporting WFM/payroll
 
-- [ ] Worker profile has effective-dated employment, org unit, manager, worksite, job, pay, and schedule assignments.
-- [ ] Job families, profiles, grades/levels, skills, positions, and incumbency are authoritative and effective-dated.
-- [ ] Position status and headcount ledger reconcile requested, approved, open, filled, frozen, and closed states.
-- [ ] Employee lifecycle events cover hire, transfer, promotion, pay change, manager change, worksite change, leave, separation, and rehire.
+- [x] Worker profile has effective-dated employment, org unit, manager, worksite, job, pay, and schedule assignments. (#457, #467, #468)
+- [x] Job families, profiles, grades/levels, skills, positions, and incumbency are authoritative and effective-dated. (#253, #467, #468)
+- [x] Position status and headcount ledger reconcile requested, approved, open, filled, frozen, and closed states. (#563)
+- [x] Employee lifecycle events cover hire, transfer, promotion, pay change, manager change, worksite change, leave, separation, and rehire. (#457, #472, #474)
 - [ ] Lifecycle changes that affect pay/WFM trigger explicit downstream impact review.
 - [ ] Onboarding/offboarding provisioning and access removal are auditable.
 - [ ] HCM analytics are tenant/RBAC scoped and derived from authoritative lifecycle records.
-- [ ] No HCM workflow silently rewrites payroll history.
+- [x] No HCM workflow silently rewrites payroll history; current HCM/WFM handoffs are governed and evidence-preserving. (#558, #570)
 
 ## Gate E — Workforce planning and compensation
 
-- [ ] Annual/quarterly workforce plan versioning.
-- [ ] Requested vs approved vs filled headcount.
-- [ ] Scenario planning.
-- [ ] Fully loaded Philippine labor-cost forecast using payroll and employer contributions.
-- [ ] HR + Finance + hiring-manager approval workflow.
-- [ ] Approved position -> requisition handoff.
+- [x] Annual/quarterly workforce plan versioning and published baseline version history. (#563)
+- [x] Requested vs approved vs filled headcount and FTE evidence. (#563)
+- [x] Scenario planning with immutable forecast snapshots and hashes. (#461, #563)
+- [x] Fully loaded Philippine labor-cost forecast using payroll, employer statutory burden, benefits, and recurring compensation. (#558)
+- [x] HR + Finance + manager/owner workforce-plan approval routing through the shared approval engine. (#570)
+- [x] Approved position -> requisition handoff. (#300, #563)
 - [ ] Budget variance by org unit and cost center.
 - [ ] Attrition/backfill planning.
 - [ ] Salary bands by job profile + level + location.
@@ -136,11 +136,11 @@ This checklist turns the product roadmap into evidence gates. A capability is no
 
 ## Current priority
 
-1. Make the Pay Rules golden reconciliation gate green and required.
-2. Clear the remaining open PR queue without bypassing failed checks.
-3. Keep the WFM-to-payroll fresh-tenant pilot green while expanding WFM regression depth.
-4. Complete HCM lifecycle/position/headcount support needed by WFM.
-5. Expand independent statutory reconciliation matrices.
-6. Close production environment blockers and run the five-role pilot.
-7. Obtain external government/bank acceptance evidence.
-8. Only then widen compensation, enterprise identity, and analytics.
+1. Finish Workforce Planning 2.0: top-down allocations + bottom-up submissions.
+2. Add forecast-plan creation from the latest published baseline plus current actuals.
+3. Add org-unit/cost-center budget variance drilldown, then attrition/backfill planning.
+4. Add controlled approved-plan -> bulk position creation/change execution.
+5. Extend Dynamic Groups into permission assignments and approval routing.
+6. Keep the fresh-tenant WFM -> payroll pilot green while expanding production proof.
+7. Complete real-employer payroll reconciliation, attendance hardware certification, and external government/bank acceptance evidence.
+
