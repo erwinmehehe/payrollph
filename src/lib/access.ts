@@ -166,6 +166,7 @@ export const PAYROLL_VIEW_ROLES = ["owner", "admin", "bookkeeper", "payroll", "c
 // Bookkeepers/payroll processors can prepare and export, but they cannot act as
 // their own checker or release money-bearing payroll state.
 export const PAYROLL_CHECKER_ROLES = ["owner", "admin", "manager", "checker"] as const;
+export const PAYROLL_TAX_APPROVER_ROLES = ["owner", "admin", "checker"] as const;
 export const PAYROLL_RELEASE_ROLES = ["owner", "admin"] as const;
 export const PAYROLL_DISBURSEMENT_ROLES = ["owner"] as const;
 
@@ -184,6 +185,7 @@ function permissionForRoleGate(allowedRoles: readonly string[]): RoleGatePermiss
   if (allowedRoles === PAYROLL_OPERATOR_ROLES) return "payroll.operate";
   if (allowedRoles === PAYROLL_VIEW_ROLES) return "payroll.view";
   if (allowedRoles === PAYROLL_CHECKER_ROLES) return "payroll.check";
+  if (allowedRoles === PAYROLL_TAX_APPROVER_ROLES) return "payroll.check";
   if (allowedRoles === PAYROLL_RELEASE_ROLES) return "payroll.release";
   if (allowedRoles === PAYROLL_DISBURSEMENT_ROLES) return "payroll.disburse";
   return null;
