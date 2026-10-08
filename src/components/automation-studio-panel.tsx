@@ -161,6 +161,27 @@ type ImpactPreviewResponse = {
   };
 };
 
+type OperationalCase = {
+  id: number;
+  caseType: string;
+  sourceType: string;
+  sourceId: number;
+  sourceVersion: number | null;
+  executionId: number | null;
+  stepIndex: number | null;
+  ownerTeam: string;
+  title: string;
+  detail: string;
+  evidence: unknown;
+  status: "open" | "acknowledged" | "resolved";
+  acknowledgedByName: string | null;
+  acknowledgedAt: string | null;
+  resolvedByName: string | null;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+  createdAt: string;
+};
+
 type StudioData = {
   rules: AutomationRule[];
   versions: AutomationRuleVersion[];
@@ -173,10 +194,14 @@ type StudioData = {
       error: string | null;
       failedSteps: Array<{ stepIndex: number; type: string; error: string }>;
       retryableFailedStepIndices: number[];
+      deadLetterAcknowledgedCount: number;
+      deadLetters: Array<{ stepIndex: number; caseId: number | null; status: string | null }>;
       replayEligible: boolean;
       ageMinutes: number;
       slaState: "fresh" | "aging" | "breached";
     }>;
+    operationalCases: OperationalCase[];
+    caseCounts: { open: number; acknowledged: number; resolved: number; deadLetters: number };
     decisionDiagnostics: Array<{
       eventId: number;
       eventKey: string;
@@ -242,6 +267,7 @@ type ConditionDraft = {
 type ActionDraft = {
   id: string;
   type: string;
+  caseType: string;
   title: string;
   owner: string;
   detail: string;
@@ -278,6 +304,7 @@ type ActionDraft = {
 const defaultAction = (id: string): ActionDraft => ({
   id,
   type: "create_task",
+  caseType: "coverage_recovery",
   title: "",
   owner: "People Ops",
   detail: "",
@@ -334,8 +361,18 @@ function actionCount(value: unknown) {
   return Array.isArray(value) ? value.length : 0;
 }
 
+const OPERATIONAL_REVIEW_BY_TRIGGER: Record<string, string> = {
+  "coverage.gap_approaching": "coverage_recovery",
+  "timesheet.cutoff_approaching": "timesheet_escalation",
+  "attendance.exception_created": "attendance_resolution",
+  "attendance.exception_aging": "attendance_resolution",
+  "payroll.pay_date_approaching": "payroll_readiness",
+  "government.remittance_due": "statutory_followup",
+};
+
 function actionAllowed(trigger: TriggerCatalog | undefined, type: string) {
   if (!trigger) return false;
+  if (type === "prepare_operational_review") return Boolean(OPERATIONAL_REVIEW_BY_TRIGGER[trigger.value]);
   if (["revoke_sessions", "deactivate_access"].includes(type)) return trigger.value === "employee.separated";
   if (["assign_permission_set", "assign_benefit"].includes(type)) {
     return ["employee.hired", "employee.updated", "employee.field_changed", "employee.moved", "employee.promoted", "candidate.hired"].includes(trigger.value);
@@ -361,6 +398,7 @@ export function AutomationStudioPanel({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mutatingExecutionId, setMutatingExecutionId] = useState<number | null>(null);
+  const [mutatingCaseId, setMutatingCaseId] = useState<number | null>(null);
   const [previewingRuleId, setPreviewingRuleId] = useState<number | null>(null);
   const [impactPreview, setImpactPreview] = useState<ImpactPreviewResponse | null>(null);
   const [showBuilder, setShowBuilder] = useState(false);
@@ -421,13 +459,71 @@ export function AutomationStudioPanel({
       await load();
       setNotice(
         action === "retry-execution-step"
-          ? `Execution #${executionId} retried only its failed step. Successful steps were not rerun.`
+          ? `Execution #${executionId}: safe step retry attempted; current status ${payload.execution?.status ?? "unknown"}. Successful steps were not rerun.`
           : `Execution #${executionId} replayed from its stored snapshot using idempotent state-setting actions only.`,
       );
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Execution Center action failed.");
     } finally {
       setMutatingExecutionId(null);
+    }
+  }
+
+  async function quarantineExecutionStep(executionId: number, stepIndex: number) {
+    const note = window.prompt(
+      "Reason for dead-letter quarantine (at least 12 characters). Review external side effects first:",
+    )?.trim();
+    if (!note) return;
+    setMutatingExecutionId(executionId);
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId, action: "quarantine-execution-step", executionId, stepIndex, note,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not quarantine failed step.");
+      await load();
+      setNotice(`Execution #${executionId}, step ${stepIndex + 1} saved to the human dead-letter queue without replaying any action.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not quarantine failed step.");
+    } finally {
+      setMutatingExecutionId(null);
+    }
+  }
+
+  async function triageOperationalCase(operationalCase: OperationalCase, transition: "acknowledge" | "resolve" | "reopen") {
+    const note = window.prompt(
+      transition === "resolve"
+        ? "Record the governed source resolution or manual dead-letter disposition (at least 16 characters):"
+        : transition === "acknowledge"
+          ? "Record review/ownership evidence (at least 16 characters):"
+          : "Why must this case be reopened? (at least 16 characters):",
+    )?.trim();
+    if (!note) return;
+    setMutatingCaseId(operationalCase.id);
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action: "triage-operational-case",
+          caseId: operationalCase.id,
+          transition,
+          note,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not update operations case.");
+      await load();
+      setNotice(`Case #${operationalCase.id} ${transition} recorded with audit evidence. Underlying source records and execution results were not changed.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not update operations case.");
+    } finally {
+      setMutatingCaseId(null);
     }
   }
 
@@ -587,6 +683,13 @@ export function AutomationStudioPanel({
         connectorId: Number(row.slackConnectorId),
         channelId: row.slackChannelId || undefined,
         text: row.slackMessage,
+      };
+    }
+    if (row.type === "prepare_operational_review") {
+      return {
+        type: row.type,
+        caseType: row.caseType,
+        reason: row.reason,
       };
     }
     if (row.type === "request_payroll_adjustment") {
@@ -942,6 +1045,12 @@ export function AutomationStudioPanel({
                       const nextTrigger = data.catalogs.triggers.find((item) => item.value === event.target.value);
                       setActions((rows) => rows.map((row) => {
                         if (!actionAllowed(nextTrigger, row.type)) return { ...row, type: "request_approval" };
+                        if (row.type === "prepare_operational_review") {
+                          return {
+                            ...row,
+                            caseType: OPERATIONAL_REVIEW_BY_TRIGGER[event.target.value] ?? "",
+                          };
+                        }
                         if (row.type === "generate_document") {
                           const template = data.catalogs.documentTemplates.find((item) => item.id === row.documentTemplateId);
                           if (template && !template.allowedTriggers.includes(event.target.value)) {
@@ -1065,6 +1174,12 @@ export function AutomationStudioPanel({
                           const nextType = event.target.value;
                           updateAction(row.id, {
                             type: nextType,
+                            ...(nextType === "prepare_operational_review"
+                              ? {
+                                  caseType: OPERATIONAL_REVIEW_BY_TRIGGER[selectedTrigger?.value ?? ""] ?? "",
+                                  reason: "Review the authoritative source in its governed workspace before any manual change.",
+                                }
+                              : {}),
                             ...(nextType === "assign_schedule"
                               ? {
                                   scheduleEffectiveDateSource:
@@ -1257,6 +1372,41 @@ export function AutomationStudioPanel({
                         <div className="setting-form">
                           <label>Benefit plan<select required value={row.planId} onChange={(event) => updateAction(row.id, { planId: event.target.value })}><option value="">Choose plan</option>{data.benefitPlans.filter((item) => item.active).map((item) => <option key={item.id} value={item.id}>{item.name} · {item.category}</option>)}</select></label>
                           <label>Employee monthly contribution<input type="number" min="0" step="0.01" value={row.monthlyContribution} onChange={(event) => updateAction(row.id, { monthlyContribution: event.target.value })} placeholder="Use plan default" /></label>
+                        </div>
+                      )}
+
+                      {row.type === "prepare_operational_review" && (
+                        <div className="setting-form">
+                          <label>Source-bound review type
+                            <select
+                              required
+                              value={row.caseType}
+                              onChange={(event) => updateAction(row.id, { caseType: event.target.value })}
+                            >
+                              {Object.entries(OPERATIONAL_REVIEW_BY_TRIGGER)
+                                .filter(([eventTrigger]) => eventTrigger === selectedTrigger?.value)
+                                .map(([eventTrigger, caseType]) => (
+                                  <option key={eventTrigger} value={caseType}>
+                                    {caseType.replaceAll("_", " ")}
+                                  </option>
+                                ))}
+                            </select>
+                          </label>
+                          <label>Manual review instructions
+                            <textarea
+                              required
+                              minLength={8}
+                              maxLength={240}
+                              rows={3}
+                              value={row.reason}
+                              onChange={(event) => updateAction(row.id, { reason: event.target.value })}
+                            />
+                          </label>
+                          <div className="modal-note">
+                            Creates at most one review case per authoritative source. It never publishes rosters,
+                            approves timesheets, blocks or clears payroll release, posts remittances, or transfers money.
+                            The normal WFM, Payroll and Compliance approval controls remain authoritative.
+                          </div>
                         </div>
                       )}
 
@@ -1589,11 +1739,31 @@ export function AutomationStudioPanel({
                       <small style={{ display: "block", color: "var(--muted)" }}>Execution #{item.executionId} · {item.status}</small>
                     </td>
                     <td>
-                      {item.failedSteps.map((step) => (
-                        <small key={step.stepIndex} style={{ display: "block", color: "var(--danger)", maxWidth: 420 }}>
-                          Step {step.stepIndex + 1} · {step.type}: {step.error}
-                        </small>
-                      ))}
+                      {item.failedSteps.map((step) => {
+                        const letter = item.deadLetters.find((entry) => entry.stepIndex === step.stepIndex);
+                        return (
+                          <div key={step.stepIndex} style={{ marginBottom: 8 }}>
+                            <small style={{ display: "block", color: "var(--danger)", maxWidth: 420 }}>
+                              Step {step.stepIndex + 1} · {step.type}: {step.error}
+                            </small>
+                            {letter?.caseId ? (
+                              <small style={{ display: "block", color: "var(--muted)" }}>
+                                Dead letter #{letter.caseId} · {letter.status} · evidence in case queue below
+                              </small>
+                            ) : (
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                disabled={mutatingExecutionId === item.executionId}
+                                onClick={() => void quarantineExecutionStep(item.executionId, step.stepIndex)}
+                                style={{ marginTop: 4 }}
+                              >
+                                <CircleAlert size={13} /> Quarantine failed step
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </td>
                     <td>
                       <span className={item.slaState === "breached" ? "status status-failed" : "status"}>
@@ -1627,6 +1797,89 @@ export function AutomationStudioPanel({
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article className="card" style={{ marginTop: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">OPERATIONS CASES · DEAD LETTERS</div>
+            <h2>Manual WFM/payroll recovery queue</h2>
+            <p>
+              Review cases are attached to live workforce, payroll or compliance source records.
+              Dead letters preserve ambiguous failed-step evidence. Case acknowledgements and dispositions
+              never change the authoritative source, retry an action, or mark an execution successful.
+            </p>
+          </div>
+          <ShieldCheck size={17} className="i-purple" />
+        </div>
+        <div className="card-body" style={{ paddingTop: 6 }}>
+          <div className="modal-note">
+            Open: {data.executionCenter.caseCounts.open} · Acknowledged: {data.executionCenter.caseCounts.acknowledged}
+            · Resolved: {data.executionCenter.caseCounts.resolved} · Outstanding dead letters: {data.executionCenter.caseCounts.deadLetters}
+          </div>
+        </div>
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead><tr><th>CASE / SOURCE</th><th>OWNER / EVIDENCE</th><th>STATUS</th><th>HUMAN CONTROL</th></tr></thead>
+            <tbody>
+              {data.executionCenter.operationalCases.length === 0 && (
+                <tr><td colSpan={4}><div className="empty-state">No review cases or dead letters recorded.</div></td></tr>
+              )}
+              {data.executionCenter.operationalCases.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <strong>{item.title}</strong>
+                    <small style={{ display: "block", color: "var(--muted)" }}>
+                      Case #{item.id} · {item.caseType.replaceAll("_", " ")} · {item.sourceType} #{item.sourceId}
+                      {item.sourceVersion != null ? ` · source v${item.sourceVersion}` : ""}
+                    </small>
+                    <small style={{ display: "block" }}>{item.detail}</small>
+                  </td>
+                  <td>
+                    <strong>{item.ownerTeam}</strong>
+                    <small style={{ display: "block", color: "var(--muted)" }}>
+                      Created {formatDateTime(item.createdAt)}
+                      {item.executionId != null ? ` · execution #${item.executionId}` : ""}
+                    </small>
+                    {item.resolutionNote && <small style={{ display: "block" }}>Disposition: {item.resolutionNote}</small>}
+                  </td>
+                  <td>
+                    <span className={item.status === "resolved" ? "status status-verified" : item.status === "open" ? "status status-failed" : "status"}>
+                      {item.status}
+                    </span>
+                    {item.acknowledgedByName && <small style={{ display: "block" }}>Acknowledged by {item.acknowledgedByName}</small>}
+                    {item.resolvedByName && <small style={{ display: "block" }}>Resolved by {item.resolvedByName}</small>}
+                  </td>
+                  <td>
+                    {item.status === "open" && (
+                      <button type="button" className="secondary-button"
+                        disabled={mutatingCaseId === item.id}
+                        onClick={() => void triageOperationalCase(item, "acknowledge")}
+                      >Acknowledge</button>
+                    )}
+                    {item.status === "acknowledged" && (
+                      <button type="button" className="secondary-button"
+                        disabled={mutatingCaseId === item.id}
+                        onClick={() => void triageOperationalCase(item, "resolve")}
+                      >Record resolution</button>
+                    )}
+                    {item.status === "resolved" && (
+                      <button type="button" className="secondary-button"
+                        disabled={mutatingCaseId === item.id}
+                        onClick={() => void triageOperationalCase(item, "reopen")}
+                      >Reopen</button>
+                    )}
+                    <small style={{ display: "block", color: "var(--muted)", marginTop: 5 }}>
+                      {item.caseType === "execution_dead_letter"
+                        ? "Manual disposition does not rewrite the failed execution."
+                        : "Underlying issue must be resolved in its governed workspace first."}
+                    </small>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

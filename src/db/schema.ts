@@ -4881,6 +4881,54 @@ export const automationExecutions = pgTable(
   ],
 );
 
+/**
+ * Durable, source-bound operations cases. Automation can only prepare a review;
+ * closing the case never mutates roster, attendance, payroll, bank or statutory
+ * source records. Dead letters are a separate subset under the same human triage.
+ */
+export const automationOperationalCases = pgTable(
+  "automation_operational_cases",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    caseType: varchar("case_type", { length: 40 }).notNull(),
+    sourceType: varchar("source_type", { length: 40 }).notNull(),
+    sourceId: integer("source_id").notNull(),
+    sourceVersion: integer("source_version"),
+    executionId: integer("execution_id").references(() => automationExecutions.id, { onDelete: "set null" }),
+    stepIndex: integer("step_index"),
+    employeeId: integer("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    ownerTeam: varchar("owner_team", { length: 60 }).notNull(),
+    title: varchar("title", { length: 180 }).notNull(),
+    detail: varchar("detail", { length: 480 }).notNull(),
+    evidence: jsonb("evidence").notNull().default({}),
+    status: varchar("status", { length: 24 }).notNull().default("open"),
+    acknowledgedByUserId: integer("acknowledged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    acknowledgedByName: varchar("acknowledged_by_name", { length: 120 }),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    resolvedByUserId: integer("resolved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    resolvedByName: varchar("resolved_by_name", { length: 120 }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolutionNote: text("resolution_note"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("automation_operations_source_case_unique")
+      .on(table.organizationId, table.caseType, table.sourceId)
+      .where(sql`${table.caseType} <> 'execution_dead_letter'`),
+    uniqueIndex("automation_operations_dead_letter_step_unique")
+      .on(table.organizationId, table.sourceId, table.stepIndex)
+      .where(sql`${table.caseType} = 'execution_dead_letter'`),
+    index("automation_operations_org_status_idx").on(table.organizationId, table.status, table.createdAt),
+    index("automation_operations_execution_idx").on(table.organizationId, table.executionId),
+    check("automation_operations_case_type_check", sql`${table.caseType} in ('coverage_recovery','timesheet_escalation','attendance_resolution','payroll_readiness','statutory_followup','execution_dead_letter')`),
+    check("automation_operations_status_check", sql`${table.status} in ('open','acknowledged','resolved')`),
+    check("automation_operations_step_index_check", sql`${table.stepIndex} is null or ${table.stepIndex} >= 0`),
+    check("automation_operations_dead_letter_shape_check", sql`${table.caseType} <> 'execution_dead_letter' or (${table.sourceType} = 'automation_execution' and ${table.stepIndex} is not null)`),
+  ],
+);
+
 /* -------------------------------------------------------------------------- */
 /* HCM: compensation governance                                               */
 /* -------------------------------------------------------------------------- */
