@@ -458,7 +458,7 @@ async function main() {
     "Workforce shift definition created",
     "Workforce schedule pattern created",
     "Employee workforce schedule assigned",
-    "Attendance correction requested",
+    "Employee self-service attendance correction requested",
     "Attendance correction approved and applied",
     "Payroll submitted for review",
     "Approval approved",
