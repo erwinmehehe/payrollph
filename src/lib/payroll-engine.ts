@@ -7,6 +7,7 @@ import {
   earnedWageRequests,
   employeeCompensationComponents,
   employeeLoans,
+  employeeMweClassifications,
   employeePayProfiles,
   employeePayRevisions,
   employeeRestDayRevisions,
@@ -67,6 +68,7 @@ import {
 } from "@/lib/ph-compliance";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { statutoryRuleVersionsForDate } from "@/lib/ph-statutory-rule-packs";
+import { resolveMweClassification, type MweClassificationRecord } from "@/lib/mwe-classification";
 import { isSharedBenefitPoolEarningType, sharedBenefitPoolCutoffTreatment } from "@/lib/annualization";
 import { calculateBenefits, type EnrollmentInput } from "@/lib/benefits";
 import { benefitDependents, benefitEnrollments, benefitPlans } from "@/db/schema";
@@ -500,6 +502,38 @@ async function processPayrollChunk(input: {
         inArray(employeeRestDayRevisions.employeeId, chunkIds),
       )).orderBy(asc(employeeRestDayRevisions.effectiveDate), asc(employeeRestDayRevisions.id))
     : [];
+  const mweClassificationRows = chunkIds.length
+    ? await db.select().from(employeeMweClassifications).where(and(
+        eq(employeeMweClassifications.organizationId, input.organizationId),
+        inArray(employeeMweClassifications.employeeId, chunkIds),
+        eq(employeeMweClassifications.status, "approved"),
+        lte(employeeMweClassifications.effectiveFrom, String(run.payDate)),
+        or(
+          isNull(employeeMweClassifications.effectiveUntil),
+          gte(employeeMweClassifications.effectiveUntil, String(run.payDate)),
+        ),
+      )).orderBy(asc(employeeMweClassifications.employeeId), asc(employeeMweClassifications.effectiveFrom))
+    : [];
+  const mweClassificationsByEmployee = new Map<number, MweClassificationRecord[]>();
+  for (const row of mweClassificationRows) {
+    const record: MweClassificationRecord = {
+      id: row.id,
+      employeeId: row.employeeId,
+      isMwe: row.isMwe,
+      region: row.region,
+      employeeDailyWage: row.employeeDailyWage,
+      statutoryMinimumWage: row.statutoryMinimumWage,
+      wageOrderReference: row.wageOrderReference,
+      evidenceReference: row.evidenceReference,
+      effectiveFrom: String(row.effectiveFrom),
+      effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+      status: row.status,
+    };
+    mweClassificationsByEmployee.set(row.employeeId, [
+      ...(mweClassificationsByEmployee.get(row.employeeId) ?? []),
+      record,
+    ]);
+  }
   const payProfileByEmployee = new Map(payProfileRows.map((profile) => [profile.employeeId, profile]));
   const payRevisionsByEmployee = new Map<number, typeof payRevisionRows>();
   for (const revision of payRevisionRows) {
@@ -1517,6 +1551,7 @@ async function processPayrollChunk(input: {
       payPolicies: payrollPayPolicies,
       payPolicyRules: payrollPayPolicyRules,
       payPolicyOrgUnitIds: [...employeeHolidayScopeIds],
+      mweClassifications: mweClassificationsByEmployee.get(employee.id) ?? [],
       periodStart: String(run.periodStart),
       periodEnd: String(run.periodEnd),
       payDate: applicableStatutoryDate,
@@ -1678,6 +1713,7 @@ function calculateEmployeePay(input: {
   payPolicies?: PayPolicyRecord[];
   payPolicyRules?: PayPolicyRuleRecord[];
   payPolicyOrgUnitIds?: number[];
+  mweClassifications?: MweClassificationRecord[];
   periodStart: string;
   periodEnd: string;
   payDate: string;
@@ -2735,7 +2771,17 @@ function calculateEmployeePay(input: {
   const leaveAdjustmentTotal = leaveLines.reduce((sum, line) => sum + Number(line.amount), 0);
 
   const wageCheck = isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth);
-  const treatAsMwe = input.employee.mwe;
+  const mweResolution = resolveMweClassification(
+    input.mweClassifications ?? [],
+    input.payDate,
+    input.employee.mwe,
+  );
+  const treatAsMwe = mweResolution.isMwe;
+  if (mweResolution.governanceMissing) {
+    flags.push(
+      "MWE tax classification is using a legacy employee flag without approved effective-dated wage-order evidence; checker approval is blocked until classification governance is completed.",
+    );
+  }
   if (wageCheck.below) {
     flags.push(
       `Configured pay implies ₱${wageCheck.impliedDaily.toFixed(2)}/day versus the reference wage figure of ₱${wageCheck.order.dailyRate.toFixed(2)} for ${wageCheck.order.region}. Verify the applicable wage tier; payroll did not infer MWE tax status automatically.`,
@@ -3529,7 +3575,15 @@ function calculateEmployeePay(input: {
       `yearEndTaxAdjustment=${money(yearEndTaxAdjustment)}`,
       `yearEndTaxYear=${input.yearEndTaxAdjustment?.taxYear ?? ""}`,
       `region=${input.employee.region ?? "NCR"}`,
-      `mwe=${treatAsMwe} (explicit employee tax classification)`,
+      `mwe=${treatAsMwe}`,
+      `mweClassificationSource=${mweResolution.source}`,
+      `mweClassificationId=${mweResolution.classificationId ?? ""}`,
+      `mweClassificationEffectiveFrom=${mweResolution.effectiveFrom ?? ""}`,
+      `mweClassificationEffectiveUntil=${mweResolution.effectiveUntil ?? ""}`,
+      `mweClassificationRegion=${mweResolution.region ?? ""}`,
+      `mweStatutoryMinimumWage=${mweResolution.statutoryMinimumWage ?? ""}`,
+      `mweEmployeeDailyWage=${mweResolution.employeeDailyWage ?? ""}`,
+      `mweWageOrderReference=${mweResolution.wageOrderReference ?? ""}`,
       `employerStatutoryCost=${money(sssEmployer + sssEmployerEc + philHealthEmployer + pagIbigEmployer)}`,
       ...holidayNotes,
       ...calamityNotes,
