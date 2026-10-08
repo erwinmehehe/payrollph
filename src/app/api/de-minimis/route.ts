@@ -5,7 +5,13 @@ import { deMinimisGrants, employees } from "@/db/schema";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
-import { DE_MINIMIS_2026, deMinimisTreatment, type DeMinimisType } from "@/lib/ph-compliance";
+import {
+  DE_MINIMIS_2026,
+  OT_NIGHT_MEAL_TYPE,
+  deMinimisMealTreatment,
+  deMinimisTreatment,
+  type DeMinimisType,
+} from "@/lib/ph-compliance";
 
 export const dynamic = "force-dynamic";
 
@@ -35,13 +41,24 @@ export async function GET(request: Request) {
 
   return Response.json({
     rules: types.map((type) => ({ type, ...DE_MINIMIS_2026[type] })),
-    grants: visibleGrants.map((grant) => ({
-      ...grant,
-      employeeName: visibleStaff.find((employee) => employee.id === grant.employeeId)
-        ? `${visibleStaff.find((employee) => employee.id === grant.employeeId)!.firstName} ${visibleStaff.find((employee) => employee.id === grant.employeeId)!.lastName}`
-        : "Unknown employee",
-      treatment: deMinimisTreatment(grant.benefitType as DeMinimisType, Number(grant.amount)),
-    })),
+    grants: visibleGrants.map((grant) => {
+      const benefitType = grant.benefitType as DeMinimisType;
+      const treatment = benefitType === OT_NIGHT_MEAL_TYPE
+        ? deMinimisMealTreatment({
+            amountPerEligibleDay: Number(grant.amount),
+            eligibleDays: 1,
+            dailyMinimumWage: Number(grant.basisDailyMinimumWage ?? 0),
+            asOf: String(grant.effectiveOn),
+          })
+        : deMinimisTreatment(benefitType, Number(grant.amount), String(grant.effectiveOn));
+      return {
+        ...grant,
+        employeeName: visibleStaff.find((employee) => employee.id === grant.employeeId)
+          ? `${visibleStaff.find((employee) => employee.id === grant.employeeId)!.firstName} ${visibleStaff.find((employee) => employee.id === grant.employeeId)!.lastName}`
+          : "Unknown employee",
+        treatment,
+      };
+    }),
   });
 }
 
@@ -57,6 +74,8 @@ export async function POST(request: Request) {
   const benefitType = String(body.benefitType ?? "") as DeMinimisType;
   const amount = Number(body.amount);
   const effectiveOn = String(body.effectiveOn ?? "");
+  const basisDailyMinimumWage = Number(body.basisDailyMinimumWage);
+  const basisWageOrder = String(body.basisWageOrder ?? "").trim();
 
   const denied = await assertOrganizationRole(
     user.id,
@@ -70,6 +89,15 @@ export async function POST(request: Request) {
   if (!types.includes(benefitType) || !Number.isFinite(amount) || amount <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(effectiveOn)) {
     return Response.json({ error: "Employee, valid RR 29-2025 benefit type, positive amount, and effective date are required." }, { status: 422 });
   }
+  const isMealAllowance = benefitType === OT_NIGHT_MEAL_TYPE;
+  if (
+    isMealAllowance
+    && (!Number.isFinite(basisDailyMinimumWage) || basisDailyMinimumWage <= 0 || !basisWageOrder)
+  ) {
+    return Response.json({
+      error: "OT/night meal allowance requires the employee's verified applicable daily minimum wage and wage-order/reference.",
+    }, { status: 422 });
+  }
 
   const [employee] = await db.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId))).limit(1);
   if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
@@ -77,22 +105,63 @@ export async function POST(request: Request) {
   if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
   const rule = DE_MINIMIS_2026[benefitType];
+
+  if (isMealAllowance) {
+    const [existingMealGrant] = await db.select({ id: deMinimisGrants.id })
+      .from(deMinimisGrants)
+      .where(and(
+        eq(deMinimisGrants.organizationId, organizationId),
+        eq(deMinimisGrants.employeeId, employeeId),
+        eq(deMinimisGrants.benefitType, OT_NIGHT_MEAL_TYPE),
+        eq(deMinimisGrants.active, true),
+      ))
+      .limit(1);
+    if (existingMealGrant) {
+      return Response.json({
+        error: "This employee already has an active OT/night meal allowance. End it before creating a replacement basis.",
+      }, { status: 409 });
+    }
+  }
+
+  let treatment;
+  try {
+    treatment = isMealAllowance
+      ? deMinimisMealTreatment({
+          amountPerEligibleDay: amount,
+          eligibleDays: 1,
+          dailyMinimumWage: basisDailyMinimumWage,
+          asOf: effectiveOn,
+        })
+      : deMinimisTreatment(benefitType, amount, effectiveOn);
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "No certified BIR de minimis rule covers this effective date.",
+    }, { status: 422 });
+  }
+
   const [grant] = await db.insert(deMinimisGrants).values({
     organizationId,
     employeeId,
     benefitType,
     amount: amount.toFixed(2),
     frequency: rule.period,
+    basisDailyMinimumWage: isMealAllowance ? basisDailyMinimumWage.toFixed(2) : null,
+    basisWageOrder: isMealAllowance ? basisWageOrder : null,
     effectiveOn,
   }).returning();
-
-  const treatment = deMinimisTreatment(benefitType, amount);
   await recordAuditEvent({
     organizationId,
     actor: user.name,
     action: "De minimis benefit granted",
     resource: `${employee.firstName} ${employee.lastName} · ${rule.label}`,
-    metadata: { grantId: grant.id, amount, ceiling: rule.ceiling, excess: treatment.excess, ruleVersion: treatment.ruleVersion },
+    metadata: {
+      grantId: grant.id,
+      amount,
+      ceiling: treatment.ceiling,
+      excess: treatment.excess,
+      ruleVersion: treatment.ruleVersion,
+      ...(isMealAllowance ? { basisDailyMinimumWage, basisWageOrder, ceilingRate: 0.30 } : {}),
+    },
   });
 
   return Response.json({ grant, treatment }, { status: 201 });

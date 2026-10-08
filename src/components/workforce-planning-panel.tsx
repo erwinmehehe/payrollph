@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BriefcaseBusiness, Building2, CheckCircle2, CircleDollarSign, Clock3, Plus, RefreshCw, Save, TrendingUp, UserCheck, UserPlus, UsersRound, XCircle } from "lucide-react";
+import { WorkforcePlanAllocationPanel } from "@/components/workforce-plan-allocation-panel";
 
 type JobFamily = { id: number; code: string; name: string; active: boolean };
 type JobLevel = { id: number; code: string; name: string; sequence: number; active: boolean };
@@ -65,6 +66,39 @@ type HeadcountPlanSummaryView = {
   annualPositionBudget: number | null;
 };
 
+type HeadcountPlanDimensionVarianceView = {
+  key: number | null;
+  code: string | null;
+  name: string;
+  baseline: {
+    requestedHeadcount: number;
+    approvedHeadcount: number;
+    filledHeadcount: number;
+    requestedFte: number;
+    approvedFte: number;
+    filledFte: number;
+    annualPositionBudget: number | null;
+  };
+  actual: {
+    requestedHeadcount: number;
+    approvedHeadcount: number;
+    filledHeadcount: number;
+    requestedFte: number;
+    approvedFte: number;
+    filledFte: number;
+    annualPositionBudget: number | null;
+  };
+  variance: {
+    requestedHeadcount: number;
+    approvedHeadcount: number;
+    filledHeadcount: number;
+    requestedFte: number;
+    approvedFte: number;
+    filledFte: number;
+    annualPositionBudget: number | null;
+  };
+};
+
 type WorkforcePlanBaseline = {
   id: number;
   planId: number;
@@ -89,6 +123,10 @@ type WorkforcePlanBaseline = {
     approvedFte: number;
     filledFte: number;
     annualPositionBudget: number | null;
+  } | null;
+  dimensionVariance: {
+    orgUnits: HeadcountPlanDimensionVarianceView[];
+    costCenters: HeadcountPlanDimensionVarianceView[];
   } | null;
 };
 
@@ -162,6 +200,12 @@ function addDays(dateText: string, days: number) {
 
 const peso = (value: number | string | null | undefined) =>
   value == null ? "Restricted" : `₱${Number(value).toLocaleString("en-PH", { maximumFractionDigits: 0 })}`;
+
+const signedNumber = (value: number, digits = 0) =>
+  `${value > 0 ? "+" : ""}${value.toLocaleString("en-PH", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+
+const signedPeso = (value: number | null | undefined) =>
+  value == null ? "Restricted" : `${Number(value) > 0 ? "+" : ""}${peso(value)}`;
 
 export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { organizationId: number; setNotice: (message: string) => void; onPage: (page: string) => void }) {
   const [profiles, setProfiles] = useState<JobProfile[]>([]);
@@ -968,6 +1012,111 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
           </table>
         </div>
       </article>
+
+      <article className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">PLAN VS ACTUAL DRILLDOWN</div>
+            <h2>Budget variance by org unit &amp; cost center</h2>
+            <p>
+              Reconcile the immutable published position budget against the live position ledger by operating dimension.
+              Headcount and FTE remain visible within workforce scope; salary-sensitive budget values stay restricted to payroll-cost roles.
+            </p>
+          </div>
+        </div>
+
+        {!costVisible && baselines.length > 0 && (
+          <div className="notice notice-slate" style={{ marginBottom: 16 }}>
+            <CircleDollarSign size={15} />
+            <span>Budget amounts are restricted for your role. Dimension-level headcount and FTE variance remains visible.</span>
+          </div>
+        )}
+
+        {baselines.map((baseline) => {
+          const dimensions = baseline.dimensionVariance;
+          const planName = baseline.snapshot?.plan?.name ?? `Plan #${baseline.planId}`;
+          const renderDimensionTable = (
+            label: string,
+            rows: HeadcountPlanDimensionVarianceView[],
+          ) => (
+            <div>
+              <div className="card-kicker" style={{ marginBottom: 8 }}>{label}</div>
+              <div className="data-table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>DIMENSION</th>
+                      <th>BASELINE</th>
+                      <th>LIVE</th>
+                      <th>VARIANCE</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr key={`${label}-${row.key ?? "unassigned"}`}>
+                        <td>
+                          <strong>{row.name}</strong>
+                          <small style={{ display: "block", color: "var(--muted)" }}>{row.code ?? "Unassigned"}</small>
+                        </td>
+                        <td>
+                          <strong>{row.baseline.requestedHeadcount} HC · {row.baseline.filledFte.toFixed(2)} filled FTE</strong>
+                          <small style={{ display: "block", color: "var(--muted)" }}>
+                            {costVisible ? `${peso(row.baseline.annualPositionBudget)} position budget` : "Budget restricted"}
+                          </small>
+                        </td>
+                        <td>
+                          <strong>{row.actual.requestedHeadcount} HC · {row.actual.filledFte.toFixed(2)} filled FTE</strong>
+                          <small style={{ display: "block", color: "var(--muted)" }}>
+                            {costVisible ? `${peso(row.actual.annualPositionBudget)} position budget` : "Budget restricted"}
+                          </small>
+                        </td>
+                        <td>
+                          <strong>{signedNumber(row.variance.requestedHeadcount)} HC · {signedNumber(row.variance.filledFte, 2)} filled FTE</strong>
+                          <small style={{ display: "block", color: "var(--muted)" }}>
+                            {costVisible ? `${signedPeso(row.variance.annualPositionBudget)} budget` : "Budget restricted"}
+                          </small>
+                        </td>
+                      </tr>
+                    ))}
+                    {rows.length === 0 && (
+                      <tr><td colSpan={4}><div className="empty-state">No dimensional position evidence for this published baseline.</div></td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+
+          return (
+            <section key={`variance-${baseline.id}`} style={{ marginBottom: 18 }}>
+              <div className="notice notice-slate" style={{ marginBottom: 12 }}>
+                <span>
+                  <strong>{planName} · v{baseline.version}</strong> · live reconciliation as of the current workforce ledger
+                </span>
+              </div>
+              {dimensions ? (
+                <div className="module-grid two">
+                  {renderDimensionTable("ORGANIZATION UNIT", dimensions.orgUnits)}
+                  {renderDimensionTable("COST CENTER", dimensions.costCenters)}
+                </div>
+              ) : (
+                <div className="empty-state">Published baseline dimension evidence is unavailable.</div>
+              )}
+            </section>
+          );
+        })}
+
+        {baselines.length === 0 && (
+          <div className="empty-state">Publish a workforce-plan baseline to unlock dimension-level budget variance.</div>
+        )}
+      </article>
+
+      <WorkforcePlanAllocationPanel
+        organizationId={organizationId}
+        plans={plans}
+        orgUnits={orgUnits}
+        setNotice={setNotice}
+      />
 
       {showArchitecture && (
         <article className="card" style={{ padding: 20, marginBottom: 16 }}>

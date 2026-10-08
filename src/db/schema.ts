@@ -1594,6 +1594,8 @@ export const deMinimisGrants = pgTable("de_minimis_grants", {
   benefitType: varchar("benefit_type", { length: 64 }).notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   frequency: varchar("frequency", { length: 16 }).notNull(),
+  basisDailyMinimumWage: numeric("basis_daily_minimum_wage", { precision: 10, scale: 2 }),
+  basisWageOrder: varchar("basis_wage_order", { length: 80 }),
   active: boolean("active").notNull().default(true),
   effectiveOn: date("effective_on").notNull(),
   endedOn: date("ended_on"),
@@ -3787,6 +3789,67 @@ export const workforcePlans = pgTable(
   (table) => [
     uniqueIndex("workforce_plans_org_name_dates_unique").on(table.organizationId, table.name, table.startDate, table.endDate),
     index("workforce_plans_org_status_idx").on(table.organizationId, table.status),
+  ],
+);
+
+export const workforcePlanAllocations = pgTable(
+  "workforce_plan_allocations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    planId: integer("plan_id").notNull().references(() => workforcePlans.id, { onDelete: "cascade" }),
+    orgUnitId: integer("org_unit_id").notNull().references(() => orgUnits.id, { onDelete: "restrict" }),
+    headcountCeiling: integer("headcount_ceiling").notNull().default(0),
+    annualBudgetCeiling: numeric("annual_budget_ceiling", { precision: 14, scale: 2 }).notNull().default("0"),
+    notes: text("notes"),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("workforce_plan_allocations_plan_unit_unique").on(table.planId, table.orgUnitId),
+    index("workforce_plan_allocations_org_plan_idx").on(table.organizationId, table.planId),
+    index("workforce_plan_allocations_unit_idx").on(table.organizationId, table.orgUnitId),
+    check("workforce_plan_allocations_headcount_check", sql`${table.headcountCeiling} >= 0`),
+    check("workforce_plan_allocations_budget_check", sql`${table.annualBudgetCeiling} >= 0`),
+  ],
+);
+
+export const workforcePlanManagerSubmissions = pgTable(
+  "workforce_plan_manager_submissions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    planId: integer("plan_id").notNull().references(() => workforcePlans.id, { onDelete: "cascade" }),
+    allocationId: integer("allocation_id").notNull().references(() => workforcePlanAllocations.id, { onDelete: "restrict" }),
+    orgUnitId: integer("org_unit_id").notNull().references(() => orgUnits.id, { onDelete: "restrict" }),
+    version: integer("version").notNull().default(1),
+    requestedHeadcount: integer("requested_headcount").notNull().default(0),
+    requestedAnnualBudget: numeric("requested_annual_budget", { precision: 14, scale: 2 }).notNull().default("0"),
+    rationale: text("rationale").notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("draft"),
+    allocationSnapshot: jsonb("allocation_snapshot").notNull().default({}),
+    createdByUserId: integer("created_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    submittedByUserId: integer("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: text("decision_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("workforce_plan_manager_submissions_plan_unit_version_unique").on(table.planId, table.orgUnitId, table.version),
+    index("workforce_plan_manager_submissions_org_status_idx").on(table.organizationId, table.status),
+    index("workforce_plan_manager_submissions_allocation_idx").on(table.allocationId, table.status),
+    index("workforce_plan_manager_submissions_unit_idx").on(table.organizationId, table.orgUnitId, table.status),
+    check("workforce_plan_manager_submissions_headcount_check", sql`${table.requestedHeadcount} >= 0`),
+    check("workforce_plan_manager_submissions_budget_check", sql`${table.requestedAnnualBudget} >= 0`),
+    check(
+      "workforce_plan_manager_submissions_status_check",
+      sql`${table.status} in ('draft','submitted','accepted','rejected','superseded')`,
+    ),
   ],
 );
 

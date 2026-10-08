@@ -300,3 +300,18 @@ test("freelancer comparison recommends the lower modeled option", () => {
   assert.equal(result.graduated, 103_500);
   assert.equal(result.recommended, "8% flat");
 });
+
+
+test("statutory contribution and withholding rule packs fail closed outside certified dates", () => {
+  assert.throws(() => computeSss(30_000, "2024-12-31"), /No approved SSS rule pack/);
+  assert.throws(() => computePhilHealth(30_000, "2023-12-31"), /No approved PhilHealth rule pack/);
+  assert.throws(() => computePagIbig(30_000, "2024-01-31"), /No approved Pag-IBIG rule pack/);
+  assert.throws(() => computeSemiMonthlyWithholdingTax(25_000, false, "2022-12-31"), /No approved BIR withholding rule pack/);
+});
+
+test("current payroll dates resolve certified statutory rule packs", () => {
+  assert.equal(computeSss(35_000, "2026-10-08").employee, 1_750);
+  assert.equal(computePhilHealth(40_000, "2026-10-08").employee, 1_000);
+  assert.equal(computePagIbig(40_000, "2026-10-08").employee, 200);
+  assert.equal(computeSemiMonthlyWithholdingTax(25_000, false, "2026-10-08"), 2_604.1);
+});

@@ -56,6 +56,7 @@ import {
   holidayPayContextOn,
   isBelowMinimum,
   NATIONAL_HOLIDAYS_2026,
+  nationalHolidayCalendarForDate,
   type HolidayCalendarEntry,
 } from "@/lib/wage-orders";
 import {
@@ -65,6 +66,7 @@ import {
   type DeMinimisType,
 } from "@/lib/ph-compliance";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
+import { statutoryRuleVersionsForDate } from "@/lib/ph-statutory-rule-packs";
 import { isSharedBenefitPoolEarningType, sharedBenefitPoolCutoffTreatment } from "@/lib/annualization";
 import { calculateBenefits, type EnrollmentInput } from "@/lib/benefits";
 import { benefitDependents, benefitEnrollments, benefitPlans } from "@/db/schema";
@@ -440,6 +442,9 @@ async function processPayrollChunk(input: {
     : [];
   if (run.legalEntityId && !legalEntity) throw new Error("Payroll legal employer missing");
   const payrollEmployer = legalEntity ?? organization;
+  const applicableStatutoryDate = String(run.payDate);
+  const statutoryRuleVersions = statutoryRuleVersionsForDate(applicableStatutoryDate);
+  const nationalHolidayCalendar = nationalHolidayCalendarForDate(String(run.periodEnd));
 
   const employeeWhere = run.legalEntityId
     ? run.scopeOrgUnitId
@@ -939,6 +944,7 @@ async function processPayrollChunk(input: {
         lineItems: payrollEntries.lineItems,
         trace: payrollEntries.trace,
         periodStart: payrollRuns.periodStart,
+        payDate: payrollRuns.payDate,
       })
         .from(payrollEntries)
         .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
@@ -1154,9 +1160,9 @@ async function processPayrollChunk(input: {
       traceInputNumber(prior.trace, "statutoryMonthlyPagIbigCompensation")
       || traceInputNumber(prior.trace, "statutoryMonthlyCompensation");
     const priorPhilHealthBase = traceInputNumber(prior.trace, "philHealthContributionBase");
-    const priorSssRule = computeSss(priorSssBase);
-    const priorPhilHealthRule = computePhilHealth(priorPhilHealthBase);
-    const priorPagIbigRule = computePagIbig(priorPagIbigBase);
+    const priorSssRule = computeSss(priorSssBase, String(prior.payDate));
+    const priorPhilHealthRule = computePhilHealth(priorPhilHealthBase, String(prior.payDate));
+    const priorPagIbigRule = computePagIbig(priorPagIbigBase, String(prior.payDate));
 
     const tracedSssEmployer = traceInputNumber(prior.trace, "sssEmployerCutoff");
     const tracedSssEc = traceInputNumber(prior.trace, "sssEmployerEcCutoff");
@@ -1278,10 +1284,10 @@ async function processPayrollChunk(input: {
       }),
     );
     const employeeHolidayCalendar: HolidayCalendarEntry[] = [
-      ...NATIONAL_HOLIDAYS_2026,
+      ...nationalHolidayCalendar,
       ...applicableLocalHolidayRows
         .map(({ orgUnitId: _orgUnitId, worksiteId: _worksiteId, ...holiday }) => holiday)
-        .filter((local) => !NATIONAL_HOLIDAYS_2026.some(
+        .filter((local) => !nationalHolidayCalendar.some(
           (national) => national.date === local.date && national.name === local.name && national.kind === local.kind,
         )),
     ];
@@ -1436,7 +1442,9 @@ async function processPayrollChunk(input: {
           id: g.id,
           benefitType: g.benefitType as DeMinimisType,
           amount: Number(g.amount),
-          frequency: g.frequency as "month" | "semester" | "year",
+          frequency: g.frequency as "month" | "semester" | "year" | "eligible_day",
+          basisDailyMinimumWage: g.basisDailyMinimumWage == null ? null : Number(g.basisDailyMinimumWage),
+          basisWageOrder: g.basisWageOrder,
         })),
       priorDeMinimisPaid: priorDeMinimisByEmployee.get(employee.id) ?? {},
       priorBenefitPool90k: priorBenefitPool90kByEmployee.get(employee.id) ?? 0,
@@ -1511,6 +1519,8 @@ async function processPayrollChunk(input: {
       payPolicyOrgUnitIds: [...employeeHolidayScopeIds],
       periodStart: String(run.periodStart),
       periodEnd: String(run.periodEnd),
+      payDate: applicableStatutoryDate,
+      statutoryRuleVersions,
       priorStatutory: priorStatutoryByEmployee.get(employee.id),
       isFinalCutoffOfMonth,
     });
@@ -1640,7 +1650,14 @@ function calculateEmployeePay(input: {
     adjustment: number;
     outcome: string;
   };
-  deMinimis?: Array<{ id: number; benefitType: DeMinimisType; amount: number; frequency: "month" | "semester" | "year" }>;
+  deMinimis?: Array<{
+    id: number;
+    benefitType: DeMinimisType;
+    amount: number;
+    frequency: "month" | "semester" | "year" | "eligible_day";
+    basisDailyMinimumWage?: number | null;
+    basisWageOrder?: string | null;
+  }>;
   priorDeMinimisPaid?: Partial<Record<DeMinimisType, number>>;
   priorBenefitPool90k?: number;
   importedPayrollHistoryBeforeCutoff?: boolean;
@@ -1663,6 +1680,13 @@ function calculateEmployeePay(input: {
   payPolicyOrgUnitIds?: number[];
   periodStart: string;
   periodEnd: string;
+  payDate: string;
+  statutoryRuleVersions: {
+    sss: string;
+    philHealth: string;
+    pagIbig: string;
+    withholding: string;
+  };
   priorStatutory?: {
     sssRemuneration: number;
     pagIbigCompensation: number;
@@ -1746,6 +1770,7 @@ function calculateEmployeePay(input: {
   const punchNotes: string[] = [];
   const holidayNotes: string[] = [];
   const overtimeMinutesByWorkDate = new Map<string, number>();
+  const mealAllowanceEligibleWorkDates = new Set<string>();
 
   function applyWorkedTimePremium(inputSegment: {
     workDate: string;
@@ -2077,6 +2102,10 @@ function calculateEmployeePay(input: {
           .filter((segment) => segment.night)
           .reduce((sum, segment) => sum + segment.minutes, 0)
       : derived.nightDifferentialMinutes;
+
+    if (segmentedOvertimeMinutes > 0 || segmentedNightMinutes > 0) {
+      mealAllowanceEligibleWorkDates.add(workDate);
+    }
 
     regularMinutes += segmentedRegularMinutes;
     overtimeMinutes += segmentedOvertimeMinutes;
@@ -2818,6 +2847,8 @@ function calculateEmployeePay(input: {
   const deMinimisLines = aggregateDeMinimisForSemiMonthly(
     input.deMinimis ?? [],
     input.priorDeMinimisPaid ?? {},
+    input.payDate,
+    { mealEligibleDays: mealAllowanceEligibleWorkDates.size },
   ).map((group) => ({
     code: `DM-${group.benefitType}`,
     label: `De minimis, ${group.label}`,
@@ -2826,6 +2857,14 @@ function calculateEmployeePay(input: {
       `Aggregated grant ids: ${group.grantIds.join(", ")}`,
       `${group.statutoryPeriod} ceiling ₱${group.statutoryPeriodCeiling.toFixed(2)}`,
       `paid earlier in this ${group.statutoryPeriod}: ₱${group.priorPaidInStatutoryPeriod.toFixed(2)}`,
+      ...("eligibleDays" in group
+        ? [
+            `eligible OT/night days: ${group.eligibleDays}`,
+            `verified daily minimum wage basis: ₱${Number(group.dailyMinimumWage ?? 0).toFixed(2)}`,
+            `30% daily meal ceiling: ₱${Number(group.dailyCeiling ?? 0).toFixed(2)}`,
+            `wage order/reference: ${group.basisWageOrder ?? "not supplied"}`,
+          ]
+        : []),
       `exempt this cutoff ₱${group.semiMonthlyExempt.toFixed(2)}`,
       `other-benefits pool excess this period ₱${group.semiMonthlyOtherBenefitsPool.toFixed(2)}`,
     ],
@@ -3072,9 +3111,9 @@ function calculateEmployeePay(input: {
       ? priorStatutory.pagIbigCompensation + pagIbigCutoffCompensation
       : pagIbigCutoffCompensation * 2,
   );
-  const sssRule = computeSss(statutoryMonthlySssCompensation);
-  const philHealthRule = computePhilHealth(monthly);
-  const pagIbigRule = computePagIbig(statutoryMonthlyPagIbigCompensation);
+  const sssRule = computeSss(statutoryMonthlySssCompensation, input.payDate);
+  const philHealthRule = computePhilHealth(monthly, input.payDate);
+  const pagIbigRule = computePagIbig(statutoryMonthlyPagIbigCompensation, input.payDate);
 
   const isSecondCutoff = Number(input.periodStart.slice(8, 10)) >= 16;
   const timing =
@@ -3142,7 +3181,7 @@ function calculateEmployeePay(input: {
           - philhealth
           - pagibigMandatory,
       );
-  const withholding = computeSemiMonthlyWithholdingTax(taxableCompensation, false);
+  const withholding = computeSemiMonthlyWithholdingTax(taxableCompensation, false, input.payDate);
   // annualize().adjustment is taxDue - taxWithheld. A positive value is an
   // additional collection; a negative value is an employee refund. It settles
   // after the normal cutoff WHT and never changes taxable income or gross pay.
@@ -3391,6 +3430,7 @@ function calculateEmployeePay(input: {
       `deMinimisPaid=${money(deMinimisTotal)}`,
       `deMinimisExempt=${money(deMinimisExemptTotal)}`,
       `deMinimisOtherBenefitsPool=${money(deMinimisOtherBenefitsPool)}`,
+      `otNightMealEligibleDays=${mealAllowanceEligibleWorkDates.size}`,
       `priorBenefitPool90k=${money(benefitPoolTreatment.priorPool)}`,
       `currentBenefitPool90k=${money(benefitPoolTreatment.currentPool)}`,
       `benefitPoolRemainingBeforeCutoff=${money(benefitPoolTreatment.remainingExemption)}`,
@@ -3481,7 +3521,10 @@ function calculateEmployeePay(input: {
       `philHealthMonthlyPremium=${money(philHealthRule.total)}`,
       `pagIbigFundSalary=${money(pagIbigRule.fundSalary)}`,
       `pagIbigEmployeeRate=${pagIbigRule.employeeRate}`,
-      `withholdingTable=RR11-2018-revised-2023+`,
+      `withholdingTable=${input.statutoryRuleVersions.withholding}`,
+      `sssRuleVersion=${input.statutoryRuleVersions.sss}`,
+      `philHealthRuleVersion=${input.statutoryRuleVersions.philHealth}`,
+      `pagIbigRuleVersion=${input.statutoryRuleVersions.pagIbig}`,
       `yearEndTaxAdjustmentId=${input.yearEndTaxAdjustment?.id ?? ""}`,
       `yearEndTaxAdjustment=${money(yearEndTaxAdjustment)}`,
       `yearEndTaxYear=${input.yearEndTaxAdjustment?.taxYear ?? ""}`,

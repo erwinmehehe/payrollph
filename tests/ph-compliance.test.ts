@@ -11,6 +11,7 @@ import {
   deMinimisStatutoryPeriodStart,
   computeThirteenthMonthPay,
   DE_MINIMIS_2026,
+  deMinimisMealTreatment,
   deMinimisTreatment,
   isValidPayInterval,
   thirteenthMonthDeadline,
@@ -124,4 +125,59 @@ test("de minimis statutory periods reset monthly, semi-annually or annually by c
   assert.equal(deMinimisStatutoryPeriodStart("medicalCashDependents", "2026-04-15"), "2026-01-01");
   assert.equal(deMinimisStatutoryPeriodStart("medicalCashDependents", "2026-08-15"), "2026-07-01");
   assert.equal(deMinimisStatutoryPeriodStart("uniformClothing", "2026-08-15"), "2026-01-01");
+});
+
+
+test("RR 29-2025 de minimis rules are effective-dated and fail closed outside certified coverage", () => {
+  assert.equal(deMinimisTreatment("riceSubsidy", 2_500, "2026-01-06").exempt, 2_500);
+  assert.throws(() => deMinimisTreatment("riceSubsidy", 2_500, "2026-01-05"), /No certified BIR de minimis rule pack/);
+  assert.throws(() => aggregateDeMinimisForSemiMonthly([], {}, "2027-01-01"), /No certified BIR de minimis rule pack/);
+});
+
+
+test("RR 29-2025 OT/night meal allowance uses 30% of verified daily minimum wage per eligible day", () => {
+  const treatment = deMinimisMealTreatment({
+    amountPerEligibleDay: 250,
+    eligibleDays: 3,
+    dailyMinimumWage: 755,
+    asOf: "2026-10-08",
+  });
+  assert.equal(treatment.dailyCeiling, 226.5);
+  assert.equal(treatment.granted, 750);
+  assert.equal(treatment.ceiling, 679.5);
+  assert.equal(treatment.exempt, 679.5);
+  assert.equal(treatment.excess, 70.5);
+});
+
+test("OT/night meal allowance pays zero when attendance has no qualifying day", () => {
+  const [result] = aggregateDeMinimisForSemiMonthly([
+    {
+      id: 10,
+      benefitType: "otNightMealAllowance",
+      amount: 200,
+      frequency: "eligible_day",
+      basisDailyMinimumWage: 755,
+      basisWageOrder: "WO-NCR-28 applicable tier",
+    },
+  ], {}, "2026-10-08", { mealEligibleDays: 0 });
+
+  assert.equal(result.semiMonthlyGranted, 0);
+  assert.equal(result.semiMonthlyExempt, 0);
+  assert.equal(result.semiMonthlyOtherBenefitsPool, 0);
+  assert.ok("eligibleDays" in result);
+  assert.equal(result.eligibleDays, 0);
+});
+
+test("OT/night meal allowance fails closed without an auditable minimum-wage basis", () => {
+  assert.throws(
+    () => aggregateDeMinimisForSemiMonthly([
+      {
+        id: 11,
+        benefitType: "otNightMealAllowance",
+        amount: 200,
+        frequency: "eligible_day",
+      },
+    ], {}, "2026-10-08", { mealEligibleDays: 2 }),
+    /requires a verified applicable daily minimum-wage basis/,
+  );
 });

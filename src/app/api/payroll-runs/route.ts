@@ -11,6 +11,9 @@ import { loadTimesheetPayrollGate } from "@/lib/workforce-timesheet-server";
 import { loadAttendanceCutoffGate } from "@/lib/workforce-attendance-lock";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { statutoryRuleVersionsForDate } from "@/lib/ph-statutory-rule-packs";
+import { nationalHolidayCalendarForDate } from "@/lib/wage-orders";
+import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 
 export const dynamic = "force-dynamic";
 
@@ -158,6 +161,16 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid legal employer." }, { status: 400 });
   }
 
+  try {
+    statutoryRuleVersionsForDate(payDate);
+    nationalHolidayCalendarForDate(periodEnd);
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Payroll statutory rules are not certified for this period.",
+      code: "PAYROLL_RULE_PACK_MISSING",
+    }, { status: 422 });
+  }
+
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const actor = user.name;
@@ -215,6 +228,21 @@ export async function POST(request: Request) {
     }
     scopeOrgUnitId = scope.id;
     scopeLabel = scope.name;
+  }
+
+  const periodConflict = await findPayrollPeriodConflict({
+    organizationId,
+    legalEntityId: legalEntity.id,
+    scopeOrgUnitId,
+    periodStart,
+    periodEnd,
+  });
+  if (periodConflict) {
+    return Response.json({
+      error: `Payroll overlaps existing run #${periodConflict.id} (${periodConflict.periodLabel}). Resolve or void the existing run before creating another payroll for the same population.`,
+      code: "PAYROLL_PERIOD_CONFLICT",
+      conflictingRun: periodConflict,
+    }, { status: 409 });
   }
 
   // Keep payroll creation aligned with the calculation engine: an employee
