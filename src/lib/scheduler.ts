@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
+import { acquireSchedulerLease, refreshSchedulerLease, releaseSchedulerLease } from "@/lib/scheduler-lease";
 import { db } from "@/db";
 import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
@@ -26,6 +28,44 @@ const MIN_INTERVAL_MS = 30_000;
  * Public health probes never execute scheduler work or drain queues.
  */
 export async function tickScheduler(force = false) {
+  const ownerToken = randomUUID();
+  if (!(await acquireSchedulerLease(ownerToken))) {
+    return { skipped: true as const, reason: "another-worker" as const };
+  }
+
+  let active = true;
+  let leaseLost = false;
+  const heartbeat = setInterval(() => {
+    void refreshSchedulerLease(ownerToken).then((renewed) => {
+      if (active && !renewed) {
+        leaseLost = true;
+        console.error("Central scheduler lease was taken by another worker.");
+      }
+    }).catch((error) => {
+      if (active) {
+        leaseLost = true;
+        console.error("Central scheduler lease renewal failed:", error instanceof Error ? error.message : error);
+      }
+    });
+  }, 30_000);
+  heartbeat.unref();
+
+  let completed = false;
+  try {
+    const result = await runScheduledJobs(force);
+    if (leaseLost) {
+      throw new Error("Central scheduler lease renewal failed. Review completed jobs before retrying.");
+    }
+    completed = true;
+    return result;
+  } finally {
+    active = false;
+    clearInterval(heartbeat);
+    await releaseSchedulerLease(ownerToken, completed ? "completed" : "failed");
+  }
+}
+
+async function runScheduledJobs(force = false) {
   const now = new Date();
   const [row] = await db.select().from(schedulerState).where(eq(schedulerState.jobName, "delivery-drain")).limit(1);
 

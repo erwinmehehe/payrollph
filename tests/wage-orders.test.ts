@@ -64,3 +64,11 @@ test("national holiday calendar is effective-dated and fails closed outside cert
   assert.throws(() => nationalHolidayCalendarForDate("2025-12-25"), /No certified Philippine national-holiday rule pack/);
   assert.throws(() => nationalHolidayCalendarForDate("2027-01-01"), /No certified Philippine national-holiday rule pack/);
 });
+
+test("unknown wage regions cannot silently use the NCR wage reference", () => {
+  assert.equal(wageOrderFor(" ncr ").region, "NCR");
+  assert.throws(() => wageOrderFor("UNKNOWN"), /Unknown Philippine wage region/);
+  assert.throws(() => wageOrderFor(""), /Unknown Philippine wage region/);
+  assert.throws(() => isBelowMinimum(14_000, "IX", 0), /positive working days/);
+  assert.throws(() => isBelowMinimum(Number.NaN, "IX"), /non-negative monthly rate/);
+});
