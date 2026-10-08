@@ -1,4 +1,4 @@
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   compensationCycles,
@@ -15,12 +15,13 @@ import {
 } from "@/db/schema";
 import {
   hcmAnalyticsDate,
+  hcmManilaDay,
   summarizeHcmPeopleIntelligence,
   type PeopleIntelligenceSummary,
 } from "@/lib/hcm-people-intelligence";
 
 export function philippinePeopleAnalyticsDate(now = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(now);
+  return hcmManilaDay(now);
 }
 
 function field(value: number | null, digits = 0): string {
@@ -64,10 +65,10 @@ function reportRows(summary: PeopleIntelligenceSummary): string[][] {
       `Gross PHP from released payroll runs with pay dates in ${interval}; excludes drafts`],
     ["Payroll", "Released net payroll", pesos(summary.releasedPayrollNet),
       `Net PHP from the same ${summary.releasedRunCount} released run(s); no employee pay detail`],
-    ...summary.units?.map((unit) => [
+    ...(summary.units?.map((unit) => [
       "Organization", unit.orgUnit, String(unit.headcount),
       "Current employed headcount; small cells are suppressed without revealing an inferable residual",
-    ]) ?? [],
+    ]) ?? []),
     ...summary.warnings.map((message) => ["Data quality", "Review required", "Attention", message]),
   ];
 }
