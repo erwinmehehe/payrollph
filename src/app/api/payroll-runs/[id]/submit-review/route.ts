@@ -13,6 +13,7 @@ import { getSessionUser } from "@/lib/auth";
 import { buildPayrollReleaseChecklist } from "@/lib/payroll-release-checklist";
 import { isPublicDemoIdentity } from "@/lib/demo-security";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { managedPayrollRunFingerprint } from "@/lib/managed-payroll";
 
 const SUBMITTABLE = ["Needs review", "Processed"];
 
@@ -124,10 +125,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const tasks = await db
     .select()
     .from(approvalTasks)
-    .where(eq(approvalTasks.organizationId, run.organizationId));
-  const linkedTasks = tasks
-    .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
-    .sort((a, b) => b.id - a.id);
+    .where(and(
+      eq(approvalTasks.organizationId, run.organizationId),
+      eq(approvalTasks.payrollRunId, run.id),
+    ));
+  const linkedTasks = tasks.sort((a, b) => b.id - a.id);
   const latest = linkedTasks[0];
 
   if (latest?.status === "Pending") {
@@ -138,6 +140,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const reviewCount = assuranceResult?.summary.medium ?? run.exceptions;
+  const payrollFingerprint = await managedPayrollRunFingerprint(run.id);
 
   // Claim a submittable run and create its approval task in the same
   // transaction. Concurrent submit/recalculate requests can no longer both
@@ -160,6 +163,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       approver: checker.name,
       dueLabel: "Required before release",
       priority: reviewCount > 0 ? "High" : "Normal",
+      payrollRunId: run.id,
+      payrollFingerprint,
+      payrollGross: run.grossPay,
+      payrollNet: run.netPay,
+      payrollEmployeeCount: Number(entryCount),
     }).returning();
 
     await tx.insert(auditEvents).values({
@@ -174,6 +182,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         approverUserId: checker.id,
         approver: checker.name,
         assurance: assuranceResult?.summary ?? null,
+        payrollFingerprint,
+        grossPay: run.grossPay,
+        netPay: run.netPay,
+        employeeCount: Number(entryCount),
         ruleVersion: run.ruleVersion,
       },
     });

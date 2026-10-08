@@ -1240,6 +1240,11 @@ export const approvalTasks = pgTable("approval_tasks", {
   decidedBy: varchar("decided_by", { length: 120 }),
   decidedOnBehalfOf: varchar("decided_on_behalf_of", { length: 120 }),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
+  payrollRunId: integer("payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
+  payrollFingerprint: varchar("payroll_fingerprint", { length: 64 }),
+  payrollGross: numeric("payroll_gross", { precision: 14, scale: 2 }),
+  payrollNet: numeric("payroll_net", { precision: 14, scale: 2 }),
+  payrollEmployeeCount: integer("payroll_employee_count"),
   approvalChainInstanceId: integer("approval_chain_instance_id").references(
     (): AnyPgColumn => approvalChainInstances.id,
     { onDelete: "set null" },

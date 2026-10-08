@@ -18,6 +18,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { managedPayrollReleaseRequirement } from "@/lib/managed-payroll";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
+import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
 
 const RELEASABLE = ["Ready for release"];
 
@@ -93,15 +94,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
-  const approvalRows = await db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, run.organizationId));
-  const payrollApproval = approvalRows
-    .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
-    .sort((a, b) => b.id - a.id)[0];
+  const approvalRows = await db.select().from(approvalTasks).where(and(
+    eq(approvalTasks.organizationId, run.organizationId),
+    eq(approvalTasks.payrollRunId, run.id),
+  ));
+  const payrollApproval = approvalRows.sort((a, b) => b.id - a.id)[0];
 
   if (!payrollApproval || payrollApproval.status !== "Approved") {
     return Response.json({
       error: "Payroll must be approved by a checker before release.",
       approvalStatus: payrollApproval?.status ?? "Not submitted",
+    }, { status: 409 });
+  }
+
+  const approvalSnapshot = await verifyPayrollApprovalSnapshot(run, payrollApproval);
+  if (!approvalSnapshot.valid) {
+    return Response.json({
+      error: "Checker approval is stale because the payroll contents changed after review. Recalculate and submit the exact run for approval again.",
+      code: "PAYROLL_APPROVAL_SNAPSHOT_STALE",
     }, { status: 409 });
   }
 
