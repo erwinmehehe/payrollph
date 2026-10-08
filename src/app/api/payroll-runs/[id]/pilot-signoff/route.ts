@@ -293,7 +293,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       employeeLevelReconciliationConfirmed: true,
       operatorCompletedWithoutDeveloper: true,
       payoutEvidenceMode: payoutCompleted ? "completed-payout" : "no-money-bank-file-dry-run",
-      bankValidationStillRequired: !payoutCompleted,
       independentFigures,
       verifiedFigures,
       reconciliationVariances: variances,
