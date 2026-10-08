@@ -847,6 +847,36 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
               </section>
             )}
 
+            <section className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 16 }}>
+              <article className="stat-card"><p>EXPECTED ATTRITION</p><h3>{forecast.summary.expectedAttritionExits}</h3><span>{forecast.assumptions.annualAttritionPercent}% annual assumption · {forecast.assumptions.windowAttritionPercent}% modeled in window</span></article>
+              <article className="stat-card"><p>PLANNED BACKFILLS</p><h3>{forecast.summary.plannedAttritionBackfills}</h3><span>{forecast.assumptions.attritionBackfillPercent}% of expected exits</span></article>
+              <article className="stat-card"><p>ENDING ACTIVE HC</p><h3>{forecast.summary.endingActiveHeadcount}</h3><span>{forecast.summary.projectedHeadcountAfterVacancyFills} including expected vacancy fills</span></article>
+              <article className="stat-card"><p>{costVisible ? "BACKFILL RUN-RATE" : "BACKFILL CAPACITY"}</p><h3>{costVisible ? peso(forecast.summary.annualBackfillRunRateCost) : forecast.summary.plannedBackfillCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 }) + " hrs"}</h3><span>{costVisible ? "same-role annual loaded-cost planning estimate" : "modeled capacity recovered during the forecast window"}</span></article>
+            </section>
+
+            <div className="notice notice-slate" style={{ marginBottom: 16 }}>
+              <UserPlus size={15} />
+              <span><strong>Governed backfill boundary.</strong> Expected exits and backfills are scenario assumptions only. Saving freezes them into the scenario hash; submission routes them through the existing Workforce planning approval chain. They do not terminate employees, open positions, create requisitions, or change payroll.</span>
+            </div>
+
+            <div className="data-table-wrap" style={{ marginBottom: 16 }}>
+              <table className="data-table">
+                <thead><tr><th>BACKFILL ROLE</th><th>ACTIVE</th><th>EXPECTED EXITS</th><th>PLANNED BACKFILLS</th><th>ENDING HC</th><th className="right">{costVisible ? "ANNUAL BACKFILL RUN-RATE" : "COST"}</th></tr></thead>
+                <tbody>
+                  {forecast.backfillPlan.map((row) => (
+                    <tr key={row.jobProfileId ?? "unresolved-backfill"}>
+                      <td><strong>{row.title}</strong><small style={{ display: "block", color: "var(--muted)" }}>{row.family} · {row.level}</small></td>
+                      <td>{row.activeHeadcount}</td>
+                      <td>{row.expectedAttritionExits}</td>
+                      <td>{row.plannedBackfills}</td>
+                      <td>{row.endingHeadcount}</td>
+                      <td className="right">{costVisible ? peso(row.annualBackfillRunRateCost) : "Restricted"}</td>
+                    </tr>
+                  ))}
+                  {forecast.backfillPlan.length === 0 && <tr><td colSpan={6}><div className="empty-state">No active workforce in this scenario scope to model for attrition.</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
             <div className={forecast.summary.capacityGapAfterFills > 0 ? "notice notice-amber" : "notice notice-slate"} style={{ marginBottom: 16 }}>
               <UsersRound size={15} />
               <span><strong>{forecast.summary.capacityGapAfterFills > 0 ? "Capacity gap" : "Capacity covered"}:</strong> demand {forecast.summary.forecastHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs vs projected capacity {forecast.summary.projectedCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs after expected fills. Gap after fills: {forecast.summary.capacityGapAfterFills.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs.</span>
