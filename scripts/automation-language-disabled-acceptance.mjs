@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { chromium } from "playwright";
 
 /**
@@ -97,12 +96,10 @@ async function main() {
       && (row.domain === "127.0.0.1" || row.domain === "localhost"));
     assert.ok(session?.value, "Synthetic administrator must have a session");
 
-    // Reuse the positive acceptance's *actual* synthetic setup organization.
-    // The first acceptance phase records only this non-secret numeric ID.
-    currentPhase = "read-synthetic-organization-id";
-    const orgId = Number(readFileSync("/tmp/payrollph-automation-acceptance-org-id", "utf8"));
-    assert.ok(Number.isSafeInteger(orgId) && orgId > 0,
-      "Positive synthetic setup must have recorded a valid organization");
+    // The prior positive phase asserts the first disposable organization
+    // gets ID 1. No untrusted network value is written to disk between jobs.
+    currentPhase = "select-disposable-organization";
+    const orgId = 1;
 
     currentPhase = "load-default-off-studio-state";
     const before = await pageStudio(page, orgId);
