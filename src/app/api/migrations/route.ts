@@ -721,8 +721,8 @@ export async function POST(request: Request) {
       duplicateCount,
       mappings: parsed.mappings,
       unmappedColumns: parsed.unmappedColumns,
-      evidenceReference: kind === "employees" ? evidenceReference : undefined,
-      migrationSafetyPreflight: kind === "employees" ? "pre-live-only" : undefined,
+      // Employee-master migrations return earlier from their own atomic path.
+      // This branch contains only historical payroll, leave or loan imports.
     },
   });
 
