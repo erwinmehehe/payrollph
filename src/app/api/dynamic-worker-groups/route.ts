@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalChainPolicies,
@@ -87,11 +87,14 @@ async function dynamicGroupDependencies(organizationId: number, code: string) {
 }
 
 async function dynamicGroupSecurityDependencies(organizationId: number, groupId: number, code: string) {
-  const [assignments, policies] = await Promise.all([
+  const [groupAssignments, policies] = await Promise.all([
     db.select({
       id: userPermissionAssignments.id,
       userOrganizationId: userPermissionAssignments.userOrganizationId,
-    }).from(userPermissionAssignments).where(eq(userPermissionAssignments.organizationId, organizationId)),
+    }).from(userPermissionAssignments).where(and(
+      eq(userPermissionAssignments.organizationId, organizationId),
+      eq(userPermissionAssignments.dynamicGroupId, groupId),
+    )),
     db.select({
       id: approvalChainPolicies.id,
       code: approvalChainPolicies.code,
@@ -100,22 +103,14 @@ async function dynamicGroupSecurityDependencies(organizationId: number, groupId:
       active: approvalChainPolicies.active,
     }).from(approvalChainPolicies).where(eq(approvalChainPolicies.organizationId, organizationId)),
   ]);
-  const groupAssignments = await db.select({
-    id: userPermissionAssignments.id,
-    userOrganizationId: userPermissionAssignments.userOrganizationId,
-  }).from(userPermissionAssignments).where(
-    eq(userPermissionAssignments.dynamicGroupId, groupId),
-  );
-  const approvalPolicies = policies.filter((policy) =>
+   const approvalPolicies = policies.filter((policy) =>
     policy.active && Array.isArray(policy.steps) && policy.steps.some((raw) =>
       raw != null && typeof raw === "object" && !Array.isArray(raw)
         && String((raw as Record<string, unknown>).dynamicGroupCode ?? "") === code
     )
   );
   return {
-    permissionAssignments: groupAssignments.filter((assignment) =>
-      assignments.some((row) => row.id === assignment.id)
-    ),
+    permissionAssignments: groupAssignments,
     approvalPolicies: approvalPolicies.map((policy) => ({
       id: policy.id,
       name: policy.name,
