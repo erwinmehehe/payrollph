@@ -203,6 +203,7 @@ test("optional operator endpoints stay protected without blocking a controlled p
 test("production pilot sign-off verifies independent figures server-side instead of trusting checkboxes", () => {
   const route = read("src/app/api/payroll-runs/[id]/pilot-signoff/route.ts");
   const card = read("src/components/workspace/production-pilot-signoff.tsx");
+  const bankProof = read("src/lib/pilot-bank-dry-run-evidence.ts");
 
   assert.ok(route.includes("figuresFromEntries"), "server must derive reconciliation totals from stored payroll entries");
   assert.ok(route.includes('new Set(["WHT"])'), "server must independently total withholding tax");
@@ -213,17 +214,20 @@ test("production pilot sign-off verifies independent figures server-side instead
   assert.ok(route.includes("employeeLevelReconciliationConfirmed"), "human independent reviewer must attest to per-employee reconciliation");
   assert.ok(route.includes("reconciliationReportSha256"), "signoff must link to a private independently reviewed reconciliation report");
   assert.ok(route.includes("reconciledEmployeeCount !== entries.length"), "signoff must block a partial employee population");
-  assert.ok(route.includes('"Bank file dry-run generated"'), "no-money parallel trial must accept audited bank-file dry-run evidence");
+  assert.ok(route.includes("isValidPilotBankDryRunEvidence"), "pilot signoff must validate audited bank preview evidence server-side");
+  assert.ok(bankProof.includes('event.action !== "Bank file dry-run generated"'), "only preview events can count as no-money proof");
   assert.ok(route.includes("!payoutCompleted && !dryRunBankExport"), "sign-off must require either completed payout proof or no-money bank export");
-  assert.ok(route.includes("event.createdAt.getTime() >= releaseReceipt.createdAt.getTime()"), "no-money preview must be generated after the payroll release");
-  assert.ok(route.includes("bankExportMissingDestinations"), "bank preview cannot have missing payout destinations");
-  assert.ok(route.includes("bankExportMissingPaymentSnapshots"), "bank preview must use captured immutable payroll payout snapshots");
-  assert.ok(route.includes("bankExportRowCount"), "bank preview roster must match released employee count");
-  assert.ok(route.includes("bankExportTotalNet"), "bank preview payout sum must match released net pay");
+  assert.ok(bankProof.includes("exportedAt < releaseTime"), "no-money preview must be generated after payroll release");
+  assert.ok(bankProof.includes("meta.bankExportMissingDestinations !== 0"), "bank preview cannot have missing or nullable payout destinations");
+  assert.ok(bankProof.includes("meta.bankExportMissingPaymentSnapshots !== 0"), "bank preview must use immutable payroll payment snapshots");
+  assert.ok(bankProof.includes("meta.bankExportMissingIdentitySnapshots !== 0"), "bank preview must use immutable identity snapshots");
+  assert.ok(bankProof.includes("meta.bankExportRowCount !== expected.employeeCount"), "bank preview roster must match released employee count");
+  assert.ok(bankProof.includes("nonNegativeCents(meta.bankExportTotalNet) !== expectedCents"), "preview sum must match released net pay in cents");
   assert.ok(route.includes("bankExportSha256"), "no-money preview must have a recorded SHA-256 integrity hash");
   const exportRoute = read("src/app/api/payroll-runs/[id]/exports/route.ts");
   assert.ok(exportRoute.includes('createHash("sha256").update(file.body)'));
   assert.ok(exportRoute.includes("bankExportMissingDestinations"));
+  assert.ok(exportRoute.includes("bankExportMissingIdentitySnapshots"));
   assert.ok(exportRoute.includes("bankExportSyntheticDemoDestinations"));
   assert.ok(route.includes("independentFigures"), "audit evidence must preserve the submitted independent totals");
   assert.ok(route.includes("verifiedFigures"), "audit evidence must preserve the server-derived totals");
