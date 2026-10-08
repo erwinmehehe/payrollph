@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { segmentPayableTime } from "../src/lib/workforce-payroll";
+import { payableTimeEvidenceFlagsForPayroll, segmentPayableTime } from "../src/lib/workforce-payroll";
 import { evaluatePayrollAssurance } from "../src/lib/payroll-assurance";
 
 const shift = {
@@ -64,4 +64,61 @@ test("located break is excluded exactly before and after night-rate boundary", (
   assert.equal(segmented.segments.filter(part=>!part.night).reduce((sum,part)=>sum+part.minutes,0),60);
   assert.equal(segmented.segments.filter(part=>part.night).reduce((sum,part)=>sum+part.minutes,0),120);
   assert.equal(payrollFromFlags(segmented.flags).summary.blocking,0);
+});
+
+test("oversized punch warning survives the engine trace and blocks checker/release assurance", () => {
+  const segmented = segmentPayableTime({
+    punch: {
+      id: 990,
+      workDate: "2026-10-05",
+      timeIn: "2026-10-05T00:00:00.000Z",
+      timeOut: "2026-10-14T00:00:00.000Z",
+    },
+    shift: { start: "08:00", end: "17:00", breakMinutes: 0 },
+  });
+  assert.equal(segmented.allocationComplete, false);
+  assert.deepEqual(segmented.segments, []);
+  const traceFlags = payableTimeEvidenceFlagsForPayroll(segmented, 9 * 24 * 60);
+  assert.ok(traceFlags.some((flag) => flag.includes("WFM_PREMIUM_ALLOCATION_UNVERIFIED")));
+  const result = payrollFromFlags(traceFlags.map((flag) => `2026-10-05: ${flag}`));
+  assert.ok(result.findings.some((finding) =>
+    finding.code === "WFM_PREMIUM_ALLOCATION_UNVERIFIED" && finding.blocking
+  ));
+  assert.ok(result.summary.blocking > 0);
+});
+
+test("missing segmentation of worked time cannot be ignored even without pricing classes", () => {
+  const traceFlags = payableTimeEvidenceFlagsForPayroll({
+    segments: [],
+    attendanceCalendarDates: [],
+    allocationComplete: false,
+    flags: ["Payable-time segmentation requires valid 24-hour shift start/end times."],
+  }, 120);
+  assert.ok(traceFlags.some((flag) => flag.startsWith("WFM_PREMIUM_ALLOCATION_UNVERIFIED:")));
+  assert.ok(payrollFromFlags(traceFlags).summary.blocking > 0);
+});
+
+test("unlocated break confined to one premium bucket stays reviewable", () => {
+  const segmented = segmentPayableTime({
+    punch: {
+      id: 991, workDate: "2026-10-05",
+      timeIn: "2026-10-05T00:00:00.000Z",
+      timeOut: "2026-10-05T08:00:00.000Z",
+    },
+    shift: { start: "08:00", end: "16:00", breakMinutes: 60 },
+  });
+  assert.equal(segmented.allocationComplete, false);
+  assert.deepEqual(payableTimeEvidenceFlagsForPayroll(segmented, 420), []);
+});
+
+test("payroll engine and approval/release routes wire the same hard-blocking assurance", async () => {
+  const { readFileSync } = await import("node:fs");
+  const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  const submit = readFileSync("src/app/api/payroll-runs/[id]/submit-review/route.ts", "utf8");
+  const release = readFileSync("src/app/api/payroll-runs/[id]/release/route.ts", "utf8");
+  assert.ok(engine.includes("payableTimeEvidenceFlagsForPayroll(\n      segmentation,\n      derived.workedMinutes,"));
+  assert.ok(submit.includes("finding.blocking"));
+  assert.ok(release.includes("finding.blocking"));
+  assert.ok(submit.includes("blockingFindings: blockers"));
+  assert.ok(release.includes("blockingFindings,"));
 });
