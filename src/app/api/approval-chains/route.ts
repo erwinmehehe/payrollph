@@ -5,7 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
-import { validateApprovalChainSteps } from "@/lib/approval-chains";
+import { freezeDynamicGroupApprovalSteps, validateApprovalChainSteps } from "@/lib/approval-chains";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -92,6 +92,15 @@ export async function POST(request: Request) {
       return Response.json({
         error: "A valid code, name, and 1-12 ordered approval steps are required.",
       }, { status: 400 });
+    }
+    try {
+      // Validate all selected groups, even on amount-escalated steps.
+      // Changes to group definitions never silently expand an in-flight chain.
+      await freezeDynamicGroupApprovalSteps(organizationId, steps);
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Invalid Dynamic Group approval scope.",
+      }, { status: 409 });
     }
 
     if (id) {
