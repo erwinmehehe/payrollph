@@ -1710,6 +1710,17 @@ export async function replayAutomationExecutionSnapshot(input: {
     throw new Error("Only failed or partial executions can be replayed.");
   }
 
+  const quarantines = await db.select({
+    status: automationOperationalCases.status,
+  }).from(automationOperationalCases).where(and(
+    eq(automationOperationalCases.organizationId, input.organizationId),
+    eq(automationOperationalCases.caseType, "execution_dead_letter"),
+    eq(automationOperationalCases.sourceId, execution.id),
+  ));
+  if (quarantines.some((letter) => letter.status !== "acknowledged")) {
+    throw new Error("Dead-letter records require human acknowledgement before a safe stored-snapshot replay. Reopen a manually closed case before replay.");
+  }
+
   const trigger = execution.trigger as AutomationTrigger;
   if (!(AUTOMATION_TRIGGERS as readonly string[]).includes(trigger)) {
     throw new Error("Stored automation execution has an unsupported trigger.");
