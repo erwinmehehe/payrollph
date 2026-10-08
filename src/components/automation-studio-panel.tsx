@@ -894,6 +894,7 @@ export function AutomationStudioPanel({
       return;
     }
 
+    if (!window.confirm(`Approve and publish ${rule.name} draft v${rule.draftVersion}? Publishing can activate this workflow for future authoritative events.`)) return;
     try {
       const response = await fetch("/api/automation-studio", {
         method: "POST",
