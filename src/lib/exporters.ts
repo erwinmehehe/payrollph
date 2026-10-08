@@ -250,6 +250,7 @@ export async function generateBankFile(
     missingAccounts: rows.filter((row) => row.account_number === "0000000000").length,
     missingMobiles: rows.filter((row) => row.mobile === "09000000000").length,
     missingPaymentSnapshots: rows.filter((row) => !row.paymentSnapshotPresent).length,
+    missingIdentitySnapshots: rows.filter((row) => !row.immutableIdentitySnapshotPresent).length,
     syntheticDemoDestinations: options.allowSyntheticDemoDestinations === true,
   };
 
@@ -419,7 +420,7 @@ export async function generateBankFile(
     const filename = bankPartFilename(baseFilename, index + 1, rowParts.length);
     const rendered = renderBody(partRows);
     const body = dryRun
-      ? `# DRY-RUN VALIDATION\n# template=${template.name} version=${template.version}\n# part=${index + 1}/${rowParts.length}\n# rows=${partRows.length} totalNet=${(totalCents / 100).toFixed(2)}\n# maxAmountPerFile=${matchingPayoutProfile?.maxAmountPerFile ?? "none"} maxRowsPerFile=${maxRowsPerFile ?? "none"}\n# missingAccounts=${validation.missingAccounts} missingMobiles=${validation.missingMobiles} missingPaymentSnapshots=${validation.missingPaymentSnapshots}\n# syntheticDemoDestinations=${validation.syntheticDemoDestinations}\n# This is a preview. Final files require a released run and immutable payment snapshots.\n${rendered}`
+      ? `# DRY-RUN VALIDATION\n# template=${template.name} version=${template.version}\n# part=${index + 1}/${rowParts.length}\n# rows=${partRows.length} totalNet=${(totalCents / 100).toFixed(2)}\n# maxAmountPerFile=${matchingPayoutProfile?.maxAmountPerFile ?? "none"} maxRowsPerFile=${maxRowsPerFile ?? "none"}\n# missingAccounts=${validation.missingAccounts} missingMobiles=${validation.missingMobiles} missingPaymentSnapshots=${validation.missingPaymentSnapshots} missingIdentitySnapshots=${validation.missingIdentitySnapshots}\n# syntheticDemoDestinations=${validation.syntheticDemoDestinations}\n# This is a preview. Final files require a released run and immutable payment snapshots.\n${rendered}`
       : rendered;
     return {
       filename,

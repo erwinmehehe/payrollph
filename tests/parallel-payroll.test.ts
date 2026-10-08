@@ -95,6 +95,20 @@ test("parallel payroll compares all supported components using common header ali
   assert.equal(byKey.get("net")?.delta, -25);
 });
 
+test("parallel payroll flags two-cent differences but tolerates one cent", () => {
+  const assurance = evaluatePayrollAssurance([entry()], []);
+  const compare = (grossPay: string) => buildParallelPayrollComparison({
+    records: [{ employee_no: "EMP-001", gross_pay: grossPay }],
+    employees: [{ id: 10, employeeNo: "EMP-001", firstName: "Ana", lastName: "Reyes" }],
+    comparisons: assurance.comparisons,
+  }).rows[0].components[0];
+
+  assert.equal(compare("29999.98").different, true);
+  assert.equal(compare("29999.98").delta, 0.02);
+  assert.equal(compare("29999.99").different, false);
+  assert.equal(compare("30000.00").different, false);
+});
+
 test("parallel payroll can derive other deductions from total deductions", () => {
   const assurance = evaluatePayrollAssurance([entry()], []);
   const result = buildParallelPayrollComparison({

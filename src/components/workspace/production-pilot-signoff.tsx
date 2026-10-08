@@ -26,7 +26,11 @@ export function ProductionPilotSignoffCard({
   notify: Notify;
   onRefresh: () => Promise<void>;
 }) {
-  const releasedRun = data.payrollRuns.find((run) => run.status === "Released");
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const releasedRuns = data.payrollRuns
+    .filter((run) => run.status === "Released")
+    .sort((a, b) => b.id - a.id);
+  const releasedRun = releasedRuns.find((run) => run.id === selectedRunId) ?? releasedRuns[0];
   const existing = useMemo(
     () => data.auditEvents.find((event) => {
       if (event.action !== "Production payroll pilot signed off") return false;
@@ -38,8 +42,11 @@ export function ProductionPilotSignoffCard({
 
   const [evidenceReference, setEvidenceReference] = useState("");
   const [independentPreparedBy, setIndependentPreparedBy] = useState("");
+  const [reconciliationReportSha256, setReconciliationReportSha256] = useState("");
+  const [reconciledEmployeeCount, setReconciledEmployeeCount] = useState("");
   const [independentSourceConfirmed, setIndependentSourceConfirmed] = useState(false);
   const [operatorCompletedWithoutDeveloper, setOperatorCompletedWithoutDeveloper] = useState(false);
+  const [employeeLevelReconciliationConfirmed, setEmployeeLevelReconciliationConfirmed] = useState(false);
   const [figures, setFigures] = useState<Record<FigureKey, string>>({
     grossPay: "",
     deductions: "",
@@ -50,8 +57,40 @@ export function ProductionPilotSignoffCard({
     employeeCount: "",
   });
   const [saving, setSaving] = useState(false);
+  const [upgradeNoMoneyPilot, setUpgradeNoMoneyPilot] = useState(false);
+  const recordedPilotMode = existing?.metadata && typeof existing.metadata === "object"
+    ? (existing.metadata as Record<string, unknown>).payoutEvidenceMode
+    : null;
 
   if (!releasedRun) return null;
+
+  const runSelector = releasedRuns.length > 1 ? (
+    <label>
+      Select the exact released payroll period
+      <select
+        value={releasedRun.id}
+        onChange={(event) => {
+          setSelectedRunId(Number(event.target.value));
+          setUpgradeNoMoneyPilot(false);
+          setEvidenceReference("");
+          setIndependentPreparedBy("");
+          setReconciliationReportSha256("");
+          setReconciledEmployeeCount("");
+          setIndependentSourceConfirmed(false);
+          setEmployeeLevelReconciliationConfirmed(false);
+          setOperatorCompletedWithoutDeveloper(false);
+          setFigures({
+            grossPay: "", deductions: "", netPay: "", withholdingTax: "",
+            statutoryContributions: "", payoutTotal: "", employeeCount: "",
+          });
+        }}
+      >
+        {releasedRuns.map((run) => (
+          <option key={run.id} value={run.id}>#{run.id} — {run.periodLabel}</option>
+        ))}
+      </select>
+    </label>
+  ) : null;
 
   const allFiguresPresent = FIGURES.every(([key, , kind]) => {
     const value = figures[key].trim();
@@ -74,7 +113,10 @@ export function ProductionPilotSignoffCard({
         body: JSON.stringify({
           evidenceReference: evidenceReference.trim(),
           independentPreparedBy: independentPreparedBy.trim(),
+          reconciliationReportSha256: reconciliationReportSha256.trim(),
+          reconciledEmployeeCount: Number(reconciledEmployeeCount),
           independentSourceConfirmed,
+          employeeLevelReconciliationConfirmed,
           operatorCompletedWithoutDeveloper,
           independentFigures,
         }),
@@ -98,24 +140,53 @@ export function ProductionPilotSignoffCard({
     }
   }
 
-  if (existing) {
+  if (existing && !(recordedPilotMode === "no-money-bank-file-dry-run" && upgradeNoMoneyPilot)) {
     const metadata = existing.metadata && typeof existing.metadata === "object"
       ? existing.metadata as Record<string, unknown>
       : {};
     return (
       <article className="card" data-production-pilot-signoff="complete" style={{ marginBottom: 16 }}>
+        {runSelector && <div className="card-body">{runSelector}</div>}
         <div className="card-header">
           <div>
             <div className="card-kicker"><ShieldCheck size={14} /> PRODUCTION PILOT</div>
-            <h2>Independent payroll pilot signed off</h2>
+            <h2>{recordedPilotMode === "no-money-bank-file-dry-run"
+              ? "No-money payroll pilot reconciled"
+              : "Independent payroll pilot signed off"}</h2>
             <p>
-              The released cycle has server-verified reconciliation figures and payout/export evidence on the audit trail.
+              {recordedPilotMode === "no-money-bank-file-dry-run"
+                ? "The payroll arithmetic and dry-run bank file were recorded. No bank transfer or settlement has been proven, so the broad-launch payout pilot gate remains blocked."
+                : "The payroll evidence and completed-payout attestation were recorded. Government, bank, privacy and production recovery acceptance remain separate gates."}
             </p>
             {typeof metadata.evidenceReference === "string" && (
               <small>Evidence: {metadata.evidenceReference}</small>
             )}
           </div>
-          <Status value="Signed off" />
+          <div style={{ display: "grid", gap: 8 }}>
+            <Status value={recordedPilotMode === "no-money-bank-file-dry-run" ? "Pilot only" : "Signed off"} />
+            {recordedPilotMode === "no-money-bank-file-dry-run" && (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setUpgradeNoMoneyPilot(true);
+                  setEvidenceReference("");
+                  setIndependentPreparedBy("");
+                  setReconciliationReportSha256("");
+                  setReconciledEmployeeCount("");
+                  setIndependentSourceConfirmed(false);
+                  setEmployeeLevelReconciliationConfirmed(false);
+                  setOperatorCompletedWithoutDeveloper(false);
+                  setFigures({
+                    grossPay: "", deductions: "", netPay: "", withholdingTax: "",
+                    statutoryContributions: "", payoutTotal: "", employeeCount: "",
+                  });
+                }}
+              >
+                Record completed-payout evidence
+              </button>
+            )}
+          </div>
         </div>
       </article>
     );
@@ -135,6 +206,14 @@ export function ProductionPilotSignoffCard({
       </div>
 
       <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 14 }}>
+        {runSelector}
+        {upgradeNoMoneyPilot && (
+          <div className="notice notice-amber">
+            The previous no-money reconciliation remains intact. Only continue after the bank
+            confirms settlement and an independent reviewer has verified the paid period.
+            This form does not initiate any payment.
+          </div>
+        )}
         <div className="run-stats" style={{ margin: 0 }}>
           <div>
             <span>Run</span>
@@ -172,6 +251,27 @@ export function ProductionPilotSignoffCard({
               placeholder="Name or responsible reviewer"
             />
           </label>
+          <label>
+            Private reconciliation report SHA-256
+            <input
+              value={reconciliationReportSha256}
+              maxLength={64}
+              onChange={(event) => setReconciliationReportSha256(event.target.value)}
+              placeholder="64-character SHA-256 of independently reviewed private report"
+              autoComplete="off"
+            />
+          </label>
+          <label>
+            Employees covered by the independent reconciliation
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={reconciledEmployeeCount}
+              onChange={(event) => setReconciledEmployeeCount(event.target.value)}
+              placeholder="Reconciled employee count"
+            />
+          </label>
         </div>
 
         <div>
@@ -207,6 +307,15 @@ export function ProductionPilotSignoffCard({
           <label className="switch">
             <input
               type="checkbox"
+              checked={employeeLevelReconciliationConfirmed}
+              onChange={(event) => setEmployeeLevelReconciliationConfirmed(event.target.checked)}
+            />
+            <i aria-hidden />
+            <span>Every employee was compared against the independent payroll source within ₱0.01, with all exceptions explained and recorded in the private evidence reference</span>
+          </label>
+          <label className="switch">
+            <input
+              type="checkbox"
               checked={operatorCompletedWithoutDeveloper}
               onChange={(event) => setOperatorCompletedWithoutDeveloper(event.target.checked)}
             />
@@ -218,7 +327,7 @@ export function ProductionPilotSignoffCard({
         <div className="notice notice-amber" style={{ margin: 0 }}>
           <ClipboardCheck size={15} />
           <span>
-            Sign-off is accepted only when every independent total matches the released payroll to the cent, employee count matches exactly, payout is completed, every payslip exists, and the accounting journal export was generated.
+            Sign-off requires independently reconciled employee figures, matching totals and headcount, payslips, and an accounting journal export. A recorded bank-file dry-run is sufficient for this no-money pilot; actual bank acceptance is a separate launch gate.
           </span>
         </div>
 
@@ -229,8 +338,11 @@ export function ProductionPilotSignoffCard({
               saving
               || evidenceReference.trim().length < 8
               || independentPreparedBy.trim().length < 3
+              || !/^[0-9a-f]{64}$/.test(reconciliationReportSha256.trim().toLowerCase())
+              || Number(reconciledEmployeeCount) !== releasedRun.employeeCount
               || !allFiguresPresent
               || !independentSourceConfirmed
+              || !employeeLevelReconciliationConfirmed
               || !operatorCompletedWithoutDeveloper
             }
             onClick={() => void signOff()}

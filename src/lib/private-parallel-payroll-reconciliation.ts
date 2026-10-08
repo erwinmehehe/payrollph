@@ -57,7 +57,7 @@ export type ParallelCycleResult = {
 };
 
 export type ParallelReconciliationResult = {
-  status: "reconciliation-blocked" | "arithmetic-reconciled-pending-independent-review";
+  status: "reconciliation-blocked" | "arithmetic-reconciled-pending-independent-review" | "pilot-arithmetic-reconciled-pending-independent-review";
   legalEntityCode: string | null;
   cycleCount: number;
   verifiedFileHashCount: number;
@@ -274,7 +274,7 @@ function differenceCount(a: ParsedFile, b: ParsedFile, columns: readonly string[
  * employee amounts, banking identifiers, or plaintext payroll rows.
  */
 export function evaluateParallelPayrollReconciliation(
-  value: unknown, privateRoot: string,
+  value: unknown, privateRoot: string, options: { mode?: "pilot" | "certification" } = {},
 ): ParallelReconciliationResult {
   const issues: string[] = [];
   let verifiedFileHashCount = 0;
@@ -289,7 +289,11 @@ export function evaluateParallelPayrollReconciliation(
   catch { safeRoot = ""; issues.push("Private evidence root is missing or inaccessible."); }
 
   const cycles = Array.isArray(manifest.cycles) ? manifest.cycles : [];
-  if (cycles.length < 2 || cycles.length > 12) {
+  if (options.mode === "pilot") {
+    if (cycles.length < 1 || cycles.length > 12) {
+      issues.push("Pilot requires one to twelve distinct real employer payroll months.");
+    }
+  } else if (cycles.length < 2 || cycles.length > 12) {
     issues.push("Two to twelve distinct real employer payroll months are required.");
   }
   const results: ParallelCycleResult[] = [];
@@ -348,8 +352,11 @@ export function evaluateParallelPayrollReconciliation(
     });
   }
   return {
-    status: issues.length === 0
-      ? "arithmetic-reconciled-pending-independent-review" : "reconciliation-blocked",
+    status: issues.length > 0
+      ? "reconciliation-blocked"
+      : options.mode === "pilot"
+        ? "pilot-arithmetic-reconciled-pending-independent-review"
+        : "arithmetic-reconciled-pending-independent-review",
     legalEntityCode: legalEntityCode || null,
     cycleCount: cycles.length,
     verifiedFileHashCount, results, issues,
