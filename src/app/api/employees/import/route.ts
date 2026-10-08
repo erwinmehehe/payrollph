@@ -1,6 +1,6 @@
 import { encryptBankAccount } from "@/lib/bank-account-crypto";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, employeePayProfiles, employees, importBatches } from "@/db/schema";
 import { GOVERNED_HIRE_REQUIRED, hasConfiguredHireBusinessProcess } from "@/lib/hcm-direct-entry-policy";
@@ -154,11 +154,8 @@ export async function POST(request: Request) {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(4212, ${organizationId})`);
       let inserted: Array<{ id: number; employeeNo: string; basicRate: string }> = [];
       if (!dryRun && toInsert.length) {
-        const collision = await tx.select({ employeeNo: employees.employeeNo })
-          .from(employees)
-          .where(inArray(employees.employeeNo, toInsert.map((row) => row.employeeNo ?? "")));
-        // A cross-tenant employee number is valid and must never be used to
-        // reject another employer's worker: check company scope below.
+        // Employee numbers are unique only within a tenant. Never reject
+        // another employer's worker merely for sharing an employee number.
         const collisionForTenant = await tx.select({ employeeNo: employees.employeeNo })
           .from(employees)
           .where(eq(employees.organizationId, organizationId));
