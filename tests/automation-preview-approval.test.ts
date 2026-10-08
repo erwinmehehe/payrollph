@@ -65,4 +65,8 @@ test("publish route consumes server-verified receipt and rechecks the draft insi
   assert.ok(ui.includes("previewReceipt: currentPreview.previewReceipt"));
   assert.ok(ui.includes("humanApproved: true"));
   assert.ok(ui.includes("window.confirm("));
+  assert.ok(route.includes("impactPreview.authoritativeEvents === 0 && body.limitedEvidenceAcknowledged !== true"));
+  assert.ok(ui.includes("limitedEvidenceAcknowledged: limitedEvidence"));
+  assert.ok(ui.includes("No authoritative events were available"));
+  assert.ok(ui.includes('"Limited evidence"'));
 });
