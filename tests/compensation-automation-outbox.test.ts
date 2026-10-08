@@ -425,7 +425,7 @@ test("tenant and worker source mismatch cannot enqueue, dispatch or manually ret
       await assert.rejects(retryUnstartedCompensationAutomationIntent({
         organizationId: first.organizationId,
         intentId: id,
-        reviewer: "Independent security reviewer",
+        approval: await signTestRecoveryApproval(first.organizationId, id),
       }), /source mismatch/i);
       assert.equal((await readIntent(id)).status, "needs_review");
     });
@@ -471,7 +471,7 @@ test("non-financial source events and spoofed outbox triggers never execute Auto
     await assert.rejects(retryUnstartedCompensationAutomationIntent({
       organizationId: f.organizationId,
       intentId: id,
-      reviewer: "Verified human",
+      approval: await signTestRecoveryApproval(f.organizationId, id),
     }), /forbidden trigger/i);
     assert.equal((await readIntent(id)).status, "needs_review");
   });
