@@ -3,6 +3,8 @@ import { db } from "@/db";
 import {
   automationEventLog,
   automationExecutions,
+  automationOperationalCases,
+  auditEvents,
   automationRules,
   benefitPlans,
   orgUnits,
@@ -17,6 +19,10 @@ import { listApprovalChainPolicies } from "@/lib/approval-chains";
 import { listSafeIntegrationConnectors } from "@/lib/integration-connectors";
 import { listDynamicWorkerGroups } from "@/lib/dynamic-worker-groups";
 import {
+  createExecutionDeadLetter,
+  operationalReviewSourceResolved,
+} from "@/lib/automation-operational-cases";
+import {
   AUTOMATION_ACTION_CATALOG,
   AUTOMATION_CONDITION_FIELDS,
   AUTOMATION_LIVE_TRIGGERS,
@@ -28,6 +34,7 @@ import {
   normalizeAutomationActions,
   replayAutomationExecutionSnapshot,
   retryAutomationExecutionFailedStep,
+  SAFE_FAILED_STEP_RETRY_ACTIONS,
   simulateAutomationImpact,
   validAutomationConditions,
   validateAutomationActionTrigger,
@@ -82,13 +89,6 @@ function latestExecutionSteps(value: unknown) {
   }
   return [...latest.entries()].sort(([a], [b]) => a - b).map(([, row]) => row);
 }
-
-const NON_RETRYABLE_EXECUTION_ACTIONS = new Set([
-  "create_task",
-  "create_onboarding_checklist",
-  "send_slack_message",
-  "webhook",
-]);
 
 const SAFE_REPLAY_EXECUTION_ACTIONS = new Set([
   "assign_permission_set",
@@ -276,7 +276,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const [rules, versions, executions, units, sets, plans, patterns, approvalChains, integrationConnectors, dynamicGroups, eventRows] = await Promise.all([
+  const [rules, versions, executions, cases, units, sets, plans, patterns, approvalChains, integrationConnectors, dynamicGroups, eventRows] = await Promise.all([
     db.select().from(automationRules)
       .where(eq(automationRules.organizationId, organizationId))
       .orderBy(desc(automationRules.id)),
@@ -285,6 +285,10 @@ export async function GET(request: Request) {
       .where(eq(automationExecutions.organizationId, organizationId))
       .orderBy(desc(automationExecutions.id))
       .limit(100),
+    db.select().from(automationOperationalCases)
+      .where(eq(automationOperationalCases.organizationId, organizationId))
+      .orderBy(desc(automationOperationalCases.updatedAt), desc(automationOperationalCases.id))
+      .limit(150),
     db.select({ id: orgUnits.id, name: orgUnits.name, code: orgUnits.code })
       .from(orgUnits)
       .where(eq(orgUnits.organizationId, organizationId))
@@ -331,6 +335,10 @@ export async function GET(request: Request) {
   const executionByRuleEvent = new Map(
     executions.map((row) => [`${row.ruleId}:${row.eventKey}`, row]),
   );
+  const caseByExecutionStep = new Map(
+    cases.filter((row) => row.caseType === "execution_dead_letter")
+      .map((row) => [`${row.sourceId}:${row.stepIndex}`, row]),
+  );
   const attentionQueue = executions
     .filter((row) => ["failed", "partial"].includes(row.status))
     .map((row) => {
@@ -338,11 +346,19 @@ export async function GET(request: Request) {
       const failedSteps = latest.filter((step) => step.status === "failed");
       const workflow = normalizeAutomationActions(row.workflow);
       const retryableFailedStepIndices = failedSteps
-        .filter((step) => !NON_RETRYABLE_EXECUTION_ACTIONS.has(String(step.type ?? "")))
+        .filter((step) => SAFE_FAILED_STEP_RETRY_ACTIONS.has(String(step.type ?? "")))
         .map((step) => Number(step.stepIndex))
         .filter((stepIndex) => Number.isInteger(stepIndex));
+      const acknowledged = failedSteps.filter((step) =>
+        caseByExecutionStep.get(`${row.id}:${Number(step.stepIndex)}`)?.status === "acknowledged"
+      );
+      const blocked = failedSteps.filter((step) =>
+        caseByExecutionStep.get(`${row.id}:${Number(step.stepIndex)}`)?.status === "open"
+        || caseByExecutionStep.get(`${row.id}:${Number(step.stepIndex)}`)?.status === "resolved"
+      );
       const replayEligible = Boolean(
-        workflow
+        blocked.length === 0
+        && workflow
         && workflow.length > 0
         && !workflow.some((step) => step.type === "branch" || step.type === "wait" || step.type === "approval_gate")
         && workflow.every((step) => SAFE_REPLAY_EXECUTION_ACTIONS.has(step.type)),
@@ -358,7 +374,18 @@ export async function GET(request: Request) {
           type: String(step.type ?? "unknown"),
           error: String(step.error ?? "Automation action failed."),
         })),
-        retryableFailedStepIndices,
+        retryableFailedStepIndices: retryableFailedStepIndices.filter(
+          (stepIndex) => !blocked.some((step) => Number(step.stepIndex) === stepIndex),
+        ),
+        deadLetterAcknowledgedCount: acknowledged.length,
+        deadLetters: failedSteps.map((step) => {
+          const letter = caseByExecutionStep.get(`${row.id}:${Number(step.stepIndex)}`);
+          return {
+            stepIndex: Number(step.stepIndex),
+            caseId: letter?.id ?? null,
+            status: letter?.status ?? null,
+          };
+        }),
         replayEligible,
         ageMinutes,
         slaState: ageMinutes >= 240 ? "breached" : ageMinutes >= 60 ? "aging" : "fresh",
@@ -444,6 +471,13 @@ export async function GET(request: Request) {
     executions,
     executionCenter: {
       attentionQueue,
+      operationalCases: cases,
+      caseCounts: {
+        open: cases.filter((row) => row.status === "open").length,
+        acknowledged: cases.filter((row) => row.status === "acknowledged").length,
+        resolved: cases.filter((row) => row.status === "resolved").length,
+        deadLetters: cases.filter((row) => row.caseType === "execution_dead_letter" && row.status !== "resolved").length,
+      },
       decisionDiagnostics,
       generatedAt: new Date().toISOString(),
       diagnosticNote: "Ran outcomes are backed by stored execution evidence. Skipped/matched-without-execution diagnostics evaluate the current published rule against the immutable event ledger and are not a historical reconstruction of an older rule version.",
@@ -539,6 +573,139 @@ export async function POST(request: Request) {
   });
   if (rateDenied) return rateDenied;
 
+
+  if (action === "quarantine-execution-step") {
+    const executionId = Number(body.executionId);
+    const stepIndex = Number(body.stepIndex);
+    const note = String(body.note ?? "").trim();
+    if (!Number.isSafeInteger(executionId) || executionId < 1
+        || !Number.isSafeInteger(stepIndex) || stepIndex < 0 || note.length < 12 || note.length > 480) {
+      return Response.json({ error: "An execution, failed step and 12-480 character triage note are required." }, { status: 400 });
+    }
+    const [execution] = await db.select().from(automationExecutions).where(and(
+      eq(automationExecutions.id, executionId),
+      eq(automationExecutions.organizationId, organizationId),
+    )).limit(1);
+    if (!execution || !["failed", "partial"].includes(execution.status)) {
+      return Response.json({ error: "Only a failed/partial execution can be quarantined." }, { status: 409 });
+    }
+    const step = latestExecutionSteps(execution.result).find((row) =>
+      row.status === "failed" && Number(row.stepIndex) === stepIndex
+    );
+    if (!step) return Response.json({ error: "This execution step is not currently failed." }, { status: 409 });
+    const result = await createExecutionDeadLetter({
+      organizationId,
+      executionId,
+      stepIndex,
+      actor: user.name,
+      actorUserId: user.id,
+      note,
+      latestFailure: {
+        type: String(step.type ?? "unknown"),
+        error: String(step.error ?? "Failed without a recorded error."),
+      },
+    });
+    return Response.json({
+      operationalCase: result.case,
+      created: result.created,
+      automationWasReplayed: false,
+    }, { status: result.created ? 201 : 200 });
+  }
+
+  if (action === "triage-operational-case") {
+    const caseId = Number(body.caseId);
+    const transition = String(body.transition ?? "");
+    const note = String(body.note ?? "").trim();
+    if (!Number.isSafeInteger(caseId) || caseId < 1
+        || !["acknowledge", "resolve", "reopen"].includes(transition)
+        || note.length < 16 || note.length > 2000) {
+      return Response.json({
+        error: "A valid case, acknowledge/resolve/reopen action, and 16-2000 character evidence note are required.",
+      }, { status: 400 });
+    }
+
+    const [current] = await db.select().from(automationOperationalCases).where(and(
+      eq(automationOperationalCases.id, caseId),
+      eq(automationOperationalCases.organizationId, organizationId),
+    )).limit(1);
+    if (!current) return Response.json({ error: "Operational case not found." }, { status: 404 });
+    const expected = transition === "acknowledge"
+      ? "open" : transition === "resolve" ? "acknowledged" : "resolved";
+    if (current.status !== expected) {
+      return Response.json({ error: `Case must be ${expected} to ${transition}.` }, { status: 409 });
+    }
+    if (transition === "resolve" && !await operationalReviewSourceResolved({
+      organizationId,
+      caseType: current.caseType as Parameters<typeof operationalReviewSourceResolved>[0]["caseType"],
+      sourceId: current.sourceId,
+    })) {
+      return Response.json({
+        error: "The underlying authoritative WFM/payroll/compliance source is still open. Resolve it in its governed workspace first.",
+      }, { status: 409 });
+    }
+
+    const now = new Date();
+    const [updated] = await db.transaction(async (tx) => {
+      const patch = transition === "acknowledge"
+        ? {
+            status: "acknowledged",
+            acknowledgedByUserId: user.id,
+            acknowledgedByName: user.name,
+            acknowledgedAt: now,
+            updatedAt: now,
+          }
+        : transition === "resolve"
+          ? {
+              status: "resolved",
+              resolvedByUserId: user.id,
+              resolvedByName: user.name,
+              resolvedAt: now,
+              resolutionNote: note,
+              updatedAt: now,
+            }
+          : {
+              status: "open",
+              acknowledgedByUserId: null,
+              acknowledgedByName: null,
+              acknowledgedAt: null,
+              resolvedByUserId: null,
+              resolvedByName: null,
+              resolvedAt: null,
+              resolutionNote: null,
+              updatedAt: now,
+            };
+      const [changed] = await tx.update(automationOperationalCases)
+        .set(patch)
+        .where(and(
+          eq(automationOperationalCases.id, caseId),
+          eq(automationOperationalCases.organizationId, organizationId),
+          eq(automationOperationalCases.status, expected),
+        )).returning();
+      if (!changed) return [];
+      await tx.insert(auditEvents).values({
+        organizationId,
+        actor: user.name,
+        action: `Automation operations case ${transition}`,
+        resource: changed.title,
+        metadata: {
+          caseId, caseType: changed.caseType,
+          sourceType: changed.sourceType, sourceId: changed.sourceId,
+          executionId: changed.executionId,
+          stepIndex: changed.stepIndex,
+          note,
+          sourceMutation: false,
+          underlyingExecutionStatusUnchanged: true,
+        },
+      });
+      return [changed];
+    });
+    if (!updated) return Response.json({ error: "Case status changed before your decision." }, { status: 409 });
+    return Response.json({
+      operationalCase: updated,
+      sourceMutation: false,
+      executionStatusUnchanged: true,
+    });
+  }
 
   if (action === "retry-execution-step") {
     const executionId = Number(body.executionId);
