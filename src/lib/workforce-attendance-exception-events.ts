@@ -24,6 +24,7 @@ import type {
   OvertimeRequestKind,
   OvertimeRequestStatus,
 } from "@/lib/workforce-overtime";
+import { attendanceExceptionSlaDueAt } from "@/lib/workforce-attendance-exception-governance";
 
 export function attendanceExceptionFingerprint(input: {
   workDate: string;
@@ -44,6 +45,11 @@ export async function reconcileAttendanceExceptionEvents(input: {
   organizationId: number;
   employeeId: number;
   workDate: string;
+  resolutionEvidence?: {
+    actorUserId: number;
+    actorName: string;
+    note: string;
+  } | null;
 }) {
   const [
     shifts,
@@ -223,8 +229,16 @@ export async function reconcileAttendanceExceptionEvents(input: {
         minutes: item.exception.minutes ?? null,
         message: item.exception.message,
         status: "open",
+        slaDueAt: found.slaDueAt ?? attendanceExceptionSlaDueAt({
+          firstDetectedAt: found.firstDetectedAt,
+          severity: item.exception.severity,
+        }),
         lastDetectedAt: now,
         resolvedAt: null,
+        resolutionNote: null,
+        resolvedByUserId: null,
+        resolvedByName: null,
+        resolutionRecordedAt: null,
         updatedAt: now,
       }).where(eq(attendanceExceptionEvents.id, found.id));
       continue;
@@ -241,6 +255,10 @@ export async function reconcileAttendanceExceptionEvents(input: {
       message: item.exception.message,
       fingerprintSha256: item.fingerprint,
       status: "open",
+      slaDueAt: attendanceExceptionSlaDueAt({
+        firstDetectedAt: now,
+        severity: item.exception.severity,
+      }),
       firstDetectedAt: now,
       lastDetectedAt: now,
       createdAt: now,
@@ -256,6 +274,10 @@ export async function reconcileAttendanceExceptionEvents(input: {
     const [resolved] = await db.update(attendanceExceptionEvents).set({
       status: "resolved",
       resolvedAt: now,
+      resolutionNote: input.resolutionEvidence?.note ?? row.resolutionNote,
+      resolvedByUserId: input.resolutionEvidence?.actorUserId ?? row.resolvedByUserId,
+      resolvedByName: input.resolutionEvidence?.actorName ?? row.resolvedByName,
+      resolutionRecordedAt: input.resolutionEvidence ? now : row.resolutionRecordedAt,
       updatedAt: now,
     }).where(and(
       eq(attendanceExceptionEvents.id, row.id),

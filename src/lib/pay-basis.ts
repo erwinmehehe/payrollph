@@ -236,6 +236,51 @@ export function profileForDate(timeline: PayTimelineSegment[], workDate: string)
   return match.profile;
 }
 
+/**
+ * Resolves the payroll-grade pay profile for one historical or future work date.
+ *
+ * The current profile alone is not historical evidence: after a raise it holds
+ * the new rate. If the requested date predates the first revision, the first
+ * revision's previous profile is authoritative. Otherwise the latest revision
+ * effective on/before the date wins.
+ */
+export function effectivePayProfileForDate(input: {
+  currentProfile: EmployeePayProfileInput;
+  revisions: EffectivePayRevisionInput[];
+  workDate: string;
+}) {
+  const workDateValue = dateValue(input.workDate);
+  const revisions = [...input.revisions].sort(
+    (a, b) => dateValue(a.effectiveDate) - dateValue(b.effectiveDate),
+  );
+
+  const effective = revisions.filter(
+    (revision) => dateValue(revision.effectiveDate) <= workDateValue,
+  ).at(-1);
+  if (effective) {
+    return resolvePayProfile({
+      payBasis: effective.newPayBasis,
+      rateAmount: effective.newRateAmount,
+      standardWorkDaysPerMonth: effective.newStandardWorkDaysPerMonth,
+      standardHoursPerDay: effective.newStandardHoursPerDay,
+    });
+  }
+
+  const next = revisions.find(
+    (revision) => dateValue(revision.effectiveDate) > workDateValue,
+  );
+  if (next) {
+    return resolvePayProfile({
+      payBasis: next.previousPayBasis,
+      rateAmount: next.previousRateAmount,
+      standardWorkDaysPerMonth: next.previousStandardWorkDaysPerMonth,
+      standardHoursPerDay: next.previousStandardHoursPerDay,
+    });
+  }
+
+  return resolvePayProfile(input.currentProfile);
+}
+
 export function fixedMonthlyBasicForTimeline(
   timeline: PayTimelineSegment[],
   periodStart: string,

@@ -59,9 +59,25 @@ test("fresh tenant pilot stays out of demo provisioning and proves the five hand
   assert.ok(pilot.includes("owner-released-payroll"));
   assert.ok(pilot.includes("paymongo-preflight-fails-closed-without-provider-credentials"));
   assert.ok(pilot.includes("employee-payslip-available"));
+  assert.ok(pilot.includes("advanced-wfm-schedules-assigned"));
+  assert.ok(pilot.includes("wfm-attendance-exception-owned-with-sla"));
+  assert.ok(pilot.includes("wfm-self-service-schedule-scoped"));
+  assert.ok(pilot.includes("wfm-self-service-correction-requested"));
+  assert.ok(pilot.includes("/api/self/workforce"));
+  assert.ok(pilot.includes("wfm-attendance-correction-approved-four-eyes"));
+  assert.ok(pilot.includes("wfm-attendance-exception-resolution-evidence-recorded"));
+  assert.ok(pilot.includes("wfm-schedule-evidence-reconciled-into-payroll"));
+  assert.ok(pilot.includes("/api/workforce/attendance-exception-events"));
+  assert.ok(pilot.includes("exceptionOwnerUserId"));
+  assert.ok(pilot.includes("exceptionResolutionRecordedAt"));
+  assert.ok(pilot.includes('trace?.workforceSchedule?.mode'));
+  assert.ok(pilot.includes('"calendar-segmented"'));
   assert.ok(pilot.includes("isEncryptedBankAccount"));
   assert.ok(workflow.includes('DEMO_MODE: "false"'));
   assert.ok(workflow.includes("scripts/pilot-payroll-qa.ts"));
+  assert.ok(workflow.includes('"src/lib/workforce-**"'));
+  assert.ok(workflow.includes('"src/app/api/workforce/**"'));
+  assert.ok(workflow.includes('"tests/workforce-*.test.ts"'));
 });
 
 
