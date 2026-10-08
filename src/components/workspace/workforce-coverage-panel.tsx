@@ -230,6 +230,8 @@ type LaborVariance = {
 };
 
 type Payload = {
+  dynamicGroups: Array<{ id: number; code: string; name: string; version: number }>;
+  dynamicGroup: { id: number; code: string; name: string; version: number; memberCount: number; visibleMemberCount: number } | null;
   shifts: Shift[];
   worksites: Worksite[];
   jobProfiles: JobProfile[];
@@ -294,6 +296,7 @@ export function WorkforceCoveragePanel({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [simulateHighRisk, setSimulateHighRisk] = useState(false);
+  const [dynamicGroupCode, setDynamicGroupCode] = useState("");
 
   const [requirementDate, setRequirementDate] = useState(localToday());
   const [requirementWorksiteId, setRequirementWorksiteId] = useState("");
@@ -317,6 +320,7 @@ export function WorkforceCoveragePanel({
         startDate,
         endDate,
       });
+      if (dynamicGroupCode) params.set("dynamicGroupCode", dynamicGroupCode);
       const response = await fetch(`/api/workforce/coverage?${params.toString()}`, { cache: "no-store" });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Could not load coverage planning.");
@@ -326,7 +330,7 @@ export function WorkforceCoveragePanel({
     } finally {
       setLoading(false);
     }
-  }, [endDate, notify, organizationId, startDate]);
+  }, [dynamicGroupCode, endDate, notify, organizationId, startDate]);
 
   useEffect(() => {
     void load();
@@ -515,10 +519,34 @@ export function WorkforceCoveragePanel({
             Set minimum staffing by worksite, shift, and job profile; account for employee availability, expose role-specific roster gaps, and turn uncovered slots into auditable open shifts.
           </p>
         </div>
-        <button className="secondary-button" onClick={() => void load()} disabled={loading}>
-          {loading ? <Spinner label="Loading" /> : <RefreshCcw size={14} />} Refresh
-        </button>
+        <div className="run-actions" style={{ alignItems: "center" }}>
+          <label style={{ minWidth: 220 }}>
+            <span className="sr-only">Dynamic Group</span>
+            <select
+              value={dynamicGroupCode}
+              onChange={(event) => setDynamicGroupCode(event.target.value)}
+              aria-label="Filter workforce coverage by Dynamic Group"
+            >
+              <option value="">All eligible workers</option>
+              {(payload?.dynamicGroups ?? []).map((group) => (
+                <option key={group.id} value={group.code}>{group.name}</option>
+              ))}
+            </select>
+          </label>
+          <button className="secondary-button" onClick={() => void load()} disabled={loading}>
+            {loading ? <Spinner label="Loading" /> : <RefreshCcw size={14} />} Refresh
+          </button>
+        </div>
       </div>
+
+      {payload?.dynamicGroup && (
+        <div className="notice notice-slate" style={{ margin: "0 18px 14px" }}>
+          <UsersRound size={15} className="i-purple" />
+          <span>
+            <strong>Dynamic Group: {payload.dynamicGroup.name}.</strong> Coverage and recommendations are scoped to {payload.dynamicGroup.visibleMemberCount} worker(s) you can access from {payload.dynamicGroup.memberCount} live member(s). This selector narrows analysis only; it does not grant access or publish roster changes.
+          </span>
+        </div>
+      )}
 
       <section className="stats-grid" style={{ padding: "0 18px 18px" }}>
         <Metric label="Coverage gaps" value={String(gapCount)} hint={`${missingSlots} uncovered slot(s)`} icon={<CircleAlert size={16} />} tone={gapCount ? "amber" : "mint"} />

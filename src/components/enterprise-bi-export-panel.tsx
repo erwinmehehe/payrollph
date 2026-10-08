@@ -36,8 +36,10 @@ export function EnterpriseBiExportPanel({
   const [dataset, setDataset] = useState("payroll_runs");
   const [legalEntities, setLegalEntities] = useState<ScopeOption[]>([]);
   const [orgUnits, setOrgUnits] = useState<ScopeOption[]>([]);
+  const [dynamicGroups, setDynamicGroups] = useState<ScopeOption[]>([]);
   const [legalEntityId, setLegalEntityId] = useState("");
   const [orgUnitId, setOrgUnitId] = useState("");
+  const [dynamicGroupCode, setDynamicGroupCode] = useState("");
   const [format, setFormat] = useState("csv");
   const [startDate, setStartDate] = useState(isoDate(ninetyDaysAgo));
   const [endDate, setEndDate] = useState(isoDate(today));
@@ -55,6 +57,7 @@ export function EnterpriseBiExportPanel({
         setDefinitions(Array.isArray(payload.datasets) ? payload.datasets : []);
         setLegalEntities(Array.isArray(payload.scopes?.legalEntities) ? payload.scopes.legalEntities : []);
         setOrgUnits(Array.isArray(payload.scopes?.orgUnits) ? payload.scopes.orgUnits : []);
+        setDynamicGroups(Array.isArray(payload.scopes?.dynamicGroups) ? payload.scopes.dynamicGroups : []);
       } catch (error) {
         if (alive) notify(error instanceof Error ? error.message : "Could not load BI export definitions.", "err");
       } finally {
@@ -87,6 +90,7 @@ export function EnterpriseBiExportPanel({
     });
     if (legalEntityId) params.set("legalEntityId", legalEntityId);
     if (orgUnitId) params.set("orgUnitId", orgUnitId);
+    if (dynamicGroupCode && dataset !== "payroll_runs") params.set("dynamicGroupCode", dynamicGroupCode);
     setExporting(true);
     try {
       const response = await fetch(`/api/bi-exports?${params.toString()}`, { cache: "no-store" });
@@ -137,7 +141,11 @@ export function EnterpriseBiExportPanel({
         <div className="setting-form" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr" }}>
           <label>
             Dataset
-            <select value={dataset} disabled={loading} onChange={(event) => setDataset(event.target.value)}>
+            <select value={dataset} disabled={loading} onChange={(event) => {
+              const next = event.target.value;
+              setDataset(next);
+              if (next === "payroll_runs") setDynamicGroupCode("");
+            }}>
               {definitions.map((definition) => (
                 <option key={definition.key} value={definition.key}>{definition.name}</option>
               ))}
@@ -161,7 +169,7 @@ export function EnterpriseBiExportPanel({
           </label>
         </div>
 
-        <div className="setting-form" style={{ marginTop: 10, gridTemplateColumns: "1fr 1fr" }}>
+        <div className="setting-form" style={{ marginTop: 10, gridTemplateColumns: "1fr 1fr 1fr" }}>
           <label>
             Legal entity
             <select
@@ -187,6 +195,19 @@ export function EnterpriseBiExportPanel({
               <option value="">All organization units</option>
               {visibleOrgUnits.map((unit) => (
                 <option key={unit.id} value={unit.id}>{unit.code} · {unit.name}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Dynamic Group
+            <select
+              value={dynamicGroupCode}
+              disabled={dataset === "payroll_runs"}
+              onChange={(event) => setDynamicGroupCode(event.target.value)}
+            >
+              <option value="">{dataset === "payroll_runs" ? "Employee scope not applicable" : "All employees"}</option>
+              {dynamicGroups.map((group) => (
+                <option key={group.id} value={group.code}>{group.name} · {group.code}</option>
               ))}
             </select>
           </label>

@@ -46,7 +46,7 @@ test("BI export API is company-wide, MFA protected, bounded and tenant-scoped", 
   assert.ok(route.includes("legalEntities.organizationId"));
   assert.ok(route.includes("orgUnits.organizationId"));
   assert.ok(route.includes("validateBiExportFilters"));
-  assert.ok(route.includes("scopes: { legalEntities: entities, orgUnits: units }"));
+  assert.ok(route.includes("scopes: { legalEntities: entities, orgUnits: units, dynamicGroups:"));
   assert.ok(route.includes("The selected organization unit belongs to a different legal entity."));
 });
 

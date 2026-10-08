@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
@@ -101,6 +101,7 @@ export type BiExportFilters = {
   endDate: string;
   legalEntityId?: number | null;
   orgUnitId?: number | null;
+  dynamicGroupCode?: string | null;
 };
 
 type BiRow = Record<string, string | number | null>;
@@ -182,7 +183,8 @@ async function payrollRunRows(organizationId: number, filters: BiExportFilters):
   }));
 }
 
-async function payrollEntryRows(organizationId: number, filters: BiExportFilters): Promise<BiRow[]> {
+async function payrollEntryRows(organizationId: number, filters: BiExportFilters, employeeIds?: number[] | null): Promise<BiRow[]> {
+  if (employeeIds && employeeIds.length === 0) return [];
   const conditions = [
     eq(payrollRuns.organizationId, organizationId),
     gte(payrollRuns.payDate, filters.startDate),
@@ -190,6 +192,7 @@ async function payrollEntryRows(organizationId: number, filters: BiExportFilters
   ];
   if (filters.legalEntityId != null) conditions.push(eq(payrollRuns.legalEntityId, filters.legalEntityId));
   if (filters.orgUnitId != null) conditions.push(eq(payrollRuns.scopeOrgUnitId, filters.orgUnitId));
+  if (employeeIds) conditions.push(inArray(payrollEntries.employeeId, employeeIds));
 
   const rows = await db.select({
     payrollRunId: payrollRuns.id,
@@ -232,7 +235,8 @@ async function payrollEntryRows(organizationId: number, filters: BiExportFilters
   }));
 }
 
-async function timesheetRows(organizationId: number, filters: BiExportFilters): Promise<BiRow[]> {
+async function timesheetRows(organizationId: number, filters: BiExportFilters, employeeIds?: number[] | null): Promise<BiRow[]> {
+  if (employeeIds && employeeIds.length === 0) return [];
   const conditions = [
     eq(workforceTimesheets.organizationId, organizationId),
     lte(workforceTimesheets.periodStart, filters.endDate),
@@ -240,6 +244,7 @@ async function timesheetRows(organizationId: number, filters: BiExportFilters): 
   ];
   if (filters.legalEntityId != null) conditions.push(eq(employees.legalEntityId, filters.legalEntityId));
   if (filters.orgUnitId != null) conditions.push(eq(employees.orgUnitId, filters.orgUnitId));
+  if (employeeIds) conditions.push(inArray(workforceTimesheets.employeeId, employeeIds));
 
   const rows = await db.select({
     id: workforceTimesheets.id,
@@ -291,6 +296,7 @@ export async function runBiExport(input: {
   key: BiExportKey;
   organizationId: number;
   filters: BiExportFilters;
+  employeeIds?: number[] | null;
 }) {
   const definition = biExportDefinition(input.key);
   if (!definition) throw new Error("Unknown BI export dataset.");
@@ -299,8 +305,8 @@ export async function runBiExport(input: {
     input.key === "payroll_runs"
       ? await payrollRunRows(input.organizationId, input.filters)
       : input.key === "payroll_entries"
-        ? await payrollEntryRows(input.organizationId, input.filters)
-        : await timesheetRows(input.organizationId, input.filters);
+        ? await payrollEntryRows(input.organizationId, input.filters, input.employeeIds)
+        : await timesheetRows(input.organizationId, input.filters, input.employeeIds);
 
   if (rows.length > BI_EXPORT_MAX_ROWS) {
     throw new Error(`BI export exceeds the ${BI_EXPORT_MAX_ROWS.toLocaleString("en-US")} row limit. Narrow the date or scope filters.`);

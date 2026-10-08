@@ -14,6 +14,7 @@ import {
   type BiExportFormat,
   type BiExportKey,
 } from "@/lib/bi-exports";
+import { listDynamicWorkerGroups, resolveDynamicWorkerGroupMembers } from "@/lib/dynamic-worker-groups";
 import {
   enforceSensitiveActionRateLimit,
   requireSensitiveActionMfa,
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
 
   const key = String(url.searchParams.get("key") ?? "");
   if (!key) {
-    const [entities, units] = await Promise.all([
+    const [entities, units, dynamicGroups] = await Promise.all([
       db.select({
         id: legalEntities.id,
         code: legalEntities.code,
@@ -64,11 +65,12 @@ export async function GET(request: Request) {
       }).from(orgUnits)
         .where(eq(orgUnits.organizationId, organizationId))
         .orderBy(orgUnits.code),
+      listDynamicWorkerGroups(organizationId, true),
     ]);
     return Response.json({
       schemaVersion: BI_EXPORT_DEFINITIONS[0]?.schemaVersion ?? null,
       datasets: BI_EXPORT_DEFINITIONS,
-      scopes: { legalEntities: entities, orgUnits: units },
+      scopes: { legalEntities: entities, orgUnits: units, dynamicGroups: dynamicGroups.map((group) => ({ id: group.id, code: group.code, name: group.name, version: group.version })) },
       formats: ["csv", "ndjson", "json"],
       constraints: {
         maxRows: 50_000,
@@ -108,6 +110,7 @@ export async function GET(request: Request) {
     endDate: String(url.searchParams.get("endDate") ?? ""),
     legalEntityId: url.searchParams.get("legalEntityId") ? Number(url.searchParams.get("legalEntityId")) : null,
     orgUnitId: url.searchParams.get("orgUnitId") ? Number(url.searchParams.get("orgUnitId")) : null,
+    dynamicGroupCode: String(url.searchParams.get("dynamicGroupCode") ?? "").trim() || null,
   };
   const filterError = validateBiExportFilters(filters);
   if (filterError) return Response.json({ error: filterError }, { status: 400 });
@@ -138,12 +141,30 @@ export async function GET(request: Request) {
     }
   }
 
+  let dynamicSelection: Awaited<ReturnType<typeof resolveDynamicWorkerGroupMembers>> = null;
+  if (filters.dynamicGroupCode) {
+    if (key === "payroll_runs") {
+      return Response.json({
+        error: "Dynamic Group filtering is available only for employee-level payroll entries and workforce timesheets.",
+      }, { status: 400 });
+    }
+    dynamicSelection = await resolveDynamicWorkerGroupMembers({
+      organizationId,
+      code: filters.dynamicGroupCode,
+    });
+    if (!dynamicSelection) {
+      return Response.json({ error: "Dynamic Group not found or inactive." }, { status: 404 });
+    }
+    filters.dynamicGroupCode = dynamicSelection.group.code;
+  }
+
   let exported;
   try {
     const result = await runBiExport({
       key: key as BiExportKey,
       organizationId,
       filters,
+      employeeIds: dynamicSelection?.employeeIds ?? null,
     });
     exported = serializeBiExport({
       key: key as BiExportKey,
@@ -168,6 +189,7 @@ export async function GET(request: Request) {
       rowCount: exported.rowCount,
       sha256: exported.sha256,
       filters,
+      dynamicGroupMemberCount: dynamicSelection?.employeeIds.length ?? null,
       excludedSensitiveIdentifiers: true,
     },
   });
