@@ -256,6 +256,11 @@ export function matchApprovedLanguageTemplate(request: string): TypedAutomationL
   return matched ? templateDraft(matched.templateId) : null;
 }
 
+// Block common direct identifiers before any optional third-party model request.
+// This is a guardrail, not a general-purpose PII detector; the UI still requires
+// the administrator to avoid names and other sensitive employee details.
+const LIKELY_PERSONAL_DATA = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}|(?:\\+63|0)9[\\s-]?\\d{3}[\\s-]?\\d{3}[\\s-]?\\d{4}|\\b\\d{8,}\\b/i;
+
 const UNSAFE_DIRECT_REQUEST = /\b(bypass approval|skip (?:review|approval)|publish (?:it )?automatically|auto.?publish|execute immediately|send (?:money|payment|payout)|transfer funds)\b/i;
 
 export class LanguageDraftError extends Error {
@@ -340,12 +345,16 @@ export async function draftAutomationFromLanguage(request: string): Promise<Lang
   if (UNSAFE_DIRECT_REQUEST.test(prompt)) {
     throw new LanguageDraftError("Language drafting cannot bypass approval, publish, execute, or move money.", 422);
   }
+  if (LIKELY_PERSONAL_DATA.test(prompt)) {
+    throw new LanguageDraftError("Remove personal contact details and long identification/account numbers before drafting.", 422);
+  }
 
-  const configured = Boolean(process.env.OPENAI_API_KEY);
+  const configured = process.env.OPENAI_AUTOMATION_DRAFT_ENABLED === "true"
+    && Boolean(process.env.OPENAI_API_KEY);
   const proposed = configured ? await generateUsingModel(prompt) : matchApprovedLanguageTemplate(prompt);
   if (!proposed) {
     throw new LanguageDraftError(
-      "No drafting model is configured and this request does not match a supported, approved starter pattern. Use a workflow template or ask an administrator to configure the drafting model.",
+      "No drafting model is configured or enabled and this request does not match a supported, approved starter pattern. Use a workflow template or ask an administrator to configure the drafting model.",
       422,
     );
   }
