@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { readSignedCompensationRecoveryApprovalFile } from "./read-compensation-recovery-approval";
 import { retryUnstartedCompensationAutomationIntent } from "../src/lib/compensation-automation-outbox";
 
 async function main() {
@@ -14,8 +14,7 @@ async function main() {
     return;
   }
   try {
-    if (statSync(approvalFile).size > 8192) throw new Error("Oversized approval file.");
-    const approval: unknown = JSON.parse(readFileSync(approvalFile, "utf8"));
+    const approval = readSignedCompensationRecoveryApprovalFile(approvalFile);
     const result = await retryUnstartedCompensationAutomationIntent({
       organizationId, intentId, approval,
     });
