@@ -417,6 +417,7 @@ export function AutomationStudioPanel({
   const [impactPreview, setImpactPreview] = useState<ImpactPreviewResponse | null>(null);
   const [showBuilder, setShowBuilder] = useState(false);
   const [languageRequest, setLanguageRequest] = useState("");
+  const [safePromptConfirmed, setSafePromptConfirmed] = useState(false);
   const [languageProposal, setLanguageProposal] = useState<LanguageProposal | null>(null);
   const [draftingLanguage, setDraftingLanguage] = useState(false);
   const [savingLanguage, setSavingLanguage] = useState(false);
@@ -1050,17 +1051,25 @@ export function AutomationStudioPanel({
             What should happen?
             <textarea
               value={languageRequest}
-              onChange={(event) => { setLanguageRequest(event.target.value); setLanguageProposal(null); }}
+              onChange={(event) => { setLanguageRequest(event.target.value); setLanguageProposal(null); setSafePromptConfirmed(false); }}
               rows={3}
               maxLength={2000}
               style={{ display: "block", width: "100%", marginTop: 6 }}
               placeholder="When a new employee is hired, create an onboarding checklist and send them a welcome email."
             />
           </label>
-          <p className="modal-note" style={{ marginBottom: 12 }}>Describe policies and events, not individual employees. Do not include names, IDs, bank details, payroll figures or other personal data in AI drafting requests.</p>
+          <p className="modal-note" style={{ marginBottom: 12 }}>Describe policies and events, not individual employees. If enabled by the administrator, the request is sent to an external AI provider. Do not include names, IDs, bank details, payroll figures or other personal data.</p>
+          <label style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12 }}>
+            <input
+              type="checkbox"
+              checked={safePromptConfirmed}
+              onChange={(event) => setSafePromptConfirmed(event.target.checked)}
+            />
+            I confirm this request has no employee personal or sensitive payroll information.
+          </label>
           <div className="run-actions">
             <button type="button" className="secondary-button"
-              disabled={draftingLanguage || languageRequest.trim().length < 12}
+              disabled={draftingLanguage || languageRequest.trim().length < 12 || !safePromptConfirmed}
               onClick={() => void generateLanguageProposal()}>
               <Bot size={14} /> {draftingLanguage ? "Drafting…" : "Generate typed draft"}
             </button>
