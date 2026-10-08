@@ -42,7 +42,8 @@ import {
   type AutomationWorkflowStep,
 } from "@/lib/automation";
 import { AUTOMATION_DOCUMENT_TEMPLATES } from "@/lib/automation-document-templates";
-import { draftAutomationFromLanguage, LanguageDraftError } from "@/lib/automation-language-draft";
+import { draftAutomationFromLanguage, LanguageDraftError, validateNaturalLanguageDraft } from "@/lib/automation-language-draft";
+import { fingerprintLanguageProposal, issueLanguageProposalReceipt, verifyLanguageProposalReceipt } from "@/lib/automation-language-proposal-receipt";
 import { fingerprintAutomationDraft, issueAutomationPreviewReceipt, verifyAutomationPreviewReceipt } from "@/lib/automation-preview-approval";
 import {
   AUTOMATION_WORKFLOW_TEMPLATES,
@@ -797,10 +798,78 @@ export async function POST(request: Request) {
           // Never log a raw prompt, employee detail, or model response.
         },
       });
-      return Response.json(result);
+      const proposalReceipt = issueLanguageProposalReceipt({
+        organizationId,
+        actorUserId: user.id,
+        sessionId: user.sessionId,
+        sessionToken: user.sessionToken,
+        draftHash: fingerprintLanguageProposal(result.draft),
+      }, result.source);
+      return Response.json({ ...result, proposalReceipt });
     } catch (error) {
       if (error instanceof LanguageDraftError) {
         return Response.json({ error: error.message }, { status: error.status });
+      }
+      throw error;
+    }
+  }
+
+  if (action === "save-language-draft") {
+    // A model proposal cannot be substituted for a different workflow or activated at save.
+    const validation = validateNaturalLanguageDraft(body.draft);
+    if (!validation.valid || !validation.draft) {
+      return Response.json({
+        error: "The language proposal is no longer a valid typed workflow. Generate and review it again.",
+        validationErrors: validation.errors,
+      }, { status: 400 });
+    }
+    const draft = validation.draft;
+    const source = verifyLanguageProposalReceipt(body.proposalReceipt, {
+      organizationId,
+      actorUserId: user.id,
+      sessionId: user.sessionId,
+      sessionToken: user.sessionToken,
+      draftHash: fingerprintLanguageProposal(draft),
+    });
+    if (!source) {
+      return Response.json({
+        error: "Language proposal proof is missing, expired, or does not match this exact definition. Generate a new proposal.",
+      }, { status: 409 });
+    }
+
+    try {
+      const result = await saveAutomationRuleDraft({
+        organizationId,
+        name: draft.name,
+        trigger: draft.trigger,
+        conditions: draft.conditions,
+        actions: draft.actions,
+        active: false,
+        actorUserId: user.id,
+      });
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Automation Studio signed language draft saved",
+        resource: result.draft.name,
+        metadata: {
+          ruleId: result.rule.id,
+          draftVersion: result.draft.version,
+          source,
+          trigger: draft.trigger,
+          active: false,
+          actionTypes: draft.actions.map((item) => item.type),
+        },
+      });
+      return Response.json(result, { status: 201 });
+    } catch (error) {
+      if (error instanceof AutomationVersionError) {
+        return Response.json({ error: error.message }, { status: error.status });
+      }
+      if (uniqueConstraintViolation(error)) {
+        return Response.json({
+          error: "Another Automation Studio rule already uses this name. Generate or choose a different workflow.",
+        }, { status: 409 });
       }
       throw error;
     }
