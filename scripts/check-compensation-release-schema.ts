@@ -1,3 +1,4 @@
+import type { PoolClient } from "pg";
 import { pool } from "../src/db";
 import {
   inspectCompensationOutboxSchema,
@@ -10,7 +11,7 @@ import {
  * or fabricate an operational acceptance certificate.
  */
 async function main() {
-  let client: Awaited<ReturnType<typeof pool.connect>> | undefined;
+  let client: PoolClient | undefined;
   try {
     client = await pool.connect();
     await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY");
