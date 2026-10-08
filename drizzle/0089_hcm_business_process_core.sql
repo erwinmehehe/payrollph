@@ -70,6 +70,7 @@ CREATE TABLE IF NOT EXISTS "hcm_business_process_instance_steps" (
   "step_type" varchar(24) NOT NULL,
   "label" varchar(120) NOT NULL,
   "assignee" varchar(120) NOT NULL,
+  "priority" varchar(16) NOT NULL DEFAULT 'Normal',
   "status" varchar(24) NOT NULL DEFAULT 'waiting',
   "due_at" timestamptz,
   "approval_task_id" integer REFERENCES "approval_tasks"("id") ON DELETE set null,
