@@ -2,6 +2,7 @@ import { and, eq, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
+  auditEvents,
   compensationBands,
   compensationEvents,
   compensationProposals,
@@ -369,6 +370,163 @@ export async function applyScheduledCompensationProposal(
   });
 
   return { ...result, automation, fieldChangeAutomation, warnings };
+}
+
+
+export type RecurringCompensationDecision = "approve" | "decline" | "cancel";
+
+/**
+ * Recurring compensation is already read by payroll when scheduled, so a
+ * status change and every affected payroll reset must commit together.
+ *
+ * The same (4222, assignmentId) transaction lock is held by the activation
+ * scheduler. Authorization/scope are checked in the route and the authoritative
+ * tenant, maker-checker, date and status conditions are rechecked here.
+ */
+export async function decideRecurringCompensationComponent(input: {
+  assignmentId: number;
+  organizationId: number;
+  employeeId: number;
+  decision: RecurringCompensationDecision;
+  actorUserId: number;
+  actorName: string;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const today = philippineBusinessDate(now);
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(4222, ${input.assignmentId})`);
+
+    const [current] = await tx.select().from(employeeCompensationComponents).where(and(
+      eq(employeeCompensationComponents.id, input.assignmentId),
+      eq(employeeCompensationComponents.organizationId, input.organizationId),
+      eq(employeeCompensationComponents.employeeId, input.employeeId),
+    )).limit(1);
+    if (!current) throw new Error("COMPONENT_ASSIGNMENT_STALE");
+
+    const [worker] = await tx.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
+      eq(employees.id, current.employeeId),
+      eq(employees.organizationId, current.organizationId),
+    )).limit(1);
+    if (!worker) throw new Error("COMPONENT_EMPLOYEE_STALE");
+
+    const effectiveFrom = String(current.effectiveFrom);
+    const effectiveUntil = current.effectiveUntil ? String(current.effectiveUntil) : null;
+    let nextStatus: "active" | "scheduled" | "declined" | "cancelled";
+
+    if (input.decision === "approve") {
+      if (current.status !== "pending_approval") throw new Error("COMPONENT_ASSIGNMENT_STALE");
+      if (current.requestedByUserId === input.actorUserId) throw new Error("COMPONENT_MAKER_CHECKER_CONFLICT");
+      if (effectiveFrom < today) throw new Error("COMPONENT_APPROVAL_RETROACTIVE");
+      nextStatus = effectiveFrom <= today ? "active" : "scheduled";
+    } else if (input.decision === "decline") {
+      if (current.status !== "pending_approval") throw new Error("COMPONENT_ASSIGNMENT_STALE");
+      nextStatus = "declined";
+    } else {
+      if (current.status !== "pending_approval" && current.status !== "scheduled") {
+        throw new Error("COMPONENT_ASSIGNMENT_STALE");
+      }
+      // Scheduled rows are payroll-visible on the original effective date,
+      // even before the activation scheduler runs. Past changes need a signed
+      // correction/retro workflow, not a silent cancellation.
+      if (current.status === "scheduled" && effectiveFrom < today) {
+        throw new Error("COMPONENT_CANCELLATION_RETROACTIVE");
+      }
+      nextStatus = "cancelled";
+    }
+
+    let invalidatedPayrollRunIds: number[] = [];
+    if (input.decision === "approve" || (input.decision === "cancel" && current.status === "scheduled")) {
+      const affectedRuns = await compensationPayrollConflicts({
+        organizationId: current.organizationId,
+        employeeOrgUnitId: worker.orgUnitId,
+        effectiveFrom,
+        effectiveUntil,
+      }, tx);
+      invalidatedPayrollRunIds = await invalidatePayrollRunsForCompensationChange(
+        current.organizationId,
+        affectedRuns,
+        tx,
+      );
+    }
+
+    const mutation = input.decision === "approve"
+      ? {
+          status: nextStatus,
+          approvedByUserId: input.actorUserId,
+          approvedBy: input.actorName,
+          approvedAt: now,
+          activatedAt: nextStatus === "active" ? now : null,
+          updatedAt: now,
+        }
+      : input.decision === "decline"
+        ? {
+            status: nextStatus,
+            approvedByUserId: input.actorUserId,
+            approvedBy: input.actorName,
+            approvedAt: now,
+            updatedAt: now,
+          }
+        : {
+            status: nextStatus,
+            cancelledByUserId: input.actorUserId,
+            cancelledBy: input.actorName,
+            cancelledAt: now,
+            updatedAt: now,
+          };
+
+    const [updated] = await tx.update(employeeCompensationComponents).set(mutation).where(and(
+      eq(employeeCompensationComponents.id, current.id),
+      eq(employeeCompensationComponents.organizationId, current.organizationId),
+      eq(employeeCompensationComponents.status, current.status),
+    )).returning();
+    if (!updated) throw new Error("COMPONENT_ASSIGNMENT_STALE");
+
+    if (input.decision !== "decline") {
+      await tx.insert(compensationEvents).values({
+        organizationId: updated.organizationId,
+        employeeId: updated.employeeId,
+        eventType: input.decision === "approve"
+          ? nextStatus === "active" ? "component_activated" : "component_scheduled"
+          : "component_cancelled",
+        effectiveDate: effectiveFrom,
+        componentAssignmentId: updated.id,
+        metadata: {
+          componentId: updated.componentId,
+          amount: Number(updated.amount),
+          effectiveUntil: updated.effectiveUntil,
+          reason: updated.reason,
+          invalidatedPayrollRunIds,
+        },
+        actorUserId: input.actorUserId,
+        actorName: input.actorName,
+      });
+    }
+
+    const auditAction = input.decision === "approve"
+      ? nextStatus === "active"
+        ? "Recurring compensation component approved and activated"
+        : "Recurring compensation component approved and scheduled"
+      : input.decision === "decline"
+        ? "Recurring compensation component declined"
+        : "Recurring compensation component cancelled";
+    await tx.insert(auditEvents).values({
+      organizationId: updated.organizationId,
+      actor: input.actorName,
+      action: auditAction,
+      resource: "Employee #" + updated.employeeId,
+      metadata: {
+        componentAssignmentId: updated.id,
+        componentId: updated.componentId,
+        effectiveFrom,
+        decision: input.decision,
+        invalidatedPayrollRunIds,
+      },
+    });
+
+    return { assignment: updated, nextStatus, invalidatedPayrollRunIds };
+  });
 }
 
 export async function activateCompensationComponentAssignment(
