@@ -20,9 +20,10 @@ export default function WorkforceAnalyticsPage() {
         }}
       />
       <SeoLandingPage
+      workflow={{"title":"Explain a payroll change before the next decision.","steps":[{"title":"Choose the comparison","owner":"Payroll or finance","detail":"Review recorded payroll periods and the organization scope relevant to your question."},{"title":"Investigate the movement","owner":"Authorized reviewer","detail":"Inspect cost totals, headcount and payroll variance categories rather than relying on a single headline number."},{"title":"Prepare the handoff","owner":"Finance team","detail":"Export supported report results as CSV and retain the audit record of the export."}]}}
       simulationArea="reports"
         eyebrow="Workforce analytics Philippines"
-        title="Understand the change. Prepare the handoff."
+        title="What changed in payroll—and what needs a closer look?"
         intro="Linaw's analytics layer focuses on operational reporting: headcount movement, payroll cost history, workforce-status indicators, compliance exceptions and payroll variance. The reports come from organization-scoped application data rather than a separate predictive analytics product."
         proof={[
           "Headcount movement report",

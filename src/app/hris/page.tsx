@@ -44,6 +44,7 @@ export default function HrisPage() {
         faq={faq}
       />
       <SeoLandingPage
+      workflow={{"title":"From a roster import to a payroll-ready employee.","steps":[{"title":"Validate the roster","owner":"HR administrator","detail":"Import employee records, review row-level issues and match employee numbers before applying updates."},{"title":"Prepare the record","owner":"HR + payroll","detail":"Review employment details, pay configuration and organization scope before the next cutoff."},{"title":"Control the handoff","owner":"Authorized team","detail":"Keep sensitive changes traceable and connect the record to employee self-service."}]}}
       simulationArea="people"
       eyebrow="HRIS Philippines"
       title="HRIS software connected to the payroll work that follows."
