@@ -244,7 +244,7 @@ export default async function PricingPage() {
 
         <section className="py-16 sm:py-20">
           <div className="mx-auto max-w-[920px] px-5 sm:px-8">
-            <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Pricing FAQ</p>
+            <div className="mb-10 border-b border-[#E6E8F0] pb-8"><h2 className="font-display text-[28px] font-semibold">Compare the whole proposal, not just the monthly figure.</h2><p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">Use the current catalog for software estimates. Confirm the following in your written proposal before choosing an operating model.</p><ul className="mt-5 grid gap-3 text-[14px] leading-relaxed text-[#5B6080] sm:grid-cols-2">{["Headcount, entities and included modules", "Implementation scope and any one-time charges", "Support arrangements and ongoing responsibilities", "Software subscription versus managed payroll service", "Taxes, billing terms and any additional charges", "Migration, reconciliation and go-live ownership"].map(item => <li key={item} className="border-l-2 border-[#10b8a0] pl-3">{item}</li>)}</ul><Link href="/book-demo" className="mt-5 inline-block text-[14px] font-semibold text-[#0868dc]">Review your operating model ↗</Link></div><p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Pricing FAQ</p>
             <h2 className="font-display mt-2 text-[34px] font-semibold tracking-[-0.035em] sm:text-[42px]">
               Questions to settle before choosing a plan.
             </h2>

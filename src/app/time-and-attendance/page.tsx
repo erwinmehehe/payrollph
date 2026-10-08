@@ -44,6 +44,7 @@ export default function TimeAttendancePage() {
         faq={faq}
       />
       <SeoLandingPage
+      workflow={{"title":"A missing punch should lead to a decision.","steps":[{"title":"Spot the exception","owner":"Time administrator","detail":"Review recorded punches against the schedule and identify incomplete sequences."},{"title":"Review the correction","owner":"Authorized reviewer","detail":"Resolve the exception through the attendance workflow, retaining the decision evidence."},{"title":"Prepare payroll inputs","owner":"Payroll team","detail":"Review derived hours and remaining exceptions before calculating and releasing the run."}]}}
       simulationArea="attendance"
       eyebrow="Timekeeping system Philippines"
       title="Time and attendance that payroll can actually use."

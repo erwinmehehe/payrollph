@@ -58,11 +58,12 @@ export default function ImplementationPage() {
       sections={[
         {
           title: "1. Map the current payroll operation",
-          body: "Start with pay frequency, employee structure, schedules, approval roles, benefits, deductions, payroll outputs and the data that must move.",
+          body: "Start with pay frequency, employee structure, schedules, approval roles, benefits, deductions, payroll outputs and the data that must move. Agree the implementation scope and responsibilities before setting a go-live date.",
         },
         {
           title: "2. Import and validate employee data",
           body: "Use the employee import workflow to map existing roster data, identify row-level issues and avoid accidental duplicate employees.",
+          bullets: ["Your team: provide approved records and opening balances", "Implementation owner: map fields and resolve validation issues", "Payroll reviewer: confirm imported totals before the comparison run"],
         },
         {
           title: "3. Configure roles and payroll controls",
@@ -75,6 +76,7 @@ export default function ImplementationPage() {
         {
           title: "5. Make go-live an explicit evidence-based decision",
           body: "A configured workspace is not the same as a proven payroll operation. Record remaining blockers, assign owners and approve go-live only after the required reconciliation and external dependencies are understood.",
+          bullets: ["Reconciled gross, deductions, contributions, tax and net pay", "Confirmed approver, funding and output responsibilities", "Agreed correction process and escalation contacts", "Explicit approval to use the first production run"],
         },
       ]}
       faq={faq}

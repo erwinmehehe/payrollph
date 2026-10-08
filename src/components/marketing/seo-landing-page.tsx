@@ -23,6 +23,8 @@ export type SeoDirectoryGroup = {
 };
 
 type Props = {
+  workflow?: { title: string; steps: Array<{ title: string; owner: string; detail: string }> };
+  directoryTitle?: string;
   simulationArea?: ProductSimulationArea;
   eyebrow: string;
   title: string;
@@ -39,6 +41,8 @@ type Props = {
 };
 
 export function SeoLandingPage({
+  workflow,
+  directoryTitle = "Find the compliance workflow you actually need.",
   simulationArea,
   eyebrow,
   title,
@@ -104,6 +108,7 @@ export function SeoLandingPage({
           </div>
         </section>
 
+        {workflow ? <section className="le-workflow" aria-label={workflow.title}><p className="le-workflow-eyebrow">A workflow to try</p><h2>{workflow.title}</h2><ol>{workflow.steps.map((step, index) => <li key={step.title}><span className="le-workflow-step">{String(index + 1).padStart(2, "0")}</span><p className="le-workflow-owner">{step.owner}</p><h3>{step.title}</h3><p>{step.detail}</p></li>)}</ol></section> : null}
         {simulationArea ? <ProductSimulation area={simulationArea} /> : null}
 
         <section className="le-capabilities">
@@ -115,7 +120,7 @@ export function SeoLandingPage({
             <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
               <p className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#7C82A1]">Browse this topic</p>
               <h2 className="font-display mt-2 max-w-[760px] text-[32px] font-semibold tracking-[-0.035em] sm:text-[40px]">
-                Find the compliance workflow you actually need.
+                {directoryTitle}
               </h2>
               <div className="mt-8 divide-y divide-[#E3E5EE] border-y border-[#E3E5EE]">
                 {directoryGroups.map((group) => (
@@ -201,13 +206,13 @@ export function SeoLandingPage({
 
         <section className="py-14 sm:py-16">
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
-            <div className="flex flex-col gap-5 rounded-[28px] bg-[#11141F] p-7 text-white sm:flex-row sm:items-center sm:justify-between sm:p-8">
+            <div className="linaw-dark-callout flex flex-col gap-5 rounded-[28px] bg-[#11141F] p-7 text-white sm:flex-row sm:items-center sm:justify-between sm:p-8">
               <div>
                 <h2 className="font-display text-[28px] font-semibold tracking-[-0.035em]">{ctaTitle}</h2>
                 <p className="mt-2 max-w-[720px] text-[14px] leading-relaxed text-white/60">{ctaBody}</p>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2.5">
-                <Link href="/demo" className="rounded-full bg-white px-5 py-3 text-[13.5px] font-semibold text-[#11141F]">Open live demo</Link>
+                <Link href="/demo" className="linaw-light-button rounded-full bg-white px-5 py-3 text-[13.5px] font-semibold text-[#11141F]">Open live demo</Link>
                 <Link href="/book-demo" className="rounded-full border border-white/20 bg-white/10 px-5 py-3 text-[13.5px] font-semibold text-white">Book walkthrough</Link>
               </div>
             </div>

@@ -44,17 +44,18 @@ export default function EmployeeSelfServicePage() {
         faq={faq}
       />
       <SeoLandingPage
+      workflow={{"title":"Answer “what was I paid?” without another email.","steps":[{"title":"Open your own portal","owner":"Employee","detail":"Sign in to the personal view linked to your employee record."},{"title":"Inspect the pay period","owner":"Employee","detail":"Review released payslip details, deductions and available year-to-date figures."},{"title":"Keep your copy","owner":"Employee","detail":"Download the PDF payslip for your records. Company-wide payroll stays with authorized staff."}]}}
       simulationArea="employee"
       eyebrow="Employee self-service Philippines"
-      title="A payroll self-service portal scoped to the employee who signed in."
-      intro="Linaw gives employees direct access to their own payroll information while server-side employee scoping prevents the portal from trusting a client-supplied employee ID."
+      title="Your payslip. Your pay history. Your own view."
+      intro="Give employees a clear place to review their released payslips, deductions and year-to-date figures. Personal access keeps company-wide payroll information with the authorized team."
       proof={[
         "Personal payslip history",
         "Downloadable PDF payslips",
         "Year-to-date gross, net and tax figures",
         "Per-period payroll line items",
-        "Employee-scoped API access",
-        "404 behavior for inaccessible colleague payslips",
+        "Personal employee access",
+        "Company payroll access stays separate",
       ]}
       sections={[
         {
