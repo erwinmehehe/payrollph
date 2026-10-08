@@ -35,7 +35,9 @@ type Provider = {
 type Domain = { id: number; providerId: number; domain: string; verified: boolean; verifiedAt: string | null };
 type ScimToken = { id: number; name: string; prefix: string; lastUsedAt: string | null; revokedAt: string | null; createdAt: string };
 type PermissionSet = { id: number; name: string; description: string | null; permissions: unknown; active: boolean };
-type PermissionAssignment = { id: number; userOrganizationId: number; permissionSetId: number };
+type PermissionAssignment = { id: number; userOrganizationId: number; permissionSetId: number; dynamicGroupId: number | null; dynamicGroupVersion: number | null };
+type WorkerIdentity = { id: number; employeeNo: string; name: string; orgUnitId: number | null; status: string };
+type DynamicGroupOption = { id: number; code: string; name: string; active: boolean; version: number };
 type Member = {
   membershipId: number;
   userId: number;
@@ -43,6 +45,8 @@ type Member = {
   name: string;
   role: string;
   orgUnitId: number | null;
+  workerEmployeeId: number | null;
+  employeeLoginId: number | null;
   active: boolean;
   membershipActive: boolean;
   localPasswordEnabled: boolean;
@@ -65,6 +69,8 @@ type EnterpriseData = {
   scimTokens: ScimToken[];
   permissionSets: PermissionSet[];
   permissionAssignments: PermissionAssignment[];
+  dynamicGroups: DynamicGroupOption[];
+  workerIdentities: WorkerIdentity[];
   members: Member[];
   automationRules: AutomationRule[];
   automationExecutions: Execution[];
@@ -244,12 +250,33 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not save permission set."); }
   }
 
-  async function assignPermission(membershipId: number, permissionSetId: string) {
+  async function assignPermission(membershipId: number, permissionSetId: string, dynamicGroupId: string) {
     try {
-      await mutate({ action: "assign-permission-set", membershipId, permissionSetId: permissionSetId ? Number(permissionSetId) : null });
+      await mutate({
+        action: "assign-permission-set",
+        membershipId,
+        permissionSetId: permissionSetId ? Number(permissionSetId) : null,
+        dynamicGroupId: permissionSetId && dynamicGroupId ? Number(dynamicGroupId) : null,
+      });
       await load();
-      setNotice(permissionSetId ? "Permission restriction assigned." : "Custom permission restriction cleared.");
+      setNotice(permissionSetId
+        ? "Deny-only permission assignment saved with its optional live Dynamic Group guard."
+        : "Custom permission restriction cleared.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not assign permission set."); }
+  }
+
+  async function linkMembershipWorker(membershipId: number, employeeId: string) {
+    try {
+      await mutate({
+        action: "link-membership-worker",
+        membershipId,
+        employeeId: employeeId ? Number(employeeId) : null,
+      });
+      await load();
+      setNotice("Account-to-worker identity updated. This is not a role or permission grant.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not link member to an authoritative employee.");
+    }
   }
 
   async function saveRule(event: React.FormEvent) {
@@ -431,7 +458,7 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
 
       <section className="module-grid two" style={{ marginTop: 16 }}>
         <article className="card">
-          <div className="card-header"><div><div className="card-kicker">CUSTOM PERMISSIONS</div><h2>Deny-only role restrictions</h2><p>A permission set can remove powers from the member's base role; it can never grant a power the role did not already have.</p></div><button className="secondary-button" onClick={() => setShowPermission(!showPermission)}>New set</button></div>
+          <div className="card-header"><div><div className="card-kicker">CUSTOM PERMISSIONS</div><h2>Deny-only role restrictions</h2><p>A permission set can only narrow the member's base role. An optional live Dynamic Group requirement narrows it further and stops access if the worker loses membership, changes scope, or the group version changes.</p></div><button className="secondary-button" onClick={() => setShowPermission(!showPermission)}>New set</button></div>
           {showPermission && <form onSubmit={savePermission} style={{ padding: "0 16px 14px" }}>
             <div className="setting-form">
               <label>Name<input required value={permissionForm.name} onChange={(e) => setPermissionForm({ ...permissionForm, name: e.target.value })} placeholder="HR without payroll" /></label>
@@ -446,11 +473,62 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
             <div className="run-actions"><button type="button" className="secondary-button" onClick={() => setShowPermission(false)}>Cancel</button><button className="primary-button">Save set</button></div>
           </form>}
           {data.permissionSets.map((set) => <div className="leave-request" key={set.id}><div className="inline-icon purple"><UserCog size={16} /></div><div><strong>{set.name}</strong><span>{Array.isArray(set.permissions) ? set.permissions.length : 0} allowed role gates · {set.active ? "active" : "inactive"}</span></div></div>)}
+          <div className="notice notice-slate" style={{ marginBottom: 10 }}>
+            <ShieldCheck size={15} />
+            <span>Group guards require an explicitly linked worker identity. Another administrator must link your own account; owner accounts cannot be group-gated. A group never grants a permission or payroll release authority.</span>
+          </div>
           <div className="data-table-wrap"><table className="data-table">
-            <thead><tr><th>MEMBER</th><th>BASE ROLE</th><th>RESTRICTION</th></tr></thead>
+            <thead><tr><th>MEMBER</th><th>BASE ROLE</th><th>VERIFIED WORKER</th><th>RESTRICTION</th><th>DYNAMIC GROUP GUARD</th></tr></thead>
             <tbody>{data.members.map((member) => {
               const assignment = assignmentByMembership.get(member.membershipId);
-              return <tr key={member.membershipId}><td><strong>{member.name}</strong><small style={{ display: "block", color: "var(--muted)" }}>{member.email}</small></td><td>{member.role}{!member.membershipActive && <small style={{ display: "block", color: "var(--muted)" }}>deprovisioned</small>}</td><td><select disabled={!member.membershipActive} value={assignment?.permissionSetId ?? ""} onChange={(e) => void assignPermission(member.membershipId, e.target.value)}><option value="">Base role only</option>{data.permissionSets.filter((set) => set.active).map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}</select></td></tr>;
+              const workerId = member.workerEmployeeId ?? (member.role === "employee" ? member.employeeLoginId : null);
+              return <tr key={member.membershipId}>
+                <td><strong>{member.name}</strong><small style={{ display: "block", color: "var(--muted)" }}>{member.email}</small></td>
+                <td>{member.role}{!member.membershipActive && <small style={{ display: "block", color: "var(--muted)" }}>deprovisioned</small>}</td>
+                <td>
+                  <select
+                    disabled={!member.membershipActive || member.role === "employee"}
+                    value={member.workerEmployeeId ?? ""}
+                    onChange={(e) => void linkMembershipWorker(member.membershipId, e.target.value)}
+                    aria-label={`Authoritative worker for ${member.name}`}
+                  >
+                    <option value="">Not linked</option>
+                    {data.workerIdentities.filter((worker) =>
+                      worker.status === "Active" &&
+                      (member.orgUnitId == null || worker.orgUnitId === member.orgUnitId)
+                    ).map((worker) => (
+                      <option value={worker.id} key={worker.id}>{worker.employeeNo} · {worker.name}</option>
+                    ))}
+                  </select>
+                  {workerId != null && <small style={{ display: "block", color: "var(--muted)" }}>Worker #{workerId}</small>}
+                </td>
+                <td>
+                  <select disabled={!member.membershipActive} value={assignment?.permissionSetId ?? ""}
+                    aria-label={`Permission restriction for ${member.name}`}
+                    onChange={(e) => void assignPermission(
+                      member.membershipId,
+                      e.target.value,
+                      assignment?.dynamicGroupId ? String(assignment.dynamicGroupId) : "",
+                    )}>
+                    <option value="">Base role only</option>
+                    {data.permissionSets.filter((set) => set.active).map((set) => <option key={set.id} value={set.id}>{set.name}</option>)}
+                  </select>
+                </td>
+                <td>
+                  <select
+                    disabled={!member.membershipActive || !assignment?.permissionSetId || member.role === "owner"}
+                    value={assignment?.dynamicGroupId ?? ""}
+                    aria-label={`Dynamic Group guard for ${member.name}`}
+                    onChange={(e) => void assignPermission(member.membershipId, String(assignment?.permissionSetId ?? ""), e.target.value)}
+                  >
+                    <option value="">No group guard</option>
+                    {data.dynamicGroups.filter((group) => group.active).map((group) => (
+                      <option value={group.id} key={group.id}>{group.name} · v{group.version}</option>
+                    ))}
+                  </select>
+                  {assignment?.dynamicGroupId != null && <small style={{ display: "block", color: "var(--muted)" }}>Frozen at group v{assignment.dynamicGroupVersion}</small>}
+                </td>
+              </tr>;
             })}</tbody>
           </table></div>
         </article>
