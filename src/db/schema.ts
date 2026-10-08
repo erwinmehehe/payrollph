@@ -230,6 +230,43 @@ export const employees = pgTable("employees", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const employeeMweClassifications = pgTable(
+  "employee_mwe_classifications",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    isMwe: boolean("is_mwe").notNull(),
+    region: varchar("region", { length: 32 }).notNull(),
+    employeeDailyWage: numeric("employee_daily_wage", { precision: 10, scale: 2 }).notNull(),
+    statutoryMinimumWage: numeric("statutory_minimum_wage", { precision: 10, scale: 2 }).notNull(),
+    wageOrderReference: varchar("wage_order_reference", { length: 160 }).notNull(),
+    evidenceReference: text("evidence_reference").notNull(),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    requestedByName: varchar("requested_by_name", { length: 120 }).notNull(),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedByName: varchar("decided_by_name", { length: 120 }),
+    decisionNote: text("decision_note"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("employee_mwe_classifications_employee_date_idx").on(table.organizationId, table.employeeId, table.effectiveFrom),
+    index("employee_mwe_classifications_status_idx").on(table.organizationId, table.status, table.effectiveFrom),
+    uniqueIndex("employee_mwe_classifications_open_effective_unique")
+      .on(table.employeeId, table.effectiveFrom)
+      .where(sql`${table.status} in ('pending','approved')`),
+    check("employee_mwe_classifications_status_check", sql`${table.status} in ('pending','approved','rejected','superseded')`),
+    check("employee_mwe_classifications_dates_check", sql`${table.effectiveUntil} is null or ${table.effectiveUntil} >= ${table.effectiveFrom}`),
+    check("employee_mwe_classifications_wages_check", sql`${table.employeeDailyWage} > 0 and ${table.statutoryMinimumWage} > 0`),
+  ],
+);
+
 export const employeeWorksiteAssignments = pgTable(
   "employee_worksite_assignments",
   {

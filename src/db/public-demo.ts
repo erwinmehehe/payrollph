@@ -347,7 +347,10 @@ export async function ensurePublicDemoTenant() {
         status: person.status,
         avatarInitials: person.initials,
         basicRate: person.basicRate,
-        mwe: index === 5,
+        // MWE is a statutory classification, not a low-income label. Rico's
+        // demo pay is above the stored NCR minimum-wage screen, so the sandbox
+        // must not carry the old illustrative MWE=true flag.
+        mwe: false,
         // The hosted sandbox contains no payout destination or government-ID
         // values at all. This keeps the public demo usable without production
         // encryption keys without weakening any real-customer storage rule.
