@@ -212,47 +212,48 @@ function templateDraft(templateId: string): TypedAutomationLanguageDraft | null 
   };
 }
 
-/** Keyless fallback deliberately matches ONLY complete, pre-reviewed template intents. */
+/** Without a model, only these COMPLETE, unqualified expressions match.
+ * Broad keyword overlap must never silently omit conditions, action steps or scope.
+ * For all other requests, use the existing hand-reviewed template picker.
+ */
+const APPROVED_LANGUAGE_PATTERNS: ReadonlyArray<{
+  expression: RegExp;
+  templateId: string;
+}> = [
+  {
+    expression: /^when (?:a )?new employee is hired,? create an onboarding checklist and send (?:them|the employee) a welcome email$/,
+    templateId: "people-new-hire-core-onboarding",
+  },
+  {
+    expression: /^when an employee is promoted,? create a people ops verification task and notify (?:their|the) manager$/,
+    templateId: "people-promotion-control-check",
+  },
+  {
+    expression: /^when (?:a )?contribution discrepancy is detected,? create a compliance task and request approval$/,
+    templateId: "compliance-contribution-discrepancy",
+  },
+  {
+    expression: /^when (?:a )?government remittance is due,? request a compliance review$/,
+    templateId: "compliance-government-remittance-due",
+  },
+  {
+    expression: /^when timesheet cutoff approaches,? prepare a timesheet escalation review$/,
+    templateId: "wfm-timesheet-cutoff-escalation",
+  },
+  {
+    expression: /^when (?:a )?timesheet is missing,? prepare a missing timesheet escalation review$/,
+    templateId: "wfm-never-submitted-timesheet-escalation",
+  },
+  {
+    expression: /^when payroll pay date approaches,? prepare a payroll readiness review$/,
+    templateId: "payroll-pay-date-readiness-review",
+  },
+];
+
 export function matchApprovedLanguageTemplate(request: string): TypedAutomationLanguageDraft | null {
-  const text = request.toLowerCase();
-  // The fallback must not drop a requested filter or silently expand the audience.
-  if (/\b(only|except|unless|where|limited to|without|skip|bypass|automatically publish)\b/.test(text)) return null;
-  if (/\b(new hire|new employee|employee (?:is |gets )?hired)\b/.test(text)
-      && /\b(onboarding|onboard|checklist)\b/.test(text)
-      && /\b(email|welcome|notify|notification)\b/.test(text)) {
-    return templateDraft("people-new-hire-core-onboarding");
-  }
-  if (/\b(promot(?:ion|ed))\b/.test(text)
-      && /\b(task|check|verify|validate)\b/.test(text)
-      && /\b(manager|email|notify)\b/.test(text)) {
-    return templateDraft("people-promotion-control-check");
-  }
-  if (/\b(contribution discrepancy|contribution mismatch)\b/.test(text)
-      && /\b(task|investigate|review)\b/.test(text)
-      && /\b(approv|authorization)\b/.test(text)) {
-    return templateDraft("compliance-contribution-discrepancy");
-  }
-  if (/\b(government|statutory)\b/.test(text)
-      && /\bremittance\b/.test(text)
-      && /\b(approv|review)\b/.test(text)) {
-    return templateDraft("compliance-government-remittance-due");
-  }
-  if (/\btimesheet\b/.test(text)
-      && /\bcutoff\b/.test(text)
-      && /\b(review|escalat|follow.up)\b/.test(text)) {
-    return templateDraft("wfm-timesheet-cutoff-escalation");
-  }
-  if (/\bmissing\b/.test(text)
-      && /\btimesheet\b/.test(text)
-      && /\b(review|escalat|follow.up)\b/.test(text)) {
-    return templateDraft("wfm-never-submitted-timesheet-escalation");
-  }
-  if (/\bpayroll\b/.test(text)
-      && /\bpay.date\b/.test(text)
-      && /\b(readiness|review)\b/.test(text)) {
-    return templateDraft("payroll-pay-date-readiness-review");
-  }
-  return null;
+  const normalized = request.trim().toLowerCase().replace(/\s+/g, " ").replace(/[.!]+$/, "");
+  const matched = APPROVED_LANGUAGE_PATTERNS.find((item) => item.expression.test(normalized));
+  return matched ? templateDraft(matched.templateId) : null;
 }
 
 const UNSAFE_DIRECT_REQUEST = /\b(bypass approval|skip (?:review|approval)|publish (?:it )?automatically|auto.?publish|execute immediately|send (?:money|payment|payout)|transfer funds)\b/i;
@@ -354,6 +355,11 @@ export async function draftAutomationFromLanguage(request: string): Promise<Lang
   const validation = validateNaturalLanguageDraft(proposed);
   if (!validation.valid || !validation.draft) {
     throw new LanguageDraftError("Generated workflow failed server validation: " + validation.errors.join(" "), 422);
+  }
+  // Do not let an LLM silently broaden a scoped or conditional natural-language request.
+  if (/\b(only|except|unless|where|limited to|department|location|threshold|greater than|less than)\b/i.test(prompt)
+    && !(validation.draft.conditions.all?.length || validation.draft.conditions.any?.length)) {
+    throw new LanguageDraftError("Your request specifies a condition or scope, but the proposed draft has no IF conditions.", 422);
   }
   return {
     draft: validation.draft,
