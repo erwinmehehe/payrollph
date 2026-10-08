@@ -2,7 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 
-const read = (path: string) => readFileSync(path, "utf8");
+const read = (path: string) => readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+
+test("older hosted databases create compliance prerequisites before legal-entity upgrades", () => {
+  const source = read("src/lib/core-schema-compat.ts");
+  for (const table of ["bir_withholding_remittance_batches", "statutory_remittance_month_closures", "government_loan_remittance_batches", "government_loan_remittance_members"]) {
+    const create = source.indexOf(`CREATE TABLE IF NOT EXISTS ${table} (`);
+    const alter = source.indexOf(`ALTER TABLE ${table}\n`);
+    assert.ok(create >= 0, `${table} must exist on older deployments`);
+    assert.ok(create < alter, `${table} must be created before it is upgraded`);
+  }
+});
 
 test("core schema compatibility upgrades fields used by production demo and dashboard", () => {
   const source = read("src/lib/core-schema-compat.ts");

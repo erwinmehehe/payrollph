@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowRight, MessageCircle, Minus, Plus } from "lucide-react";
 import { Reveal, SectionHeading } from "./ui";
 import { cn } from "../utils/cn";
-import { PUBLIC_FOOTER_GROUPS } from "@/components/marketing/public-navigation";
+import { SiteFooter } from "@/components/marketing/site-chrome";
 import { HOMEPAGE_FAQS } from "@/components/marketing/homepage-faqs";
 
 
@@ -128,48 +128,5 @@ export function CTA() {
 }
 
 export function Footer() {
-  return (
-    <footer className="border-t border-[#EDEFF7] bg-[#FAFBFD]">
-      <div className="mx-auto max-w-[1200px] px-5 pb-12 pt-16 sm:px-8 sm:pt-20">
-        <div className="grid gap-12 md:grid-cols-[1.45fr_1fr_1fr_1fr]">
-          <div>
-            <a href="/" className="flex items-center gap-3" aria-label="Linaw home">
-              <span className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-[#11141F]">
-                <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden>
-                  <path d="M3 8.5l3.2 3.2L13 5" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </span>
-              <span className="leading-none">
-                <span className="font-display block text-[22px] font-semibold tracking-tight">linaw</span>
-                <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">Philippine Payroll</span>
-              </span>
-            </a>
-            <p className="mt-5 max-w-[330px] text-[14px] leading-relaxed text-[#5B6080]">
-              Philippine payroll software for teams that want every run, approval and peso to be traceable.
-            </p>
-          </div>
-
-          {PUBLIC_FOOTER_GROUPS.map((group) => (
-            <nav key={group.label} aria-label={group.label}>
-              <p className="text-[12px] font-bold uppercase tracking-[0.13em] text-[#8B90AA]">{group.label}</p>
-              <ul className="mt-4 space-y-3">
-                {group.links.map((link) => (
-                  <li key={link.href}>
-                    <a href={link.href} className="text-[14px] font-medium text-[#2B2F45] transition-colors hover:text-[#0868dc]">
-                      {link.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          ))}
-        </div>
-
-        <div className="mt-14 flex flex-col gap-2 border-t border-[#E2E4F0] pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[13px] font-medium text-[#5B6080]">Linaw · Philippine payroll software.</p>
-          <p className="text-[12.5px] text-[#8B90AA]">Government worksheet output is labelled DRAFT until validated.</p>
-        </div>
-      </div>
-    </footer>
-  );
+  return <SiteFooter />;
 }

@@ -1770,6 +1770,112 @@ export async function ensureCoreCompatibilitySchema() {
         $compat$;
       `);
 
+      // Older deployments may predate the remittance modules. Create the full
+      // parent chain before adding legal-employer scope to these tables.
+      await client.query(`
+CREATE TABLE IF NOT EXISTS statutory_remittance_month_closures (
+  id serial PRIMARY KEY NOT NULL,
+  organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE cascade,
+  applicable_month varchar(7) NOT NULL,
+  status varchar(24) DEFAULT 'certified' NOT NULL,
+  snapshot_hash varchar(64) NOT NULL,
+  certified_by_user_id integer REFERENCES users(id) ON DELETE set null,
+  certified_by_name varchar(120) NOT NULL,
+  certified_at timestamptz DEFAULT now() NOT NULL,
+  invalidated_at timestamptz,
+  invalidation_reason varchar(280),
+  created_at timestamptz DEFAULT now() NOT NULL,
+  updated_at timestamptz DEFAULT now() NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS statutory_remittance_month_closure_snapshot_unique
+  ON statutory_remittance_month_closures (organization_id, applicable_month, snapshot_hash);
+CREATE INDEX IF NOT EXISTS statutory_remittance_month_closure_status_idx
+  ON statutory_remittance_month_closures (organization_id, status);
+
+CREATE TABLE IF NOT EXISTS government_loan_remittance_batches (
+  id serial PRIMARY KEY NOT NULL,
+  organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE cascade,
+  agency varchar(16) NOT NULL,
+  applicable_month varchar(7) NOT NULL,
+  due_date date NOT NULL,
+  status varchar(24) DEFAULT 'open' NOT NULL,
+  employee_count integer DEFAULT 0 NOT NULL,
+  loan_count integer DEFAULT 0 NOT NULL,
+  expected_total numeric(14,2) DEFAULT '0' NOT NULL,
+  amount_paid numeric(14,2),
+  payment_reference varchar(120),
+  agency_acknowledgement_reference varchar(120),
+  payment_variance_note varchar(240),
+  paid_at timestamptz,
+  payment_recorded_by varchar(120),
+  snapshot_hash varchar(64) NOT NULL,
+  created_by varchar(120) NOT NULL,
+  created_at timestamptz DEFAULT now() NOT NULL,
+  updated_at timestamptz DEFAULT now() NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS government_loan_remittance_batch_unique
+  ON government_loan_remittance_batches (organization_id, agency, applicable_month);
+CREATE INDEX IF NOT EXISTS government_loan_remittance_due_idx
+  ON government_loan_remittance_batches (organization_id, status, due_date);
+
+CREATE TABLE IF NOT EXISTS government_loan_remittance_members (
+  id serial PRIMARY KEY NOT NULL,
+  batch_id integer NOT NULL REFERENCES government_loan_remittance_batches(id) ON DELETE cascade,
+  organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE cascade,
+  loan_id integer NOT NULL REFERENCES employee_loans(id) ON DELETE restrict,
+  employee_id integer NOT NULL REFERENCES employees(id) ON DELETE cascade,
+  employee_no varchar(32) NOT NULL,
+  loan_type varchar(64) NOT NULL,
+  loan_reference_no varchar(64) NOT NULL,
+  deducted_amount numeric(12,2) NOT NULL,
+  posting_status varchar(24) DEFAULT 'pending' NOT NULL,
+  posted_amount numeric(12,2),
+  posting_reference varchar(120),
+  posted_at timestamptz,
+  confirmed_by varchar(120),
+  exception_note text,
+  created_at timestamptz DEFAULT now() NOT NULL,
+  updated_at timestamptz DEFAULT now() NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS government_loan_remittance_member_unique
+  ON government_loan_remittance_members (batch_id, loan_id);
+CREATE INDEX IF NOT EXISTS government_loan_remittance_member_status_idx
+  ON government_loan_remittance_members (organization_id, posting_status);
+
+CREATE TABLE IF NOT EXISTS bir_withholding_remittance_batches (
+  id serial PRIMARY KEY NOT NULL,
+  organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE cascade,
+  applicable_month varchar(7) NOT NULL,
+  filing_channel varchar(24) NOT NULL,
+  efps_group varchar(1),
+  filing_due_date date NOT NULL,
+  payment_due_date date NOT NULL,
+  status varchar(24) DEFAULT 'open' NOT NULL,
+  employee_count integer DEFAULT 0 NOT NULL,
+  payroll_run_count integer DEFAULT 0 NOT NULL,
+  expected_tax_withheld numeric(14,2) DEFAULT '0' NOT NULL,
+  amount_paid numeric(14,2),
+  payment_reference varchar(120),
+  payment_variance_note varchar(240),
+  paid_at timestamptz,
+  payment_recorded_by_user_id integer REFERENCES users(id) ON DELETE set null,
+  payment_recorded_by varchar(120),
+  filing_validation_id integer REFERENCES government_filing_validations(id) ON DELETE set null,
+  filing_reference varchar(120),
+  filed_at timestamptz,
+  snapshot_hash varchar(64) NOT NULL,
+  created_by varchar(120) NOT NULL,
+  created_at timestamptz DEFAULT now() NOT NULL,
+  updated_at timestamptz DEFAULT now() NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS bir_withholding_remittance_month_unique
+  ON bir_withholding_remittance_batches (organization_id, applicable_month);
+CREATE INDEX IF NOT EXISTS bir_withholding_remittance_due_idx
+  ON bir_withholding_remittance_batches (organization_id, status, payment_due_date);
+CREATE INDEX IF NOT EXISTS bir_withholding_remittance_filing_idx
+  ON bir_withholding_remittance_batches (organization_id, filing_validation_id);
+      `);
+
       // Multi-legal-employer compliance evidence must never aggregate liabilities
       // across separate Philippine employer registrations.
       await client.query(`

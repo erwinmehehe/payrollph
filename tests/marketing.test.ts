@@ -287,8 +287,8 @@ test("homepage navigation exposes the real public site", () => {
   const footer = read("src/components/marketing/claude-home/components/Closing.tsx");
   const publicNavigation = read("src/components/marketing/public-navigation.ts");
 
-  assert.ok(nav.includes("PUBLIC_PRIMARY_LINKS"), "homepage nav must use the shared public route map");
-  assert.ok(footer.includes("PUBLIC_FOOTER_GROUPS"), "homepage footer must use the shared public route map");
+  assert.ok(nav.includes("<SiteNav />"), "homepage nav must use shared site navigation");
+  assert.ok(footer.includes("<SiteFooter />"), "homepage footer must use shared site footer");
   for (const route of ["/demo", "/payroll-outsourcing", "/scorecard"]) {
     assert.ok(publicNavigation.includes(`href: "${route}"`), `shared primary nav must expose ${route}`);
   }
@@ -347,8 +347,8 @@ test("homepage hero uses product evidence rather than a generic proof card", () 
 });
 
 test("Linaw public navigation uses one product brand without a mascot mark", () => {
-  const nav = read("src/components/marketing/claude-home/components/Navbar.tsx");
-  assert.ok(nav.includes(">linaw</span>"), "public navigation must use Linaw branding");
+  const nav = read("src/components/marketing/site-chrome.tsx");
+  assert.ok(nav.includes("<strong>Linaw</strong>"), "public navigation must use Linaw branding");
   assert.ok(nav.includes("LinawMark"), "public navigation should use the approved Linaw leaf mark");
   assert.ok(!nav.includes("PayrollOwl"), "public navigation must not use mascot branding");
   assert.ok(!nav.includes("payroll-owl"), "public navigation must not import mascot assets");
