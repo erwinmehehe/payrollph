@@ -60,7 +60,17 @@ const ACTION_KEYS: Record<DraftActionType, readonly string[]> = {
   prepare_operational_review: ["type", "caseType", "reason"],
 };
 
-const CONDITION_FIELDS = new Map(AUTOMATION_CONDITION_FIELDS.map((field) => [field.value, field.kind]));
+/**
+ * Entity IDs, organization-specific codes, and record versions are not inferable
+ * from a plain-language request. They require authoritative tenant lookups in
+ * the governed manual builder; never accept model-guessed numeric IDs.
+ */
+const LANGUAGE_DRAFT_REFERENCE_FIELD = /(?:Id|Ids|Code|Codes|Version)$/;
+export const LANGUAGE_DRAFT_CONDITION_FIELDS = AUTOMATION_CONDITION_FIELDS.filter(
+  (field) => !LANGUAGE_DRAFT_REFERENCE_FIELD.test(field.value)
+    && field.value !== "dynamicGroupCodes",
+);
+const CONDITION_FIELDS = new Map(LANGUAGE_DRAFT_CONDITION_FIELDS.map((field) => [field.value, field.kind]));
 const ACTION_TYPES = new Set<string>(LANGUAGE_DRAFT_ACTIONS);
 const LIVE_TRIGGERS = new Set<string>(AUTOMATION_LIVE_TRIGGERS);
 const OPERATORS = new Set<string>(AUTOMATION_OPERATORS);
@@ -107,7 +117,7 @@ function checkConditions(conditions: unknown, errors: string[]): conditions is S
     const operator = String(clause.operator ?? "");
     const kind = CONDITION_FIELDS.get(field as (typeof AUTOMATION_CONDITION_FIELDS)[number]["value"]);
     if (!kind || field === "dynamicGroupCodes" || !OPERATORS.has(operator)) {
-      errors.push(`Unsupported or tenant-dependent IF condition: ${field || "missing field"}.`);
+      errors.push(`Unsupported or tenant-specific IF condition: ${field || "missing field"}.`);
       continue;
     }
     if (Object.keys(clause).some((key) => !["field", "operator", "value"].includes(key))) {
@@ -295,8 +305,7 @@ async function generateUsingModel(request: string): Promise<unknown> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new LanguageDraftError("Natural-language model is not configured.", 503);
 
-  const allowedFields = AUTOMATION_CONDITION_FIELDS
-    .filter((field) => field.value !== "dynamicGroupCodes")
+  const allowedFields = LANGUAGE_DRAFT_CONDITION_FIELDS
     .map((field) => `${field.value} (${field.kind})`).join(", ");
   const systemMessage = [
     "You turn a payroll/HCM administrator's request into an UNPUBLISHED, TYPED Automation Studio draft.",
@@ -373,6 +382,13 @@ export async function draftAutomationFromLanguage(request: string): Promise<Lang
     throw new LanguageDraftError("Remove personal contact details and long identification/account numbers before drafting.", 422);
   }
 
+  if (/\b(?:org(?:anization)?|payroll|timesheet|worksite|benefit|case|document|position)[-\s]*(?:id|code|version)\b/i.test(prompt)) {
+    throw new LanguageDraftError(
+      "Workflow identifiers and tenant-specific codes must be selected from verified records in the governed builder, not inferred by language drafting.",
+      422,
+    );
+  }
+
   const configured = process.env.OPENAI_AUTOMATION_DRAFT_ENABLED === "true"
     && Boolean(process.env.OPENAI_API_KEY);
   const proposed = configured ? await generateUsingModel(prompt) : matchApprovedLanguageTemplate(prompt);
@@ -388,6 +404,32 @@ export async function draftAutomationFromLanguage(request: string): Promise<Lang
   const validation = validateNaturalLanguageDraft(proposed);
   if (!validation.valid || !validation.draft) {
     throw new LanguageDraftError("Generated workflow failed server validation: " + validation.errors.join(" "), 422);
+  }
+  // A syntactically valid draft can still silently drop actions from the request.
+  // Enforce conservative coverage of explicit user intent; false positives may
+  // require clarification, but never turn an omission into an automatic workflow.
+  if (configured) {
+    const kinds = new Set(validation.draft.actions.map((action) => action.type));
+    const requestedChecks: Array<{ requested: boolean; satisfied: boolean; name: string }> = [
+      { requested: /\b(?:email|e-mail|notify|notification)\b/i.test(prompt),
+        satisfied: kinds.has("send_email"), name: "email or notification" },
+      { requested: /\b(?:task|checklist)\b/i.test(prompt),
+        satisfied: kinds.has("create_task") || kinds.has("create_onboarding_checklist"),
+        name: "task or checklist" },
+      { requested: /\b(?:approval|approve|sign-?off)\b/i.test(prompt),
+        satisfied: kinds.has("request_approval") || kinds.has("approval_gate"),
+        name: "human approval" },
+      { requested: /\b(?:wait|delay)\b/i.test(prompt),
+        satisfied: kinds.has("wait"), name: "wait or delay" },
+    ];
+    const omitted = requestedChecks.filter((check) => check.requested && !check.satisfied);
+    if (omitted.length) {
+      throw new LanguageDraftError(
+        "The model omitted requested " + omitted.map((check) => check.name).join(", ")
+          + " steps. Clarify the request or use the governed builder.",
+        422,
+      );
+    }
   }
   // Do not let an LLM silently broaden a scoped or conditional natural-language request.
   if (/\b(only|except|unless|where|limited to|department|location|threshold|greater than|less than)\b/i.test(prompt)
