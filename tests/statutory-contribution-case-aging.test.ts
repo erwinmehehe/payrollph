@@ -83,7 +83,7 @@ test("hourly worker escalates only overdue internal service targets and keeps te
   const escalations = readFileSync("src/lib/statutory-contribution-case-escalations.ts", "utf8");
   const notifications = readFileSync("src/lib/statutory-contribution-case-notifications.ts", "utf8");
 
-  assert.ok(worker.includes("runScheduledContributionCaseEscalations"));
+  assert.ok(worker.includes("await tickScheduler()"), "dedicated worker must invoke the central scheduler");
   assert.ok(scheduler.includes("runScheduledContributionCaseEscalations"));
   assert.ok(scheduler.includes("contributionCaseEscalations"));
   assert.ok(escalations.includes('service.state !== "review_overdue"'));

@@ -16,7 +16,7 @@ export async function acquireSchedulerLease(
     VALUES (
       ${jobName},
       NOW(),
-      jsonb_build_object('status', 'running', 'ownerToken', ${ownerToken}, 'startedAt', NOW())
+      jsonb_build_object('status', 'running', 'ownerToken', ${ownerToken}::text, 'startedAt', NOW())
     )
     ON CONFLICT (job_name) DO UPDATE
       SET last_run_at = EXCLUDED.last_run_at,
@@ -53,7 +53,7 @@ export async function releaseSchedulerLease(
     UPDATE scheduler_state
        SET last_run_at = NOW(),
            last_result = jsonb_build_object(
-             'status', ${status}, 'ownerToken', ${ownerToken}, 'finishedAt', NOW()
+             'status', ${status}::text, 'ownerToken', ${ownerToken}::text, 'finishedAt', NOW()
            )
      WHERE job_name = ${jobName}
        AND last_result->>'status' = 'running'
