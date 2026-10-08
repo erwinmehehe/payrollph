@@ -7,10 +7,11 @@ import {
   enforceSensitiveActionRateLimit,
   requireSensitiveActionMfa,
 } from "@/lib/security-request";
-import { and, asc, desc, eq, gte, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   assets,
+  auditEvents,
   compensationProposals,
   employeePayProfiles,
   employeePayRevisions,
@@ -32,6 +33,11 @@ import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automat
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
+import {
+  compensationGovernanceQuery,
+  HCM_GOVERNED_COMPENSATION_REQUIRED,
+  isGovernedCompensationWorkspace,
+} from "@/lib/hcm-direct-pay-governance";
 
 export const dynamic = "force-dynamic";
 
@@ -407,11 +413,38 @@ export async function PATCH(request: Request) {
   ].some((value) => value !== undefined);
 
   let nextPayProfile = null;
+  let latestPayRevisionId: number | null = null;
   let payEffectiveDate: string | null = null;
   let payChangeReason: string | null = null;
   if (wantsPayUpdate) {
+    // A direct correction is not an alternative to company-level financial
+    // governance. Only owner/admin/bookkeeper with company-wide authority
+    // may use this legacy path in an employer without a formal comp cycle/BP.
+    if (!access?.companyWide || !["owner", "admin", "bookkeeper"].includes(access.role)) {
+      return Response.json({
+        error: "Direct pay corrections require company-wide owner, administrator or bookkeeper access.",
+        code: "HCM_DIRECT_PAY_ROLE_REQUIRED",
+      }, { status: 403 });
+    }
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+    const rateDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id,
+      action: "legacy-direct-pay-correction",
+      resourceId: employeeId,
+      limit: 5,
+      windowMs: 15 * 60_000,
+    });
+    if (rateDenied) return rateDenied;
+
+    // Inactive/expired BP definitions and historical compensation cycles are
+    // still evidence of a governed workflow. A text reason is not an override.
+    if (await isGovernedCompensationWorkspace(organizationId)) {
+      return Response.json(HCM_GOVERNED_COMPENSATION_REQUIRED, { status: 409 });
+    }
+
     payEffectiveDate = String(body.payEffectiveDate ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())).trim();
-    payChangeReason = String(body.payChangeReason ?? "Pay adjustment").trim();
+    payChangeReason = String(body.payChangeReason ?? "").trim();
     const todayPh = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
     if (!/^\d{4}-\d{2}-\d{2}$/.test(payEffectiveDate)) {
       return Response.json({ error: "Pay effective date must use YYYY-MM-DD." }, { status: 400 });
@@ -422,8 +455,8 @@ export async function PATCH(request: Request) {
     if (payEffectiveDate > todayPh) {
       return Response.json({ error: "Future-dated pay changes are not applied early. Use the effective date when it becomes active." }, { status: 400 });
     }
-    if (!payChangeReason) {
-      return Response.json({ error: "A reason is required for an effective-dated pay change." }, { status: 400 });
+    if (payChangeReason.length < 8 || payChangeReason.length > 240) {
+      return Response.json({ error: "Provide an explicit 8-240 character reason for this audited pay correction." }, { status: 400 });
     }
 
     const [latestRevision] = await db.select().from(employeePayRevisions)
@@ -434,6 +467,7 @@ export async function PATCH(request: Request) {
       .orderBy(desc(employeePayRevisions.effectiveDate), desc(employeePayRevisions.id))
       .limit(1);
 
+    latestPayRevisionId = latestRevision?.id ?? null;
     if (latestRevision) {
       const [governedCompensation] = await db.select({
         id: compensationProposals.id,
