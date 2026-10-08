@@ -242,3 +242,25 @@ test("production pilot sign-off verifies independent figures server-side instead
   assert.ok(card.includes("Verify figures & sign off pilot"), "owner UI must make server verification explicit");
   assert.ok(!card.includes("matches the independently prepared expected result"), "old trust-me match toggles must be removed");
 });
+
+
+test("a no-money payroll pilot cannot silently clear the broad-launch production gate", () => {
+  const readiness = read("src/app/api/readiness/route.ts");
+  const signoff = read("src/app/api/payroll-runs/[id]/pilot-signoff/route.ts");
+  const card = read("src/components/workspace/production-pilot-signoff.tsx");
+
+  assert.ok(readiness.includes("->> 'payoutEvidenceMode' = 'completed-payout'"),
+    "the GA signoff gate must require separately recorded completed-payout evidence");
+  assert.ok(readiness.includes("->> 'payoutEvidenceMode' = 'no-money-bank-file-dry-run'"),
+    "no-money reconciliations must be counted separately");
+  assert.ok(readiness.includes("Bank-file previews do not prove settlement"),
+    "launch readiness must explicitly disclose that a preview cannot satisfy settlement");
+  assert.ok(signoff.includes('payoutEvidenceMode: payoutCompleted ? "completed-payout" : "no-money-bank-file-dry-run"'),
+    "signoff must record the real evidence mode, never infer money movement from a dry run");
+  assert.ok(signoff.includes('metadata.payoutEvidenceMode === "completed-payout"'),
+    "a no-money record may be upgraded only after the completed-payout path is separately verified");
+  assert.ok(card.includes("No-money payroll pilot reconciled"),
+    "the Owner UI must not call a no-money preview an externally paid pilot");
+  assert.ok(card.includes("Record completed-payout evidence"),
+    "the Owner must be able to provide a separate reviewed settlement attestation later");
+});
