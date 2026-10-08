@@ -3868,6 +3868,8 @@ export const workforcePlanningScenarios = pgTable(
     demandGrowthPercent: numeric("demand_growth_percent", { precision: 7, scale: 2 }).notNull().default("0"),
     vacancyFillPercent: numeric("vacancy_fill_percent", { precision: 7, scale: 2 }).notNull().default("100"),
     employerLoadPercent: numeric("employer_load_percent", { precision: 7, scale: 2 }).notNull().default("0"),
+    annualAttritionPercent: numeric("annual_attrition_percent", { precision: 7, scale: 2 }).notNull().default("0"),
+    attritionBackfillPercent: numeric("attrition_backfill_percent", { precision: 7, scale: 2 }).notNull().default("100"),
     status: varchar("status", { length: 24 }).notNull().default("draft"),
     snapshot: jsonb("snapshot").notNull().default({}),
     snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
