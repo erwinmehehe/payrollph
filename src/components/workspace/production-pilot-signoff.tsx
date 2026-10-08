@@ -26,7 +26,11 @@ export function ProductionPilotSignoffCard({
   notify: Notify;
   onRefresh: () => Promise<void>;
 }) {
-  const releasedRun = data.payrollRuns.find((run) => run.status === "Released");
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
+  const releasedRuns = data.payrollRuns
+    .filter((run) => run.status === "Released")
+    .sort((a, b) => b.id - a.id);
+  const releasedRun = releasedRuns.find((run) => run.id === selectedRunId) ?? releasedRuns[0];
   const existing = useMemo(
     () => data.auditEvents.find((event) => {
       if (event.action !== "Production payroll pilot signed off") return false;
@@ -53,6 +57,31 @@ export function ProductionPilotSignoffCard({
   const [saving, setSaving] = useState(false);
 
   if (!releasedRun) return null;
+
+  const runSelector = releasedRuns.length > 1 ? (
+    <label>
+      Select the exact released payroll period
+      <select
+        value={releasedRun.id}
+        onChange={(event) => {
+          setSelectedRunId(Number(event.target.value));
+          setEvidenceReference("");
+          setIndependentPreparedBy("");
+          setIndependentSourceConfirmed(false);
+          setEmployeeLevelReconciliationConfirmed(false);
+          setOperatorCompletedWithoutDeveloper(false);
+          setFigures({
+            grossPay: "", deductions: "", netPay: "", withholdingTax: "",
+            statutoryContributions: "", payoutTotal: "", employeeCount: "",
+          });
+        }}
+      >
+        {releasedRuns.map((run) => (
+          <option key={run.id} value={run.id}>#{run.id} — {run.periodLabel}</option>
+        ))}
+      </select>
+    </label>
+  ) : null;
 
   const allFiguresPresent = FIGURES.every(([key, , kind]) => {
     const value = figures[key].trim();
@@ -106,6 +135,7 @@ export function ProductionPilotSignoffCard({
       : {};
     return (
       <article className="card" data-production-pilot-signoff="complete" style={{ marginBottom: 16 }}>
+        {runSelector && <div className="card-body">{runSelector}</div>}
         <div className="card-header">
           <div>
             <div className="card-kicker"><ShieldCheck size={14} /> PRODUCTION PILOT</div>
@@ -137,6 +167,7 @@ export function ProductionPilotSignoffCard({
       </div>
 
       <div className="card-body" style={{ paddingTop: 0, display: "grid", gap: 14 }}>
+        {runSelector}
         <div className="run-stats" style={{ margin: 0 }}>
           <div>
             <span>Run</span>
