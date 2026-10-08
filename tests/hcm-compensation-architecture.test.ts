@@ -192,3 +192,30 @@ test("compensation workspace confirms approved pay cancellation and gives recalc
   assert.ok(panel.includes("Cancel pay revision"));
   assert.ok(panel.includes("Review affected payroll and recalculate before release."));
 });
+
+
+test("scheduled salary application locks, pay revision, compensation event and audit before transaction commit", () => {
+  const begin = governance.indexOf("export async function applyScheduledCompensationProposal(");
+  const end = governance.indexOf("export type RecurringCompensationDecision", begin);
+  assert.ok(begin >= 0 && end > begin);
+  const section = governance.slice(begin, end);
+  const tx = section.indexOf("result = await db.transaction(async (tx) => {");
+  const proposalLock = section.indexOf("pg_advisory_xact_lock(4220");
+  const cycleLock = section.indexOf("pg_advisory_xact_lock(4230");
+  const workerLock = section.indexOf("pg_advisory_xact_lock(4221");
+  const payProfile = section.indexOf("tx.update(employeePayProfiles)");
+  const financialEvent = section.indexOf("tx.insert(compensationEvents)");
+  const status = section.indexOf("tx.update(compensationProposals)");
+  const audit = section.indexOf("tx.insert(auditEvents)");
+  const transactionClose = section.indexOf("\n    });\n  } catch (error)", audit);
+  assert.ok(tx >= 0 && proposalLock > tx);
+  assert.ok(proposalLock < cycleLock && cycleLock < workerLock);
+  assert.ok(workerLock < payProfile && payProfile < financialEvent && financialEvent < status && status < audit);
+  assert.ok(transactionClose > audit);
+  assert.ok(section.includes("compensationEventId: event.id"));
+  assert.ok(section.includes("throw new ScheduledCompensationAuditWriteError()"));
+  assert.ok(section.includes("if (!(error instanceof ScheduledCompensationAuditWriteError))"));
+  assert.ok(!section.includes("recordAuditEvent("), "do not insert operational audit after salary has committed");
+  assert.ok(section.includes("field-change automation: "), "post-commit automation failures must not misreport financial outcomes");
+  assert.ok(governance.includes("...(!result.skipped && result.warnings.length > 0 ? { warnings: result.warnings } : {})"));
+});
