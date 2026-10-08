@@ -859,7 +859,9 @@ async function processPayrollChunk(input: {
         .where(and(
           eq(employeeCompensationComponents.organizationId, input.organizationId),
           inArray(employeeCompensationComponents.employeeId, chunkIds),
-          inArray(employeeCompensationComponents.status, ["scheduled", "active"]),
+          // Ended assignments must still price past cutoffs inside their approved
+          // effective interval; excluding them silently drops historical pay.
+          inArray(employeeCompensationComponents.status, ["scheduled", "active", "ended"]),
           lte(employeeCompensationComponents.effectiveFrom, run.periodEnd),
           or(
             isNull(employeeCompensationComponents.effectiveUntil),

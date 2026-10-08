@@ -117,7 +117,7 @@ test("linked promotion compensation never activates ahead of the worker movement
 
 test("recurring compensation is payroll-native and date-prorated", () => {
   assert.ok(payroll.includes("employeeCompensationComponents"));
-  assert.ok(payroll.includes('inArray(employeeCompensationComponents.status, ["scheduled", "active"])'));
+  assert.ok(payroll.includes('inArray(employeeCompensationComponents.status, ["scheduled", "active", "ended"])'));
   assert.ok(payroll.includes("recurringComponentAmountForCutoff"));
   assert.ok(payroll.includes("Recurring component"));
   assert.ok(payroll.includes("COMP-"));
@@ -155,4 +155,40 @@ test("direct Edit pay cannot bypass governed future compensation", () => {
   assert.ok(employeesRoute.includes("has a governed compensation change that has not finished applying"));
   assert.ok(employeesRoute.includes("already has a future pay change effective"));
   assert.ok(employeesRoute.includes('["scheduled", "failed"].includes(governedCompensation.status)'));
+});
+
+test("compensation budget UI uses only the selected cycle and refreshes concurrent decision conflicts", () => {
+  assert.ok(panel.includes("proposal.cycleId === activeCycle?.id"));
+  assert.ok(panel.includes("[proposals, activeCycle?.id]"));
+  assert.ok(panel.includes("response.status === 409) await load()"));
+  assert.ok(panel.includes("Only proposals in your assigned scope are shown"));
+  assert.ok(panel.includes("remaining of"));
+});
+
+test("salary cancellation is an audited and locked financial transaction", () => {
+  assert.ok(route.includes("cancelGovernedCompensationProposal({"));
+  assert.ok(governance.includes("export async function cancelGovernedCompensationProposal("));
+  const cancellation = governance.slice(
+    governance.indexOf("export async function cancelGovernedCompensationProposal("),
+    governance.indexOf("export async function applyScheduledCompensationProposal("),
+  );
+  const proposalLock = cancellation.indexOf("pg_advisory_xact_lock(4220");
+  const cycleLock = cancellation.indexOf("pg_advisory_xact_lock(4230");
+  const employeeLock = cancellation.indexOf("pg_advisory_xact_lock(4221");
+  const payrollReset = cancellation.indexOf("invalidatePayrollRunsForCompensationChange(");
+  const proposalDecision = cancellation.indexOf("tx.update(compensationProposals)");
+  const revisionDelete = cancellation.indexOf("tx.delete(employeePayRevisions)");
+  const auditWrite = cancellation.indexOf("tx.insert(auditEvents)");
+  assert.ok(proposalLock >= 0 && proposalLock < cycleLock && cycleLock < employeeLock);
+  assert.ok(payrollReset > employeeLock && proposalDecision > payrollReset);
+  assert.ok(revisionDelete > proposalDecision && auditWrite > revisionDelete);
+  assert.ok(cancellation.includes("COMPENSATION_CANCELLATION_DOWNSTREAM_REVISION"));
+  assert.ok(cancellation.includes("COMPENSATION_CANCELLATION_RETROACTIVE"));
+});
+
+test("compensation workspace confirms approved pay cancellation and gives recalculation instructions", () => {
+  assert.ok(panel.includes('window.confirm('));
+  assert.ok(panel.includes("Calculated payroll and checker approvals for affected periods may be reset."));
+  assert.ok(panel.includes("Cancel pay revision"));
+  assert.ok(panel.includes("Review affected payroll and recalculate before release."));
 });

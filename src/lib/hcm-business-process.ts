@@ -181,8 +181,11 @@ function fallbackDefinition(processType: HcmBusinessProcessType, effectiveDate: 
 }
 
 function stepDueAt(dueDays: number | undefined, now = new Date()) {
+  if (!Number.isInteger(dueDays ?? 3) || (dueDays ?? 3) < 0 || (dueDays ?? 3) > 90) {
+    throw new Error("Invalid HCM step due-day policy.");
+  }
   const value = new Date(now);
-  value.setUTCDate(value.getUTCDate() + Math.max(0, Number(dueDays ?? 3)));
+  value.setUTCDate(value.getUTCDate() + (dueDays ?? 3));
   return value;
 }
 
@@ -203,8 +206,21 @@ async function activateStepTx(
   )).limit(1);
   if (!step) throw new Error("Business-process step is missing.");
 
+  const [process] = await tx.select({ definitionSnapshot: hcmBusinessProcessInstances.definitionSnapshot })
+    .from(hcmBusinessProcessInstances).where(and(
+      eq(hcmBusinessProcessInstances.id, input.instanceId),
+      eq(hcmBusinessProcessInstances.organizationId, input.organizationId),
+    )).limit(1);
+  const frozen = process?.definitionSnapshot;
+  const snapshotSteps = frozen && typeof frozen === "object" && !Array.isArray(frozen)
+    ? validateHcmBusinessProcessSteps((frozen as Record<string, unknown>).steps)
+    : null;
+  const frozenStep = snapshotSteps?.[input.stepIndex];
+  if (!frozenStep) throw new Error("HCM process step policy is missing or invalid.");
+
   const [activated] = await tx.update(hcmBusinessProcessInstanceSteps).set({
     status: "pending",
+    dueAt: stepDueAt(frozenStep.dueDays),
   }).where(and(
     eq(hcmBusinessProcessInstanceSteps.id, step.id),
     eq(hcmBusinessProcessInstanceSteps.status, "waiting"),
@@ -343,7 +359,7 @@ export async function startHcmBusinessProcessTx(
       assignee: step.assignee,
       priority: step.priority ?? "Normal",
       status: "waiting",
-      dueAt: stepDueAt(step.dueDays),
+      dueAt: null, // Starts when activated, not when the instance is initiated.
     });
   }
 

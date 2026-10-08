@@ -2,6 +2,7 @@ import { and, eq, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
+  auditEvents,
   compensationBands,
   compensationEvents,
   compensationProposals,
@@ -22,6 +23,11 @@ import { resolvePayProfile } from "@/lib/pay-basis";
 
 const BUSY_PAYROLL_STATUSES = new Set(["Queued", "Processing", "Recalculating", "Releasing"]);
 
+// Allows a compensation decision and any impacted payroll invalidation to
+// succeed or roll back together. A separate nested transaction would reset a
+// payroll run even if the later proposal approval fails.
+type CompensationTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export function philippineBusinessDate(now = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(now);
 }
@@ -31,9 +37,11 @@ export async function compensationPayrollConflicts(input: {
   employeeOrgUnitId: number | null;
   effectiveFrom: string;
   effectiveUntil?: string | null;
-}) {
+}, transaction?: CompensationTransaction) {
   const end = input.effectiveUntil ?? "9999-12-31";
-  const runs = await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, input.organizationId));
+  const runs = transaction
+    ? await transaction.select().from(payrollRuns).where(eq(payrollRuns.organizationId, input.organizationId))
+    : await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, input.organizationId));
   const overlapping = runs.filter((run) =>
     String(run.periodStart) <= end
     && String(run.periodEnd) >= input.effectiveFrom
@@ -64,13 +72,14 @@ export async function compensationPayrollConflicts(input: {
 export async function invalidatePayrollRunsForCompensationChange(
   organizationId: number,
   runs: Awaited<ReturnType<typeof compensationPayrollConflicts>>,
+  transaction?: CompensationTransaction,
 ) {
   if (runs.length === 0) return [] as number[];
 
-  const tasks = await db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, organizationId));
-  const invalidated: number[] = [];
+  const invalidate = async (tx: CompensationTransaction) => {
+    const tasks = await tx.select().from(approvalTasks).where(eq(approvalTasks.organizationId, organizationId));
+    const invalidated: number[] = [];
 
-  await db.transaction(async (tx) => {
     for (const run of runs) {
       await tx.delete(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
       const [updated] = await tx.update(payrollRuns).set({
@@ -103,9 +112,179 @@ export async function invalidatePayrollRunsForCompensationChange(
         }).where(eq(approvalTasks.id, task.id));
       }
     }
-  });
 
-  return invalidated;
+    return invalidated;
+  };
+
+  return transaction ? invalidate(transaction) : db.transaction(invalidate);
+}
+
+
+/**
+ * Cancel a pending or unapplied salary proposal without leaving a payroll run
+ * reset if the cancellation/revision removal fails halfway through.
+ *
+ * Lock order: proposal (4220, shared with activation scheduler) -> cycle (4230,
+ * shared with salary approvals) -> employee (4221, shared with both).
+ * The state/tenant/revision checks below run after all three locks are held.
+ */
+export async function cancelGovernedCompensationProposal(input: {
+  proposalId: number;
+  organizationId: number;
+  employeeId: number;
+  actorUserId: number;
+  actorName: string;
+  now?: Date;
+  onCancelled?: (tx: CompensationTransaction) => Promise<void>;
+}) {
+  const now = input.now ?? new Date();
+  const today = philippineBusinessDate(now);
+
+  return db.transaction(async (tx) => {
+    const [initial] = await tx.select({
+      cycleId: compensationProposals.cycleId,
+      employeeId: compensationProposals.employeeId,
+    }).from(compensationProposals).where(and(
+      eq(compensationProposals.id, input.proposalId),
+      eq(compensationProposals.organizationId, input.organizationId),
+      eq(compensationProposals.employeeId, input.employeeId),
+    )).limit(1);
+    if (!initial) throw new Error("COMPENSATION_CANCELLATION_STALE");
+
+    await tx.execute(sql`select pg_advisory_xact_lock(4220, ${input.proposalId})`);
+    await tx.execute(sql`select pg_advisory_xact_lock(4230, ${initial.cycleId})`);
+    await tx.execute(sql`select pg_advisory_xact_lock(4221, ${initial.employeeId})`);
+
+    const [[proposal], [cycle], [employee]] = await Promise.all([
+      tx.select().from(compensationProposals).where(and(
+        eq(compensationProposals.id, input.proposalId),
+        eq(compensationProposals.organizationId, input.organizationId),
+        eq(compensationProposals.employeeId, input.employeeId),
+      )).limit(1),
+      tx.select().from(compensationCycles).where(and(
+        eq(compensationCycles.id, initial.cycleId),
+        eq(compensationCycles.organizationId, input.organizationId),
+      )).limit(1),
+      tx.select().from(employees).where(and(
+        eq(employees.id, input.employeeId),
+        eq(employees.organizationId, input.organizationId),
+      )).limit(1),
+    ]);
+
+    if (!proposal || !cycle || !employee || proposal.cycleId !== cycle.id
+        || proposal.employeeId !== initial.employeeId) {
+      throw new Error("COMPENSATION_CANCELLATION_STALE");
+    }
+    if (!["proposed", "scheduled", "failed"].includes(proposal.status)) {
+      throw new Error("COMPENSATION_CANCELLATION_STALE");
+    }
+
+    const effectiveDate = String(cycle.effectiveDate);
+    const pricedByPayroll = proposal.status === "scheduled" || proposal.status === "failed";
+    let cancelledPayRevisionId: number | null = null;
+    let invalidatedPayrollRunIds: number[] = [];
+
+    if (pricedByPayroll) {
+      // From the effective day onward, salary could already have been earned or
+      // activated by the scheduler. This route is not an audited retro workflow.
+      if (effectiveDate <= today) throw new Error("COMPENSATION_CANCELLATION_RETROACTIVE");
+      if (!proposal.appliedPayRevisionId) throw new Error("COMPENSATION_CANCELLATION_REVISION_STALE");
+
+      const [revision] = await tx.select().from(employeePayRevisions).where(and(
+        eq(employeePayRevisions.id, proposal.appliedPayRevisionId),
+        eq(employeePayRevisions.organizationId, input.organizationId),
+        eq(employeePayRevisions.employeeId, input.employeeId),
+      )).limit(1);
+      if (!revision || String(revision.effectiveDate) !== effectiveDate) {
+        throw new Error("COMPENSATION_CANCELLATION_REVISION_STALE");
+      }
+      cancelledPayRevisionId = revision.id;
+
+      const employeeRevisions = await tx.select().from(employeePayRevisions).where(and(
+        eq(employeePayRevisions.organizationId, input.organizationId),
+        eq(employeePayRevisions.employeeId, input.employeeId),
+      ));
+      if (employeeRevisions.some((entry) =>
+        entry.id !== revision.id && String(entry.effectiveDate) > effectiveDate
+      )) {
+        throw new Error("COMPENSATION_CANCELLATION_DOWNSTREAM_REVISION");
+      }
+
+      // A linked revision must not silently be detached from another proposal.
+      const linkedProposals = await tx.select({ id: compensationProposals.id })
+        .from(compensationProposals)
+        .where(eq(compensationProposals.appliedPayRevisionId, revision.id));
+      if (linkedProposals.some((linked) => linked.id !== proposal.id)) {
+        throw new Error("COMPENSATION_CANCELLATION_REVISION_STALE");
+      }
+
+      const affected = await compensationPayrollConflicts({
+        organizationId: input.organizationId,
+        employeeOrgUnitId: employee.orgUnitId,
+        effectiveFrom: effectiveDate,
+        effectiveUntil: null,
+      }, tx);
+      invalidatedPayrollRunIds = await invalidatePayrollRunsForCompensationChange(
+        input.organizationId,
+        affected,
+        tx,
+      );
+    } else if (proposal.appliedPayRevisionId !== null) {
+      // A proposed (unapproved) change must never delete an orphaned pay revision.
+      throw new Error("COMPENSATION_CANCELLATION_REVISION_STALE");
+    }
+
+    const [updated] = await tx.update(compensationProposals).set({
+      status: "cancelled",
+      appliedPayRevisionId: null,
+      failure: null,
+      updatedAt: now,
+    }).where(and(
+      eq(compensationProposals.id, proposal.id),
+      eq(compensationProposals.organizationId, input.organizationId),
+      eq(compensationProposals.status, proposal.status),
+    )).returning();
+    if (!updated) throw new Error("COMPENSATION_CANCELLATION_STALE");
+
+    if (cancelledPayRevisionId != null) {
+      const [deleted] = await tx.delete(employeePayRevisions).where(and(
+        eq(employeePayRevisions.id, cancelledPayRevisionId),
+        eq(employeePayRevisions.organizationId, input.organizationId),
+        eq(employeePayRevisions.employeeId, input.employeeId),
+      )).returning({ id: employeePayRevisions.id });
+      if (!deleted) throw new Error("COMPENSATION_CANCELLATION_REVISION_STALE");
+    }
+
+    const evidence = {
+      priorStatus: proposal.status,
+      reason: proposal.reason,
+      compensationCycleId: cycle.id,
+      cancelledPayRevisionId,
+      invalidatedPayrollRunIds,
+      linkedWorkerChangeId: proposal.workerEffectiveChangeId,
+    };
+    await tx.insert(compensationEvents).values({
+      organizationId: updated.organizationId,
+      employeeId: updated.employeeId,
+      eventType: "salary_change_cancelled",
+      effectiveDate,
+      bandId: updated.bandId,
+      proposalId: updated.id,
+      metadata: evidence,
+      actorUserId: input.actorUserId,
+      actorName: input.actorName,
+    });
+    await tx.insert(auditEvents).values({
+      organizationId: updated.organizationId,
+      actor: input.actorName,
+      action: pricedByPayroll ? "Scheduled compensation proposal cancelled" : "Compensation proposal cancelled",
+      resource: `Proposal #${updated.id}`,
+      metadata: { employeeId: updated.employeeId, ...evidence },
+    });
+
+    await input.onCancelled?.(tx);
+    return { proposal: updated, invalidatedPayrollRunIds, cancelledPayRevisionId };
+  });
 }
 
 export async function applyScheduledCompensationProposal(
@@ -359,6 +538,163 @@ export async function applyScheduledCompensationProposal(
   });
 
   return { ...result, automation, fieldChangeAutomation, warnings };
+}
+
+
+export type RecurringCompensationDecision = "approve" | "decline" | "cancel";
+
+/**
+ * Recurring compensation is already read by payroll when scheduled, so a
+ * status change and every affected payroll reset must commit together.
+ *
+ * The same (4222, assignmentId) transaction lock is held by the activation
+ * scheduler. Authorization/scope are checked in the route and the authoritative
+ * tenant, maker-checker, date and status conditions are rechecked here.
+ */
+export async function decideRecurringCompensationComponent(input: {
+  assignmentId: number;
+  organizationId: number;
+  employeeId: number;
+  decision: RecurringCompensationDecision;
+  actorUserId: number;
+  actorName: string;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const today = philippineBusinessDate(now);
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(4222, ${input.assignmentId})`);
+
+    const [current] = await tx.select().from(employeeCompensationComponents).where(and(
+      eq(employeeCompensationComponents.id, input.assignmentId),
+      eq(employeeCompensationComponents.organizationId, input.organizationId),
+      eq(employeeCompensationComponents.employeeId, input.employeeId),
+    )).limit(1);
+    if (!current) throw new Error("COMPONENT_ASSIGNMENT_STALE");
+
+    const [worker] = await tx.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
+      eq(employees.id, current.employeeId),
+      eq(employees.organizationId, current.organizationId),
+    )).limit(1);
+    if (!worker) throw new Error("COMPONENT_EMPLOYEE_STALE");
+
+    const effectiveFrom = String(current.effectiveFrom);
+    const effectiveUntil = current.effectiveUntil ? String(current.effectiveUntil) : null;
+    let nextStatus: "active" | "scheduled" | "declined" | "cancelled";
+
+    if (input.decision === "approve") {
+      if (current.status !== "pending_approval") throw new Error("COMPONENT_ASSIGNMENT_STALE");
+      if (current.requestedByUserId === input.actorUserId) throw new Error("COMPONENT_MAKER_CHECKER_CONFLICT");
+      if (effectiveFrom < today) throw new Error("COMPONENT_APPROVAL_RETROACTIVE");
+      nextStatus = effectiveFrom <= today ? "active" : "scheduled";
+    } else if (input.decision === "decline") {
+      if (current.status !== "pending_approval") throw new Error("COMPONENT_ASSIGNMENT_STALE");
+      nextStatus = "declined";
+    } else {
+      if (current.status !== "pending_approval" && current.status !== "scheduled") {
+        throw new Error("COMPONENT_ASSIGNMENT_STALE");
+      }
+      // Scheduled rows are payroll-visible on the original effective date,
+      // even before the activation scheduler runs. Past changes need a signed
+      // correction/retro workflow, not a silent cancellation.
+      if (current.status === "scheduled" && effectiveFrom <= today) {
+        throw new Error("COMPONENT_CANCELLATION_RETROACTIVE");
+      }
+      nextStatus = "cancelled";
+    }
+
+    let invalidatedPayrollRunIds: number[] = [];
+    if (input.decision === "approve" || (input.decision === "cancel" && current.status === "scheduled")) {
+      const affectedRuns = await compensationPayrollConflicts({
+        organizationId: current.organizationId,
+        employeeOrgUnitId: worker.orgUnitId,
+        effectiveFrom,
+        effectiveUntil,
+      }, tx);
+      invalidatedPayrollRunIds = await invalidatePayrollRunsForCompensationChange(
+        current.organizationId,
+        affectedRuns,
+        tx,
+      );
+    }
+
+    const mutation = input.decision === "approve"
+      ? {
+          status: nextStatus,
+          approvedByUserId: input.actorUserId,
+          approvedBy: input.actorName,
+          approvedAt: now,
+          activatedAt: nextStatus === "active" ? now : null,
+          updatedAt: now,
+        }
+      : input.decision === "decline"
+        ? {
+            status: nextStatus,
+            approvedByUserId: input.actorUserId,
+            approvedBy: input.actorName,
+            approvedAt: now,
+            updatedAt: now,
+          }
+        : {
+            status: nextStatus,
+            cancelledByUserId: input.actorUserId,
+            cancelledBy: input.actorName,
+            cancelledAt: now,
+            updatedAt: now,
+          };
+
+    const [updated] = await tx.update(employeeCompensationComponents).set(mutation).where(and(
+      eq(employeeCompensationComponents.id, current.id),
+      eq(employeeCompensationComponents.organizationId, current.organizationId),
+      eq(employeeCompensationComponents.status, current.status),
+    )).returning();
+    if (!updated) throw new Error("COMPONENT_ASSIGNMENT_STALE");
+
+    if (input.decision !== "decline") {
+      await tx.insert(compensationEvents).values({
+        organizationId: updated.organizationId,
+        employeeId: updated.employeeId,
+        eventType: input.decision === "approve"
+          ? nextStatus === "active" ? "component_activated" : "component_scheduled"
+          : "component_cancelled",
+        effectiveDate: effectiveFrom,
+        componentAssignmentId: updated.id,
+        metadata: {
+          componentId: updated.componentId,
+          amount: Number(updated.amount),
+          effectiveUntil: updated.effectiveUntil,
+          reason: updated.reason,
+          invalidatedPayrollRunIds,
+        },
+        actorUserId: input.actorUserId,
+        actorName: input.actorName,
+      });
+    }
+
+    const auditAction = input.decision === "approve"
+      ? nextStatus === "active"
+        ? "Recurring compensation component approved and activated"
+        : "Recurring compensation component approved and scheduled"
+      : input.decision === "decline"
+        ? "Recurring compensation component declined"
+        : "Recurring compensation component cancelled";
+    await tx.insert(auditEvents).values({
+      organizationId: updated.organizationId,
+      actor: input.actorName,
+      action: auditAction,
+      resource: "Employee #" + updated.employeeId,
+      metadata: {
+        componentAssignmentId: updated.id,
+        componentId: updated.componentId,
+        effectiveFrom,
+        decision: input.decision,
+        invalidatedPayrollRunIds,
+      },
+    });
+
+    return { assignment: updated, nextStatus, invalidatedPayrollRunIds };
+  });
 }
 
 export async function activateCompensationComponentAssignment(

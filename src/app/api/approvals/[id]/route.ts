@@ -5,6 +5,12 @@ import { approvalChainInstances, approvalTasks, auditEvents, automationExecution
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
+import {
+  frozenGovernedHandoffEvidence,
+  governedHandoffSourceKey,
+  isGovernedHandoffType,
+  loadGovernedHandoffSource,
+} from "@/lib/governed-approval-handoffs";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { assertMembership, assertOrganizationUnitAccess } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
@@ -151,6 +157,46 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         scopeOrgUnitId: scenario.scopeOrgUnitId,
         worksiteId: scenario.worksiteId,
       };
+    }
+  }
+
+  if (task.approvalChainInstanceId) {
+    const [handoff] = await db.select().from(approvalChainInstances).where(and(
+      eq(approvalChainInstances.id, task.approvalChainInstanceId),
+      eq(approvalChainInstances.organizationId, task.organizationId),
+    )).limit(1);
+    if (handoff && isGovernedHandoffType(handoff.sourceType)) {
+      const evidence = frozenGovernedHandoffEvidence(handoff.routingSnapshot);
+      if (!evidence
+          || evidence.sourceType !== handoff.sourceType
+          || handoff.sourceKey !== governedHandoffSourceKey(evidence.sourceId, evidence.sourceHash)) {
+        return Response.json({ error: "Human handoff is missing valid frozen source evidence." }, { status: 409 });
+      }
+      if (evidence.initiatedByUserId === sessionUser.id) {
+        return Response.json({
+          error: "Maker-checker: the person requesting roster/separation review cannot approve their own handoff.",
+        }, { status: 403 });
+      }
+      const liveSource = await loadGovernedHandoffSource({
+        organizationId: task.organizationId,
+        sourceType: evidence.sourceType,
+        sourceId: evidence.sourceId,
+      });
+      if (!liveSource?.eligible
+          || liveSource.employeeId !== evidence.employeeId
+          || liveSource.orgUnitId !== evidence.orgUnitId
+          || liveSource.sourceHash !== evidence.sourceHash) {
+        return Response.json({
+          error: "Roster or separation source changed after submission. Request fresh human review of the current source.",
+        }, { status: 409 });
+      }
+      const scopeDenied = await assertOrganizationUnitAccess(
+        sessionUser.id,
+        task.organizationId,
+        liveSource.orgUnitId,
+        "This governed handoff concerns a worker outside your assigned organization unit.",
+      );
+      if (scopeDenied) return scopeDenied;
     }
   }
 
