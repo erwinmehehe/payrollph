@@ -184,6 +184,7 @@ type OperationalCase = {
 };
 
 type StudioData = {
+  features: { languageDraftingEnabled: boolean };
   rules: AutomationRule[];
   versions: AutomationRuleVersion[];
   executions: Execution[];
@@ -1044,6 +1045,7 @@ export function AutomationStudioPanel({
         </div>
       </article>
 
+      {data.features.languageDraftingEnabled && (
       <section className="card" style={{ marginTop: 16 }} data-automation-language-studio>
         <div className="card-header">
           <div>
@@ -1110,6 +1112,7 @@ export function AutomationStudioPanel({
           )}
         </div>
       </section>
+      )}
 
       <section className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
