@@ -45,7 +45,22 @@ test("legacy hosted demo schema supports the current launch and workspace models
       schema.complianceActionTasks, schema.employeePayProfiles, schema.employeePayRevisions,
       schema.employeeRestDayRevisions, schema.employeePayRetroAdjustments, schema.approvalDelegations,
       schema.bankTemplates, schema.calamityAdvisories, schema.freelancerProfiles, schema.minWageOrders,
-      schema.pricingPlans, schema.provisioningTasks, schema.timePunches];
+      schema.pricingPlans, schema.provisioningTasks, schema.timePunches, schema.payrollJobs,
+      schema.leaveRequestIntervalSets, schema.leaveRequestIntervals, schema.governmentLoanRemittanceBatches,
+      schema.governmentLoanRemittanceMembers, schema.payslips, schema.statutoryContributionIssueCases,
+      schema.statutoryContributionIssueEvents, schema.statutoryRemittanceBatches,
+      schema.statutoryRemittanceMembers, schema.statutoryPostingEvidenceArtifacts];
+    for (const path of ["src/db/public-demo.ts", "src/lib/dashboard-data.ts", "src/app/api/self/payslips/route.ts"]) {
+      const source = readFileSync(path, "utf8");
+      for (const match of source.matchAll(/import\s*\{([^}]+)\}\s*from\s*["']@\/db\/schema["']/g)) {
+        for (const name of match[1].split(",").map(value => value.trim()).filter(Boolean)) {
+          const model = schema[name as keyof typeof schema];
+          assert.ok(models.some(table => table === model) || name === "separationRecords", `Unverified demo model: ${name}`);
+        }
+      }
+    }
+    // This loader deliberately selects only these legacy separation columns.
+    await client.query("SELECT id, employee_id, separation_type, notice_date, last_day, status FROM separation_records LIMIT 0");
     for (const model of models) {
       const config = getTableConfig(model);
       const columns = config.columns.map(column => `"${column.name}"`).join(", ");
