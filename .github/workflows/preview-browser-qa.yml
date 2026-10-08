@@ -270,9 +270,9 @@ jobs:
                 controlFit.scrollWidth <= controlFit.clientWidth + 1,
                 `mobile-390: release-readiness card clips ${controlFit.scrollWidth}px > ${controlFit.clientWidth}px`,
               );
-              const securityProof = page.locator(".lp-boundaries").first();
-              const securityHeading = securityProof.getByRole("heading", { name: "The right view for the right role." });
-              const securityCopy = securityProof.locator("p").filter({ hasText: "Company membership, permissions, personal employee access" }).first();
+              const securityProof = page.locator(".lp-buyer-guide").first();
+              const securityHeading = securityProof.getByRole("heading", { name: "A clearer cutoff for the team you have." });
+              const securityCopy = securityProof.locator("p").filter({ hasText: "Review the controls and responsibilities before sharing real payroll data." }).first();
 
               check(
                 !(await pricing.innerText()).includes("No credit card to start") &&
@@ -280,7 +280,10 @@ jobs:
                 "mobile-390: stale self-serve pricing promises returned",
               );
 
+              check((await securityProof.locator(".lp-audiences article").count()) === 3, "homepage buyer audiences missing");
+              check((await securityProof.locator(".lp-first-payroll li").count()) === 3, "homepage rollout steps missing");
               const closingCta = page.locator("#cta");
+              check(await closingCta.locator("h2").evaluate(element => getComputedStyle(element).color) === "rgb(255, 255, 255)", "closing CTA heading lost white contrast");
               const trialCta = closingCta.locator('a[href="/signup"]').first();
               check((await trialCta.count()) === 1, "mobile-390: trial access CTA is missing");
               const trialCtaStyles = await trialCta.evaluate((element) => ({
@@ -304,7 +307,7 @@ jobs:
               for (const [label, locator] of [["heading", securityHeading], ["copy", securityCopy]]) {
                 check((await locator.count()) === 1, `mobile-390: security proof ${label} is missing`);
                 const fit = await locator.evaluate((element) => {
-                  const article = element.closest("article");
+                  const article = element.closest(".lp-buyer-guide");
                   const rect = element.getBoundingClientRect();
                   const parentRect = article?.getBoundingClientRect();
                   return {
@@ -334,11 +337,11 @@ jobs:
               { path: "/demo", heading: "See Linaw from the seat you actually use." },
               { path: "/signup", heading: "Request access to a Linaw trial workspace." },
               { path: "/payroll-outsourcing", heading: "Payroll Outsourcing Philippines" },
-              { path: "/small-business-payroll", heading: "A clearer path from inputs to payday." },
+              { path: "/small-business-payroll", heading: "One cutoff. Every decision, from inputs to release." },
               { path: "/resources", heading: "Practical guidance for buying, migrating and operating Philippine payroll." },
               { path: "/industries", heading: "Payroll workflows shaped by how your workforce actually operates." },
-              { path: "/hcm", heading: "From new hire to what comes next." },
-              { path: "/workforce-management", heading: "Better time records. Clearer payroll inputs." },
+              { path: "/hcm", heading: "Every employee change has a next step." },
+              { path: "/workforce-management", heading: "Plan the coverage. See the gaps. Review the trade-offs." },
               { path: "/about", heading: "Payroll is people’s pay." },
               { path: "/contact", heading: "Contact us" },
               { path: "/calculators/withholding-tax", heading: "Monthly Withholding" },
