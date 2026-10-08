@@ -257,7 +257,6 @@ export async function startHcmBusinessProcessTx(
     tx.select().from(hcmBusinessProcessDefinitions).where(and(
       eq(hcmBusinessProcessDefinitions.organizationId, input.organizationId),
       eq(hcmBusinessProcessDefinitions.processType, input.processType),
-      eq(hcmBusinessProcessDefinitions.active, true),
     )),
     tx.select({
       id: orgUnits.id,
@@ -271,11 +270,27 @@ export async function startHcmBusinessProcessTx(
     effectiveFrom: String(row.effectiveFrom),
     effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
   }));
-  const selected = chooseHcmBusinessProcessDefinition(normalizedDefinitions, unitRows, {
-    processType: input.processType,
-    supervisoryOrgUnitId: input.supervisoryOrgUnitId,
-    effectiveDate: input.effectiveDate,
-  }) ?? fallbackDefinition(input.processType, input.effectiveDate);
+  const configuredScopePath = supervisoryOrgPath(input.supervisoryOrgUnitId ?? null, unitRows);
+  const matchingScopeHasPolicy = normalizedDefinitions.some((row) =>
+    row.supervisoryOrgUnitId == null || configuredScopePath.includes(row.supervisoryOrgUnitId)
+  );
+  const applicable = chooseHcmBusinessProcessDefinition(
+    normalizedDefinitions.filter((row) => row.active),
+    unitRows,
+    {
+      processType: input.processType,
+      supervisoryOrgUnitId: input.supervisoryOrgUnitId,
+      effectiveDate: input.effectiveDate,
+    },
+  );
+  // An explicitly governed scope cannot bypass its policy by deactivating all
+  // versions or choosing a date that lacks an effective definition.
+  if (!applicable && matchingScopeHasPolicy) {
+    throw new Error(
+      "Business-process policy exists for this supervisory scope, but no active effective version covers the change date.",
+    );
+  }
+  const selected = applicable ?? fallbackDefinition(input.processType, input.effectiveDate);
 
   const steps = validateHcmBusinessProcessSteps(selected.steps);
   if (!steps) throw new Error(`Business-process definition "${selected.code}" has invalid steps.`);
