@@ -208,7 +208,7 @@ async function main() {
   }
 }
 
-main().catch(() => {
+main().catch((error) => {
   // Never print cookies, receipts, responses, or credentials in CI logs.
   const kind = error?.name === "AssertionError" ? "assertion"
     : error?.name === "TimeoutError" ? "timeout"
