@@ -88,8 +88,13 @@ async function main() {
     await page.getByText("Configured automations", { exact: true }).waitFor();
 
     currentPhase = "session-cookie-present";
-    const cookies = await context.cookies(offBase);
-    const session = cookies.find((row) => row.name === "__Host-linaw_session");
+    // URL-filtered cookie lookups can omit Secure cookies on loopback HTTP,
+    // even while Chromium correctly sends them to the local test server.
+    // Inspect the isolated browser context and constrain to the loopback host.
+    const cookies = await context.cookies();
+    const session = cookies.find((row) =>
+      row.name === "__Host-linaw_session"
+      && (row.domain === "127.0.0.1" || row.domain === "localhost"));
     assert.ok(session?.value, "Synthetic administrator must have a session");
 
     // Reuse the positive acceptance's *actual* synthetic setup organization.
