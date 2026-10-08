@@ -3,12 +3,14 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../src/db";
+import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
 import {
   approvalTasks,
   auditEvents,
   compensationComponents,
   compensationEvents,
   employeeCompensationComponents,
+  employeePayProfiles,
   employees,
   organizations,
   payrollEntries,
@@ -265,4 +267,42 @@ test("scheduled component effective today cannot be silently cancelled", async (
     assert.equal(current.entries.length, 1);
     assert.equal(current.audits.length, 0);
   }, "2026-10-08");
+});
+
+test("ended recurring compensation remains payable for an earlier overlapping cutoff", async () => {
+  await withFixture("scheduled", async (fixture) => {
+    await db.update(employeeCompensationComponents).set({
+      status: "ended",
+      effectiveUntil: "2026-10-12",
+    }).where(eq(employeeCompensationComponents.id, fixture.assignmentId));
+    await db.insert(employeePayProfiles).values({
+      organizationId: fixture.organizationId,
+      employeeId: fixture.employeeId,
+      payBasis: "monthly",
+      rateAmount: "30000.00",
+      standardWorkDaysPerMonth: "22",
+      standardHoursPerDay: "8",
+    });
+    await db.delete(payrollEntries).where(eq(payrollEntries.payrollRunId, fixture.payrollRunId));
+    await db.update(payrollRuns).set({
+      status: "Draft",
+      employeeCount: 0,
+      grossPay: "0",
+      netPay: "0",
+      processedChunks: 0,
+      totalChunks: 0,
+    }).where(eq(payrollRuns.id, fixture.payrollRunId));
+
+    await enqueuePayrollRun(fixture.payrollRunId);
+    await drainPayrollQueue(20, fixture.payrollRunId);
+
+    const [calculated] = await db.select().from(payrollEntries).where(
+      eq(payrollEntries.payrollRunId, fixture.payrollRunId),
+    );
+    assert.ok(calculated, "historical cutoff should recalculate");
+    const lines = calculated.lineItems as Array<{ code?: string; amount?: string | number }>;
+    const allowance = lines.find((line) => line.code === `COMP-${fixture.assignmentId}`);
+    assert.ok(allowance, "ended but historically effective compensation must remain in payroll");
+    assert.equal(Number(allowance.amount), 200);
+  });
 });
