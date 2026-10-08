@@ -243,7 +243,7 @@ export function buildParallelPayrollComparison(input: {
         linaw,
         delta,
         percent: percent(delta, existing),
-        different: Math.abs(delta) >= 1,
+        different: Math.abs(Math.round(delta * 100)) > 1,
       } satisfies ParallelComponentComparison];
     });
 
