@@ -151,3 +151,12 @@ test("MWE governance is enforced consistently in migration, schema, compatibilit
   assert.ok(decisionRoute.includes("PAYROLL_TAX_APPROVER_ROLES"));
   assert.ok(decisionRoute.includes("requireSensitiveActionMfa"));
 });
+
+
+test("demo fixtures do not misclassify the ₱21,800 monthly warehouse worker as MWE", () => {
+  const publicDemo = readFileSync("src/db/public-demo.ts", "utf8");
+  const seed = readFileSync("src/db/seed.ts", "utf8");
+  assert.ok(publicDemo.includes("mwe: false"));
+  assert.ok(!publicDemo.includes("mwe: index === 5"));
+  assert.ok(seed.includes('["Rico", "Mendoza", "Warehouse Officer", "RM", "Disciplinary review", "Regular", "21800.00", false'));
+});

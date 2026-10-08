@@ -43,7 +43,7 @@ const people = [
   ["Aira", "Villanueva", "People Operations", "AV", "On leave", "Regular", "36500.00", false, "3234567890", "UB", "09171230003"],
   ["Paolo", "Cruz", "Finance Associate", "PC", "Active", "Regular", "32500.00", false, "4234567890", "BDO", "09171230004"],
   ["Nina", "Garcia", "Support Specialist", "NG", "Active", "Probationary", "24500.00", false, "5234567890", "BPI", "09171230005"],
-  ["Rico", "Mendoza", "Warehouse Officer", "RM", "Disciplinary review", "Regular", "21800.00", true, "6234567890", "BDO", "09171230006"],
+  ["Rico", "Mendoza", "Warehouse Officer", "RM", "Disciplinary review", "Regular", "21800.00", false, "6234567890", "BDO", "09171230006"],
   ["Trish", "Dela Cruz", "Account Executive", "TD", "Separating", "Regular", "41000.00", false, "7234567890", "GCASH", "09171230007"],
   ["Eli", "Tan", "Implementation Analyst", "ET", "Active", "Regular", "34800.00", false, "8234567890", "UB", "09171230008"],
 ] as const;
