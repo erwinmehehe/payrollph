@@ -314,15 +314,30 @@ test("two competing component approvals cannot both commit events or invalidate 
   });
 });
 
-test("past-effective scheduled component cannot be cancelled without audited retro workflow", async () => {
+test("past-effective compensation cannot be cancelled, even if activation races the attempted cancellation", async () => {
   await withFixture("scheduled", async (fixture) => {
-    await assert.rejects(decision(fixture, "cancel"), /COMPONENT_CANCELLATION_RETROACTIVE/);
+    let rejection = "";
+    await assert.rejects(decision(fixture, "cancel"), (error: unknown) => {
+      rejection = error instanceof Error ? error.message : String(error);
+      return /COMPONENT_CANCELLATION_RETROACTIVE|COMPONENT_ASSIGNMENT_STALE/.test(rejection);
+    });
     const current = await state(fixture);
-    assert.equal(current.assignment.status, "scheduled");
+    assert.ok(["scheduled", "active"].includes(current.assignment.status),
+      "cancellation must never undo a past-effective approved component");
+    if (rejection.includes("COMPONENT_ASSIGNMENT_STALE")) {
+      assert.equal(current.assignment.status, "active",
+        "stale is allowed only if a competing scheduler already activated the assignment");
+    }
     assert.equal(current.run.status, "Needs review");
     assert.equal(current.task.status, "Approved");
     assert.equal(current.entries.length, 1);
-    assert.equal(current.events.length, 0);
+    assert.equal(current.events.filter((event) => event.eventType === "component_cancelled").length, 0);
+    if (current.assignment.status === "active") {
+      assert.equal(current.events.filter((event) => event.eventType === "component_activated").length, 1);
+      assert.equal(current.audits.filter((event) => event.action === "Recurring compensation component activated").length, 1);
+    } else {
+      assert.equal(current.events.length, 0);
+    }
   }, "2026-10-07");
 });
 
