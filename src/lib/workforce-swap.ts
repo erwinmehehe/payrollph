@@ -1,4 +1,4 @@
-import type { ResolvedDailySchedule } from "@/lib/workforce-scheduling";
+import type { ResolvedDailySchedule, WorkforceScheduleOverride } from "@/lib/workforce-scheduling";
 
 export type ScheduleSwapSnapshot = {
   date: string;
@@ -68,7 +68,7 @@ export function scheduleSwapSnapshotsMatch(
 export function scheduleSwapOverrideValues(
   incoming: ScheduleSwapSnapshot,
   reason: string,
-) {
+): Omit<WorkforceScheduleOverride, "id" | "workDate" | "status"> {
   assertScheduleSwappable(incoming);
   return {
     kind: incoming.isRestDay
