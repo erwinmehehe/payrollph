@@ -24,6 +24,13 @@ import { deliverSlackAutomationMessage } from "@/lib/integration-connectors";
 import { loadWorkerAttributeContext } from "@/lib/worker-attribute-context";
 import { resolveWorkerDynamicGroups } from "@/lib/dynamic-worker-groups";
 import {
+  operationalReviewPolicyBlocks,
+  operationalReviewTriggerAllowed,
+  prepareOperationalReviewCase,
+  validOperationalReviewType,
+  type OperationalReviewCaseType,
+} from "@/lib/automation-operational-cases";
+import {
   getAutomationDocumentTemplate,
   type AutomationDocumentTrigger,
 } from "@/lib/automation-document-templates";
@@ -347,6 +354,12 @@ type PayrollAdjustmentApprovalAction = {
   approvalChainCode?: string;
 };
 
+type PrepareOperationalReviewAction = {
+  type: "prepare_operational_review";
+  caseType: OperationalReviewCaseType;
+  reason: string;
+};
+
 type WaitAction = {
   type: "wait";
   amount: number;
@@ -383,7 +396,8 @@ export type AutomationAction =
   | DeactivateAccessAction
   | SlackMessageAction
   | WebhookAction
-  | PayrollAdjustmentApprovalAction;
+  | PayrollAdjustmentApprovalAction
+  | PrepareOperationalReviewAction;
 
 export type AutomationWorkflowStep =
   | AutomationAction
@@ -407,6 +421,7 @@ export const AUTOMATION_ACTION_CATALOG = [
   { value: "revoke_sessions", label: "Revoke active sessions", category: "Access" },
   { value: "deactivate_access", label: "Remove workspace access", category: "Access" },
   { value: "request_payroll_adjustment", label: "Request payroll adjustment approval", category: "Payroll" },
+  { value: "prepare_operational_review", label: "Prepare WFM/payroll review case (no source mutation)", category: "Workforce" },
   { value: "send_slack_message", label: "Send Slack message", category: "Integration" },
   { value: "webhook", label: "Call registered integration webhook", category: "Integration" },
   { value: "wait", label: "Wait / delay", category: "Flow Control" },
@@ -666,6 +681,14 @@ function normalizeAutomationSteps(
       continue;
     }
 
+    if (type === "prepare_operational_review") {
+      const caseType = action.caseType;
+      const reason = String(action.reason ?? "").trim();
+      if (!validOperationalReviewType(caseType) || reason.length < 8 || reason.length > 240) return null;
+      actions.push({ type, caseType, reason });
+      continue;
+    }
+
     if (type === "request_payroll_adjustment") {
       const amount = Number(action.amount);
       const reason = String(action.reason ?? "").trim();
@@ -731,6 +754,12 @@ export function validateAutomationActionTrigger(trigger: AutomationTrigger, acti
         && !AUTOMATION_TRIGGER_CATALOG.find((item) => item.value === trigger)?.employeeScoped
       ) {
         return "Manager-routed approval gates require an employee-scoped trigger.";
+      }
+      continue;
+    }
+    if (action.type === "prepare_operational_review") {
+      if (!operationalReviewTriggerAllowed(action.caseType, trigger)) {
+        return `Operational review type ${action.caseType} requires its matching authoritative WFM/payroll/compliance trigger.`;
       }
       continue;
     }
@@ -968,6 +997,14 @@ function previewStepPolicyBlocks(input: {
     blocks.push(`${step.type} requires an employee-scoped event.`);
   }
 
+  if (step.type === "prepare_operational_review") {
+    blocks.push(...operationalReviewPolicyBlocks({
+      caseType: step.caseType,
+      trigger: String(input.context.trigger ?? ""),
+      context: input.context,
+      employeeId: input.employeeId,
+    }).filter((reason) => !reason.includes("cannot run on")));
+  }
   if (step.type === "send_email") {
     if (step.recipient === "employee" && !String(input.context.employeeEmail ?? "").trim()) {
       blocks.push("Employee email is unavailable.");
@@ -1163,6 +1200,29 @@ async function executeAction(input: {
   context: Record<string, unknown>;
 }) {
   const action = input.action;
+
+  if (action.type === "prepare_operational_review") {
+    const result = await prepareOperationalReviewCase({
+      organizationId: input.organizationId,
+      executionId: input.executionId,
+      actionIndex: input.actionIndex,
+      trigger: input.trigger,
+      eventKey: input.eventKey,
+      caseType: action.caseType,
+      reason: action.reason,
+      employeeId: input.employeeId,
+      context: input.context,
+    });
+    return {
+      type: action.type,
+      caseId: result.case.id,
+      caseType: action.caseType,
+      sourceId: result.case.sourceId,
+      sourceType: result.case.sourceType,
+      caseCreated: result.created,
+      changesAppliedAutomatically: false,
+    };
+  }
 
   if (action.type === "create_task") {
     const employeeId = requiredEmployeeId(input.employeeId, "Create task");
@@ -1485,11 +1545,16 @@ async function executeAction(input: {
 }
 
 
-const NON_RETRYABLE_EXECUTION_ACTIONS = new Set([
-  "create_task",
-  "create_onboarding_checklist",
-  "send_slack_message",
-  "webhook",
+// Closed allowlist: if an action type is not explicitly proven idempotent,
+// it can never be automatically retried after an ambiguous partial failure.
+// In particular, approval requests, documents, messages and schedule writes
+// are NOT safe even if some implementations offer deduplication.
+export const SAFE_FAILED_STEP_RETRY_ACTIONS = new Set([
+  "assign_permission_set",
+  "assign_benefit",
+  "revoke_sessions",
+  "deactivate_access",
+  "prepare_operational_review",
 ]);
 
 const SAFE_REPLAY_EXECUTION_ACTIONS = new Set([
@@ -1563,9 +1628,9 @@ export async function retryAutomationExecutionFailedStep(input: {
   if (!step || step.type === "wait" || step.type === "approval_gate") {
     throw new Error("Only failed business-action steps can be retried.");
   }
-  if (NON_RETRYABLE_EXECUTION_ACTIONS.has(step.type)) {
+  if (!SAFE_FAILED_STEP_RETRY_ACTIONS.has(step.type)) {
     throw new Error(
-      `The failed ${step.type} action is not safe for automatic retry. Inspect its external side effects and resolve it manually.`,
+      `The failed ${step.type} action is not safe for automatic retry. Quarantine it in the dead-letter queue and review any side effects manually.`,
     );
   }
 
