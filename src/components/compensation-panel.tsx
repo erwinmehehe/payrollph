@@ -229,6 +229,9 @@ export function CompensationPanel({
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       setNotice(body.error ?? "Could not update compensation.");
+      // Another checker may have consumed the cycle budget since this screen
+      // loaded. Refresh authoritative proposal states before the next action.
+      if (response.status === 409) await load();
       return;
     }
     setNotice(success);
@@ -239,13 +242,16 @@ export function CompensationPanel({
   const committedSpend = useMemo(
     () =>
       proposals
-        .filter((proposal) => ["scheduled", "applied"].includes(proposal.status))
+        .filter((proposal) =>
+          proposal.cycleId === activeCycle?.id
+          && ["scheduled", "applied"].includes(proposal.status),
+        )
         .reduce(
           (sum, proposal) =>
             sum + Math.max(0, Number(proposal.proposedAnnual) - Number(proposal.currentAnnual)),
           0,
         ),
-    [proposals],
+    [proposals, activeCycle?.id],
   );
   const selectedEmployeeId = Number(proposalForm.employeeId);
   const selectedEmployee = employees.find((employee) => employee.id === selectedEmployeeId) ?? null;
@@ -293,9 +299,14 @@ export function CompensationPanel({
           <small>{activeCycle ? `effective ${activeCycle.effectiveDate}` : "create a review cycle"}</small>
         </article>
         <article className="stat-card">
-          <span>Committed budget</span>
+          <span>{access?.companyWide ? "Committed budget" : "Visible committed increases"}</span>
           <strong>{peso(committedSpend)}</strong>
-          <small>{activeCycle ? `of ${peso(activeCycle.budgetPool)} pool` : "no active cycle"}</small>
+          <small>{!activeCycle
+            ? "no active cycle"
+            : access?.companyWide
+              ? `${peso(Math.max(0, Number(activeCycle.budgetPool) - committedSpend))} remaining of ${peso(activeCycle.budgetPool)} pool`
+              : "Only proposals in your assigned scope are shown"}
+          </small>
         </article>
         <article className="stat-card">
           <span>Recurring components</span>
