@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, gt, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeePayRevisions,
@@ -50,7 +50,7 @@ export async function employeeMasterMigrationBlockers(organizationId: number): P
       .where(and(
         eq(importBatches.organizationId, organizationId),
         eq(importBatches.importKind, "employees"),
-        eq(importBatches.status, "completed"),
+        or(gt(importBatches.createdCount, 0), gt(importBatches.updatedCount, 0)),
       )).limit(1),
   ]);
 
