@@ -182,6 +182,47 @@ test("forecast combines current payroll, vacancy budget, staffing demand, and co
   assert.equal(result.unallocated.plannedVacancyPeriodCost, result.summary.expectedVacancyPeriodCost);
 });
 
+test("attrition assumptions produce role-level governed backfill evidence without mutating source records", () => {
+  const result = buildWorkforceDemandForecast({
+    assumptions: {
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      demandGrowthPercent: 0,
+      vacancyFillPercent: 0,
+      employerLoadPercent: 0,
+      annualAttritionPercent: 50,
+      attritionBackfillPercent: 50,
+    },
+    employees: [
+      { id: 1, status: "Active", jobProfileId: 10 },
+      { id: 2, status: "Active", jobProfileId: 10 },
+    ],
+    payProfiles: [
+      { employeeId: 1, payBasis: "monthly", rateAmount: 30000, standardWorkDaysPerMonth: 22, standardHoursPerDay: 8 },
+      { employeeId: 2, payBasis: "monthly", rateAmount: 30000, standardWorkDaysPerMonth: 22, standardHoursPerDay: 8 },
+    ],
+    positions: [],
+    staffingRequirements: [],
+    shifts: [],
+    laborAllocations: [],
+    costCenters: [],
+    jobProfiles: [{ id: 10, title: "Payroll Analyst", family: "Finance", level: "P2" }],
+    employerCosts: [
+      { employeeId: 1, annualStatutoryEmployer: 47760, annualBenefitEmployer: 12000, annualRecurringCompensation: 6000 },
+      { employeeId: 2, annualStatutoryEmployer: 47760, annualBenefitEmployer: 12000, annualRecurringCompensation: 6000 },
+    ],
+  });
+
+  assert.ok(result.summary.expectedAttritionExits > 0.99 && result.summary.expectedAttritionExits < 1.01);
+  assert.ok(result.summary.plannedAttritionBackfills > 0.49 && result.summary.plannedAttritionBackfills < 0.51);
+  assert.ok(result.summary.endingActiveHeadcount > 1.49 && result.summary.endingActiveHeadcount < 1.51);
+  assert.ok(result.summary.attritionCapacityLossHours > result.summary.plannedBackfillCapacityHours);
+  assert.ok((result.summary.annualBackfillRunRateCost ?? 0) > 0);
+  assert.equal(result.backfillPlan.length, 1);
+  assert.equal(result.backfillPlan[0]?.title, "Payroll Analyst");
+  assert.ok((result.backfillPlan[0]?.plannedBackfills ?? 0) > 0.49);
+  assert.ok((result.backfillPlan[0]?.netAnnualRunRateCostChange ?? 0) < 0);
+});
 test("forecast surfaces missing pay and invalid allocation evidence instead of inventing cost", () => {
   const result = buildWorkforceDemandForecast({
     assumptions: {
@@ -255,6 +296,25 @@ test("forecast assumptions fail closed outside the governed range", () => {
     laborAllocations: [],
     costCenters: [],
   }), /Demand growth must be between/);
+
+  assert.throws(() => buildWorkforceDemandForecast({
+    assumptions: {
+      startDate: "2026-01-01",
+      endDate: "2026-03-31",
+      demandGrowthPercent: 0,
+      vacancyFillPercent: 100,
+      employerLoadPercent: 0,
+      annualAttritionPercent: 101,
+      attritionBackfillPercent: 100,
+    },
+    employees: [],
+    payProfiles: [],
+    positions: [],
+    staffingRequirements: [],
+    shifts: [],
+    laborAllocations: [],
+    costCenters: [],
+  }), /Annual attrition must be between/);
 });
 
 test("forecast API is read-only and delegates WFM scope plus salary redaction to the server service", () => {
@@ -272,6 +332,8 @@ test("forecast API is read-only and delegates WFM scope plus salary redaction to
   assert.ok(service.includes("employeeWorksiteAtStart"));
   assert.ok(service.includes("annualizedBasePayroll: null"));
   assert.ok(service.includes("forecastPeriodLaborCost: null"));
+  assert.ok(service.includes("annualBackfillRunRateCost: null"));
+  assert.ok(service.includes("backfillPlan: forecast.backfillPlan?.map"));
 });
 
 test("planning UI exposes explicit scenario assumptions and quality boundaries", () => {
@@ -281,6 +343,10 @@ test("planning UI exposes explicit scenario assumptions and quality boundaries",
   assert.ok(source.includes("Demand growth %"));
   assert.ok(source.includes("Vacancy fill %"));
   assert.ok(source.includes("Additional scenario load %"));
+  assert.ok(source.includes("Annual attrition %"));
+  assert.ok(source.includes("Attrition backfill %"));
+  assert.ok(source.includes("Governed backfill boundary."));
+  assert.ok(source.includes("BACKFILL ROLE"));
   assert.ok(source.includes("Forecast quality needs review"));
   assert.ok(source.includes("same SSS/EC, PhilHealth, and Pag-IBIG formulas as payroll"));
   assert.ok(source.includes("It is not added to the labor plan again."));
