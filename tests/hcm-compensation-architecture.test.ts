@@ -156,3 +156,11 @@ test("direct Edit pay cannot bypass governed future compensation", () => {
   assert.ok(employeesRoute.includes("already has a future pay change effective"));
   assert.ok(employeesRoute.includes('["scheduled", "failed"].includes(governedCompensation.status)'));
 });
+
+test("compensation budget UI uses only the selected cycle and refreshes concurrent decision conflicts", () => {
+  assert.ok(panel.includes("proposal.cycleId === activeCycle?.id"));
+  assert.ok(panel.includes("[proposals, activeCycle?.id]"));
+  assert.ok(panel.includes("response.status === 409) await load()"));
+  assert.ok(panel.includes("Only proposals in your assigned scope are shown"));
+  assert.ok(panel.includes("remaining of"));
+});
