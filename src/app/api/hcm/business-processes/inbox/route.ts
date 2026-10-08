@@ -38,6 +38,7 @@ export async function GET(request: Request) {
     step: hcmBusinessProcessInstanceSteps,
     instance: hcmBusinessProcessInstances,
     employeeId: employees.id,
+    employeeOrgUnitId: employees.orgUnitId,
     employeeNo: employees.employeeNo,
     firstName: employees.firstName,
     lastName: employees.lastName,
@@ -57,6 +58,7 @@ export async function GET(request: Request) {
 
   const myWork = [];
   for (const row of pendingRows) {
+    if (!access.companyWide && (!row.employeeId || row.employeeOrgUnitId !== access.orgUnitId)) continue;
     const decision = await canDecide(organizationId, row.step.assignee, user.name, user.id);
     if (!decision.permitted) continue;
     myWork.push({
@@ -144,6 +146,19 @@ export async function POST(request: Request) {
     ))
     .limit(1);
   if (!row) return Response.json({ error: "HCM work item not found." }, { status: 404 });
+  if (!access.companyWide) {
+    const [worker] = row.instance.employeeId
+      ? await db.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
+          eq(employees.id, row.instance.employeeId),
+          eq(employees.organizationId, organizationId),
+        )).limit(1)
+      : [];
+    if (!worker || worker.orgUnitId !== access.orgUnitId) {
+      return Response.json({
+        error: "This HCM work item is outside your assigned organization unit.",
+      }, { status: 403 });
+    }
+  }
   if (row.step.status !== "pending" || row.instance.status !== "in_progress") {
     return Response.json({ error: "This HCM work item is no longer pending." }, { status: 409 });
   }

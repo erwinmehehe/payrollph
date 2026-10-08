@@ -1,12 +1,12 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforcePlanningScenarios, workforcePlans } from "@/db/schema";
+import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, employees, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforcePlanningScenarios, workforcePlans } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
 import { dispatchWebhook } from "@/lib/webhooks";
-import { assertMembership } from "@/lib/access";
+import { assertMembership, assertOrganizationUnitAccess } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { isPublicDemoIdentity } from "@/lib/demo-security";
 import { resumeAutomationExecutionFromApproval, runAutomationEventSafely } from "@/lib/automation";
@@ -48,6 +48,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     stepId: hcmBusinessProcessInstanceSteps.id,
     stepStatus: hcmBusinessProcessInstanceSteps.status,
     instanceId: hcmBusinessProcessInstances.id,
+    employeeId: hcmBusinessProcessInstances.employeeId,
     initiatedByUserId: hcmBusinessProcessInstances.initiatedByUserId,
     processStatus: hcmBusinessProcessInstances.status,
   }).from(hcmBusinessProcessInstanceSteps)
@@ -65,6 +66,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return Response.json({
         error: "This HCM business-process approval is no longer pending.",
       }, { status: 409 });
+    }
+    if (hcmBusinessProcessApproval.employeeId != null) {
+      const [worker] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
+        eq(employees.id, hcmBusinessProcessApproval.employeeId),
+        eq(employees.organizationId, task.organizationId),
+      )).limit(1);
+      if (!worker) {
+        return Response.json({ error: "The HCM business process no longer has a valid employee." }, { status: 409 });
+      }
+      const scopeDenied = await assertOrganizationUnitAccess(
+        sessionUser.id, task.organizationId, worker.orgUnitId,
+        "This HCM business-process approval concerns an employee outside your assigned unit.",
+      );
+      if (scopeDenied) return scopeDenied;
+    } else {
+      const scopeDenied = await assertOrganizationUnitAccess(
+        sessionUser.id, task.organizationId, null,
+        "Company-wide HCM business-process approvals require company-wide access.",
+      );
+      if (scopeDenied) return scopeDenied;
     }
     if (hcmBusinessProcessApproval.initiatedByUserId === sessionUser.id) {
       return Response.json({

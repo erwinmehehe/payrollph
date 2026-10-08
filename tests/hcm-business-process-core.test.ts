@@ -48,3 +48,14 @@ test("HCM Inbox and process studio expose governed enterprise workflows", () => 
   assert.ok(adminUi.includes("Company default"));
   assert.ok(adminUi.includes("Save new version"));
 });
+
+test("HCM approvals and inbox remain org-unit scoped without weakening payroll protections", () => {
+  const approvalRoute = read("src/app/api/approvals/[id]/route.ts");
+  const inboxRoute = read("src/app/api/hcm/business-processes/inbox/route.ts");
+  assert.ok(approvalRoute.includes("verifyPayrollApprovalSnapshot"));
+  assert.ok(approvalRoute.includes("authorizedDynamicGroupMember"));
+  assert.ok(approvalRoute.includes("assertOrganizationUnitAccess("));
+  assert.ok(approvalRoute.includes("hcmBusinessProcessApproval.employeeId"));
+  assert.ok(inboxRoute.includes("row.employeeOrgUnitId !== access.orgUnitId"));
+  assert.ok(inboxRoute.includes("worker.orgUnitId !== access.orgUnitId"));
+});
