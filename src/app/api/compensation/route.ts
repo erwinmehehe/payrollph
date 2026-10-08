@@ -25,7 +25,6 @@ import {
   annualizePay,
   compaRatio,
   evaluateCompensationCycleBudget,
-  proposalBudgetDelta,
   proposalWithinBand,
   rangePosition,
   rateFromAnnual,
