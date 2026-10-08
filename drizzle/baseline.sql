@@ -3881,3 +3881,30 @@ CREATE INDEX IF NOT EXISTS "workforce_plan_manager_submissions_allocation_idx"
 CREATE INDEX IF NOT EXISTS "workforce_plan_manager_submissions_unit_idx"
   ON "workforce_plan_manager_submissions" ("organization_id","org_unit_id","status");
 
+-- Workforce Planning 2.0: immutable preview -> explicit position execution.
+CREATE TABLE IF NOT EXISTS "workforce_plan_position_executions" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE CASCADE,
+  "plan_id" integer NOT NULL REFERENCES "workforce_plans"("id") ON DELETE CASCADE,
+  "baseline_id" integer NOT NULL REFERENCES "workforce_plan_baselines"("id") ON DELETE RESTRICT,
+  "baseline_snapshot_hash" varchar(64) NOT NULL,
+  "status" varchar(24) DEFAULT 'preview' NOT NULL,
+  "execution_plan" jsonb DEFAULT '{}'::jsonb NOT NULL,
+  "execution_hash" varchar(64) NOT NULL,
+  "result" jsonb DEFAULT '{}'::jsonb NOT NULL,
+  "created_by_user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+  "created_by" varchar(120) NOT NULL,
+  "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+  "applied_by_user_id" integer REFERENCES "users"("id") ON DELETE SET NULL,
+  "applied_by" varchar(120),
+  "applied_at" timestamp with time zone,
+  CONSTRAINT "workforce_plan_position_executions_status_check"
+    CHECK ("status" IN ('preview','applied','cancelled'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "workforce_plan_position_executions_org_hash_unique"
+  ON "workforce_plan_position_executions" ("organization_id","execution_hash");
+CREATE INDEX IF NOT EXISTS "workforce_plan_position_executions_plan_status_idx"
+  ON "workforce_plan_position_executions" ("organization_id","plan_id","status");
+CREATE INDEX IF NOT EXISTS "workforce_plan_position_executions_baseline_idx"
+  ON "workforce_plan_position_executions" ("baseline_id");
+
