@@ -382,7 +382,7 @@ export async function draftAutomationFromLanguage(request: string): Promise<Lang
     throw new LanguageDraftError("Remove personal contact details and long identification/account numbers before drafting.", 422);
   }
 
-  if (/\b(?:org(?:anization)?|payroll|timesheet|worksite|benefit|case|document|position)[-\s]*(?:id|code|version)\b/i.test(prompt)) {
+  if (/\b(?:org(?:anization)?(?:\s+unit)?|payroll(?:\s+run)?|timesheet(?:\s+expectation)?|worksite|benefit(?:\s+plan)?|contribution(?:\s+case)?|case|document(?:\s+requirement)?|position|legal(?:\s+entity)?|employee)[-\s]*(?:id|code|version)\b/i.test(prompt)) {
     throw new LanguageDraftError(
       "Workflow identifiers and tenant-specific codes must be selected from verified records in the governed builder, not inferred by language drafting.",
       422,
