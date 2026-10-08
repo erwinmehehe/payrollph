@@ -59,6 +59,22 @@ export function scimProvisioningOrgUnit(input: {
 }
 
 /**
+ * Explicit SCIM worker identity must not silently attach a worker from another
+ * department to an unrelated scoped HR/ESS membership.
+ */
+export function assertScimWorkerScope(input: {
+  workerOrgUnitId: number | null;
+  membershipOrgUnitId: number | null;
+}): void {
+  if (input.workerOrgUnitId != null && input.membershipOrgUnitId != null
+    && input.workerOrgUnitId !== input.membershipOrgUnitId) {
+    throw new EnterpriseProvisioningError(
+      "SCIM employeeNumber belongs to a different department from the requested membership scope.",
+    );
+  }
+}
+
+/**
  * A global Linaw account may belong to multiple employers. One employer's
  * SCIM connector must not rewrite the account-wide email/name/ESS identity
  * that another employer depends on.
