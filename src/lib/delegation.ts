@@ -1,6 +1,6 @@
 import { and, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalDelegations } from "@/db/schema";
+import { approvalDelegations, userOrganizations } from "@/db/schema";
 
 function today() {
   const now = new Date();
@@ -41,10 +41,47 @@ export async function resolveEffectiveApprovers(organizationId: number, approver
   };
 }
 
-export async function canDecide(organizationId: number, approver: string, actor: string) {
+const ROLE_APPROVER_GROUPS: Record<string, readonly string[]> = {
+  "role:hr": ["hr", "admin", "owner"],
+  "role:finance": ["bookkeeper", "admin", "owner"],
+  "role:owner": ["owner"],
+  "role:manager": ["manager", "admin", "owner"],
+};
+
+export function roleApproverMatchesRole(approver: string, role: string) {
+  const acceptedRoles = ROLE_APPROVER_GROUPS[approver.trim().toLowerCase()] ?? null;
+  return acceptedRoles ? acceptedRoles.includes(role) : false;
+}
+
+export async function canDecide(
+  organizationId: number,
+  approver: string,
+  actor: string,
+  actorUserId?: number | null,
+) {
+  const normalizedApprover = approver.trim().toLowerCase();
+  const acceptedRoles = ROLE_APPROVER_GROUPS[normalizedApprover] ?? null;
+  let roleMatched = false;
+  let actorRole: string | null = null;
+
+  if (acceptedRoles && actorUserId && Number.isInteger(actorUserId)) {
+    const [membership] = await db.select({
+      role: userOrganizations.role,
+    }).from(userOrganizations).where(and(
+      eq(userOrganizations.userId, actorUserId),
+      eq(userOrganizations.organizationId, organizationId),
+      eq(userOrganizations.active, true),
+    )).limit(1);
+    actorRole = membership?.role ?? null;
+    roleMatched = actorRole != null && roleApproverMatchesRole(approver, actorRole);
+  }
+
   const resolved = await resolveEffectiveApprovers(organizationId, approver);
   return {
     ...resolved,
-    permitted: resolved.allowed.includes(actor.toLowerCase()),
+    roleTarget: acceptedRoles ? normalizedApprover : null,
+    actorRole,
+    roleMatched,
+    permitted: roleMatched || resolved.allowed.includes(actor.toLowerCase()),
   };
 }

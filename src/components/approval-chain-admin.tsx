@@ -54,6 +54,7 @@ export function ApprovalChainAdmin({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const [purpose, setPurpose] = useState<"automation" | "workforce_plan">("automation");
   const [steps, setSteps] = useState<ChainStep[]>([
     { label: "Primary approval", approver: "People Ops", dueLabel: "Review required", priority: "Normal", minimumAmount: 0 },
   ]);
@@ -78,6 +79,7 @@ export function ApprovalChainAdmin({
     setEditingId(null);
     setCode("");
     setName("");
+    setPurpose("automation");
     setSteps([{ label: "Primary approval", approver: "People Ops", dueLabel: "Review required", priority: "Normal", minimumAmount: 0 }]);
   }
 
@@ -85,6 +87,7 @@ export function ApprovalChainAdmin({
     setEditingId(policy.id);
     setCode(policy.code);
     setName(policy.name);
+    setPurpose(policy.purpose === "workforce_plan" ? "workforce_plan" : "automation");
     const parsed = normalizedSteps(policy.steps);
     setSteps(parsed.length ? parsed : [{ label: "Primary approval", approver: "People Ops", dueLabel: "Review required", priority: "Normal", minimumAmount: 0 }]);
   }
@@ -110,7 +113,7 @@ export function ApprovalChainAdmin({
           id: editingId,
           code,
           name,
-          purpose: "automation",
+          purpose,
           steps,
         }),
       });
@@ -168,7 +171,7 @@ export function ApprovalChainAdmin({
       <div className="card-body">
         <div className="notice notice-slate" style={{ marginBottom: 14 }}>
           <ShieldCheck size={15} className="i-purple" />
-          <span>Chain changes require the same company-wide admin, MFA, same-origin, rate-limit, and audit controls as Automation Studio publishing. Amount-aware requests require each higher step only after its PHP threshold is reached.</span>
+          <span>Chain changes require company-wide admin, MFA, same-origin, rate-limit, and audit controls. Workforce planning chains can route to role:hr, role:finance, role:manager, or role:owner; named approvers and active delegations continue to work too. Amount-aware requests add higher steps only after their PHP threshold is reached.</span>
         </div>
 
         <div className="setting-form">
@@ -183,6 +186,12 @@ export function ApprovalChainAdmin({
           <label>Chain name
             <input value={name} onChange={(event) => setName(event.target.value)} placeholder="People change approval" />
           </label>
+          <label>Business process
+            <select value={purpose} onChange={(event) => setPurpose(event.target.value === "workforce_plan" ? "workforce_plan" : "automation")}>
+              <option value="automation">Automation</option>
+              <option value="workforce_plan">Workforce planning</option>
+            </select>
+          </label>
         </div>
 
         <div style={{ marginTop: 12 }}>
@@ -191,7 +200,7 @@ export function ApprovalChainAdmin({
               <div style={{ display: "grid", gridTemplateColumns: "56px 1fr 1fr 170px 1fr auto", gap: 8, alignItems: "end" }}>
                 <strong style={{ fontSize: 12 }}>#{index + 1}</strong>
                 <label>Step label<input value={step.label} onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? { ...row, label: event.target.value } : row))} /></label>
-                <label>Approver<input value={step.approver} onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? { ...row, approver: event.target.value } : row))} placeholder="People Ops, Payroll, manager…" /></label>
+                <label>Approver<input value={step.approver} onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? { ...row, approver: event.target.value } : row))} placeholder="Name or role:hr / role:finance / role:owner" /></label>
                 <label>Starts at (PHP)<input type="number" min="0" step="0.01" disabled={index === 0} value={step.minimumAmount ?? 0} onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? { ...row, minimumAmount: Number(event.target.value) } : row))} /></label>
                 <label>Priority<select value={step.priority ?? "Normal"} onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? { ...row, priority: event.target.value } : row))}><option>Normal</option><option>High</option></select></label>
                 <button type="button" className="icon-button" disabled={steps.length === 1} onClick={() => setSteps((rows) => rows.filter((_, i) => i !== index))}><Trash2 size={15} /></button>
@@ -201,6 +210,20 @@ export function ApprovalChainAdmin({
         </div>
 
         <div className="run-actions" style={{ marginTop: 12 }}>
+          <button type="button" className="secondary-button" onClick={() => {
+            setEditingId(null);
+            setCode("workforce-plan");
+            setName("Workforce plan approval");
+            setPurpose("workforce_plan");
+            setSteps([
+              { label: "HR review", approver: "role:hr", dueLabel: "HR review required", priority: "Normal", minimumAmount: 0 },
+              { label: "Finance review", approver: "role:finance", dueLabel: "Finance review required", priority: "High", minimumAmount: 0 },
+              { label: "Business owner approval", approver: "role:owner", dueLabel: "Owner review required", priority: "High", minimumAmount: 1000000 },
+              { label: "Executive approval", approver: "role:owner", dueLabel: "Executive review required", priority: "High", minimumAmount: 5000000 },
+            ]);
+          }}>
+            Workforce plan template
+          </button>
           <button type="button" className="secondary-button" disabled={steps.length >= 12} onClick={() => setSteps((rows) => [...rows, { label: `Approval ${rows.length + 1}`, approver: "People Ops", dueLabel: "Review required", priority: "Normal", minimumAmount: Number(rows[rows.length - 1]?.minimumAmount ?? 0) }])}>
             <Plus size={14} /> Step
           </button>
@@ -221,7 +244,7 @@ export function ApprovalChainAdmin({
                 <div className="inline-icon purple"><GitBranch size={15} /></div>
                 <div style={{ flex: 1 }}>
                   <strong>{policy.name}</strong>
-                  <span>{policy.code} · v{policy.version} · {count} step{count === 1 ? "" : "s"} · thresholds through PHP {highestThreshold.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · {policy.active ? "active" : "disabled"}</span>
+                  <span>{policy.code} · {policy.purpose === "workforce_plan" ? "workforce planning" : "automation"} · v{policy.version} · {count} step{count === 1 ? "" : "s"} · thresholds through PHP {highestThreshold.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · {policy.active ? "active" : "disabled"}</span>
                 </div>
                 <button type="button" className="secondary-button" onClick={() => edit(policy)}>Edit</button>
                 <button type="button" className="secondary-button" onClick={() => void setActive(policy, !policy.active)}>{policy.active ? "Disable" : "Enable"}</button>

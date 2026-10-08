@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, auditEvents, automationExecutions, leaveRequestIntervalSets, leaveRequests, payrollRuns } from "@/db/schema";
+import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforcePlanningScenarios, workforcePlans } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { dispatchWebhook } from "@/lib/webhooks";
@@ -41,6 +41,55 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const payrollRunMatch = task.detail.match(/Payroll run #(\d+)/);
   const payrollRunId = payrollRunMatch ? Number(payrollRunMatch[1]) : null;
   let payrollSubmission: { actor: string; metadata: Record<string, unknown> } | null = null;
+  let workforceScenarioApproval: {
+    scenarioId: number;
+    planId: number | null;
+    name: string;
+    version: number;
+    snapshotHash: string;
+    submittedByUserId: number | null;
+    scopeOrgUnitId: number | null;
+    worksiteId: number | null;
+  } | null = null;
+
+  if (task.approvalChainInstanceId) {
+    const [instance] = await db.select().from(approvalChainInstances).where(and(
+      eq(approvalChainInstances.id, task.approvalChainInstanceId),
+      eq(approvalChainInstances.organizationId, task.organizationId),
+    )).limit(1);
+    if (instance?.sourceType === "workforce_plan_scenario") {
+      const scenarioId = Number(instance.sourceKey);
+      const [scenario] = Number.isInteger(scenarioId)
+        ? await db.select().from(workforcePlanningScenarios).where(and(
+            eq(workforcePlanningScenarios.id, scenarioId),
+            eq(workforcePlanningScenarios.organizationId, task.organizationId),
+          )).limit(1)
+        : [];
+      if (!scenario) {
+        return Response.json({ error: "The workforce-plan approval is not linked to a valid staffing scenario." }, { status: 409 });
+      }
+      if (scenario.status !== "submitted") {
+        return Response.json({
+          error: `This staffing scenario is not awaiting approval (currently ${scenario.status}).`,
+        }, { status: 409 });
+      }
+      if (scenario.submittedByUserId === sessionUser.id) {
+        return Response.json({
+          error: "Maker-checker control: the person who submitted this staffing scenario cannot approve any step of its business process.",
+        }, { status: 403 });
+      }
+      workforceScenarioApproval = {
+        scenarioId: scenario.id,
+        planId: scenario.planId,
+        name: scenario.name,
+        version: scenario.version,
+        snapshotHash: scenario.snapshotHash,
+        submittedByUserId: scenario.submittedByUserId,
+        scopeOrgUnitId: scenario.scopeOrgUnitId,
+        worksiteId: scenario.worksiteId,
+      };
+    }
+  }
 
   if (payrollRunId) {
     const [payrollRun] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, payrollRunId)).limit(1);
@@ -99,7 +148,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   }
 
-  const decision = await canDecide(task.organizationId, task.approver, actor);
+  const decision = await canDecide(task.organizationId, task.approver, actor, sessionUser.id);
   if (!decision.permitted) {
     return Response.json({
       error: `${actor} is not the assigned approver and holds no active delegation for ${task.approver}.`,
@@ -108,9 +157,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }, { status: 403 });
   }
 
-  const onBehalf = actor.toLowerCase() !== task.approver.toLowerCase() ? task.approver : null;
+  const onBehalf = decision.roleMatched ? null : actor.toLowerCase() !== task.approver.toLowerCase() ? task.approver : null;
 
   let updated;
+  let workforcePlanDecision: { scenarioId: number; status: "approved" | "rejected" } | null = null;
   let chain: Awaited<ReturnType<typeof advanceApprovalChainAfterDecisionTx>> = {
     isChain: false,
     final: true,
@@ -169,6 +219,66 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         ));
       }
 
+      let sourceDecision: { scenarioId: number; status: "approved" | "rejected" } | null = null;
+      if (
+        workforceScenarioApproval
+        && chainResult.isChain
+        && chainResult.final
+        && (chainResult.status === "approved" || chainResult.status === "declined")
+      ) {
+        const nextScenarioStatus = chainResult.status === "approved" ? "approved" : "rejected";
+        const [scenarioRow] = await tx.update(workforcePlanningScenarios).set({
+          status: nextScenarioStatus,
+          decidedByUserId: sessionUser.id,
+          decidedAt: new Date(),
+          decisionNote: `${nextScenarioStatus === "approved" ? "Approved" : "Rejected"} through approval-chain instance #${chainResult.instanceId}.`,
+          updatedAt: new Date(),
+        }).where(and(
+          eq(workforcePlanningScenarios.id, workforceScenarioApproval.scenarioId),
+          eq(workforcePlanningScenarios.status, "submitted"),
+        )).returning();
+        if (!scenarioRow) throw new Error("WORKFORCE_PLAN_APPROVAL_CONFLICT");
+
+        if (
+          scenarioRow.planId
+          && scenarioRow.scopeOrgUnitId == null
+          && scenarioRow.worksiteId == null
+        ) {
+          const [linkedPlan] = await tx.select({ status: workforcePlans.status }).from(workforcePlans)
+            .where(eq(workforcePlans.id, scenarioRow.planId))
+            .limit(1);
+          if (linkedPlan && linkedPlan.status !== "published") {
+            await tx.update(workforcePlans).set({
+              status: nextScenarioStatus,
+              updatedAt: new Date(),
+            }).where(eq(workforcePlans.id, scenarioRow.planId));
+          }
+        }
+
+        await tx.insert(auditEvents).values({
+          organizationId: task.organizationId,
+          actor,
+          action: nextScenarioStatus === "approved"
+            ? "Workforce staffing scenario approved"
+            : "Workforce staffing scenario rejected",
+          resource: `${workforceScenarioApproval.name} v${workforceScenarioApproval.version}`,
+          metadata: {
+            scenarioId: workforceScenarioApproval.scenarioId,
+            planId: workforceScenarioApproval.planId,
+            snapshotHash: workforceScenarioApproval.snapshotHash,
+            submittedByUserId: workforceScenarioApproval.submittedByUserId,
+            decidedByUserId: sessionUser.id,
+            approvalChainInstanceId: chainResult.instanceId,
+            approvalTaskId: taskId,
+            approvalChainStatus: chainResult.status,
+          },
+        });
+        sourceDecision = {
+          scenarioId: workforceScenarioApproval.scenarioId,
+          status: nextScenarioStatus,
+        };
+      }
+
       await tx.insert(auditEvents).values({
         organizationId: task.organizationId,
         actor,
@@ -190,14 +300,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         },
       });
 
-      return { updatedTask, chainResult };
+      return { updatedTask, chainResult, sourceDecision };
     });
     updated = decisionResult.updatedTask;
     chain = decisionResult.chainResult;
+    workforcePlanDecision = decisionResult.sourceDecision;
   } catch (error) {
     if (error instanceof Error && (
       error.message === "PAYROLL_APPROVAL_CONFLICT" ||
-      error.message === "APPROVAL_TASK_CONFLICT"
+      error.message === "APPROVAL_TASK_CONFLICT" ||
+      error.message === "WORKFORCE_PLAN_APPROVAL_CONFLICT"
     )) {
       return Response.json({
         error: "This approval changed while your decision was being saved. Refresh to see the current state.",
@@ -318,5 +430,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     automation,
     automationGate,
     approvalChain: chain,
+    workforcePlanDecision,
   });
 }

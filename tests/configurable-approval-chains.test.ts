@@ -95,3 +95,47 @@ test("Approval Studio UI can configure and select chains", () => {
   assert.ok(studio.includes("approvalChainCode"));
   assert.ok(studio.includes("Single approver"));
 });
+
+
+test("approval routing supports reusable organization roles without breaking named approvers", () => {
+  const delegation = read("src/lib/delegation.ts");
+  const approvals = read("src/app/api/approvals/[id]/route.ts");
+  assert.ok(delegation.includes('"role:hr": ["hr", "admin", "owner"]'));
+  assert.ok(delegation.includes('"role:finance": ["bookkeeper", "admin", "owner"]'));
+  assert.ok(delegation.includes('"role:owner": ["owner"]'));
+  assert.ok(delegation.includes("actorUserId?: number | null"));
+  assert.ok(delegation.includes("roleMatched || resolved.allowed.includes"));
+  assert.ok(approvals.includes("canDecide(task.organizationId, task.approver, actor, sessionUser.id)"));
+});
+
+test("workforce-plan approval policy is a distinct single-active business process", () => {
+  const api = read("src/app/api/approval-chains/route.ts");
+  const admin = read("src/components/approval-chain-admin.tsx");
+  assert.ok(api.includes('["automation", "workforce_plan"].includes(purpose)'));
+  assert.ok(api.includes('eq(approvalChainPolicies.purpose, "workforce_plan")'));
+  assert.ok(api.includes("active: false"));
+  assert.ok(admin.includes('<option value="workforce_plan">Workforce planning</option>'));
+  assert.ok(admin.includes("Workforce plan template"));
+  assert.ok(admin.includes('approver: "role:hr"'));
+  assert.ok(admin.includes('approver: "role:finance"'));
+  assert.ok(admin.includes('approver: "role:owner"'));
+  assert.ok(admin.includes("minimumAmount: 1000000"));
+  assert.ok(admin.includes("minimumAmount: 5000000"));
+});
+
+
+test("role-based decisions are not mislabeled as delegated named approvals", () => {
+  const route = read("src/app/api/approvals/[id]/route.ts");
+  assert.ok(route.includes("decision.roleMatched ? null"));
+});
+
+
+test("role-based approval tasks remain visible without leaking routed cost in task detail", () => {
+  const dashboard = read("src/lib/dashboard-data.ts");
+  const scenarios = read("src/app/api/workforce-planning/scenarios/route.ts");
+  const approvalsView = read("src/components/workspace/approvals.tsx");
+  assert.ok(dashboard.includes("roleApproverMatchesRole(task.approver, access.role)"));
+  assert.ok(scenarios.includes("routed by governed incremental annual labor cost"));
+  assert.equal(scenarios.includes("incremental annual labor cost PHP"), false);
+  assert.ok(approvalsView.includes('if (value === "role:finance") return "Finance role"'));
+});

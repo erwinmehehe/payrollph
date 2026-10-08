@@ -141,6 +141,11 @@ Built:
 - Driver-based staffing scenarios with demand growth, vacancy-fill and employer-load assumptions
 - Immutable scenario snapshots with SHA-256 evidence hashes
 - Maker-checker scenario submission and approval
+- Configurable multi-step workforce-plan business process using the shared approval engine
+- Role-based approval routing for HR, Finance, manager/admin and owner roles while preserving named approvers and delegation
+- Incremental annual labor-cost thresholds for approval escalation, with policy/version/step snapshots frozen at submission
+- Final scenario approval/rejection occurs only when the shared approval chain reaches a terminal decision; no inline bypass exists
+- A currently published plan remains authoritative while a replacement scenario is submitted, approved or rejected, until the replacement is explicitly published
 - Fully loaded labor-cost forecasting using payroll pay profiles, employer statutory burden, employer-paid benefits and recurring compensation
 - Role-demand and capacity-gap forecasting tied to WFM staffing requirements
 - Plan-authorized demand handoff into WFM
@@ -153,7 +158,6 @@ Built:
 
 Remaining:
 - Dedicated top-down allocation controls for plan owners and bottom-up manager submissions
-- Configurable multi-step workforce-plan approval chain that can explicitly require HR, Finance and business-owner sign-off
 - Forecast-plan creation from the latest published baseline plus latest actuals
 - Budget variance drilldown with named org-unit and cost-center dimensions in the published-baseline UI
 - Attrition assumptions and governed backfill planning

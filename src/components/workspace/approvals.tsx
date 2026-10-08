@@ -8,6 +8,14 @@ import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
 import type { DashboardData, Notify, Task } from "./types";
 import { EmptyState, Metric, PageHeading, Segmented, Spinner, Status } from "./ui";
 
+function approverLabel(value: string) {
+  if (value === "role:hr") return "HR role";
+  if (value === "role:finance") return "Finance role";
+  if (value === "role:manager") return "Manager role";
+  if (value === "role:owner") return "Owner role";
+  return value;
+}
+
 export function ApprovalsView({
   data,
   busy,
@@ -178,7 +186,7 @@ export function ApprovalsView({
                 <p>{task.detail}</p>
                 <div className="approval-meta">
                   <span>
-                    <UserCheck size={12} className="i-purple" /> Approver <strong style={{ fontSize: 10.5 }}>{task.approver}</strong>
+                    <UserCheck size={12} className="i-purple" /> Approver <strong style={{ fontSize: 10.5 }}>{approverLabel(task.approver)}</strong>
                   </span>
                   <span>
                     <Clock3 size={12} className="i-cyan" /> {task.dueLabel}
