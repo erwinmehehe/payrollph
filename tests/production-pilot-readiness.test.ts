@@ -177,6 +177,8 @@ test("sanitized pilot readiness can prove production without duplicating the rea
   assert.ok(route.includes("criticalBlockers"));
   assert.ok(route.includes("pilotReady"));
   assert.ok(route.includes("fullLaunchReady"));
+  assert.ok(route.includes("gaApproved: false"), "Live readiness must never represent external certification as GA approval.");
+  assert.ok(route.includes("not-evaluated-by-live-probe"));
   assert.ok(script.includes("/api/readiness/pilot-status"));
   assert.ok(script.includes('source: "server-internal-sanitized"'));
   assert.ok(script.includes("token.length >= 24"));

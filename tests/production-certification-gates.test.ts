@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -15,7 +15,6 @@ import type { CertificationEvidenceResult } from "../src/lib/external-certificat
 
 const COMMIT = "a".repeat(40);
 const ENTITY = "PAYROLL-PH-EMPLOYER-01";
-const when = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "payrollph-ga-proof-"));
@@ -32,6 +31,8 @@ function fixture() {
       independentlyReviewedBy: "Independent Control Reviewer",
     };
   });
+  const clock = Date.now();
+  const fixedWhen = (minutesAgo: number) => new Date(clock - minutesAgo * 60_000).toISOString();
   const manifest: OperationalReadinessManifest = {
     schemaVersion: 1,
     legalEntityCode: ENTITY,
@@ -39,9 +40,9 @@ function fixture() {
     documents,
     recovery: {
       exerciseEnvironment: "isolated-production-like-staging",
-      snapshotCapturedAt: when(180),
-      incidentDeclaredAt: when(90),
-      restoreVerifiedAt: when(60),
+      snapshotCapturedAt: fixedWhen(180),
+      incidentDeclaredAt: fixedWhen(90),
+      restoreVerifiedAt: fixedWhen(60),
       rpoObjectiveMinutes: 120,
       rtoObjectiveMinutes: 60,
       backupEncrypted: true,
@@ -207,16 +208,11 @@ test("10 real matched workers per cycle and identical employer/months are hard g
 
 test("checked-in template remains intentionally incomplete and cannot pass", () => {
   withFixture((root) => {
-    const template = JSON.parse(
-      requireTemplate(),
-    );
+    const template = JSON.parse(readFileSync("certification/operational-evidence-template.json", "utf8"));
     const report = evaluateOperationalReadiness(template, root, COMMIT);
     assert.equal(report.status, "operational-evidence-incomplete");
     assert.ok(report.issues.length > 0);
   });
 });
 
-function requireTemplate() {
-  const { readFileSync } = require("node:fs") as typeof import("node:fs");
-  return readFileSync("certification/operational-evidence-template.json", "utf8");
-}
+
