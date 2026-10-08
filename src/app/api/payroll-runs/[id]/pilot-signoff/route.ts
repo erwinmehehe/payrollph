@@ -228,7 +228,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     releaseReceipt?.createdAt ?? null,
     { employeeCount: entries.length, netPay: Number(run.netPay) },
   ));
-  const alreadySigned = runEvents.find((event) => event.action === "Production payroll pilot signed off");
+  // A no-money reconciliation can be upgraded after actual bank settlement,
+  // but cannot be submitted twice in the same evidence mode.
+  const alreadySigned = runEvents.find((event) => {
+    if (event.action !== "Production payroll pilot signed off") return false;
+    if (!payoutCompleted) return true;
+    const metadata = event.metadata && typeof event.metadata === "object"
+      ? event.metadata as Record<string, unknown>
+      : {};
+    return metadata.payoutEvidenceMode === "completed-payout";
+  });
 
   if (alreadySigned) {
     return Response.json(
