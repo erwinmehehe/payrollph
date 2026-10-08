@@ -1,10 +1,10 @@
 # Durable compensation notification delivery and recovery
 
-This workflow covers secondary Automation Studio notifications produced by **scheduled salary application** and **recurring compensation activation**. It does not grant authority to change pay, recalculate released payroll, initiate payout, or replay financial approvals.
+This workflow covers secondary Automation Studio notifications produced by **scheduled salary application** and **recurring compensation activation**, including approvals that become active immediately on the Philippine effective date. It does not grant authority to change pay, recalculate released payroll, initiate payout, or replay financial approvals.
 
 ## Correctness contract
 
-- Applied salary and activated recurring compensation persist immutable `compensation.changed` and `employee.field_changed` intent snapshots in `compensation_automation_intents` **inside the same database transaction** as their compensation event and source state.
+- Applied salary and activated recurring compensation (whether via future-dated scheduler or same-day approval) persist immutable `compensation.changed` and `employee.field_changed` intent snapshots in `compensation_automation_intents` **inside the same database transaction** as their compensation event and source state.
 - A transaction failure cannot leave a financially applied change without its notification intent. No backfill or fabricated historical activation is performed.
 - After commit, immediate delivery may attempt the queued notification; the worker scheduler also drains due intents. The original compensation status is **never** modified by delivery or retry.
 - Stable `organization_id + trigger + event_key` deduplication is enforced by PostgreSQL. The Automation Studio event ledger and per-rule execution uniqueness are separate guards.
@@ -15,7 +15,7 @@ This workflow covers secondary Automation Studio notifications produced by **sch
 
 ## Deployment sequence
 
-1. Review and merge prerequisite PR #615 (atomic activation audit), then rebase/retarget the outbox PR onto the merged code. Recheck schema and migrations for parallel changes.
+1. Review the single integrated PR #626 against the latest `main`; **do not merge overlapping source PRs #612/#614/#615/#617/#620/#623/#625 individually**. Recheck the same-day approval path, schema, migrations, security and tests on the exact integrated head.
 2. Apply the retained migration `drizzle/0100_compensation_automation_intents.sql` (or the approved equivalent generated from Drizzle schema) to **staging first**, then production only after review. Ensure the database migration is committed and verified *before* workers or app routes that reference the table are deployed.
 3. Exercise the database-backed regression suite and a synthetic employer's salary and component transitions. Observe exact event keys, queue statuses, automation execution IDs, and full audit trace.
 4. Inject an automation ledger failure before dispatch, verify a pending intent retries safely, then verify a ledger-existing or expired-lease case is held for human review instead of replayed.
