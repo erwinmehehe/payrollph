@@ -1,12 +1,12 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
-  employees,
   hcmBusinessProcessDefinitions,
   hcmBusinessProcessInstances,
   hcmBusinessProcessInstanceSteps,
   orgUnits,
+  positionAssignments,
   positions,
   workerEffectiveChanges,
 } from "@/db/schema";
@@ -344,18 +344,11 @@ async function advanceAfterStepTx(
     note?: string | null;
   },
 ) {
-  await tx.execute(
-    // Serialize decisions for one process so concurrent approvals cannot advance twice.
-    // Drizzle's sql tag is intentionally avoided here because the instance row itself
-    // is immediately updated below and the transaction owns the winning state change.
-    // The conditional update is the final concurrency guard.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (await import("drizzle-orm")).sql`
-      select id from hcm_business_process_instances
-      where id = ${input.instanceId}
-      for update
-    `,
-  );
+  await tx.execute(sql`
+    select id from hcm_business_process_instances
+    where id = ${input.instanceId}
+    for update
+  `);
 
   const [instance] = await tx.select().from(hcmBusinessProcessInstances)
     .where(eq(hcmBusinessProcessInstances.id, input.instanceId))
@@ -676,16 +669,13 @@ export async function supervisoryOrgForEffectiveChange(input: {
   const [assignment] = await db.select({
     positionId: positions.id,
     supervisoryOrgUnitId: positions.supervisoryOrgUnitId,
-  }).from(positions)
-    .innerJoin(
-      (await import("@/db/schema")).positionAssignments,
-      eq((await import("@/db/schema")).positionAssignments.positionId, positions.id),
-    )
+  }).from(positionAssignments)
+    .innerJoin(positions, eq(positionAssignments.positionId, positions.id))
     .where(and(
-      eq((await import("@/db/schema")).positionAssignments.organizationId, input.organizationId),
-      eq((await import("@/db/schema")).positionAssignments.employeeId, input.employeeId),
-      eq((await import("@/db/schema")).positionAssignments.assignmentType, "primary"),
-      isNull((await import("@/db/schema")).positionAssignments.effectiveUntil),
+      eq(positionAssignments.organizationId, input.organizationId),
+      eq(positionAssignments.employeeId, input.employeeId),
+      eq(positionAssignments.assignmentType, "primary"),
+      isNull(positionAssignments.effectiveUntil),
     ))
     .limit(1);
   return assignment?.supervisoryOrgUnitId ?? null;
