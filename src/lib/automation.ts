@@ -1,4 +1,4 @@
-import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
+import { and, eq, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
@@ -24,6 +24,7 @@ import { createApprovalFromConfiguredChain } from "@/lib/approval-chains";
 import { deliverSlackAutomationMessage } from "@/lib/integration-connectors";
 import { loadWorkerAttributeContext } from "@/lib/worker-attribute-context";
 import { resolveWorkerDynamicGroups } from "@/lib/dynamic-worker-groups";
+import { persistAutomationRetryResult, withAutomationRetryTransaction } from "@/lib/automation-execution-recovery";
 import {
   operationalReviewPolicyBlocks,
   operationalReviewTriggerAllowed,
@@ -1601,8 +1602,7 @@ export async function retryAutomationExecutionFailedStep(input: {
   // A transaction-scoped advisory lock serializes concurrent operators'
   // retries before the result array is read. Never execute a failed action
   // twice simply because two admins pressed Retry at the same time.
-  return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(${input.organizationId}, ${input.executionId})`);
+  return withAutomationRetryTransaction(input.organizationId, input.executionId, async (tx) => {
     const [execution] = await tx.select().from(automationExecutions).where(and(
       eq(automationExecutions.id, input.executionId),
       eq(automationExecutions.organizationId, input.organizationId),
@@ -1685,15 +1685,13 @@ export async function retryAutomationExecutionFailedStep(input: {
     }
 
     const terminal = terminalExecutionState(result);
-    const [updated] = await tx.update(automationExecutions).set({
+    const [updated] = await persistAutomationRetryResult(tx, {
+      organizationId: input.organizationId,
+      executionId: execution.id,
       status: terminal.status,
       result,
       error: terminal.error,
-      updatedAt: new Date(),
-    }).where(and(
-      eq(automationExecutions.id, execution.id),
-      eq(automationExecutions.organizationId, input.organizationId),
-    )).returning();
+    });
     return updated ?? execution;
   });
 }
