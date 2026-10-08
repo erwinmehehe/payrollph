@@ -1651,7 +1651,7 @@ function PersonDrawer({
             <div>
               <div className="card-kicker">PAYROLL PROFILE</div>
               <h2 style={{ fontSize: 14 }}>Explicit pay basis</h2>
-              <p>Payroll uses an effective-dated pay history. Mid-cutoff changes preserve the old rate before the effective date and use the new rate after it.</p>
+              <p>Payroll uses an effective-dated pay history. For companies with formal compensation governance, use the Compensation approval workflow; direct pay editing is available only for authorized corrections in legacy workspaces.</p>
             </div>
             {canManage && (
               <button className="secondary-button" onClick={() => setEditingPay((value) => !value)}>
@@ -1686,7 +1686,7 @@ function PersonDrawer({
                 </label>
               </div>
               <div className="modal-note" style={{ margin: "0 16px 10px" }}>
-                Effective-dated changes are applied inside an open cutoff. If a monthly salary change reaches a cutoff that was already released, Linaw creates a one-time retro-pay line for the next payroll instead of rewriting the released register.
+                This edit requires company-wide financial administration and an explicit correction reason. It is disabled when the company uses governed compensation. In legacy workspaces, monthly corrections preserve released payroll and carry applicable retro pay into a later cutoff.
               </div>
               {payError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{payError}</span></div>}
               <div className="run-actions">
