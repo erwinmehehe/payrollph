@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { annualizePay, compaRatio, evaluateCompensationCycleBudget, proposalBudgetDelta, proposalWithinBand, rateFromAnnual, validateBand } from "../src/lib/compensation";
+import { eq } from "drizzle-orm";
+import { db } from "../src/db";
+import { organizations, payrollRuns } from "../src/db/schema";
+import {
+  compensationPayrollConflicts,
+  invalidatePayrollRunsForCompensationChange,
+} from "../src/lib/hcm-compensation";
 
 test("compensation annualizes and reverses monthly daily and hourly pay", () => {
   assert.equal(annualizePay({ payBasis: "monthly", rateAmount: 50000, standardWorkDaysPerMonth: 22, standardHoursPerDay: 8 }), 600000);
@@ -93,4 +100,49 @@ test("compensation approval rechecks cycle budget and pay state after taking tra
   assert.ok(review.includes("affectedRuns,\n        tx,"));
   assert.ok(review.includes("const invalidatedPayrollRunIds = result.invalidatedPayrollRunIds;"));
   assert.ok(governance.includes("return transaction ? invalidate(transaction) : db.transaction(invalidate);"));
+});
+
+test("compensation approval rollback restores payroll state when the subsequent revision fails", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Compensation Atomicity QA",
+    legalName: "Compensation Atomicity QA Inc.",
+    plan: "Core",
+  }).returning();
+  try {
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Oct 1-15 compensation atomicity",
+      periodStart: "2026-10-01",
+      periodEnd: "2026-10-15",
+      scopeLabel: "All locations",
+      status: "Needs review",
+      payDate: "2026-10-15",
+      employeeCount: 1,
+      processedChunks: 1,
+      totalChunks: 1,
+      grossPay: "100.00",
+      netPay: "90.00",
+    }).returning();
+
+    await assert.rejects(db.transaction(async (tx) => {
+      const affected = await compensationPayrollConflicts({
+        organizationId: org.id,
+        employeeOrgUnitId: null,
+        effectiveFrom: "2026-10-05",
+      }, tx);
+      assert.equal(affected.length, 1);
+      const invalidated = await invalidatePayrollRunsForCompensationChange(org.id, affected, tx);
+      assert.deepEqual(invalidated, [run.id]);
+      throw new Error("TEST_SIMULATED_REVISION_CONFLICT");
+    }), /TEST_SIMULATED_REVISION_CONFLICT/);
+
+    const [after] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, run.id));
+    assert.equal(after.status, "Needs review");
+    assert.equal(after.employeeCount, 1);
+    assert.equal(after.processedChunks, 1);
+    assert.equal(after.grossPay, "100.00");
+    assert.equal(after.netPay, "90.00");
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
 });
