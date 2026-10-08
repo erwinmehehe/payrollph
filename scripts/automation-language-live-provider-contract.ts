@@ -84,7 +84,7 @@ async function main() {
       assert.equal(result.draft.trigger, scenario.trigger);
       assert.deepEqual(result.draft.actions.map((step) => step.type), scenario.actions,
         "Must not omit or invent any requested action");
-      assert.equal(result.draft.conditions.all.length + result.draft.conditions.any.length, 0,
+      assert.equal((result.draft.conditions.all?.length ?? 0) + (result.draft.conditions.any?.length ?? 0), 0,
         "Unqualified synthetic request must not invent an IF filter");
       assert.ok(result.draft.actions.some((step) =>
         step.type === "send_email" && step.recipient === scenario.recipient
