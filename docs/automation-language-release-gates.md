@@ -66,6 +66,53 @@ It blocks unsafe requests before sending anything to the provider; checks the ac
 
 Do not run this from automatic PR workflows or unreviewed code. The check was **prepared, not performed**: no provider key was supplied. Even when it passes, it does not replace an isolated application staging test or an independent human code review.
 
+## Read-only exact-commit release checker
+
+The canonical verifier now lives in the repository:
+`scripts/verify-automation-language-release.mjs`. Its fail-closed fixtures
+live in `tests/verify-automation-language-release.test.mjs` and are exercised
+by the regular CI suite through
+`tests/automation-release-gate-integration.test.ts`.
+
+The checker makes **read-only GitHub API requests** and reports whether all
+evidence is present on the exact pinned PR head. It checks six completed
+successful workflows, a trusted independent human approval on that commit,
+closure of [independent review #621](https://github.com/erwinmehehe/payrollph/issues/621),
+and closure of [staging acceptance #622](https://github.com/erwinmehehe/payrollph/issues/622)
+with independent, exact-SHA attestation. A newer failing workflow or unresolved
+changes-requested review invalidates an older successful result.
+
+An authorized operator may run the checker from a reviewed checkout after
+injecting a **read-only** `GITHUB_TOKEN` through a secret manager:
+
+```sh
+node --test tests/verify-automation-language-release.test.mjs
+export GITHUB_REPOSITORY=erwinmehehe/payrollph
+export AUTOMATION_REVIEWED_HEAD_SHA=<exact-reviewed-40-character-commit-sha>
+node scripts/verify-automation-language-release.mjs
+```
+
+Do not paste tokens or secret environment values into a shell transcript, chat,
+GitHub comment, log, or repository file. The CLI refuses a missing token,
+unrecognized repository, unpinned head or incomplete evidence. A nonzero exit
+code means **not ready for a human merge decision**.
+
+The independent staging reviewer should attach sanitized underlying test
+evidence to issue #622. A qualified independent collaborator may add the
+following evidence-index lines to one comment after verifying the exact SHA:
+
+```text
+STAGING-ACCEPTED: <reviewed-40-character-sha>
+LIVE-PROVIDER: PASS
+NONPROD-DB: VERIFIED
+MFA: VERIFIED
+NO-PRODUCTION-DATA: VERIFIED
+```
+
+These labels are **not a cryptographic certification** and do not authorize
+merging or production release. The human reviewer must inspect the evidence.
+The script does not post approval, edit issues, deploy or modify workflow state.
+
 ## Final release decision
 
 Do not merge or deploy solely because CI is green. Required evidence:
