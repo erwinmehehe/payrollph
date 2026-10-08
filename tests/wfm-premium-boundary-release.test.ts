@@ -98,6 +98,26 @@ test("missing segmentation of worked time cannot be ignored even without pricing
   assert.ok(payrollFromFlags(traceFlags).summary.blocking > 0);
 });
 
+test("unpriced worked attendance fails closed even when upstream segment flags are absent", () => {
+  for (const reportedComplete of [false, true]) {
+    const flagged = payableTimeEvidenceFlagsForPayroll({
+      segments: [],
+      attendanceCalendarDates: [],
+      allocationComplete: reportedComplete,
+      flags: [],
+    }, 180);
+    assert.equal(flagged.length, 1);
+    assert.match(flagged[0], /^WFM_PREMIUM_ALLOCATION_UNVERIFIED:/);
+    assert.ok(payrollFromFlags(flagged).summary.blocking > 0);
+  }
+  assert.deepEqual(payableTimeEvidenceFlagsForPayroll({
+    segments: [],
+    attendanceCalendarDates: [],
+    allocationComplete: false,
+    flags: [],
+  }, 0), [], "no independent worked-time minutes means there is no premium amount to allocate");
+});
+
 test("unlocated break confined to one premium bucket stays reviewable", () => {
   const segmented = segmentPayableTime({
     punch: {
