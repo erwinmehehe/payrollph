@@ -5,6 +5,7 @@ import { workforcePlanApprovalAmount } from "../src/lib/workforce-plan-approval"
 
 const schema = readFileSync("src/db/schema.ts", "utf8");
 const migration = readFileSync("drizzle/0046_wfm_staffing_scenarios.sql", "utf8");
+const attritionMigration = readFileSync("drizzle/0092_workforce_attrition_backfill.sql", "utf8");
 const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
 const route = readFileSync("src/app/api/workforce-planning/scenarios/route.ts", "utf8");
 const forecastService = readFileSync("src/lib/workforce-forecast-server.ts", "utf8");
@@ -21,6 +22,8 @@ test("staffing scenarios persist immutable forecast evidence and approval state"
   assert.ok(schema.includes('decidedByUserId: integer("decided_by_user_id")'));
   assert.ok(schema.includes('scopeOrgUnitId: integer("scope_org_unit_id")'));
   assert.ok(schema.includes('worksiteId: integer("worksite_id")'));
+  assert.ok(schema.includes('annualAttritionPercent: numeric("annual_attrition_percent"'));
+  assert.ok(schema.includes('attritionBackfillPercent: numeric("attrition_backfill_percent"'));
 });
 
 test("migration and production compatibility schema carry WFM scenario governance", () => {
@@ -31,13 +34,23 @@ test("migration and production compatibility schema carry WFM scenario governanc
   assert.ok(compat.includes("linaw_core_schema_compat_v19"));
   assert.ok(compat.includes("CREATE TABLE IF NOT EXISTS workforce_planning_scenarios"));
   assert.ok(compat.includes("workforce_scenarios_status_check"));
+  assert.ok(attritionMigration.includes("annual_attrition_percent"));
+  assert.ok(attritionMigration.includes("attrition_backfill_percent"));
+  assert.ok(attritionMigration.includes("workforce_scenarios_annual_attrition_check"));
+  assert.ok(attritionMigration.includes("workforce_scenarios_attrition_backfill_check"));
+  assert.ok(compat.includes("ADD COLUMN IF NOT EXISTS annual_attrition_percent"));
+  assert.ok(compat.includes("ADD COLUMN IF NOT EXISTS attrition_backfill_percent"));
 });
 
 test("scenario snapshots are recalculated server-side and hashed before save", () => {
   assert.ok(route.includes("loadScopedWorkforceForecast"));
   assert.ok(route.includes('createHash("sha256")'));
   assert.ok(route.includes("JSON.stringify(snapshot)"));
-  assert.ok(route.includes('version: "wfm-staffing-scenario-v2"'));
+  assert.ok(route.includes('version: "wfm-staffing-scenario-v3"'));
+  assert.ok(route.includes("annualAttritionPercent"));
+  assert.ok(route.includes("attritionBackfillPercent"));
+  assert.ok(route.includes("expectedAttritionExits"));
+  assert.ok(route.includes("plannedAttritionBackfills"));
   assert.ok(route.includes("snapshotHash: hash"));
   assert.ok(route.includes("Approved scenario evidence is immutable planning data."));
 });
@@ -75,6 +88,8 @@ test("WFM managers can see staffing capacity while payroll-derived costs remain 
   assert.ok(forecastService.includes("redactWorkforceForecastCosts"));
   assert.ok(forecastService.includes("annualizedBasePayroll: null"));
   assert.ok(forecastService.includes("estimatedShiftDemandWageCost: null"));
+  assert.ok(forecastService.includes("annualBackfillRunRateCost: null"));
+  assert.ok(forecastService.includes("backfillPlan: forecast.backfillPlan?.map"));
   assert.ok(route.includes("redactScenarioSnapshot"));
 });
 
@@ -84,6 +99,9 @@ test("planning UI submits scenarios into the shared Approvals business process",
   assert.ok(panel.includes("Organization unit"));
   assert.ok(panel.includes("Worksite"));
   assert.ok(panel.includes("Save scenario"));
+  assert.ok(panel.includes("Annual attrition %"));
+  assert.ok(panel.includes("Attrition backfill %"));
+  assert.ok(panel.includes("Governed backfill boundary."));
   assert.ok(panel.includes("STAFFING PLAN APPROVAL"));
   assert.ok(panel.includes('scenarioAction(scenario.id, "submit")'));
   assert.equal(panel.includes('scenarioAction(scenario.id, "approve")'), false);
