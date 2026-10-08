@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  costCenters,
+  orgUnits,
   positionAssignments,
   positions,
   workforcePlanBaselines,
@@ -19,6 +21,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
+  compareHeadcountPlanDimensions,
   compareHeadcountPlanSummary,
   summarizeHeadcountPlan,
   type HeadcountPlanSummary,
@@ -84,6 +87,17 @@ function redactSummaryCosts(summary: HeadcountPlanSummary) {
   };
 }
 
+function redactDimensionVarianceCosts(
+  rows: ReturnType<typeof compareHeadcountPlanDimensions>,
+) {
+  return rows.map((row) => ({
+    ...row,
+    baseline: { ...row.baseline, annualPositionBudget: null },
+    actual: { ...row.actual, annualPositionBudget: null },
+    variance: { ...row.variance, annualPositionBudget: null },
+  }));
+}
+
 function redactSnapshotCosts(snapshot: unknown) {
   const root = snapshotRecord(snapshot);
   const headcount = baselineSummary(snapshot);
@@ -124,14 +138,26 @@ export async function GET(request: Request) {
   if (!access) return Response.json({ error: "Workforce-manager access is required." }, { status: 403 });
   const canViewCost = roleAllowed(access.role, PEOPLE_PAYROLL_ROLES as readonly string[]);
 
-  const [baselineRows, positionRows, assignmentRows] = await Promise.all([
+  const [baselineRows, positionRows, assignmentRows, orgUnitRows, costCenterRows] = await Promise.all([
     db.select().from(workforcePlanBaselines)
       .where(eq(workforcePlanBaselines.organizationId, organizationId))
       .orderBy(desc(workforcePlanBaselines.current), desc(workforcePlanBaselines.publishedAt), desc(workforcePlanBaselines.id)),
     db.select().from(positions).where(eq(positions.organizationId, organizationId)),
     db.select().from(positionAssignments).where(eq(positionAssignments.organizationId, organizationId)),
+    db.select({
+      id: orgUnits.id,
+      code: orgUnits.code,
+      name: orgUnits.name,
+    }).from(orgUnits).where(eq(orgUnits.organizationId, organizationId)),
+    db.select({
+      id: costCenters.id,
+      code: costCenters.code,
+      name: costCenters.name,
+    }).from(costCenters).where(eq(costCenters.organizationId, organizationId)),
   ]);
 
+  const orgUnitById = new Map(orgUnitRows.map((row) => [row.id, row]));
+  const costCenterById = new Map(costCenterRows.map((row) => [row.id, row]));
   const asOf = todayPh();
   const visible = baselineRows.filter((row) =>
     (includeHistory || row.current)
@@ -156,6 +182,32 @@ export async function GET(request: Request) {
         })),
       });
       const variance = baseline ? compareHeadcountPlanSummary(baseline, actual) : null;
+      const orgUnitVariance = baseline
+        ? compareHeadcountPlanDimensions(baseline.dimensions.orgUnits, actual.dimensions.orgUnits)
+          .map((dimension) => {
+            const unit = dimension.key == null ? null : orgUnitById.get(dimension.key);
+            return {
+              ...dimension,
+              code: unit?.code ?? null,
+              name: dimension.key == null
+                ? "Unassigned org unit"
+                : unit?.name ?? `Org unit #${dimension.key}`,
+            };
+          })
+        : null;
+      const costCenterVariance = baseline
+        ? compareHeadcountPlanDimensions(baseline.dimensions.costCenters, actual.dimensions.costCenters)
+          .map((dimension) => {
+            const center = dimension.key == null ? null : costCenterById.get(dimension.key);
+            return {
+              ...dimension,
+              code: center?.code ?? null,
+              name: dimension.key == null
+                ? "Unassigned cost center"
+                : center?.name ?? `Cost center #${dimension.key}`,
+            };
+          })
+        : null;
       return {
         ...row,
         snapshot: canViewCost ? row.snapshot : redactSnapshotCosts(row.snapshot),
@@ -164,6 +216,16 @@ export async function GET(request: Request) {
           ? {
               ...variance,
               annualPositionBudget: canViewCost ? variance.annualPositionBudget : null,
+            }
+          : null,
+        dimensionVariance: baseline
+          ? {
+              orgUnits: canViewCost
+                ? orgUnitVariance
+                : redactDimensionVarianceCosts(orgUnitVariance ?? []),
+              costCenters: canViewCost
+                ? costCenterVariance
+                : redactDimensionVarianceCosts(costCenterVariance ?? []),
             }
           : null,
       };
