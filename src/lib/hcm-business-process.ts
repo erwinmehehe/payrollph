@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
@@ -517,6 +517,73 @@ export async function completeHcmBusinessProcessWorkItemTx(
     actorName: input.actorName,
     note: input.note,
   });
+}
+
+export async function cancelHcmBusinessProcessForSourceTx(
+  tx: HcmTx,
+  input: {
+    organizationId: number;
+    sourceType: string;
+    sourceKey: string;
+    actorUserId?: number | null;
+    actorName: string;
+  },
+) {
+  const [instance] = await tx.select().from(hcmBusinessProcessInstances).where(and(
+    eq(hcmBusinessProcessInstances.organizationId, input.organizationId),
+    eq(hcmBusinessProcessInstances.sourceType, input.sourceType),
+    eq(hcmBusinessProcessInstances.sourceKey, input.sourceKey),
+  )).limit(1);
+  if (!instance) return null;
+  if (instance.status !== "in_progress") return instance;
+
+  await tx.execute(sql`
+    select id from hcm_business_process_instances
+    where id = ${instance.id}
+    for update
+  `);
+
+  const pendingSteps = await tx.select({
+    approvalTaskId: hcmBusinessProcessInstanceSteps.approvalTaskId,
+  }).from(hcmBusinessProcessInstanceSteps).where(and(
+    eq(hcmBusinessProcessInstanceSteps.instanceId, instance.id),
+    eq(hcmBusinessProcessInstanceSteps.status, "pending"),
+  ));
+  const pendingTaskIds = pendingSteps
+    .map((row) => row.approvalTaskId)
+    .filter((id): id is number => Number.isInteger(id));
+
+  if (pendingTaskIds.length > 0) {
+    await tx.update(approvalTasks).set({
+      status: "Cancelled",
+      decidedBy: input.actorName.slice(0, 120),
+      decidedAt: new Date(),
+    }).where(inArray(approvalTasks.id, pendingTaskIds));
+  }
+
+  await tx.update(hcmBusinessProcessInstanceSteps).set({
+    status: "cancelled",
+    completedByUserId: input.actorUserId ?? null,
+    completedByName: input.actorName.slice(0, 120),
+    completedAt: new Date(),
+  }).where(and(
+    eq(hcmBusinessProcessInstanceSteps.instanceId, instance.id),
+    inArray(hcmBusinessProcessInstanceSteps.status, ["pending", "waiting"]),
+  ));
+
+  const [cancelled] = await tx.update(hcmBusinessProcessInstances).set({
+    status: "cancelled",
+    cancelledByUserId: input.actorUserId ?? null,
+    cancelledByName: input.actorName.slice(0, 120),
+    cancelledAt: new Date(),
+    completedAt: new Date(),
+    updatedAt: new Date(),
+  }).where(and(
+    eq(hcmBusinessProcessInstances.id, instance.id),
+    eq(hcmBusinessProcessInstances.status, "in_progress"),
+  )).returning();
+
+  return cancelled ?? instance;
 }
 
 export async function findHcmBusinessProcessForSource(input: {
