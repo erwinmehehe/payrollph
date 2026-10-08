@@ -16,6 +16,7 @@ import {
   dispatchCompensationAutomationIntent,
   drainCompensationAutomationIntents,
   enqueueCompensationAutomationIntents,
+  inspectCompensationAutomationIntents,
   retryUnstartedCompensationAutomationIntent,
 } from "../src/lib/compensation-automation-outbox";
 
@@ -296,5 +297,38 @@ test("outbox insertion failure rolls back the financial event in the same transa
       await db.execute(sql.raw(`DROP TRIGGER IF EXISTS "${trigger}" ON "compensation_automation_intents"`));
       await db.execute(sql.raw(`DROP FUNCTION IF EXISTS "${fn}"()`));
     }
+  });
+});
+
+test("queue review is read-only, tenant-scoped and excludes stored compensation amounts", async () => {
+  await withFixture(async (first) => {
+    await withFixture(async (second) => {
+      const firstId = await persist(first);
+      const secondId = await persist(second);
+      const firstPage = await inspectCompensationAutomationIntents({
+        organizationId: first.organizationId,
+        afterId: 0,
+        limit: 1,
+      });
+      assert.equal(firstPage.examined, 1);
+      assert.equal(firstPage.rows[0].id, firstId);
+      assert.equal(firstPage.rows[0].status, "pending");
+      assert.equal(firstPage.readOnly, true);
+      assert.equal(firstPage.financiallyCertified, false);
+      assert.ok(!JSON.stringify(firstPage).includes("sampleValue"));
+      assert.ok(!JSON.stringify(firstPage).includes("999"));
+      assert.ok(!firstPage.rows.some((row) => row.id === secondId));
+      const otherPage = await inspectCompensationAutomationIntents({
+        organizationId: second.organizationId,
+      });
+      assert.equal(otherPage.rows[0].id, secondId);
+      await assert.rejects(inspectCompensationAutomationIntents({ organizationId: 0 }));
+      await assert.rejects(inspectCompensationAutomationIntents({
+        organizationId: first.organizationId, afterId: -1,
+      }));
+      await assert.rejects(inspectCompensationAutomationIntents({
+        organizationId: first.organizationId, limit: 251,
+      }));
+    });
   });
 });
