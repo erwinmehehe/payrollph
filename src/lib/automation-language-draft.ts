@@ -68,7 +68,7 @@ function record(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function invalidConditionValue(kind: string, operator: string, value: unknown) {
+function invalidConditionValue(kind: string, operator: string, value: unknown): boolean {
   if (operator === "exists") return value !== undefined && typeof value !== "boolean";
   if (operator === "in") {
     return !Array.isArray(value) || value.length < 1 || value.length > 50
@@ -81,15 +81,20 @@ function invalidConditionValue(kind: string, operator: string, value: unknown) {
 
 function checkConditions(conditions: unknown, errors: string[]): conditions is StudioConditions {
   if (!record(conditions) || conditions.version !== 1
-    || !Array.isArray(conditions.all) || !Array.isArray(conditions.any)
-    || !validAutomationConditions(conditions)) {
+    || !Array.isArray(conditions.all) || !Array.isArray(conditions.any)) {
     errors.push("Use version 1 Studio conditions with all and any arrays.");
     return false;
   }
-  if (conditions.all.length && conditions.any.length) {
+  const all = conditions.all as unknown[];
+  const any = conditions.any as unknown[];
+  if (!validAutomationConditions(conditions)) {
+    errors.push("Workflow IF conditions exceed limits or contain invalid fields/operators.");
+    return false;
+  }
+  if (all.length && any.length) {
     errors.push("Use either ALL or ANY condition matching, not both.");
   }
-  for (const clause of [...conditions.all, ...conditions.any]) {
+  for (const clause of [...all, ...any]) {
     if (!record(clause)) {
       errors.push("Each IF condition must be a typed clause.");
       continue;
