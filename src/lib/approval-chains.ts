@@ -8,6 +8,7 @@ import {
   dynamicWorkerGroups,
 } from "@/db/schema";
 import { validDynamicWorkerGroupConditions } from "@/lib/dynamic-worker-group-conditions";
+import { type GovernedHandoffEvidence, frozenGovernedHandoffEvidence } from "@/lib/governed-approval-handoffs";
 
 export type ApprovalChainStepDefinition = {
   label: string;
@@ -115,6 +116,7 @@ export async function createApprovalFromConfiguredChain(input: {
   amount?: number | null;
   amountCurrency?: string;
   amountBasis?: string;
+  sourceEvidence?: GovernedHandoffEvidence;
 }) {
   const chainCode = String(input.chainCode ?? "").trim();
   if (!chainCode) {
@@ -161,6 +163,15 @@ export async function createApprovalFromConfiguredChain(input: {
       eq(approvalChainInstances.sourceKey, input.sourceKey),
     )).limit(1);
     if (existing) {
+      if (input.sourceEvidence) {
+        const frozen = frozenGovernedHandoffEvidence(existing.routingSnapshot);
+        if (!frozen
+          || frozen.sourceType !== input.sourceEvidence.sourceType
+          || frozen.sourceId !== input.sourceEvidence.sourceId
+          || frozen.sourceHash !== input.sourceEvidence.sourceHash) {
+          throw new Error("Approval handoff idempotency conflict: frozen source evidence does not match.");
+        }
+      }
       const existingAmount = existing.amount == null ? null : Number(existing.amount);
       if (
         existing.policyCode !== policy.code
@@ -200,6 +211,7 @@ export async function createApprovalFromConfiguredChain(input: {
         amountBasis,
         policySteps: steps,
         appliedSteps: routedSteps,
+        ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}),
       },
     }).returning();
 
