@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const schema = readFileSync("src/db/schema.ts", "utf8");
-const migration = readFileSync("drizzle/0089_workforce_plan_allocations.sql", "utf8");
+const migration = readFileSync("drizzle/0090_workforce_plan_allocations.sql", "utf8");
 const baseline = readFileSync("drizzle/baseline.sql", "utf8");
 const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
 const route = readFileSync("src/app/api/workforce-planning/allocations/route.ts", "utf8");
