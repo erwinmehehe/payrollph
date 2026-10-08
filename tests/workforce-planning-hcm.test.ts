@@ -46,7 +46,8 @@ test("planning mutations are same-origin protected and audited", () => {
   assert.ok(route.includes("enforceSameOriginMutation(request)"));
   assert.ok(route.includes('"Job profile created"'));
   assert.ok(route.includes('"Workforce plan created"'));
-  assert.ok(route.includes('"Position created"'));
+  assert.ok(route.includes('"Position creation submitted to HCM business process"'));
+  assert.ok(route.includes("approvalRequired: true"));
   assert.ok(route.includes('"Employee assigned to position"'));
 });
 
