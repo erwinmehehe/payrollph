@@ -16,7 +16,7 @@ This workflow covers secondary Automation Studio notifications produced by **sch
 ## Deployment sequence
 
 1. Review and merge prerequisite PR #615 (atomic activation audit), then rebase/retarget the outbox PR onto the merged code. Recheck schema and migrations for parallel changes.
-2. Apply the retained migration `drizzle/0099_compensation_automation_intents.sql` (or the approved equivalent generated from Drizzle schema) to **staging first**, then production only after review. Ensure the database migration is committed and verified *before* workers or app routes that reference the table are deployed.
+2. Apply the retained migration `drizzle/0100_compensation_automation_intents.sql` (or the approved equivalent generated from Drizzle schema) to **staging first**, then production only after review. Ensure the database migration is committed and verified *before* workers or app routes that reference the table are deployed.
 3. Exercise the database-backed regression suite and a synthetic employer's salary and component transitions. Observe exact event keys, queue statuses, automation execution IDs, and full audit trace.
 4. Inject an automation ledger failure before dispatch, verify a pending intent retries safely, then verify a ledger-existing or expired-lease case is held for human review instead of replayed.
 5. Confirm scheduled worker draining is enabled. A deployment without the worker can queue events but cannot guarantee timely delivery after a crash.
