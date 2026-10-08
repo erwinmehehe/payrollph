@@ -15,6 +15,7 @@ const offBase = "http://127.0.0.1:3001";
 const onBase = "http://127.0.0.1:3000";
 const email = "automation-acceptance@example.test";
 const password = "SyntheticAcceptance2026-Unique!";
+let currentPhase = "environment-preflight";
 
 function requireSyntheticEnvironment() {
   assert.equal(process.env.CI, "true", "CI-only test");
@@ -58,11 +59,13 @@ async function pageStudio(page, organizationId) {
 
 async function main() {
   requireSyntheticEnvironment();
+  currentPhase = "launch-chromium";
   const browser = await chromium.launch({ headless: true });
   try {
     const context = await browser.newContext({ viewport: { width: 1440, height: 960 } });
     const page = await context.newPage();
 
+    currentPhase = "login-page";
     await page.goto(offBase + "/login", { waitUntil: "domcontentloaded", timeout: 60_000 });
     await page.locator('input[type="email"]').fill(email);
     await page.locator('input[type="password"]').fill(password);
@@ -70,6 +73,7 @@ async function main() {
       page.waitForURL("**/app", { timeout: 30_000 }),
       page.getByRole("button", { name: "Sign in", exact: true }).click(),
     ]);
+    currentPhase = "authenticated-workspace";
     await page.locator('[data-workspace-page="Overview"]').waitFor({ timeout: 30_000 });
     const automationNav = page.locator('button[data-nav-name="Automation"]');
     if (await automationNav.count() === 0) await page.locator(".nav-more-toggle").click();
@@ -77,21 +81,25 @@ async function main() {
     await automationNav.click();
     await page.locator('[data-workspace-page="Automation"]').waitFor();
 
+    currentPhase = "hidden-language-ui-and-manual-ui";
     assert.equal(await page.locator("[data-automation-language-studio]").count(), 0,
       "Language drafting must not render when the server flag is disabled");
     await page.getByText("WORKFLOW TEMPLATES", { exact: true }).waitFor();
     await page.getByText("Configured automations", { exact: true }).waitFor();
 
+    currentPhase = "session-cookie-present";
     const cookies = await context.cookies(offBase);
     const session = cookies.find((row) => row.name === "__Host-linaw_session");
     assert.ok(session?.value, "Synthetic administrator must have a session");
 
     // Reuse the positive acceptance's *actual* synthetic setup organization.
     // The first acceptance phase records only this non-secret numeric ID.
+    currentPhase = "read-synthetic-organization-id";
     const orgId = Number(readFileSync("/tmp/payrollph-automation-acceptance-org-id", "utf8"));
     assert.ok(Number.isSafeInteger(orgId) && orgId > 0,
       "Positive synthetic setup must have recorded a valid organization");
 
+    currentPhase = "load-default-off-studio-state";
     const before = await pageStudio(page, orgId);
     assert.equal(before.features?.languageDraftingEnabled, false);
     assert.ok(Array.isArray(before.rules) && before.rules.length >= 2,
@@ -101,6 +109,7 @@ async function main() {
 
     // Obtain a genuine fresh signed proposal using the *same* session on the
     // enabled loopback instance. Nothing is saved by generation.
+    currentPhase = "generate-genuine-on-instance-receipt";
     const response = await fetch(onBase + "/api/automation-studio", {
       method: "POST",
       headers: {
@@ -121,12 +130,14 @@ async function main() {
     assert.equal(generated.source, "approved-template", "External provider must stay disabled");
     assert.ok(generated.proposalReceipt && generated.draft);
 
+    currentPhase = "deny-disabled-generation";
     const deniedGenerate = await pagePost(page, orgId, "draft-from-language", {
       request: "When an employee is promoted, create a people ops verification task and notify their manager.",
     });
     assert.equal(deniedGenerate.status, 403);
     assert.equal(deniedGenerate.body.code, "LANGUAGE_DRAFTING_DISABLED");
 
+    currentPhase = "deny-genuine-signed-save";
     const deniedSignedSave = await pagePost(page, orgId, "save-language-draft", {
       draft: generated.draft,
       proposalReceipt: generated.proposalReceipt,
@@ -136,6 +147,7 @@ async function main() {
       "Even a genuine, unexpired, session-bound proposal must fail while disabled");
     assert.equal(deniedSignedSave.body.code, "LANGUAGE_DRAFTING_DISABLED");
 
+    currentPhase = "deny-forged-save";
     const deniedForgedSave = await pagePost(page, orgId, "save-language-draft", {
       draft: generated.draft,
       proposalReceipt: "forged",
@@ -143,12 +155,14 @@ async function main() {
     assert.equal(deniedForgedSave.status, 403);
     assert.equal(deniedForgedSave.body.code, "LANGUAGE_DRAFTING_DISABLED");
 
+    currentPhase = "verify-zero-mutations";
     const afterDenied = await pageStudio(page, orgId);
     assert.equal(afterDenied.rules.length, before.rules.length);
     assert.equal(afterDenied.versions.length, before.versions.length);
     assert.equal(afterDenied.executions.length, originalExecutions);
 
     // The release switch must NOT shut down existing manual Automation Studio.
+    currentPhase = "manual-studio-remains-operational";
     const manual = await pagePost(page, orgId, "save-rule", {
       name: "Synthetic manual workflow while language drafting disabled",
       trigger: "employee.promoted",
@@ -160,12 +174,14 @@ async function main() {
     assert.equal(manual.body.rule.active, false);
     assert.equal(manual.body.draft.status, "draft");
 
+    currentPhase = "verify-inactive-manual-draft";
     const final = await pageStudio(page, orgId);
     assert.equal(final.features.languageDraftingEnabled, false);
     assert.equal(final.rules.length, before.rules.length + 1);
     assert.equal(final.executions.length, originalExecutions, "No actions may execute");
     assert.equal(final.rules.find((r) => r.id === manual.body.rule.id)?.active, false);
 
+    currentPhase = "verify-hidden-ui-after-reload";
     await page.reload({ waitUntil: "domcontentloaded" });
     const nav = page.locator('button[data-nav-name="Automation"]');
     if (await nav.count() === 0) await page.locator(".nav-more-toggle").click();
@@ -194,6 +210,9 @@ async function main() {
 
 main().catch(() => {
   // Never print cookies, receipts, responses, or credentials in CI logs.
-  console.error("Isolated disabled-rollout acceptance failed. Review sanitized step results.");
+  const kind = error?.name === "AssertionError" ? "assertion"
+    : error?.name === "TimeoutError" ? "timeout"
+      : error?.name === "Error" ? "runtime" : "unknown";
+  console.error("Isolated disabled-rollout acceptance failed in phase:", currentPhase, "type:", kind);
   process.exitCode = 1;
 });
