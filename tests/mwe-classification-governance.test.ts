@@ -142,6 +142,8 @@ test("MWE governance is enforced consistently in migration, schema, compatibilit
   }
   assert.ok(migration.includes("employee_mwe_classifications_no_approved_overlap"));
   assert.ok(compat.includes("employee_mwe_classifications_no_approved_overlap"));
+  assert.ok(compat.includes("WHEN duplicate_table THEN NULL"));
+  assert.ok(migration.includes("WHEN duplicate_table THEN NULL"));
   assert.ok(engine.includes("resolveMweClassification"));
   assert.ok(engine.includes("mweClassificationSource="));
   assert.ok(assurance.includes("MWE_CLASSIFICATION_GOVERNANCE"));

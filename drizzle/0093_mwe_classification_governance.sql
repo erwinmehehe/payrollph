@@ -48,4 +48,5 @@ BEGIN
     WHERE (status = 'approved');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
-END $$;
+  WHEN duplicate_table THEN NULL;
+END $;

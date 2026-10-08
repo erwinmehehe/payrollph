@@ -2255,6 +2255,7 @@ BEGIN
     WHERE (status = 'approved');
 EXCEPTION
   WHEN duplicate_object THEN NULL;
+  WHEN duplicate_table THEN NULL;
 END $mwe$;
 
 ALTER TABLE approval_tasks
