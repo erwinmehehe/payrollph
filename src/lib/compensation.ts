@@ -63,6 +63,47 @@ export function proposalBudgetDelta(currentAnnual: number, proposedAnnual: numbe
   return round2(proposed - current);
 }
 
+/**
+ * Compute the salary-cycle budget against authoritative approved/scheduled
+ * reservations, not against merely submitted proposals. Must be re-evaluated
+ * while holding the cycle transaction lock before any pay/payroll mutation.
+ */
+export function evaluateCompensationCycleBudget(input: {
+  budgetPool: number;
+  candidateProposalId: number;
+  currentAnnual: number;
+  proposedAnnual: number;
+  existingProposals: ReadonlyArray<{
+    id: number;
+    status: string;
+    currentAnnual: string | number;
+    proposedAnnual: string | number;
+  }>;
+}) {
+  const budgetPool = Number(input.budgetPool);
+  const committed = input.existingProposals.filter((row) =>
+    row.id !== input.candidateProposalId
+    && (row.status === "scheduled" || row.status === "applied"),
+  );
+  const invalid = !Number.isFinite(budgetPool) || budgetPool < 0 || committed.some((row) =>
+    !Number.isFinite(Number(row.currentAnnual)) || !Number.isFinite(Number(row.proposedAnnual)),
+  );
+  if (invalid) return {
+    allowed: false, committedIncrease: 0, requestedIncrease: 0, remaining: 0,
+  };
+
+  const committedIncrease = round2(committed.reduce((sum, row) =>
+    sum + Math.max(0, proposalBudgetDelta(Number(row.currentAnnual), Number(row.proposedAnnual))),
+  0));
+  const requestedIncrease = Math.max(0, proposalBudgetDelta(input.currentAnnual, input.proposedAnnual));
+  return {
+    allowed: committedIncrease + requestedIncrease <= budgetPool + 0.01,
+    committedIncrease,
+    requestedIncrease,
+    remaining: round2(budgetPool - committedIncrease),
+  };
+}
+
 export function proposalWithinBand(proposedAnnual: number, minimumAnnual: number, maximumAnnual: number) {
   const proposed = Number(proposedAnnual);
   return Number.isFinite(proposed)
