@@ -10,6 +10,7 @@ on:
       - "src/lib/automation-preview-approval.ts"
       - "src/lib/automation-versioning.ts"
       - "scripts/automation-language-acceptance.ts"
+      - "scripts/automation-language-browser-acceptance.mjs"
       - ".github/workflows/automation-language-acceptance.yml"
   workflow_dispatch:
 
@@ -88,3 +89,9 @@ jobs:
           exit 1
       - name: Acceptance — signed draft, preview, denied bypasses and inactive publication
         run: npx tsx scripts/automation-language-acceptance.ts
+      - name: Install pinned Chromium test runner (only after app build)
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Browser acceptance — human-driven draft review, preview and inactive publish
+        run: node scripts/automation-language-browser-acceptance.mjs
