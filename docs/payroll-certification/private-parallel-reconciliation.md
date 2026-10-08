@@ -11,6 +11,33 @@ Tracks certification issue #192 and complements external proof intake PR #515. T
 5. Run the offline CLI and resolve all variances. Have an independent checker/CPA review originals, account mapping, pay calculations and exception explanations. Archive the report and approval with the appropriate cycle's variance-analysis and independent-checker document IDs in the #515 external-evidence manifest.
 6. Obtain actual government portal acceptance and actual bank UAT separately. A matching local CSV is not a filing or payout acceptance.
 
+## First-period pilot: distinct from multi-month certification
+
+The first **real-employer payroll period** may be checked privately with `--pilot`.
+This performs the **same employee-level and journal integrity checks**, HMAC matching,
+input hashes, gross-to-net bridge, account control reconciliation, and ₱0.01 variance
+limits, but accepts **one month**. A passing report is named
+`pilot-arithmetic-reconciled-pending-independent-review`, **not certified**.
+
+After independently reviewing the original employer exports and approving all
+exceptions, retain the local manifest and report with their SHA-256 hashes in
+the private encrypted evidence vault. In production, record the reference to
+that reviewed evidence against the correct released run. The Owner must verify
+the real payroll outcome and the post-release bank-file dry run before pilot
+sign-off. A preview with placeholder destinations or missing immutable
+payment snapshots does **not** count. Do **not** submit any payout.
+
+```bash
+npm run payroll:parallel:check -- \
+  certification/external-private/EMPLOYER_CODE/parallel.json \
+  certification/external-private/EMPLOYER_CODE/parallel-files \
+  --pilot
+```
+
+The normal command **without `--pilot`** continues to require **at least two**
+distinct real-employer payroll months for broader certification evidence.
+Neither mode substitutes for external agency acceptance or bank portal UAT.
+
 ## Run locally (never in CI with production data)
 
 ~~~bash
