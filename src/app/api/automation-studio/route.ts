@@ -42,6 +42,7 @@ import {
   type AutomationWorkflowStep,
 } from "@/lib/automation";
 import { AUTOMATION_DOCUMENT_TEMPLATES } from "@/lib/automation-document-templates";
+import { draftAutomationFromLanguage, LanguageDraftError } from "@/lib/automation-language-draft";
 import {
   AUTOMATION_WORKFLOW_TEMPLATES,
   getAutomationWorkflowTemplate,
@@ -765,6 +766,31 @@ export async function POST(request: Request) {
       return Response.json({
         error: error instanceof Error ? error.message : "Automation stored-snapshot replay failed.",
       }, { status: 409 });
+    }
+  }
+
+  if (action === "draft-from-language") {
+    // No writes, execution, or publication: input is converted and checked in memory.
+    try {
+      const result = await draftAutomationFromLanguage(String(body.request ?? ""));
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Automation Studio language draft proposed",
+        resource: result.draft.name,
+        metadata: {
+          source: result.source,
+          trigger: result.draft.trigger,
+          actionTypes: result.draft.actions.map((step) => step.type),
+          // Never log a raw prompt, employee detail, or model response.
+        },
+      });
+      return Response.json(result);
+    } catch (error) {
+      if (error instanceof LanguageDraftError) {
+        return Response.json({ error: error.message }, { status: error.status });
+      }
+      throw error;
     }
   }
 
