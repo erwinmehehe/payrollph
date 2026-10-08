@@ -8,8 +8,12 @@ import {
 
 export type TimesheetExpectationLifecycle = "expected" | "submitted" | "approved" | "cancelled";
 
-function expectationStatusForTimesheet(status: string): TimesheetExpectationLifecycle {
+export function expectationStatusForTimesheet(status: string): TimesheetExpectationLifecycle {
   return status === "approved" ? "approved" : "submitted";
+}
+
+export function payrollRunSupportsTimesheetExpectationAutomation(status: string) {
+  return !["Released", "Failed", "Cancelled", "Voided", "Superseded"].includes(status);
 }
 
 /**
@@ -114,6 +118,7 @@ export async function listTimesheetExpectationsForPeriod(input: {
   const activeRuns = await db.select({ id: payrollRuns.id }).from(payrollRuns).where(and(
     eq(payrollRuns.organizationId, input.organizationId),
     inArray(payrollRuns.id, [...new Set(rows.map((row) => row.payrollRunId))]),
+    // Keep this DB predicate aligned with payrollRunSupportsTimesheetExpectationAutomation().
     notInArray(payrollRuns.status, ["Released", "Failed", "Cancelled", "Voided", "Superseded"]),
   ));
   const activeRunIds = new Set(activeRuns.map((row) => row.id));
