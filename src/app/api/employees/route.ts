@@ -32,6 +32,7 @@ import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automat
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
+import { GOVERNED_HIRE_REQUIRED, hasConfiguredHireBusinessProcess } from "@/lib/hcm-direct-entry-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +127,11 @@ export async function POST(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  // Once the tenant configures hire approvals, no direct Active worker record
+  // may bypass candidate/position review through the legacy standalone form.
+  if (await hasConfiguredHireBusinessProcess(organizationId)) {
+    return Response.json(GOVERNED_HIRE_REQUIRED, { status: 409 });
+  }
   const employeeOrgUnitId = access.companyWide ? null : access.orgUnitId;
 
   const requestedLegalEntityId = body.legalEntityId == null || body.legalEntityId === ""
