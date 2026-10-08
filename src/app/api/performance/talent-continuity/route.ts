@@ -68,9 +68,9 @@ export async function GET(request: Request) {
     return Boolean(position && assertScope(access, position.orgUnitId).ok);
   });
 
-  const employeeId = query.has("employeeId") ? Number(query.get("employeeId")) : null;
-  const requisitionId = query.has("requisitionId") ? Number(query.get("requisitionId")) : null;
-  if (employeeId == null && requisitionId == null) {
+  const employeeId = Number(query.get("employeeId") ?? "0");
+  const requisitionId = Number(query.get("requisitionId") ?? "0");
+  if (!query.has("employeeId") && !query.has("requisitionId")) {
     return privateJson({
       employees: visibleEmployees.map((worker) => ({
         id: worker.id, label: `${worker.firstName} ${worker.lastName}`,
@@ -86,7 +86,7 @@ export async function GET(request: Request) {
     });
   }
   if (!Number.isSafeInteger(employeeId) || !Number.isSafeInteger(requisitionId) ||
-      employeeId! <= 0 || requisitionId! <= 0) {
+      employeeId <= 0 || requisitionId <= 0) {
     return privateJson({ error: "Positive employeeId and requisitionId are required together." }, { status: 400 });
   }
 
