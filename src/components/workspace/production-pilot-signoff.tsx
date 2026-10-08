@@ -168,7 +168,20 @@ export function ProductionPilotSignoffCard({
               <button
                 type="button"
                 className="secondary-button"
-                onClick={() => setUpgradeNoMoneyPilot(true)}
+                onClick={() => {
+                  setUpgradeNoMoneyPilot(true);
+                  setEvidenceReference("");
+                  setIndependentPreparedBy("");
+                  setReconciliationReportSha256("");
+                  setReconciledEmployeeCount("");
+                  setIndependentSourceConfirmed(false);
+                  setEmployeeLevelReconciliationConfirmed(false);
+                  setOperatorCompletedWithoutDeveloper(false);
+                  setFigures({
+                    grossPay: "", deductions: "", netPay: "", withholdingTax: "",
+                    statutoryContributions: "", payoutTotal: "", employeeCount: "",
+                  });
+                }}
               >
                 Record completed-payout evidence
               </button>
