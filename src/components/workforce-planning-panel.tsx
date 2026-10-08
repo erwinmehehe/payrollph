@@ -131,16 +131,37 @@ type WorkforcePlanBaseline = {
 };
 
 type WorkforceForecast = {
-  assumptions: { startDate: string; endDate: string; windowDays: number; demandGrowthPercent: number; vacancyFillPercent: number; employerLoadPercent: number };
+  assumptions: {
+    startDate: string;
+    endDate: string;
+    windowDays: number;
+    demandGrowthPercent: number;
+    vacancyFillPercent: number;
+    employerLoadPercent: number;
+    annualAttritionPercent: number;
+    attritionBackfillPercent: number;
+    windowAttritionPercent: number;
+    attritionTimingModel: string;
+  };
   summary: {
     activeHeadcount: number;
     costedHeadcount: number;
+    expectedAttritionExits: number;
+    plannedAttritionBackfills: number;
+    endingActiveHeadcount: number;
+    projectedHeadcountAfterVacancyFills: number;
     vacantPositions: number;
     expectedVacancyFills: number;
     annualizedBasePayroll: number | null;
     vacantAnnualBudget: number | null;
     annualRunRateLaborCost: number | null;
     currentPeriodBasePayroll: number | null;
+    expectedAttritionPeriodBaseReduction: number | null;
+    plannedBackfillPeriodBaseCost: number | null;
+    expectedAttritionPeriodEmployerCostReduction: number | null;
+    plannedBackfillPeriodEmployerCost: number | null;
+    annualBackfillRunRateCost: number | null;
+    netAttritionAnnualRunRateCostChange: number | null;
     expectedVacancyPeriodCost: number | null;
     currentPeriodStatutoryEmployerCost: number | null;
     currentPeriodBenefitEmployerCost: number | null;
@@ -155,6 +176,8 @@ type WorkforceForecast = {
     averageBaseHourlyRate: number | null;
     estimatedShiftDemandWageCost: number | null;
     currentPeriodCapacityHours: number;
+    attritionCapacityLossHours: number;
+    plannedBackfillCapacityHours: number;
     expectedVacancyCapacityHours: number;
     projectedCapacityHours: number;
     capacityGapBeforeFills: number;
@@ -169,13 +192,35 @@ type WorkforceForecast = {
     requiredHours: number;
     forecastHours: number;
     activeHeadcount: number;
+    expectedAttritionExits: number;
+    plannedAttritionBackfills: number;
     vacantPositions: number;
     expectedVacancyFills: number;
     currentCapacityHours: number;
+    attritionCapacityLossHours: number;
+    backfillCapacityHours: number;
     expectedVacancyCapacityHours: number;
     projectedCapacityHours: number;
     capacityGapHours: number;
     coveragePercent: number;
+  }>;
+  backfillPlan: Array<{
+    jobProfileId: number | null;
+    title: string;
+    family: string;
+    level: string;
+    activeHeadcount: number;
+    expectedAttritionExits: number;
+    plannedBackfills: number;
+    endingHeadcount: number;
+    averageAnnualBaseCost: number | null;
+    averageAnnualLoadedCost: number | null;
+    expectedAttritionPeriodCostReduction: number | null;
+    plannedBackfillPeriodCost: number | null;
+    annualBackfillRunRateCost: number | null;
+    netAnnualRunRateCostChange: number | null;
+    attritionCapacityLossHours: number;
+    backfillCapacityHours: number;
   }>;
   costCenters: Array<{ costCenterId: number; code: string; name: string; currentPeriodBaseCost: number; currentPeriodLoadedCost: number }>;
   unallocated: { currentPeriodBaseCost: number | null; plannedVacancyPeriodCost: number | null };
@@ -242,6 +287,8 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [demandGrowthPercent, setDemandGrowthPercent] = useState("0");
   const [vacancyFillPercent, setVacancyFillPercent] = useState("100");
   const [employerLoadPercent, setEmployerLoadPercent] = useState("0");
+  const [annualAttritionPercent, setAnnualAttritionPercent] = useState("0");
+  const [attritionBackfillPercent, setAttritionBackfillPercent] = useState("100");
   const [forecastOrgUnitId, setForecastOrgUnitId] = useState("");
   const [forecastWorksiteId, setForecastWorksiteId] = useState("");
   const [scenarioName, setScenarioName] = useState("");
@@ -342,6 +389,8 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
         demandGrowthPercent: String(Number(demandGrowthPercent) || 0),
         vacancyFillPercent: String(Number(vacancyFillPercent) || 0),
         employerLoadPercent: String(Number(employerLoadPercent) || 0),
+        annualAttritionPercent: String(Number(annualAttritionPercent) || 0),
+        attritionBackfillPercent: String(Number(attritionBackfillPercent) || 0),
         ...(forecastOrgUnitId ? { orgUnitId: forecastOrgUnitId } : {}),
         ...(forecastWorksiteId ? { worksiteId: forecastWorksiteId } : {}),
       });
@@ -381,6 +430,8 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
           demandGrowthPercent: Number(demandGrowthPercent) || 0,
           vacancyFillPercent: Number(vacancyFillPercent) || 0,
           employerLoadPercent: Number(employerLoadPercent) || 0,
+          annualAttritionPercent: Number(annualAttritionPercent) || 0,
+          attritionBackfillPercent: Number(attritionBackfillPercent) || 0,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -741,7 +792,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
           <div>
             <div className="card-kicker">DEMAND & LABOR-COST FORECAST</div>
             <h2>Model workforce demand before adding headcount.</h2>
-            <p>Combine current payroll run-rate, PayrollPH employer statutory costs, active employer-paid benefits, recurring compensation, approved vacancies, staffing requirements, and cost-center allocations. Assumptions never change payroll or position records.</p>
+            <p>Combine current payroll run-rate, PayrollPH employer statutory costs, active employer-paid benefits, recurring compensation, approved vacancies, staffing requirements, attrition assumptions, governed backfill, and cost-center allocations. Assumptions never change employment, payroll, or position records.</p>
           </div>
           <button className="primary-button" type="button" onClick={() => void runForecast()} disabled={forecastLoading}>
             <TrendingUp size={15} /> {forecastLoading ? "Calculating..." : "Run forecast"}
@@ -754,6 +805,8 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
           <label>Demand growth %<input type="number" min="-50" max="200" step="1" value={demandGrowthPercent} onChange={(e) => setDemandGrowthPercent(e.target.value)} /></label>
           <label>Vacancy fill %<input type="number" min="0" max="100" step="1" value={vacancyFillPercent} onChange={(e) => setVacancyFillPercent(e.target.value)} /></label>
           <label>Additional scenario load %<input type="number" min="0" max="100" step="0.5" value={employerLoadPercent} onChange={(e) => setEmployerLoadPercent(e.target.value)} /></label>
+          <label>Annual attrition %<input type="number" min="0" max="100" step="0.5" value={annualAttritionPercent} onChange={(e) => setAnnualAttritionPercent(e.target.value)} /></label>
+          <label>Attrition backfill %<input type="number" min="0" max="100" step="1" value={attritionBackfillPercent} onChange={(e) => setAttritionBackfillPercent(e.target.value)} /></label>
           <label>Organization unit<select value={forecastOrgUnitId} onChange={(e) => { setForecastOrgUnitId(e.target.value); setForecastWorksiteId(""); }}><option value="">All visible units</option>{orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</select></label>
           <label>Worksite<select value={forecastWorksiteId} onChange={(e) => setForecastWorksiteId(e.target.value)}><option value="">All visible worksites</option>{worksites.filter((site) => !forecastOrgUnitId || site.orgUnitId === Number(forecastOrgUnitId)).map((site) => <option key={site.id} value={site.id}>{site.code} · {site.name}</option>)}</select></label>
         </div>
@@ -794,6 +847,36 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
               </section>
             )}
 
+            <section className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginBottom: 16 }}>
+              <article className="stat-card"><p>EXPECTED ATTRITION</p><h3>{forecast.summary.expectedAttritionExits}</h3><span>{forecast.assumptions.annualAttritionPercent}% annual assumption · {forecast.assumptions.windowAttritionPercent}% modeled in window</span></article>
+              <article className="stat-card"><p>PLANNED BACKFILLS</p><h3>{forecast.summary.plannedAttritionBackfills}</h3><span>{forecast.assumptions.attritionBackfillPercent}% of expected exits</span></article>
+              <article className="stat-card"><p>ENDING ACTIVE HC</p><h3>{forecast.summary.endingActiveHeadcount}</h3><span>{forecast.summary.projectedHeadcountAfterVacancyFills} including expected vacancy fills</span></article>
+              <article className="stat-card"><p>{costVisible ? "BACKFILL RUN-RATE" : "BACKFILL CAPACITY"}</p><h3>{costVisible ? peso(forecast.summary.annualBackfillRunRateCost) : forecast.summary.plannedBackfillCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 }) + " hrs"}</h3><span>{costVisible ? "same-role annual loaded-cost planning estimate" : "modeled capacity recovered during the forecast window"}</span></article>
+            </section>
+
+            <div className="notice notice-slate" style={{ marginBottom: 16 }}>
+              <UserPlus size={15} />
+              <span><strong>Governed backfill boundary.</strong> Expected exits and backfills are scenario assumptions only. Saving freezes them into the scenario hash; submission routes them through the existing Workforce planning approval chain. They do not terminate employees, open positions, create requisitions, or change payroll.</span>
+            </div>
+
+            <div className="data-table-wrap" style={{ marginBottom: 16 }}>
+              <table className="data-table">
+                <thead><tr><th>BACKFILL ROLE</th><th>ACTIVE</th><th>EXPECTED EXITS</th><th>PLANNED BACKFILLS</th><th>ENDING HC</th><th className="right">{costVisible ? "ANNUAL BACKFILL RUN-RATE" : "COST"}</th></tr></thead>
+                <tbody>
+                  {forecast.backfillPlan.map((row) => (
+                    <tr key={row.jobProfileId ?? "unresolved-backfill"}>
+                      <td><strong>{row.title}</strong><small style={{ display: "block", color: "var(--muted)" }}>{row.family} · {row.level}</small></td>
+                      <td>{row.activeHeadcount}</td>
+                      <td>{row.expectedAttritionExits}</td>
+                      <td>{row.plannedBackfills}</td>
+                      <td>{row.endingHeadcount}</td>
+                      <td className="right">{costVisible ? peso(row.annualBackfillRunRateCost) : "Restricted"}</td>
+                    </tr>
+                  ))}
+                  {forecast.backfillPlan.length === 0 && <tr><td colSpan={6}><div className="empty-state">No active workforce in this scenario scope to model for attrition.</div></td></tr>}
+                </tbody>
+              </table>
+            </div>
             <div className={forecast.summary.capacityGapAfterFills > 0 ? "notice notice-amber" : "notice notice-slate"} style={{ marginBottom: 16 }}>
               <UsersRound size={15} />
               <span><strong>{forecast.summary.capacityGapAfterFills > 0 ? "Capacity gap" : "Capacity covered"}:</strong> demand {forecast.summary.forecastHeadcountHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs vs projected capacity {forecast.summary.projectedCapacityHours.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs after expected fills. Gap after fills: {forecast.summary.capacityGapAfterFills.toLocaleString("en-PH", { maximumFractionDigits: 0 })} hrs.</span>

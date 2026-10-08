@@ -19,6 +19,10 @@ test("forecast revisions are recalculated from current authoritative workforce a
   assert.ok(route.includes('kind: "published_baseline_plus_live_actuals"'));
   assert.ok(route.includes('version: "hcm-workforce-forecast-revision-v1"'));
   assert.ok(route.includes("actualAsOf"));
+  assert.ok(route.includes("annualAttritionPercent"));
+  assert.ok(route.includes("attritionBackfillPercent"));
+  assert.ok(route.includes("assumptions.annualAttritionPercent"));
+  assert.ok(route.includes("assumptions.attritionBackfillPercent"));
 });
 
 test("forecast revisions preserve governance and do not mutate the published baseline", () => {

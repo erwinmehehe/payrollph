@@ -62,6 +62,12 @@ function extractForecastSummary(snapshot: unknown) {
     activeHeadcount: numeric(summary.activeHeadcount),
     vacantPositions: numeric(summary.vacantPositions),
     expectedVacancyFills: numeric(summary.expectedVacancyFills),
+    expectedAttritionExits: numeric(summary.expectedAttritionExits),
+    plannedAttritionBackfills: numeric(summary.plannedAttritionBackfills),
+    endingActiveHeadcount: numeric(summary.endingActiveHeadcount),
+    projectedHeadcountAfterVacancyFills: numeric(summary.projectedHeadcountAfterVacancyFills),
+    attritionCapacityLossHours: numeric(summary.attritionCapacityLossHours),
+    plannedBackfillCapacityHours: numeric(summary.plannedBackfillCapacityHours),
     capacityCoveragePercent: numeric(summary.capacityCoveragePercent),
     annualRunRateLaborCost: numeric(summary.annualRunRateLaborCost),
     forecastPeriodLaborCost: numeric(summary.forecastPeriodLaborCost),
@@ -324,6 +330,8 @@ export async function POST(request: Request) {
       demandGrowthPercent: Number(scenario.demandGrowthPercent),
       vacancyFillPercent: Number(scenario.vacancyFillPercent),
       employerLoadPercent: Number(scenario.employerLoadPercent),
+      annualAttritionPercent: Number(scenario.annualAttritionPercent),
+      attritionBackfillPercent: Number(scenario.attritionBackfillPercent),
     },
     scope: {
       orgUnitId: null,
@@ -401,6 +409,10 @@ export async function POST(request: Request) {
         approvedHeadcount: headcount.approvedHeadcount,
         filledHeadcount: headcount.filledHeadcount,
         filledFte: headcount.filledFte,
+        annualAttritionPercent: Number(scenario.annualAttritionPercent),
+        attritionBackfillPercent: Number(scenario.attritionBackfillPercent),
+        expectedAttritionExits: forecast?.expectedAttritionExits ?? null,
+        plannedAttritionBackfills: forecast?.plannedAttritionBackfills ?? null,
       },
     });
 

@@ -2076,6 +2076,38 @@ CREATE INDEX IF NOT EXISTS bir_withholding_remittance_filing_idx
           ON government_loan_remittance_members(organization_id, legal_entity_id, posting_status);
       `);
 
+      // Attrition/backfill planning extends the existing governed scenario
+      // instead of creating a second planning source of truth.
+      await client.query(`
+        ALTER TABLE IF EXISTS workforce_planning_scenarios
+          ADD COLUMN IF NOT EXISTS annual_attrition_percent numeric(7,2) NOT NULL DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS attrition_backfill_percent numeric(7,2) NOT NULL DEFAULT 100
+      `);
+      await client.query(`
+        DO $compat$
+        BEGIN
+          IF to_regclass('workforce_planning_scenarios') IS NOT NULL THEN
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint
+              WHERE conname = 'workforce_scenarios_annual_attrition_check'
+            ) THEN
+              ALTER TABLE workforce_planning_scenarios
+                ADD CONSTRAINT workforce_scenarios_annual_attrition_check
+                CHECK (annual_attrition_percent >= 0 AND annual_attrition_percent <= 100);
+            END IF;
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint
+              WHERE conname = 'workforce_scenarios_attrition_backfill_check'
+            ) THEN
+              ALTER TABLE workforce_planning_scenarios
+                ADD CONSTRAINT workforce_scenarios_attrition_backfill_check
+                CHECK (attrition_backfill_percent >= 0 AND attrition_backfill_percent <= 100);
+            END IF;
+          END IF;
+        END
+        $compat$;
+      `);
+
       // Published workforce-plan baselines preserve the approved planning
       // evidence separately from live positions so plan-vs-actual remains auditable.
       await client.query(`

@@ -31,6 +31,8 @@ export async function GET(request: Request) {
   const demandGrowthPercent = finiteNumber(url.searchParams.get("demandGrowthPercent"), 0);
   const vacancyFillPercent = finiteNumber(url.searchParams.get("vacancyFillPercent"), 100);
   const employerLoadPercent = finiteNumber(url.searchParams.get("employerLoadPercent"), 0);
+  const annualAttritionPercent = finiteNumber(url.searchParams.get("annualAttritionPercent"), 0);
+  const attritionBackfillPercent = finiteNumber(url.searchParams.get("attritionBackfillPercent"), 100);
   const orgUnitId = optionalPositiveInt(url.searchParams.get("orgUnitId"));
   const worksiteId = optionalPositiveInt(url.searchParams.get("worksiteId"));
 
@@ -41,6 +43,8 @@ export async function GET(request: Request) {
     || !Number.isFinite(demandGrowthPercent)
     || !Number.isFinite(vacancyFillPercent)
     || !Number.isFinite(employerLoadPercent)
+    || !Number.isFinite(annualAttritionPercent)
+    || !Number.isFinite(attritionBackfillPercent)
     || Number.isNaN(orgUnitId)
     || Number.isNaN(worksiteId)
   ) {
@@ -58,6 +62,8 @@ export async function GET(request: Request) {
       demandGrowthPercent,
       vacancyFillPercent,
       employerLoadPercent,
+      annualAttritionPercent,
+      attritionBackfillPercent,
       orgUnitId,
       worksiteId,
     });
@@ -67,7 +73,7 @@ export async function GET(request: Request) {
         : redactWorkforceForecastCosts(result.forecast),
       costVisible: result.canViewCost,
       scope: result.scope,
-      boundary: "Planning estimate. Existing-worker employer costs use PayrollPH statutory formulas plus active benefit and recurring compensation records at the forecast start date. Vacancy benefit costs remain unknown until assigned; additional load % is scenario-only.",
+      boundary: "Planning estimate. Existing-worker employer costs use PayrollPH statutory formulas plus active benefit and recurring compensation records at the forecast start date. Attrition is modeled evenly through the forecast window; backfill assumes same-role replacement and remains planning evidence only. Vacancy benefit costs remain unknown until assigned; additional load % is scenario-only.",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Workforce forecast could not be calculated.";

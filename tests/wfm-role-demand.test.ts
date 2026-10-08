@@ -228,7 +228,7 @@ test("schema, routes, open shifts and scenario UI carry the role dimension end t
   assert.ok(route.includes("Any job profile requirement"));
   assert.ok(forecastServer.includes("resolveEmployeeJobProfileAtDate"));
   assert.ok(forecastServer.includes("visibleRequirementRows"));
-  assert.ok(scenarioRoute.includes('version: "wfm-staffing-scenario-v2"'));
+  assert.ok(scenarioRoute.includes('version: "wfm-staffing-scenario-v3"'));
   assert.ok(coveragePanel.includes("Job profile"));
   assert.ok(coveragePanel.includes("Any job profile"));
   assert.ok(coveragePanel.includes("jobProfileById"));

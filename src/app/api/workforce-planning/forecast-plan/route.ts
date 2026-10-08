@@ -75,6 +75,8 @@ function baselineAssumptions(snapshot: unknown) {
     demandGrowthPercent: numberOr(scenario.demandGrowthPercent, 0),
     vacancyFillPercent: numberOr(scenario.vacancyFillPercent, 100),
     employerLoadPercent: numberOr(scenario.employerLoadPercent, 0),
+    annualAttritionPercent: numberOr(scenario.annualAttritionPercent, 0),
+    attritionBackfillPercent: numberOr(scenario.attritionBackfillPercent, 100),
   };
 }
 
@@ -171,6 +173,8 @@ export async function POST(request: Request) {
       demandGrowthPercent: assumptions.demandGrowthPercent,
       vacancyFillPercent: assumptions.vacancyFillPercent,
       employerLoadPercent: assumptions.employerLoadPercent,
+      annualAttritionPercent: assumptions.annualAttritionPercent,
+      attritionBackfillPercent: assumptions.attritionBackfillPercent,
       orgUnitId: null,
       worksiteId: null,
     });
@@ -205,7 +209,7 @@ export async function POST(request: Request) {
           annualPositionBudget: null,
         },
       },
-      boundary: "This draft is a new forecast revision seeded from the current published baseline and recalculated from current authoritative workforce actuals. It does not mutate the published baseline, positions, schedules, attendance, or payroll.",
+      boundary: "This draft is a new forecast revision seeded from the current published baseline and recalculated from current authoritative workforce actuals, including the approved attrition/backfill assumptions. It does not mutate the published baseline, positions, schedules, attendance, employment status, or payroll.",
     };
     const hash = snapshotHash(snapshotBase);
 
@@ -233,6 +237,8 @@ export async function POST(request: Request) {
         demandGrowthPercent: String(assumptions.demandGrowthPercent),
         vacancyFillPercent: String(assumptions.vacancyFillPercent),
         employerLoadPercent: String(assumptions.employerLoadPercent),
+        annualAttritionPercent: String(assumptions.annualAttritionPercent),
+        attritionBackfillPercent: String(assumptions.attritionBackfillPercent),
         status: "draft",
         snapshot: snapshotBase,
         snapshotHash: hash,

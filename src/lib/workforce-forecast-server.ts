@@ -38,6 +38,8 @@ export type WorkforceForecastRequest = WorkforceForecastScope & {
   demandGrowthPercent: number;
   vacancyFillPercent: number;
   employerLoadPercent: number;
+  annualAttritionPercent: number;
+  attritionBackfillPercent: number;
 };
 
 function roleAllowed(role: string, roles: readonly string[]) {
@@ -348,6 +350,8 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
       demandGrowthPercent: input.demandGrowthPercent,
       vacancyFillPercent: input.vacancyFillPercent,
       employerLoadPercent: input.employerLoadPercent,
+      annualAttritionPercent: input.annualAttritionPercent,
+      attritionBackfillPercent: input.attritionBackfillPercent,
     },
     employees: visibleEmployees.map((employee) => ({
       id: employee.id,
@@ -440,6 +444,7 @@ export async function loadScopedWorkforceForecast(input: WorkforceForecastReques
 
 export function redactWorkforceForecastCosts<T extends {
   summary: Record<string, unknown>;
+  backfillPlan?: Array<Record<string, unknown>>;
   costCenters: unknown[];
   unallocated: Record<string, unknown>;
 }>(forecast: T) {
@@ -451,6 +456,12 @@ export function redactWorkforceForecastCosts<T extends {
       vacantAnnualBudget: null,
       annualRunRateLaborCost: null,
       currentPeriodBasePayroll: null,
+      expectedAttritionPeriodBaseReduction: null,
+      plannedBackfillPeriodBaseCost: null,
+      expectedAttritionPeriodEmployerCostReduction: null,
+      plannedBackfillPeriodEmployerCost: null,
+      annualBackfillRunRateCost: null,
+      netAttritionAnnualRunRateCostChange: null,
       expectedVacancyPeriodCost: null,
       currentPeriodStatutoryEmployerCost: null,
       currentPeriodBenefitEmployerCost: null,
@@ -463,6 +474,15 @@ export function redactWorkforceForecastCosts<T extends {
       averageBaseHourlyRate: null,
       estimatedShiftDemandWageCost: null,
     },
+    backfillPlan: forecast.backfillPlan?.map((row) => ({
+      ...row,
+      averageAnnualBaseCost: null,
+      averageAnnualLoadedCost: null,
+      expectedAttritionPeriodCostReduction: null,
+      plannedBackfillPeriodCost: null,
+      annualBackfillRunRateCost: null,
+      netAnnualRunRateCostChange: null,
+    })) ?? [],
     costCenters: [],
     unallocated: {
       currentPeriodBaseCost: null,
