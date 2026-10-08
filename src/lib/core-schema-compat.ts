@@ -185,7 +185,7 @@ export async function ensureCoreCompatibilitySchema() {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v18'))");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v19'))");
 
       await client.query(`
         ALTER TABLE organizations
