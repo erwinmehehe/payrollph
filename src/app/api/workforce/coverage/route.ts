@@ -3,6 +3,7 @@ import { db } from "@/db";
 import {
   employeeAvailabilityRules,
   employeePayProfiles,
+  employeePayRevisions,
   employeeScheduleAssignments,
   employeeWorksiteAssignments,
   employees,
@@ -61,7 +62,7 @@ import {
   type WorkforceScheduleOverrideSegment,
 } from "@/lib/workforce-scheduling";
 import { matchPunchesToWorkforceSegments } from "@/lib/workforce-payroll";
-import { hourlyBaseRate } from "@/lib/workforce-forecast";
+import { effectivePayProfileForDate } from "@/lib/pay-basis";
 import {
   actualWorkedMinutes,
   computeWorkforceLaborVariance,
@@ -770,7 +771,7 @@ export async function GET(request: Request) {
   const employeeIds = workforce.visibleEmployees.map((employee) => employee.id);
   const worksiteIds = workforce.visibleWorksites.map((site) => site.id);
 
-  const [requirements, availability, openShiftRows, claimRows, shifts, punchRows, payProfileRows] = await Promise.all([
+  const [requirements, availability, openShiftRows, claimRows, shifts, punchRows, payProfileRows, payRevisionRows] = await Promise.all([
     worksiteIds.length
       ? db.select().from(staffingRequirements).where(and(
           eq(staffingRequirements.organizationId, organizationId),
@@ -814,6 +815,16 @@ export async function GET(request: Request) {
           inArray(employeePayProfiles.employeeId, employeeIds),
         )).orderBy(asc(employeePayProfiles.employeeId))
       : [],
+    canViewLaborCosts && employeeIds.length
+      ? db.select().from(employeePayRevisions).where(and(
+          eq(employeePayRevisions.organizationId, organizationId),
+          inArray(employeePayRevisions.employeeId, employeeIds),
+        )).orderBy(
+          asc(employeePayRevisions.employeeId),
+          asc(employeePayRevisions.effectiveDate),
+          asc(employeePayRevisions.id),
+        )
+      : [],
   ]);
 
   const profileRows = await db.select().from(jobProfiles)
@@ -845,34 +856,56 @@ export async function GET(request: Request) {
     availabilityRows: availability,
   });
 
-  const hourlyRateByEmployee = new Map<number, number>();
-  const invalidPayProfileEmployeeIds: number[] = [];
-  if (canViewLaborCosts) {
-    for (const profile of payProfileRows) {
-      try {
-        hourlyRateByEmployee.set(profile.employeeId, hourlyBaseRate({
-          employeeId: profile.employeeId,
+  const payProfileByEmployee = new Map(
+    payProfileRows.map((profile) => [profile.employeeId, profile]),
+  );
+  const payRevisionsByEmployee = new Map<number, typeof payRevisionRows>();
+  for (const revision of payRevisionRows) {
+    payRevisionsByEmployee.set(
+      revision.employeeId,
+      [...(payRevisionsByEmployee.get(revision.employeeId) ?? []), revision],
+    );
+  }
+  const invalidPayProfileEmployeeIdSet = new Set<number>();
+  const hourlyRateForEmployeeDate = (employeeId: number, workDate: string) => {
+    if (!canViewLaborCosts) return 0;
+    const profile = payProfileByEmployee.get(employeeId);
+    if (!profile) return 0;
+    try {
+      return effectivePayProfileForDate({
+        currentProfile: {
           payBasis: profile.payBasis,
           rateAmount: profile.rateAmount,
           standardWorkDaysPerMonth: profile.standardWorkDaysPerMonth,
           standardHoursPerDay: profile.standardHoursPerDay,
-        }));
-      } catch {
-        invalidPayProfileEmployeeIds.push(profile.employeeId);
-      }
+        },
+        revisions: (payRevisionsByEmployee.get(employeeId) ?? []).map((revision) => ({
+          effectiveDate: String(revision.effectiveDate),
+          previousPayBasis: revision.previousPayBasis,
+          previousRateAmount: revision.previousRateAmount,
+          previousStandardWorkDaysPerMonth: revision.previousStandardWorkDaysPerMonth,
+          previousStandardHoursPerDay: revision.previousStandardHoursPerDay,
+          newPayBasis: revision.newPayBasis,
+          newRateAmount: revision.newRateAmount,
+          newStandardWorkDaysPerMonth: revision.newStandardWorkDaysPerMonth,
+          newStandardHoursPerDay: revision.newStandardHoursPerDay,
+          reason: revision.reason,
+        })),
+        workDate,
+      }).hourlyRate;
+    } catch {
+      invalidPayProfileEmployeeIdSet.add(employeeId);
+      return 0;
     }
-  }
+  };
+
   const missingPayProfileEmployeeIds = canViewLaborCosts
-    ? employeeIds.filter((employeeId) => !hourlyRateByEmployee.has(employeeId))
+    ? employeeIds.filter((employeeId) => !payProfileByEmployee.has(employeeId))
     : [];
-  const validRates = [...hourlyRateByEmployee.values()];
-  const benchmarkHourlyRate = validRates.length
-    ? validRates.reduce((sum, rate) => sum + rate, 0) / validRates.length
-    : 0;
 
   const scheduledLabor = coverageData.scheduledSegments.map((entry) => ({
     ...entry,
-    hourlyRate: hourlyRateByEmployee.get(entry.employeeId) ?? 0,
+    hourlyRate: hourlyRateForEmployeeDate(entry.employeeId, entry.workDate),
   }));
 
   const punchesByEmployeeDate = new Map<string, typeof punchRows>();
@@ -911,7 +944,7 @@ export async function GET(request: Request) {
         shiftDefinitionId: segment?.shiftDefinitionId ?? null,
         jobProfileId: coverageData.roleByEmployeeDate.get(key) ?? null,
         workedMinutes: worked.minutes,
-        hourlyRate: hourlyRateByEmployee.get(employeeId) ?? 0,
+        hourlyRate: hourlyRateForEmployeeDate(employeeId, workDate),
         matchedToSchedule: Boolean(segment) && !resolution.exception,
         flags: [
           ...worked.flags,
@@ -920,6 +953,15 @@ export async function GET(request: Request) {
       });
     }
   }
+
+  const invalidPayProfileEmployeeIds = [...invalidPayProfileEmployeeIdSet].sort((a, b) => a - b);
+  const validRates = [
+    ...scheduledLabor.map((entry) => entry.hourlyRate),
+    ...actualLabor.map((entry) => entry.hourlyRate),
+  ].filter((rate) => Number.isFinite(rate) && rate > 0);
+  const benchmarkHourlyRate = validRates.length
+    ? validRates.reduce((sum, rate) => sum + rate, 0) / validRates.length
+    : 0;
 
   const laborVariance = computeWorkforceLaborVariance({
     requirements: requirements.map((row) => ({
