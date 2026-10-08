@@ -1,4 +1,4 @@
-import { and, eq, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, lt, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
@@ -802,6 +802,90 @@ export async function activateCompensationComponentAssignment(
   return { ...result, automation, fieldChangeAutomation, warnings };
 }
 
+
+/**
+ * Close a recurring compensation component strictly AFTER its last payable
+ * Philippine calendar day. Assignment-level lock 4222 is shared with the
+ * approval/cancellation decision and scheduled-activation workflows.
+ *
+ * Status, compensation evidence and operational audit are one transaction.
+ * If any evidence write fails, the assignment stays active for safe retry.
+ * The ended status remains eligible for historical payroll recalculation only
+ * within the assignment's approved effective-date interval.
+ */
+export async function expireCompensationComponentAssignment(
+  assignmentId: number,
+  options: { actor?: string; actorUserId?: number | null; now?: Date } = {},
+) {
+  const now = options.now ?? new Date();
+  const today = philippineBusinessDate(now);
+  const actor = options.actor ?? "System scheduler";
+  const actorUserId = options.actorUserId ?? null;
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(4222, ${assignmentId})`);
+    const [assignment] = await tx.select().from(employeeCompensationComponents)
+      .where(eq(employeeCompensationComponents.id, assignmentId))
+      .limit(1);
+
+    if (!assignment) return { skipped: true as const, reason: "missing" as const };
+    if (assignment.status === "ended") return { skipped: true as const, reason: "already_ended" as const };
+    if (assignment.status !== "active") return { skipped: true as const, reason: "not_active" as const };
+    if (!assignment.effectiveUntil || String(assignment.effectiveUntil) >= today) {
+      return { skipped: true as const, reason: "not_expired" as const };
+    }
+
+    const [closed] = await tx.update(employeeCompensationComponents).set({
+      status: "ended",
+      updatedAt: now,
+    }).where(and(
+      eq(employeeCompensationComponents.id, assignment.id),
+      eq(employeeCompensationComponents.organizationId, assignment.organizationId),
+      eq(employeeCompensationComponents.status, "active"),
+      lt(employeeCompensationComponents.effectiveUntil, today),
+    )).returning();
+    if (!closed) return { skipped: true as const, reason: "claimed" as const };
+
+    const effectiveUntil = String(closed.effectiveUntil);
+    const evidence = {
+      componentId: closed.componentId,
+      amount: Number(closed.amount),
+      effectiveFrom: String(closed.effectiveFrom),
+      effectiveUntil,
+      endedOnPhilippineDate: today,
+      reason: closed.reason,
+      previousStatus: "active",
+    };
+    // The event is effective on the last payable day; the operational end
+    // is observed on the following Philippine business date or later.
+    const [event] = await tx.insert(compensationEvents).values({
+      organizationId: closed.organizationId,
+      employeeId: closed.employeeId,
+      eventType: "component_ended",
+      effectiveDate: effectiveUntil,
+      componentAssignmentId: closed.id,
+      metadata: evidence,
+      actorUserId,
+      actorName: actor,
+    }).returning({ id: compensationEvents.id });
+
+    const [audit] = await tx.insert(auditEvents).values({
+      organizationId: closed.organizationId,
+      actor,
+      action: "Recurring compensation component ended",
+      resource: `Employee #${closed.employeeId}`,
+      metadata: {
+        componentAssignmentId: closed.id,
+        employeeId: closed.employeeId,
+        compensationEventId: event.id,
+        ...evidence,
+      },
+    }).returning({ id: auditEvents.id });
+
+    return { skipped: false as const, assignment: closed, event, audit };
+  });
+}
+
 export async function runScheduledCompensationGovernance({
   actor = "System scheduler",
   now = new Date(),
@@ -850,36 +934,30 @@ export async function runScheduledCompensationGovernance({
     }
   }
 
-  const expired = await db.select().from(employeeCompensationComponents).where(and(
-    eq(employeeCompensationComponents.status, "active"),
-    or(
-      eq(employeeCompensationComponents.effectiveUntil, today),
-      sql`${employeeCompensationComponents.effectiveUntil} < ${today}`,
-    ),
-  ));
+  const expired = await db.select({ id: employeeCompensationComponents.id })
+    .from(employeeCompensationComponents)
+    .where(and(
+      eq(employeeCompensationComponents.status, "active"),
+      lt(employeeCompensationComponents.effectiveUntil, today),
+    ))
+    .orderBy(asc(employeeCompensationComponents.id))
+    .limit(Math.max(1, Math.min(limit, 100)));
 
   const ended: number[] = [];
+  const expirationFailures: Array<{ id: number; error: string }> = [];
   for (const assignment of expired) {
-    if (!assignment.effectiveUntil || String(assignment.effectiveUntil) >= today) continue;
-    const [closed] = await db.update(employeeCompensationComponents).set({
-      status: "ended",
-      updatedAt: now,
-    }).where(and(
-      eq(employeeCompensationComponents.id, assignment.id),
-      eq(employeeCompensationComponents.status, "active"),
-    )).returning();
-    if (!closed) continue;
-    ended.push(closed.id);
-    await db.insert(compensationEvents).values({
-      organizationId: closed.organizationId,
-      employeeId: closed.employeeId,
-      eventType: "component_ended",
-      effectiveDate: String(closed.effectiveUntil),
-      componentAssignmentId: closed.id,
-      metadata: { componentId: closed.componentId, amount: Number(closed.amount) },
-      actorName: actor,
-    });
+    try {
+      const result = await expireCompensationComponentAssignment(assignment.id, { actor, now });
+      if (!result.skipped) ended.push(result.assignment.id);
+    } catch (error) {
+      // A failed evidence insert must not interrupt expiration of other
+      // assignments. The rolled-back row remains active and is retried later.
+      expirationFailures.push({
+        id: assignment.id,
+        error: error instanceof Error ? error.message : "Unknown expiration failure",
+      });
+    }
   }
 
-  return { proposals: proposalResults, components: componentResults, ended };
+  return { proposals: proposalResults, components: componentResults, ended, expirationFailures };
 }
