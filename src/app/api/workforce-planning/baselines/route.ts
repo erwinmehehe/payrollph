@@ -110,10 +110,21 @@ function redactSnapshotCosts(snapshot: unknown) {
   const headcount = baselineSummary(snapshot);
   const plan = snapshotRecord(root.plan);
   const forecast = snapshotRecord(root.forecast);
+  const executionSource = snapshotRecord(root.positionExecutionSource);
+  const executionPositions = Array.isArray(executionSource.positions)
+    ? executionSource.positions.map((position) =>
+        position && typeof position === "object" && !Array.isArray(position)
+          ? { ...(position as Record<string, unknown>), annualBudget: null }
+          : position
+      )
+    : executionSource.positions;
   return {
     ...root,
     plan: { ...plan, budget: null },
     headcount: headcount ? redactSummaryCosts(headcount) : root.headcount,
+    positionExecutionSource: Object.keys(executionSource).length
+      ? { ...executionSource, positions: executionPositions }
+      : root.positionExecutionSource,
     forecast: Object.keys(forecast).length
       ? {
           ...forecast,
