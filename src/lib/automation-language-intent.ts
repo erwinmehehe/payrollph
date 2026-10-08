@@ -25,7 +25,7 @@ const REVIEW_REQUEST = /\bprepare\b[^.!?]{0,65}\b(?:review|escalation)\b/i;
 
 const UNSUPPORTED_EFFECTS: ReadonlyArray<RegExp> = [
   /\b(?:grant|revoke|remove|provision|assign)\b[^.!?]{0,35}\b(?:admin access|permissions|user access|system access|privileges|roles)\b/i,
-  /\b(?:change|adjust|increase|decrease|set|update)\b[^.!?]{0,25}\b(?:salary|pay rate|compensation amount|bank account|bank details)\b/i,
+  /\b(?:change|adjust|increase|decrease|set|update)\b[^.!?]{0,25}\b(?:salary|pay rate|employee pay|compensation amount|bank account|bank details)\b/i,
   /\b(?:disburse|transfer|release|pay out)\b[^.!?]{0,35}\b(?:money|funds|payout|wages|salary|payroll)\b/i,
   /\b(?:call a webhook|post to an? external|make an? (?:http|api) request)\b/i,
 ];
