@@ -80,7 +80,7 @@ function executionLiveState(input: {
 
 async function currentPositionState(
   organizationId: number,
-  executor: Pick<typeof db, "select"> = db,
+  executor: any = db,
 ) {
   const [positionRows, assignmentRows, requisitionRows] = await Promise.all([
     executor.select().from(positions)
@@ -153,13 +153,15 @@ export async function GET(request: Request) {
   const denied = await assertOrganizationRole(
     user.id,
     organizationId,
-    WORKFORCE_MANAGER_ROLES,
-    "Your role is not allowed to view workforce-plan execution evidence.",
+    PEOPLE_ADMIN_ROLES,
+    "Only People administrators can view published-plan position execution evidence.",
   );
   if (denied) return denied;
 
   const access = await getAccess(user.id, organizationId);
-  if (!access) return Response.json({ error: "Workforce access is required." }, { status: 403 });
+  if (!access?.companyWide) {
+    return Response.json({ error: "Position execution evidence requires company-wide People access." }, { status: 403 });
+  }
 
   const rows = await db.select().from(workforcePlanPositionExecutions)
     .where(eq(workforcePlanPositionExecutions.organizationId, organizationId))
@@ -250,6 +252,20 @@ export async function POST(request: Request) {
     eq(workforcePlanPositionExecutions.executionHash, executionHash),
   )).limit(1);
   if (existing) {
+    if (existing.status === "cancelled") {
+      const [reopened] = await db.update(workforcePlanPositionExecutions).set({
+        status: "preview",
+        result: {},
+      }).where(eq(workforcePlanPositionExecutions.id, existing.id)).returning();
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Workforce plan position execution preview reopened",
+        resource: `Execution #${existing.id}`,
+        metadata: { planId, baselineId: baseline.id, executionHash },
+      });
+      return Response.json({ execution: reopened, reused: true, reopened: true });
+    }
     return Response.json({ execution: existing, reused: true });
   }
 
