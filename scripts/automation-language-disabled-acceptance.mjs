@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { chromium } from "playwright";
 
 /**
@@ -85,18 +86,11 @@ async function main() {
     const session = cookies.find((row) => row.name === "__Host-linaw_session");
     assert.ok(session?.value, "Synthetic administrator must have a session");
 
-    // Both ports use the same disposable DB; capture orgId from the authenticated
-    // app's organization context, not an invented or guessed tenant id.
-    const orgId = await page.evaluate(async () => {
-      const response = await fetch("/api/auth/me", { cache: "no-store" });
-      if (!response.ok) throw new Error("Synthetic session lookup failed");
-      const body = await response.json();
-      const candidate = body.user?.organizationId ?? body.organizationId
-        ?? body.user?.organizations?.[0]?.organizationId ?? body.organizations?.[0]?.id;
-      return Number(candidate);
-    });
+    // Reuse the positive acceptance's *actual* synthetic setup organization.
+    // The first acceptance phase records only this non-secret numeric ID.
+    const orgId = Number(readFileSync("/tmp/payrollph-automation-acceptance-org-id", "utf8"));
     assert.ok(Number.isSafeInteger(orgId) && orgId > 0,
-      "Synthetic organization id must be discoverable from session");
+      "Positive synthetic setup must have recorded a valid organization");
 
     const before = await pageStudio(page, orgId);
     assert.equal(before.features?.languageDraftingEnabled, false);
