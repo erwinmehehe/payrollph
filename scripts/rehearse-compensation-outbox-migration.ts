@@ -1,3 +1,4 @@
+import type { PoolClient } from "pg";
 import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pool } from "../src/db";
@@ -31,7 +32,7 @@ async function main() {
   }
 
   const schema = `comp_outbox_qa_${randomBytes(7).toString("hex")}`;
-  let client: Awaited<ReturnType<typeof pool.connect>> | undefined;
+  let client: PoolClient | undefined;
   let compatible = false;
   let issues: string[] = [];
   try {
