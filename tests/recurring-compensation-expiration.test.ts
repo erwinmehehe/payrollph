@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import {
   auditEvents,
+  compensationAutomationIntents,
   compensationComponents,
   compensationEvents,
   employeeCompensationComponents,
@@ -342,7 +343,19 @@ test("activation and expiration race converges with one of each financial event"
       eq(compensationEvents.componentAssignmentId, fixture.assignmentId),
     );
     assert.equal(after.assignment.status, "ended");
-    assert.equal(events.filter((event) => event.eventType === "component_activated").length, 1);
+    const activatedEvents = events.filter((event) => event.eventType === "component_activated");
+    assert.equal(activatedEvents.length, 1);
+    // Activation may race expiration, but the single committed activation
+    // still has two durable notification intents. Expiration must not cancel
+    // or duplicate either intent.
+    const intents = await db.select().from(compensationAutomationIntents).where(
+      eq(compensationAutomationIntents.compensationEventId, activatedEvents[0].id),
+    );
+    assert.equal(intents.length, 2);
+    assert.deepEqual(intents.map((row) => row.eventKey).sort(), [
+      `compensation-component-active:${fixture.assignmentId}`,
+      `compensation-component-active:${fixture.assignmentId}:field-change:recurringcompensationamount`,
+    ]);
     assert.equal(after.endedEvents.length, 1);
     assert.equal(after.endingAudits.length, 1);
 
