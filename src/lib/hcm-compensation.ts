@@ -22,6 +22,11 @@ import { resolvePayProfile } from "@/lib/pay-basis";
 
 const BUSY_PAYROLL_STATUSES = new Set(["Queued", "Processing", "Recalculating", "Releasing"]);
 
+// Allows a compensation decision and any impacted payroll invalidation to
+// succeed or roll back together. A separate nested transaction would reset a
+// payroll run even if the later proposal approval fails.
+type CompensationTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export function philippineBusinessDate(now = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(now);
 }
@@ -31,9 +36,11 @@ export async function compensationPayrollConflicts(input: {
   employeeOrgUnitId: number | null;
   effectiveFrom: string;
   effectiveUntil?: string | null;
-}) {
+}, transaction?: CompensationTransaction) {
   const end = input.effectiveUntil ?? "9999-12-31";
-  const runs = await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, input.organizationId));
+  const runs = transaction
+    ? await transaction.select().from(payrollRuns).where(eq(payrollRuns.organizationId, input.organizationId))
+    : await db.select().from(payrollRuns).where(eq(payrollRuns.organizationId, input.organizationId));
   const overlapping = runs.filter((run) =>
     String(run.periodStart) <= end
     && String(run.periodEnd) >= input.effectiveFrom
@@ -64,13 +71,14 @@ export async function compensationPayrollConflicts(input: {
 export async function invalidatePayrollRunsForCompensationChange(
   organizationId: number,
   runs: Awaited<ReturnType<typeof compensationPayrollConflicts>>,
+  transaction?: CompensationTransaction,
 ) {
   if (runs.length === 0) return [] as number[];
 
-  const tasks = await db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, organizationId));
-  const invalidated: number[] = [];
+  const invalidate = async (tx: CompensationTransaction) => {
+    const tasks = await tx.select().from(approvalTasks).where(eq(approvalTasks.organizationId, organizationId));
+    const invalidated: number[] = [];
 
-  await db.transaction(async (tx) => {
     for (const run of runs) {
       await tx.delete(payrollEntries).where(eq(payrollEntries.payrollRunId, run.id));
       const [updated] = await tx.update(payrollRuns).set({
@@ -103,9 +111,11 @@ export async function invalidatePayrollRunsForCompensationChange(
         }).where(eq(approvalTasks.id, task.id));
       }
     }
-  });
 
-  return invalidated;
+    return invalidated;
+  };
+
+  return transaction ? invalidate(transaction) : db.transaction(invalidate);
 }
 
 export async function applyScheduledCompensationProposal(
