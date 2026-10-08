@@ -219,6 +219,10 @@ export function RecruitmentPanel({
         setNotice(payload.error ?? "Could not complete the hire.");
         return;
       }
+      if (payload.approvalRequired) {
+        setNotice(`Hire request #${payload.businessProcess?.id ?? "pending"} is ${payload.businessProcess?.status ?? "awaiting review"}. No worker or payroll records were created. Complete the HCM Inbox approvals, then submit these same details again to finish onboarding.`);
+        return;
+      }
 
       setHiringApplicant(null);
       await load();
@@ -345,7 +349,7 @@ export function RecruitmentPanel({
             <div>
               <div className="card-kicker">HIRE &amp; ONBOARD</div>
               <h2 style={{ margin: 0 }}>Convert {hiringApplicant.fullName} into an employee</h2>
-              <p>This atomically creates the employee, payroll pay profile, onboarding checklist, and incumbent assignment for the approved position.</p>
+              <p>First submit the candidate offer and employment terms for independent HCM review. After approval, submit the unchanged details again to atomically create the employee, payroll pay profile, onboarding checklist, and incumbent assignment.</p>
             </div>
             <button className="icon-button" type="button" onClick={() => setHiringApplicant(null)}><X size={16} /></button>
           </div>
@@ -381,7 +385,7 @@ export function RecruitmentPanel({
             </div>
             <div className="run-actions">
               <button type="button" className="secondary-button" onClick={() => setHiringApplicant(null)} disabled={savingHire}>Cancel</button>
-              <button className="primary-button" disabled={savingHire}>{savingHire ? "Hiring…" : "Hire & onboard"}</button>
+              <button className="primary-button" disabled={savingHire}>{savingHire ? "Submitting…" : "Request review / complete approved hire"}</button>
             </div>
           </form>
         </article>
