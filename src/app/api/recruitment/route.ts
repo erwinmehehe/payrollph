@@ -2,6 +2,9 @@ import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  hcmJobProfileSkillRequirements,
+  hcmSkillExpectationDefaults,
+  hcmSkills,
   jobApplicants,
   jobProfiles,
   jobRequisitions,
@@ -22,6 +25,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { positionControlFingerprint } from "@/lib/hcm-position-business-process";
 import { PlanRequisitionHandoffError, resolvePublishedPlanRequisitionLineage } from "@/lib/workforce-plan-requisition-handoff";
+import { freezeTalentRoleSkills, TalentRoleArchitectureError } from "@/lib/hcm-talent-continuity";
 
 export const dynamic = "force-dynamic";
 
@@ -304,11 +308,44 @@ export async function POST(request: Request) {
           throw new RecruitmentConflict("An occupied position cannot be opened for recruitment.");
         }
 
+        // Freeze ROLE-ONLY expectations from approved job architecture at
+        // requisition opening. Do not expose employee reviews, compensation
+        // assessments or personal development records to Recruitment.
+        const [[freshProfile], directSkills, inheritedSkills, skills] = await Promise.all([
+          tx.select().from(jobProfiles).where(and(
+            eq(jobProfiles.id, freshPosition.jobProfileId),
+            eq(jobProfiles.organizationId, organizationId),
+          )).limit(1),
+          tx.select().from(hcmJobProfileSkillRequirements).where(and(
+            eq(hcmJobProfileSkillRequirements.organizationId, organizationId),
+            eq(hcmJobProfileSkillRequirements.jobProfileId, freshPosition.jobProfileId),
+          )),
+          tx.select().from(hcmSkillExpectationDefaults).where(and(
+            eq(hcmSkillExpectationDefaults.organizationId, organizationId),
+            eq(hcmSkillExpectationDefaults.active, true),
+          )),
+          tx.select().from(hcmSkills).where(eq(hcmSkills.organizationId, organizationId)),
+        ]);
+        if (!freshProfile || freshProfile.title !== profile.title ||
+          freshProfile.familyId !== profile.familyId ||
+          freshProfile.levelId !== profile.levelId ||
+          !freshProfile.active) {
+          throw new RecruitmentConflict("The position's approved job profile changed. Refresh before opening recruitment.");
+        }
+        const roleSkills = freezeTalentRoleSkills({
+          profile: freshProfile,
+          direct: directSkills,
+          inherited: inheritedSkills,
+          skills,
+          capturedAt: new Date().toISOString(),
+        });
+
         const [requisition] = await tx.insert(jobRequisitions).values({
           organizationId,
           positionId: position.id,
           planHandoffEvidence: lineage,
-          title: profile.title,
+          roleSkillSnapshot: roleSkills,
+          title: freshProfile.title,
           department: unit?.name ?? "Company-wide",
           headcount: 1,
           salaryMin: monthlyBudget ? monthlyBudget.toFixed(2) : null,
@@ -322,8 +359,11 @@ export async function POST(request: Request) {
           .set({ status: "open", updatedAt: new Date() })
           .where(eq(positions.id, position.id));
 
-        return { requisition, lineage };
+        return { requisition, lineage, roleSkills };
       }).catch((error: unknown) => {
+        if (error instanceof TalentRoleArchitectureError) {
+          return Response.json({ error: error.message, code: "ROLE_SKILL_ARCHITECTURE_INCOMPLETE" }, { status: 409 });
+        }
         if (error instanceof PlanRequisitionHandoffError) {
           return Response.json({ error: error.message, code: error.code }, { status: 409 });
         }
@@ -333,7 +373,7 @@ export async function POST(request: Request) {
         throw error;
       });
       if (createdOrResponse instanceof Response) return createdOrResponse;
-      const { requisition: created, lineage } = createdOrResponse;
+      const { requisition: created, lineage, roleSkills } = createdOrResponse;
 
       await recordAuditEvent({
         organizationId,
@@ -347,6 +387,8 @@ export async function POST(request: Request) {
           orgUnitId: position.orgUnitId,
           annualBudget: Number(position.annualBudget),
           planHandoffEvidence: lineage,
+          roleSkillFingerprint: roleSkills.fingerprint,
+          capturedRoleSkills: roleSkills.requirements.length,
         },
       });
 
@@ -366,6 +408,8 @@ export async function POST(request: Request) {
           planId: lineage?.planId ?? null,
           baselineId: lineage?.baselineId ?? null,
           positionExecutionId: lineage?.executionId ?? null,
+          roleSkillFingerprint: roleSkills.fingerprint,
+          roleSkillCount: roleSkills.requirements.length,
         },
       });
 
