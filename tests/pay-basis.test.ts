@@ -774,7 +774,11 @@ test("below-reference wage does not automatically grant MWE tax exemption", asyn
 
     assert.ok(withholding > 0, "taxable supplementary compensation must remain taxable when employee.mwe is false");
     const trace = entry.trace as { inputs?: string[]; flags?: string[] };
-    assert.ok(trace.inputs?.includes("mwe=false (explicit employee tax classification)"));
+    assert.ok(trace.inputs?.includes("mwe=false"));
+    assert.ok(
+      trace.inputs?.includes("mweClassificationSource=default_non_mwe"),
+      "non-MWE treatment should carry explicit classification provenance",
+    );
     assert.ok(
       trace.flags?.some((flag) => flag.includes("payroll did not infer MWE tax status automatically")),
       "wage-reference mismatch should be a review flag, not a tax-status override",
