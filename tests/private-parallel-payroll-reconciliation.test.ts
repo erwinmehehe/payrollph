@@ -206,6 +206,28 @@ test("both journal books must balance and agree account-by-account", () => {
   });
 });
 
+test("one independently reconciled month may pass the no-money pilot gate but not certification", () => {
+  withFixture((root, manifest) => {
+    manifest.cycles.pop();
+    const pilot = evaluateParallelPayrollReconciliation(manifest, root, { mode: "pilot" });
+    assert.equal(pilot.status, "pilot-arithmetic-reconciled-pending-independent-review");
+    assert.equal(pilot.cycleCount, 1);
+    assert.equal(pilot.verifiedFileHashCount, 4);
+    assert.equal(pilot.results[0].matchedEmployees, 2);
+    assert.equal(pilot.issues.length, 0);
+    assert.match(pilot.disclaimer, /independent human review/i);
+    const certification = evaluateParallelPayrollReconciliation(manifest, root);
+    assert.equal(certification.status, "reconciliation-blocked");
+    assert.ok(certification.issues.some((reason) => reason.includes("Two to twelve")));
+    mutate(root, manifest, 0, "linawPayroll", (old) =>
+      old.replace("1520.00,0.00,0.00,5.00,17000.00",
+        "1520.02,0.00,0.00,5.00,16999.98"));
+    const mismatched = evaluateParallelPayrollReconciliation(manifest, root, { mode: "pilot" });
+    assert.equal(mismatched.status, "reconciliation-blocked");
+    assert.ok(mismatched.issues.some((reason) => reason.includes("withholding_tax")));
+  });
+});
+
 test("a single month, repeated month, and future-dated month do not satisfy real parallel evidence", () => {
   withFixture((root, manifest) => {
     manifest.cycles.pop();

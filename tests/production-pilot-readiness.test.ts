@@ -205,6 +205,7 @@ test("optional operator endpoints stay protected without blocking a controlled p
 test("production pilot sign-off verifies independent figures server-side instead of trusting checkboxes", () => {
   const route = read("src/app/api/payroll-runs/[id]/pilot-signoff/route.ts");
   const card = read("src/components/workspace/production-pilot-signoff.tsx");
+  const bankProof = read("src/lib/pilot-bank-dry-run-evidence.ts");
 
   assert.ok(route.includes("figuresFromEntries"), "server must derive reconciliation totals from stored payroll entries");
   assert.ok(route.includes('new Set(["WHT"])'), "server must independently total withholding tax");
@@ -212,11 +213,56 @@ test("production pilot sign-off verifies independent figures server-side instead
   assert.ok(route.includes("Math.abs(variance) > 0.01"), "money reconciliation must fail outside one-cent tolerance");
   assert.ok(route.includes('mismatches.push("employeeCount")'), "employee count must match exactly");
   assert.ok(route.includes("independentSourceConfirmed"), "sign-off must confirm figures came from an independent source");
+  assert.ok(route.includes("employeeLevelReconciliationConfirmed"), "human independent reviewer must attest to per-employee reconciliation");
+  assert.ok(route.includes("reconciliationReportSha256"), "signoff must link to a private independently reviewed reconciliation report");
+  assert.ok(route.includes("reconciledEmployeeCount !== entries.length"), "signoff must block a partial employee population");
+  assert.ok(route.includes("isValidPilotBankDryRunEvidence"), "pilot signoff must validate audited bank preview evidence server-side");
+  assert.ok(bankProof.includes('event.action !== "Bank file dry-run generated"'), "only preview events can count as no-money proof");
+  assert.ok(route.includes("!payoutCompleted && !dryRunBankExport"), "sign-off must require either completed payout proof or no-money bank export");
+  assert.ok(bankProof.includes("exportedAt < releaseTime"), "no-money preview must be generated after payroll release");
+  assert.ok(bankProof.includes("meta.bankExportMissingDestinations !== 0"), "bank preview cannot have missing or nullable payout destinations");
+  assert.ok(bankProof.includes("meta.bankExportMissingPaymentSnapshots !== 0"), "bank preview must use immutable payroll payment snapshots");
+  assert.ok(bankProof.includes("meta.bankExportMissingIdentitySnapshots !== 0"), "bank preview must use immutable identity snapshots");
+  assert.ok(bankProof.includes("meta.bankExportRowCount !== expected.employeeCount"), "bank preview roster must match released employee count");
+  assert.ok(bankProof.includes("nonNegativeCents(meta.bankExportTotalNet) !== expectedCents"), "preview sum must match released net pay in cents");
+  assert.ok(route.includes("bankExportSha256"), "no-money preview must have a recorded SHA-256 integrity hash");
+  const exportRoute = read("src/app/api/payroll-runs/[id]/exports/route.ts");
+  assert.ok(exportRoute.includes('createHash("sha256").update(file.body)'));
+  assert.ok(exportRoute.includes("bankExportMissingDestinations"));
+  assert.ok(exportRoute.includes("bankExportMissingIdentitySnapshots"));
+  assert.ok(exportRoute.includes("bankExportSyntheticDemoDestinations"));
   assert.ok(route.includes("independentFigures"), "audit evidence must preserve the submitted independent totals");
   assert.ok(route.includes("verifiedFigures"), "audit evidence must preserve the server-derived totals");
   assert.ok(route.includes("reconciliationVariances"), "audit evidence must preserve reconciliation variances");
   assert.ok(!route.includes("REQUIRED_CHECKS"), "server must not accept checkbox-only reconciliation");
   assert.ok(card.includes("INDEPENDENT FIGURES"), "owner UI must collect the external reconciliation totals");
+  assert.ok(card.includes("employeeLevelReconciliationConfirmed"), "owner UI must require employee-level reconciliation attestation");
+  assert.ok(card.includes("setSelectedRunId"), "owner must choose the actual released run to sign off");
+  assert.ok(card.includes("setEvidenceReference(\"\")"), "switching runs must clear prior evidence references");
+  assert.ok(card.includes("setIndependentSourceConfirmed(false)"), "switching runs must reset the independent reviewer attestation");
+  assert.ok(card.includes("A recorded bank-file dry-run"), "owner UI must disclose no-money bank-file sign-off path");
   assert.ok(card.includes("Verify figures & sign off pilot"), "owner UI must make server verification explicit");
   assert.ok(!card.includes("matches the independently prepared expected result"), "old trust-me match toggles must be removed");
+});
+
+
+test("a no-money payroll pilot cannot silently clear the broad-launch production gate", () => {
+  const readiness = read("src/app/api/readiness/route.ts");
+  const signoff = read("src/app/api/payroll-runs/[id]/pilot-signoff/route.ts");
+  const card = read("src/components/workspace/production-pilot-signoff.tsx");
+
+  assert.ok(readiness.includes("->> 'payoutEvidenceMode' = 'completed-payout'"),
+    "the GA signoff gate must require separately recorded completed-payout evidence");
+  assert.ok(readiness.includes("->> 'payoutEvidenceMode' = 'no-money-bank-file-dry-run'"),
+    "no-money reconciliations must be counted separately");
+  assert.ok(readiness.includes("Bank-file previews do not prove settlement"),
+    "launch readiness must explicitly disclose that a preview cannot satisfy settlement");
+  assert.ok(signoff.includes('payoutEvidenceMode: payoutCompleted ? "completed-payout" : "no-money-bank-file-dry-run"'),
+    "signoff must record the real evidence mode, never infer money movement from a dry run");
+  assert.ok(signoff.includes('metadata.payoutEvidenceMode === "completed-payout"'),
+    "a no-money record may be upgraded only after the completed-payout path is separately verified");
+  assert.ok(card.includes("No-money payroll pilot reconciled"),
+    "the Owner UI must not call a no-money preview an externally paid pilot");
+  assert.ok(card.includes("Record completed-payout evidence"),
+    "the Owner must be able to provide a separate reviewed settlement attestation later");
 });
