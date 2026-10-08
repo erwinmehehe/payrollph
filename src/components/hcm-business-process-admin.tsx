@@ -263,6 +263,17 @@ export function HcmBusinessProcessAdmin({ organizationId }: { organizationId: nu
                     />
                   </label>
                   <label>
+                    Priority
+                    <select
+                      value={step.priority}
+                      onChange={(event) => patchStep(index, { priority: event.target.value as Step["priority"] })}
+                    >
+                      <option value="Low">Low</option>
+                      <option value="Normal">Normal</option>
+                      <option value="High">High</option>
+                    </select>
+                  </label>
+                  <label>
                     Due in days
                     <input
                       type="number"
