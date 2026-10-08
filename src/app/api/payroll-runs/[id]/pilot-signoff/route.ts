@@ -215,7 +215,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // destinations cannot stand in for a real employer's no-money bank-file proof.
     return metadata.kind === "bank"
       && metadata.dryRun === true
-      && event.createdAt >= releaseReceipt.createdAt
+      && event.createdAt.getTime() >= releaseReceipt.createdAt.getTime()
       && Number(metadata.bankExportRowCount) === entries.length
       && Math.abs(Number(metadata.bankExportTotalNet) - Number(run.netPay)) <= 0.01
       && Number(metadata.bankExportMissingDestinations) === 0
