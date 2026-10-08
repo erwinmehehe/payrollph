@@ -9,13 +9,6 @@ export const dynamic = "force-dynamic";
 
 const SAFE_SCIM_ROLES = ["employee", "manager", "hr", "payroll", "checker"] as const;
 
-function roleValue(value: unknown) {
-  const candidate = Array.isArray(value)
-    ? String((value[0] as { value?: unknown } | undefined)?.value ?? "").toLowerCase()
-    : String(value ?? "").toLowerCase();
-  return (SAFE_SCIM_ROLES as readonly string[]).includes(candidate) ? candidate : null;
-}
-
 async function loadResource(organizationId: number, scimId: number) {
   const [identity] = await db.select().from(scimIdentities).where(and(
     eq(scimIdentities.id, scimId),
@@ -248,11 +241,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       const nextActive = active ?? liveMembership.active;
       const nextWorkerId = employee?.id ?? existingWorkerId;
 
-      await tx.update(users).set({
-        ...(emailChanged ? { email } : {}),
-        ...(nameChanged ? { name } : {}),
-        ...(globalWorkerLinkChanged ? { employeeId: employee?.id } : {}),
-      }).where(eq(users.id, liveUser.id));
+      if (emailChanged || nameChanged || globalWorkerLinkChanged) {
+        await tx.update(users).set({
+          ...(emailChanged ? { email } : {}),
+          ...(nameChanged ? { name } : {}),
+          ...(globalWorkerLinkChanged ? { employeeId: employee?.id } : {}),
+        }).where(eq(users.id, liveUser.id));
+      }
       await tx.update(userOrganizations).set({
         role: nextRole,
         orgUnitId: nextOrgUnitId,
