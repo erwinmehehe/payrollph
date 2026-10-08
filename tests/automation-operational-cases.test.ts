@@ -172,8 +172,13 @@ test("failed-step recovery uses an explicit safe allowlist and a transaction-sco
   ]) assert.equal(SAFE_FAILED_STEP_RETRY_ACTIONS.has(blocked), false);
 
   const engine = read("src/lib/automation.ts");
-  assert.ok(engine.includes("pg_advisory_xact_lock"));
-  assert.ok(engine.includes("db.transaction(async (tx) => {"));
+  const recovery = read("src/lib/automation-execution-recovery.ts");
+  assert.ok(recovery.includes("pg_advisory_xact_lock"));
+  assert.ok(recovery.includes("db.transaction(async (tx) => {"));
+  assert.ok(recovery.includes("tx.update(automationExecutions)"));
+  assert.ok(engine.includes("withAutomationRetryTransaction(input.organizationId, input.executionId"));
+  assert.ok(engine.includes("persistAutomationRetryResult(tx"));
+  assert.equal(engine.includes("tx.update"), false);
   assert.ok(engine.includes("!SAFE_FAILED_STEP_RETRY_ACTIONS.has(step.type)"));
   assert.ok(engine.includes('deadLetter?.status === "open"'));
   assert.ok(engine.includes('deadLetter?.status === "resolved"'));
