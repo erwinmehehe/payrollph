@@ -56,6 +56,7 @@ type Proposal = {
   submittedByUserId: number | null;
   workerEffectiveChangeId: number | null;
   failure: string | null;
+  hcmReview: { id: number; status: string } | null;
 };
 type Component = {
   id: number;
@@ -461,7 +462,7 @@ export function CompensationPanel({
               className="secondary-button"
               onClick={async () => {
                 try {
-                  await post("proposal", {
+                  const submitted = await post("proposal", {
                     employeeId: Number(proposalForm.employeeId),
                     cycleId: Number(proposalForm.cycleId),
                     bandId: Number(proposalForm.bandId),
@@ -470,7 +471,7 @@ export function CompensationPanel({
                     reason: proposalForm.reason,
                   });
                   setProposalForm({ employeeId: "", cycleId: "", bandId: "", workerEffectiveChangeId: "", proposedAnnual: "", reason: "" });
-                  setNotice("Compensation proposal submitted for independent approval.");
+                  setNotice(`Compensation proposal #${submitted.id} submitted for independent HCM review #${submitted.hcmReview?.id ?? "pending"}. Pay cannot change until the review and separate Owner/Admin financial approval are complete.`);
                 } catch (error) {
                   setNotice(error instanceof Error ? error.message : "Could not submit proposal.");
                 }
@@ -629,12 +630,19 @@ export function CompensationPanel({
                     <td>{peso(proposal.currentAnnual)}</td>
                     <td>{peso(proposal.proposedAnnual)}</td>
                     <td>{pct(proposal.compaRatio)} compa · {pct(proposal.rangePosition)} range</td>
-                    <td>{proposal.status.replaceAll("_", " ")}</td>
+                    <td>
+                      {proposal.status.replaceAll("_", " ")}
+                      <small style={{ display: "block" }}>
+                        HCM review: {proposal.hcmReview ? `#${proposal.hcmReview.id} · ${proposal.hcmReview.status.replaceAll("_", " ")}` : "No linked review"}
+                      </small>
+                    </td>
                     <td>
                       <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         {proposal.status === "proposed" && canApprove && proposal.submittedByUserId !== currentUserId && (
                           <>
-                            <button className="secondary-button" onClick={() => void patch({ entityType: "proposal", id: proposal.id, decision: "approved" }, "Compensation proposal approved and scheduled.")}><Check size={13} /> Approve</button>
+                            {proposal.hcmReview?.status === "approved" && (
+                              <button className="secondary-button" onClick={() => void patch({ entityType: "proposal", id: proposal.id, decision: "approved" }, "Compensation proposal independently reviewed, financially approved and scheduled.")}><Check size={13} /> Approve pay</button>
+                            )}
                             <button className="secondary-button" onClick={() => void patch({ entityType: "proposal", id: proposal.id, decision: "declined" }, "Compensation proposal declined.")}><X size={13} /> Decline</button>
                           </>
                         )}
