@@ -57,7 +57,7 @@ export default function SmallBusinessPayrollPage() {
       <SeoLandingPage
       simulationArea="payroll"
         eyebrow="Small business payroll software Philippines"
-        title="A clearer path from inputs to payday."
+        title="One cutoff. Every decision, from inputs to release."
         intro="Linaw is built for teams that have outgrown payroll-by-spreadsheet but do not want enterprise software overhead. Keep employee records, attendance inputs, payroll calculations, exceptions, checker review, release and payslips in one controlled workflow."
         proof={[
           "Philippine statutory payroll calculations",
@@ -69,7 +69,7 @@ export default function SmallBusinessPayrollPage() {
         ]}
         sections={[
           {
-            title: "Move the recurring payroll work out of scattered spreadsheets",
+            title: "01 / Prepare the cutoff inputs",
             body:
               "Small-business payroll becomes risky when employee data, time records, deductions, review notes and final totals live in separate files. Linaw keeps those inputs connected to one payroll run so the team can see what changed and what still needs attention.",
             bullets: [
@@ -80,18 +80,7 @@ export default function SmallBusinessPayrollPage() {
             ],
           },
           {
-            title: "Keep one-person payroll knowledge from becoming a business risk",
-            body:
-              "A small company may still have only one payroll operator, but the release decision does not have to live entirely with that person. Linaw supports distinct payroll, checker and owner responsibilities so another authorized person can review the run before money moves.",
-            bullets: [
-              "Payroll preparation role",
-              "Independent checker approval",
-              "Owner or authorized release control",
-              "Audit evidence for sensitive actions",
-            ],
-          },
-          {
-            title: "Use Philippine payroll rules without turning filing status into a marketing claim",
+            title: "02 / Calculate the run and inspect exceptions",
             body:
               "Linaw calculates supported SSS, PhilHealth, Pag-IBIG and compensation-withholding amounts inside the payroll workflow. Government outputs remain clearly distinguished from agency acceptance so a prepared worksheet is not presented as automatically filed or certified.",
             bullets: [
@@ -99,6 +88,17 @@ export default function SmallBusinessPayrollPage() {
               "Withholding-tax calculation path",
               "13th-month and year-end payroll workflows",
               "Government outputs labelled by validation status",
+            ],
+          },
+          {
+            title: "03 / Give the checker and owner a clear decision",
+            body:
+              "A small company may still have only one payroll operator, but the release decision does not have to live entirely with that person. Linaw supports distinct payroll, checker and owner responsibilities so another authorized person can review the run before money moves.",
+            bullets: [
+              "Payroll preparation role",
+              "Independent checker approval",
+              "Owner or authorized release control",
+              "Audit evidence for sensitive actions",
             ],
           },
           {
@@ -113,7 +113,7 @@ export default function SmallBusinessPayrollPage() {
             ],
           },
           {
-            title: "Give employees access without giving them payroll-team access",
+            title: "04 / Release payslips and prepare the handoff",
             body:
               "After release, employees can use self-service for their own payslips and payroll history while server-side authorization keeps other employees' payroll data outside their scope.",
             bullets: [

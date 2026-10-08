@@ -129,8 +129,8 @@ test("homepage buyer flow keeps product evidence before pricing", () => {
   assert.ok(stories.includes("Payroll Outsourcing Philippines"));
   assert.ok(home.includes("<ProductHomeHero />"));
   assert.ok(!home.includes("<Calculator />"));
-  assert.ok(stories.includes("checking, and release responsibilities distinct"));
-  assert.ok(stories.includes("clearly labelled government drafts"));
+  assert.ok(!stories.includes("One place for the work around payday."));
+  assert.ok(stories.includes("Review security details"));
 });
 
 test("dedicated pricing page uses live catalog values and explains plan fit", () => {

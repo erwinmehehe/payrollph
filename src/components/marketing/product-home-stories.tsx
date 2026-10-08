@@ -1,21 +1,27 @@
-"use client";
-import { useState } from "react";
-import Image from "next/image";
-
-const stories = [
-  { label: "01 / PEOPLE & HRIS", title: "Start with the people behind the numbers.", copy: "Maintain employee information and organization access. Keep the record connected to payroll, time, and personal self-service.", image: "people", height: 1375, href: "/hris", link: "Explore employee records", tone: "blue" },
-  { label: "02 / TIME & ATTENDANCE", title: "Give time records the context they need.", copy: "Review attendance and exceptions alongside workforce workflows. Preserve the schedules and decisions that feed payroll.", image: "attendance", height: 2114, href: "/time-and-attendance", link: "Explore time & attendance", tone: "mint" },
-  { label: "03 / PAYROLL REVIEW", title: "Review what changed before money moves.", copy: "Calculate the run, inspect exceptions, and keep payroll preparation, checking, and release responsibilities distinct.", image: "checker", height: 1348, href: "/demo", link: "Explore payroll review", tone: "blue" },
-  { label: "04 / REPORTS", title: "Understand the numbers. Prepare the handoff.", copy: "Review payroll history and supported reports. Prepare accounting files and clearly labelled government drafts.", image: "reports", height: 1286, href: "/workforce-analytics", link: "Explore workforce analytics", tone: "mint" },
-] as const;
+const audiences = [
+  { title: "Payroll teams", description: "Keep cutoff inputs, exception review and approval responsibilities in one workflow." },
+  { title: "Multi-branch businesses", description: "Review payroll and people records with organization scope and clear release ownership." },
+  { title: "Bookkeepers", description: "Work across client companies while keeping each company’s records and decisions separate." },
+];
+const steps = [
+  { title: "Import", description: "Validate employee records, pay settings and opening balances." },
+  { title: "Reconcile", description: "Compare a controlled payroll with expected figures and resolve differences." },
+  { title: "Approve", description: "Confirm review responsibilities and approve the first payroll before release." },
+];
 
 export function ProductHomeStories() {
-  const [activeStory, setActiveStory] = useState(0);
-  return <section id="product" className="lp-product-stories">
-    <div className="lp-story-intro"><p className="lp-eyebrow">The workspace</p><h2>One place for the work around payday.<br /><span>From the employee record to the release decision.</span></h2></div>
-    <div className="lp-story-switch" role="group" aria-label="Explore product workflows">{stories.map((story,index)=><button type="button" key={story.label} aria-pressed={activeStory===index} onClick={()=>setActiveStory(index)}>{story.label.split(" / ")[1]}</button>)}</div>
-    {stories.filter((_,index)=>index===activeStory).map((story) => <article className="lp-story" key={story.label}><div><p className="lp-eyebrow">{story.label}</p><h3>{story.title}</h3><p className="lp-story-copy">{story.copy}</p><a href={story.href}>{story.link} ↗</a></div><div className={`lp-story-image ${story.tone}`}><a href={`/marketing/screens/${story.image}.webp`} target="_blank" rel="noopener" aria-label={`Open sample ${story.link.toLowerCase()} screen`}><Image src={`/marketing/screens/${story.image}.webp`} alt={`Actual Linaw ${story.link.toLowerCase()} screen with fictional sample data`} width={1440} height={story.height} sizes="(max-width: 760px) 94vw, (max-width: 1240px) 94vw, 1144px" unoptimized /></a></div></article>)}
-    <div className="lp-service-grid"><article><p className="lp-eyebrow">People workflows</p><h3>Beyond the employee directory.</h3><p>Recruitment, onboarding, benefits, goals, and performance workflows support the employment lifecycle.</p><a href="/hris">Explore people workflows ↗</a></article><article className="lp-boundaries" id="security"><p className="lp-eyebrow">Access & responsibility</p><h3>The right view for the right role.</h3><p>Company membership, permissions, personal employee access, and audit records support clear operating boundaries.</p><a href="/security">Review security details ↗</a></article></div>
-    <div className="lp-service-grid"><article><p className="lp-eyebrow">Managed payroll</p><h3>Need help running the cycle?</h3><p>Discuss payroll processing, exception handoffs, approval responsibilities, and supported outputs.</p><a href="/payroll-outsourcing">Payroll Outsourcing Philippines ↗</a></article><article><p className="lp-eyebrow">Evaluate your fit</p><h3>Start with your operating model.</h3><p>Explore plans for a single team, growing branches, or more complex operations. Review current rates and inclusions.</p><a href="/implementation">Explore implementation ↗</a></article></div>
-  </section>;
+  return (
+    <section id="product" className="lp-product-stories lp-buyer-guide" aria-labelledby="buyer-guide-title">
+      <p className="lp-eyebrow">Find your fit</p>
+      <h2 id="buyer-guide-title">A clearer cutoff for the team you have.</h2>
+      <div className="lp-audiences">
+        {audiences.map(audience => <article key={audience.title}><h3>{audience.title}</h3><p>{audience.description}</p></article>)}
+      </div>
+      <div className="lp-first-payroll">
+        <div><p className="lp-eyebrow">Your first payroll</p><h3>Start with a comparison, then a decision.</h3><a href="/implementation">Explore implementation ↗</a></div>
+        <ol>{steps.map((step, index) => <li key={step.title}><span aria-hidden="true">0{index + 1}</span><div><h4>{step.title}</h4><p>{step.description}</p></div></li>)}</ol>
+      </div>
+      <div className="lp-buyer-links" id="security"><p>Review the controls and responsibilities before sharing real payroll data.</p><a href="/security">Review security details ↗</a><a href="/payroll-outsourcing">Payroll Outsourcing Philippines ↗</a></div>
+    </section>
+  );
 }

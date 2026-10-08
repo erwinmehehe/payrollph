@@ -12,6 +12,7 @@ const inputClass =
 
 export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact" }) {
   const [form, setForm] = useState({ name: "", email: "", company: "", headcount: "", notes: "" });
+  const [topic, setTopic] = useState("Product question");
   const [problems, setProblems] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -32,7 +33,7 @@ export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact
       const response = await fetch("/api/demo-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, requestType: "demo", attribution: readMarketingAttribution() }),
+        body: JSON.stringify({ ...form, notes: variant === "contact" ? `[Contact: ${topic}] ${form.notes}` : form.notes, sourcePath: variant === "contact" ? "/contact" : "/book-demo", requestType: "demo", attribution: readMarketingAttribution() }),
       });
       const payload = await response.json().catch(() => ({}));
 
@@ -59,11 +60,11 @@ export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact
         <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e5f8f2] text-[#00886e]">
           <Check size={19} />
         </span>
-        <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">Demo request</p>
+        <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#7C82A1]">{variant === "contact" ? "Contact inquiry" : "Demo request"}</p>
         <h2 className="font-display mt-2 text-[28px] font-semibold tracking-[-0.035em] text-[#0B0D1A]">
           Your request is in.
         </h2>
-                <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">We recorded your payroll brief so the walkthrough can focus on your headcount, structure and cutoff questions.</p>
+                <p className="mt-3 text-[14px] leading-relaxed text-[#5B6080]">{variant === "contact" ? "Your inquiry has been recorded. This confirmation does not book a demo or promise a response time." : "We recorded your payroll brief so the walkthrough can focus on your headcount, structure and cutoff questions."}</p>
 
         <div className="mt-6 flex flex-wrap gap-2.5">
           <Link href="/demo" className="inline-flex items-center gap-2 rounded-full bg-[#11141F] px-5 py-3 text-[13.5px] font-semibold text-white">
@@ -109,7 +110,7 @@ export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact
         </div>
       )}
 
-      <div className="mt-6 grid gap-4">
+      <div className="mt-6 grid gap-4">{variant === "contact" && <label className="text-[12.5px] font-semibold text-[#2B2F45]">Inquiry topic<select className={inputClass} value={topic} onChange={event => setTopic(event.target.value)}>{["Product question", "Payroll outsourcing", "Security and procurement", "Integration question", "Account support"].map(item => <option key={item}>{item}</option>)}</select></label>}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-[12.5px] font-semibold text-[#2B2F45]">
             Your name
@@ -141,7 +142,7 @@ export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact
         </div>
 
         <label className="text-[12.5px] font-semibold text-[#2B2F45]">
-          What would you like to see?
+          {variant === "contact" ? "How can we help?" : "What would you like to see?"}
           <textarea
             className={`${inputClass} min-h-[120px] resize-y`}
             value={form.notes}
@@ -158,7 +159,7 @@ export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact
         className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#0877ff] px-5 py-3.5 text-[14px] font-semibold text-white transition-transform hover:scale-[1.01] disabled:cursor-wait disabled:opacity-60"
       >
         {saving ? <LoaderCircle size={15} className="animate-spin" /> : <CalendarDays size={15} />}
-        {saving ? "Submitting…" : variant === "contact" ? "Request a conversation" : "Request a demo"}
+        {saving ? "Submitting…" : variant === "contact" ? "Send inquiry" : "Request a demo"}
       </button>
     </form>
   );

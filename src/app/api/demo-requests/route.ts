@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       company,
       headcount,
       notes,
-      sourcePath: requestType === "trial-access" ? "/signup" : "/book-demo",
+      sourcePath: requestType === "trial-access" ? "/signup" : body.sourcePath === "/contact" ? "/contact" : "/book-demo",
       attribution,
     });
   } catch (error) {

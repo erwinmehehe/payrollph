@@ -261,7 +261,7 @@ export default function PayrollOutsourcingPage() {
           </div>
         </section>
 
-        <section className="py-14 sm:py-16">
+        <section className="py-14 sm:py-16"><div className="mx-auto max-w-[1120px] px-5 sm:px-8"><h2 className="font-display text-[28px] font-semibold">Agree the scope before the first cutoff.</h2><p className="mt-4 text-[15px] leading-relaxed text-[#5B6080]">Confirm entities, headcount, pay frequency, input deadlines, correction windows, deliverables and approval owners in the service proposal. Late or incomplete inputs need an agreed decision; they are not silently estimated.</p><p className="mt-3 text-[15px] leading-relaxed text-[#5B6080]">Payroll processing does not itself mean bank execution, agency submission or legal advice. Confirm any additional service separately. Supported worksheets and export files remain distinct from accepted payments or government filings.</p></div></section><section className="py-14 sm:py-16">
           <div className="mx-auto max-w-[1180px] px-5 sm:px-8">
             <div className="grid gap-5 rounded-[28px] bg-[#11141F] p-6 text-white sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>

@@ -74,7 +74,7 @@ test("demo request endpoint sanitizes attribution and durably records the lead b
   assert.ok(route.includes("sanitizeMarketingAttribution(body.attribution)"));
   assert.ok(route.includes("recordMarketingLead({"));
   assert.ok(route.includes("attribution,"));
-  assert.ok(route.includes('sourcePath: requestType === "trial-access" ? "/signup" : "/book-demo"'));
+  assert.ok(route.includes('sourcePath: requestType === "trial-access" ? "/signup" : body.sourcePath === "/contact" ? "/contact" : "/book-demo"'));
   assert.ok(route.indexOf("notifyMarketingLead(lead.id)") > route.indexOf("recordMarketingLead({"));
   assert.ok(storage.includes("attribution jsonb"));
   assert.ok(storage.includes("metadata: {"));
