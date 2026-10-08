@@ -5241,6 +5241,34 @@ export const compensationEvents = pgTable(
 
 
 
+export const compensationAutomationIntents = pgTable(
+  "compensation_automation_intents",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    compensationEventId: integer("compensation_event_id").notNull().references(() => compensationEvents.id, { onDelete: "cascade" }),
+    trigger: varchar("trigger", { length: 64 }).notNull(),
+    eventKey: varchar("event_key", { length: 240 }).notNull(),
+    context: jsonb("context").notNull().default({}),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+    leaseUntil: timestamp("lease_until", { withTimezone: true }),
+    lastError: text("last_error"),
+    dispatchedAt: timestamp("dispatched_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("comp_automation_intent_key_unique").on(table.organizationId, table.trigger, table.eventKey),
+    index("comp_automation_intent_retry_idx").on(table.status, table.nextAttemptAt),
+    index("comp_automation_intent_source_idx").on(table.organizationId, table.compensationEventId),
+    check("comp_automation_intent_status_check",
+      sql`${table.status} in ('pending','retry','leased','dispatched','needs_review')`),
+  ],
+);
+
 export const attendanceExceptionEvents = pgTable(
   "attendance_exception_events",
   {
