@@ -4,6 +4,8 @@ import { db } from "@/db";
 import {
   automationExecutions,
   automationRules,
+  dynamicWorkerGroups,
+  employees,
   identityDomains,
   identityProviders,
   organizationSecurityPolicies,
@@ -31,6 +33,7 @@ import {
   validateSamlSsoUrl,
 } from "@/lib/saml";
 import { ROLE_GATE_PERMISSIONS } from "@/lib/permissions";
+import { validDynamicWorkerGroupConditions } from "@/lib/dynamic-worker-groups";
 import { mintScimToken } from "@/lib/scim";
 import { LIFECYCLE_TRIGGERS, normalizeLifecycleActions, validLifecycleConditions } from "@/lib/automation";
 import { canonicalAppOrigin, enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
@@ -82,7 +85,7 @@ export async function GET(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access?.companyWide) return Response.json({ error: "Enterprise controls require company-wide access." }, { status: 403 });
 
-  const [policyRows, providers, domains, tokens, sets, assignments, members, rules, executions, units, mfaReadiness] = await Promise.all([
+  const [policyRows, providers, domains, tokens, sets, assignments, members, rules, executions, units, mfaReadiness, groups, workers] = await Promise.all([
     db.select().from(organizationSecurityPolicies).where(eq(organizationSecurityPolicies.organizationId, organizationId)).limit(1),
     db.select().from(identityProviders).where(eq(identityProviders.organizationId, organizationId)).orderBy(desc(identityProviders.id)),
     db.select().from(identityDomains).where(eq(identityDomains.organizationId, organizationId)).orderBy(desc(identityDomains.id)),
@@ -96,6 +99,8 @@ export async function GET(request: Request) {
       name: users.name,
       role: userOrganizations.role,
       orgUnitId: userOrganizations.orgUnitId,
+      workerEmployeeId: userOrganizations.workerEmployeeId,
+      employeeLoginId: users.employeeId,
       membershipActive: userOrganizations.active,
       active: users.active,
       localPasswordEnabled: users.localPasswordEnabled,
@@ -107,6 +112,23 @@ export async function GET(request: Request) {
     db.select().from(automationExecutions).where(eq(automationExecutions.organizationId, organizationId)).orderBy(desc(automationExecutions.id)).limit(30),
     db.select().from(orgUnits).where(eq(orgUnits.organizationId, organizationId)).orderBy(orgUnits.name),
     organizationMfaReadiness(organizationId),
+    db.select({
+      id: dynamicWorkerGroups.id,
+      code: dynamicWorkerGroups.code,
+      name: dynamicWorkerGroups.name,
+      version: dynamicWorkerGroups.version,
+      active: dynamicWorkerGroups.active,
+    }).from(dynamicWorkerGroups).where(eq(dynamicWorkerGroups.organizationId, organizationId))
+      .orderBy(dynamicWorkerGroups.name),
+    db.select({
+      id: employees.id,
+      employeeNo: employees.employeeNo,
+      firstName: employees.firstName,
+      lastName: employees.lastName,
+      orgUnitId: employees.orgUnitId,
+      status: employees.status,
+    }).from(employees).where(eq(employees.organizationId, organizationId))
+      .orderBy(employees.lastName, employees.firstName),
   ]);
 
   const origin = canonicalAppOrigin(request);
@@ -159,6 +181,14 @@ export async function GET(request: Request) {
     })),
     permissionSets: sets,
     permissionAssignments: assignments,
+    dynamicGroups: groups,
+    workerIdentities: workers.map((worker) => ({
+      id: worker.id,
+      employeeNo: worker.employeeNo,
+      name: `${worker.firstName} ${worker.lastName}`,
+      orgUnitId: worker.orgUnitId,
+      status: worker.status,
+    })),
     members,
     automationRules: rules,
     automationExecutions: executions,
@@ -634,9 +664,77 @@ export async function POST(request: Request) {
     }
   }
 
+  if (action === "link-membership-worker") {
+    const membershipId = Number(body.membershipId);
+    const employeeId = body.employeeId == null || body.employeeId === "" ? null : Number(body.employeeId);
+    if (!Number.isInteger(membershipId) || membershipId <= 0 ||
+        (employeeId != null && (!Number.isInteger(employeeId) || employeeId <= 0))) {
+      return Response.json({ error: "Valid membershipId and optional employeeId are required." }, { status: 400 });
+    }
+    const [membership] = await db.select().from(userOrganizations).where(and(
+      eq(userOrganizations.id, membershipId),
+      eq(userOrganizations.organizationId, organizationId),
+      eq(userOrganizations.active, true),
+    )).limit(1);
+    if (!membership) return Response.json({ error: "Active workspace membership not found." }, { status: 404 });
+    if (membership.userId === user.id) {
+      return Response.json({ error: "A second administrator must manage your own worker identity link." }, { status: 409 });
+    }
+
+    if (employeeId != null) {
+      const [employee] = await db.select({ id: employees.id, status: employees.status, orgUnitId: employees.orgUnitId })
+        .from(employees).where(and(
+          eq(employees.id, employeeId),
+          eq(employees.organizationId, organizationId),
+        )).limit(1);
+      if (!employee || employee.status !== "Active") {
+        return Response.json({ error: "An active employee from the same workspace is required." }, { status: 409 });
+      }
+      if (membership.orgUnitId != null && membership.orgUnitId !== employee.orgUnitId) {
+        return Response.json({ error: "The worker must belong to the membership's assigned organization unit." }, { status: 409 });
+      }
+      const [account] = await db.select({ employeeId: users.employeeId, role: users.role })
+        .from(users).where(eq(users.id, membership.userId)).limit(1);
+      if (account?.employeeId != null && account.employeeId !== employeeId) {
+        return Response.json({ error: "This account already has a different authoritative employee identity." }, { status: 409 });
+      }
+    }
+
+    try {
+      const [updated] = await db.update(userOrganizations)
+        .set({ workerEmployeeId: employeeId })
+        .where(and(
+          eq(userOrganizations.id, membershipId),
+          eq(userOrganizations.organizationId, organizationId),
+        )).returning();
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Workspace worker identity link updated",
+        resource: `Membership #${membershipId}`,
+        metadata: {
+          membershipId,
+          previousWorkerEmployeeId: membership.workerEmployeeId,
+          workerEmployeeId: updated.workerEmployeeId,
+          actorUserId: user.id,
+        },
+      });
+      return Response.json({ membershipId, workerEmployeeId: updated.workerEmployeeId });
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "23505") {
+        return Response.json({ error: "This worker is already linked to another account in the workspace." }, { status: 409 });
+      }
+      throw error;
+    }
+  }
+
   if (action === "assign-permission-set") {
     const membershipId = Number(body.membershipId);
     const permissionSetId = body.permissionSetId ? Number(body.permissionSetId) : null;
+    const groupId = body.dynamicGroupId == null || body.dynamicGroupId === "" ? null : Number(body.dynamicGroupId);
+    if (groupId != null && (!Number.isInteger(groupId) || groupId <= 0)) {
+      return Response.json({ error: "dynamicGroupId must reference an active Dynamic Group." }, { status: 400 });
+    }
     if (!Number.isInteger(membershipId)) return Response.json({ error: "membershipId is required." }, { status: 400 });
     const [membership] = await db.select().from(userOrganizations).where(and(
       eq(userOrganizations.id, membershipId),
@@ -662,6 +760,30 @@ export async function POST(request: Request) {
     const permissionValues = Array.isArray(permissionSet.permissions)
       ? permissionSet.permissions.filter((value: unknown): value is string => typeof value === "string")
       : [];
+    let dynamicGroupVersion: number | null = null;
+    if (groupId != null) {
+      if (membership.userId === user.id || membership.role === "owner") {
+        return Response.json({ error: "Owner or self-assigned permissions cannot be gated by a Dynamic Group." }, { status: 409 });
+      }
+      const [group] = await db.select().from(dynamicWorkerGroups).where(and(
+        eq(dynamicWorkerGroups.id, groupId),
+        eq(dynamicWorkerGroups.organizationId, organizationId),
+        eq(dynamicWorkerGroups.active, true),
+      )).limit(1);
+      if (!group || !validDynamicWorkerGroupConditions(group.conditions)) {
+        return Response.json({ error: "An active, valid Dynamic Group is required." }, { status: 409 });
+      }
+      const [targetAccount] = await db.select({ employeeId: users.employeeId })
+        .from(users).where(eq(users.id, membership.userId)).limit(1);
+      if (membership.workerEmployeeId == null &&
+          (membership.role !== "employee" || targetAccount?.employeeId == null)) {
+        return Response.json({
+          error: "Link the account to its verified worker record before applying a Dynamic Group permission guard.",
+        }, { status: 409 });
+      }
+      dynamicGroupVersion = group.version;
+    }
+
     if (membership.userId === user.id && !permissionValues.includes("org.admin")) {
       return Response.json({
         error: "You cannot assign yourself a permission restriction that removes organization administration.",
@@ -672,10 +794,12 @@ export async function POST(request: Request) {
       organizationId,
       userOrganizationId: membershipId,
       permissionSetId,
+      dynamicGroupId: groupId,
+      dynamicGroupVersion,
       assignedByUserId: user.id,
     }).onConflictDoUpdate({
       target: userPermissionAssignments.userOrganizationId,
-      set: { permissionSetId, assignedByUserId: user.id },
+      set: { permissionSetId, dynamicGroupId: groupId, dynamicGroupVersion, assignedByUserId: user.id },
     }).returning();
 
     await recordAuditEvent({
@@ -683,7 +807,7 @@ export async function POST(request: Request) {
       actor: user.name,
       action: "Custom permission set assigned",
       resource: "Membership #" + membershipId,
-      metadata: { membershipId, permissionSetId, role: membership.role },
+      metadata: { membershipId, permissionSetId, role: membership.role, dynamicGroupId: groupId, dynamicGroupVersion },
     });
     return Response.json(row);
   }
