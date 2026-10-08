@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalChainPolicies } from "@/db/schema";
+import { approvalChainPolicies, dynamicWorkerGroups } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -33,10 +33,21 @@ export async function GET(request: Request) {
     return Response.json({ error: "Approval-chain administration requires company-wide access." }, { status: 403 });
   }
 
-  const policies = await db.select().from(approvalChainPolicies)
-    .where(eq(approvalChainPolicies.organizationId, organizationId))
-    .orderBy(approvalChainPolicies.code);
-  return Response.json({ policies });
+  const [policies, groups] = await Promise.all([
+    db.select().from(approvalChainPolicies)
+      .where(eq(approvalChainPolicies.organizationId, organizationId))
+      .orderBy(approvalChainPolicies.code),
+    db.select({
+      id: dynamicWorkerGroups.id,
+      code: dynamicWorkerGroups.code,
+      name: dynamicWorkerGroups.name,
+      version: dynamicWorkerGroups.version,
+    }).from(dynamicWorkerGroups).where(and(
+      eq(dynamicWorkerGroups.organizationId, organizationId),
+      eq(dynamicWorkerGroups.active, true),
+    )).orderBy(dynamicWorkerGroups.name),
+  ]);
+  return Response.json({ policies, dynamicGroups: groups });
 }
 
 export async function POST(request: Request) {
