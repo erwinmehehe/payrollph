@@ -10,6 +10,7 @@ import {
   type StudioConditions,
 } from "@/lib/automation";
 import { getAutomationWorkflowTemplate } from "@/lib/automation-templates";
+import { containsUnsupportedLanguageEffect, validateRequestedLanguageIntent } from "@/lib/automation-language-intent";
 
 /**
  * Natural-language output is untrusted input. Only this small, editable subset
@@ -365,6 +366,9 @@ export async function draftAutomationFromLanguage(request: string): Promise<Lang
   if (UNSAFE_DIRECT_REQUEST.test(prompt)) {
     throw new LanguageDraftError("Language drafting cannot bypass approval, publish, execute, or move money.", 422);
   }
+  if (containsUnsupportedLanguageEffect(prompt)) {
+    throw new LanguageDraftError("This request includes a privileged or unsupported side effect. Use the governed manual builder.", 422);
+  }
   if (LIKELY_PERSONAL_DATA.test(prompt)) {
     throw new LanguageDraftError("Remove personal contact details and long identification/account numbers before drafting.", 422);
   }
@@ -389,6 +393,10 @@ export async function draftAutomationFromLanguage(request: string): Promise<Lang
   if (/\b(only|except|unless|where|limited to|department|location|threshold|greater than|less than)\b/i.test(prompt)
     && !(validation.draft.conditions.all?.length || validation.draft.conditions.any?.length)) {
     throw new LanguageDraftError("Your request specifies a condition or scope, but the proposed draft has no IF conditions.", 422);
+  }
+  const intentErrors = validateRequestedLanguageIntent(prompt, validation.draft);
+  if (intentErrors.length > 0) {
+    throw new LanguageDraftError("Generated workflow does not preserve the request: " + intentErrors.join(" "), 422);
   }
   return {
     draft: validation.draft,
