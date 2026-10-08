@@ -289,20 +289,49 @@ export function buildWorkforceDemandForecast(input: {
     return sum + averageAnnualCapacityHours * days / 365.25 * vacancyFillPercent / 100;
   }, 0);
 
-  const forecastPeriodBasePayroll = currentPeriodBasePayroll + expectedVacancyPeriodCost;
-  const sourceGroundedEmployerCost =
+  const currentPeriodKnownEmployerCost =
     currentPeriodStatutoryEmployer
     + currentPeriodBenefitEmployer
-    + currentPeriodRecurringCompensation
+    + currentPeriodRecurringCompensation;
+  const annualKnownEmployerCost =
+    annualStatutoryEmployer
+    + annualBenefitEmployer
+    + annualRecurringCompensation;
+
+  const expectedAttritionPeriodBaseReduction =
+    currentPeriodBasePayroll * windowAttritionRate / 2;
+  const plannedBackfillPeriodBaseCost =
+    expectedAttritionPeriodBaseReduction * backfillRate;
+  const expectedAttritionPeriodEmployerCostReduction =
+    currentPeriodKnownEmployerCost * windowAttritionRate / 2;
+  const plannedBackfillPeriodEmployerCost =
+    expectedAttritionPeriodEmployerCostReduction * backfillRate;
+
+  const forecastPeriodBasePayroll =
+    currentPeriodBasePayroll
+    - expectedAttritionPeriodBaseReduction
+    + plannedBackfillPeriodBaseCost
+    + expectedVacancyPeriodCost;
+  const sourceGroundedEmployerCost =
+    currentPeriodKnownEmployerCost
+    - expectedAttritionPeriodEmployerCostReduction
+    + plannedBackfillPeriodEmployerCost
     + expectedVacancyPeriodStatutory;
   const additionalScenarioLoadCost = forecastPeriodBasePayroll * employerLoadPercent / 100;
   const employerLoadCost = sourceGroundedEmployerCost + additionalScenarioLoadCost;
   const forecastPeriodLaborCost = forecastPeriodBasePayroll + employerLoadCost;
-  const annualRunRateBase = annualizedBasePayroll + expectedVacancyAnnualCost;
+
+  const annualActiveBaseAfterAttrition = annualizedBasePayroll * (1 - windowAttritionRate);
+  const annualBackfillBaseCost = annualizedBasePayroll * windowAttritionRate * backfillRate;
+  const annualActiveKnownLoadAfterAttrition = annualKnownEmployerCost * (1 - windowAttritionRate);
+  const annualBackfillKnownLoadCost = annualKnownEmployerCost * windowAttritionRate * backfillRate;
+  const annualRunRateBase =
+    annualActiveBaseAfterAttrition
+    + annualBackfillBaseCost
+    + expectedVacancyAnnualCost;
   const annualRunRateKnownLoad =
-    annualStatutoryEmployer
-    + annualBenefitEmployer
-    + annualRecurringCompensation
+    annualActiveKnownLoadAfterAttrition
+    + annualBackfillKnownLoadCost
     + expectedVacancyAnnualStatutory;
   const annualRunRateLaborCost =
     annualRunRateBase + annualRunRateKnownLoad + annualRunRateBase * employerLoadPercent / 100;
@@ -348,6 +377,65 @@ export function buildWorkforceDemandForecast(input: {
     periodCapacityByEmployee.set(employeeId, annualHours * windowDays / 365.25);
   }
 
+  const backfillRoleIds = new Set(activeEmployees.map((employee) => employee.jobProfileId ?? null));
+  const backfillPlan = [...backfillRoleIds]
+    .map((jobProfileId) => {
+      const roleEmployees = activeEmployees.filter((employee) => (employee.jobProfileId ?? null) === jobProfileId);
+      const costedRoleEmployees = roleEmployees.filter((employee) => annualCostByEmployee.has(employee.id));
+      const totalAnnualBase = costedRoleEmployees.reduce(
+        (sum, employee) => sum + (annualCostByEmployee.get(employee.id) ?? 0),
+        0,
+      );
+      const totalAnnualLoaded = costedRoleEmployees.reduce(
+        (sum, employee) => sum + (loadedAnnualCostByEmployee.get(employee.id) ?? 0),
+        0,
+      );
+      const averageAnnualBaseCost = costedRoleEmployees.length
+        ? totalAnnualBase / costedRoleEmployees.length
+        : 0;
+      const averageAnnualLoadedCost = costedRoleEmployees.length
+        ? totalAnnualLoaded / costedRoleEmployees.length
+        : 0;
+      const expectedExits = roleEmployees.length * windowAttritionRate;
+      const plannedBackfills = expectedExits * backfillRate;
+      const currentCapacityHoursForRole = roleEmployees.reduce(
+        (sum, employee) => sum + (periodCapacityByEmployee.get(employee.id) ?? 0),
+        0,
+      );
+      const attritionCapacityLossHours = currentCapacityHoursForRole * windowAttritionRate / 2;
+      const backfillCapacityHours = attritionCapacityLossHours * backfillRate;
+      const profile = jobProfileId == null ? null : profileById.get(jobProfileId) ?? null;
+      return {
+        jobProfileId,
+        title: profile?.title ?? (jobProfileId == null ? "Unresolved job profile" : `Job profile #${jobProfileId}`),
+        family: profile?.family ?? (jobProfileId == null ? "Unresolved" : "Inactive / unavailable profile"),
+        level: profile?.level ?? (jobProfileId == null ? "Unresolved" : "Unknown"),
+        activeHeadcount: roleEmployees.length,
+        expectedAttritionExits: round2(expectedExits),
+        plannedBackfills: round2(plannedBackfills),
+        endingHeadcount: round2(roleEmployees.length - expectedExits + plannedBackfills),
+        averageAnnualBaseCost: round2(averageAnnualBaseCost),
+        averageAnnualLoadedCost: round2(averageAnnualLoadedCost),
+        expectedAttritionPeriodCostReduction: round2(
+          averageAnnualLoadedCost * expectedExits * windowDays / 365.25 / 2,
+        ),
+        plannedBackfillPeriodCost: round2(
+          averageAnnualLoadedCost * plannedBackfills * windowDays / 365.25 / 2,
+        ),
+        annualBackfillRunRateCost: round2(averageAnnualLoadedCost * plannedBackfills),
+        netAnnualRunRateCostChange: round2(
+          averageAnnualLoadedCost * (plannedBackfills - expectedExits),
+        ),
+        attritionCapacityLossHours: round2(attritionCapacityLossHours),
+        backfillCapacityHours: round2(backfillCapacityHours),
+      };
+    })
+    .sort((a, b) =>
+      (a.jobProfileId == null ? 1 : 0) - (b.jobProfileId == null ? 1 : 0)
+      || a.family.localeCompare(b.family)
+      || a.title.localeCompare(b.title)
+    );
+
   const roleDemand = [...roleDemandMinutes.entries()]
     .map(([jobProfileId, requiredHours]) => {
       const activeRoleEmployees = activeEmployees.filter((employee) =>
@@ -365,7 +453,15 @@ export function buildWorkforceDemandForecast(input: {
         return sum + averageAnnualCapacityHours * days / 365.25 * vacancyFillPercent / 100;
       }, 0);
       const forecastHours = requiredHours * (1 + demandGrowthPercent / 100);
-      const projectedHours = currentCapacityHoursForRole + expectedVacancyCapacityHoursForRole;
+      const attritionCapacityLossHoursForRole =
+        currentCapacityHoursForRole * windowAttritionRate / 2;
+      const backfillCapacityHoursForRole =
+        attritionCapacityLossHoursForRole * backfillRate;
+      const projectedHours =
+        currentCapacityHoursForRole
+        - attritionCapacityLossHoursForRole
+        + backfillCapacityHoursForRole
+        + expectedVacancyCapacityHoursForRole;
       const profile = jobProfileId == null ? null : profileById.get(jobProfileId) ?? null;
       return {
         jobProfileId,
@@ -375,9 +471,13 @@ export function buildWorkforceDemandForecast(input: {
         requiredHours: round2(requiredHours),
         forecastHours: round2(forecastHours),
         activeHeadcount: activeRoleEmployees.length,
+        expectedAttritionExits: round2(activeRoleEmployees.length * windowAttritionRate),
+        plannedAttritionBackfills: round2(activeRoleEmployees.length * windowAttritionRate * backfillRate),
         vacantPositions: vacantRolePositions.length,
         expectedVacancyFills: round2(vacantRolePositions.length * vacancyFillPercent / 100),
         currentCapacityHours: round2(currentCapacityHoursForRole),
+        attritionCapacityLossHours: round2(attritionCapacityLossHoursForRole),
+        backfillCapacityHours: round2(backfillCapacityHoursForRole),
         expectedVacancyCapacityHours: round2(expectedVacancyCapacityHoursForRole),
         projectedCapacityHours: round2(projectedHours),
         capacityGapHours: round2(forecastHours - projectedHours),
@@ -390,7 +490,13 @@ export function buildWorkforceDemandForecast(input: {
       || a.title.localeCompare(b.title)
     );
 
-  const projectedCapacityHours = currentPeriodCapacityHours + expectedVacancyCapacityHours;
+  const attritionCapacityLossHours = currentPeriodCapacityHours * windowAttritionRate / 2;
+  const plannedBackfillCapacityHours = attritionCapacityLossHours * backfillRate;
+  const projectedCapacityHours =
+    currentPeriodCapacityHours
+    - attritionCapacityLossHours
+    + plannedBackfillCapacityHours
+    + expectedVacancyCapacityHours;
   const capacityGapBeforeFills = forecastHeadcountHours - currentPeriodCapacityHours;
   const capacityGapAfterFills = forecastHeadcountHours - projectedCapacityHours;
   const capacityCoveragePercent = forecastHeadcountHours > 0
@@ -466,16 +572,41 @@ export function buildWorkforceDemandForecast(input: {
       demandGrowthPercent,
       vacancyFillPercent,
       employerLoadPercent,
+      annualAttritionPercent,
+      attritionBackfillPercent,
+      windowAttritionPercent: round2(windowAttritionRate * 100),
+      attritionTimingModel: "uniform-window-same-role-backfill",
     },
     summary: {
       activeHeadcount: activeEmployees.length,
       costedHeadcount: annualCostByEmployee.size,
+      expectedAttritionExits: round2(expectedAttritionExits),
+      plannedAttritionBackfills: round2(plannedAttritionBackfills),
+      endingActiveHeadcount: round2(activeEmployees.length - expectedAttritionExits + plannedAttritionBackfills),
+      projectedHeadcountAfterVacancyFills: round2(
+        activeEmployees.length
+        - expectedAttritionExits
+        + plannedAttritionBackfills
+        + vacantPositions.length * vacancyFillPercent / 100
+      ),
       vacantPositions: vacantPositions.length,
       expectedVacancyFills: round2(vacantPositions.length * vacancyFillPercent / 100),
       annualizedBasePayroll: round2(annualizedBasePayroll),
       vacantAnnualBudget: round2(vacantAnnualBudget),
       annualRunRateLaborCost: round2(annualRunRateLaborCost),
       currentPeriodBasePayroll: round2(currentPeriodBasePayroll),
+      expectedAttritionPeriodBaseReduction: round2(expectedAttritionPeriodBaseReduction),
+      plannedBackfillPeriodBaseCost: round2(plannedBackfillPeriodBaseCost),
+      expectedAttritionPeriodEmployerCostReduction: round2(expectedAttritionPeriodEmployerCostReduction),
+      plannedBackfillPeriodEmployerCost: round2(plannedBackfillPeriodEmployerCost),
+      annualBackfillRunRateCost: round2(
+        (annualizedBasePayroll + annualKnownEmployerCost) * windowAttritionRate * backfillRate
+      ),
+      netAttritionAnnualRunRateCostChange: round2(
+        (annualizedBasePayroll + annualKnownEmployerCost)
+        * windowAttritionRate
+        * (backfillRate - 1)
+      ),
       expectedVacancyPeriodCost: round2(expectedVacancyPeriodCost),
       currentPeriodStatutoryEmployerCost: round2(currentPeriodStatutoryEmployer),
       currentPeriodBenefitEmployerCost: round2(currentPeriodBenefitEmployer),
@@ -490,6 +621,8 @@ export function buildWorkforceDemandForecast(input: {
       averageBaseHourlyRate: round2(averageBaseHourlyRate),
       estimatedShiftDemandWageCost: round2(estimatedShiftDemandWageCost),
       currentPeriodCapacityHours: round2(currentPeriodCapacityHours),
+      attritionCapacityLossHours: round2(attritionCapacityLossHours),
+      plannedBackfillCapacityHours: round2(plannedBackfillCapacityHours),
       expectedVacancyCapacityHours: round2(expectedVacancyCapacityHours),
       projectedCapacityHours: round2(projectedCapacityHours),
       capacityGapBeforeFills: round2(capacityGapBeforeFills),
@@ -497,6 +630,7 @@ export function buildWorkforceDemandForecast(input: {
       capacityCoveragePercent: round2(capacityCoveragePercent),
     },
     roleDemand,
+    backfillPlan,
     costCenters,
     unallocated: {
       currentPeriodBaseCost: round2(unallocatedCurrentPeriodBaseCost),
