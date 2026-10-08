@@ -2860,8 +2860,8 @@ function calculateEmployeePay(input: {
       ...("eligibleDays" in group
         ? [
             `eligible OT/night days: ${group.eligibleDays}`,
-            `verified daily minimum wage basis: ₱${group.dailyMinimumWage.toFixed(2)}`,
-            `30% daily meal ceiling: ₱${group.dailyCeiling.toFixed(2)}`,
+            `verified daily minimum wage basis: ₱${Number(group.dailyMinimumWage ?? 0).toFixed(2)}`,
+            `30% daily meal ceiling: ₱${Number(group.dailyCeiling ?? 0).toFixed(2)}`,
             `wage order/reference: ${group.basisWageOrder ?? "not supplied"}`,
           ]
         : []),
