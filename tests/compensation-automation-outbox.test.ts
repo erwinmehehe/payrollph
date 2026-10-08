@@ -192,6 +192,18 @@ test("pre-existing automation ledger quarantines an ambiguous intent instead of 
       intentId: id,
       reviewer: "Payroll reviewer",
     }), /Automation may have run/);
+
+    // Ledger cleanup must never turn prior ambiguity into "unstarted" proof.
+    await db.delete(automationEventLog).where(and(
+      eq(automationEventLog.organizationId, f.organizationId),
+      eq(automationEventLog.eventKey, f.eventKey),
+    ));
+    await assert.rejects(retryUnstartedCompensationAutomationIntent({
+      organizationId: f.organizationId,
+      intentId: id,
+      reviewer: "Payroll reviewer",
+    }), /Only exhausted pre-ledger retries/i);
+    assert.equal((await readIntent(id)).status, "needs_review");
   });
 });
 
@@ -250,6 +262,23 @@ test("explicit pre-ledger recovery is tenant-scoped and records a human audit wi
       .where(eq(compensationEvents.id, f.compensationEventId));
     assert.deepEqual(afterEvents, beforeEvents);
     assert.equal((await dispatchCompensationAutomationIntent(id)).status, "dispatched");
+  });
+});
+
+test("manual recovery rejects false pre-ledger retry exhaustion even with no automation ledger", async () => {
+  await withFixture(async (f) => {
+    const id = await persist(f);
+    await db.update(compensationAutomationIntents).set({
+      status: "needs_review",
+      attempts: 4,
+      lastError: "Maximum pre-ledger retry attempts reached. Human reconciliation required.",
+    }).where(eq(compensationAutomationIntents.id, id));
+    await assert.rejects(retryUnstartedCompensationAutomationIntent({
+      organizationId: f.organizationId,
+      intentId: id,
+      reviewer: "Payroll reviewer",
+    }), /Only exhausted pre-ledger retries/i);
+    assert.equal((await readIntent(id)).status, "needs_review");
   });
 });
 
