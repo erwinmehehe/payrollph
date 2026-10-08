@@ -1,11 +1,13 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, desc, eq, gte, inArray, isNull, like, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeLoans,
   employeePayProfiles,
   employees,
   historicalPayrollEntries,
+  hcmBusinessProcessInstances,
   hcmEmploymentDecisionEvents,
   hcmEmploymentTermDecisions,
   loanPayments,
@@ -35,6 +37,8 @@ import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { requireSensitiveActionMfa } from "@/lib/security-request";
 import { runLifecycleAutomations } from "@/lib/automation";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
+import { startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
+import { freezeSeparationIntent, separationEvidenceFromDefinition, separationIntentFingerprint, type HcmSeparationIntent } from "@/lib/hcm-separation-business-process";
 
 export const dynamic = "force-dynamic";
 
@@ -385,6 +389,16 @@ export async function POST(request: Request) {
       eq(separationRecords.employeeId, employeeId),
     )).orderBy(desc(separationRecords.id)).limit(1);
 
+    if (existingOpen && existingOpen.status !== "released"
+      && (String(existingOpen.lastDay) !== lastDay
+        || String(existingOpen.noticeDate) !== noticeDate
+        || existingOpen.separationType !== separationType)) {
+      return Response.json({
+        error: "An open Separation package cannot change its approved dates or category through a recomputation. Rescind or resolve the existing lifecycle decision first.",
+        separationRecordId: existingOpen.id,
+      }, { status: 409 });
+    }
+
     if (handoffDecision?.separationRecordId) {
       if (!existingOpen || existingOpen.id !== handoffDecision.separationRecordId || existingOpen.status === "released") {
         return Response.json({
@@ -509,7 +523,156 @@ export async function POST(request: Request) {
       employmentTermDecisionKind: handoffDecision?.decisionKind ?? null,
     };
 
+    const newSeparation = !existingOpen || existingOpen.status === "released";
+    const separationIntent: HcmSeparationIntent = {
+      organizationId,
+      employeeId,
+      employeeStatus: sources.employee.status,
+      employeeOrgUnitId: sources.employee.orgUnitId,
+      employeeStartDate: String(sources.employee.startDate),
+      employmentTermDecisionId,
+      separationType,
+      noticeDate,
+      lastDay,
+    };
+    const intentFingerprint = separationIntentFingerprint(separationIntent);
+    let separationProcess: typeof hcmBusinessProcessInstances.$inferSelect | null = null;
+
+    if (newSeparation) {
+      const supervisoryOrgUnitId = await supervisoryOrgForEffectiveChange({ organizationId, employeeId });
+      const review = await db.transaction(async (tx) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(4106, ${employeeId})`);
+        const [liveEmployee] = await tx.select({
+          id: employees.id,
+          status: employees.status,
+          orgUnitId: employees.orgUnitId,
+          startDate: employees.startDate,
+        }).from(employees).where(and(
+          eq(employees.id, employeeId),
+          eq(employees.organizationId, organizationId),
+        )).limit(1);
+        if (!liveEmployee || ["Separating", "Separated"].includes(liveEmployee.status)
+          || separationIntentFingerprint({
+            ...separationIntent,
+            employeeStatus: liveEmployee.status,
+            employeeOrgUnitId: liveEmployee.orgUnitId,
+            employeeStartDate: String(liveEmployee.startDate),
+          }) !== intentFingerprint) {
+          throw new Error("Employee lifecycle changed before the separation could be submitted.");
+        }
+
+        const [anotherOpen] = await tx.select({ id: separationRecords.id, status: separationRecords.status })
+          .from(separationRecords).where(and(
+            eq(separationRecords.organizationId, organizationId),
+            eq(separationRecords.employeeId, employeeId),
+          )).orderBy(desc(separationRecords.id)).limit(1);
+        if (anotherOpen && anotherOpen.status !== "released") {
+          throw new Error("An active Separation package already exists. Refresh and recompute it instead.");
+        }
+
+        const [existingReview] = await tx.select().from(hcmBusinessProcessInstances).where(and(
+          eq(hcmBusinessProcessInstances.organizationId, organizationId),
+          eq(hcmBusinessProcessInstances.sourceType, "separation_initiation"),
+          like(hcmBusinessProcessInstances.sourceKey, `${employeeId}:%`),
+          inArray(hcmBusinessProcessInstances.status, ["in_progress", "approved"]),
+        )).orderBy(desc(hcmBusinessProcessInstances.id)).limit(1);
+
+        if (existingReview) {
+          const frozen = separationEvidenceFromDefinition(existingReview.definitionSnapshot);
+          if (!frozen || frozen.organizationId !== organizationId || frozen.employeeId !== employeeId
+            || frozen.fingerprint !== intentFingerprint) {
+            throw new Error("This worker already has a different active separation request. Complete or decline it before changing exit terms.");
+          }
+          return { instance: existingReview, submitted: false };
+        }
+        const instance = await startHcmBusinessProcessTx(tx, {
+          organizationId,
+          processType: "termination",
+          sourceType: "separation_initiation",
+          sourceKey: `${employeeId}:${randomUUID()}`,
+          employeeId,
+          employeeLabel: `${sources.employee.firstName} ${sources.employee.lastName}`,
+          supervisoryOrgUnitId,
+          effectiveDate: lastDay,
+          initiatedByUserId: user.id,
+          initiatedByName: user.name,
+          sourceEvidence: { ...freezeSeparationIntent(separationIntent) },
+        });
+        return { instance, submitted: true };
+      });
+      separationProcess = review.instance;
+      if (review.submitted) {
+        await recordAuditEvent({
+          organizationId,
+          actor: user.name,
+          action: "Separation intent submitted to HCM business process",
+          resource: `Employee #${employeeId}`,
+          metadata: {
+            employeeId,
+            businessProcessInstanceId: separationProcess.id,
+            noticeDate,
+            lastDay,
+            separationType,
+            intentFingerprint,
+          },
+        });
+      }
+      if (separationProcess.status !== "approved") {
+        return Response.json({
+          approvalRequired: true,
+          separationCreated: false,
+          businessProcess: {
+            id: separationProcess.id,
+            status: separationProcess.status,
+            definitionCode: separationProcess.definitionCode,
+          },
+          nextAction: "Complete independent HCM Inbox approvals, then resubmit the same separation dates and category to prepare final pay.",
+        }, { status: 202 });
+      }
+    }
+
     const created = await db.transaction(async (tx) => {
+      if (newSeparation) {
+        // Serialize initiation and claim the approved intent before any employee
+        // status or final-pay source record may be changed.
+        await tx.execute(sql`select pg_advisory_xact_lock(4106, ${employeeId})`);
+        const [liveEmployee] = await tx.select({
+          status: employees.status,
+          orgUnitId: employees.orgUnitId,
+          startDate: employees.startDate,
+        }).from(employees).where(and(
+          eq(employees.id, employeeId),
+          eq(employees.organizationId, organizationId),
+        )).limit(1);
+        const [activeReview] = separationProcess
+          ? await tx.select().from(hcmBusinessProcessInstances).where(and(
+              eq(hcmBusinessProcessInstances.id, separationProcess.id),
+              eq(hcmBusinessProcessInstances.organizationId, organizationId),
+              eq(hcmBusinessProcessInstances.status, "approved"),
+              eq(hcmBusinessProcessInstances.sourceType, "separation_initiation"),
+            )).limit(1)
+          : [];
+        const frozen = activeReview ? separationEvidenceFromDefinition(activeReview.definitionSnapshot) : null;
+        if (!liveEmployee || !frozen || frozen.organizationId !== organizationId
+          || frozen.employeeId !== employeeId || frozen.fingerprint !== intentFingerprint
+          || separationIntentFingerprint({
+            ...separationIntent,
+            employeeStatus: liveEmployee.status,
+            employeeOrgUnitId: liveEmployee.orgUnitId,
+            employeeStartDate: String(liveEmployee.startDate),
+          }) !== frozen.fingerprint) {
+          throw new Error("The approved termination intent no longer matches authoritative employee evidence.");
+        }
+        const [livePackage] = await tx.select({ id: separationRecords.id, status: separationRecords.status })
+          .from(separationRecords).where(and(
+            eq(separationRecords.organizationId, organizationId),
+            eq(separationRecords.employeeId, employeeId),
+          )).orderBy(desc(separationRecords.id)).limit(1);
+        if (livePackage && livePackage.status !== "released") {
+          throw new Error("A competing Separation package was created before this intent could be applied.");
+        }
+      }
+
       const financialValues = {
         separationType,
         noticeDate,
@@ -641,6 +804,16 @@ export async function POST(request: Request) {
         });
       }
 
+      if (newSeparation && separationProcess) {
+        const [claimed] = await tx.update(hcmBusinessProcessInstances)
+          .set({ status: "applied", updatedAt: new Date() })
+          .where(and(
+            eq(hcmBusinessProcessInstances.id, separationProcess.id),
+            eq(hcmBusinessProcessInstances.organizationId, organizationId),
+            eq(hcmBusinessProcessInstances.status, "approved"),
+          )).returning({ id: hcmBusinessProcessInstances.id });
+        if (!claimed) throw new Error("Separation approval changed before it could be applied.");
+      }
       return record;
     });
 
@@ -653,6 +826,7 @@ export async function POST(request: Request) {
       resource: `${sources.employee.firstName} ${sources.employee.lastName} (Final Pay: ₱${result.netFinalPay.toFixed(2)})`,
       metadata: {
         separationId: created.id,
+        businessProcessInstanceId: separationProcess?.id ?? null,
         lastDay,
         finalPayDueDate: dueDate,
         basicSalaryEarnedYtd: result.basicSalaryEarnedYtd,
@@ -678,9 +852,15 @@ export async function POST(request: Request) {
       },
     });
 
-    return Response.json(created, { status: 201 });
+    return Response.json({
+      ...created,
+      approvalRequired: false,
+      businessProcess: separationProcess ? { id: separationProcess.id, status: "applied" } : null,
+    }, { status: 201 });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Could not compute final pay." }, { status: 422 });
+    return Response.json({
+      error: error instanceof Error ? error.message : "Could not compute final pay.",
+    }, { status: error instanceof Error && /changed|already exists|approval|different active separation/i.test(error.message) ? 409 : 422 });
   }
 }
 

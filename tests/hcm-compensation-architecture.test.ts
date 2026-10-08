@@ -117,7 +117,7 @@ test("linked promotion compensation never activates ahead of the worker movement
 
 test("recurring compensation is payroll-native and date-prorated", () => {
   assert.ok(payroll.includes("employeeCompensationComponents"));
-  assert.ok(payroll.includes('inArray(employeeCompensationComponents.status, ["scheduled", "active"])'));
+  assert.ok(payroll.includes('inArray(employeeCompensationComponents.status, ["scheduled", "active", "ended"])'));
   assert.ok(payroll.includes("recurringComponentAmountForCutoff"));
   assert.ok(payroll.includes("Recurring component"));
   assert.ok(payroll.includes("COMP-"));

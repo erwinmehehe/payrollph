@@ -22,6 +22,17 @@ type ReadyTermHandoff = {
   };
 };
 
+type HandoffReviewChain = { code: string; name: string; version: number };
+type HandoffReviewStatus = {
+  sourceId: number;
+  approval: {
+    id: number;
+    status: string;
+    sourceCurrent: boolean;
+    policyCode: string;
+  } | null;
+};
+
 type SeparationRecord = {
   id: number;
   employeeId: number;
@@ -69,6 +80,10 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   const [separations, setSeparations] = useState<SeparationRecord[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [handoffs, setHandoffs] = useState<ReadyTermHandoff[]>([]);
+  const [reviewChains, setReviewChains] = useState<HandoffReviewChain[]>([]);
+  const [reviewChainCode, setReviewChainCode] = useState("");
+  const [reviewBySeparationId, setReviewBySeparationId] = useState<Record<number, HandoffReviewStatus>>({});
+  const [routingReviewId, setRoutingReviewId] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<SeparationRecord | null>(null);
@@ -113,7 +128,27 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
       if (sepRes.ok) {
         const data = await sepRes.json();
         if (!alive) return;
-        setSeparations(data.separations ?? []);
+        const records = (data.separations ?? []) as SeparationRecord[];
+        setSeparations(records);
+        const ids = records.filter((row) => row.status === "draft").map((row) => row.id);
+        const query = new URLSearchParams({
+          organizationId: String(organizationId),
+          sourceType: "hcm_separation_readiness",
+        });
+        if (ids.length) query.set("sourceIds", ids.slice(0, 40).join(","));
+        const reviewResponse = await fetch(`/api/governed-handoffs?${query.toString()}`, { cache: "no-store" });
+        if (!alive) return;
+        if (reviewResponse.ok) {
+          const review = await reviewResponse.json().catch(() => ({}));
+          if (!alive) return;
+          const chains = (review.approvalChains ?? []) as HandoffReviewChain[];
+          setReviewChains(chains);
+          setReviewChainCode((current) => chains.some((row) => row.code === current)
+            ? current : chains[0]?.code ?? "");
+          setReviewBySeparationId(Object.fromEntries(
+            ((review.handoffs ?? []) as HandoffReviewStatus[]).map((row) => [row.sourceId, row]),
+          ));
+        }
       }
       if (empRes.ok) {
         const staff = await empRes.json();
@@ -159,6 +194,10 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     const data = await res.json();
     if (!res.ok) {
       setNotice(data.error ?? "Failed to calculate final pay.");
+      return;
+    }
+    if (data.approvalRequired) {
+      setNotice(`Termination intent #${data.businessProcess?.id ?? "pending"} is awaiting independent HCM review. No Separation package was created and the employee status was not changed. After approval, submit these same exit dates/category again to compute final pay.`);
       return;
     }
     setNotice("Final Pay package computed from the payroll ledger. Complete clearance before approval and release.");
@@ -210,6 +249,34 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     if (res.ok) {
       setNotice(`${dept.toUpperCase()} clearance updated.`);
       reload();
+    }
+  }
+
+  async function requestSeparationReadinessReview(id: number) {
+    if (!reviewChainCode) {
+      setNotice("Configure an active Automation Studio approval chain for the separation review first.");
+      return;
+    }
+    setRoutingReviewId(id);
+    try {
+      const response = await fetch("/api/governed-handoffs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          sourceType: "hcm_separation_readiness",
+          sourceId: id,
+          chainCode: reviewChainCode,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Could not request separation readiness review.");
+      setNotice(`Human separation readiness review requested for package #${id}. Existing clearance and final-pay decisions remain separate.`);
+      reload();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Separation review request failed.");
+    } finally {
+      setRoutingReviewId(null);
     }
   }
 
@@ -567,6 +634,20 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
       <article className="card table-card">
         <div className="table-toolbar">
           <div><div className="card-kicker">FINAL PAY LEDGER</div><h2>Separating Employees</h2></div>
+          <label>
+            <span className="sr-only">Human separation review approval policy</span>
+            <select
+              aria-label="Human separation review approval policy"
+              value={reviewChainCode}
+              onChange={(event) => setReviewChainCode(event.target.value)}
+              disabled={reviewChains.length === 0}
+            >
+              {reviewChains.length === 0 && <option value="">No active approval chain</option>}
+              {reviewChains.map((chain) => (
+                <option value={chain.code} key={chain.code}>{chain.name} · v{chain.version}</option>
+              ))}
+            </select>
+          </label>
         </div>
         <div className="data-table-wrap">
           <table className="data-table">
@@ -605,11 +686,33 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                     </div>
                   </td>
                   <td><strong style={{ color: "var(--green)" }}>{peso(sep.netFinalPay)}</strong></td>
-                  <td><span className={`status status-${sep.status === "approved" ? "verified" : sep.status === "draft" ? "needs-review" : "released"}`}>{sep.status}</span></td>
                   <td>
-                    <button className="primary-button" style={{ height: 26, fontSize: 10, padding: "0 8px" }} onClick={() => setSelectedRecord(sep)}>
-                      Breakdown
-                    </button>
+                    <span className={`status status-${sep.status === "approved" ? "verified" : sep.status === "draft" ? "needs-review" : "released"}`}>{sep.status}</span>
+                    {reviewBySeparationId[sep.id]?.approval && (
+                      <small style={{ display: "block", color: "var(--muted)" }}>
+                        Review #{reviewBySeparationId[sep.id].approval?.id} ·
+                        {" "}{reviewBySeparationId[sep.id].approval?.sourceCurrent
+                          ? reviewBySeparationId[sep.id].approval?.status
+                          : "stale; request fresh review"}
+                      </small>
+                    )}
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <button className="primary-button" style={{ height: 26, fontSize: 10, padding: "0 8px" }} onClick={() => setSelectedRecord(sep)}>
+                        Breakdown
+                      </button>
+                      {sep.status === "draft" && (
+                        <button
+                          className="secondary-button"
+                          style={{ height: 26, fontSize: 10, padding: "0 8px" }}
+                          disabled={!reviewChainCode || routingReviewId !== null}
+                          onClick={() => void requestSeparationReadinessReview(sep.id)}
+                        >
+                          {routingReviewId === sep.id ? "Routing..." : "Request human readiness review"}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
