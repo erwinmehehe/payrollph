@@ -5,6 +5,7 @@ import {
   hcmBusinessProcessDefinitions,
   hcmBusinessProcessInstances,
   historicalPayrollEntries,
+  importBatches,
   payrollRuns,
   positionAssignments,
   workerEffectiveChanges,
@@ -25,6 +26,7 @@ export async function employeeMasterMigrationBlockers(organizationId: number): P
     effectiveChanges,
     positionHistory,
     payRevisions,
+    priorEmployeeMigrations,
   ] = await Promise.all([
     db.select({ id: hcmBusinessProcessDefinitions.id })
       .from(hcmBusinessProcessDefinitions)
@@ -44,6 +46,12 @@ export async function employeeMasterMigrationBlockers(organizationId: number): P
       .where(eq(positionAssignments.organizationId, organizationId)).limit(1),
     db.select({ id: employeePayRevisions.id }).from(employeePayRevisions)
       .where(eq(employeePayRevisions.organizationId, organizationId)).limit(1),
+    db.select({ id: importBatches.id }).from(importBatches)
+      .where(and(
+        eq(importBatches.organizationId, organizationId),
+        eq(importBatches.importKind, "employees"),
+        eq(importBatches.status, "completed"),
+      )).limit(1),
   ]);
 
   const blockers: string[] = [];
@@ -54,5 +62,6 @@ export async function employeeMasterMigrationBlockers(organizationId: number): P
   if (effectiveChanges.length) blockers.push("Effective-dated HCM worker changes exist; a migration would bypass their approvals.");
   if (positionHistory.length) blockers.push("Position assignments exist; a migration could rewrite approved job or organizational state.");
   if (payRevisions.length) blockers.push("Pay revisions exist; a migration cannot replace governed compensation history.");
+  if (priorEmployeeMigrations.length) blockers.push("An employee-master migration was already committed; repeat or corrective overwrites require a separate reconciled process.");
   return blockers;
 }
