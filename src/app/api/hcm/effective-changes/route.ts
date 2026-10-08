@@ -428,6 +428,9 @@ export async function PATCH(request: Request) {
   const [change] = await db.select().from(workerEffectiveChanges).where(eq(workerEffectiveChanges.id, id)).limit(1);
   if (!change) return Response.json({ error: "Effective-dated HCM change not found." }, { status: 404 });
 
+  const gate = await assertCompanyWidePeople(user.id, change.organizationId);
+  if ("error" in gate) return gate.error;
+
   const linkedBusinessProcess = await findHcmBusinessProcessForSource({
     organizationId: change.organizationId,
     sourceType: "worker_effective_change",
@@ -440,9 +443,6 @@ export async function PATCH(request: Request) {
       businessProcessStatus: linkedBusinessProcess.status,
     }, { status: 409 });
   }
-
-  const gate = await assertCompanyWidePeople(user.id, change.organizationId);
-  if ("error" in gate) return gate.error;
 
   if (action === "approve") {
     if (change.status !== "pending_approval") {
