@@ -1,18 +1,22 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforcePlanningScenarios, workforcePlans } from "@/db/schema";
+import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, employees, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforcePlanningScenarios, workforcePlans } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
 import { dispatchWebhook } from "@/lib/webhooks";
-import { assertMembership } from "@/lib/access";
+import { assertMembership, assertOrganizationUnitAccess } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { isPublicDemoIdentity } from "@/lib/demo-security";
 import { resumeAutomationExecutionFromApproval, runAutomationEventSafely } from "@/lib/automation";
 import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
 import { advanceApprovalChainAfterDecisionTx } from "@/lib/approval-chains";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
+import {
+  advanceHcmBusinessProcessAfterApprovalTx,
+  finalizeHcmBusinessProcessSource,
+} from "@/lib/hcm-business-process";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(request);
@@ -39,6 +43,58 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const deniedOrg = await assertMembership(sessionUser.id, task.organizationId);
   if (deniedOrg) return deniedOrg;
   const actor = sessionUser.name;
+
+  const [hcmBusinessProcessApproval] = await db.select({
+    stepId: hcmBusinessProcessInstanceSteps.id,
+    stepStatus: hcmBusinessProcessInstanceSteps.status,
+    instanceId: hcmBusinessProcessInstances.id,
+    employeeId: hcmBusinessProcessInstances.employeeId,
+    initiatedByUserId: hcmBusinessProcessInstances.initiatedByUserId,
+    processStatus: hcmBusinessProcessInstances.status,
+  }).from(hcmBusinessProcessInstanceSteps)
+    .innerJoin(hcmBusinessProcessInstances, eq(
+      hcmBusinessProcessInstanceSteps.instanceId, hcmBusinessProcessInstances.id,
+    ))
+    .where(and(
+      eq(hcmBusinessProcessInstanceSteps.approvalTaskId, taskId),
+      eq(hcmBusinessProcessInstanceSteps.organizationId, task.organizationId),
+      eq(hcmBusinessProcessInstances.organizationId, task.organizationId),
+    )).limit(1);
+  if (hcmBusinessProcessApproval) {
+    if (hcmBusinessProcessApproval.processStatus !== "in_progress"
+      || hcmBusinessProcessApproval.stepStatus !== "pending") {
+      return Response.json({
+        error: "This HCM business-process approval is no longer pending.",
+      }, { status: 409 });
+    }
+    if (hcmBusinessProcessApproval.employeeId != null) {
+      const [worker] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
+        eq(employees.id, hcmBusinessProcessApproval.employeeId),
+        eq(employees.organizationId, task.organizationId),
+      )).limit(1);
+      if (!worker) {
+        return Response.json({ error: "The HCM business process no longer has a valid employee." }, { status: 409 });
+      }
+      const scopeDenied = await assertOrganizationUnitAccess(
+        sessionUser.id, task.organizationId, worker.orgUnitId,
+        "This HCM business-process approval concerns an employee outside your assigned unit.",
+      );
+      if (scopeDenied) return scopeDenied;
+    } else {
+      const scopeDenied = await assertOrganizationUnitAccess(
+        sessionUser.id, task.organizationId, null,
+        "Company-wide HCM business-process approvals require company-wide access.",
+      );
+      if (scopeDenied) return scopeDenied;
+    }
+    if (hcmBusinessProcessApproval.initiatedByUserId === sessionUser.id) {
+      return Response.json({
+        error: "Maker-checker control: the HCM change requester cannot decide their own approval.",
+        businessProcessInstanceId: hcmBusinessProcessApproval.instanceId,
+      }, { status: 403 });
+    }
+  }
+
 
   const legacyPayrollTask = !task.payrollRunId && task.detail.includes("Payroll run #");
   if (legacyPayrollTask) {
@@ -235,6 +291,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     nextTaskId: null,
     instanceId: null,
   };
+  let hcmBusinessProcess: Awaited<ReturnType<typeof advanceHcmBusinessProcessAfterApprovalTx>> = {
+    isHcmProcess: false,
+    final: false,
+    status: null,
+    instanceId: null,
+    nextTaskId: null,
+    sourceType: null,
+    sourceKey: null,
+  };
   try {
     const decisionResult = await db.transaction(async (tx) => {
       if (dynamicGroupScope) {
@@ -293,6 +358,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         taskId,
         decision: status,
         decidedBy: actor,
+      });
+
+      const hcmResult = await advanceHcmBusinessProcessAfterApprovalTx(tx, {
+        taskId,
+        decision: status,
+        actorUserId: sessionUser.id,
+        actorName: actor,
       });
 
       if (chainResult.isChain && !chainResult.final && chainResult.nextTaskId) {
@@ -386,26 +458,62 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             : null,
           approvalChainFinal: chainResult.final,
           nextApprovalTaskId: chainResult.nextTaskId,
+          hcmBusinessProcessInstanceId: hcmResult.instanceId,
+          hcmBusinessProcessFinal: hcmResult.final,
+          hcmBusinessProcessStatus: hcmResult.status,
         },
       });
 
-      return { updatedTask, chainResult, sourceDecision };
+      return { updatedTask, chainResult, hcmResult, sourceDecision };
     });
     updated = decisionResult.updatedTask;
     chain = decisionResult.chainResult;
+    hcmBusinessProcess = decisionResult.hcmResult;
     workforcePlanDecision = decisionResult.sourceDecision;
   } catch (error) {
     if (error instanceof Error && (
       error.message === "PAYROLL_APPROVAL_CONFLICT" ||
       error.message === "APPROVAL_TASK_CONFLICT" ||
       error.message === "WORKFORCE_PLAN_APPROVAL_CONFLICT" ||
-      error.message === "APPROVAL_DYNAMIC_GROUP_NOT_ELIGIBLE"
+      error.message === "APPROVAL_DYNAMIC_GROUP_NOT_ELIGIBLE" ||
+      error.message.startsWith("Business process ") ||
+      error.message.startsWith("Business-process ")
     )) {
       return Response.json({
         error: "This approval changed while your decision was being saved. Refresh to see the current state.",
       }, { status: 409 });
     }
     throw error;
+  }
+
+  let hcmBusinessProcessSource: unknown = null;
+  if (hcmBusinessProcess.isHcmProcess && hcmBusinessProcess.final && hcmBusinessProcess.instanceId) {
+    try {
+      hcmBusinessProcessSource = await finalizeHcmBusinessProcessSource({
+        instanceId: hcmBusinessProcess.instanceId,
+        actorUserId: sessionUser.id,
+        actorName: actor,
+      });
+    } catch (error) {
+      hcmBusinessProcessSource = {
+        status: "finalization_error",
+        error: error instanceof Error ? error.message : "The HCM source transaction could not be finalized.",
+      };
+      try {
+        await db.insert(auditEvents).values({
+          organizationId: task.organizationId,
+          actor,
+          action: "HCM business-process source finalization failed",
+          resource: task.title,
+          metadata: {
+            businessProcessInstanceId: hcmBusinessProcess.instanceId,
+            error: error instanceof Error ? error.message.slice(0, 2000) : "Unknown finalization error",
+          },
+        });
+      } catch {
+        // The checker decision is durable; audit fallback must not rewrite it.
+      }
+    }
   }
 
   let automationGate: unknown = null;
@@ -520,6 +628,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     automation,
     automationGate,
     approvalChain: chain,
+    hcmBusinessProcess,
+    hcmBusinessProcessSource,
     workforcePlanDecision,
   });
 }
