@@ -784,3 +784,14 @@ body:has(.linaw-site-nav) main > section {
     gap: 16px;
   }
 }
+
+/* Dark conversion surfaces need explicit colors above unlayered site defaults. */
+body:has(.linaw-site-nav) main .linaw-dark-callout h2 {
+  color: #fff;
+}
+.linaw-dark-callout a {
+  color: #fff;
+}
+.linaw-dark-callout .linaw-light-button {
+  color: #11141f;
+}

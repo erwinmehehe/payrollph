@@ -258,7 +258,7 @@ export default async function PricingPage() {
               ))}
             </div>
 
-            <div className="mt-9 flex flex-col gap-4 rounded-[26px] bg-[#11141F] p-7 text-white sm:flex-row sm:items-center sm:justify-between">
+            <div className="linaw-dark-callout mt-9 flex flex-col gap-4 rounded-[26px] bg-[#11141F] p-7 text-white sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="font-display text-[24px] font-semibold">See the workflow before choosing a plan.</h2>
                 <p className="mt-2 max-w-[620px] text-[13.5px] leading-relaxed text-white/60">
@@ -266,7 +266,7 @@ export default async function PricingPage() {
                 </p>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2.5">
-                <Link href="/demo" className="rounded-full bg-white px-5 py-3 text-[13.5px] font-semibold text-[#11141F]">
+                <Link href="/demo" className="linaw-light-button rounded-full bg-white px-5 py-3 text-[13.5px] font-semibold text-[#11141F]">
                   Try live demo
                 </Link>
                 <Link href="/trial" className="rounded-full border border-white/20 bg-white/10 px-5 py-3 text-[13.5px] font-semibold text-white">

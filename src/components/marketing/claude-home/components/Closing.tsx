@@ -16,7 +16,7 @@ export function FAQ() {
           <div>
             <SectionHeading
               title={<>Everything teams ask before switching.</>}
-              description="Straight answers on compliance, migration and day-to-day operation. Still curious? Try the sandbox, it writes nothing."
+              description="Straight answers on compliance, migration and day-to-day operation. Try the homepage simulation with local sample changes, or open the hosted sample-data sandbox."
             />
             <Reveal delay={160}>
               <div className="mt-7 rounded-[24px] bg-[#F7F8FC] p-5">
@@ -85,7 +85,7 @@ export function CTA() {
   return (
     <section id="cta" className="scroll-mt-20 px-5 pb-20 pt-2 sm:px-8 sm:pb-24">
       <Reveal>
-        <div className="relative mx-auto min-h-[360px] max-w-[1200px] overflow-hidden rounded-[34px] bg-[#11141F] px-6 py-16 text-center text-white sm:flex sm:min-h-[400px] sm:items-center sm:justify-center sm:px-12 sm:py-20">
+        <div className="linaw-dark-callout relative mx-auto min-h-[360px] max-w-[1200px] overflow-hidden rounded-[34px] bg-[#11141F] px-6 py-16 text-center text-white sm:flex sm:min-h-[400px] sm:items-center sm:justify-center sm:px-12 sm:py-20">
           <div aria-hidden className="pointer-events-none absolute inset-0">
             <div className="bg-grid absolute inset-0 opacity-[0.12] [background-image:linear-gradient(to_right,rgba(255,255,255,0.5)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.5)_1px,transparent_1px)]" />
             <div className="absolute -left-24 -top-24 h-80 w-80 rounded-full bg-[#0877ff] opacity-55 blur-[110px]" />

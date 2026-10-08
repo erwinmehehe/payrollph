@@ -33,7 +33,7 @@ test("demo and trial requests persist before best-effort email notification", ()
   assert.ok(recordIndex >= 0, "demo route must persist a marketing lead");
   assert.ok(notifyIndex > recordIndex, "notification must happen only after durable lead capture");
   assert.ok(route.includes('body.requestType === "trial-access"'), "trial access must be distinguishable from a demo");
-  assert.ok(route.includes('sourcePath: requestType === "trial-access" ? "/signup" : "/book-demo"'), "lead source path must be explicit");
+  assert.ok(route.includes('sourcePath: requestType === "trial-access" ? "/signup" : body.sourcePath === "/contact" ? "/contact" : "/book-demo"'), "lead source path must be explicit");
   assert.ok(route.includes("attribution,"), "sanitized attribution must be stored with the durable lead");
   assert.ok(route.includes("notifyMarketingLead(lead.id)"), "demo route must delegate delivery to the shared recovery workflow");
   assert.ok(!route.includes(".invalid"), "public lead delivery must never target an invalid fallback address");
