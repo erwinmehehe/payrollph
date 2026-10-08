@@ -70,3 +70,32 @@ test("timesheet finalization UI is part of the main WFM planner", () => {
   assert.ok(panel.includes("stale"));
   assert.ok(planner.includes("<WorkforceTimesheetPanel"));
 });
+
+test("payroll creation freezes an authoritative expected-timesheet cohort and submissions reconcile it", () => {
+  const expectations = readFileSync("src/lib/workforce-timesheet-expectations.ts", "utf8");
+  assert.ok(schema.includes('export const workforceTimesheetExpectations = pgTable('));
+  assert.ok(schema.includes('payrollRunId: integer("payroll_run_id")'));
+  assert.ok(schema.includes('status: varchar("status"'));
+  assert.ok(schema.includes('version: integer("version")'));
+  assert.ok(payrollCreate.includes("createTimesheetExpectationsForPayrollRun"));
+  assert.ok(payrollCreate.includes('source: "payroll_run_creation"'));
+  assert.ok(payrollCreate.includes("historicalBackfill: false"));
+  assert.ok(route.includes("linkTimesheetExpectationsToTimesheet"));
+  assert.ok(route.includes("listTimesheetExpectationsForPeriod"));
+  assert.ok(expectations.includes("priorTimesheets"));
+  assert.ok(expectations.includes('latest ? expectationStatusForTimesheet(latest.status) : "expected"'));
+  assert.ok(expectations.includes("onConflictDoNothing()"));
+  assert.ok(expectations.includes("firstSubmittedAt"));
+  assert.ok(panel.includes("Expected missing"));
+  assert.ok(panel.includes("Expected · not submitted"));
+  assert.ok(panel.includes("Not expected / no submission"));
+});
+
+test("historical payroll runs are deliberately not reverse-inferred into expectation cohorts", () => {
+  const migration = readFileSync("drizzle/0097_authoritative_timesheet_expectations.sql", "utf8");
+  const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  assert.ok(migration.includes("Existing payroll runs are intentionally not backfilled"));
+  assert.ok(compat.includes("Do not synthesize historical rows for old payroll runs."));
+  assert.equal(migration.includes("INSERT INTO workforce_timesheet_expectations SELECT"), false);
+});
+
