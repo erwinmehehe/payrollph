@@ -1,6 +1,11 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { automationRules, dynamicWorkerGroups } from "@/db/schema";
+import {
+  approvalChainPolicies,
+  automationRules,
+  dynamicWorkerGroups,
+  userPermissionAssignments,
+} from "@/db/schema";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
@@ -81,6 +86,44 @@ async function dynamicGroupDependencies(organizationId: number, code: string) {
     .map((rule) => ({ id: rule.id, name: rule.name, active: rule.active }));
 }
 
+async function dynamicGroupSecurityDependencies(organizationId: number, groupId: number, code: string) {
+  const [assignments, policies] = await Promise.all([
+    db.select({
+      id: userPermissionAssignments.id,
+      userOrganizationId: userPermissionAssignments.userOrganizationId,
+    }).from(userPermissionAssignments).where(eq(userPermissionAssignments.organizationId, organizationId)),
+    db.select({
+      id: approvalChainPolicies.id,
+      code: approvalChainPolicies.code,
+      name: approvalChainPolicies.name,
+      steps: approvalChainPolicies.steps,
+      active: approvalChainPolicies.active,
+    }).from(approvalChainPolicies).where(eq(approvalChainPolicies.organizationId, organizationId)),
+  ]);
+  const groupAssignments = await db.select({
+    id: userPermissionAssignments.id,
+    userOrganizationId: userPermissionAssignments.userOrganizationId,
+  }).from(userPermissionAssignments).where(
+    eq(userPermissionAssignments.dynamicGroupId, groupId),
+  );
+  const approvalPolicies = policies.filter((policy) =>
+    policy.active && Array.isArray(policy.steps) && policy.steps.some((raw) =>
+      raw != null && typeof raw === "object" && !Array.isArray(raw)
+        && String((raw as Record<string, unknown>).dynamicGroupCode ?? "") === code
+    )
+  );
+  return {
+    permissionAssignments: groupAssignments.filter((assignment) =>
+      assignments.some((row) => row.id === assignment.id)
+    ),
+    approvalPolicies: approvalPolicies.map((policy) => ({
+      id: policy.id,
+      name: policy.name,
+      code: policy.code,
+    })),
+  };
+}
+
 async function assertGroupAdmin(userId: number, organizationId: number) {
   const denied = await assertOrganizationRole(
     userId,
@@ -148,6 +191,11 @@ export async function GET(request: Request) {
     dependencies: await dynamicGroupDependencies(organizationId, group.code),
   })));
   const dependenciesByGroup = new Map(dependencyPairs.map((row) => [row.groupId, row.dependencies]));
+  const securityPairs = await Promise.all(groups.map(async (group) => ({
+    groupId: group.id,
+    security: await dynamicGroupSecurityDependencies(organizationId, group.id, group.code),
+  })));
+  const securityByGroup = new Map(securityPairs.map((row) => [row.groupId, row.security]));
   return Response.json({
     groups: groups.map((group) => {
       const dependencies = dependenciesByGroup.get(group.id) ?? [];
@@ -156,6 +204,8 @@ export async function GET(request: Request) {
         automationDependencyCount: dependencies.length,
         activeAutomationDependencyCount: dependencies.filter((dependency) => dependency.active).length,
         automationDependencies: dependencies,
+        permissionAssignmentCount: securityByGroup.get(group.id)?.permissionAssignments.length ?? 0,
+        activeApprovalPolicyCount: securityByGroup.get(group.id)?.approvalPolicies.length ?? 0,
       };
     }),
     catalogs: {
@@ -221,6 +271,13 @@ export async function POST(request: Request) {
           return Response.json({ error: "Dynamic group not found." }, { status: 404 });
         }
 
+        const securityDependencies = await dynamicGroupSecurityDependencies(organizationId, existing.id, existing.code);
+        if (securityDependencies.permissionAssignments.length || securityDependencies.approvalPolicies.length) {
+          return Response.json({
+            error: "This Dynamic Group currently restricts permissions or approval routing. Remove those bindings before editing its version.",
+            securityDependencies,
+          }, { status: 409 });
+        }
         const definitionChanged = JSON.stringify(existing.conditions) !== JSON.stringify(conditions);
         if (definitionChanged) {
           const dependencies = await dynamicGroupDependencies(organizationId, existing.code);
@@ -305,6 +362,13 @@ export async function POST(request: Request) {
     }
 
     if (!active) {
+      const securityDependencies = await dynamicGroupSecurityDependencies(organizationId, existing.id, existing.code);
+      if (securityDependencies.permissionAssignments.length || securityDependencies.approvalPolicies.length) {
+        return Response.json({
+          error: "Remove governed permission assignments and active approval-policy dependencies before disabling this Dynamic Group.",
+          securityDependencies,
+        }, { status: 409 });
+      }
       const dependencies = await dynamicGroupDependencies(organizationId, existing.code);
       const activeDependencies = dependencies.filter((dependency) => dependency.active);
       if (activeDependencies.length > 0) {
