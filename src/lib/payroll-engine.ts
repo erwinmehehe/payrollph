@@ -1442,7 +1442,9 @@ async function processPayrollChunk(input: {
           id: g.id,
           benefitType: g.benefitType as DeMinimisType,
           amount: Number(g.amount),
-          frequency: g.frequency as "month" | "semester" | "year",
+          frequency: g.frequency as "month" | "semester" | "year" | "eligible_day",
+          basisDailyMinimumWage: g.basisDailyMinimumWage == null ? null : Number(g.basisDailyMinimumWage),
+          basisWageOrder: g.basisWageOrder,
         })),
       priorDeMinimisPaid: priorDeMinimisByEmployee.get(employee.id) ?? {},
       priorBenefitPool90k: priorBenefitPool90kByEmployee.get(employee.id) ?? 0,
@@ -1648,7 +1650,14 @@ function calculateEmployeePay(input: {
     adjustment: number;
     outcome: string;
   };
-  deMinimis?: Array<{ id: number; benefitType: DeMinimisType; amount: number; frequency: "month" | "semester" | "year" }>;
+  deMinimis?: Array<{
+    id: number;
+    benefitType: DeMinimisType;
+    amount: number;
+    frequency: "month" | "semester" | "year" | "eligible_day";
+    basisDailyMinimumWage?: number | null;
+    basisWageOrder?: string | null;
+  }>;
   priorDeMinimisPaid?: Partial<Record<DeMinimisType, number>>;
   priorBenefitPool90k?: number;
   importedPayrollHistoryBeforeCutoff?: boolean;
@@ -1761,6 +1770,7 @@ function calculateEmployeePay(input: {
   const punchNotes: string[] = [];
   const holidayNotes: string[] = [];
   const overtimeMinutesByWorkDate = new Map<string, number>();
+  const mealAllowanceEligibleWorkDates = new Set<string>();
 
   function applyWorkedTimePremium(inputSegment: {
     workDate: string;
@@ -2092,6 +2102,10 @@ function calculateEmployeePay(input: {
           .filter((segment) => segment.night)
           .reduce((sum, segment) => sum + segment.minutes, 0)
       : derived.nightDifferentialMinutes;
+
+    if (segmentedOvertimeMinutes > 0 || segmentedNightMinutes > 0) {
+      mealAllowanceEligibleWorkDates.add(workDate);
+    }
 
     regularMinutes += segmentedRegularMinutes;
     overtimeMinutes += segmentedOvertimeMinutes;
@@ -2834,6 +2848,7 @@ function calculateEmployeePay(input: {
     input.deMinimis ?? [],
     input.priorDeMinimisPaid ?? {},
     input.payDate,
+    { mealEligibleDays: mealAllowanceEligibleWorkDates.size },
   ).map((group) => ({
     code: `DM-${group.benefitType}`,
     label: `De minimis, ${group.label}`,
@@ -2842,6 +2857,14 @@ function calculateEmployeePay(input: {
       `Aggregated grant ids: ${group.grantIds.join(", ")}`,
       `${group.statutoryPeriod} ceiling ₱${group.statutoryPeriodCeiling.toFixed(2)}`,
       `paid earlier in this ${group.statutoryPeriod}: ₱${group.priorPaidInStatutoryPeriod.toFixed(2)}`,
+      ...("eligibleDays" in group
+        ? [
+            `eligible OT/night days: ${group.eligibleDays}`,
+            `verified daily minimum wage basis: ₱${Number(group.dailyMinimumWage ?? 0).toFixed(2)}`,
+            `30% daily meal ceiling: ₱${Number(group.dailyCeiling ?? 0).toFixed(2)}`,
+            `wage order/reference: ${group.basisWageOrder ?? "not supplied"}`,
+          ]
+        : []),
       `exempt this cutoff ₱${group.semiMonthlyExempt.toFixed(2)}`,
       `other-benefits pool excess this period ₱${group.semiMonthlyOtherBenefitsPool.toFixed(2)}`,
     ],
@@ -3407,6 +3430,7 @@ function calculateEmployeePay(input: {
       `deMinimisPaid=${money(deMinimisTotal)}`,
       `deMinimisExempt=${money(deMinimisExemptTotal)}`,
       `deMinimisOtherBenefitsPool=${money(deMinimisOtherBenefitsPool)}`,
+      `otNightMealEligibleDays=${mealAllowanceEligibleWorkDates.size}`,
       `priorBenefitPool90k=${money(benefitPoolTreatment.priorPool)}`,
       `currentBenefitPool90k=${money(benefitPoolTreatment.currentPool)}`,
       `benefitPoolRemainingBeforeCutoff=${money(benefitPoolTreatment.remainingExemption)}`,

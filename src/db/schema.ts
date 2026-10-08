@@ -1594,6 +1594,8 @@ export const deMinimisGrants = pgTable("de_minimis_grants", {
   benefitType: varchar("benefit_type", { length: 64 }).notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   frequency: varchar("frequency", { length: 16 }).notNull(),
+  basisDailyMinimumWage: numeric("basis_daily_minimum_wage", { precision: 10, scale: 2 }),
+  basisWageOrder: varchar("basis_wage_order", { length: 80 }),
   active: boolean("active").notNull().default(true),
   effectiveOn: date("effective_on").notNull(),
   endedOn: date("ended_on"),
