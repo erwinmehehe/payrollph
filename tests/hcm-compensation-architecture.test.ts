@@ -192,3 +192,94 @@ test("compensation workspace confirms approved pay cancellation and gives recalc
   assert.ok(panel.includes("Cancel pay revision"));
   assert.ok(panel.includes("Review affected payroll and recalculate before release."));
 });
+
+
+test("scheduled recurring component activation stores audit in the same transaction as financial evidence", () => {
+  const start = governance.indexOf("export async function activateCompensationComponentAssignment(");
+  const end = governance.indexOf("export async function runScheduledCompensationGovernance(", start);
+  assert.ok(start >= 0 && end > start);
+  const activation = governance.slice(start, end);
+  const begin = activation.indexOf("const result = await db.transaction(async (tx) => {");
+  const lock = activation.indexOf("pg_advisory_xact_lock(4222");
+  const status = activation.indexOf("tx.update(employeeCompensationComponents)");
+  const event = activation.indexOf("tx.insert(compensationEvents)");
+  const audit = activation.indexOf("tx.insert(auditEvents)");
+  const committed = activation.indexOf("if (result.skipped) return result;");
+  assert.ok(begin >= 0 && lock > begin && status > lock && event > status && audit > event);
+  assert.ok(committed > audit, "financial status and audit must commit together");
+  assert.ok(activation.includes("compensationEventId: event.id"));
+  assert.ok(activation.includes("enqueueCompensationAutomationIntents(tx, {"));
+  assert.ok(activation.includes("dispatchCompensationAutomationEvent({"));
+  assert.ok(activation.includes("Recurring component notification deferred to durable scheduler queue."));
+  assert.ok(activation.includes("warnings.push("));
+  assert.ok(governance.includes("...(!result.skipped && result.warnings.length > 0 ? { warnings: result.warnings } : {})"));
+});
+
+
+test("applied salaries and recurring activations commit notification intents before external side effects", () => {
+  const salaryStart = governance.indexOf("export async function applyScheduledCompensationProposal(");
+  const salaryEnd = governance.indexOf("export type RecurringCompensationDecision", salaryStart);
+  const salary = governance.slice(salaryStart, salaryEnd);
+  const componentStart = governance.indexOf("export async function activateCompensationComponentAssignment(");
+  const componentEnd = governance.indexOf("export async function runScheduledCompensationGovernance(", componentStart);
+  const component = governance.slice(componentStart, componentEnd);
+  assert.ok(salary.includes("enqueueCompensationAutomationIntents(tx, {"));
+  assert.ok(salary.indexOf("enqueueCompensationAutomationIntents(tx, {") < salary.indexOf("if (result.skipped) return result;"));
+  assert.ok(component.includes("enqueueCompensationAutomationIntents(tx, {"));
+  assert.ok(component.indexOf("enqueueCompensationAutomationIntents(tx, {") < component.indexOf("if (result.skipped) return result;"));
+  assert.ok(salary.includes("compensation-applied:${proposal.id}:field-change:annualsalary"));
+  assert.ok(salary.includes("compensation-applied:${proposal.id}:field-change:monthlyequivalentsalary"));
+  assert.ok(component.includes("compensation-component-active:${active.id}:field-change:recurringcompensationamount"));
+  assert.ok(scheduler.includes("drainCompensationAutomationIntents("));
+  assert.ok(scheduler.includes("compensationAutomationDelivery"));
+});
+
+test("scheduled salary application locks, pay revision, compensation event and audit before transaction commit", () => {
+  const begin = governance.indexOf("export async function applyScheduledCompensationProposal(");
+  const end = governance.indexOf("export type RecurringCompensationDecision", begin);
+  assert.ok(begin >= 0 && end > begin);
+  const section = governance.slice(begin, end);
+  const tx = section.indexOf("result = await db.transaction(async (tx) => {");
+  const proposalLock = section.indexOf("pg_advisory_xact_lock(4220");
+  const cycleLock = section.indexOf("pg_advisory_xact_lock(4230");
+  const workerLock = section.indexOf("pg_advisory_xact_lock(4221");
+  const payProfile = section.indexOf("tx.update(employeePayProfiles)");
+  const financialEvent = section.indexOf("tx.insert(compensationEvents)");
+  const status = section.indexOf("tx.update(compensationProposals)");
+  const audit = section.indexOf("tx.insert(auditEvents)");
+  const transactionClose = section.indexOf("\n    });\n  } catch (error)", audit);
+  assert.ok(tx >= 0 && proposalLock > tx);
+  assert.ok(proposalLock < cycleLock && cycleLock < workerLock);
+  assert.ok(workerLock < payProfile && payProfile < financialEvent && financialEvent < status && status < audit);
+  assert.ok(transactionClose > audit);
+  assert.ok(section.includes("compensationEventId: event.id"));
+  assert.ok(section.includes("throw new ScheduledCompensationAuditWriteError()"));
+  assert.ok(section.includes("error instanceof ScheduledCompensationAuditWriteError"));
+  assert.ok(section.includes("error instanceof ScheduledCompensationIntentWriteError"));
+  assert.ok(!section.includes("recordAuditEvent("), "do not insert operational audit after salary has committed");
+  const intent = section.indexOf("enqueueCompensationAutomationIntents(tx, {");
+  assert.ok(intent > audit, "outbox snapshot must be persisted after the audit within the same transaction");
+  assert.ok(transactionClose > intent, "both audit and automation intent must commit with salary state");
+  assert.ok(section.includes("dispatchCompensationAutomationEvent({"), "post-commit delivery must use the outbox");
+  assert.ok(section.includes("ScheduledCompensationIntentWriteError"), "outbox-write failure must preserve scheduled pay");
+  assert.ok(governance.includes("...(!result.skipped && result.warnings.length > 0 ? { warnings: result.warnings } : {})"));
+});
+
+test("component expiration uses the activation lock and commits the status with both financial evidence records", () => {
+  const begin = governance.indexOf("export async function expireCompensationComponentAssignment(");
+  const end = governance.indexOf("export async function runScheduledCompensationGovernance(", begin);
+  assert.ok(begin >= 0 && end > begin);
+  const expiration = governance.slice(begin, end);
+  const transaction = expiration.indexOf("return db.transaction(async (tx) => {");
+  const lock = expiration.indexOf("pg_advisory_xact_lock(4222");
+  const statusUpdate = expiration.indexOf("tx.update(employeeCompensationComponents)");
+  const financialEvent = expiration.indexOf("tx.insert(compensationEvents)");
+  const auditRecord = expiration.indexOf("tx.insert(auditEvents)");
+  assert.ok(transaction >= 0 && lock > transaction);
+  assert.ok(statusUpdate > lock && financialEvent > statusUpdate && auditRecord > financialEvent);
+  assert.ok(expiration.includes('lt(employeeCompensationComponents.effectiveUntil, today)'));
+  assert.ok(expiration.includes('status: "ended"'));
+  assert.ok(governance.includes("expirationFailures.push("));
+  assert.ok(governance.includes("expireCompensationComponentAssignment(assignment.id, { actor, now })"));
+  assert.ok(payroll.includes('["scheduled", "active", "ended"]'));
+});
