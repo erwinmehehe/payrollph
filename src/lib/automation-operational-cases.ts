@@ -307,6 +307,9 @@ export async function prepareOperationalReviewCase(input: {
       eq(automationOperationalCases.sourceId, sourceId),
     )).limit(1);
     if (!existing) throw new Error("Operational review idempotency lookup failed.");
+    if (existing.status === "resolved") {
+      throw new Error("The source reopened after its review case was resolved. Reopen the case through Execution Center before a new automation can complete.");
+    }
     return { case: existing, created: false };
   });
 }
@@ -343,6 +346,14 @@ export async function createExecutionDeadLetter(input: {
   )).limit(1);
   if (!execution || !["failed", "partial"].includes(execution.status)) {
     throw new Error("Only an existing failed/partial execution can be quarantined.");
+  }
+  const results = Array.isArray(execution.result) ? execution.result : [];
+  const latestStep = results.filter((value): value is Record<string, unknown> =>
+    Boolean(value) && typeof value === "object" && !Array.isArray(value)
+      && Number((value as Record<string, unknown>).stepIndex) === input.stepIndex
+  ).at(-1);
+  if (!latestStep || latestStep.status !== "failed" || latestStep.type !== input.latestFailure.type) {
+    throw new Error("The failed step changed before quarantine; refresh the execution evidence.");
   }
   return db.transaction(async (tx) => {
     const title = `Automation dead letter #${input.executionId} · step ${input.stepIndex + 1}`;
