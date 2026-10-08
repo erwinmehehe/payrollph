@@ -20,6 +20,15 @@ export type CompensationAutomationIntentInput = {
 
 const MAX_AUTO_ATTEMPTS = 5;
 const PRE_LEDGER_RETRIES_EXHAUSTED = "Maximum pre-ledger retry attempts reached. Human reconciliation required.";
+const ALLOWED_FINANCIAL_SOURCES = new Set(["salary_change", "component_activated"]);
+function eligibleCompensationAutomationSource(
+  eventType: string, trigger: string, eventKey: string,
+) {
+  return ALLOWED_FINANCIAL_SOURCES.has(eventType)
+    && (trigger === "compensation.changed" || trigger === "employee.field_changed")
+    && eventKey.length > 0 && eventKey.length <= 240;
+}
+
 const DISPATCH_LEASE_MS = 10 * 60 * 1000;
 
 /**
@@ -47,14 +56,16 @@ export async function enqueueCompensationAutomationIntents(
   // Foreign keys prove only that each referenced row exists; they do not
   // prove that the event and employee belong to this same tenant. A mismatch
   // must roll back the financial transition, not enqueue a misrouted event.
-  const [financialSource] = await tx.select({ id: compensationEvents.id })
+  const [financialSource] = await tx.select({ id: compensationEvents.id, eventType: compensationEvents.eventType })
     .from(compensationEvents).where(and(
       eq(compensationEvents.id, input.compensationEventId),
       eq(compensationEvents.organizationId, input.organizationId),
       eq(compensationEvents.employeeId, input.employeeId),
     )).limit(1);
-  if (!financialSource) {
-    throw new Error("Compensation notification source must match the event's employer and employee.");
+  if (!financialSource || input.intents.some((intent) =>
+    !eligibleCompensationAutomationSource(financialSource.eventType, intent.trigger, intent.eventKey)
+  )) {
+    throw new Error("Compensation notification source must match an allowed event type, employer, employee, and trigger.");
   }
 
   return tx.insert(compensationAutomationIntents).values(input.intents.map((intent) => ({
@@ -136,15 +147,15 @@ export async function dispatchCompensationAutomationIntent(
     // A malformed/legacy outbox row must never use the intended tenant's
     // authority to send another worker's compensation to Automation Studio.
     // Verify again at delivery because old data may predate current writers.
-    const [source] = await db.select({ id: compensationEvents.id })
+    const [source] = await db.select({ id: compensationEvents.id, eventType: compensationEvents.eventType })
       .from(compensationEvents).where(and(
         eq(compensationEvents.id, row.compensationEventId),
         eq(compensationEvents.organizationId, row.organizationId),
         eq(compensationEvents.employeeId, row.employeeId),
       )).limit(1);
-    if (!source) {
+    if (!source || !eligibleCompensationAutomationSource(source.eventType, row.trigger, row.eventKey)) {
       return persistDispatchResult(row, "needs_review", {
-        now, error: "Compensation notification tenant or employee source mismatch; dispatch prohibited.",
+        now, error: "Compensation notification source mismatch or forbidden event trigger; dispatch prohibited.",
       });
     }
 
@@ -350,14 +361,14 @@ export async function retryUnstartedCompensationAutomationIntent(input: {
       eq(compensationAutomationIntents.organizationId, input.organizationId),
     )).limit(1);
     if (!intent || intent.status !== "needs_review") throw new Error("Compensation automation intent is not in review.");
-    const [source] = await tx.select({ id: compensationEvents.id })
+    const [source] = await tx.select({ id: compensationEvents.id, eventType: compensationEvents.eventType })
       .from(compensationEvents).where(and(
         eq(compensationEvents.id, intent.compensationEventId),
         eq(compensationEvents.organizationId, input.organizationId),
         eq(compensationEvents.employeeId, intent.employeeId),
       )).limit(1);
-    if (!source) {
-      throw new Error("Compensation automation intent has a tenant or worker source mismatch; manual retry prohibited.");
+    if (!source || !eligibleCompensationAutomationSource(source.eventType, intent.trigger, intent.eventKey)) {
+      throw new Error("Compensation automation source mismatch or forbidden trigger; manual retry prohibited.");
     }
     if (intent.lastError?.includes("lease expired")) {
       throw new Error("An expired dispatch lease may have external side effects; require separate execution evidence review.");
