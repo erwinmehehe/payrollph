@@ -12,6 +12,9 @@ export type HireReviewContext = {
   positionCode: string;
   positionStatus: string;
   positionUpdatedAt: string;
+  positionOrgUnitId: number | null;
+  positionLegalEntityId: number | null;
+  positionPlanId: number | null;
   positionAnnualBudget: string;
   profileTitle: string;
   employeeNo: string;
@@ -49,6 +52,7 @@ export function hireReviewFingerprint(value: HireReviewContext): string {
     value.applicantStage, value.applicantEmail.toLowerCase(),
     value.offeredMonthly, value.requisitionStatus,
     value.positionCode, value.positionStatus, value.positionUpdatedAt,
+    value.positionOrgUnitId, value.positionLegalEntityId, value.positionPlanId,
     value.positionAnnualBudget, value.profileTitle,
     value.employeeNo, value.firstName, value.middleName, value.lastName,
     value.startDate, value.region, value.nationality, value.mwe,
