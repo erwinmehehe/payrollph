@@ -229,6 +229,9 @@ test("production pilot sign-off verifies independent figures server-side instead
   assert.ok(!route.includes("REQUIRED_CHECKS"), "server must not accept checkbox-only reconciliation");
   assert.ok(card.includes("INDEPENDENT FIGURES"), "owner UI must collect the external reconciliation totals");
   assert.ok(card.includes("employeeLevelReconciliationConfirmed"), "owner UI must require employee-level reconciliation attestation");
+  assert.ok(card.includes("setSelectedRunId"), "owner must choose the actual released run to sign off");
+  assert.ok(card.includes("setEvidenceReference(\"\")"), "switching runs must clear prior evidence references");
+  assert.ok(card.includes("setIndependentSourceConfirmed(false)"), "switching runs must reset the independent reviewer attestation");
   assert.ok(card.includes("A recorded bank-file dry-run"), "owner UI must disclose no-money bank-file sign-off path");
   assert.ok(card.includes("Verify figures & sign off pilot"), "owner UI must make server verification explicit");
   assert.ok(!card.includes("matches the independently prepared expected result"), "old trust-me match toggles must be removed");
