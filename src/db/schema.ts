@@ -61,9 +61,16 @@ export const userOrganizations = pgTable(
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     role: varchar("role", { length: 32 }).notNull().default("admin"),
     orgUnitId: integer("org_unit_id"),
+    // Explicit, tenant-scoped account-to-worker identity for Dynamic Group eligibility.
+    // This never assigns an organization role or grants a permission.
+    workerEmployeeId: integer("worker_employee_id").references(() => employees.id, { onDelete: "set null" }),
     active: boolean("active").notNull().default(true),
   },
-  (table) => [uniqueIndex("user_org_unique").on(table.userId, table.organizationId)],
+  (table) => [
+    uniqueIndex("user_org_unique").on(table.userId, table.organizationId),
+    uniqueIndex("user_org_worker_employee_unique").on(table.organizationId, table.workerEmployeeId)
+      .where(sql`${table.workerEmployeeId} is not null`),
+  ],
 );
 
 export const legalEntities = pgTable(
@@ -4670,12 +4677,17 @@ export const userPermissionAssignments = pgTable(
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     userOrganizationId: integer("user_organization_id").notNull().references(() => userOrganizations.id, { onDelete: "cascade" }),
     permissionSetId: integer("permission_set_id").notNull().references(() => permissionSets.id, { onDelete: "cascade" }),
+    // Optional deny-only group guard: membership is checked live at every role gate.
+    dynamicGroupId: integer("dynamic_group_id").references(() => dynamicWorkerGroups.id, { onDelete: "restrict" }),
+    dynamicGroupVersion: integer("dynamic_group_version"),
     assignedByUserId: integer("assigned_by_user_id").references(() => users.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
     uniqueIndex("user_permission_assignments_membership_unique").on(table.userOrganizationId),
     index("user_permission_assignments_org_idx").on(table.organizationId),
+    index("user_permission_assignments_group_idx").on(table.organizationId, table.dynamicGroupId),
+    check("user_permission_assignments_group_pair_check", sql`(${table.dynamicGroupId} is null and ${table.dynamicGroupVersion} is null) or (${table.dynamicGroupId} is not null and ${table.dynamicGroupVersion} >= 1)`),
   ],
 );
 

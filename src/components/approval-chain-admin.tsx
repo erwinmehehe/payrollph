@@ -9,6 +9,7 @@ type ChainStep = {
   dueLabel?: string;
   priority?: string;
   minimumAmount?: number;
+  dynamicGroupCode?: string;
 };
 
 type ChainPolicy = {
@@ -35,6 +36,7 @@ function normalizedSteps(value: unknown): ChainStep[] {
       dueLabel: String(row.dueLabel ?? "Review required"),
       priority: String(row.priority ?? "Normal"),
       minimumAmount: Number(row.minimumAmount ?? 0),
+      dynamicGroupCode: String(row.dynamicGroupCode ?? ""),
     }];
   });
 }
@@ -49,6 +51,7 @@ export function ApprovalChainAdmin({
   onChanged?: () => void | Promise<void>;
 }) {
   const [policies, setPolicies] = useState<ChainPolicy[]>([]);
+  const [dynamicGroups, setDynamicGroups] = useState<Array<{ id: number; code: string; name: string; version: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -66,6 +69,7 @@ export function ApprovalChainAdmin({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Could not load approval chains.");
       setPolicies(Array.isArray(payload.policies) ? payload.policies : []);
+      setDynamicGroups(Array.isArray(payload.dynamicGroups) ? payload.dynamicGroups : []);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not load approval chains.");
     } finally {
@@ -158,7 +162,7 @@ export function ApprovalChainAdmin({
         <div>
           <div className="card-kicker">APPROVAL ROUTING</div>
           <h2>Configurable approval chains</h2>
-          <p>Ordered approvers and amount thresholds are snapshotted when a request starts. Editing this policy never rewrites an in-flight chain.</p>
+          <p>Ordered approvers, amount thresholds and optional Dynamic Group IDs/versions are frozen when a request starts. A group restriction narrows the existing approver and is checked live at the decision.</p>
         </div>
         <div className="run-actions" style={{ margin: 0 }}>
           <button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}>
@@ -171,7 +175,7 @@ export function ApprovalChainAdmin({
       <div className="card-body">
         <div className="notice notice-slate" style={{ marginBottom: 14 }}>
           <ShieldCheck size={15} className="i-purple" />
-          <span>Chain changes require company-wide admin, MFA, same-origin, rate-limit, and audit controls. Workforce planning chains can route to role:hr, role:finance, role:manager, or role:owner; named approvers and active delegations continue to work too. Amount-aware requests add higher steps only after their PHP threshold is reached.</span>
+          <span>Chain changes require company-wide admin, MFA, same-origin, rate-limit, and audit controls. Steps keep their named approver or role:hr, role:finance, role:manager or role:owner authority. An optional Dynamic Group adds a live worker-membership requirement; it never grants approvals or bypasses delegation, maker-checker or payroll controls. Group identity and version are frozen when a request starts.</span>
         </div>
 
         <div className="setting-form">
@@ -197,10 +201,23 @@ export function ApprovalChainAdmin({
         <div style={{ marginTop: 12 }}>
           {steps.map((step, index) => (
             <div className="card" key={index} style={{ boxShadow: "none", padding: 12, marginBottom: 8 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "56px 1fr 1fr 170px 1fr auto", gap: 8, alignItems: "end" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(125px,1fr))", gap: 8, alignItems: "end" }}>
                 <strong style={{ fontSize: 12 }}>#{index + 1}</strong>
                 <label>Step label<input value={step.label} onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? { ...row, label: event.target.value } : row))} /></label>
                 <label>Approver<input value={step.approver} onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? { ...row, approver: event.target.value } : row))} placeholder="Name or role:hr / role:finance / role:owner" /></label>
+                <label>Required Dynamic Group
+                  <select
+                    value={step.dynamicGroupCode ?? ""}
+                    onChange={(event) => setSteps((rows) => rows.map((row, i) =>
+                      i === index ? { ...row, dynamicGroupCode: event.target.value } : row
+                    ))}
+                  >
+                    <option value="">No group restriction</option>
+                    {dynamicGroups.map((group) => (
+                      <option value={group.code} key={group.id}>{group.name} · v{group.version}</option>
+                    ))}
+                  </select>
+                </label>
                 <label>Starts at (PHP)<input type="number" min="0" step="0.01" disabled={index === 0} value={step.minimumAmount ?? 0} onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? { ...row, minimumAmount: Number(event.target.value) } : row))} /></label>
                 <label>Priority<select value={step.priority ?? "Normal"} onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? { ...row, priority: event.target.value } : row))}><option>Normal</option><option>High</option></select></label>
                 <button type="button" className="icon-button" disabled={steps.length === 1} onClick={() => setSteps((rows) => rows.filter((_, i) => i !== index))}><Trash2 size={15} /></button>

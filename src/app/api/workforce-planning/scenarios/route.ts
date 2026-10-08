@@ -16,7 +16,7 @@ import {
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
-import { approvalStepsForAmount, validateApprovalChainSteps } from "@/lib/approval-chains";
+import { approvalStepsForAmount, freezeDynamicGroupApprovalSteps, validateApprovalChainSteps } from "@/lib/approval-chains";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
@@ -414,9 +414,17 @@ export async function PATCH(request: Request) {
       error: error instanceof Error ? error.message : "Could not calculate the workforce-plan approval amount.",
     }, { status: 409 });
   }
-  const routedSteps = approvalStepsForAmount(policySteps, routing.amount);
-  if (routedSteps.length < 1) {
+  const eligibleSteps = approvalStepsForAmount(policySteps, routing.amount);
+  if (eligibleSteps.length < 1) {
     return Response.json({ error: "The active workforce-plan approval chain has no applicable step." }, { status: 409 });
+  }
+  let routedSteps;
+  try {
+    routedSteps = await freezeDynamicGroupApprovalSteps(scenario.organizationId, eligibleSteps);
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "The approval group's policy changed.",
+    }, { status: 409 });
   }
 
   try {

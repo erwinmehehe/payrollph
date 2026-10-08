@@ -1,11 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalChainPolicies } from "@/db/schema";
+import { approvalChainPolicies, dynamicWorkerGroups } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
-import { validateApprovalChainSteps } from "@/lib/approval-chains";
+import { freezeDynamicGroupApprovalSteps, validateApprovalChainSteps } from "@/lib/approval-chains";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -33,10 +33,21 @@ export async function GET(request: Request) {
     return Response.json({ error: "Approval-chain administration requires company-wide access." }, { status: 403 });
   }
 
-  const policies = await db.select().from(approvalChainPolicies)
-    .where(eq(approvalChainPolicies.organizationId, organizationId))
-    .orderBy(approvalChainPolicies.code);
-  return Response.json({ policies });
+  const [policies, groups] = await Promise.all([
+    db.select().from(approvalChainPolicies)
+      .where(eq(approvalChainPolicies.organizationId, organizationId))
+      .orderBy(approvalChainPolicies.code),
+    db.select({
+      id: dynamicWorkerGroups.id,
+      code: dynamicWorkerGroups.code,
+      name: dynamicWorkerGroups.name,
+      version: dynamicWorkerGroups.version,
+    }).from(dynamicWorkerGroups).where(and(
+      eq(dynamicWorkerGroups.organizationId, organizationId),
+      eq(dynamicWorkerGroups.active, true),
+    )).orderBy(dynamicWorkerGroups.name),
+  ]);
+  return Response.json({ policies, dynamicGroups: groups });
 }
 
 export async function POST(request: Request) {
@@ -92,6 +103,15 @@ export async function POST(request: Request) {
       return Response.json({
         error: "A valid code, name, and 1-12 ordered approval steps are required.",
       }, { status: 400 });
+    }
+    try {
+      // Validate all selected groups, even on amount-escalated steps.
+      // Changes to group definitions never silently expand an in-flight chain.
+      await freezeDynamicGroupApprovalSteps(organizationId, steps);
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error ? error.message : "Invalid Dynamic Group approval scope.",
+      }, { status: 409 });
     }
 
     if (id) {
@@ -183,6 +203,17 @@ export async function POST(request: Request) {
     if (!existing) return Response.json({ error: "Approval chain not found." }, { status: 404 });
 
     const nextActive = Boolean(body.active);
+    if (nextActive) {
+      const steps = validateApprovalChainSteps(existing.steps);
+      if (!steps) return Response.json({ error: "Approval policy steps are invalid." }, { status: 409 });
+      try {
+        await freezeDynamicGroupApprovalSteps(organizationId, steps);
+      } catch (error) {
+        return Response.json({
+          error: error instanceof Error ? error.message : "The approval Dynamic Group is inactive or missing.",
+        }, { status: 409 });
+      }
+    }
     const [updated] = await db.transaction(async (tx) => {
       if (nextActive && existing.purpose === "workforce_plan") {
         await tx.update(approvalChainPolicies).set({

@@ -2374,6 +2374,44 @@ CREATE INDEX IF NOT EXISTS compliance_action_assignee_idx
   ON compliance_action_tasks (organization_id, assigned_to_user_id, status);
       `);
 
+      // Older hosted tenants may predate the enterprise identity tables.
+      // Guard each upgrade by its actual table dependencies instead of
+      // failing unrelated demo launches during legacy-schema compatibility.
+      await client.query(`
+        DO $group_auth$
+        BEGIN
+          IF to_regclass('user_organizations') IS NOT NULL
+             AND to_regclass('employees') IS NOT NULL THEN
+            ALTER TABLE user_organizations
+              ADD COLUMN IF NOT EXISTS worker_employee_id integer REFERENCES employees(id) ON DELETE SET NULL;
+            CREATE UNIQUE INDEX IF NOT EXISTS user_org_worker_employee_unique
+              ON user_organizations(organization_id, worker_employee_id)
+              WHERE worker_employee_id IS NOT NULL;
+          END IF;
+
+          IF to_regclass('user_permission_assignments') IS NOT NULL
+             AND to_regclass('dynamic_worker_groups') IS NOT NULL THEN
+            ALTER TABLE user_permission_assignments
+              ADD COLUMN IF NOT EXISTS dynamic_group_id integer REFERENCES dynamic_worker_groups(id) ON DELETE RESTRICT,
+              ADD COLUMN IF NOT EXISTS dynamic_group_version integer;
+            CREATE INDEX IF NOT EXISTS user_permission_assignments_group_idx
+              ON user_permission_assignments(organization_id, dynamic_group_id);
+            IF NOT EXISTS (
+              SELECT 1 FROM pg_constraint
+              WHERE conname = 'user_permission_assignments_group_pair_check'
+            ) THEN
+              ALTER TABLE user_permission_assignments
+                ADD CONSTRAINT user_permission_assignments_group_pair_check
+                CHECK (
+                  (dynamic_group_id IS NULL AND dynamic_group_version IS NULL) OR
+                  (dynamic_group_id IS NOT NULL AND dynamic_group_version >= 1)
+                );
+            END IF;
+          END IF;
+        END
+        $group_auth$;
+      `);
+
       await client.query("COMMIT");
       coreSchemaReady = true;
     } catch (error) {
