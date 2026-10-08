@@ -2,12 +2,18 @@ import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  hcmJobProfileSkillRequirements,
+  hcmSkillExpectationDefaults,
+  hcmSkills,
   jobApplicants,
   jobProfiles,
   jobRequisitions,
   orgUnits,
   positionAssignments,
   positions,
+  workforcePlanBaselines,
+  workforcePlanPositionExecutions,
+  workforcePlans,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -17,6 +23,9 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { positionControlFingerprint } from "@/lib/hcm-position-business-process";
+import { PlanRequisitionHandoffError, resolvePublishedPlanRequisitionLineage } from "@/lib/workforce-plan-requisition-handoff";
+import { freezeTalentRoleSkills, TalentRoleArchitectureError } from "@/lib/hcm-talent-continuity";
 
 export const dynamic = "force-dynamic";
 
@@ -212,6 +221,13 @@ export async function POST(request: Request) {
         : 0;
 
       const createdOrResponse = await db.transaction(async (tx) => {
+        // Match published-plan position execution lock order (plan -> position).
+        // A row-share lock also serializes against concurrent baseline publish,
+        // which locks the plan row FOR UPDATE before changing the baseline.
+        if (position.planId != null) {
+          await tx.execute(sql`select pg_advisory_xact_lock(4194, ${position.planId})`);
+          await tx.execute(sql`select id from workforce_plans where id = ${position.planId} for share`);
+        }
         await tx.execute(sql`select pg_advisory_xact_lock(4102, ${position.id})`);
 
         const lockedSearches = await tx.select({
@@ -228,15 +244,56 @@ export async function POST(request: Request) {
           });
         }
 
-        const [freshPosition] = await tx.select({
-          status: positions.status,
-        }).from(positions).where(and(
+        const [freshPosition] = await tx.select().from(positions).where(and(
           eq(positions.id, position.id),
           eq(positions.organizationId, organizationId),
         )).limit(1);
         if (!freshPosition || freshPosition.status !== "approved") {
           throw new RecruitmentConflict("Only an approved position can be opened for recruitment.", {
             positionStatus: freshPosition?.status ?? "missing",
+          });
+        }
+        if (positionControlFingerprint(freshPosition) !== positionControlFingerprint(position)) {
+          throw new RecruitmentConflict(
+            "The approved position changed while the requisition was being opened. Refresh before submitting.",
+          );
+        }
+
+        // Plan-linked positions must be backed by the exact CURRENT published
+        // baseline AND an applied position execution. This gate prevents manual
+        // position approval or stale plan publication from manufacturing hiring
+        // authority. Existing requisitions are not retroactively rewritten.
+        let lineage = null as ReturnType<typeof resolvePublishedPlanRequisitionLineage> | null;
+        if (freshPosition.planId != null) {
+          const [[plan], [baseline]] = await Promise.all([
+            tx.select().from(workforcePlans).where(and(
+              eq(workforcePlans.id, freshPosition.planId),
+              eq(workforcePlans.organizationId, organizationId),
+            )).limit(1),
+            tx.select().from(workforcePlanBaselines).where(and(
+              eq(workforcePlanBaselines.organizationId, organizationId),
+              eq(workforcePlanBaselines.planId, freshPosition.planId),
+              eq(workforcePlanBaselines.current, true),
+            )).orderBy(desc(workforcePlanBaselines.version)).limit(1),
+          ]);
+          const appliedExecutions = baseline
+            ? await tx.select().from(workforcePlanPositionExecutions).where(and(
+                eq(workforcePlanPositionExecutions.organizationId, organizationId),
+                eq(workforcePlanPositionExecutions.planId, freshPosition.planId),
+                eq(workforcePlanPositionExecutions.baselineId, baseline.id),
+                eq(workforcePlanPositionExecutions.status, "applied"),
+              )).orderBy(desc(workforcePlanPositionExecutions.id))
+            : [];
+          lineage = resolvePublishedPlanRequisitionLineage({
+            organizationId,
+            plan: plan ?? null,
+            baseline: baseline ?? null,
+            executions: appliedExecutions,
+            position: {
+              ...freshPosition,
+              plannedStartDate: freshPosition.plannedStartDate
+                ? String(freshPosition.plannedStartDate) : null,
+            },
           });
         }
 
@@ -251,10 +308,44 @@ export async function POST(request: Request) {
           throw new RecruitmentConflict("An occupied position cannot be opened for recruitment.");
         }
 
+        // Freeze ROLE-ONLY expectations from approved job architecture at
+        // requisition opening. Do not expose employee reviews, compensation
+        // assessments or personal development records to Recruitment.
+        const [[freshProfile], directSkills, inheritedSkills, skills] = await Promise.all([
+          tx.select().from(jobProfiles).where(and(
+            eq(jobProfiles.id, freshPosition.jobProfileId),
+            eq(jobProfiles.organizationId, organizationId),
+          )).limit(1),
+          tx.select().from(hcmJobProfileSkillRequirements).where(and(
+            eq(hcmJobProfileSkillRequirements.organizationId, organizationId),
+            eq(hcmJobProfileSkillRequirements.jobProfileId, freshPosition.jobProfileId),
+          )),
+          tx.select().from(hcmSkillExpectationDefaults).where(and(
+            eq(hcmSkillExpectationDefaults.organizationId, organizationId),
+            eq(hcmSkillExpectationDefaults.active, true),
+          )),
+          tx.select().from(hcmSkills).where(eq(hcmSkills.organizationId, organizationId)),
+        ]);
+        if (!freshProfile || freshProfile.title !== profile.title ||
+          freshProfile.familyId !== profile.familyId ||
+          freshProfile.levelId !== profile.levelId ||
+          !freshProfile.active) {
+          throw new RecruitmentConflict("The position's approved job profile changed. Refresh before opening recruitment.");
+        }
+        const roleSkills = freezeTalentRoleSkills({
+          profile: freshProfile,
+          direct: directSkills,
+          inherited: inheritedSkills,
+          skills,
+          capturedAt: new Date().toISOString(),
+        });
+
         const [requisition] = await tx.insert(jobRequisitions).values({
           organizationId,
           positionId: position.id,
-          title: profile.title,
+          planHandoffEvidence: lineage,
+          roleSkillSnapshot: roleSkills,
+          title: freshProfile.title,
           department: unit?.name ?? "Company-wide",
           headcount: 1,
           salaryMin: monthlyBudget ? monthlyBudget.toFixed(2) : null,
@@ -268,15 +359,21 @@ export async function POST(request: Request) {
           .set({ status: "open", updatedAt: new Date() })
           .where(eq(positions.id, position.id));
 
-        return requisition;
+        return { requisition, lineage, roleSkills };
       }).catch((error: unknown) => {
+        if (error instanceof TalentRoleArchitectureError) {
+          return Response.json({ error: error.message, code: "ROLE_SKILL_ARCHITECTURE_INCOMPLETE" }, { status: 409 });
+        }
+        if (error instanceof PlanRequisitionHandoffError) {
+          return Response.json({ error: error.message, code: error.code }, { status: 409 });
+        }
         if (error instanceof RecruitmentConflict) {
           return Response.json({ error: error.message, ...error.details }, { status: 409 });
         }
         throw error;
       });
       if (createdOrResponse instanceof Response) return createdOrResponse;
-      const created = createdOrResponse;
+      const { requisition: created, lineage, roleSkills } = createdOrResponse;
 
       await recordAuditEvent({
         organizationId,
@@ -289,6 +386,9 @@ export async function POST(request: Request) {
           requisitionId: created.id,
           orgUnitId: position.orgUnitId,
           annualBudget: Number(position.annualBudget),
+          planHandoffEvidence: lineage,
+          roleSkillFingerprint: roleSkills.fingerprint,
+          capturedRoleSkills: roleSkills.requirements.length,
         },
       });
 
@@ -305,6 +405,11 @@ export async function POST(request: Request) {
           annualBudget: Number(position.annualBudget),
           eventAmount: Number(position.annualBudget),
           requisitionId: created.id,
+          planId: lineage?.planId ?? null,
+          baselineId: lineage?.baselineId ?? null,
+          positionExecutionId: lineage?.executionId ?? null,
+          roleSkillFingerprint: roleSkills.fingerprint,
+          roleSkillCount: roleSkills.requirements.length,
         },
       });
 

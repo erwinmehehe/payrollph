@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   compensationBands,
@@ -6,6 +6,7 @@ import {
   compensationCycles,
   compensationEvents,
   compensationProposals,
+  hcmBusinessProcessInstances,
   employeeCompensationComponents,
   employeePayProfiles,
   employeePayRevisions,
@@ -24,7 +25,7 @@ import { runAutomationEventSafely } from "@/lib/automation";
 import {
   annualizePay,
   compaRatio,
-  proposalBudgetDelta,
+  evaluateCompensationCycleBudget,
   proposalWithinBand,
   rangePosition,
   rateFromAnnual,
@@ -33,11 +34,15 @@ import {
 } from "@/lib/compensation";
 import {
   applyScheduledCompensationProposal,
+  cancelGovernedCompensationProposal,
+  decideRecurringCompensationComponent,
   compensationPayrollConflicts,
   invalidatePayrollRunsForCompensationChange,
   philippineBusinessDate,
 } from "@/lib/hcm-compensation";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { cancelHcmBusinessProcessForSourceTx, findHcmBusinessProcessForSource, startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
+import { compensationEvidenceFromDefinition, compensationReviewFingerprint, freezeCompensationReview, type HcmCompensationReview } from "@/lib/hcm-compensation-business-process";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +65,33 @@ function dateRangesOverlap(
   const leftFinal = leftEnd ?? "9999-12-31";
   const rightFinal = rightEnd ?? "9999-12-31";
   return leftStart <= rightFinal && rightStart <= leftFinal;
+}
+
+function compensationReviewContext(input: {
+  proposal: typeof compensationProposals.$inferSelect;
+  cycle: typeof compensationCycles.$inferSelect;
+  band: typeof compensationBands.$inferSelect;
+  employee: typeof employees.$inferSelect;
+}): HcmCompensationReview {
+  const { proposal, cycle, band, employee } = input;
+  return {
+    organizationId: proposal.organizationId,
+    proposalId: proposal.id,
+    employeeId: proposal.employeeId,
+    employeeOrgUnitId: employee.orgUnitId,
+    cycleId: cycle.id,
+    cycleStatus: cycle.status,
+    cycleEffectiveDate: String(cycle.effectiveDate),
+    cycleBudgetPool: Number(cycle.budgetPool).toFixed(2),
+    bandId: band.id,
+    bandMinimumAnnual: Number(band.minimumAnnual).toFixed(2),
+    bandMidpointAnnual: Number(band.midpointAnnual).toFixed(2),
+    bandMaximumAnnual: Number(band.maximumAnnual).toFixed(2),
+    currentAnnual: Number(proposal.currentAnnual).toFixed(2),
+    proposedAnnual: Number(proposal.proposedAnnual).toFixed(2),
+    reason: proposal.reason,
+    workerEffectiveChangeId: proposal.workerEffectiveChangeId,
+  };
 }
 
 async function employeeInScope(userId: number, organizationId: number, employeeId: number) {
@@ -222,6 +254,7 @@ export async function GET(request: Request) {
     bands,
     cycles,
     proposals,
+    compensationReviews,
     assignments,
     positionRows,
     profilesByJob,
@@ -237,6 +270,14 @@ export async function GET(request: Request) {
     db.select().from(compensationBands).where(eq(compensationBands.organizationId, organizationId)).orderBy(desc(compensationBands.effectiveFrom), desc(compensationBands.id)),
     db.select().from(compensationCycles).where(eq(compensationCycles.organizationId, organizationId)).orderBy(desc(compensationCycles.startDate)),
     db.select().from(compensationProposals).where(eq(compensationProposals.organizationId, organizationId)).orderBy(desc(compensationProposals.id)),
+    db.select({
+      id: hcmBusinessProcessInstances.id,
+      sourceKey: hcmBusinessProcessInstances.sourceKey,
+      status: hcmBusinessProcessInstances.status,
+    }).from(hcmBusinessProcessInstances).where(and(
+      eq(hcmBusinessProcessInstances.organizationId, organizationId),
+      eq(hcmBusinessProcessInstances.sourceType, "compensation_proposal"),
+    )),
     db.select().from(positionAssignments).where(and(
       eq(positionAssignments.organizationId, organizationId),
       eq(positionAssignments.assignmentType, "primary"),
@@ -316,8 +357,10 @@ export async function GET(request: Request) {
     cycles,
     proposals: proposals.filter((row) => visibleIds.has(row.employeeId)).map((proposal) => {
       const band = bands.find((row) => row.id === proposal.bandId);
+      const review = compensationReviews.find((item) => item.sourceKey === String(proposal.id));
       return {
         ...proposal,
+        hcmReview: review ? { id: review.id, status: review.status } : null,
         compaRatio: band ? compaRatio(Number(proposal.proposedAnnual), Number(band.midpointAnnual)) : null,
         rangePosition: band ? rangePosition(Number(proposal.proposedAnnual), Number(band.minimumAnnual), Number(band.maximumAnnual)) : null,
       };
@@ -609,30 +652,67 @@ export async function POST(request: Request) {
     if ("error" in effectivePay) return Response.json({ error: effectivePay.error }, { status: 409 });
     const currentAnnual = annualizePay(effectivePay);
 
+    const supervisoryOrgUnitId = await supervisoryOrgForEffectiveChange({
+      organizationId,
+      employeeId,
+    });
     try {
-      const [row] = await db.insert(compensationProposals).values({
-        organizationId,
-        cycleId,
-        employeeId,
-        bandId,
-        currentAnnual: currentAnnual.toFixed(2),
-        proposedAnnual: proposedAnnual.toFixed(2),
-        reason: reason.slice(0, 500),
-        status: "proposed",
-        submittedByUserId: user.id,
-        workerEffectiveChangeId,
-      }).returning();
+      // The salary recommendation and its frozen HCM policy snapshot are one
+      // atomic request. Creating it never schedules a pay revision.
+      const { row, review } = await db.transaction(async (tx) => {
+        const [row] = await tx.insert(compensationProposals).values({
+          organizationId,
+          cycleId,
+          employeeId,
+          bandId,
+          currentAnnual: currentAnnual.toFixed(2),
+          proposedAnnual: proposedAnnual.toFixed(2),
+          reason: reason.slice(0, 500),
+          status: "proposed",
+          submittedByUserId: user.id,
+          workerEffectiveChangeId,
+        }).returning();
+
+        const review = await startHcmBusinessProcessTx(tx, {
+          organizationId,
+          processType: "compensation_change",
+          sourceType: "compensation_proposal",
+          sourceKey: String(row.id),
+          employeeId,
+          employeeLabel: `${scoped.employee.firstName} ${scoped.employee.lastName}`,
+          supervisoryOrgUnitId,
+          effectiveDate: String(cycle.effectiveDate),
+          initiatedByUserId: user.id,
+          initiatedByName: user.name,
+          sourceEvidence: {
+            ...freezeCompensationReview(compensationReviewContext({
+              proposal: row, cycle, band, employee: scoped.employee,
+            })),
+          },
+        });
+        return { row, review };
+      });
 
       await recordAuditEvent({
         organizationId,
         actor: user.name,
-        action: "Compensation proposal submitted",
+        action: "Compensation proposal submitted for independent HCM review",
         resource: `Employee #${employeeId}`,
-        metadata: { proposalId: row.id, cycleId, currentAnnual, proposedAnnual, workerEffectiveChangeId },
+        metadata: {
+          proposalId: row.id, cycleId, currentAnnual, proposedAnnual,
+          workerEffectiveChangeId, businessProcessInstanceId: review.id,
+        },
       });
-      return Response.json(row, { status: 201 });
-    } catch {
-      return Response.json({ error: "This employee already has a proposal in that compensation cycle." }, { status: 409 });
+      return Response.json({
+        ...row,
+        hcmReview: { id: review.id, status: review.status },
+        approvalRequired: true,
+      }, { status: 201 });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error && /[Bb]usiness[- ]process/.test(error.message)
+          ? error.message : "This employee already has a proposal in the cycle, or the HCM review could not start.",
+      }, { status: 409 });
     }
   }
 
@@ -672,150 +752,70 @@ export async function PATCH(request: Request) {
     const scoped = await employeeInScope(user.id, assignment.organizationId, assignment.employeeId);
     if ("error" in scoped) return scoped.error;
 
-    if (action === "approve") {
-      if (assignment.status !== "pending_approval") return Response.json({ error: "Only pending compensation components can be approved." }, { status: 409 });
-      if (assignment.requestedByUserId === user.id) {
+    let result;
+    try {
+      result = await decideRecurringCompensationComponent({
+        assignmentId: id,
+        organizationId: assignment.organizationId,
+        employeeId: assignment.employeeId,
+        decision: action as "approve" | "decline" | "cancel",
+        actorUserId: user.id,
+        actorName: user.name,
+      });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "COMPONENT_MAKER_CHECKER_CONFLICT") {
         return Response.json({ error: "Maker-checker control: the requester cannot approve their own recurring compensation component." }, { status: 403 });
       }
-      if (String(assignment.effectiveFrom) < philippineBusinessDate()) {
+      if (code === "COMPONENT_APPROVAL_RETROACTIVE") {
         return Response.json({ error: "This recurring component is now retroactive. Cancel and handle past payroll through an audited adjustment." }, { status: 409 });
       }
-
-      let affectedRuns;
-      try {
-        affectedRuns = await compensationPayrollConflicts({
-          organizationId: assignment.organizationId,
-          employeeOrgUnitId: scoped.employee.orgUnitId,
-          effectiveFrom: String(assignment.effectiveFrom),
-          effectiveUntil: assignment.effectiveUntil ? String(assignment.effectiveUntil) : null,
-        });
-        await invalidatePayrollRunsForCompensationChange(assignment.organizationId, affectedRuns);
-      } catch (error) {
-        return Response.json({ error: error instanceof Error ? error.message : "Compensation conflicts with payroll state." }, { status: 409 });
+      if (code === "COMPONENT_CANCELLATION_RETROACTIVE") {
+        return Response.json({ error: "The scheduled component is already effective. Use an audited payroll correction instead of cancelling an earned-pay period." }, { status: 409 });
       }
+      if (code === "COMPONENT_ASSIGNMENT_STALE" || code === "COMPONENT_EMPLOYEE_STALE") {
+        return Response.json({ error: "The component assignment or employee record changed. Refresh and review the current state before deciding." }, { status: 409 });
+      }
+      if (code.startsWith("Payroll run #") || code.startsWith("Compensation cannot change")) {
+        return Response.json({ error: code }, { status: 409 });
+      }
+      return Response.json({ error: "Recurring compensation could not be committed. Payroll runs were not invalidated; refresh and retry." }, { status: 409 });
+    }
 
-      const now = new Date();
-      const today = philippineBusinessDate(now);
-      const nextStatus = String(assignment.effectiveFrom) <= today ? "active" : "scheduled";
-      const row = await db.transaction(async (tx) => {
-        const [updated] = await tx.update(employeeCompensationComponents).set({
-          status: nextStatus,
-          approvedByUserId: user.id,
-          approvedBy: user.name,
-          approvedAt: now,
-          activatedAt: nextStatus === "active" ? now : null,
-          updatedAt: now,
-        }).where(and(
-          eq(employeeCompensationComponents.id, id),
-          eq(employeeCompensationComponents.status, "pending_approval"),
-        )).returning();
-        if (!updated) return null;
+    const row = result.assignment;
+    if (action !== "approve") return Response.json(row);
 
-        await tx.insert(compensationEvents).values({
-          organizationId: updated.organizationId,
-          employeeId: updated.employeeId,
-          eventType: nextStatus === "active" ? "component_activated" : "component_scheduled",
-          effectiveDate: String(updated.effectiveFrom),
-          componentAssignmentId: updated.id,
-          metadata: {
-            componentId: updated.componentId,
-            amount: Number(updated.amount),
-            effectiveUntil: updated.effectiveUntil,
-            reason: updated.reason,
+    // The financial decision and its audit evidence are already committed.
+    // Automation is a separate side effect and cannot make an operator believe
+    // the approval failed (which could otherwise invite a second submission).
+    let automation: Awaited<ReturnType<typeof runAutomationEventSafely>> = [];
+    let automationWarning: string | null = null;
+    if (result.nextStatus === "active") {
+      try {
+        automation = await runAutomationEventSafely({
+          organizationId: row.organizationId,
+          employeeId: row.employeeId,
+          trigger: "compensation.changed",
+          eventKey: `compensation-component-active:${row.id}`,
+          context: {
+            compensationComponentAssignmentId: row.id,
+            compensationComponentId: row.componentId,
+            effectiveDate: row.effectiveFrom,
+            eventAmount: Number(row.amount),
+            compensationChangeKind: "recurring_component",
           },
-          actorUserId: user.id,
-          actorName: user.name,
         });
-        return updated;
-      });
-      if (!row) return Response.json({ error: "The compensation component changed before approval." }, { status: 409 });
-
-      await recordAuditEvent({
-        organizationId: row.organizationId,
-        actor: user.name,
-        action: nextStatus === "active" ? "Recurring compensation component approved and activated" : "Recurring compensation component approved and scheduled",
-        resource: `Employee #${row.employeeId}`,
-        metadata: { componentAssignmentId: row.id, componentId: row.componentId, effectiveFrom: row.effectiveFrom, invalidatedPayrollRunIds: affectedRuns.map((run) => run.id) },
-      });
-
-      const automation = nextStatus === "active"
-        ? await runAutomationEventSafely({
-            organizationId: row.organizationId,
-            employeeId: row.employeeId,
-            trigger: "compensation.changed",
-            eventKey: `compensation-component-active:${row.id}`,
-            context: {
-              compensationComponentAssignmentId: row.id,
-              compensationComponentId: row.componentId,
-              effectiveDate: row.effectiveFrom,
-              eventAmount: Number(row.amount),
-              compensationChangeKind: "recurring_component",
-            },
-          })
-        : [];
-
-      return Response.json({ ...row, automation });
-    }
-
-    if (action === "decline") {
-      if (assignment.status !== "pending_approval") return Response.json({ error: "Only pending component assignments can be declined." }, { status: 409 });
-      const [row] = await db.update(employeeCompensationComponents).set({
-        status: "declined",
-        approvedByUserId: user.id,
-        approvedBy: user.name,
-        approvedAt: new Date(),
-        updatedAt: new Date(),
-      }).where(and(
-        eq(employeeCompensationComponents.id, id),
-        eq(employeeCompensationComponents.status, "pending_approval"),
-      )).returning();
-      if (!row) return Response.json({ error: "The compensation component was already decided." }, { status: 409 });
-      await recordAuditEvent({ organizationId: row.organizationId, actor: user.name, action: "Recurring compensation component declined", resource: `Employee #${row.employeeId}`, metadata: { componentAssignmentId: row.id } });
-      return Response.json(row);
-    }
-
-    if (!["pending_approval", "scheduled"].includes(assignment.status)) {
-      return Response.json({ error: "Only pending or scheduled component assignments can be cancelled. End active compensation with a new governed effective-dated change." }, { status: 409 });
-    }
-
-    if (assignment.status === "scheduled") {
-      try {
-        const affectedRuns = await compensationPayrollConflicts({
-          organizationId: assignment.organizationId,
-          employeeOrgUnitId: scoped.employee.orgUnitId,
-          effectiveFrom: String(assignment.effectiveFrom),
-          effectiveUntil: assignment.effectiveUntil ? String(assignment.effectiveUntil) : null,
-        });
-        await invalidatePayrollRunsForCompensationChange(assignment.organizationId, affectedRuns);
-      } catch (error) {
-        return Response.json({ error: error instanceof Error ? error.message : "Cancellation conflicts with payroll state." }, { status: 409 });
+      } catch {
+        automationWarning = "Component approved; the follow-up automation requires review.";
       }
     }
 
-    const [row] = await db.update(employeeCompensationComponents).set({
-      status: "cancelled",
-      cancelledByUserId: user.id,
-      cancelledBy: user.name,
-      cancelledAt: new Date(),
-      updatedAt: new Date(),
-    }).where(and(
-      eq(employeeCompensationComponents.id, id),
-      eq(employeeCompensationComponents.status, assignment.status),
-    )).returning();
-    if (!row) return Response.json({ error: "The compensation component changed before cancellation." }, { status: 409 });
-
-    await db.insert(compensationEvents).values({
-      organizationId: row.organizationId,
-      employeeId: row.employeeId,
-      eventType: "component_cancelled",
-      effectiveDate: String(row.effectiveFrom),
-      componentAssignmentId: row.id,
-      metadata: { componentId: row.componentId, amount: Number(row.amount) },
-      actorUserId: user.id,
-      actorName: user.name,
+    return Response.json({
+      ...row,
+      automation,
+      invalidatedPayrollRunIds: result.invalidatedPayrollRunIds,
+      ...(automationWarning ? { automationWarning } : {}),
     });
-    await recordAuditEvent({ organizationId: row.organizationId, actor: user.name, action: "Recurring compensation component cancelled", resource: `Employee #${row.employeeId}`, metadata: { componentAssignmentId: row.id } });
-    return Response.json(row);
   }
 
   if (entityType !== "proposal") return Response.json({ error: "Unsupported compensation entity type." }, { status: 400 });
@@ -845,60 +845,67 @@ export async function PATCH(request: Request) {
   }
 
   if (decision === "cancel") {
-    if (!["proposed", "scheduled", "failed"].includes(proposal.status)) return Response.json({ error: "Only proposed, scheduled, or failed compensation changes can be cancelled." }, { status: 409 });
-
-    const [cycle] = await db.select().from(compensationCycles).where(eq(compensationCycles.id, proposal.cycleId)).limit(1);
+    // Role and worker scope are validated here; the helper re-reads the entire
+    // proposal, cycle, employee and revision under transaction locks.
     const scoped = await employeeInScope(user.id, proposal.organizationId, proposal.employeeId);
     if ("error" in scoped) return scoped.error;
 
-    if (["scheduled", "failed"].includes(proposal.status) && cycle) {
-      try {
-        const affectedRuns = await compensationPayrollConflicts({
-          organizationId: proposal.organizationId,
-          employeeOrgUnitId: scoped.employee.orgUnitId,
-          effectiveFrom: String(cycle.effectiveDate),
-          effectiveUntil: null,
-        });
-        await invalidatePayrollRunsForCompensationChange(proposal.organizationId, affectedRuns);
-      } catch (error) {
-        return Response.json({ error: error instanceof Error ? error.message : "Cancellation conflicts with payroll state." }, { status: 409 });
+    try {
+      const result = await cancelGovernedCompensationProposal({
+        proposalId: proposal.id,
+        organizationId: proposal.organizationId,
+        employeeId: proposal.employeeId,
+        actorUserId: user.id,
+        actorName: user.name,
+        onCancelled: async (tx) => {
+          // Invalidate the HCM reviewer inbox inside the same transaction as
+          // salary cancellation, not in an after-commit best-effort step.
+          await cancelHcmBusinessProcessForSourceTx(tx, {
+            organizationId: proposal.organizationId,
+            sourceType: "compensation_proposal",
+            sourceKey: String(proposal.id),
+            actorUserId: user.id,
+            actorName: user.name,
+          });
+          // A fully approved, but not financially applied, HCM review can
+          // otherwise remain falsely eligible after the proposal was cancelled.
+          await tx.update(hcmBusinessProcessInstances).set({
+            status: "cancelled",
+            updatedAt: new Date(),
+          }).where(and(
+            eq(hcmBusinessProcessInstances.organizationId, proposal.organizationId),
+            eq(hcmBusinessProcessInstances.sourceType, "compensation_proposal"),
+            eq(hcmBusinessProcessInstances.sourceKey, String(proposal.id)),
+            eq(hcmBusinessProcessInstances.status, "approved"),
+          ));
+        },
+      });
+      return Response.json({
+        ...result.proposal,
+        invalidatedPayrollRunIds: result.invalidatedPayrollRunIds,
+        cancelledPayRevisionId: result.cancelledPayRevisionId,
+      });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "COMPENSATION_CANCELLATION_STALE") {
+        return Response.json({ error: "The proposal or worker state changed. Refresh before cancelling." }, { status: 409 });
       }
+      if (code === "COMPENSATION_CANCELLATION_RETROACTIVE") {
+        return Response.json({ error: "This salary change is already effective. Use an audited payroll correction instead of deleting earned-pay history." }, { status: 409 });
+      }
+      if (code === "COMPENSATION_CANCELLATION_DOWNSTREAM_REVISION") {
+        return Response.json({ error: "A later pay revision depends on this salary change. Review or cancel downstream changes first." }, { status: 409 });
+      }
+      if (code === "COMPENSATION_CANCELLATION_REVISION_STALE") {
+        return Response.json({ error: "The proposal's pay revision is missing, changed or shared. Refresh and reconcile governed pay before cancelling." }, { status: 409 });
+      }
+      if (/^(Payroll run #|Compensation cannot change)/.test(code)) {
+        return Response.json({ error: code }, { status: 409 });
+      }
+      return Response.json({
+        error: "Salary cancellation could not be committed. Payroll entries and approval records were not reset.",
+      }, { status: 409 });
     }
-
-    const row = await db.transaction(async (tx) => {
-      if (proposal.appliedPayRevisionId) {
-        await tx.delete(employeePayRevisions).where(eq(employeePayRevisions.id, proposal.appliedPayRevisionId));
-      }
-      const [updated] = await tx.update(compensationProposals).set({
-        status: "cancelled",
-        appliedPayRevisionId: null,
-        failure: null,
-        updatedAt: new Date(),
-      }).where(and(
-        eq(compensationProposals.id, proposal.id),
-        eq(compensationProposals.status, proposal.status),
-      )).returning();
-      if (!updated) return null;
-
-      if (cycle) {
-        await tx.insert(compensationEvents).values({
-          organizationId: updated.organizationId,
-          employeeId: updated.employeeId,
-          eventType: "salary_change_cancelled",
-          effectiveDate: String(cycle.effectiveDate),
-          bandId: updated.bandId,
-          proposalId: updated.id,
-          metadata: { reason: updated.reason },
-          actorUserId: user.id,
-          actorName: user.name,
-        });
-      }
-      return updated;
-    });
-    if (!row) return Response.json({ error: "The compensation proposal changed before cancellation." }, { status: 409 });
-
-    await recordAuditEvent({ organizationId: row.organizationId, actor: user.name, action: "Scheduled compensation proposal cancelled", resource: `Proposal #${row.id}`, metadata: { employeeId: row.employeeId } });
-    return Response.json(row);
   }
 
   if (decision === "retry") {
@@ -918,6 +925,18 @@ export async function PATCH(request: Request) {
   }
 
   if (proposal.status !== "proposed") return Response.json({ error: "This compensation proposal has already been decided." }, { status: 409 });
+  const businessProcess = await findHcmBusinessProcessForSource({
+    organizationId: proposal.organizationId,
+    sourceType: "compensation_proposal",
+    sourceKey: String(proposal.id),
+  });
+  if (!businessProcess || businessProcess.status !== "approved") {
+    return Response.json({
+      error: "Complete the independent HCM compensation business-process approvals before scheduling a pay revision. Legacy proposals must be declined and resubmitted for review.",
+      businessProcessInstanceId: businessProcess?.id ?? null,
+      businessProcessStatus: businessProcess?.status ?? "missing",
+    }, { status: 409 });
+  }
   if (proposal.submittedByUserId === user.id) {
     return Response.json({ error: "Maker-checker control: the person who submitted this compensation proposal cannot approve it." }, { status: 403 });
   }
@@ -932,6 +951,16 @@ export async function PATCH(request: Request) {
   ]);
   const employee = employeeRows[0];
   if (!cycle || !band || !pay || !employee) return Response.json({ error: "Compensation cycle, band, employee, or pay profile is missing." }, { status: 409 });
+  const frozen = compensationEvidenceFromDefinition(businessProcess.definitionSnapshot);
+  if (!frozen || frozen.organizationId !== proposal.organizationId
+    || frozen.proposalId !== proposal.id || frozen.employeeId !== proposal.employeeId
+    || frozen.fingerprint !== compensationReviewFingerprint(
+      compensationReviewContext({ proposal, cycle, band, employee }),
+    )) {
+    return Response.json({
+      error: "Compensation review evidence no longer matches the current cycle, band, pay recommendation, or employee scope. Obtain a fresh independent HCM review.",
+    }, { status: 409 });
+  }
   if (cycle.status !== "active") return Response.json({ error: "Compensation cycle is no longer active." }, { status: 409 });
   if (String(cycle.effectiveDate) < philippineBusinessDate()) {
     return Response.json({ error: "This proposal is now retroactive. Use the audited pay-correction/retro workflow instead." }, { status: 409 });
@@ -961,49 +990,133 @@ export async function PATCH(request: Request) {
     }, { status: 409 });
   }
 
-  const approvedBudget = allProposals
-    .filter((row) => ["scheduled", "applied"].includes(row.status))
-    .reduce((sum, row) => sum + Math.max(0, proposalBudgetDelta(Number(row.currentAnnual), Number(row.proposedAnnual))), 0);
-  const thisDelta = Math.max(0, proposalBudgetDelta(Number(proposal.currentAnnual), Number(proposal.proposedAnnual)));
-  if (approvedBudget + thisDelta > Number(cycle.budgetPool) + 0.01) {
-    return Response.json({ error: "This approval would exceed the compensation cycle budget pool." }, { status: 409 });
-  }
-
-  const nextRate = rateFromAnnual({
-    payBasis: effectivePay.payBasis,
-    annualSalary: Number(proposal.proposedAnnual),
-    standardWorkDaysPerMonth: effectivePay.standardWorkDaysPerMonth,
-    standardHoursPerDay: effectivePay.standardHoursPerDay,
+  // This preflight is for fast operator feedback only. It cannot authorize an
+  // approval because other checkers may reserve the same remaining budget.
+  const budgetPreflight = evaluateCompensationCycleBudget({
+    budgetPool: Number(cycle.budgetPool),
+    candidateProposalId: proposal.id,
+    currentAnnual: Number(proposal.currentAnnual),
+    proposedAnnual: Number(proposal.proposedAnnual),
+    existingProposals: allProposals,
   });
-
-  let invalidatedPayrollRunIds: number[] = [];
-  try {
-    const affected = await compensationPayrollConflicts({
-      organizationId: proposal.organizationId,
-      employeeOrgUnitId: employee.orgUnitId,
-      effectiveFrom: String(cycle.effectiveDate),
-      effectiveUntil: null,
-    });
-    invalidatedPayrollRunIds = await invalidatePayrollRunsForCompensationChange(proposal.organizationId, affected);
-  } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : "Compensation approval conflicts with payroll state." }, { status: 409 });
+  if (!budgetPreflight.allowed) {
+    return Response.json({ error: "This approval would exceed the compensation cycle budget pool." }, { status: 409 });
   }
 
   let result;
   try {
     result = await db.transaction(async (tx) => {
+      // Serialize approvals against the same compensation pool and synchronize
+      // with scheduled pay activations for this employee.
+      await tx.execute(sql`select pg_advisory_xact_lock(4230, ${proposal.cycleId})`);
+      await tx.execute(sql`select pg_advisory_xact_lock(4221, ${proposal.employeeId})`);
+
+      const [[liveCycle], [livePay], liveRevisions, liveProposals] = await Promise.all([
+        tx.select().from(compensationCycles).where(and(
+          eq(compensationCycles.id, proposal.cycleId),
+          eq(compensationCycles.organizationId, proposal.organizationId),
+        )).limit(1),
+        tx.select().from(employeePayProfiles).where(and(
+          eq(employeePayProfiles.employeeId, proposal.employeeId),
+          eq(employeePayProfiles.organizationId, proposal.organizationId),
+        )).limit(1),
+        tx.select().from(employeePayRevisions).where(and(
+          eq(employeePayRevisions.employeeId, proposal.employeeId),
+          eq(employeePayRevisions.organizationId, proposal.organizationId),
+        )),
+        tx.select().from(compensationProposals).where(and(
+          eq(compensationProposals.cycleId, proposal.cycleId),
+          eq(compensationProposals.organizationId, proposal.organizationId),
+        )),
+      ]);
+      if (!liveCycle || liveCycle.status !== "active" || String(liveCycle.effectiveDate) !== String(cycle.effectiveDate)
+        || String(liveCycle.effectiveDate) < philippineBusinessDate()) {
+        throw new Error("COMPENSATION_CYCLE_CHANGED");
+      }
+      if (!livePay) throw new Error("COMPENSATION_PAY_STATE_STALE");
+
+      // A preflight approval check cannot authorize a financial write. Re-read
+      // employee, salary band, request and HCM decision under transaction locks.
+      const [[liveEmployee], [liveBand], [liveProposal], [liveHcmReview]] = await Promise.all([
+        tx.select().from(employees).where(and(
+          eq(employees.id, proposal.employeeId),
+          eq(employees.organizationId, proposal.organizationId),
+        )).limit(1),
+        tx.select().from(compensationBands).where(and(
+          eq(compensationBands.id, proposal.bandId),
+          eq(compensationBands.organizationId, proposal.organizationId),
+        )).limit(1),
+        tx.select().from(compensationProposals).where(and(
+          eq(compensationProposals.id, proposal.id),
+          eq(compensationProposals.organizationId, proposal.organizationId),
+        )).limit(1),
+        tx.select().from(hcmBusinessProcessInstances).where(and(
+          eq(hcmBusinessProcessInstances.id, businessProcess.id),
+          eq(hcmBusinessProcessInstances.organizationId, proposal.organizationId),
+          eq(hcmBusinessProcessInstances.sourceType, "compensation_proposal"),
+          eq(hcmBusinessProcessInstances.sourceKey, String(proposal.id)),
+        )).limit(1),
+      ]);
+      if (!liveEmployee || !liveBand?.active || !liveProposal
+        || liveProposal.status !== "proposed" || !liveHcmReview
+        || liveHcmReview.status !== "approved"
+        || compensationReviewFingerprint(compensationReviewContext({
+          proposal: liveProposal,
+          cycle: liveCycle,
+          band: liveBand,
+          employee: liveEmployee,
+        })) !== frozen.fingerprint) {
+        throw new Error("COMPENSATION_HCM_REVIEW_STALE");
+      }
+
+      const currentPay = payStateBeforeEffectiveDate(livePay, liveRevisions, String(liveCycle.effectiveDate));
+      if ("error" in currentPay || Math.abs(annualizePay(currentPay) - Number(proposal.currentAnnual)) > 0.01) {
+        throw new Error("COMPENSATION_PAY_STATE_STALE");
+      }
+
+      // Lock then re-read: concurrent approvals must never each spend the same
+      // budget headroom. Preflight values above are not authoritative.
+      const lockedBudget = evaluateCompensationCycleBudget({
+        budgetPool: Number(liveCycle.budgetPool),
+        candidateProposalId: proposal.id,
+        currentAnnual: Number(proposal.currentAnnual),
+        proposedAnnual: Number(proposal.proposedAnnual),
+        existingProposals: liveProposals,
+      });
+      if (!lockedBudget.allowed) throw new Error("COMPENSATION_BUDGET_EXCEEDED");
+
+      // Recheck payroll state and reset impacted runs inside the SAME commit as
+      // the approved pay revision. A failed approval cannot erase run entries.
+      const affectedRuns = await compensationPayrollConflicts({
+        organizationId: proposal.organizationId,
+        employeeOrgUnitId: employee.orgUnitId,
+        effectiveFrom: String(liveCycle.effectiveDate),
+        effectiveUntil: null,
+      }, tx);
+      const invalidatedPayrollRunIds = await invalidatePayrollRunsForCompensationChange(
+        proposal.organizationId,
+        affectedRuns,
+        tx,
+      );
+      const nextRate = rateFromAnnual({
+        payBasis: currentPay.payBasis,
+        annualSalary: Number(proposal.proposedAnnual),
+        standardWorkDaysPerMonth: currentPay.standardWorkDaysPerMonth,
+        standardHoursPerDay: currentPay.standardHoursPerDay,
+      });
+
       const [revision] = await tx.insert(employeePayRevisions).values({
         employeeId: proposal.employeeId,
         organizationId: proposal.organizationId,
-        effectiveDate: String(cycle.effectiveDate),
-        previousPayBasis: effectivePay.payBasis,
-        previousRateAmount: effectivePay.rateAmount.toFixed(2),
-        previousStandardWorkDaysPerMonth: effectivePay.standardWorkDaysPerMonth.toFixed(2),
-        previousStandardHoursPerDay: effectivePay.standardHoursPerDay.toFixed(2),
-        newPayBasis: effectivePay.payBasis,
+        effectiveDate: String(liveCycle.effectiveDate),
+        previousPayBasis: currentPay.payBasis,
+        previousRateAmount: currentPay.rateAmount.toFixed(2),
+        previousStandardWorkDaysPerMonth: currentPay.standardWorkDaysPerMonth.toFixed(2),
+        previousStandardHoursPerDay: currentPay.standardHoursPerDay.toFixed(2),
+        newPayBasis: currentPay.payBasis,
         newRateAmount: nextRate.toFixed(2),
-        newStandardWorkDaysPerMonth: effectivePay.standardWorkDaysPerMonth.toFixed(2),
-        newStandardHoursPerDay: effectivePay.standardHoursPerDay.toFixed(2),
+        newStandardWorkDaysPerMonth: currentPay.standardWorkDaysPerMonth.toFixed(2),
+        newStandardHoursPerDay: currentPay.standardHoursPerDay.toFixed(2),
         reason: `Approved compensation cycle: ${cycle.name}`.slice(0, 240),
         createdBy: user.name,
       }).returning();
@@ -1022,12 +1135,23 @@ export async function PATCH(request: Request) {
       )).returning();
       if (!updated) throw new Error("PROPOSAL_DECISION_CONFLICT");
 
+      const [appliedProcess] = await tx.update(hcmBusinessProcessInstances)
+        .set({ status: "applied", updatedAt: new Date() })
+        .where(and(
+          eq(hcmBusinessProcessInstances.id, businessProcess.id),
+          eq(hcmBusinessProcessInstances.organizationId, proposal.organizationId),
+          eq(hcmBusinessProcessInstances.sourceType, "compensation_proposal"),
+          eq(hcmBusinessProcessInstances.sourceKey, String(proposal.id)),
+          eq(hcmBusinessProcessInstances.status, "approved"),
+        )).returning({ id: hcmBusinessProcessInstances.id });
+      if (!appliedProcess) throw new Error("PROPOSAL_DECISION_CONFLICT");
+
       await tx.insert(compensationEvents).values({
         organizationId: proposal.organizationId,
         employeeId: proposal.employeeId,
         eventType: "salary_change_scheduled",
         effectiveDate: String(cycle.effectiveDate),
-        previousAnnual: effectiveCurrentAnnual.toFixed(2),
+        previousAnnual: annualizePay(currentPay).toFixed(2),
         newAnnual: Number(proposal.proposedAnnual).toFixed(2),
         bandId: proposal.bandId,
         proposalId: proposal.id,
@@ -1043,15 +1167,29 @@ export async function PATCH(request: Request) {
         actorName: user.name,
       });
 
-      return { updated, revision };
+      return { updated, revision, invalidatedPayrollRunIds };
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "PROPOSAL_DECISION_CONFLICT") {
+    const message = error instanceof Error ? error.message : "Unknown compensation approval failure.";
+    if (message === "PROPOSAL_DECISION_CONFLICT") {
       return Response.json({ error: "This compensation proposal changed while approval was being saved." }, { status: 409 });
     }
-    return Response.json({ error: "A pay revision already exists on this effective date. Resolve that governed pay event before approving this proposal." }, { status: 409 });
+    if (message === "COMPENSATION_BUDGET_EXCEEDED") {
+      return Response.json({ error: "Another approval used the compensation budget. Refresh the cycle and review the remaining pool." }, { status: 409 });
+    }
+    if (message === "COMPENSATION_HCM_REVIEW_STALE") {
+      return Response.json({ error: "The independent HCM review or underlying salary evidence changed. Refresh and obtain a fresh approval." }, { status: 409 });
+    }
+    if (message === "COMPENSATION_CYCLE_CHANGED" || message === "COMPENSATION_PAY_STATE_STALE") {
+      return Response.json({ error: "The compensation cycle or employee pay state changed. Refresh and submit a new approval review." }, { status: 409 });
+    }
+    if (/^(Payroll run #|Compensation cannot change)/.test(message)) {
+      return Response.json({ error: message }, { status: 409 });
+    }
+    return Response.json({ error: "Compensation approval could not be committed. Payroll state was not invalidated; refresh and review pay revisions." }, { status: 409 });
   }
 
+  const invalidatedPayrollRunIds = result.invalidatedPayrollRunIds;
   await recordAuditEvent({
     organizationId: proposal.organizationId,
     actor: user.name,

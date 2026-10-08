@@ -196,6 +196,10 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
       setNotice(data.error ?? "Failed to calculate final pay.");
       return;
     }
+    if (data.approvalRequired) {
+      setNotice(`Termination intent #${data.businessProcess?.id ?? "pending"} is awaiting independent HCM review. No Separation package was created and the employee status was not changed. After approval, submit these same exit dates/category again to compute final pay.`);
+      return;
+    }
     setNotice("Final Pay package computed from the payroll ledger. Complete clearance before approval and release.");
     setShowModal(false);
     reload();

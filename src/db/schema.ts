@@ -2783,6 +2783,8 @@ export const jobRequisitions = pgTable(
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     positionId: integer("position_id").references(() => positions.id, { onDelete: "set null" }),
+    planHandoffEvidence: jsonb("plan_handoff_evidence"), // Immutable published-baseline/execution provenance; null for non-plan and legacy requisitions.
+    roleSkillSnapshot: jsonb("role_skill_snapshot"), // Immutable role-only competency criteria; never employee performance or assessment data.
     title: varchar("title", { length: 160 }).notNull(),
     department: varchar("department", { length: 120 }).notNull(),
     headcount: integer("headcount").notNull().default(1),

@@ -8,6 +8,7 @@ const access = readFileSync("src/lib/access.ts", "utf8");
 const permission = readFileSync("src/lib/permissions.ts", "utf8");
 const security = readFileSync("src/lib/security-request.ts", "utf8");
 const oidc = readFileSync("src/lib/oidc.ts", "utf8");
+const oidcClaims = readFileSync("src/lib/oidc-identity-claims.ts", "utf8");
 const oidcStart = readFileSync("src/app/api/auth/sso/start/route.ts", "utf8");
 const oidcCallback = readFileSync("src/app/api/auth/sso/callback/route.ts", "utf8");
 const enterprise = readFileSync("src/app/api/enterprise/route.ts", "utf8");
@@ -47,8 +48,10 @@ test("OIDC uses discovery PKCE replay protection signed ID tokens and verified e
   assert.ok(oidc.includes('createHash("sha256")'));
   assert.ok(oidc.includes('header.alg !== "RS256"'));
   assert.ok(oidc.includes('verify("RSA-SHA256"'));
-  assert.ok(oidc.includes("payload.nonce !== input.nonce"));
-  assert.ok(oidc.includes("payload.iss !== normalizeIssuer(input.issuer)"));
+  assert.ok(oidc.includes("validateOidcIdentityClaims"));
+  assert.ok(oidcClaims.includes("payload.nonce !== nonce"));
+  assert.ok(oidcClaims.includes("payload.iss !== issuer"));
+  assert.ok(oidcClaims.includes("payload.email_verified !== true"));
   assert.ok(oidcStart.includes("code_challenge_method"));
   assert.ok(oidcStart.includes("stateHash: sha256(state)"));
   assert.ok(oidcCallback.includes("isNull(oidcLoginStates.usedAt)"));
@@ -66,7 +69,7 @@ test("SSO required mode fails closed and includes administrator lockout protecti
 
 test("enterprise MFA accepts recent verified OIDC factor evidence", () => {
   assert.ok(security.includes('user.totpEnabled || user.authMethod === "oidc"'));
-  assert.ok(oidc.includes("mfaSatisfied"));
+  assert.ok(oidcClaims.includes("mfaSatisfied"));
   assert.ok(oidcCallback.includes("identity.mfaSatisfied"));
   assert.ok(oidcCallback.includes("provider did not assert an MFA authentication method"));
 });

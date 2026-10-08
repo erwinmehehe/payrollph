@@ -2,9 +2,11 @@ import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
+  compensationProposals,
   hcmBusinessProcessDefinitions,
   hcmBusinessProcessInstances,
   hcmBusinessProcessInstanceSteps,
+  jobRequisitions,
   orgUnits,
   positionAssignments,
   positions,
@@ -12,6 +14,7 @@ import {
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { applyWorkerEffectiveChange, philippineBusinessDate } from "@/lib/hcm-effective-changes";
+import { positionControlFingerprint, positionEvidenceFromDefinition } from "@/lib/hcm-position-business-process";
 
 export const HCM_BUSINESS_PROCESS_TYPES = [
   "change_job",
@@ -155,11 +158,16 @@ function fallbackDefinition(processType: HcmBusinessProcessType, effectiveDate: 
   return {
     id: null,
     code: `system-${processType}-default`,
-    name: processType === "promotion"
-      ? "Enterprise promotion review"
-      : processType === "transfer"
-        ? "Enterprise transfer review"
-        : "Enterprise change job review",
+    name: ({
+      change_job: "Enterprise change job review",
+      transfer: "Enterprise transfer review",
+      promotion: "Enterprise promotion review",
+      compensation_change: "Enterprise compensation review",
+      hire: "Enterprise hire review",
+      termination: "Enterprise termination review",
+      create_position: "Enterprise position creation review",
+      close_position: "Enterprise position closure review",
+    } satisfies Record<HcmBusinessProcessType, string>)[processType],
     processType,
     supervisoryOrgUnitId: null,
     version: 1,
@@ -173,8 +181,11 @@ function fallbackDefinition(processType: HcmBusinessProcessType, effectiveDate: 
 }
 
 function stepDueAt(dueDays: number | undefined, now = new Date()) {
+  if (!Number.isInteger(dueDays ?? 3) || (dueDays ?? 3) < 0 || (dueDays ?? 3) > 90) {
+    throw new Error("Invalid HCM step due-day policy.");
+  }
   const value = new Date(now);
-  value.setUTCDate(value.getUTCDate() + Math.max(0, Number(dueDays ?? 3)));
+  value.setUTCDate(value.getUTCDate() + (dueDays ?? 3));
   return value;
 }
 
@@ -195,8 +206,21 @@ async function activateStepTx(
   )).limit(1);
   if (!step) throw new Error("Business-process step is missing.");
 
+  const [process] = await tx.select({ definitionSnapshot: hcmBusinessProcessInstances.definitionSnapshot })
+    .from(hcmBusinessProcessInstances).where(and(
+      eq(hcmBusinessProcessInstances.id, input.instanceId),
+      eq(hcmBusinessProcessInstances.organizationId, input.organizationId),
+    )).limit(1);
+  const frozen = process?.definitionSnapshot;
+  const snapshotSteps = frozen && typeof frozen === "object" && !Array.isArray(frozen)
+    ? validateHcmBusinessProcessSteps((frozen as Record<string, unknown>).steps)
+    : null;
+  const frozenStep = snapshotSteps?.[input.stepIndex];
+  if (!frozenStep) throw new Error("HCM process step policy is missing or invalid.");
+
   const [activated] = await tx.update(hcmBusinessProcessInstanceSteps).set({
     status: "pending",
+    dueAt: stepDueAt(frozenStep.dueDays),
   }).where(and(
     eq(hcmBusinessProcessInstanceSteps.id, step.id),
     eq(hcmBusinessProcessInstanceSteps.status, "waiting"),
@@ -244,6 +268,7 @@ export async function startHcmBusinessProcessTx(
     effectiveDate: string;
     initiatedByUserId?: number | null;
     initiatedByName: string;
+    sourceEvidence?: Record<string, unknown>;
   },
 ) {
   const [existing] = await tx.select().from(hcmBusinessProcessInstances).where(and(
@@ -317,6 +342,7 @@ export async function startHcmBusinessProcessTx(
       effectiveFrom: selected.effectiveFrom,
       effectiveUntil: selected.effectiveUntil ?? null,
       steps,
+      sourceEvidence: input.sourceEvidence ?? null,
     },
     initiatedByUserId: input.initiatedByUserId ?? null,
     initiatedByName: input.initiatedByName.slice(0, 120),
@@ -333,7 +359,7 @@ export async function startHcmBusinessProcessTx(
       assignee: step.assignee,
       priority: step.priority ?? "Normal",
       status: "waiting",
-      dueAt: stepDueAt(step.dueDays),
+      dueAt: null, // Starts when activated, not when the instance is initiated.
     });
   }
 
@@ -621,6 +647,127 @@ export async function findHcmBusinessProcessForSource(input: {
   return row ?? null;
 }
 
+/**
+ * Apply an approved position decision to the authoritative position ledger.
+ * Approval itself never creates a recruitable vacancy or closes a position:
+ * this adapter is the only BP-owned mutation path and rechecks all live state.
+ * Position executions from a published workforce plan use their own governed
+ * MFA/approval path and are not retaken through this workflow.
+ */
+async function finalizePositionBusinessProcessSource(
+  instance: typeof hcmBusinessProcessInstances.$inferSelect,
+  input: { actorUserId?: number | null; actorName: string },
+) {
+  if (instance.status === "declined") {
+    return { instance, sourceFinalized: true, sourceStatus: "declined" as const };
+  }
+  if (instance.status === "applied") {
+    return { instance, sourceFinalized: true, sourceStatus: "applied" as const };
+  }
+  if (instance.status !== "approved") return { instance, sourceFinalized: false };
+
+  const evidence = positionEvidenceFromDefinition(instance.definitionSnapshot);
+  const creation = instance.sourceType === "position_creation";
+  if (!evidence || evidence.organizationId !== instance.organizationId
+    || !instance.sourceKey.startsWith(`${evidence.positionId}:`)
+    || (creation && (instance.processType !== "create_position" || evidence.expectedStatus !== "planned"))
+    || (!creation && instance.processType !== "close_position")) {
+    throw new Error("Position business-process source evidence does not match the approved request.");
+  }
+  // Closing a planned position is allowed; approvals and recruitment must
+  // still be rechecked against the current authoritative lifecycle records.
+  const nextStatus = creation ? "approved" : "closed";
+  let changed: typeof positions.$inferSelect;
+  try {
+    changed = await db.transaction(async (tx) => {
+      // The same advisory lock is used by workforce planning, recruitment and
+      // incumbent assignment. No approved source can race a live occupant.
+      await tx.execute(sql`select pg_advisory_xact_lock(4102, ${evidence.positionId})`);
+
+      const [current] = await tx.select().from(positions).where(and(
+        eq(positions.id, evidence.positionId),
+        eq(positions.organizationId, instance.organizationId),
+      )).limit(1);
+      if (!current || current.status !== evidence.expectedStatus
+        || positionControlFingerprint(current) !== evidence.fingerprint) {
+        throw new Error("Position changed since approval request; submit a fresh reviewed position decision.");
+      }
+      if (!creation && !["planned", "approved", "open", "frozen"].includes(current.status)) {
+        throw new Error("An occupied or already closed position cannot be closed through HCM approval.");
+      }
+
+      const [activeAssignment] = await tx.select({ id: positionAssignments.id })
+        .from(positionAssignments).where(and(
+          eq(positionAssignments.organizationId, instance.organizationId),
+          eq(positionAssignments.positionId, evidence.positionId),
+          isNull(positionAssignments.effectiveUntil),
+        )).limit(1);
+      if (activeAssignment) {
+        throw new Error("An active incumbent must be moved or separated before the position lifecycle can change.");
+      }
+
+      const requisitions = await tx.select({
+        id: jobRequisitions.id,
+        status: jobRequisitions.status,
+      }).from(jobRequisitions).where(and(
+        eq(jobRequisitions.organizationId, instance.organizationId),
+        eq(jobRequisitions.positionId, evidence.positionId),
+      ));
+      if (requisitions.some((row) => !["filled", "cancelled"].includes(row.status))) {
+        throw new Error("Resolve the active requisition before approving or closing this position.");
+      }
+
+      const [updated] = await tx.update(positions).set({
+        status: nextStatus,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(positions.id, evidence.positionId),
+        eq(positions.organizationId, instance.organizationId),
+        eq(positions.status, evidence.expectedStatus),
+      )).returning();
+      if (!updated) throw new Error("Position state changed before approval could be applied.");
+
+      const [applied] = await tx.update(hcmBusinessProcessInstances).set({
+        status: "applied",
+        updatedAt: new Date(),
+      }).where(and(
+        eq(hcmBusinessProcessInstances.id, instance.id),
+        eq(hcmBusinessProcessInstances.organizationId, instance.organizationId),
+        eq(hcmBusinessProcessInstances.status, "approved"),
+      )).returning();
+      if (!applied) throw new Error("The business process changed before its position decision could be applied.");
+
+      return updated;
+    });
+  } catch (error) {
+    await db.update(hcmBusinessProcessInstances).set({
+      status: "failed",
+      updatedAt: new Date(),
+    }).where(and(
+      eq(hcmBusinessProcessInstances.id, instance.id),
+      eq(hcmBusinessProcessInstances.organizationId, instance.organizationId),
+      eq(hcmBusinessProcessInstances.status, "approved"),
+    ));
+    throw error;
+  }
+
+  await recordAuditEvent({
+    organizationId: instance.organizationId,
+    actor: input.actorName,
+    action: creation ? "HCM position creation approved and applied" : "HCM position closure approved and applied",
+    resource: changed.code,
+    metadata: {
+      businessProcessInstanceId: instance.id,
+      positionId: changed.id,
+      fromStatus: evidence.expectedStatus,
+      toStatus: nextStatus,
+      fingerprint: evidence.fingerprint,
+      actorUserId: input.actorUserId ?? null,
+    },
+  });
+  return { instance, sourceFinalized: true, sourceStatus: "applied" as const, position: changed };
+}
+
 export async function finalizeHcmBusinessProcessSource(input: {
   instanceId: number;
   actorUserId?: number | null;
@@ -630,6 +777,41 @@ export async function finalizeHcmBusinessProcessSource(input: {
     .where(eq(hcmBusinessProcessInstances.id, input.instanceId))
     .limit(1);
   if (!instance) throw new Error("Business-process instance not found.");
+  if (instance.sourceType === "position_creation" || instance.sourceType === "position_closure") {
+    return finalizePositionBusinessProcessSource(instance, input);
+  }
+  if (instance.sourceType === "compensation_proposal") {
+    const proposalId = Number(instance.sourceKey);
+    if (!Number.isSafeInteger(proposalId) || proposalId <= 0
+      || instance.processType !== "compensation_change") {
+      throw new Error("Invalid compensation business-process source.");
+    }
+    if (instance.status === "declined") {
+      // A rejected BP cannot leave an approvable pay recommendation behind.
+      // No pay revision, payroll release, or money-bearing state is modified.
+      const [declined] = await db.update(compensationProposals).set({
+        status: "declined",
+        updatedAt: new Date(),
+      }).where(and(
+        eq(compensationProposals.id, proposalId),
+        eq(compensationProposals.organizationId, instance.organizationId),
+        eq(compensationProposals.status, "proposed"),
+      )).returning({ id: compensationProposals.id });
+      if (declined) {
+        await recordAuditEvent({
+          organizationId: instance.organizationId,
+          actor: input.actorName,
+          action: "Compensation proposal declined through HCM business process",
+          resource: `Proposal #${proposalId}`,
+          metadata: { businessProcessInstanceId: instance.id, proposalId },
+        });
+      }
+      return { instance, sourceFinalized: Boolean(declined), sourceStatus: "declined" as const };
+    }
+    // HR/manager approval only makes the proposal eligible for the separate
+    // owner/finance approval; the HCM BP never schedules or applies salary.
+    return { instance, sourceFinalized: false, sourceStatus: instance.status };
+  }
   if (instance.sourceType !== "worker_effective_change") return { instance, sourceFinalized: false };
 
   const changeId = Number(instance.sourceKey);

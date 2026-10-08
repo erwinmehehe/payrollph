@@ -1,5 +1,6 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, desc, eq, inArray, isNull, like, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   costCenters,
@@ -9,6 +10,7 @@ import {
   jobLevels,
   jobProfiles,
   jobRequisitions,
+  hcmBusinessProcessInstances,
   legalEntities,
   orgUnits,
   positionAssignments,
@@ -28,6 +30,8 @@ import {
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { startHcmBusinessProcessTx } from "@/lib/hcm-business-process";
+import { freezeHcmPositionSource } from "@/lib/hcm-position-business-process";
 
 export const dynamic = "force-dynamic";
 
@@ -403,6 +407,14 @@ export async function POST(request: Request) {
 
     const unitScope = await scopedUnit(user.id, organizationId, orgUnitId);
     if ("error" in unitScope) return unitScope.error;
+    const peopleDenied = await assertOrganizationRole(
+      user.id, organizationId, PEOPLE_ADMIN_ROLES,
+      "Creating governed positions requires People administration access.",
+    );
+    if (peopleDenied) return peopleDenied;
+    if (!unitScope.access.companyWide) {
+      return Response.json({ error: "Creating governed positions requires company-wide People access." }, { status: 403 });
+    }
 
     const [profile] = await db.select({ id: jobProfiles.id }).from(jobProfiles)
       .where(and(eq(jobProfiles.id, jobProfileId), eq(jobProfiles.organizationId, organizationId))).limit(1);
@@ -445,7 +457,8 @@ export async function POST(request: Request) {
     }
 
     try {
-      const [row] = await db.insert(positions).values({
+      const { row, businessProcess } = await db.transaction(async (tx) => {
+        const [row] = await tx.insert(positions).values({
         organizationId,
         code: code.slice(0, 48),
         jobProfileId,
@@ -462,16 +475,45 @@ export async function POST(request: Request) {
         notes: body.notes ? String(body.notes).slice(0, 4000) : null,
         createdByUserId: user.id,
       }).returning();
+        const businessProcess = await startHcmBusinessProcessTx(tx, {
+          organizationId,
+          processType: "create_position",
+          sourceType: "position_creation",
+          sourceKey: `${row.id}:${randomUUID()}`,
+          employeeLabel: `Position ${row.code}`,
+          supervisoryOrgUnitId: row.supervisoryOrgUnitId,
+          effectiveDate: todayPh(),
+          initiatedByUserId: user.id,
+          initiatedByName: user.name,
+          sourceEvidence: { ...freezeHcmPositionSource(row) },
+        });
+        return { row, businessProcess };
+      });
       await recordAuditEvent({
         organizationId,
         actor: user.name,
-        action: "Position created",
+        action: "Position creation submitted to HCM business process",
         resource: row.code,
-        metadata: { positionId: row.id, jobProfileId, orgUnitId, supervisoryOrgUnitId, legalEntityId, costCenterId, planId, annualBudget },
+        metadata: {
+          positionId: row.id, jobProfileId, orgUnitId, supervisoryOrgUnitId,
+          legalEntityId, costCenterId, planId, annualBudget,
+          businessProcessInstanceId: businessProcess.id,
+        },
       });
-      return Response.json(row, { status: 201 });
-    } catch {
-      return Response.json({ error: "A position with this code already exists." }, { status: 409 });
+      return Response.json({
+        ...row,
+        approvalRequired: true,
+        businessProcess: {
+          id: businessProcess.id,
+          status: businessProcess.status,
+          definitionCode: businessProcess.definitionCode,
+        },
+      }, { status: 201 });
+    } catch (error) {
+      return Response.json({
+        error: error instanceof Error && /business-process|Business-process|Business process|duplicate key/i.test(error.message)
+          ? error.message : "Position creation could not be submitted. Refresh and verify the position code and approval policy.",
+      }, { status: 409 });
     }
   }
 
@@ -690,6 +732,20 @@ export async function PATCH(request: Request) {
   const unitScope = await scopedUnit(user.id, position.organizationId, position.orgUnitId);
   if ("error" in unitScope) return unitScope.error;
 
+  const governedAction = status === "approved" && position.status === "planned"
+    ? "create_position" : status === "closed" && position.status !== "closed"
+      ? "close_position" : null;
+  if (governedAction) {
+    const peopleDenied = await assertOrganizationRole(
+      user.id, position.organizationId, PEOPLE_ADMIN_ROLES,
+      "Position approval and closure require People administration access.",
+    );
+    if (peopleDenied) return peopleDenied;
+    if (!unitScope.access.companyWide) {
+      return Response.json({ error: "Position lifecycle approval requires company-wide People access." }, { status: 403 });
+    }
+  }
+
   const resultOrResponse = await db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(4102, ${position.id})`);
 
@@ -713,7 +769,68 @@ export async function PATCH(request: Request) {
     const activeRequisition = freshRequisitions.find((row) => !["filled", "cancelled"].includes(row.status));
 
     const [activeAssignment] = await tx.select({ id: positionAssignments.id }).from(positionAssignments)
-      .where(and(eq(positionAssignments.positionId, id), isNull(positionAssignments.effectiveUntil))).limit(1);
+      .where(and(
+        eq(positionAssignments.organizationId, position.organizationId),
+        eq(positionAssignments.positionId, id),
+        isNull(positionAssignments.effectiveUntil),
+      )).limit(1);
+
+    if (governedAction) {
+      // No status, recruitment or occupancy changes happen before the final
+      // independent business-process approval. Competing submissions serialize
+      // on the same position lock as Recruitment / incumbent assignment.
+      if (freshPosition.status !== position.status) {
+        throw new WorkforcePlanningConflict("Position changed before the HCM approval could be initiated.");
+      }
+      if (governedAction === "close_position"
+        && !["planned", "approved", "open", "frozen"].includes(freshPosition.status)) {
+        throw new WorkforcePlanningConflict("A filled position must be vacated before closing it.");
+      }
+      if (activeAssignment) {
+        throw new WorkforcePlanningConflict("End the active position assignment before requesting this status change.");
+      }
+      if (activeRequisition) {
+        throw new WorkforcePlanningConflict(
+          "Cancel or finish the active requisition before requesting position approval or closure.",
+          { requisitionId: activeRequisition.id },
+        );
+      }
+      const [current] = await tx.select().from(positions).where(and(
+        eq(positions.id, position.id),
+        eq(positions.organizationId, position.organizationId),
+      )).limit(1);
+      if (!current) throw new WorkforcePlanningConflict("Position no longer exists.");
+
+      const [existing] = await tx.select().from(hcmBusinessProcessInstances).where(and(
+        eq(hcmBusinessProcessInstances.organizationId, position.organizationId),
+        inArray(hcmBusinessProcessInstances.sourceType, ["position_creation", "position_closure"]),
+        like(hcmBusinessProcessInstances.sourceKey, `${position.id}:%`),
+        inArray(hcmBusinessProcessInstances.status, ["in_progress", "approved"]),
+      )).orderBy(desc(hcmBusinessProcessInstances.id)).limit(1);
+      if (existing && existing.processType !== governedAction) {
+        throw new WorkforcePlanningConflict(
+          "Another position lifecycle approval is already in progress.",
+          { businessProcessInstanceId: existing.id },
+        );
+      }
+      const businessProcess = existing ?? await startHcmBusinessProcessTx(tx, {
+        organizationId: position.organizationId,
+        processType: governedAction,
+        sourceType: governedAction === "create_position" ? "position_creation" : "position_closure",
+        sourceKey: `${position.id}:${randomUUID()}`,
+        employeeLabel: `Position ${position.code}`,
+        supervisoryOrgUnitId: current.supervisoryOrgUnitId,
+        effectiveDate: todayPh(),
+        initiatedByUserId: user.id,
+        initiatedByName: user.name,
+        sourceEvidence: { ...freezeHcmPositionSource(current) },
+      });
+      return {
+        approvalRequired: true as const,
+        updated: current,
+        businessProcess,
+      };
+    }
 
     if (status === "open" && !activeRequisition) {
       throw new WorkforcePlanningConflict("A position becomes open only by creating a requisition from the Recruitment workflow.");
@@ -744,6 +861,7 @@ export async function PATCH(request: Request) {
       .returning();
 
     return {
+      approvalRequired: false as const,
       updated,
       fromStatus: freshPosition.status,
       requisitionId: activeRequisition?.id ?? null,
@@ -756,6 +874,28 @@ export async function PATCH(request: Request) {
     throw error;
   });
   if (resultOrResponse instanceof Response) return resultOrResponse;
+  if (resultOrResponse.approvalRequired) {
+    await recordAuditEvent({
+      organizationId: position.organizationId,
+      actor: user.name,
+      action: "Position lifecycle review requested",
+      resource: position.code,
+      metadata: {
+        positionId: position.id,
+        requestedStatus: status,
+        businessProcessInstanceId: resultOrResponse.businessProcess.id,
+      },
+    });
+    return Response.json({
+      ...resultOrResponse.updated,
+      approvalRequired: true,
+      businessProcess: {
+        id: resultOrResponse.businessProcess.id,
+        status: resultOrResponse.businessProcess.status,
+        definitionCode: resultOrResponse.businessProcess.definitionCode,
+      },
+    }, { status: 202 });
+  }
 
   await recordAuditEvent({
     organizationId: position.organizationId,

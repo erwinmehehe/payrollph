@@ -22,6 +22,30 @@ type Requisition = {
   salaryMin: string | null;
   salaryMax: string | null;
   annualPositionBudget: string | null;
+  roleSkillSnapshot: {
+    version: "hcm-talent-role-skills-v1";
+    jobProfileId: number;
+    profileTitle: string;
+    capturedAt: string;
+    fingerprint: string;
+    requirements: Array<{
+      skillId: number;
+      code: string;
+      name: string;
+      minimumProficiency: number;
+      mandatory: boolean;
+      source: string;
+    }>;
+  } | null;
+  planHandoffEvidence: {
+    version: string;
+    planId: number;
+    baselineId: number;
+    baselineVersion: number;
+    executionId: number;
+    positionCode: string;
+    executionHash: string;
+  } | null;
   employmentType: string;
   status: string;
   description: string;
@@ -219,6 +243,10 @@ export function RecruitmentPanel({
         setNotice(payload.error ?? "Could not complete the hire.");
         return;
       }
+      if (payload.approvalRequired) {
+        setNotice(`Hire request #${payload.businessProcess?.id ?? "pending"} is ${payload.businessProcess?.status ?? "awaiting review"}. No worker or payroll records were created. Complete the HCM Inbox approvals, then submit these same details again to finish onboarding.`);
+        return;
+      }
 
       setHiringApplicant(null);
       await load();
@@ -345,7 +373,7 @@ export function RecruitmentPanel({
             <div>
               <div className="card-kicker">HIRE &amp; ONBOARD</div>
               <h2 style={{ margin: 0 }}>Convert {hiringApplicant.fullName} into an employee</h2>
-              <p>This atomically creates the employee, payroll pay profile, onboarding checklist, and incumbent assignment for the approved position.</p>
+              <p>First submit the candidate offer and employment terms for independent HCM review. After approval, submit the unchanged details again to atomically create the employee, payroll pay profile, onboarding checklist, and incumbent assignment.</p>
             </div>
             <button className="icon-button" type="button" onClick={() => setHiringApplicant(null)}><X size={16} /></button>
           </div>
@@ -381,7 +409,7 @@ export function RecruitmentPanel({
             </div>
             <div className="run-actions">
               <button type="button" className="secondary-button" onClick={() => setHiringApplicant(null)} disabled={savingHire}>Cancel</button>
-              <button className="primary-button" disabled={savingHire}>{savingHire ? "Hiring…" : "Hire & onboard"}</button>
+              <button className="primary-button" disabled={savingHire}>{savingHire ? "Submitting…" : "Request review / complete approved hire"}</button>
             </div>
           </form>
         </article>
@@ -414,8 +442,51 @@ export function RecruitmentPanel({
               <span style={{ display: "block", fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
                 {activeReq.hiredCount} hired · {activeReq.applicantCount} applicants
               </span>
+              {activeReq.planHandoffEvidence?.version === "hcm-plan-requisition-lineage-v1" && (
+                <span style={{ display: "block", fontSize: 10, color: "var(--muted)", marginTop: 5 }}>
+                  Plan #{activeReq.planHandoffEvidence.planId} · published baseline v{activeReq.planHandoffEvidence.baselineVersion} · applied execution #{activeReq.planHandoffEvidence.executionId}
+                </span>
+              )}
             </div>
           </div>
+        </article>
+      )}
+
+      {activeReq && (
+        <article className="card" style={{ padding: 14, marginBottom: 16 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">Role criteria · frozen at requisition opening</div>
+              <h3>Job-profile skills and proficiency expectations</h3>
+              <p>Approved job architecture for this position. These are role-level criteria only; employee reviews, verified skills and development plans remain private to Performance.</p>
+            </div>
+            {activeReq.roleSkillSnapshot?.version === "hcm-talent-role-skills-v1" && (
+              <span className="badge badge-subtle">
+                Captured {activeReq.roleSkillSnapshot.capturedAt.slice(0, 10)}
+              </span>
+            )}
+          </div>
+          {!activeReq.roleSkillSnapshot
+            ? <p>Legacy requisition: role requirements were not frozen when this search opened. Review approved job architecture with People before evaluating applicants.</p>
+            : activeReq.roleSkillSnapshot.requirements.length === 0
+              ? <p>This role has no recorded competency requirements. People administrators should configure its job-profile skills before applying any skill-based screening.</p>
+              : (
+                <div className="data-table-wrap slim-scroll">
+                  <table className="data-table">
+                    <thead><tr><th>Required role skill</th><th>Proficiency</th><th>Source</th><th>Priority</th></tr></thead>
+                    <tbody>
+                      {activeReq.roleSkillSnapshot.requirements.map((skill) => (
+                        <tr key={skill.skillId}>
+                          <td>{skill.name} <span style={{ fontSize: 10, color: "var(--muted)" }}>· {skill.code}</span></td>
+                          <td>Level {skill.minimumProficiency}/5</td>
+                          <td>{skill.source.replaceAll("_", " ")}</td>
+                          <td>{skill.mandatory ? "Mandatory" : "Additional"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
         </article>
       )}
 

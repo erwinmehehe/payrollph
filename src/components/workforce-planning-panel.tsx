@@ -710,7 +710,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   async function createPosition(event: React.FormEvent) {
     event.preventDefault();
     try {
-      await post({
+      const savedPosition = await post({
         entityType: "position",
         ...positionForm,
         jobProfileId: Number(positionForm.jobProfileId),
@@ -725,7 +725,9 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       setShowPosition(false);
       setPositionForm({ code: "", jobProfileId: "", orgUnitId: "", supervisoryOrgUnitId: "", legalEntityId: "", costCenterId: "", planId: "", managerEmployeeId: "", employmentType: "Regular", plannedStartDate: "", annualBudget: "" });
       await load();
-      setNotice("Position added to the headcount plan.");
+      setNotice(savedPosition.approvalRequired
+        ? `Position ${savedPosition.code} saved as planned. Business-process approval #${savedPosition.businessProcess?.id ?? "pending"} is required before recruitment.`
+        : "Position added to the headcount plan.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Could not create position."); }
   }
 
@@ -790,6 +792,10 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) return setNotice(payload.error ?? "Could not update position.");
     await load();
+    if (payload.approvalRequired) {
+      setNotice(`Position ${position.code} remains ${position.status}. Requested ${status} through HCM approval #${payload.businessProcess?.id ?? "pending"}; complete the independent review in People → HCM Inbox.`);
+      return;
+    }
     setNotice(`Position ${position.code} moved to ${status}.`);
   }
 
@@ -809,7 +815,9 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       return;
     }
     await load();
-    setNotice(`Requisition #${payload.id} opened from position ${position.code}.`);
+    setNotice(payload.planHandoffEvidence
+      ? `Requisition #${payload.id} opened from position ${position.code} with verified plan #${payload.planHandoffEvidence.planId}, baseline v${payload.planHandoffEvidence.baselineVersion}, execution #${payload.planHandoffEvidence.executionId}.`
+      : `Requisition #${payload.id} opened from approved standalone position ${position.code}.`);
     onPage("Recruitment");
   }
 

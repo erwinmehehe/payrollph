@@ -56,6 +56,7 @@ type Proposal = {
   submittedByUserId: number | null;
   workerEffectiveChangeId: number | null;
   failure: string | null;
+  hcmReview: { id: number; status: string } | null;
 };
 type Component = {
   id: number;
@@ -229,9 +230,12 @@ export function CompensationPanel({
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
       setNotice(body.error ?? "Could not update compensation.");
+      // Another checker may have consumed the cycle budget since this screen
+      // loaded. Refresh authoritative proposal states before the next action.
+      if (response.status === 409) await load();
       return;
     }
-    setNotice(success);
+    setNotice(body.automationWarning ? `${success} ${body.automationWarning}` : success);
     await load();
   }
 
@@ -239,13 +243,16 @@ export function CompensationPanel({
   const committedSpend = useMemo(
     () =>
       proposals
-        .filter((proposal) => ["scheduled", "applied"].includes(proposal.status))
+        .filter((proposal) =>
+          proposal.cycleId === activeCycle?.id
+          && ["scheduled", "applied"].includes(proposal.status),
+        )
         .reduce(
           (sum, proposal) =>
             sum + Math.max(0, Number(proposal.proposedAnnual) - Number(proposal.currentAnnual)),
           0,
         ),
-    [proposals],
+    [proposals, activeCycle?.id],
   );
   const selectedEmployeeId = Number(proposalForm.employeeId);
   const selectedEmployee = employees.find((employee) => employee.id === selectedEmployeeId) ?? null;
@@ -293,9 +300,14 @@ export function CompensationPanel({
           <small>{activeCycle ? `effective ${activeCycle.effectiveDate}` : "create a review cycle"}</small>
         </article>
         <article className="stat-card">
-          <span>Committed budget</span>
+          <span>{access?.companyWide ? "Committed budget" : "Visible committed increases"}</span>
           <strong>{peso(committedSpend)}</strong>
-          <small>{activeCycle ? `of ${peso(activeCycle.budgetPool)} pool` : "no active cycle"}</small>
+          <small>{!activeCycle
+            ? "no active cycle"
+            : access?.companyWide
+              ? `${peso(Math.max(0, Number(activeCycle.budgetPool) - committedSpend))} remaining of ${peso(activeCycle.budgetPool)} pool`
+              : "Only proposals in your assigned scope are shown"}
+          </small>
         </article>
         <article className="stat-card">
           <span>Recurring components</span>
@@ -461,7 +473,7 @@ export function CompensationPanel({
               className="secondary-button"
               onClick={async () => {
                 try {
-                  await post("proposal", {
+                  const submitted = await post("proposal", {
                     employeeId: Number(proposalForm.employeeId),
                     cycleId: Number(proposalForm.cycleId),
                     bandId: Number(proposalForm.bandId),
@@ -470,7 +482,7 @@ export function CompensationPanel({
                     reason: proposalForm.reason,
                   });
                   setProposalForm({ employeeId: "", cycleId: "", bandId: "", workerEffectiveChangeId: "", proposedAnnual: "", reason: "" });
-                  setNotice("Compensation proposal submitted for independent approval.");
+                  setNotice(`Compensation proposal #${submitted.id} submitted for independent HCM review #${submitted.hcmReview?.id ?? "pending"}. Pay cannot change until the review and separate Owner/Admin financial approval are complete.`);
                 } catch (error) {
                   setNotice(error instanceof Error ? error.message : "Could not submit proposal.");
                 }
@@ -629,17 +641,34 @@ export function CompensationPanel({
                     <td>{peso(proposal.currentAnnual)}</td>
                     <td>{peso(proposal.proposedAnnual)}</td>
                     <td>{pct(proposal.compaRatio)} compa · {pct(proposal.rangePosition)} range</td>
-                    <td>{proposal.status.replaceAll("_", " ")}</td>
+                    <td>
+                      {proposal.status.replaceAll("_", " ")}
+                      <small style={{ display: "block" }}>
+                        HCM review: {proposal.hcmReview ? `#${proposal.hcmReview.id} · ${proposal.hcmReview.status.replaceAll("_", " ")}` : "No linked review"}
+                      </small>
+                    </td>
                     <td>
                       <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                         {proposal.status === "proposed" && canApprove && proposal.submittedByUserId !== currentUserId && (
                           <>
-                            <button className="secondary-button" onClick={() => void patch({ entityType: "proposal", id: proposal.id, decision: "approved" }, "Compensation proposal approved and scheduled.")}><Check size={13} /> Approve</button>
+                            {proposal.hcmReview?.status === "approved" && (
+                              <button className="secondary-button" onClick={() => void patch({ entityType: "proposal", id: proposal.id, decision: "approved" }, "Compensation proposal independently reviewed, financially approved and scheduled.")}><Check size={13} /> Approve pay</button>
+                            )}
                             <button className="secondary-button" onClick={() => void patch({ entityType: "proposal", id: proposal.id, decision: "declined" }, "Compensation proposal declined.")}><X size={13} /> Decline</button>
                           </>
                         )}
                         {["proposed", "scheduled", "failed"].includes(proposal.status) && canApprove && (
-                          <button className="secondary-button" onClick={() => void patch({ entityType: "proposal", id: proposal.id, action: "cancel" }, "Compensation proposal cancelled.")}>Cancel</button>
+                          <button className="secondary-button" onClick={() => {
+                            if (proposal.status !== "proposed" && !window.confirm(
+                              "Cancel this governed future salary change? Calculated payroll and checker approvals for affected periods may be reset. Recalculate and resubmit before release.",
+                            )) return;
+                            void patch(
+                              { entityType: "proposal", id: proposal.id, action: "cancel" },
+                              proposal.status === "proposed"
+                                ? "Compensation proposal cancelled."
+                                : "Salary change cancelled. Review affected payroll and recalculate before release.",
+                            );
+                          }}>{proposal.status === "proposed" ? "Cancel" : "Cancel pay revision"}</button>
                         )}
                         {proposal.status === "failed" && canApprove && (
                           <button className="secondary-button" onClick={() => void patch({ entityType: "proposal", id: proposal.id, action: "retry" }, "Compensation proposal retry submitted.")}>Retry</button>
