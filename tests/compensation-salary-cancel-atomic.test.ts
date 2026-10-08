@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "../src/db";
 import {
   approvalTasks,
@@ -20,6 +20,7 @@ import {
 } from "../src/db/schema";
 import {
   applyScheduledCompensationProposal,
+  ScheduledCompensationAuditWriteError,
   cancelGovernedCompensationProposal,
 } from "../src/lib/hcm-compensation";
 
@@ -359,5 +360,167 @@ test("unapproved proposal cannot erase an unexpectedly linked pay revision", asy
     assert.equal(after.run.status, "Needs review");
     assert.equal(after.revisions.length, 1);
     assert.equal(after.events.length, 0);
+  });
+});
+
+
+const APPLY_DATE = new Date("2026-10-21T08:00:00Z");
+
+test("scheduled salary application commits pay profile, financial event and linked audit exactly once", async () => {
+  await withFixture("scheduled", async (fixture) => {
+    const result = await applyScheduledCompensationProposal(fixture.proposalId, {
+      actor: "Governed salary scheduler",
+      now: APPLY_DATE,
+    });
+    if (result.skipped) assert.fail("scheduled salary should become applied");
+    const after = await snapshot(fixture);
+    assert.equal(after.proposal.status, "applied");
+    assert.equal(after.events.filter((event) => event.eventType === "salary_change").length, 1);
+    const audit = after.audits.filter((event) =>
+      event.action === "Scheduled compensation change applied"
+      && (event.metadata as { proposalId?: number }).proposalId === fixture.proposalId,
+    );
+    assert.equal(audit.length, 1);
+    assert.equal(audit[0].id, result.audit.id);
+    assert.equal((audit[0].metadata as { compensationEventId: number }).compensationEventId, result.event.id);
+    assert.equal((audit[0].metadata as { payRevisionId: number }).payRevisionId, fixture.revisionId);
+
+    const [pay] = await db.select().from(employeePayProfiles)
+      .where(eq(employeePayProfiles.employeeId, fixture.employeeId));
+    const [employee] = await db.select().from(employees)
+      .where(eq(employees.id, fixture.employeeId));
+    assert.equal(Number(pay.rateAmount), 32000);
+    assert.equal(Number(employee.basicRate), 32000);
+    // Applying an approved change must not silently reset existing payroll.
+    assert.equal(after.run.status, "Needs review");
+    assert.equal(after.task.status, "Approved");
+    assert.equal(after.entries.length, 1);
+
+    const replay = await applyScheduledCompensationProposal(fixture.proposalId, {
+      actor: "Governed salary scheduler", now: APPLY_DATE,
+    });
+    assert.equal(replay.skipped, true);
+    assert.equal(replay.reason, "already_applied");
+    const repeated = await snapshot(fixture);
+    assert.equal(repeated.events.filter((event) => event.eventType === "salary_change").length, 1);
+    assert.equal(repeated.audits.filter((event) => event.action === "Scheduled compensation change applied").length, 1);
+  });
+});
+
+test("audit outage rolls back all salary state and permits governed retry without resetting existing payroll", async () => {
+  await withFixture("scheduled", async (fixture) => {
+    const suffix = randomUUID().replaceAll("-", "");
+    const functionName = `qa_salary_audit_fn_${suffix}`;
+    const triggerName = `qa_salary_audit_trigger_${suffix}`;
+    await db.execute(sql.raw(`CREATE FUNCTION "${functionName}"() RETURNS trigger AS $$
+      BEGIN
+        IF NEW.action = 'Scheduled compensation change applied'
+          AND NEW.metadata->>'proposalId' = '${fixture.proposalId}'
+        THEN
+          RAISE EXCEPTION 'QA salary audit insert failure';
+        END IF;
+        RETURN NEW;
+      END;
+    $$ LANGUAGE plpgsql`));
+    try {
+      await db.execute(sql.raw(`CREATE TRIGGER "${triggerName}"
+        BEFORE INSERT ON "audit_events" FOR EACH ROW EXECUTE FUNCTION "${functionName}"()`));
+      await assert.rejects(
+        applyScheduledCompensationProposal(fixture.proposalId, {
+          actor: "Failed audit injection", now: APPLY_DATE,
+        }),
+        (error: unknown) => error instanceof ScheduledCompensationAuditWriteError,
+      );
+      const after = await snapshot(fixture);
+      assert.equal(after.proposal.status, "scheduled", "audit outage must not poison valid scheduled pay");
+      assert.equal(after.proposal.appliedAt, null);
+      assert.equal(after.events.filter((event) => event.eventType === "salary_change").length, 0);
+      assert.equal(after.audits.filter((event) => event.action === "Scheduled compensation change applied").length, 0);
+      assert.equal(after.run.status, "Needs review");
+      assert.equal(after.task.status, "Approved");
+      assert.equal(after.entries.length, 1);
+      const [pay] = await db.select().from(employeePayProfiles)
+        .where(eq(employeePayProfiles.employeeId, fixture.employeeId));
+      const [employee] = await db.select().from(employees)
+        .where(eq(employees.id, fixture.employeeId));
+      assert.equal(Number(pay.rateAmount), 30000);
+      assert.equal(Number(employee.basicRate), 30000);
+    } finally {
+      await db.execute(sql.raw(`DROP TRIGGER IF EXISTS "${triggerName}" ON "audit_events"`));
+      await db.execute(sql.raw(`DROP FUNCTION IF EXISTS "${functionName}"()`));
+    }
+
+    const retried = await applyScheduledCompensationProposal(fixture.proposalId, {
+      actor: "Governed audit retry", now: APPLY_DATE,
+    });
+    if (retried.skipped) assert.fail("audit-recovered salary should apply");
+    const afterRetry = await snapshot(fixture);
+    assert.equal(afterRetry.proposal.status, "applied");
+    assert.equal(afterRetry.events.filter((event) => event.eventType === "salary_change").length, 1);
+    assert.equal(afterRetry.audits.filter((event) => event.action === "Scheduled compensation change applied").length, 1);
+  });
+});
+
+test("concurrent scheduled salary workers cannot double-apply or duplicate audit evidence", async () => {
+  await withFixture("scheduled", async (fixture) => {
+    const results = await Promise.all([
+      applyScheduledCompensationProposal(fixture.proposalId, { now: APPLY_DATE }),
+      applyScheduledCompensationProposal(fixture.proposalId, { now: APPLY_DATE }),
+    ]);
+    assert.equal(results.filter((result) => !result.skipped).length, 1);
+    assert.equal(results.filter((result) => result.skipped).length, 1);
+    const after = await snapshot(fixture);
+    assert.equal(after.proposal.status, "applied");
+    assert.equal(after.events.filter((event) => event.eventType === "salary_change").length, 1);
+    assert.equal(after.audits.filter((event) => event.action === "Scheduled compensation change applied").length, 1);
+    const [pay] = await db.select().from(employeePayProfiles)
+      .where(eq(employeePayProfiles.employeeId, fixture.employeeId));
+    assert.equal(Number(pay.rateAmount), 32000);
+  });
+});
+
+test("application and cancellation racing on the same proposal cannot both commit", async () => {
+  await withFixture("scheduled", async (fixture) => {
+    const attempts = await Promise.allSettled([
+      applyScheduledCompensationProposal(fixture.proposalId, { now: APPLY_DATE }),
+      cancel(fixture),
+    ]);
+    const after = await snapshot(fixture);
+    assert.ok(["applied", "cancelled"].includes(after.proposal.status));
+    const applies = after.events.filter((event) => event.eventType === "salary_change");
+    const cancellations = after.events.filter((event) => event.eventType === "salary_change_cancelled");
+    const auditApplied = after.audits.filter((event) => event.action === "Scheduled compensation change applied");
+    const auditCancelled = after.audits.filter((event) => event.action === "Scheduled compensation proposal cancelled");
+    if (after.proposal.status === "applied") {
+      assert.equal(applies.length, 1);
+      assert.equal(cancellations.length, 0);
+      assert.equal(auditApplied.length, 1);
+      assert.equal(auditCancelled.length, 0);
+      assert.equal(after.revisions.length, 1);
+    } else {
+      assert.equal(applies.length, 0);
+      assert.equal(cancellations.length, 1);
+      assert.equal(auditApplied.length, 0);
+      assert.equal(auditCancelled.length, 1);
+      assert.equal(after.revisions.length, 0);
+    }
+    assert.ok(attempts.some((result) => result.status === "fulfilled"));
+  });
+});
+
+test("salary effective date must arrive before its scheduler applies pay or writes audit evidence", async () => {
+  await withFixture("scheduled", async (fixture) => {
+    const future = await applyScheduledCompensationProposal(fixture.proposalId, {
+      now: new Date("2026-10-19T08:00:00Z"),
+    });
+    assert.equal(future.skipped, true);
+    assert.equal(future.reason, "not_due");
+    const after = await snapshot(fixture);
+    assert.equal(after.proposal.status, "scheduled");
+    assert.equal(after.events.length, 0);
+    assert.equal(after.audits.filter((event) => event.action === "Scheduled compensation change applied").length, 0);
+    const [pay] = await db.select().from(employeePayProfiles)
+      .where(eq(employeePayProfiles.employeeId, fixture.employeeId));
+    assert.equal(Number(pay.rateAmount), 30000);
   });
 });
