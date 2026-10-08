@@ -1,9 +1,10 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforcePlanningScenarios, workforcePlans } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
+import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
 import { dispatchWebhook } from "@/lib/webhooks";
 import { assertMembership } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
@@ -162,6 +163,40 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
   }
 
+  // The base named/role approver must still match. Dynamic Groups can only
+  // narrow that authority, never turn an unrelated worker into an approver.
+  let dynamicGroupScope: {
+    code: string;
+    id: number;
+    version: number;
+  } | null = null;
+  if (task.approvalChainInstanceId != null && task.approvalChainStepIndex != null) {
+    const [chainInstance] = await db.select().from(approvalChainInstances).where(and(
+      eq(approvalChainInstances.id, task.approvalChainInstanceId),
+      eq(approvalChainInstances.organizationId, task.organizationId),
+    )).limit(1);
+    if (!chainInstance || !Array.isArray(chainInstance.stepsSnapshot)) {
+      return Response.json({ error: "Approval routing evidence is missing." }, { status: 409 });
+    }
+    const frozen = chainInstance.stepsSnapshot[task.approvalChainStepIndex] as Record<string, unknown> | undefined;
+    if (!frozen || String(frozen.approver ?? "") !== task.approver) {
+      return Response.json({ error: "Approval step evidence no longer matches the assigned task." }, { status: 409 });
+    }
+    if (typeof frozen.dynamicGroupCode === "string" && frozen.dynamicGroupCode) {
+      if (!Number.isInteger(frozen.dynamicGroupId) || !Number.isInteger(frozen.dynamicGroupVersion)) {
+        return Response.json({ error: "This approval's Dynamic Group routing snapshot is incomplete." }, { status: 409 });
+      }
+      if (payrollRunId) {
+        return Response.json({ error: "Payroll checker approvals cannot be reassigned by Dynamic Group routing." }, { status: 409 });
+      }
+      dynamicGroupScope = {
+        code: frozen.dynamicGroupCode,
+        id: Number(frozen.dynamicGroupId),
+        version: Number(frozen.dynamicGroupVersion),
+      };
+    }
+  }
+
   const decision = await canDecide(task.organizationId, task.approver, actor, sessionUser.id);
   if (!decision.permitted) {
     return Response.json({
@@ -169,6 +204,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       assignedApprover: task.approver,
       effectiveApprover: decision.effectiveApprover,
     }, { status: 403 });
+  }
+  let groupEligibility = null;
+  if (dynamicGroupScope) {
+    groupEligibility = await authorizedDynamicGroupMember({
+      organizationId: task.organizationId,
+      userId: sessionUser.id,
+      groupId: dynamicGroupScope.id,
+      expectedCode: dynamicGroupScope.code,
+      expectedVersion: dynamicGroupScope.version,
+    });
+    if (!groupEligibility.eligible) {
+      return Response.json({
+        error: groupEligibility.reason === "group_version_changed"
+          ? "The approval Dynamic Group definition changed. Resubmit through the current policy."
+          : "The assigned approver is not an eligible live member of this approval's Dynamic Group.",
+        code: "APPROVAL_DYNAMIC_GROUP_NOT_ELIGIBLE",
+        reason: groupEligibility.reason,
+      }, { status: groupEligibility.reason === "group_version_changed" ? 409 : 403 });
+    }
   }
 
   const onBehalf = decision.roleMatched ? null : actor.toLowerCase() !== task.approver.toLowerCase() ? task.approver : null;
@@ -183,6 +237,24 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   };
   try {
     const decisionResult = await db.transaction(async (tx) => {
+      if (dynamicGroupScope) {
+        // Prevent concurrent group-definition or membership-link updates during
+        // this decision, then re-evaluate live membership before the task write.
+        await tx.execute(sql`select id from dynamic_worker_groups
+          where id = ${dynamicGroupScope.id} and organization_id = ${task.organizationId}
+          for share`);
+        await tx.execute(sql`select id from user_organizations
+          where user_id = ${sessionUser.id} and organization_id = ${task.organizationId}
+          for share`);
+        const currentEligibility = await authorizedDynamicGroupMember({
+          organizationId: task.organizationId,
+          userId: sessionUser.id,
+          groupId: dynamicGroupScope.id,
+          expectedCode: dynamicGroupScope.code,
+          expectedVersion: dynamicGroupScope.version,
+        });
+        if (!currentEligibility.eligible) throw new Error("APPROVAL_DYNAMIC_GROUP_NOT_ELIGIBLE");
+      }
       // Payroll decisions claim the payroll state first. Recalculation uses the
       // same lock order, which avoids an approval/recalculation deadlock and
       // guarantees that only one concurrent decision can win.
@@ -309,6 +381,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           approverUserId: payrollSubmission ? Number(payrollSubmission.metadata.approverUserId) || null : null,
           deciderUserId: sessionUser.id,
           approvalChainInstanceId: chainResult.instanceId,
+          dynamicGroupRestriction: dynamicGroupScope
+            ? { ...dynamicGroupScope, employeeId: groupEligibility?.employeeId, membershipCheckedLive: true }
+            : null,
           approvalChainFinal: chainResult.final,
           nextApprovalTaskId: chainResult.nextTaskId,
         },
@@ -323,7 +398,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (error instanceof Error && (
       error.message === "PAYROLL_APPROVAL_CONFLICT" ||
       error.message === "APPROVAL_TASK_CONFLICT" ||
-      error.message === "WORKFORCE_PLAN_APPROVAL_CONFLICT"
+      error.message === "WORKFORCE_PLAN_APPROVAL_CONFLICT" ||
+      error.message === "APPROVAL_DYNAMIC_GROUP_NOT_ELIGIBLE"
     )) {
       return Response.json({
         error: "This approval changed while your decision was being saved. Refresh to see the current state.",
