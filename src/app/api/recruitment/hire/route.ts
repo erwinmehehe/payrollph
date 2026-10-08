@@ -1,9 +1,11 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, eq, isNull, ne, notInArray, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, desc, eq, inArray, isNull, like, ne, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeePayProfiles,
   employees,
+  hcmBusinessProcessInstances,
   jobApplicants,
   jobProfiles,
   jobRequisitions,
@@ -23,6 +25,8 @@ import { resolvePayProfile } from "@/lib/pay-basis";
 import { ONBOARDING_TASKS } from "@/lib/provisioning";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
+import { startHcmBusinessProcessTx } from "@/lib/hcm-business-process";
+import { freezeHireApproval, hireEvidenceFromDefinition, hireReviewFingerprint, type HireReviewContext } from "@/lib/hcm-hire-business-process";
 
 export const dynamic = "force-dynamic";
 
@@ -95,6 +99,11 @@ export async function POST(request: Request) {
 
   const access = await getAccess(user.id, applicant.organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  if (!access.companyWide) {
+    return Response.json({
+      error: "Hire business-process initiation and conversion require company-wide People access.",
+    }, { status: 403 });
+  }
 
   if (applicant.hiredEmployeeId) {
     return Response.json({
@@ -222,6 +231,172 @@ export async function POST(request: Request) {
     return Response.json({ error: "That employee number is already in use." }, { status: 409 });
   }
 
+  const reviewContext: HireReviewContext = {
+    applicantId: applicant.id,
+    requisitionId: requisition.id,
+    positionId: position.id,
+    applicantStage: applicant.stage,
+    applicantEmail: applicant.email,
+    offeredMonthly: Number(applicant.offeredSalary).toFixed(2),
+    requisitionStatus: requisition.status,
+    positionCode: position.code,
+    positionStatus: position.status,
+    positionUpdatedAt: position.updatedAt.toISOString(),
+    positionOrgUnitId: position.orgUnitId,
+    positionLegalEntityId: position.legalEntityId,
+    positionPlanId: position.planId,
+    positionAnnualBudget: Number(position.annualBudget).toFixed(2),
+    profileTitle: profile.title,
+    employeeNo,
+    firstName,
+    middleName,
+    lastName,
+    startDate,
+    region,
+    nationality: String(body.nationality ?? "Filipino").trim().slice(0, 60) || "Filipino",
+    mwe: Boolean(body.mwe),
+    payBasis: payProfile.payBasis,
+    rateAmount: payProfile.rateAmount.toFixed(2),
+    standardWorkDaysPerMonth: payProfile.standardWorkDaysPerMonth.toFixed(2),
+    standardHoursPerDay: payProfile.standardHoursPerDay.toFixed(2),
+  };
+  const reviewedFingerprint = hireReviewFingerprint(reviewContext);
+
+  // Candidate-to-worker conversion is a two-phase transaction:
+  // (1) freeze offer/form/position evidence into an independent HCM process;
+  // (2) after approval, re-submit those exact details and atomically convert.
+  // No employee, pay profile, incumbent assignment or onboarding task exists
+  // merely because the hiring request was submitted.
+  let hireProcess: typeof hcmBusinessProcessInstances.$inferSelect;
+  let newlySubmitted = false;
+  try {
+    const request = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(4101, ${applicant.id})`);
+      await tx.execute(sql`select pg_advisory_xact_lock(4103, ${requisition.id})`);
+      await tx.execute(sql`select pg_advisory_xact_lock(4102, ${position.id})`);
+      const [freshApplicant] = await tx.select({
+        stage: jobApplicants.stage,
+        email: jobApplicants.email,
+        offeredSalary: jobApplicants.offeredSalary,
+        requisitionId: jobApplicants.requisitionId,
+        hiredEmployeeId: jobApplicants.hiredEmployeeId,
+      }).from(jobApplicants).where(and(
+        eq(jobApplicants.id, applicant.id),
+        eq(jobApplicants.organizationId, applicant.organizationId),
+      )).limit(1);
+      const [freshRequisition] = await tx.select({
+        status: jobRequisitions.status,
+        positionId: jobRequisitions.positionId,
+      }).from(jobRequisitions).where(and(
+        eq(jobRequisitions.id, requisition.id),
+        eq(jobRequisitions.organizationId, applicant.organizationId),
+      )).limit(1);
+      const [freshPosition] = await tx.select().from(positions).where(and(
+        eq(positions.id, position.id),
+        eq(positions.organizationId, applicant.organizationId),
+      )).limit(1);
+      const [freshProfile] = await tx.select({ title: jobProfiles.title }).from(jobProfiles).where(and(
+        eq(jobProfiles.id, profile.id),
+        eq(jobProfiles.organizationId, applicant.organizationId),
+      )).limit(1);
+      if (!freshApplicant || !freshRequisition || !freshPosition || !freshProfile
+        || freshApplicant.hiredEmployeeId
+        || freshApplicant.requisitionId !== requisition.id
+        || freshRequisition.positionId !== position.id
+        || freshPosition.jobProfileId !== profile.id
+        || hireReviewFingerprint({
+          ...reviewContext,
+          applicantStage: freshApplicant.stage,
+          applicantEmail: freshApplicant.email,
+          offeredMonthly: Number(freshApplicant.offeredSalary).toFixed(2),
+          requisitionStatus: freshRequisition.status,
+          positionCode: freshPosition.code,
+          positionStatus: freshPosition.status,
+          positionUpdatedAt: freshPosition.updatedAt.toISOString(),
+          positionOrgUnitId: freshPosition.orgUnitId,
+          positionLegalEntityId: freshPosition.legalEntityId,
+          positionPlanId: freshPosition.planId,
+          positionAnnualBudget: Number(freshPosition.annualBudget).toFixed(2),
+          profileTitle: freshProfile.title,
+        }) !== reviewedFingerprint) {
+        throw new HireConflict("Candidate, offer, or position changed while the hire request was prepared. Refresh before resubmitting.");
+      }
+
+      const [existing] = await tx.select().from(hcmBusinessProcessInstances).where(and(
+        eq(hcmBusinessProcessInstances.organizationId, applicant.organizationId),
+        eq(hcmBusinessProcessInstances.sourceType, "recruitment_hire"),
+        like(hcmBusinessProcessInstances.sourceKey, `${applicant.id}:%`),
+        inArray(hcmBusinessProcessInstances.status, ["in_progress", "approved"]),
+      )).orderBy(desc(hcmBusinessProcessInstances.id)).limit(1);
+
+      if (existing) {
+        const frozen = hireEvidenceFromDefinition(existing.definitionSnapshot);
+        if (!frozen || frozen.applicantId !== applicant.id || frozen.requisitionId !== requisition.id
+          || frozen.positionId !== position.id || frozen.fingerprint !== reviewedFingerprint) {
+          throw new HireConflict(
+            "This candidate already has a different pending or approved hire request. Complete or decline that review before changing the offer.",
+            { businessProcessInstanceId: existing.id },
+          );
+        }
+        return { instance: existing, submitted: false };
+      }
+
+      const instance = await startHcmBusinessProcessTx(tx, {
+        organizationId: applicant.organizationId,
+        processType: "hire",
+        sourceType: "recruitment_hire",
+        sourceKey: `${applicant.id}:${randomUUID()}`,
+        employeeLabel: applicant.fullName,
+        supervisoryOrgUnitId: position.supervisoryOrgUnitId,
+        effectiveDate: startDate,
+        initiatedByUserId: user.id,
+        initiatedByName: user.name,
+        sourceEvidence: { ...freezeHireApproval(reviewContext) },
+      });
+      return { instance, submitted: true };
+    });
+    hireProcess = request.instance;
+    newlySubmitted = request.submitted;
+  } catch (error) {
+    if (error instanceof HireConflict) {
+      return Response.json({ error: error.message, ...error.details }, { status: 409 });
+    }
+    return Response.json({
+      error: error instanceof Error && /Business-process|business-process|Business process/.test(error.message)
+        ? error.message : "The governed hire request could not be submitted.",
+    }, { status: 409 });
+  }
+
+  if (newlySubmitted) {
+    await recordAuditEvent({
+      organizationId: applicant.organizationId,
+      actor: user.name,
+      action: "Candidate hire submitted to HCM business process",
+      resource: applicant.fullName,
+      metadata: {
+        applicantId: applicant.id,
+        requisitionId: requisition.id,
+        positionId: position.id,
+        businessProcessInstanceId: hireProcess.id,
+        reviewFingerprint: reviewedFingerprint,
+        startDate,
+      },
+    });
+  }
+  if (hireProcess.status !== "approved") {
+    return Response.json({
+      approvalRequired: true,
+      employeeCreated: false,
+      applicantId: applicant.id,
+      businessProcess: {
+        id: hireProcess.id,
+        status: hireProcess.status,
+        definitionCode: hireProcess.definitionCode,
+      },
+      nextAction: "Complete the independent HCM Inbox approvals, then resubmit the same hire form.",
+    }, { status: 202 });
+  }
+
   const resultOrResponse = await db.transaction(async (tx) => {
     // Serialize conversion of one applicant and occupancy of one position. The
     // database unique index is the final backstop; these locks make the losing
@@ -238,6 +413,8 @@ export async function POST(request: Request) {
       stage: jobApplicants.stage,
       hiredEmployeeId: jobApplicants.hiredEmployeeId,
       offeredSalary: jobApplicants.offeredSalary,
+      email: jobApplicants.email,
+      requisitionId: jobApplicants.requisitionId,
     }).from(jobApplicants).where(eq(jobApplicants.id, applicant.id)).limit(1);
     if (!freshApplicant) throw new HireConflict("Applicant no longer exists.");
     if (freshApplicant.hiredEmployeeId) {
@@ -272,6 +449,12 @@ export async function POST(request: Request) {
     const [freshPosition] = await tx.select({
       status: positions.status,
       annualBudget: positions.annualBudget,
+      code: positions.code,
+      updatedAt: positions.updatedAt,
+      jobProfileId: positions.jobProfileId,
+      orgUnitId: positions.orgUnitId,
+      legalEntityId: positions.legalEntityId,
+      planId: positions.planId,
     }).from(positions).where(eq(positions.id, position.id)).limit(1);
     if (!freshPosition || freshPosition.status !== "open") {
       throw new HireConflict("The linked position is no longer open for recruitment.", {
@@ -316,6 +499,46 @@ export async function POST(request: Request) {
       if (activeAssignment) {
         throw new HireConflict("The linked position already has an active incumbent.");
       }
+    }
+
+    // Independently approved HCM evidence must still describe the exact live
+    // offer, hiring terms and position at the moment of conversion.
+    const [approvedProcess] = await tx.select().from(hcmBusinessProcessInstances).where(and(
+      eq(hcmBusinessProcessInstances.id, hireProcess.id),
+      eq(hcmBusinessProcessInstances.organizationId, applicant.organizationId),
+      eq(hcmBusinessProcessInstances.sourceType, "recruitment_hire"),
+      eq(hcmBusinessProcessInstances.status, "approved"),
+    )).limit(1);
+    const frozen = approvedProcess ? hireEvidenceFromDefinition(approvedProcess.definitionSnapshot) : null;
+    const [freshProfile] = await tx.select({ title: jobProfiles.title }).from(jobProfiles).where(and(
+      eq(jobProfiles.id, profile.id),
+      eq(jobProfiles.organizationId, applicant.organizationId),
+    )).limit(1);
+    if (!approvedProcess || !frozen
+      || frozen.applicantId !== applicant.id
+      || frozen.requisitionId !== requisition.id
+      || frozen.positionId !== position.id
+      || !freshProfile || !freshApplicant || !freshRequisition || !freshPosition
+      || freshApplicant.requisitionId !== requisition.id
+      || freshRequisition.positionId !== position.id
+      || freshPosition.jobProfileId !== profile.id
+      || hireReviewFingerprint({
+        ...reviewContext,
+        applicantStage: freshApplicant.stage,
+        applicantEmail: freshApplicant.email,
+        offeredMonthly: Number(freshApplicant.offeredSalary).toFixed(2),
+        requisitionStatus: freshRequisition.status,
+        positionCode: freshPosition.code,
+        positionStatus: freshPosition.status,
+        positionUpdatedAt: freshPosition.updatedAt.toISOString(),
+        positionOrgUnitId: freshPosition.orgUnitId,
+        positionLegalEntityId: freshPosition.legalEntityId,
+        positionPlanId: freshPosition.planId,
+        positionAnnualBudget: Number(freshPosition.annualBudget).toFixed(2),
+        profileTitle: freshProfile.title,
+      }) !== frozen.fingerprint
+      || frozen.fingerprint !== reviewedFingerprint) {
+      throw new HireConflict("Hire approval no longer matches the current candidate/position evidence. Obtain a new independent review.");
     }
 
     const requisitionStatus = "filled";
@@ -422,6 +645,16 @@ export async function POST(request: Request) {
       .set({ status: requisitionStatus })
       .where(eq(jobRequisitions.id, requisition.id));
 
+    // Claim exactly one approved process in the same transaction as employee,
+    // payroll profile, position assignment and onboarding creation.
+    const [appliedProcess] = await tx.update(hcmBusinessProcessInstances)
+      .set({ status: "applied", updatedAt: new Date() }).where(and(
+        eq(hcmBusinessProcessInstances.id, hireProcess.id),
+        eq(hcmBusinessProcessInstances.organizationId, applicant.organizationId),
+        eq(hcmBusinessProcessInstances.status, "approved"),
+      )).returning({ id: hcmBusinessProcessInstances.id });
+    if (!appliedProcess) throw new HireConflict("The hire approval changed before the candidate could be converted.");
+
     return { employee, onboarding, assignment, requisitionStatus, closedCandidateCount: closedCandidates.length };
   }).catch((error: unknown) => {
     if (error instanceof HireConflict) {
@@ -442,6 +675,7 @@ export async function POST(request: Request) {
       applicantId: applicant.id,
       requisitionId: requisition.id,
       employeeId: result.employee.id,
+      businessProcessInstanceId: hireProcess.id,
       positionId: position.id,
       positionCode: position.code,
       positionAssignmentId: result.assignment.id,
@@ -494,6 +728,8 @@ export async function POST(request: Request) {
 
   return Response.json({
     employee: result.employee,
+    approvalRequired: false,
+    businessProcess: { id: hireProcess.id, status: "applied" },
     onboarding: result.onboarding,
     hcmObligations,
     automation: [...employeeAutomation, ...candidateAutomation],
