@@ -2,6 +2,7 @@ import { and, eq, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
+  auditEvents,
   compensationBands,
   compensationEvents,
   compensationProposals,
@@ -116,6 +117,172 @@ export async function invalidatePayrollRunsForCompensationChange(
   };
 
   return transaction ? invalidate(transaction) : db.transaction(invalidate);
+}
+
+
+/**
+ * Cancel a pending or unapplied salary proposal without leaving a payroll run
+ * reset if the cancellation/revision removal fails halfway through.
+ *
+ * Lock order: proposal (4220, shared with activation scheduler) -> cycle (4230,
+ * shared with salary approvals) -> employee (4221, shared with both).
+ * The state/tenant/revision checks below run after all three locks are held.
+ */
+export async function cancelGovernedCompensationProposal(input: {
+  proposalId: number;
+  organizationId: number;
+  employeeId: number;
+  actorUserId: number;
+  actorName: string;
+  now?: Date;
+}) {
+  const now = input.now ?? new Date();
+  const today = philippineBusinessDate(now);
+
+  return db.transaction(async (tx) => {
+    const [initial] = await tx.select({
+      cycleId: compensationProposals.cycleId,
+      employeeId: compensationProposals.employeeId,
+    }).from(compensationProposals).where(and(
+      eq(compensationProposals.id, input.proposalId),
+      eq(compensationProposals.organizationId, input.organizationId),
+      eq(compensationProposals.employeeId, input.employeeId),
+    )).limit(1);
+    if (!initial) throw new Error("COMPENSATION_CANCELLATION_STALE");
+
+    await tx.execute(sql`select pg_advisory_xact_lock(4220, ${input.proposalId})`);
+    await tx.execute(sql`select pg_advisory_xact_lock(4230, ${initial.cycleId})`);
+    await tx.execute(sql`select pg_advisory_xact_lock(4221, ${initial.employeeId})`);
+
+    const [[proposal], [cycle], [employee]] = await Promise.all([
+      tx.select().from(compensationProposals).where(and(
+        eq(compensationProposals.id, input.proposalId),
+        eq(compensationProposals.organizationId, input.organizationId),
+        eq(compensationProposals.employeeId, input.employeeId),
+      )).limit(1),
+      tx.select().from(compensationCycles).where(and(
+        eq(compensationCycles.id, initial.cycleId),
+        eq(compensationCycles.organizationId, input.organizationId),
+      )).limit(1),
+      tx.select().from(employees).where(and(
+        eq(employees.id, input.employeeId),
+        eq(employees.organizationId, input.organizationId),
+      )).limit(1),
+    ]);
+
+    if (!proposal || !cycle || !employee || proposal.cycleId !== cycle.id
+        || proposal.employeeId !== initial.employeeId) {
+      throw new Error("COMPENSATION_CANCELLATION_STALE");
+    }
+    if (!["proposed", "scheduled", "failed"].includes(proposal.status)) {
+      throw new Error("COMPENSATION_CANCELLATION_STALE");
+    }
+
+    const effectiveDate = String(cycle.effectiveDate);
+    const pricedByPayroll = proposal.status === "scheduled" || proposal.status === "failed";
+    let cancelledPayRevisionId: number | null = null;
+    let invalidatedPayrollRunIds: number[] = [];
+
+    if (pricedByPayroll) {
+      // From the effective day onward, salary could already have been earned or
+      // activated by the scheduler. This route is not an audited retro workflow.
+      if (effectiveDate <= today) throw new Error("COMPENSATION_CANCELLATION_RETROACTIVE");
+      if (!proposal.appliedPayRevisionId) throw new Error("COMPENSATION_CANCELLATION_REVISION_STALE");
+
+      const [revision] = await tx.select().from(employeePayRevisions).where(and(
+        eq(employeePayRevisions.id, proposal.appliedPayRevisionId),
+        eq(employeePayRevisions.organizationId, input.organizationId),
+        eq(employeePayRevisions.employeeId, input.employeeId),
+      )).limit(1);
+      if (!revision || String(revision.effectiveDate) !== effectiveDate) {
+        throw new Error("COMPENSATION_CANCELLATION_REVISION_STALE");
+      }
+      cancelledPayRevisionId = revision.id;
+
+      const employeeRevisions = await tx.select().from(employeePayRevisions).where(and(
+        eq(employeePayRevisions.organizationId, input.organizationId),
+        eq(employeePayRevisions.employeeId, input.employeeId),
+      ));
+      if (employeeRevisions.some((entry) =>
+        entry.id !== revision.id && String(entry.effectiveDate) > effectiveDate
+      )) {
+        throw new Error("COMPENSATION_CANCELLATION_DOWNSTREAM_REVISION");
+      }
+
+      // A linked revision must not silently be detached from another proposal.
+      const linkedProposals = await tx.select({ id: compensationProposals.id })
+        .from(compensationProposals)
+        .where(eq(compensationProposals.appliedPayRevisionId, revision.id));
+      if (linkedProposals.some((linked) => linked.id !== proposal.id)) {
+        throw new Error("COMPENSATION_CANCELLATION_REVISION_STALE");
+      }
+
+      const affected = await compensationPayrollConflicts({
+        organizationId: input.organizationId,
+        employeeOrgUnitId: employee.orgUnitId,
+        effectiveFrom: effectiveDate,
+        effectiveUntil: null,
+      }, tx);
+      invalidatedPayrollRunIds = await invalidatePayrollRunsForCompensationChange(
+        input.organizationId,
+        affected,
+        tx,
+      );
+    } else if (proposal.appliedPayRevisionId !== null) {
+      // A proposed (unapproved) change must never delete an orphaned pay revision.
+      throw new Error("COMPENSATION_CANCELLATION_REVISION_STALE");
+    }
+
+    const [updated] = await tx.update(compensationProposals).set({
+      status: "cancelled",
+      appliedPayRevisionId: null,
+      failure: null,
+      updatedAt: now,
+    }).where(and(
+      eq(compensationProposals.id, proposal.id),
+      eq(compensationProposals.organizationId, input.organizationId),
+      eq(compensationProposals.status, proposal.status),
+    )).returning();
+    if (!updated) throw new Error("COMPENSATION_CANCELLATION_STALE");
+
+    if (cancelledPayRevisionId != null) {
+      const [deleted] = await tx.delete(employeePayRevisions).where(and(
+        eq(employeePayRevisions.id, cancelledPayRevisionId),
+        eq(employeePayRevisions.organizationId, input.organizationId),
+        eq(employeePayRevisions.employeeId, input.employeeId),
+      )).returning({ id: employeePayRevisions.id });
+      if (!deleted) throw new Error("COMPENSATION_CANCELLATION_REVISION_STALE");
+    }
+
+    const evidence = {
+      priorStatus: proposal.status,
+      reason: proposal.reason,
+      compensationCycleId: cycle.id,
+      cancelledPayRevisionId,
+      invalidatedPayrollRunIds,
+      linkedWorkerChangeId: proposal.workerEffectiveChangeId,
+    };
+    await tx.insert(compensationEvents).values({
+      organizationId: updated.organizationId,
+      employeeId: updated.employeeId,
+      eventType: "salary_change_cancelled",
+      effectiveDate,
+      bandId: updated.bandId,
+      proposalId: updated.id,
+      metadata: evidence,
+      actorUserId: input.actorUserId,
+      actorName: input.actorName,
+    });
+    await tx.insert(auditEvents).values({
+      organizationId: updated.organizationId,
+      actor: input.actorName,
+      action: pricedByPayroll ? "Scheduled compensation proposal cancelled" : "Compensation proposal cancelled",
+      resource: `Proposal #${updated.id}`,
+      metadata: { employeeId: updated.employeeId, ...evidence },
+    });
+
+    return { proposal: updated, invalidatedPayrollRunIds, cancelledPayRevisionId };
+  });
 }
 
 export async function applyScheduledCompensationProposal(
