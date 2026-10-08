@@ -21,7 +21,11 @@ limits, but accepts **one month**. A passing report is named
 
 After independently reviewing the original employer exports and approving all
 exceptions, retain the local manifest and report with their SHA-256 hashes in
-the private encrypted evidence vault. In production, record the reference to
+the private encrypted evidence vault. Generate the **SHA-256 digest of the
+actual saved JSON reconciliation report** and enter it, the matched employee
+count, and the independent evidence reference into the Owner sign-off screen.
+The digest anchors the private evidence for later review; entering it does
+not mean PayrollPH has read the private report or verified its origin. In production, record the reference to
 that reviewed evidence against the correct released run. The Owner must verify
 the real payroll outcome and the post-release bank-file dry run before pilot
 sign-off. A preview with placeholder destinations or missing immutable
