@@ -221,7 +221,7 @@ async function activateStepTx(
     dueLabel: current.dueAt
       ? `Due ${new Date(current.dueAt).toISOString().slice(0, 10)}`
       : "Review required",
-    priority: "High",
+    priority: current.priority,
   }).returning();
 
   const [linked] = await tx.update(hcmBusinessProcessInstanceSteps).set({
@@ -316,6 +316,7 @@ export async function startHcmBusinessProcessTx(
       stepType: step.type,
       label: step.label,
       assignee: step.assignee,
+      priority: step.priority ?? "Normal",
       status: "waiting",
       dueAt: stepDueAt(step.dueDays),
     });
@@ -543,10 +544,16 @@ export async function cancelHcmBusinessProcessForSourceTx(
     for update
   `);
 
+  const [lockedInstance] = await tx.select().from(hcmBusinessProcessInstances)
+    .where(eq(hcmBusinessProcessInstances.id, lockedInstance.id))
+    .limit(1);
+  if (!lockedInstance) return null;
+  if (lockedInstance.status !== "in_progress") return lockedInstance;
+
   const pendingSteps = await tx.select({
     approvalTaskId: hcmBusinessProcessInstanceSteps.approvalTaskId,
   }).from(hcmBusinessProcessInstanceSteps).where(and(
-    eq(hcmBusinessProcessInstanceSteps.instanceId, instance.id),
+    eq(hcmBusinessProcessInstanceSteps.instanceId, lockedInstance.id),
     eq(hcmBusinessProcessInstanceSteps.status, "pending"),
   ));
   const pendingTaskIds = pendingSteps
@@ -567,7 +574,7 @@ export async function cancelHcmBusinessProcessForSourceTx(
     completedByName: input.actorName.slice(0, 120),
     completedAt: new Date(),
   }).where(and(
-    eq(hcmBusinessProcessInstanceSteps.instanceId, instance.id),
+    eq(hcmBusinessProcessInstanceSteps.instanceId, lockedInstance.id),
     inArray(hcmBusinessProcessInstanceSteps.status, ["pending", "waiting"]),
   ));
 
@@ -579,7 +586,7 @@ export async function cancelHcmBusinessProcessForSourceTx(
     completedAt: new Date(),
     updatedAt: new Date(),
   }).where(and(
-    eq(hcmBusinessProcessInstances.id, instance.id),
+    eq(hcmBusinessProcessInstances.id, lockedInstance.id),
     eq(hcmBusinessProcessInstances.status, "in_progress"),
   )).returning();
 
