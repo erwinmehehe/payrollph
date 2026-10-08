@@ -97,7 +97,7 @@ async function currentPositionState(
       )),
   ]);
 
-  const livePositions: WorkforcePlanLivePosition[] = positionRows.map((row) => ({
+  const livePositions: WorkforcePlanLivePosition[] = (positionRows as Array<typeof positions.$inferSelect>).map((row) => ({
     id: row.id,
     code: row.code,
     jobProfileId: row.jobProfileId,
@@ -116,8 +116,8 @@ async function currentPositionState(
 
   return {
     livePositions,
-    activeAssignmentPositionIds: assignmentRows.map((row) => row.positionId),
-    activeRequisitionPositionIds: requisitionRows.flatMap((row) => row.positionId == null ? [] : [row.positionId]),
+    activeAssignmentPositionIds: (assignmentRows as Array<{ positionId: number }>).map((row) => row.positionId),
+    activeRequisitionPositionIds: (requisitionRows as Array<{ positionId: number | null }>).flatMap((row) => row.positionId == null ? [] : [row.positionId]),
   };
 }
 
