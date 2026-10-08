@@ -650,7 +650,17 @@ export function CompensationPanel({
                           </>
                         )}
                         {["proposed", "scheduled", "failed"].includes(proposal.status) && canApprove && (
-                          <button className="secondary-button" onClick={() => void patch({ entityType: "proposal", id: proposal.id, action: "cancel" }, "Compensation proposal cancelled.")}>Cancel</button>
+                          <button className="secondary-button" onClick={() => {
+                            if (proposal.status !== "proposed" && !window.confirm(
+                              "Cancel this governed future salary change? Calculated payroll and checker approvals for affected periods may be reset. Recalculate and resubmit before release.",
+                            )) return;
+                            void patch(
+                              { entityType: "proposal", id: proposal.id, action: "cancel" },
+                              proposal.status === "proposed"
+                                ? "Compensation proposal cancelled."
+                                : "Salary change cancelled. Review affected payroll and recalculate before release.",
+                            );
+                          }}>{proposal.status === "proposed" ? "Cancel" : "Cancel pay revision"}</button>
                         )}
                         {proposal.status === "failed" && canApprove && (
                           <button className="secondary-button" onClick={() => void patch({ entityType: "proposal", id: proposal.id, action: "retry" }, "Compensation proposal retry submitted.")}>Retry</button>
