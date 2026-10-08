@@ -16,8 +16,11 @@ import {
   workerEffectiveChanges,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
-import { runAutomationEventSafely } from "@/lib/automation";
-import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
+import { fieldChangeContext } from "@/lib/automation-change-events";
+import {
+  dispatchCompensationAutomationEvent,
+  enqueueCompensationAutomationIntents,
+} from "@/lib/compensation-automation-outbox";
 import { annualizePay, compaRatio } from "@/lib/compensation";
 import { resolvePayProfile } from "@/lib/pay-basis";
 
@@ -446,6 +449,62 @@ export async function applyScheduledCompensationProposal(
       )).returning();
       if (!applied) throw new Error("The compensation proposal changed before application.");
 
+      // Persist the notification snapshots in the SAME financial commit.
+      // Recovery never reads the worker's later mutable pay profile.
+      await enqueueCompensationAutomationIntents(tx, {
+        organizationId: proposal.organizationId,
+        employeeId: proposal.employeeId,
+        compensationEventId: event.id,
+        intents: [
+          {
+            trigger: "compensation.changed",
+            eventKey: `compensation-applied:${proposal.id}`,
+            context: {
+              compensationProposalId: proposal.id,
+              compensationCycleId: cycle.id,
+              effectiveDate: cycle.effectiveDate,
+              previousAnnual: beforeAnnual,
+              proposedAnnual: afterAnnual,
+              eventAmount: afterAnnual - beforeAnnual,
+              payRevisionId: revision.id,
+              workerEffectiveChangeId: proposal.workerEffectiveChangeId,
+            },
+          },
+          {
+            trigger: "employee.field_changed",
+            eventKey: `compensation-applied:${proposal.id}:field-change:annualsalary`,
+            context: fieldChangeContext({
+              field: "annualSalary",
+              previousValue: beforeAnnual,
+              newValue: afterAnnual,
+              effectiveDate: String(cycle.effectiveDate),
+              source: "compensation-governance",
+              metadata: {
+                compensationProposalId: proposal.id,
+                compensationCycleId: cycle.id,
+                payRevisionId: revision.id,
+              },
+            }),
+          },
+          {
+            trigger: "employee.field_changed",
+            eventKey: `compensation-applied:${proposal.id}:field-change:monthlyequivalentsalary`,
+            context: fieldChangeContext({
+              field: "monthlyEquivalentSalary",
+              previousValue: beforeAnnual / 12,
+              newValue: afterAnnual / 12,
+              effectiveDate: String(cycle.effectiveDate),
+              source: "compensation-governance",
+              metadata: {
+                compensationProposalId: proposal.id,
+                compensationCycleId: cycle.id,
+                payRevisionId: revision.id,
+              },
+            }),
+          },
+        ],
+      });
+
       return { skipped: false as const, proposal: applied, employee, revision, cycle, band, event, beforeAnnual, afterAnnual };
     });
   } catch (error) {
@@ -483,61 +542,21 @@ export async function applyScheduledCompensationProposal(
     warnings.push(`audit: ${error instanceof Error ? error.message : "unknown failure"}`);
   }
 
-  let automation: Awaited<ReturnType<typeof runAutomationEventSafely>> = [];
+  // Optimistic immediate handoff. Even if this call fails after commit, the
+  // scheduler can deliver the transactionally persisted intent later.
+  let automationDispatch: Awaited<ReturnType<typeof dispatchCompensationAutomationEvent>> | null = null;
   try {
-    automation = await runAutomationEventSafely({
+    automationDispatch = await dispatchCompensationAutomationEvent({
       organizationId: result.proposal.organizationId,
-      employeeId: result.proposal.employeeId,
-      trigger: "compensation.changed",
-      eventKey: `compensation-applied:${result.proposal.id}`,
-      context: {
-        compensationProposalId: result.proposal.id,
-        compensationCycleId: result.cycle.id,
-        effectiveDate: result.cycle.effectiveDate,
-        previousAnnual: result.beforeAnnual,
-        proposedAnnual: result.afterAnnual,
-        eventAmount: result.afterAnnual - result.beforeAnnual,
-        payRevisionId: result.revision.id,
-        workerEffectiveChangeId: result.proposal.workerEffectiveChangeId,
-      },
+      compensationEventId: result.event.id,
     });
-  } catch (error) {
-    warnings.push(`automation: ${error instanceof Error ? error.message : "unknown failure"}`);
+    if (automationDispatch.retry > 0) warnings.push("Compensation notification delivery queued for retry.");
+    if (automationDispatch.needsReview > 0) warnings.push("Compensation notification requires automation execution review.");
+  } catch {
+    warnings.push("Compensation notification delivery deferred to durable scheduler queue.");
   }
 
-  const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
-    organizationId: result.proposal.organizationId,
-    employeeId: result.proposal.employeeId,
-    eventKey: `compensation-applied:${result.proposal.id}:field-change`,
-    changes: [
-      {
-        field: "annualSalary",
-        previousValue: result.beforeAnnual,
-        newValue: result.afterAnnual,
-        effectiveDate: String(result.cycle.effectiveDate),
-        source: "compensation-governance",
-        metadata: {
-          compensationProposalId: result.proposal.id,
-          compensationCycleId: result.cycle.id,
-          payRevisionId: result.revision.id,
-        },
-      },
-      {
-        field: "monthlyEquivalentSalary",
-        previousValue: result.beforeAnnual / 12,
-        newValue: result.afterAnnual / 12,
-        effectiveDate: String(result.cycle.effectiveDate),
-        source: "compensation-governance",
-        metadata: {
-          compensationProposalId: result.proposal.id,
-          compensationCycleId: result.cycle.id,
-          payRevisionId: result.revision.id,
-        },
-      },
-    ],
-  });
-
-  return { ...result, automation, fieldChangeAutomation, warnings };
+  return { ...result, automationDispatch, warnings };
 }
 
 
@@ -762,56 +781,59 @@ export async function activateCompensationComponentAssignment(
       },
     }).returning({ id: auditEvents.id });
 
+    await enqueueCompensationAutomationIntents(tx, {
+      organizationId: active.organizationId,
+      employeeId: active.employeeId,
+      compensationEventId: event.id,
+      intents: [
+        {
+          trigger: "compensation.changed",
+          eventKey: `compensation-component-active:${active.id}`,
+          context: {
+            compensationComponentAssignmentId: active.id,
+            compensationComponentId: active.componentId,
+            effectiveDate: active.effectiveFrom,
+            eventAmount: Number(active.amount),
+            compensationChangeKind: "recurring_component",
+          },
+        },
+        {
+          trigger: "employee.field_changed",
+          eventKey: `compensation-component-active:${active.id}:field-change:recurringcompensationamount`,
+          context: fieldChangeContext({
+            field: "recurringCompensationAmount",
+            previousValue: 0,
+            newValue: Number(active.amount),
+            effectiveDate: String(active.effectiveFrom),
+            source: "compensation-component",
+            metadata: {
+              compensationComponentAssignmentId: active.id,
+              compensationComponentId: active.componentId,
+            },
+          }),
+        },
+      ],
+    });
+
     return { skipped: false as const, assignment: active, event, audit };
   });
 
   if (result.skipped) return result;
 
   const warnings: string[] = [];
-  let automation: Awaited<ReturnType<typeof runAutomationEventSafely>> = [];
+  let automationDispatch: Awaited<ReturnType<typeof dispatchCompensationAutomationEvent>> | null = null;
   try {
-    automation = await runAutomationEventSafely({
+    automationDispatch = await dispatchCompensationAutomationEvent({
       organizationId: result.assignment.organizationId,
-      employeeId: result.assignment.employeeId,
-      trigger: "compensation.changed",
-      eventKey: `compensation-component-active:${result.assignment.id}`,
-      context: {
-        compensationComponentAssignmentId: result.assignment.id,
-        compensationComponentId: result.assignment.componentId,
-        effectiveDate: result.assignment.effectiveFrom,
-        eventAmount: Number(result.assignment.amount),
-        compensationChangeKind: "recurring_component",
-      },
+      compensationEventId: result.event.id,
     });
-  } catch (error) {
-    warnings.push(`automation: ${error instanceof Error ? error.message : "unknown failure"}`);
+    if (automationDispatch.retry > 0) warnings.push("Recurring component notification queued for retry.");
+    if (automationDispatch.needsReview > 0) warnings.push("Recurring component notification needs execution review.");
+  } catch {
+    warnings.push("Recurring component notification deferred to durable scheduler queue.");
   }
 
-  let fieldChangeAutomation: Awaited<ReturnType<typeof runEmployeeFieldChangeAutomations>> = [];
-  try {
-    fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
-      organizationId: result.assignment.organizationId,
-      employeeId: result.assignment.employeeId,
-      eventKey: `compensation-component-active:${result.assignment.id}:field-change`,
-      changes: [{
-        field: "recurringCompensationAmount",
-        previousValue: 0,
-        newValue: Number(result.assignment.amount),
-        effectiveDate: String(result.assignment.effectiveFrom),
-        source: "compensation-component",
-        metadata: {
-          compensationComponentAssignmentId: result.assignment.id,
-          compensationComponentId: result.assignment.componentId,
-        },
-      }],
-    });
-  } catch (error) {
-    // The financial activation is already committed; do not misreport it as a
-    // failed transaction or schedule a duplicate activation. Surface review.
-    warnings.push(`field-change automation: ${error instanceof Error ? error.message : "unknown failure"}`);
-  }
-
-  return { ...result, automation, fieldChangeAutomation, warnings };
+  return { ...result, automationDispatch, warnings };
 }
 
 export async function runScheduledCompensationGovernance({
