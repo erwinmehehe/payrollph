@@ -192,3 +192,23 @@ test("compensation workspace confirms approved pay cancellation and gives recalc
   assert.ok(panel.includes("Cancel pay revision"));
   assert.ok(panel.includes("Review affected payroll and recalculate before release."));
 });
+
+
+test("component expiration uses the activation lock and commits the status with both financial evidence records", () => {
+  const begin = governance.indexOf("export async function expireCompensationComponentAssignment(");
+  const end = governance.indexOf("export async function runScheduledCompensationGovernance(", begin);
+  assert.ok(begin >= 0 && end > begin);
+  const expiration = governance.slice(begin, end);
+  const transaction = expiration.indexOf("return db.transaction(async (tx) => {");
+  const lock = expiration.indexOf("pg_advisory_xact_lock(4222");
+  const statusUpdate = expiration.indexOf("tx.update(employeeCompensationComponents)");
+  const financialEvent = expiration.indexOf("tx.insert(compensationEvents)");
+  const auditRecord = expiration.indexOf("tx.insert(auditEvents)");
+  assert.ok(transaction >= 0 && lock > transaction);
+  assert.ok(statusUpdate > lock && financialEvent > statusUpdate && auditRecord > financialEvent);
+  assert.ok(expiration.includes('lt(employeeCompensationComponents.effectiveUntil, today)'));
+  assert.ok(expiration.includes('status: "ended"'));
+  assert.ok(governance.includes("expirationFailures.push("));
+  assert.ok(governance.includes("expireCompensationComponentAssignment(assignment.id, { actor, now })"));
+  assert.ok(payroll.includes('["scheduled", "active", "ended"]'));
+});
