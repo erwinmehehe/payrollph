@@ -39,6 +39,10 @@ Reviewers should compare, approve and close superseded drafts deliberately.
   and leave the governing proposal scheduled for retry.
 - Recurring-component activation uses assignment lock `4222` and atomically
   persists activation, financial event, linked audit and two delivery intents.
+  Effective-today human approval also writes both durable intents in the
+  approval transaction; unlike future-dated approvals it never passes through
+  the scheduled-activation worker. A same-day outbox write failure rolls back
+  approval, financial event, payroll invalidation and audit together.
 - Recurring-component expiration shares assignment lock `4222`. It cannot
   end a component until **after** the last payable Philippine day, and
   atomically writes both the expiration event and audit. Neither an overlapping
