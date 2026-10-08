@@ -612,6 +612,10 @@ test("seeded payroll lifecycle recalculates cleanly and releases overtime, leave
       workDate: "2026-09-20",
       timeIn: new Date("2026-09-20T09:00:00+08:00"),
       timeOut: new Date("2026-09-20T20:00:00+08:00"),
+      // Evidence of the actual non-payable meal break is required when
+      // attendance crosses ordinary/OT premium boundaries.
+      breakStart: new Date("2026-09-20T12:00:00+08:00"),
+      breakEnd: new Date("2026-09-20T13:00:00+08:00"),
       shiftStart: "09:00",
       shiftEnd: "18:00",
       status: "Complete",
