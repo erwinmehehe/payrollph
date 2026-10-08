@@ -535,35 +535,35 @@ export async function applyScheduledCompensationProposal(
   let fieldChangeAutomation: Awaited<ReturnType<typeof runEmployeeFieldChangeAutomations>> = [];
   try {
     fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
-    organizationId: result.proposal.organizationId,
-    employeeId: result.proposal.employeeId,
-    eventKey: `compensation-applied:${result.proposal.id}:field-change`,
-    changes: [
-      {
-        field: "annualSalary",
-        previousValue: result.beforeAnnual,
-        newValue: result.afterAnnual,
-        effectiveDate: String(result.cycle.effectiveDate),
-        source: "compensation-governance",
-        metadata: {
-          compensationProposalId: result.proposal.id,
-          compensationCycleId: result.cycle.id,
-          payRevisionId: result.revision.id,
+      organizationId: result.proposal.organizationId,
+      employeeId: result.proposal.employeeId,
+      eventKey: `compensation-applied:${result.proposal.id}:field-change`,
+      changes: [
+        {
+          field: "annualSalary",
+          previousValue: result.beforeAnnual,
+          newValue: result.afterAnnual,
+          effectiveDate: String(result.cycle.effectiveDate),
+          source: "compensation-governance",
+          metadata: {
+            compensationProposalId: result.proposal.id,
+            compensationCycleId: result.cycle.id,
+            payRevisionId: result.revision.id,
+          },
         },
-      },
-      {
-        field: "monthlyEquivalentSalary",
-        previousValue: result.beforeAnnual / 12,
-        newValue: result.afterAnnual / 12,
-        effectiveDate: String(result.cycle.effectiveDate),
-        source: "compensation-governance",
-        metadata: {
-          compensationProposalId: result.proposal.id,
-          compensationCycleId: result.cycle.id,
-          payRevisionId: result.revision.id,
+        {
+          field: "monthlyEquivalentSalary",
+          previousValue: result.beforeAnnual / 12,
+          newValue: result.afterAnnual / 12,
+          effectiveDate: String(result.cycle.effectiveDate),
+          source: "compensation-governance",
+          metadata: {
+            compensationProposalId: result.proposal.id,
+            compensationCycleId: result.cycle.id,
+            payRevisionId: result.revision.id,
+          },
         },
-      },
-    ],
+      ],
     });
   } catch (error) {
     // The pay and its audit have already committed. Secondary automation
@@ -869,7 +869,11 @@ export async function runScheduledCompensationGovernance({
         ...(!result.skipped && result.warnings.length > 0 ? { warnings: result.warnings } : {}),
       });
     } catch (error) {
-      proposalResults.push({ id: row.id, status: "failed", error: error instanceof Error ? error.message : "Unknown failure" });
+      proposalResults.push({
+        id: row.id,
+        status: error instanceof ScheduledCompensationAuditWriteError ? "retryable" : "failed",
+        error: error instanceof Error ? error.message : "Unknown failure",
+      });
     }
   }
 
