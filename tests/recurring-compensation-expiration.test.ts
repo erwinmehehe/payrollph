@@ -14,6 +14,7 @@ import {
   payrollRuns,
 } from "../src/db/schema";
 import {
+  activateCompensationComponentAssignment,
   expireCompensationComponentAssignment,
   philippineBusinessDate,
   runScheduledCompensationGovernance,
@@ -315,4 +316,68 @@ test("actual expiration preserves earned recurring compensation for past cutoff 
     assert.equal(after.endedEvents.length, 1);
     assert.equal(after.endingAudits.length, 1);
   });
+});
+
+test("activation and expiration race converges with one of each financial event", async () => {
+  await withAssignment(async (fixture) => {
+    const [activation, expiry] = await Promise.all([
+      activateCompensationComponentAssignment(fixture.assignmentId, {
+        actor: "Concurrent activation runner", now: AFTER_EXPIRATION,
+      }),
+      expireCompensationComponentAssignment(fixture.assignmentId, {
+        actor: "Concurrent expiration runner", now: AFTER_EXPIRATION,
+      }),
+    ]);
+    assert.equal(activation.skipped, false, "exactly one scheduled activation is expected");
+    if (expiry.skipped) {
+      assert.equal(expiry.reason, "not_active", "expiry may win the initial lock");
+      const followUp = await expireCompensationComponentAssignment(fixture.assignmentId, {
+        actor: "Second expiry sweep", now: AFTER_EXPIRATION,
+      });
+      assert.equal(followUp.skipped, false);
+    }
+
+    const after = await snapshot(fixture);
+    const events = await db.select().from(compensationEvents).where(
+      eq(compensationEvents.componentAssignmentId, fixture.assignmentId),
+    );
+    assert.equal(after.assignment.status, "ended");
+    assert.equal(events.filter((event) => event.eventType === "component_activated").length, 1);
+    assert.equal(after.endedEvents.length, 1);
+    assert.equal(after.endingAudits.length, 1);
+
+    const replay = await expireCompensationComponentAssignment(fixture.assignmentId, {
+      now: AFTER_EXPIRATION,
+    });
+    assert.equal(replay.skipped, true);
+    assert.equal(replay.reason, "already_ended");
+  }, { status: "scheduled" });
+});
+
+test("parallel compensation scheduler passes end each overdue scheduled component only once", async () => {
+  await withAssignment(async (fixture) => {
+    await Promise.all([
+      runScheduledCompensationGovernance({
+        actor: "Scheduler worker A", now: AFTER_EXPIRATION, limit: 100,
+      }),
+      runScheduledCompensationGovernance({
+        actor: "Scheduler worker B", now: AFTER_EXPIRATION, limit: 100,
+      }),
+    ]);
+
+    // A further pass is part of the recovery contract: a row activated after
+    // the first expiry scan must still be closed when the next scan sees it.
+    await runScheduledCompensationGovernance({
+      actor: "Scheduler convergence QA", now: AFTER_EXPIRATION, limit: 100,
+    });
+
+    const after = await snapshot(fixture);
+    const events = await db.select().from(compensationEvents).where(
+      eq(compensationEvents.componentAssignmentId, fixture.assignmentId),
+    );
+    assert.equal(after.assignment.status, "ended");
+    assert.equal(events.filter((event) => event.eventType === "component_activated").length, 1);
+    assert.equal(after.endedEvents.length, 1);
+    assert.equal(after.endingAudits.length, 1);
+  }, { status: "scheduled" });
 });
