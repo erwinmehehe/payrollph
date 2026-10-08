@@ -5,7 +5,7 @@ import { workforcePlanApprovalAmount } from "../src/lib/workforce-plan-approval"
 
 const schema = readFileSync("src/db/schema.ts", "utf8");
 const migration = readFileSync("drizzle/0046_wfm_staffing_scenarios.sql", "utf8");
-const attritionMigration = readFileSync("drizzle/0092_workforce_attrition_backfill.sql", "utf8");
+const attritionMigration = readFileSync("drizzle/0093_workforce_attrition_backfill.sql", "utf8");
 const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
 const route = readFileSync("src/app/api/workforce-planning/scenarios/route.ts", "utf8");
 const forecastService = readFileSync("src/lib/workforce-forecast-server.ts", "utf8");
