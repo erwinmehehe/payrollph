@@ -208,7 +208,28 @@ test("scheduled recurring component activation stores audit in the same transact
   assert.ok(begin >= 0 && lock > begin && status > lock && event > status && audit > event);
   assert.ok(committed > audit, "financial status and audit must commit together");
   assert.ok(activation.includes("compensationEventId: event.id"));
-  assert.ok(activation.includes("field-change automation: "));
+  assert.ok(activation.includes("enqueueCompensationAutomationIntents(tx, {"));
+  assert.ok(activation.includes("dispatchCompensationAutomationEvent({"));
+  assert.ok(activation.includes("Recurring component notification deferred to durable scheduler queue."));
   assert.ok(activation.includes("warnings.push("));
   assert.ok(governance.includes("...(!result.skipped && result.warnings.length > 0 ? { warnings: result.warnings } : {})"));
+});
+
+
+test("applied salaries and recurring activations commit notification intents before external side effects", () => {
+  const salaryStart = governance.indexOf("export async function applyScheduledCompensationProposal(");
+  const salaryEnd = governance.indexOf("export type RecurringCompensationDecision", salaryStart);
+  const salary = governance.slice(salaryStart, salaryEnd);
+  const componentStart = governance.indexOf("export async function activateCompensationComponentAssignment(");
+  const componentEnd = governance.indexOf("export async function runScheduledCompensationGovernance(", componentStart);
+  const component = governance.slice(componentStart, componentEnd);
+  assert.ok(salary.includes("enqueueCompensationAutomationIntents(tx, {"));
+  assert.ok(salary.indexOf("enqueueCompensationAutomationIntents(tx, {") < salary.indexOf("if (result.skipped) return result;"));
+  assert.ok(component.includes("enqueueCompensationAutomationIntents(tx, {"));
+  assert.ok(component.indexOf("enqueueCompensationAutomationIntents(tx, {") < component.indexOf("if (result.skipped) return result;"));
+  assert.ok(salary.includes("compensation-applied:${proposal.id}:field-change:annualsalary"));
+  assert.ok(salary.includes("compensation-applied:${proposal.id}:field-change:monthlyequivalentsalary"));
+  assert.ok(component.includes("compensation-component-active:${active.id}:field-change:recurringcompensationamount"));
+  assert.ok(scheduler.includes("drainCompensationAutomationIntents("));
+  assert.ok(scheduler.includes("compensationAutomationDelivery"));
 });
