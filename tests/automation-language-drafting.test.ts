@@ -25,7 +25,7 @@ test("language drafting uses typed, allow-listed Studio primitives and rejects p
 });
 
 test("language proposal is non-mutating; persistence uses versioned draft lane", () => {
-  const languageBranch = api.slice(api.indexOf('action === "draft-from-language"'), api.indexOf('action === "create-from-template"'));
+  const languageBranch = api.slice(api.indexOf('action === "draft-from-language"'), api.indexOf('action === "save-language-draft"'));
   assert.ok(languageBranch.includes("draftAutomationFromLanguage"));
   assert.equal(languageBranch.includes("saveAutomationRuleDraft("), false);
   assert.equal(languageBranch.includes("publishAutomationRuleDraft("), false);
@@ -49,7 +49,7 @@ test("natural-language Studio UI requires human review and gated publish", () =>
   assert.equal(signedSave.includes("publishAutomationRuleDraft("), false);
   assert.ok(ui.includes("Save inactive draft"));
   assert.ok(ui.includes("setLanguageProposal(null)"));
-  assert.ok(ui.includes("Run Impact Preview for its exact draft version"));
+  assert.ok(ui.includes("run Impact Preview for its exact version"));
   assert.ok(ui.includes("Approve and publish"));
   assert.ok(ui.includes("disabled={!previewSafe}"));
 });
