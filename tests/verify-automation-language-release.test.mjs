@@ -92,11 +92,16 @@ test('latest run on identical head must pass; stale success cannot mask newer fa
   assert.equal(evaluateGate(stale).readyForHumanMergeDecision, false);
 });
 
-test('rejects unresolved tracking issues', () => {
+test('independent review gates merge; live staging gates activation only', () => {
   const a = fixture(); a.issueReview.state = 'open';
   assert.equal(evaluateGate(a).readyForHumanMergeDecision, false);
   const b = fixture(); b.issueStaging.state = 'open';
-  assert.equal(evaluateGate(b).readyForHumanMergeDecision, false);
+  assert.equal(evaluateGate(b).readyForHumanMergeDecision, true);
+  assert.equal(evaluateGate({ ...b, mode: 'activation' }).readyForActivationDecision, false);
+  const c = fixture(); c.comments = [];
+  assert.equal(evaluateGate(c).readyForHumanMergeDecision, true);
+  assert.equal(evaluateGate({ ...c, mode: 'activation' }).readyForActivationDecision, false);
+  assert.equal(evaluateGate({ ...fixture(), mode: 'activation' }).readyForActivationDecision, true);
 });
 
 test('staging attestation must be independently authored and include exact evidence lines', () => {
@@ -109,5 +114,13 @@ test('staging attestation must be independently authored and include exact evide
     (x) => { x.comments[0].body = `STAGING-ACCEPTED: ${sha}`; },
     (x) => { x.comments[0].body = `quoted STAGING-ACCEPTED: ${sha}\nLIVE-PROVIDER: PASS\nNONPROD-DB: VERIFIED\nMFA: VERIFIED\nNO-PRODUCTION-DATA: VERIFIED`; },
   ];
-  for (const edit of changes) { const x = fixture(); edit(x); assert.equal(evaluateGate(x).readyForHumanMergeDecision, false); }
+  for (const edit of changes) { const x = fixture(); edit(x); assert.equal(evaluateGate({ ...x, mode: 'activation' }).readyForActivationDecision, false); }
+});
+
+
+test('invalid decision scope fails closed instead of merging or enabling', () => {
+  const result = evaluateGate({ ...fixture(), mode: 'unknown' });
+  assert.equal(result.readyForHumanMergeDecision, false);
+  assert.equal(result.readyForActivationDecision, false);
+  assert.match(result.reasons.join(' '), /Invalid release decision scope/);
 });

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Read-only pre-merge verification for PayrollPH Automation Studio PR #609.
+ * Read-only merge-readiness OR activation-readiness verification for PR #609.
  * NEVER approves, merges, deploys, enables workflows, or certifies production.
  * A green report is a review aid, not permission to release.
  */
@@ -30,8 +30,9 @@ const trustworthy = (record, author) => human(record?.user?.login)
   && record.user.login !== author && TRUSTED_ASSOCIATIONS.has(record.author_association);
 
 /** Pure logic, exercised by tests with synthetic GitHub data. */
-export function evaluateGate({ pr, baseComparison, reviews, issueReview, issueStaging, comments, runs, expectedSha }) {
+export function evaluateGate({ pr, baseComparison, reviews, issueReview, issueStaging, comments, runs, expectedSha, mode = 'merge' }) {
   const reasons = [];
+  if (!['merge', 'activation'].includes(mode)) reasons.push('Invalid release decision scope');
   const sha = pr?.head?.sha;
   const author = pr?.user?.login;
 
@@ -89,7 +90,8 @@ export function evaluateGate({ pr, baseComparison, reviews, issueReview, issueSt
   }
 
   if (issueReview?.state !== 'closed') reasons.push('Independent review issue #621 remains open');
-  if (issueStaging?.state !== 'closed') reasons.push('Live-provider staging issue #622 remains open');
+  // Isolated live-provider staging gates ENABLEMENT, not merging the default-OFF code.
+  if (mode === 'activation' && issueStaging?.state !== 'closed') reasons.push('Live-provider staging issue #622 remains open');
 
   const attested = (Array.isArray(comments) ? comments : []).some((comment) => {
     if (!trustworthy(comment, author)) return false;
@@ -98,10 +100,12 @@ export function evaluateGate({ pr, baseComparison, reviews, issueReview, issueSt
     return lines.includes(`STAGING-ACCEPTED: ${sha}`)
       && EVIDENCE_LINES.every((line) => lines.includes(line));
   });
-  if (!attested) reasons.push('No independent exact-SHA staging acceptance attestation');
+  if (mode === 'activation' && !attested) reasons.push('No independent exact-SHA staging acceptance attestation');
 
   return {
-    readyForHumanMergeDecision: reasons.length === 0,
+    readyForHumanMergeDecision: mode === 'merge' && reasons.length === 0,
+    readyForActivationDecision: mode === 'activation' && reasons.length === 0,
+    decisionScope: mode,
     checkedSha: SHA.test(sha ?? '') ? sha : null,
     reasons,
     note: 'Read-only evidence summary; never a deployment or certification approval.',
@@ -143,6 +147,8 @@ export async function main() {
   const repo = process.env.GITHUB_REPOSITORY;
   const token = process.env.GITHUB_TOKEN;
   const sha = process.env.AUTOMATION_REVIEWED_HEAD_SHA;
+  const mode = process.env.AUTOMATION_RELEASE_SCOPE ?? 'merge';
+  if (!['merge', 'activation'].includes(mode)) throw new Error('AUTOMATION_RELEASE_SCOPE must be merge or activation');
   if (repo !== 'erwinmehehe/payrollph') throw new Error('Repository guard mismatch');
   if (!token) throw new Error('Read-only GITHUB_TOKEN is required');
   if (!SHA.test(sha ?? '')) throw new Error('Pin the reviewed commit as AUTOMATION_REVIEWED_HEAD_SHA');
@@ -158,9 +164,10 @@ export async function main() {
     getPages(root, '/issues/622/comments?per_page=100', token),
     getPages(root, `/actions/runs?branch=feature%2Fautomation-studio-language-drafts&per_page=100`, token, 'workflow_runs'),
   ]);
-  const result = evaluateGate({ pr, baseComparison, reviews, issueReview, issueStaging, comments, runs, expectedSha: sha });
+  const result = evaluateGate({ pr, baseComparison, reviews, issueReview, issueStaging, comments, runs, expectedSha: sha, mode });
   console.log(JSON.stringify({ gate: 'PayrollPH Automation Studio PR #609', ...result }, null, 2));
-  if (!result.readyForHumanMergeDecision) process.exitCode = 1;
+  const ready = mode === 'merge' ? result.readyForHumanMergeDecision : result.readyForActivationDecision;
+  if (!ready) process.exitCode = 1;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

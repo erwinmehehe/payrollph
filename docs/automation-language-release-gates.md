@@ -74,16 +74,9 @@ live in `tests/verify-automation-language-release.test.mjs` and are exercised
 by the regular CI suite through
 `tests/automation-release-gate-integration.test.ts`.
 
-The checker makes **read-only GitHub API requests** and reports whether all
-evidence is present on the exact pinned PR head. It additionally checks
-that GitHub reports a cleanly mergeable pull request and that a fresh comparison
-against current `main` has zero commits behind. This prevents old green CI
-from concealing newly diverged upstream changes. It checks six completed
-successful workflows, a trusted independent human approval on that commit,
-closure of [independent review #621](https://github.com/erwinmehehe/payrollph/issues/621),
-and closure of [staging acceptance #622](https://github.com/erwinmehehe/payrollph/issues/622)
-with independent, exact-SHA attestation. A newer failing workflow or unresolved
-changes-requested review invalidates an older successful result.
+The read-only checker has **two explicit scopes** so code merge does not become production authorization. Both require an exact SHA, clean comparison to current `main`, six successful exact-head workflows, and an independent trusted human approval. The default `AUTOMATION_RELEASE_SCOPE=merge` additionally requires closing [code/security review #621](https://github.com/erwinmehehe/payrollph/issues/621). It **does not** require staging-provider acceptance while the feature stays server-side OFF.
+
+`AUTOMATION_RELEASE_SCOPE=activation` also requires closing [isolated staging acceptance #622](https://github.com/erwinmehehe/payrollph/issues/622) with independent exact-SHA attestation; this is **not** automatically enabled by merging. A newer failing workflow or unresolved changes-requested review invalidates an older successful result. This aligns with the risk-based change policy without weakening the human code-review gate.
 
 An authorized operator may run the checker from a reviewed checkout after
 injecting a **read-only** `GITHUB_TOKEN` through a secret manager:
@@ -92,13 +85,16 @@ injecting a **read-only** `GITHUB_TOKEN` through a secret manager:
 node --test tests/verify-automation-language-release.test.mjs
 export GITHUB_REPOSITORY=erwinmehehe/payrollph
 export AUTOMATION_REVIEWED_HEAD_SHA=<exact-reviewed-40-character-commit-sha>
-node scripts/verify-automation-language-release.mjs
+# Code-merge readiness; leaves language drafting OFF
+AUTOMATION_RELEASE_SCOPE=merge node scripts/verify-automation-language-release.mjs
+# Separately, after real isolated live-provider staging and independent attestation:
+AUTOMATION_RELEASE_SCOPE=activation node scripts/verify-automation-language-release.mjs
 ```
 
 Do not paste tokens or secret environment values into a shell transcript, chat,
 GitHub comment, log, or repository file. The CLI refuses a missing token,
 unrecognized repository, unpinned head or incomplete evidence. A nonzero exit
-code means **not ready for a human merge decision**.
+code means **not ready for the selected decision**.
 
 The independent staging reviewer should attach sanitized underlying test
 evidence to issue #622. A qualified independent collaborator may add the
@@ -118,12 +114,10 @@ The script does not post approval, edit issues, deploy or modify workflow state.
 
 ## Final release decision
 
-Do not merge or deploy solely because CI is green. Required evidence:
+**To merge default-OFF code:** current-head CI, synthetic acceptance, independently approved code/security review and closed issue #621. Do not self-approve. Merging alone must not enable the runtime lane.
 
-1. Independent human review on the final commit
-2. Synthetic HTTP and browser acceptance passing on the final commit
-3. Optional live-provider contract checked where an approved staging key is available
-4. Real staging review using synthetic data, with no production data or dependencies
-5. Separate production certification authorization, which is outside this PR
+**To activate natural-language drafting:** separately complete actual isolated staging/live-provider acceptance, independent attestation and issue #622, recheck exact-head security evidence, and approve server-side rollout. Keep `AUTOMATION_LANGUAGE_STUDIO_ENABLED=false` while this remains open.
 
-Any failed check or missing prerequisite means **no release**.
+**To authorize production payroll or money movement:** separate employer, bank, statutory, privacy and recovery controls apply; this feature's merge/activation check cannot certify them.
+
+Any failed check or missing prerequisite blocks **that scope**, rather than every unrelated engineering activity.
