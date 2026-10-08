@@ -15,7 +15,6 @@ import {
   payrollRuns,
   workerEffectiveChanges,
 } from "@/db/schema";
-import { recordAuditEvent } from "@/lib/audit";
 import { fieldChangeContext } from "@/lib/automation-change-events";
 import {
   dispatchCompensationAutomationEvent,
@@ -30,6 +29,26 @@ const BUSY_PAYROLL_STATUSES = new Set(["Queued", "Processing", "Recalculating", 
 // succeed or roll back together. A separate nested transaction would reset a
 // payroll run even if the later proposal approval fails.
 type CompensationTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Infrastructure evidence failures MUST NOT poison a valid scheduled salary.
+ * Everything in the pay transaction is rolled back, so a scheduler may retry
+ * the original approved decision without fabricating or rewriting pay.
+ */
+export class ScheduledCompensationAuditWriteError extends Error {
+  constructor() {
+    super("Scheduled salary application audit could not be saved. Salary was not changed; retry after audit storage recovers.");
+    this.name = "ScheduledCompensationAuditWriteError";
+  }
+}
+
+export class ScheduledCompensationIntentWriteError extends Error {
+  constructor() {
+    super("Scheduled salary notification intent could not be saved. Salary was not changed; retry after delivery storage recovers.");
+    this.name = "ScheduledCompensationIntentWriteError";
+  }
+}
+
 
 export function philippineBusinessDate(now = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(now);
@@ -326,6 +345,8 @@ export async function applyScheduledCompensationProposal(
         return { skipped: true as const, reason: "claimed" as const, proposal: proposal ?? null };
       }
 
+      // Match cancellation/approval lock order: proposal -> cycle -> worker.
+      await tx.execute(sql`select pg_advisory_xact_lock(4230, ${proposal.cycleId})`);
       await tx.execute(sql`select pg_advisory_xact_lock(4221, ${proposal.employeeId})`);
 
       const [[cycle], [revision], [pay], [employee], [band]] = await Promise.all([
@@ -449,98 +470,116 @@ export async function applyScheduledCompensationProposal(
       )).returning();
       if (!applied) throw new Error("The compensation proposal changed before application.");
 
+      // The salary profile, governing proposal, financial event, linked audit,
+      // and secondary automation intents are ONE financial database commit.
+      // Any audit failure reverts every write and preserves retryable salary.
+      let audit;
+      try {
+        [audit] = await tx.insert(auditEvents).values({
+          organizationId: proposal.organizationId,
+          actor,
+          action: "Scheduled compensation change applied",
+          resource: `Employee #${proposal.employeeId}`,
+          metadata: {
+            proposalId: proposal.id,
+            payRevisionId: revision.id,
+            compensationEventId: event.id,
+            compensationCycleId: cycle.id,
+            effectiveDate: String(cycle.effectiveDate),
+            previousAnnual: beforeAnnual,
+            newAnnual: afterAnnual,
+            workerEffectiveChangeId: proposal.workerEffectiveChangeId,
+          },
+        }).returning({ id: auditEvents.id });
+      } catch {
+        throw new ScheduledCompensationAuditWriteError();
+      }
+
       // Persist the notification snapshots in the SAME financial commit.
       // Recovery never reads the worker's later mutable pay profile.
-      await enqueueCompensationAutomationIntents(tx, {
-        organizationId: proposal.organizationId,
-        employeeId: proposal.employeeId,
-        compensationEventId: event.id,
-        intents: [
-          {
-            trigger: "compensation.changed",
-            eventKey: `compensation-applied:${proposal.id}`,
-            context: {
-              compensationProposalId: proposal.id,
-              compensationCycleId: cycle.id,
-              effectiveDate: cycle.effectiveDate,
-              previousAnnual: beforeAnnual,
-              proposedAnnual: afterAnnual,
-              eventAmount: afterAnnual - beforeAnnual,
-              payRevisionId: revision.id,
-              workerEffectiveChangeId: proposal.workerEffectiveChangeId,
+      try {
+        await enqueueCompensationAutomationIntents(tx, {
+          organizationId: proposal.organizationId,
+          employeeId: proposal.employeeId,
+          compensationEventId: event.id,
+          intents: [
+            {
+              trigger: "compensation.changed",
+              eventKey: `compensation-applied:${proposal.id}`,
+              context: {
+                compensationProposalId: proposal.id,
+                compensationCycleId: cycle.id,
+                effectiveDate: cycle.effectiveDate,
+                previousAnnual: beforeAnnual,
+                proposedAnnual: afterAnnual,
+                eventAmount: afterAnnual - beforeAnnual,
+                payRevisionId: revision.id,
+                workerEffectiveChangeId: proposal.workerEffectiveChangeId,
+              },
             },
-          },
-          {
-            trigger: "employee.field_changed",
-            eventKey: `compensation-applied:${proposal.id}:field-change:annualsalary`,
-            context: fieldChangeContext({
-              field: "annualSalary",
-              previousValue: beforeAnnual,
-              newValue: afterAnnual,
-              effectiveDate: String(cycle.effectiveDate),
-              source: "compensation-governance",
-              metadata: {
-                compensationProposalId: proposal.id,
-                compensationCycleId: cycle.id,
-                payRevisionId: revision.id,
-              },
-            }),
-          },
-          {
-            trigger: "employee.field_changed",
-            eventKey: `compensation-applied:${proposal.id}:field-change:monthlyequivalentsalary`,
-            context: fieldChangeContext({
-              field: "monthlyEquivalentSalary",
-              previousValue: beforeAnnual / 12,
-              newValue: afterAnnual / 12,
-              effectiveDate: String(cycle.effectiveDate),
-              source: "compensation-governance",
-              metadata: {
-                compensationProposalId: proposal.id,
-                compensationCycleId: cycle.id,
-                payRevisionId: revision.id,
-              },
-            }),
-          },
-        ],
-      });
+            {
+              trigger: "employee.field_changed",
+              eventKey: `compensation-applied:${proposal.id}:field-change:annualsalary`,
+              context: fieldChangeContext({
+                field: "annualSalary",
+                previousValue: beforeAnnual,
+                newValue: afterAnnual,
+                effectiveDate: String(cycle.effectiveDate),
+                source: "compensation-governance",
+                metadata: {
+                  compensationProposalId: proposal.id,
+                  compensationCycleId: cycle.id,
+                  payRevisionId: revision.id,
+                },
+              }),
+            },
+            {
+              trigger: "employee.field_changed",
+              eventKey: `compensation-applied:${proposal.id}:field-change:monthlyequivalentsalary`,
+              context: fieldChangeContext({
+                field: "monthlyEquivalentSalary",
+                previousValue: beforeAnnual / 12,
+                newValue: afterAnnual / 12,
+                effectiveDate: String(cycle.effectiveDate),
+                source: "compensation-governance",
+                metadata: {
+                  compensationProposalId: proposal.id,
+                  compensationCycleId: cycle.id,
+                  payRevisionId: revision.id,
+                },
+              }),
+            },
+          ],
+        });
+      } catch {
+        // Lost notification intent is an infrastructure failure, not a
+        // rejected/invalid salary proposal. The enclosing tx rolls back pay.
+        throw new ScheduledCompensationIntentWriteError();
+      }
 
-      return { skipped: false as const, proposal: applied, employee, revision, cycle, band, event, beforeAnnual, afterAnnual };
+      return { skipped: false as const, proposal: applied, employee, revision, cycle, band, event, audit, beforeAnnual, afterAnnual };
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown compensation application failure.";
-    await db.update(compensationProposals).set({
-      status: "failed",
-      failure: message.slice(0, 4000),
-      updatedAt: now,
-    }).where(and(
-      eq(compensationProposals.id, proposalId),
-      eq(compensationProposals.status, "scheduled"),
-    ));
+    if (!(error instanceof ScheduledCompensationAuditWriteError)
+        && !(error instanceof ScheduledCompensationIntentWriteError)) {
+      // Domain failures need financial reviewer attention. Infrastructure
+      // evidence failures rolled back all pay and remain scheduled for retry.
+      const message = error instanceof Error ? error.message : "Unknown compensation application failure.";
+      await db.update(compensationProposals).set({
+        status: "failed",
+        failure: message.slice(0, 4000),
+        updatedAt: now,
+      }).where(and(
+        eq(compensationProposals.id, proposalId),
+        eq(compensationProposals.status, "scheduled"),
+      ));
+    }
     throw error;
   }
 
   if (result.skipped) return result;
 
   const warnings: string[] = [];
-  try {
-    await recordAuditEvent({
-      organizationId: result.proposal.organizationId,
-      actor,
-      action: "Scheduled compensation change applied",
-      resource: `Employee #${result.proposal.employeeId}`,
-      metadata: {
-        proposalId: result.proposal.id,
-        payRevisionId: result.revision.id,
-        compensationEventId: result.event.id,
-        effectiveDate: result.cycle.effectiveDate,
-        previousAnnual: result.beforeAnnual,
-        newAnnual: result.afterAnnual,
-      },
-    });
-  } catch (error) {
-    warnings.push(`audit: ${error instanceof Error ? error.message : "unknown failure"}`);
-  }
 
   // Optimistic immediate handoff. Even if this call fails after commit, the
   // scheduler can deliver the transactionally persisted intent later.
@@ -860,9 +899,19 @@ export async function runScheduledCompensationGovernance({
   for (const row of dueProposals) {
     try {
       const result = await applyScheduledCompensationProposal(row.id, { actor, now });
-      proposalResults.push({ id: row.id, status: result.skipped ? "skipped" : "applied", reason: result.skipped ? result.reason : undefined });
+      proposalResults.push({
+        id: row.id,
+        status: result.skipped ? "skipped" : "applied",
+        reason: result.skipped ? result.reason : undefined,
+        ...(!result.skipped && result.warnings.length > 0 ? { warnings: result.warnings } : {}),
+      });
     } catch (error) {
-      proposalResults.push({ id: row.id, status: "failed", error: error instanceof Error ? error.message : "Unknown failure" });
+      proposalResults.push({
+        id: row.id,
+        status: error instanceof ScheduledCompensationAuditWriteError
+          || error instanceof ScheduledCompensationIntentWriteError ? "retryable" : "failed",
+        error: error instanceof Error ? error.message : "Unknown failure",
+      });
     }
   }
 
