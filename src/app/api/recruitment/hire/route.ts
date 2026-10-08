@@ -26,7 +26,7 @@ import { ONBOARDING_TASKS } from "@/lib/provisioning";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
 import { startHcmBusinessProcessTx } from "@/lib/hcm-business-process";
-import { freezeHireApproval, hireEvidenceFromDefinition, hireReviewFingerprint, type HireReviewContext } from "@/lib/hcm-hire-business-process";
+import { freezeHireApproval, hashRequisitionPlanHandoff, hireEvidenceFromDefinition, hireReviewFingerprint, type HireReviewContext } from "@/lib/hcm-hire-business-process";
 
 export const dynamic = "force-dynamic";
 
@@ -231,6 +231,15 @@ export async function POST(request: Request) {
     return Response.json({ error: "That employee number is already in use." }, { status: 409 });
   }
 
+  let requisitionPlanHandoffHash: string | null;
+  try {
+    requisitionPlanHandoffHash = hashRequisitionPlanHandoff(requisition.planHandoffEvidence);
+  } catch {
+    return Response.json({
+      error: "The recruitment plan lineage is invalid. Resolve requisition provenance before requesting hire approval.",
+    }, { status: 409 });
+  }
+
   const reviewContext: HireReviewContext = {
     applicantId: applicant.id,
     requisitionId: requisition.id,
@@ -239,6 +248,7 @@ export async function POST(request: Request) {
     applicantEmail: applicant.email,
     offeredMonthly: Number(applicant.offeredSalary).toFixed(2),
     requisitionStatus: requisition.status,
+    requisitionPlanHandoffHash,
     positionCode: position.code,
     positionStatus: position.status,
     positionUpdatedAt: position.updatedAt.toISOString(),
@@ -287,6 +297,7 @@ export async function POST(request: Request) {
       const [freshRequisition] = await tx.select({
         status: jobRequisitions.status,
         positionId: jobRequisitions.positionId,
+        planHandoffEvidence: jobRequisitions.planHandoffEvidence,
       }).from(jobRequisitions).where(and(
         eq(jobRequisitions.id, requisition.id),
         eq(jobRequisitions.organizationId, applicant.organizationId),
@@ -310,6 +321,7 @@ export async function POST(request: Request) {
           applicantEmail: freshApplicant.email,
           offeredMonthly: Number(freshApplicant.offeredSalary).toFixed(2),
           requisitionStatus: freshRequisition.status,
+          requisitionPlanHandoffHash: hashRequisitionPlanHandoff(freshRequisition.planHandoffEvidence),
           positionCode: freshPosition.code,
           positionStatus: freshPosition.status,
           positionUpdatedAt: freshPosition.updatedAt.toISOString(),
@@ -441,6 +453,7 @@ export async function POST(request: Request) {
     const [freshRequisition] = await tx.select({
       status: jobRequisitions.status,
       positionId: jobRequisitions.positionId,
+      planHandoffEvidence: jobRequisitions.planHandoffEvidence,
     }).from(jobRequisitions).where(eq(jobRequisitions.id, requisition.id)).limit(1);
     if (!freshRequisition || freshRequisition.positionId !== position.id || ["filled", "cancelled"].includes(freshRequisition.status)) {
       throw new HireConflict("The requisition is no longer available for hiring.");
@@ -528,6 +541,7 @@ export async function POST(request: Request) {
         applicantEmail: freshApplicant.email,
         offeredMonthly: Number(freshApplicant.offeredSalary).toFixed(2),
         requisitionStatus: freshRequisition.status,
+        requisitionPlanHandoffHash: hashRequisitionPlanHandoff(freshRequisition.planHandoffEvidence),
         positionCode: freshPosition.code,
         positionStatus: freshPosition.status,
         positionUpdatedAt: freshPosition.updatedAt.toISOString(),
