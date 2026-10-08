@@ -192,3 +192,23 @@ test("compensation workspace confirms approved pay cancellation and gives recalc
   assert.ok(panel.includes("Cancel pay revision"));
   assert.ok(panel.includes("Review affected payroll and recalculate before release."));
 });
+
+
+test("scheduled recurring component activation stores audit in the same transaction as financial evidence", () => {
+  const start = governance.indexOf("export async function activateCompensationComponentAssignment(");
+  const end = governance.indexOf("export async function runScheduledCompensationGovernance(", start);
+  assert.ok(start >= 0 && end > start);
+  const activation = governance.slice(start, end);
+  const begin = activation.indexOf("const result = await db.transaction(async (tx) => {");
+  const lock = activation.indexOf("pg_advisory_xact_lock(4222");
+  const status = activation.indexOf("tx.update(employeeCompensationComponents)");
+  const event = activation.indexOf("tx.insert(compensationEvents)");
+  const audit = activation.indexOf("tx.insert(auditEvents)");
+  const committed = activation.indexOf("if (result.skipped) return result;");
+  assert.ok(begin >= 0 && lock > begin && status > lock && event > status && audit > event);
+  assert.ok(committed > audit, "financial status and audit must commit together");
+  assert.ok(activation.includes("compensationEventId: event.id"));
+  assert.ok(activation.includes("field-change automation: "));
+  assert.ok(activation.includes("warnings.push("));
+  assert.ok(governance.includes("...(!result.skipped && result.warnings.length > 0 ? { warnings: result.warnings } : {})"));
+});
