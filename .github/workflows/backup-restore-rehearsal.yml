@@ -21,7 +21,6 @@ jobs:
       CI: "true"
       DR_REHEARSAL_MODE: isolated-ci-only
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
-      PG_CONTAINER: ${{ job.services.postgres.id }}
     services:
       postgres:
         image: postgres:16
@@ -45,6 +44,8 @@ jobs:
       - run: npm ci
       - run: npm run db:push
       - name: Verify disposable PostgreSQL dump, restore, checksums, constraints, rollback
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
         run: bash scripts/verify-backup-restore.sh
       - name: Upload sanitized engineering DR report (never database dumps)
         if: always()
