@@ -9,6 +9,7 @@ import { runScheduledStatutoryRemittanceSync } from "@/lib/statutory-remittance-
 import { runScheduledContributionCaseEscalations } from "@/lib/statutory-contribution-case-escalations";
 import { runScheduledHcmDocumentExpiry } from "@/lib/hcm-documents";
 import { runScheduledCompensationGovernance } from "@/lib/hcm-compensation";
+import { drainCompensationAutomationIntents } from "@/lib/compensation-automation-outbox";
 import { runScheduledWorkerEffectiveChanges } from "@/lib/hcm-effective-changes";
 import { runScheduledEmploymentTerms } from "@/lib/hcm-employment-terms";
 import { runScheduledEmploymentTermDecisions } from "@/lib/hcm-employment-term-decisions";
@@ -87,6 +88,15 @@ export async function tickScheduler(force = false) {
     now,
     limit: 100,
   });
+
+  // Independent secondary delivery drain: a message provider outage must not
+  // roll back financial transitions or stop the rest of the scheduler.
+  let compensationAutomationDelivery: Awaited<ReturnType<typeof drainCompensationAutomationIntents>> | { error: string };
+  try {
+    compensationAutomationDelivery = await drainCompensationAutomationIntents(new Date(), 25);
+  } catch {
+    compensationAutomationDelivery = { error: "Compensation automation delivery queue unavailable; inspect the durable intent ledger." };
+  }
 
   const [hcmLifecycleNotificationState] = await db.select().from(schedulerState)
     .where(eq(schedulerState.jobName, "hcm-lifecycle-notifications"))
@@ -234,6 +244,7 @@ export async function tickScheduler(force = false) {
     hcmEmploymentTerms,
     hcmEmploymentTermDecisions,
     hcmCompensation,
+    compensationAutomationDelivery,
     hcmLifecycleNotifications,
     performanceReminders,
     performanceActionReminders,
