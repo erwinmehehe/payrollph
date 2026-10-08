@@ -156,9 +156,9 @@ Built:
 - Cost redaction for workforce roles without payroll-cost permission
 - Published and approved plans remain executable in downstream WFM demand handoff
 - New draft forecast revisions can be seeded from the current published baseline plus current authoritative headcount/position actuals, with baseline hash/version provenance preserved and live payroll-grounded forecast recalculated
+- Plan owners can set org-unit headcount and annual-budget allocations; managers can create versioned bottom-up requests within those ceilings, with maker-checker decisions and accepted-version supersession
 
 Remaining:
-- Dedicated top-down allocation controls for plan owners and bottom-up manager submissions
 - Budget variance drilldown with named org-unit and cost-center dimensions in the published-baseline UI
 - Attrition assumptions and governed backfill planning
 - Controlled publish-to-execution actions for bulk position creation/changes from an approved plan
