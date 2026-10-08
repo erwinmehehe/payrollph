@@ -44,7 +44,7 @@ function simpleScopeMatches(
   field: "location" | "department",
   value: string,
 ): boolean {
-  const conditions = [...draft.conditions.all, ...draft.conditions.any];
+  const conditions = [...(draft.conditions.all ?? []), ...(draft.conditions.any ?? [])];
   return conditions.some((condition) => (
     condition.field === field
     && (condition.operator === "eq" || condition.operator === "in")
