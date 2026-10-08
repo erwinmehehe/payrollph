@@ -30,6 +30,7 @@ import {
   markTimesheetsStaleForEmployeeDate,
 } from "../src/lib/workforce-timesheet-server";
 import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine";
+import { buildPayrollAssurance } from "../src/lib/payroll-assurance-server";
 
 test("WFM evidence closes schedule -> punch -> correction -> timesheet -> payroll without bypassing the gate", async () => {
   const [org] = await db.insert(organizations).values({
@@ -291,4 +292,73 @@ test("the production payroll path enforces approved WFM timesheets instead of re
   assert.ok(correctionRoute.includes("markTimesheetsStaleForEmployeeDate"));
   assert.ok(timesheetServer.includes("attendance correction request(s)"));
   assert.ok(timesheetServer.includes('severity: "blocker"'));
+});
+
+test("oversized punch persists its WFM premium blocker in calculated payroll assurance", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "WFM Calendar Boundary Evidence",
+    legalName: "WFM Calendar Boundary Evidence Inc.",
+    plan: "Core",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: "WFM-LONG-001",
+      firstName: "Long",
+      lastName: "Punch",
+      title: "Operations",
+      avatarInitials: "LP",
+      basicRate: "30000.00",
+      startDate: "2026-01-01",
+      mobile: "09171234567",
+    }).returning();
+    await db.insert(employeePayProfiles).values({
+      organizationId: org.id,
+      employeeId: employee.id,
+      payBasis: "monthly",
+      rateAmount: "30000.00",
+      standardWorkDaysPerMonth: "22",
+      standardHoursPerDay: "8",
+    });
+    await db.insert(timePunches).values({
+      organizationId: org.id,
+      employeeId: employee.id,
+      workDate: "2026-10-05",
+      timeIn: new Date("2026-10-05T08:00:00+08:00"),
+      timeOut: new Date("2026-10-14T08:00:00+08:00"),
+      shiftStart: "08:00",
+      shiftEnd: "17:00",
+      status: "Complete",
+      source: "web_bundy",
+    });
+    const [run] = await db.insert(payrollRuns).values({
+      organizationId: org.id,
+      periodLabel: "Oct 1-15 oversized punch control",
+      periodStart: "2026-10-01",
+      periodEnd: "2026-10-15",
+      scopeLabel: "All locations",
+      status: "Draft",
+      payDate: "2026-10-15",
+    }).returning();
+
+    await enqueuePayrollRun(run.id);
+    await drainPayrollQueue(20, run.id);
+
+    const [entry] = await db.select().from(payrollEntries)
+      .where(eq(payrollEntries.payrollRunId, run.id)).limit(1);
+    assert.ok(entry, "malformed but complete attendance must produce reviewable payroll evidence");
+    const trace = entry.trace as { flags?: string[] } | null;
+    assert.ok(trace?.flags?.some((flag) => flag.includes("WFM_PREMIUM_ALLOCATION_UNVERIFIED")));
+
+    const reviewed = await buildPayrollAssurance(run.id);
+    assert.ok(reviewed);
+    assert.ok(reviewed.assurance.findings.some((finding) =>
+      finding.code === "WFM_PREMIUM_ALLOCATION_UNVERIFIED"
+      && finding.employeeId === employee.id
+      && finding.blocking,
+    ), "the persisted punch warning must prevent checker approval and release");
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
 });
