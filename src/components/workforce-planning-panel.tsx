@@ -112,6 +112,7 @@ type WorkforcePlanBaseline = {
     plan?: { id?: number; name?: string; startDate?: string; endDate?: string; budget?: number | null };
     scenario?: { id?: number; name?: string; version?: number };
     headcount?: HeadcountPlanSummaryView;
+    positionExecutionSource?: { version?: string; positionCount?: number };
   } | null;
   actual: HeadcountPlanSummaryView;
   variance: {
@@ -127,6 +128,40 @@ type WorkforcePlanBaseline = {
   dimensionVariance: {
     orgUnits: HeadcountPlanDimensionVarianceView[];
     costCenters: HeadcountPlanDimensionVarianceView[];
+  } | null;
+};
+
+type WorkforcePositionExecution = {
+  id: number;
+  planId: number;
+  baselineId: number;
+  baselineSnapshotHash: string;
+  status: "preview" | "applied" | "cancelled";
+  executionHash: string;
+  createdBy: string;
+  createdAt: string;
+  appliedBy: string | null;
+  appliedAt: string | null;
+  executionPlan: {
+    baselineVersion?: number;
+    liveStateHash?: string;
+    preview?: {
+      summary?: {
+        baselinePositions: number;
+        createCount: number;
+        updateCount: number;
+        noopCount: number;
+        blockerCount: number;
+        executable: boolean;
+      };
+      actions?: Array<{ kind: string; code: string; changedFields?: string[] }>;
+      blockers?: Array<{ code: string; positionId: number | null; positionCode: string | null; message: string }>;
+    };
+  } | null;
+  result: {
+    createdPositions?: Array<{ sourcePositionId: number; positionId: number; code: string }>;
+    updatedPositions?: Array<{ positionId: number; code: string; changedFields: string[] }>;
+    noopCount?: number;
   } | null;
 };
 
@@ -269,7 +304,11 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [scenarios, setScenarios] = useState<WorkforceScenario[]>([]);
   const [approvalConfiguration, setApprovalConfiguration] = useState<WorkforceApprovalConfiguration>({ configured: false, conflict: false, policy: null });
   const [baselines, setBaselines] = useState<WorkforcePlanBaseline[]>([]);
+  const [positionExecutions, setPositionExecutions] = useState<WorkforcePositionExecution[]>([]);
+  const [positionExecutionCanApply, setPositionExecutionCanApply] = useState(false);
   const [baselinePublishing, setBaselinePublishing] = useState<number | null>(null);
+  const [positionExecutionPreviewing, setPositionExecutionPreviewing] = useState<number | null>(null);
+  const [positionExecutionActing, setPositionExecutionActing] = useState<number | null>(null);
   const [forecastPlanCreating, setForecastPlanCreating] = useState<number | null>(null);
   const [costVisible, setCostVisible] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -345,6 +384,12 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       if (baselineResponse.ok) {
         setBaselines(baselinePayload.baselines ?? []);
         setCostVisible(baselinePayload.costVisible !== false);
+      }
+      const executionResponse = await fetch(`/api/workforce-planning/position-executions?organizationId=${organizationId}`, { cache: "no-store" });
+      const executionPayload = await executionResponse.json().catch(() => ({}));
+      if (executionResponse.ok) {
+        setPositionExecutions(executionPayload.executions ?? []);
+        setPositionExecutionCanApply(Boolean(executionPayload.access?.canApply));
       }
     } finally {
       setLoading(false);
