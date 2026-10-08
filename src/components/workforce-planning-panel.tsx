@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BriefcaseBusiness, Building2, CheckCircle2, CircleDollarSign, Clock3, Plus, RefreshCw, Save, TrendingUp, UserCheck, UserPlus, UsersRound, XCircle } from "lucide-react";
+import { WorkforcePlanAllocationPanel } from "@/components/workforce-plan-allocation-panel";
 
 type JobFamily = { id: number; code: string; name: string; active: boolean };
 type JobLevel = { id: number; code: string; name: string; sequence: number; active: boolean };
@@ -968,6 +969,13 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
           </table>
         </div>
       </article>
+
+      <WorkforcePlanAllocationPanel
+        organizationId={organizationId}
+        plans={plans}
+        orgUnits={orgUnits}
+        setNotice={setNotice}
+      />
 
       {showArchitecture && (
         <article className="card" style={{ padding: 20, marginBottom: 16 }}>

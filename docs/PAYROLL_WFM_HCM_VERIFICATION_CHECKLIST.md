@@ -66,6 +66,7 @@ This checklist turns the product roadmap into evidence gates. A capability is no
 - [x] Fully loaded Philippine labor-cost forecast using payroll, employer statutory burden, benefits, and recurring compensation. (#558)
 - [x] HR + Finance + manager/owner workforce-plan approval routing through the shared approval engine. (#570)
 - [x] Approved position -> requisition handoff. (#300, #563)
+- [x] Top-down org-unit headcount/budget allocations and versioned bottom-up manager submissions with maker-checker decisions.
 - [ ] Budget variance by org unit and cost center.
 - [ ] Attrition/backfill planning.
 - [ ] Salary bands by job profile + level + location.
@@ -136,11 +137,10 @@ This checklist turns the product roadmap into evidence gates. A capability is no
 
 ## Current priority
 
-1. Finish Workforce Planning 2.0: top-down allocations + bottom-up submissions.
-2. Add forecast-plan creation from the latest published baseline plus current actuals.
-3. Add org-unit/cost-center budget variance drilldown, then attrition/backfill planning.
-4. Add controlled approved-plan -> bulk position creation/change execution.
-5. Extend Dynamic Groups into permission assignments and approval routing.
-6. Keep the fresh-tenant WFM -> payroll pilot green while expanding production proof.
-7. Complete real-employer payroll reconciliation, attendance hardware certification, and external government/bank acceptance evidence.
+1. Add org-unit/cost-center budget variance drilldown.
+2. Add attrition assumptions and governed backfill planning.
+3. Add controlled approved-plan -> bulk position creation/change execution.
+4. Extend Dynamic Groups into permission assignments and approval routing.
+5. Keep the fresh-tenant WFM -> payroll pilot green while expanding production proof.
+6. Complete real-employer payroll reconciliation, attendance hardware certification, and external government/bank acceptance evidence.
 

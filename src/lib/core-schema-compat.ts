@@ -2108,6 +2108,67 @@ CREATE INDEX IF NOT EXISTS bir_withholding_remittance_filing_idx
           ON workforce_plan_baselines(organization_id, published_at);
       `);
 
+      // Workforce Planning 2.0 top-down allocations and manager submissions.
+      // Allocations are plan-owner ceilings; manager submissions remain planning
+      // evidence and never create positions or mutate payroll by themselves.
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS workforce_plan_allocations (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          plan_id integer NOT NULL REFERENCES workforce_plans(id) ON DELETE CASCADE,
+          org_unit_id integer NOT NULL REFERENCES org_units(id) ON DELETE RESTRICT,
+          headcount_ceiling integer NOT NULL DEFAULT 0,
+          annual_budget_ceiling numeric(14,2) NOT NULL DEFAULT 0,
+          notes text,
+          created_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          updated_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW(),
+          CONSTRAINT workforce_plan_allocations_headcount_check CHECK (headcount_ceiling >= 0),
+          CONSTRAINT workforce_plan_allocations_budget_check CHECK (annual_budget_ceiling >= 0)
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS workforce_plan_allocations_plan_unit_unique
+          ON workforce_plan_allocations(plan_id, org_unit_id);
+        CREATE INDEX IF NOT EXISTS workforce_plan_allocations_org_plan_idx
+          ON workforce_plan_allocations(organization_id, plan_id);
+        CREATE INDEX IF NOT EXISTS workforce_plan_allocations_unit_idx
+          ON workforce_plan_allocations(organization_id, org_unit_id);
+
+        CREATE TABLE IF NOT EXISTS workforce_plan_manager_submissions (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          plan_id integer NOT NULL REFERENCES workforce_plans(id) ON DELETE CASCADE,
+          allocation_id integer NOT NULL REFERENCES workforce_plan_allocations(id) ON DELETE RESTRICT,
+          org_unit_id integer NOT NULL REFERENCES org_units(id) ON DELETE RESTRICT,
+          version integer NOT NULL DEFAULT 1,
+          requested_headcount integer NOT NULL DEFAULT 0,
+          requested_annual_budget numeric(14,2) NOT NULL DEFAULT 0,
+          rationale text NOT NULL,
+          status varchar(24) NOT NULL DEFAULT 'draft',
+          allocation_snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+          created_by_user_id integer NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          submitted_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          submitted_at timestamptz,
+          decided_by_user_id integer REFERENCES users(id) ON DELETE SET NULL,
+          decided_at timestamptz,
+          decision_note text,
+          created_at timestamptz NOT NULL DEFAULT NOW(),
+          updated_at timestamptz NOT NULL DEFAULT NOW(),
+          CONSTRAINT workforce_plan_manager_submissions_headcount_check CHECK (requested_headcount >= 0),
+          CONSTRAINT workforce_plan_manager_submissions_budget_check CHECK (requested_annual_budget >= 0),
+          CONSTRAINT workforce_plan_manager_submissions_status_check
+            CHECK (status IN ('draft','submitted','accepted','rejected','superseded'))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS workforce_plan_manager_submissions_plan_unit_version_unique
+          ON workforce_plan_manager_submissions(plan_id, org_unit_id, version);
+        CREATE INDEX IF NOT EXISTS workforce_plan_manager_submissions_org_status_idx
+          ON workforce_plan_manager_submissions(organization_id, status);
+        CREATE INDEX IF NOT EXISTS workforce_plan_manager_submissions_allocation_idx
+          ON workforce_plan_manager_submissions(allocation_id, status);
+        CREATE INDEX IF NOT EXISTS workforce_plan_manager_submissions_unit_idx
+          ON workforce_plan_manager_submissions(organization_id, org_unit_id, status);
+      `);
+
       // Keep the core demo launch/read models compatible with pre-HCM and
       // pre-enterprise-identity deployments. Existing policy values remain intact.
       await client.query(`
