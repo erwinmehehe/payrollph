@@ -44,7 +44,9 @@ test("Impact Preview receipt fails closed on expiry, signature tampering and fut
   assert.equal(verifyAutomationPreviewReceipt(receipt, ctx, now + AUTOMATION_PREVIEW_RECEIPT_TTL_MS + 1), false);
   assert.equal(verifyAutomationPreviewReceipt(receipt, ctx, now - 1), false);
   assert.equal(verifyAutomationPreviewReceipt(receipt + "tamper", ctx, now), false);
-  assert.equal(verifyAutomationPreviewReceipt(receipt.replace(/.$/, "x"), ctx, now), false);
+  const [encodedPayload, signature] = receipt.split(".");
+  const corruptedSignature = (signature[0] === "A" ? "B" : "A") + signature.slice(1);
+  assert.equal(verifyAutomationPreviewReceipt(encodedPayload + "." + corruptedSignature, ctx, now), false);
   assert.equal(verifyAutomationPreviewReceipt("invalid", ctx, now), false);
   assert.equal(verifyAutomationPreviewReceipt(null, ctx, now), false);
   assert.equal(verifyAutomationPreviewReceipt("a".repeat(1201), ctx, now), false);
