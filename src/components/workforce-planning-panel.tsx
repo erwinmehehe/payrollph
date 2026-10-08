@@ -815,7 +815,9 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       return;
     }
     await load();
-    setNotice(`Requisition #${payload.id} opened from position ${position.code}.`);
+    setNotice(payload.planHandoffEvidence
+      ? `Requisition #${payload.id} opened from position ${position.code} with verified plan #${payload.planHandoffEvidence.planId}, baseline v${payload.planHandoffEvidence.baselineVersion}, execution #${payload.planHandoffEvidence.executionId}.`
+      : `Requisition #${payload.id} opened from approved standalone position ${position.code}.`);
     onPage("Recruitment");
   }
 

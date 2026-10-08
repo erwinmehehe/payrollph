@@ -5,6 +5,7 @@ import {
   freezeHireApproval,
   hireEvidenceFromDefinition,
   hireReviewFingerprint,
+  hashRequisitionPlanHandoff,
   type HireReviewContext,
 } from "../src/lib/hcm-hire-business-process";
 
@@ -16,6 +17,7 @@ const example: HireReviewContext = {
   applicantEmail: "worker@example.test",
   offeredMonthly: "50000.00",
   requisitionStatus: "interviewing",
+  requisitionPlanHandoffHash: null,
   positionCode: "ENG-1",
   positionStatus: "open",
   positionUpdatedAt: "2026-10-08T03:00:00.000Z",
@@ -53,6 +55,7 @@ test("hire approvals freeze offer, pay, employee number, identity and position e
     { positionLegalEntityId: 8 },
     { positionPlanId: 17 },
     { requisitionStatus: "cancelled" },
+    { requisitionPlanHandoffHash: "c".repeat(64) },
     { positionAnnualBudget: "800000.00" },
     { positionUpdatedAt: "2026-10-08T03:00:00.001Z" },
     { profileTitle: "Supervisor" },
@@ -93,4 +96,37 @@ test("hiring UI distinguishes pending approval from an employee creation", () =>
   assert.match(ui, /if \(payload.approvalRequired\)/);
   assert.match(ui, /No worker or payroll records were created/);
   assert.match(ui, /Request review \/ complete approved hire/);
+});
+
+test("plan-backed requisition evidence is immutable throughout two-stage hire approval", () => {
+  const lineage = {
+    version: "hcm-plan-requisition-lineage-v1",
+    planId: 8,
+    baselineId: 40,
+    baselineVersion: 2,
+    baselineSnapshotHash: "a".repeat(64),
+    executionId: 77,
+    executionHash: "b".repeat(64),
+    sourcePositionId: 12,
+    positionId: 111,
+    positionCode: "ENG-12",
+    jobProfileId: 3,
+    orgUnitId: 4,
+    legalEntityId: 5,
+    costCenterId: 6,
+    annualBudget: "850000.00",
+    executionAppliedAt: "2026-10-08T05:00:00.000Z",
+  };
+  const proof = hashRequisitionPlanHandoff(lineage);
+  assert.match(proof ?? "", /^[a-f0-9]{64}$/);
+  assert.equal(hashRequisitionPlanHandoff(null), null);
+  assert.equal(hashRequisitionPlanHandoff({ ...lineage }), proof);
+  assert.notEqual(hashRequisitionPlanHandoff({ ...lineage, executionId: 78 }), proof);
+  assert.notEqual(hashRequisitionPlanHandoff({ ...lineage, annualBudget: "850001.00" }), proof);
+  assert.throws(() => hashRequisitionPlanHandoff({ ...lineage, baselineId: "40" }), /invalid/);
+  const approved = hireReviewFingerprint({ ...example, requisitionPlanHandoffHash: proof });
+  assert.notEqual(approved, hireReviewFingerprint({ ...example, requisitionPlanHandoffHash: null }));
+  const hireApi = readFileSync("src/app/api/recruitment/hire/route.ts", "utf8");
+  assert.equal(hireApi.split("requisitionPlanHandoffHash: hashRequisitionPlanHandoff(freshRequisition.planHandoffEvidence)").length - 1, 2);
+  assert.equal(hireApi.split("planHandoffEvidence: jobRequisitions.planHandoffEvidence").length - 1, 2);
 });

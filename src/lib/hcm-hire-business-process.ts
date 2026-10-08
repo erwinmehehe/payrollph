@@ -9,6 +9,7 @@ export type HireReviewContext = {
   applicantEmail: string;
   offeredMonthly: string;
   requisitionStatus: string;
+  requisitionPlanHandoffHash: string | null;
   positionCode: string;
   positionStatus: string;
   positionUpdatedAt: string;
@@ -38,6 +39,41 @@ export type HireApprovalEvidence = {
   fingerprint: string;
 };
 
+/**
+ * Capture immutable plan provenance in the existing Hire maker/checker
+ * fingerprint. Historical standalone requisitions legitimately have no
+ * provenance; newly plan-linked requisitions carry a verified lineage record.
+ */
+export function hashRequisitionPlanHandoff(value: unknown): string | null {
+  if (value == null) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Recruitment plan handoff evidence is invalid.");
+  }
+  const row = value as Record<string, unknown>;
+  const ids = [
+    row.planId, row.baselineId, row.baselineVersion, row.executionId,
+    row.sourcePositionId, row.positionId, row.jobProfileId,
+  ];
+  if (row.version !== "hcm-plan-requisition-lineage-v1"
+    || ids.some((n) => typeof n !== "number" || !Number.isSafeInteger(n) || n <= 0)
+    || !["baselineSnapshotHash", "executionHash"].every((key) =>
+      typeof row[key] === "string" && /^[a-f0-9]{64}$/.test(String(row[key])))
+    || typeof row.positionCode !== "string" || !row.positionCode
+    || typeof row.annualBudget !== "string" || !/^[0-9]+\.[0-9]{2}$/.test(row.annualBudget)
+    || typeof row.executionAppliedAt !== "string"
+    || !Number.isFinite(new Date(row.executionAppliedAt).getTime())) {
+    throw new Error("Recruitment plan handoff evidence is incomplete or invalid.");
+  }
+  // Fixed schema ordering is stable through PostgreSQL jsonb key reordering.
+  return createHash("sha256").update(JSON.stringify([
+    row.version, row.planId, row.baselineId, row.baselineVersion,
+    row.baselineSnapshotHash, row.executionId, row.executionHash,
+    row.sourcePositionId, row.positionId, row.positionCode, row.jobProfileId,
+    row.orgUnitId, row.legalEntityId, row.costCenterId,
+    row.annualBudget, row.executionAppliedAt,
+  ])).digest("hex");
+}
+
 export function hireReviewFingerprint(value: HireReviewContext): string {
   if (!Number.isSafeInteger(value.applicantId) || value.applicantId <= 0
     || !Number.isSafeInteger(value.requisitionId) || value.requisitionId <= 0
@@ -50,7 +86,7 @@ export function hireReviewFingerprint(value: HireReviewContext): string {
   return createHash("sha256").update(JSON.stringify([
     value.applicantId, value.requisitionId, value.positionId,
     value.applicantStage, value.applicantEmail.toLowerCase(),
-    value.offeredMonthly, value.requisitionStatus,
+    value.offeredMonthly, value.requisitionStatus, value.requisitionPlanHandoffHash,
     value.positionCode, value.positionStatus, value.positionUpdatedAt,
     value.positionOrgUnitId, value.positionLegalEntityId, value.positionPlanId,
     value.positionAnnualBudget, value.profileTitle,

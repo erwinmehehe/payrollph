@@ -22,6 +22,15 @@ type Requisition = {
   salaryMin: string | null;
   salaryMax: string | null;
   annualPositionBudget: string | null;
+  planHandoffEvidence: {
+    version: string;
+    planId: number;
+    baselineId: number;
+    baselineVersion: number;
+    executionId: number;
+    positionCode: string;
+    executionHash: string;
+  } | null;
   employmentType: string;
   status: string;
   description: string;
@@ -418,6 +427,11 @@ export function RecruitmentPanel({
               <span style={{ display: "block", fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
                 {activeReq.hiredCount} hired · {activeReq.applicantCount} applicants
               </span>
+              {activeReq.planHandoffEvidence?.version === "hcm-plan-requisition-lineage-v1" && (
+                <span style={{ display: "block", fontSize: 10, color: "var(--muted)", marginTop: 5 }}>
+                  Plan #{activeReq.planHandoffEvidence.planId} · published baseline v{activeReq.planHandoffEvidence.baselineVersion} · applied execution #{activeReq.planHandoffEvidence.executionId}
+                </span>
+              )}
             </div>
           </div>
         </article>
