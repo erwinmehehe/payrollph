@@ -155,6 +155,39 @@ test("scoped request cannot silently become a global no-filter workflow", async 
   });
 });
 
+test("tenant-specific identifiers are blocked before any external model request", async () => {
+  await withMockModel(allowed, async (calls) => {
+    for (const request of [
+      "When a new employee is hired, filter by payroll run id and create a task.",
+      "When a new employee is hired, filter by organization id and create a task.",
+      "When a new employee is hired, filter by position code and notify their manager.",
+    ]) {
+      await assert.rejects(
+        draftAutomationFromLanguage(request),
+        /tenant-specific codes must be selected from verified records/,
+      );
+    }
+    assert.equal(calls(), 0, "No tenant-specific identifier prompts may reach the provider");
+  });
+});
+
+test("model-generated conditions cannot contain guessed tenant IDs", async () => {
+  await withMockModel({
+    ...allowed,
+    conditions: {
+      version: 1,
+      all: [{ field: "orgUnitId", operator: "eq", value: 1 }],
+      any: [],
+    },
+  }, async (calls) => {
+    await assert.rejects(
+      draftAutomationFromLanguage("When an employee is hired, create an onboarding verification task."),
+      /failed server validation/,
+    );
+    assert.equal(calls(), 1);
+  });
+});
+
 test("direct identifiers are blocked before the model receives them", async () => {
   await withMockModel(allowed, async (calls) => {
     for (const request of [
