@@ -152,6 +152,14 @@ export async function createMweClassificationRequest(input: {
     || !Number.isFinite(input.statutoryMinimumWage) || input.statutoryMinimumWage <= 0) {
     throw new Error("Employee daily wage and statutory minimum wage must be positive amounts.");
   }
+  if (
+    input.isMwe
+    && Math.abs(input.employeeDailyWage - input.statutoryMinimumWage) > 0.01
+  ) {
+    throw new Error(
+      "An MWE classification requires the evidenced employee daily wage to match the applicable statutory minimum wage. Use a non-MWE classification when pay is above the statutory minimum.",
+    );
+  }
 
   return db.transaction(async (tx) => {
     await tx.execute(sql`

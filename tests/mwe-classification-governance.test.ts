@@ -160,3 +160,52 @@ test("demo fixtures do not misclassify the ₱21,800 monthly warehouse worker as
   assert.ok(!publicDemo.includes("mwe: index === 5"));
   assert.ok(seed.includes('["Rico", "Mendoza", "Warehouse Officer", "RM", "Disciplinary review", "Regular", "21800.00", false'));
 });
+
+test("MWE=true cannot be submitted when evidenced pay is above the statutory minimum", async () => {
+  const suffix = `mwe-mismatch-${process.pid}-${Date.now()}`;
+  const [org] = await db.insert(organizations).values({
+    name: `MWE Mismatch ${suffix}`,
+    legalName: `MWE Mismatch ${suffix} Inc.`,
+  }).returning();
+  const [maker] = await db.insert(users).values({
+    email: `${suffix}@example.com`,
+    name: "MWE Maker",
+    passwordHash: "test-only",
+    role: "hr",
+  }).returning();
+
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: `MWX-${Date.now()}`.slice(0, 32),
+      firstName: "Rico",
+      lastName: "Mismatch",
+      title: "Warehouse Officer",
+      avatarInitials: "RM",
+      basicRate: "21800.00",
+      mwe: false,
+      region: "NCR",
+      startDate: "2026-01-01",
+    }).returning();
+
+    await assert.rejects(
+      () => createMweClassificationRequest({
+        organizationId: org.id,
+        employeeId: employee.id,
+        isMwe: true,
+        region: "NCR",
+        employeeDailyWage: 990.91,
+        statutoryMinimumWage: 755,
+        wageOrderReference: "WO-NCR-28",
+        evidenceReference: "Mismatch evidence",
+        effectiveFrom: "2026-10-01",
+        requestedByUserId: maker.id,
+        requestedByName: maker.name,
+      }),
+      /requires the evidenced employee daily wage to match the applicable statutory minimum wage/,
+    );
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+    await db.delete(users).where(eq(users.id, maker.id));
+  }
+});
