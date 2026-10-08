@@ -4,6 +4,28 @@ Scope: **language request → typed proposal → server validation → signed in
 
 This document applies only to natural-language drafting. Broader separation execution and production certification are separate workstreams.
 
+## Server-only rollout control
+
+`AUTOMATION_LANGUAGE_STUDIO_ENABLED=false` is the default. Unless deliberately
+enabled for an authorized environment, it hides the plain-English drafting
+interface and rejects **both** language generation and signed language-draft
+saving at the API boundary (HTTP 403, `LANGUAGE_DRAFTING_DISABLED`).
+The existing manual Automation Studio builder, reviewed templates, Impact
+Preview, existing published workflows and governed execution are unaffected.
+
+This is separate from `OPENAI_AUTOMATION_DRAFT_ENABLED`, which only controls
+whether language interpretation is sent to an external AI provider. An AI key
+alone cannot expose the feature. Both settings are server-only, not
+`NEXT_PUBLIC_*`.
+
+Automated positive-path tests use only the predefined `synthetic-postgres-only`
+CI fixture with localhost application/database, an empty provider key, and no
+explicit rollout setting. An explicit `false` always overrides that fixture.
+Default-off behavior and denial for nonlocal targets are separately unit tested.
+
+Until independent human review (issue #621) and isolated staging acceptance
+(issue #622), leave the rollout setting off outside this disposable fixture.
+
 ## Automated evidence
 
 The PR runs:
