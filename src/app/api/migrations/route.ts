@@ -54,15 +54,6 @@ function migrationRowKey(kind: MigrationKind, row: unknown) {
   return `loan:${value.employeeNo.trim().toLowerCase()}:${value.referenceNo.trim().toLowerCase()}`;
 }
 
-function today() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-}
-
 const cents = (value: number) => value.toFixed(2);
 const oneDecimal = (value: number) => value.toFixed(1);
 
@@ -463,7 +454,7 @@ export async function POST(request: Request) {
       if (!existing && !row.startDate) continue;
       const encryptedIds = protectedGovernmentIds.get(key);
       if (!encryptedIds) {
-        return Response.json({ error: "Government-ID encryption preflight was incomplete." }, { status: 503 });
+        throw new Error("Government-ID encryption preflight was incomplete.");
       }
       const values = {
         firstName: row.firstName,
