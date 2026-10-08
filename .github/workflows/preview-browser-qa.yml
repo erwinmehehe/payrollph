@@ -155,18 +155,30 @@ jobs:
             check(heroPrimaryStyles.backgroundColor !== "rgba(0, 0, 0, 0)" && heroPrimaryStyles.backgroundColor !== "rgb(255, 255, 255)", `${name}: hero primary CTA background lost contrast; saw ${heroPrimaryStyles.backgroundColor}`);
             if (name === "desktop") {
               const primaryNav = page.getByRole("navigation", { name: "Primary" });
-              check((await primaryNav.getByRole("link", { name: "Live demo", exact: true }).getAttribute("href")) === "/demo", "desktop: primary nav does not expose role-based demo");
-              check((await primaryNav.getByRole("link", { name: "Payroll outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", "desktop: primary nav does not expose payroll outsourcing");
-              check((await primaryNav.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/trust", "desktop: primary nav does not expose trust center");
+              check((await primaryNav.getByRole("link", { name: "Try demo", exact: true }).getAttribute("href")) === "/demo", "desktop: primary nav does not expose role-based demo");
+              check((await primaryNav.getByRole("link", { name: "Outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", "desktop: primary nav does not expose payroll outsourcing");
+              const companyMenu = primaryNav.locator("summary").filter({ hasText: "Company" });
+              await companyMenu.click();
+              check((await primaryNav.getByRole("link", { name: "Trust center", exact: true }).getAttribute("href")) === "/trust", "desktop: company menu does not expose trust center");
+              await primaryNav.getByRole("link", { name: "Trust center", exact: true }).focus();
+              await page.keyboard.press("Escape");
+              check(await companyMenu.evaluate(el => el === document.activeElement), "desktop: Escape must restore focus to the open menu summary");
+              const productMenu = primaryNav.locator("summary").filter({ hasText: "Product" });
+              await productMenu.click();
+              check(await primaryNav.getByRole("link", { name: "HRIS", exact: true }).isVisible(), "desktop: product menu must expose HRIS");
+              await page.keyboard.press("Escape");
               check((await primaryNav.getByRole("link", { name: "Pricing", exact: true }).getAttribute("href")) === "/pricing", "desktop: primary nav does not expose dedicated pricing page");
             } else {
               const menu = page.getByRole("button", { name: "Open menu" });
               check((await menu.count()) === 1, "mobile-390: menu button is missing");
               await menu.click();
               const mobileHeader = page.getByRole("banner");
-              check((await mobileHeader.getByRole("link", { name: "Live demo", exact: true }).getAttribute("href")) === "/demo", "mobile-390: menu does not expose role-based demo");
+              check((await mobileHeader.getByRole("link", { name: "Try demo", exact: true }).getAttribute("href")) === "/demo", "mobile-390: menu does not expose role-based demo");
               check((await mobileHeader.getByRole("link", { name: "Payroll outsourcing", exact: true }).getAttribute("href")) === "/payroll-outsourcing", "mobile-390: menu does not expose payroll outsourcing");
-              check((await mobileHeader.getByRole("link", { name: "Trust", exact: true }).getAttribute("href")) === "/trust", "mobile-390: menu does not expose trust center");
+              await mobileHeader.locator(".ln-mobile summary").filter({ hasText: "Company" }).click();
+              check((await mobileHeader.getByRole("link", { name: "Trust center", exact: true }).getAttribute("href")) === "/trust", "mobile-390: menu does not expose trust center");
+              await mobileHeader.locator(".ln-mobile summary").filter({ hasText: "Product" }).click();
+              check(await mobileHeader.getByRole("link", { name: "HRIS", exact: true }).isVisible(), "mobile-390: product menu must expose HRIS");
               check((await mobileHeader.getByRole("link", { name: "Pricing", exact: true }).getAttribute("href")) === "/pricing", "mobile-390: menu does not expose dedicated pricing page");
               await page.getByRole("button", { name: "Close menu" }).click();
             }
