@@ -742,29 +742,32 @@ export async function activateCompensationComponentAssignment(
       actorName: actor,
     }).returning();
 
-    return { skipped: false as const, assignment: active, event };
+    // A successful activation must have BOTH financial and operational audit
+    // evidence. Any audit insert error rolls the activation and event back,
+    // leaving the scheduled component eligible for a governed retry.
+    const [audit] = await tx.insert(auditEvents).values({
+      organizationId: active.organizationId,
+      actor,
+      action: "Recurring compensation component activated",
+      resource: `Employee #${active.employeeId}`,
+      metadata: {
+        componentAssignmentId: active.id,
+        componentId: active.componentId,
+        compensationEventId: event.id,
+        effectiveFrom: String(active.effectiveFrom),
+        effectiveUntil: active.effectiveUntil,
+        amount: Number(active.amount),
+        previousStatus: "scheduled",
+        activatedOnPhilippineDate: today,
+      },
+    }).returning({ id: auditEvents.id });
+
+    return { skipped: false as const, assignment: active, event, audit };
   });
 
   if (result.skipped) return result;
 
   const warnings: string[] = [];
-  try {
-    await recordAuditEvent({
-      organizationId: result.assignment.organizationId,
-      actor,
-      action: "Recurring compensation component activated",
-      resource: `Employee #${result.assignment.employeeId}`,
-      metadata: {
-        componentAssignmentId: result.assignment.id,
-        componentId: result.assignment.componentId,
-        effectiveFrom: result.assignment.effectiveFrom,
-        amount: Number(result.assignment.amount),
-      },
-    });
-  } catch (error) {
-    warnings.push(`audit: ${error instanceof Error ? error.message : "unknown failure"}`);
-  }
-
   let automation: Awaited<ReturnType<typeof runAutomationEventSafely>> = [];
   try {
     automation = await runAutomationEventSafely({
@@ -784,22 +787,29 @@ export async function activateCompensationComponentAssignment(
     warnings.push(`automation: ${error instanceof Error ? error.message : "unknown failure"}`);
   }
 
-  const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
-    organizationId: result.assignment.organizationId,
-    employeeId: result.assignment.employeeId,
-    eventKey: `compensation-component-active:${result.assignment.id}:field-change`,
-    changes: [{
-      field: "recurringCompensationAmount",
-      previousValue: 0,
-      newValue: Number(result.assignment.amount),
-      effectiveDate: String(result.assignment.effectiveFrom),
-      source: "compensation-component",
-      metadata: {
-        compensationComponentAssignmentId: result.assignment.id,
-        compensationComponentId: result.assignment.componentId,
-      },
-    }],
-  });
+  let fieldChangeAutomation: Awaited<ReturnType<typeof runEmployeeFieldChangeAutomations>> = [];
+  try {
+    fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
+      organizationId: result.assignment.organizationId,
+      employeeId: result.assignment.employeeId,
+      eventKey: `compensation-component-active:${result.assignment.id}:field-change`,
+      changes: [{
+        field: "recurringCompensationAmount",
+        previousValue: 0,
+        newValue: Number(result.assignment.amount),
+        effectiveDate: String(result.assignment.effectiveFrom),
+        source: "compensation-component",
+        metadata: {
+          compensationComponentAssignmentId: result.assignment.id,
+          compensationComponentId: result.assignment.componentId,
+        },
+      }],
+    });
+  } catch (error) {
+    // The financial activation is already committed; do not misreport it as a
+    // failed transaction or schedule a duplicate activation. Surface review.
+    warnings.push(`field-change automation: ${error instanceof Error ? error.message : "unknown failure"}`);
+  }
 
   return { ...result, automation, fieldChangeAutomation, warnings };
 }
@@ -846,7 +856,12 @@ export async function runScheduledCompensationGovernance({
   for (const row of dueComponents) {
     try {
       const result = await activateCompensationComponentAssignment(row.id, { actor, now });
-      componentResults.push({ id: row.id, status: result.skipped ? "skipped" : "active", reason: result.skipped ? result.reason : undefined });
+      componentResults.push({
+        id: row.id,
+        status: result.skipped ? "skipped" : "active",
+        reason: result.skipped ? result.reason : undefined,
+        ...(!result.skipped && result.warnings.length > 0 ? { warnings: result.warnings } : {}),
+      });
     } catch (error) {
       componentResults.push({ id: row.id, status: "failed", error: error instanceof Error ? error.message : "Unknown failure" });
     }
