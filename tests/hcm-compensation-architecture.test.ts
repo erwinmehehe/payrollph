@@ -229,7 +229,9 @@ test("applied salaries and recurring activations commit notification intents bef
   assert.ok(component.indexOf("enqueueCompensationAutomationIntents(tx, {") < component.indexOf("if (result.skipped) return result;"));
   assert.ok(salary.includes("compensation-applied:${proposal.id}:field-change:annualsalary"));
   assert.ok(salary.includes("compensation-applied:${proposal.id}:field-change:monthlyequivalentsalary"));
-  assert.ok(component.includes("compensation-component-active:${active.id}:field-change:recurringcompensationamount"));
+  assert.ok(governance.includes("compensation-component-active:${assignment.id}:field-change:recurringcompensationamount"));
+  assert.ok(component.includes("intents: recurringActivationIntents(active)"));
+  assert.ok(governance.includes("intents: recurringActivationIntents(updated)"), "same-day approvals must save identical immutable event contexts");
   assert.ok(scheduler.includes("drainCompensationAutomationIntents("));
   assert.ok(scheduler.includes("compensationAutomationDelivery"));
 });
