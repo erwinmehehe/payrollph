@@ -405,3 +405,48 @@ test("tenant and worker source mismatch cannot enqueue, dispatch or manually ret
     });
   });
 });
+
+test("non-financial source events and spoofed outbox triggers never execute Automation Studio actions", async () => {
+  await withFixture(async (f) => {
+    await db.update(compensationEvents).set({ eventType: "component_cancelled" })
+      .where(eq(compensationEvents.id, f.compensationEventId));
+    await assert.rejects(
+      db.transaction(async (tx) => enqueueCompensationAutomationIntents(tx, {
+        organizationId: f.organizationId,
+        employeeId: f.employeeId,
+        compensationEventId: f.compensationEventId,
+        intents: [{ trigger: "compensation.changed", eventKey: f.eventKey, context: {} }],
+      })),
+      /allowed event type/i,
+    );
+    assert.equal((await db.select().from(compensationAutomationIntents)
+      .where(eq(compensationAutomationIntents.organizationId, f.organizationId))).length, 0);
+
+    await db.update(compensationEvents).set({ eventType: "salary_change" })
+      .where(eq(compensationEvents.id, f.compensationEventId));
+    const id = await persist(f);
+    await db.update(compensationAutomationIntents)
+      .set({ trigger: "employee.terminated" })
+      .where(eq(compensationAutomationIntents.id, id));
+
+    const blocked = await dispatchCompensationAutomationIntent(id);
+    assert.equal(blocked.status, "needs_review");
+    const stored = await readIntent(id);
+    assert.match(stored.lastError ?? "", /forbidden event trigger/i);
+    assert.equal((await db.select().from(automationEventLog)
+      .where(eq(automationEventLog.organizationId, f.organizationId))).length, 0);
+
+    await db.update(compensationAutomationIntents)
+      .set({
+        status: "needs_review",
+        attempts: 5,
+        lastError: "Maximum pre-ledger retry attempts reached. Human reconciliation required.",
+      }).where(eq(compensationAutomationIntents.id, id));
+    await assert.rejects(retryUnstartedCompensationAutomationIntent({
+      organizationId: f.organizationId,
+      intentId: id,
+      reviewer: "Verified human",
+    }), /forbidden trigger/i);
+    assert.equal((await readIntent(id)).status, "needs_review");
+  });
+});
