@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ClipboardCheck, Download, FileBarChart2, Gauge, RefreshCw, ShieldCheck, TrendingDown, UsersRound, WalletCards } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EnterpriseBiExportPanel } from "@/components/enterprise-bi-export-panel";
+import { PeopleIntelligenceOverview } from "./people-intelligence";
+import type { PeopleIntelligenceSummary } from "@/lib/hcm-people-intelligence";
 import {
   EmptyState,
   ErrorState,
@@ -15,9 +17,10 @@ import {
   shortMoney,
 } from "./ui";
 
-type ReportKey = "headcount" | "cost" | "turnover" | "compliance" | "assurance" | "workforce" | "lifecycle";
+type ReportKey = "headcount" | "cost" | "turnover" | "compliance" | "assurance" | "workforce" | "lifecycle" | "people";
 
 const REPORTS: Array<{ key: ReportKey; name: string; description: string; icon: typeof UsersRound }> = [
+  { key: "people", name: "People Intelligence", description: "Verified as-of headcount, hires, exits, FTE, vacancies, recruitment and released payroll", icon: UsersRound },
   { key: "lifecycle", name: "Lifecycle governance", description: "Employment terms, decision timing, evidence coverage, handoffs and escalations", icon: ClipboardCheck },
   { key: "workforce", name: "Workforce operations", description: "Overtime, absence, coverage, schedule adherence, payroll variance and labor cost", icon: Gauge },
   { key: "headcount", name: "Headcount movement", description: "Active, leave, disciplinary and separating counts by employment type", icon: UsersRound },
@@ -27,13 +30,21 @@ const REPORTS: Array<{ key: ReportKey; name: string; description: string; icon: 
   { key: "assurance", name: "Payroll assurance", description: "Blocking controls and material employee-level changes versus the previous payroll", icon: ShieldCheck },
 ];
 
-type ReportResult = { key: string; columns: string[]; rows: string[][]; generatedAt?: string };
+type ReportResult = {
+  key: string;
+  columns: string[];
+  rows: string[][];
+  generatedAt?: string;
+  peopleIntelligence?: PeopleIntelligenceSummary;
+};
 
 export function AnalyticsView({ data, notify }: { data: DashboardData; notify: Notify }) {
   const [active, setActive] = useState<ReportKey>("workforce");
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [result, setResult] = useState<ReportResult | null>(null);
   const [error, setError] = useState("");
+  const [peopleAsOf, setPeopleAsOf] = useState("");
+  const [peopleWindowDays, setPeopleWindowDays] = useState<30 | 90 | 180 | 365>(90);
 
   const organizationId = data.selectedOrganization.id;
 
@@ -46,7 +57,12 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
     let alive = true;
     (async () => {
       try {
-        const response = await fetch(`/api/reports?organizationId=${organizationId}&key=${active}`, { cache: "no-store" });
+        const query = new URLSearchParams({ organizationId: String(organizationId), key: active });
+        if (active === "people") {
+          if (peopleAsOf) query.set("asOf", peopleAsOf);
+          query.set("windowDays", String(peopleWindowDays));
+        }
+        const response = await fetch(`/api/reports?${query.toString()}`, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!alive) return;
         if (!response.ok) {
@@ -66,7 +82,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
     return () => {
       alive = false;
     };
-  }, [organizationId, active, nonce]);
+  }, [organizationId, active, nonce, peopleAsOf, peopleWindowDays]);
 
   const reload = useCallback(() => {
     setState("loading");
@@ -171,6 +187,39 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         })}
       </div>
 
+      {active === "people" && (
+        <article className="card" style={{ marginBottom: 16 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">People Intelligence controls</div>
+              <h2>Choose the workforce snapshot</h2>
+              <p>Current-state vacancies and compensation cannot be backdated. Historical headcount is shown only when effective-dated records verify it.</p>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 14, padding: "0 18px 18px" }}>
+            <label style={{ display: "grid", gap: 5 }}>
+              Reporting date (blank = today in Manila)
+              <input aria-label="People Intelligence reporting date" type="date" value={peopleAsOf}
+                onChange={(event) => { setPeopleAsOf(event.target.value); setState("loading"); }} />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              Activity window
+              <select aria-label="People Intelligence activity window" value={peopleWindowDays}
+                onChange={(event) => { setPeopleWindowDays(Number(event.target.value) as 30 | 90 | 180 | 365); setState("loading"); }}>
+                <option value={30}>30 days</option>
+                <option value={90}>90 days</option>
+                <option value={180}>180 days</option>
+                <option value={365}>365 days</option>
+              </select>
+            </label>
+          </div>
+        </article>
+      )}
+
+      {active === "people" && state === "ready" && result?.peopleIntelligence && (
+        <PeopleIntelligenceOverview report={result.peopleIntelligence} />
+      )}
+
       <article className="card table-card">
         <div className="card-header">
           <div>
@@ -186,7 +235,14 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
             className="secondary-button"
             disabled={state !== "ready" || !result?.rows.length}
             onClick={() => {
-              window.open(`/api/reports?organizationId=${organizationId}&key=${active}&format=csv`, "_blank", "noopener");
+              const query = new URLSearchParams({
+                organizationId: String(organizationId), key: active, format: "csv",
+              });
+              if (active === "people") {
+                if (peopleAsOf) query.set("asOf", peopleAsOf);
+                query.set("windowDays", String(peopleWindowDays));
+              }
+              window.open(`/api/reports?${query.toString()}`, "_blank", "noopener");
               notify("Report CSV requested, the export is recorded in the audit trail.", "info");
             }}
           >
