@@ -12,7 +12,6 @@ import {
 import {
   getAccess,
   PEOPLE_ADMIN_ROLES,
-  WORKFORCE_MANAGER_ROLES,
   assertOrganizationRole,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
