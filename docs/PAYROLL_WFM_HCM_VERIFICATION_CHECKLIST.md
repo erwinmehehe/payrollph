@@ -45,7 +45,7 @@ This checklist turns the product roadmap into evidence gates. A capability is no
 - [ ] Leave treatment is explicit and payroll fails closed when treatment is missing.
 - [ ] WFM exceptions have owner, status, SLA/age, evidence, resolution, and audit trail.
 - [ ] Employee self-service schedule/attendance actions respect tenant and role scope.
-- [ ] WFM-to-payroll handoff has an end-to-end test covering schedule -> punches -> exception -> approval -> payroll.
+- [x] WFM-to-payroll handoff has an end-to-end fresh-tenant pilot covering schedule -> punches -> persisted exception -> four-eyes correction approval -> payroll trace (`scripts/pilot-payroll-qa.ts`; CI: Production Pilot Payroll QA).
 
 ## Gate D — HCM core supporting WFM/payroll
 
@@ -138,7 +138,7 @@ This checklist turns the product roadmap into evidence gates. A capability is no
 
 1. Make the Pay Rules golden reconciliation gate green and required.
 2. Clear the remaining open PR queue without bypassing failed checks.
-3. Finish WFM-to-payroll end-to-end evidence.
+3. Keep the WFM-to-payroll fresh-tenant pilot green while expanding WFM regression depth.
 4. Complete HCM lifecycle/position/headcount support needed by WFM.
 5. Expand independent statutory reconciliation matrices.
 6. Close production environment blockers and run the five-role pilot.

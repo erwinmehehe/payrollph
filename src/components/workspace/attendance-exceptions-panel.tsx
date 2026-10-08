@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CalendarRange, Clock3, RefreshCcw, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CalendarRange, CheckCircle2, Clock3, RefreshCcw, ShieldAlert, UserRoundCheck } from "lucide-react";
 import type { Notify } from "./types";
 import { AttendanceLockControl } from "./attendance-lock-control";
 import { EmptyState, Metric, Segmented, Spinner, Status } from "./ui";
@@ -42,6 +42,46 @@ type ResponsePayload = {
   days: AttendanceRow[];
 };
 
+type OperationalException = {
+  id: number;
+  employeeId: number;
+  workDate: string;
+  exceptionKind: string;
+  severity: "info" | "warning" | "blocker";
+  message: string;
+  status: "open" | "resolved";
+  ownerUserId: number | null;
+  ownerName: string | null;
+  slaDueAt: string | null;
+  ageHours: number | null;
+  slaStatus: "resolved" | "on_track" | "overdue" | "untracked";
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+  resolvedByName: string | null;
+  resolutionRecordedAt: string | null;
+  employee: {
+    id: number;
+    employeeNo: string;
+    firstName: string;
+    lastName: string;
+    orgUnitId: number | null;
+  } | null;
+};
+
+type OwnerCandidate = {
+  userId: number;
+  role: string;
+  orgUnitId: number | null;
+  name: string;
+  email: string;
+};
+
+type OperationsPayload = {
+  summary: { open: number; overdue: number; unassigned: number; resolved: number };
+  exceptions: OperationalException[];
+  ownerCandidates: OwnerCandidate[];
+};
+
 function localToday() {
   const now = new Date();
   const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
@@ -73,6 +113,9 @@ export function AttendanceExceptionsPanel({
   const [endDate, setEndDate] = useState(today);
   const [filter, setFilter] = useState<"review" | "all">("review");
   const [payload, setPayload] = useState<ResponsePayload | null>(null);
+  const [operations, setOperations] = useState<OperationsPayload | null>(null);
+  const [resolutionDrafts, setResolutionDrafts] = useState<Record<number, string>>({});
+  const [actionBusyId, setActionBusyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -84,12 +127,24 @@ export function AttendanceExceptionsPanel({
         startDate,
         endDate,
       });
-      const response = await fetch(`/api/workforce/attendance-exceptions?${params.toString()}`, {
-        cache: "no-store",
-      });
-      const body = await response.json().catch(() => ({}));
+      const [response, operationsResponse] = await Promise.all([
+        fetch(`/api/workforce/attendance-exceptions?${params.toString()}`, {
+          cache: "no-store",
+        }),
+        fetch(`/api/workforce/attendance-exception-events?${params.toString()}`, {
+          cache: "no-store",
+        }),
+      ]);
+      const [body, operationsBody] = await Promise.all([
+        response.json().catch(() => ({})),
+        operationsResponse.json().catch(() => ({})),
+      ]);
       if (!response.ok) throw new Error(body.error ?? "Could not load attendance exceptions.");
+      if (!operationsResponse.ok) {
+        throw new Error(operationsBody.error ?? "Could not load attendance exception operations.");
+      }
       setPayload(body as ResponsePayload);
+      setOperations(operationsBody as OperationsPayload);
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not load attendance exceptions.", "err");
     } finally {
@@ -100,6 +155,50 @@ export function AttendanceExceptionsPanel({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const mutateOperationalException = useCallback(async (
+    eventId: number,
+    action: "assign_owner" | "record_resolution",
+    extra: Record<string, unknown>,
+  ) => {
+    setActionBusyId(eventId);
+    try {
+      const response = await fetch("/api/workforce/attendance-exception-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, eventId, action, ...extra }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Could not update attendance exception operations.");
+      if (action === "record_resolution") {
+        setResolutionDrafts((current) => {
+          const next = { ...current };
+          delete next[eventId];
+          return next;
+        });
+      }
+      notify(
+        action === "assign_owner"
+          ? "Attendance exception owner updated."
+          : "Attendance exception resolution evidence recorded.",
+        "ok",
+      );
+      await load();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Could not update attendance exception operations.", "err");
+    } finally {
+      setActionBusyId(null);
+    }
+  }, [load, notify, organizationId]);
+
+  const recordResolution = useCallback(async (eventId: number) => {
+    const resolutionNote = String(resolutionDrafts[eventId] ?? "").trim();
+    if (resolutionNote.length < 3) {
+      notify("Add a short resolution note before recording evidence.", "err");
+      return;
+    }
+    await mutateOperationalException(eventId, "record_resolution", { resolutionNote });
+  }, [mutateOperationalException, notify, resolutionDrafts]);
 
   const rows = useMemo(() => {
     const source = payload?.days ?? [];
@@ -180,6 +279,159 @@ export function AttendanceExceptionsPanel({
         endDate={endDate}
         notify={notify}
       />
+
+      <article className="card table-card" style={{ marginBottom: 16 }}>
+        <div className="table-toolbar">
+          <div>
+            <div className="card-kicker">Operational control</div>
+            <h3 style={{ margin: "3px 0 0" }}>Exception ownership &amp; SLA</h3>
+          </div>
+          <div className="toolbar-spacer" />
+          <span className="id">Severity SLA: blocker 4h · warning 24h · info 72h</span>
+        </div>
+
+        <section className="stats-grid" style={{ padding: "0 14px 14px" }}>
+          <Metric
+            label="Open cases"
+            value={String(operations?.summary.open ?? 0)}
+            hint="persisted WFM exception events"
+            icon={<ShieldAlert size={16} className="i-amber" />}
+            tone={(operations?.summary.open ?? 0) ? "amber" : "slate"}
+          />
+          <Metric
+            label="Overdue"
+            value={String(operations?.summary.overdue ?? 0)}
+            hint="past severity-based SLA"
+            icon={<Clock3 size={16} className="i-red" />}
+            tone={(operations?.summary.overdue ?? 0) ? "red" : "slate"}
+          />
+          <Metric
+            label="Unassigned"
+            value={String(operations?.summary.unassigned ?? 0)}
+            hint="open cases without an owner"
+            icon={<UserRoundCheck size={16} className="i-cyan" />}
+            tone={(operations?.summary.unassigned ?? 0) ? "blue" : "slate"}
+          />
+          <Metric
+            label="Resolved"
+            value={String(operations?.summary.resolved ?? 0)}
+            hint="closed by corrected attendance evidence"
+            icon={<CheckCircle2 size={16} className="i-green" />}
+            tone="slate"
+          />
+        </section>
+
+        <div className="data-table-wrap slim-scroll">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Employee</th>
+                <th>Exception</th>
+                <th>Owner</th>
+                <th>SLA / age</th>
+                <th>Resolution evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(operations?.exceptions ?? []).map((item) => {
+                const employeeName = item.employee
+                  ? `${item.employee.firstName} ${item.employee.lastName}`
+                  : `Employee #${item.employeeId}`;
+                const slaLabel = item.slaStatus === "overdue"
+                  ? "Overdue"
+                  : item.slaStatus === "on_track"
+                    ? "On track"
+                    : item.slaStatus === "resolved"
+                      ? "Resolved"
+                      : "Untracked";
+                return (
+                  <tr key={item.id}>
+                    <td>
+                      <strong>{employeeName}</strong>
+                      <div className="id">{item.employee?.employeeNo ?? "—"} · {item.workDate}</div>
+                    </td>
+                    <td>
+                      <Status value={item.severity === "blocker" ? "Blocking" : item.severity === "warning" ? "Warning" : "Info"} />
+                      <div className="id" style={{ marginTop: 4 }}>{item.exceptionKind.replaceAll("_", " ")}</div>
+                      <div className="id" style={{ marginTop: 3 }}>{item.message}</div>
+                    </td>
+                    <td>
+                      {item.status === "open" ? (
+                        <select
+                          value={item.ownerUserId ?? ""}
+                          disabled={actionBusyId === item.id}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            void mutateOperationalException(item.id, "assign_owner", {
+                              ownerUserId: value ? Number(value) : null,
+                            });
+                          }}
+                        >
+                          <option value="">Unassigned</option>
+                          {(operations?.ownerCandidates ?? []).map((owner) => (
+                            <option key={owner.userId} value={owner.userId}>
+                              {owner.name} · {owner.role}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="id">{item.ownerName ?? "No owner recorded"}</span>
+                      )}
+                    </td>
+                    <td>
+                      <Status value={slaLabel} />
+                      <div className="id" style={{ marginTop: 4 }}>
+                        {item.ageHours == null ? "Age unavailable" : `${item.ageHours}h old`}
+                      </div>
+                      <div className="id">
+                        {item.slaDueAt ? `Due ${new Date(item.slaDueAt).toLocaleString()}` : "No SLA due time"}
+                      </div>
+                    </td>
+                    <td style={{ minWidth: 260 }}>
+                      {item.status === "open" ? (
+                        <span className="id">Resolve the underlying punch/schedule evidence first.</span>
+                      ) : item.resolutionRecordedAt ? (
+                        <>
+                          <strong>{item.resolutionNote ?? "Resolved"}</strong>
+                          <div className="id">
+                            {item.resolvedByName ?? "System"} · {new Date(item.resolutionRecordedAt).toLocaleString()}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <input
+                            value={resolutionDrafts[item.id] ?? ""}
+                            onChange={(event) => setResolutionDrafts((current) => ({
+                              ...current,
+                              [item.id]: event.target.value,
+                            }))}
+                            placeholder="Resolution note / evidence"
+                            maxLength={1000}
+                          />
+                          <button
+                            className="secondary-button"
+                            disabled={actionBusyId === item.id}
+                            onClick={() => void recordResolution(item.id)}
+                          >
+                            <CheckCircle2 size={14} className="i-green" />
+                            Record evidence
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {!loading && (operations?.exceptions.length ?? 0) === 0 && (
+            <EmptyState icon={<CheckCircle2 size={20} className="i-green" />} title="No persisted exception cases in this window">
+              New attendance exceptions will appear here with owner and SLA tracking.
+            </EmptyState>
+          )}
+        </div>
+      </article>
 
       <article className="card table-card">
         <div className="table-toolbar">

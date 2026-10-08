@@ -1,4 +1,4 @@
-import type { ResolvedDailySchedule } from "@/lib/workforce-scheduling";
+import type { ResolvedDailySchedule, WorkforceScheduleOverride, WorkforceScheduleOverrideSegment } from "@/lib/workforce-scheduling";
 
 export type ScheduleSwapSnapshot = {
   date: string;
@@ -68,7 +68,14 @@ export function scheduleSwapSnapshotsMatch(
 export function scheduleSwapOverrideValues(
   incoming: ScheduleSwapSnapshot,
   reason: string,
-) {
+): {
+  kind: WorkforceScheduleOverride["kind"];
+  isRestDay: boolean;
+  segments: WorkforceScheduleOverrideSegment[];
+  workLocationOrgUnitId: number | null;
+  worksiteId: number | null;
+  reason: string;
+} {
   assertScheduleSwappable(incoming);
   return {
     kind: incoming.isRestDay

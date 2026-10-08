@@ -129,6 +129,10 @@ test("coverage API derives actual labor from matched roster evidence and protect
   assert.ok(source.includes("actualWorkedMinutes"));
   assert.ok(source.includes("computeWorkforceLaborVariance"));
   assert.ok(source.includes("payProfileRows"));
+  assert.ok(source.includes("payRevisionRows"));
+  assert.ok(source.includes("effectivePayProfileForDate"));
+  assert.ok(source.includes("hourlyRateForEmployeeDate(entry.employeeId, entry.workDate)"));
+  assert.ok(source.includes("hourlyRateForEmployeeDate(employeeId, workDate)"));
   assert.ok(source.includes("benchmarkHourlyRate: null"));
   assert.ok(source.includes("requiredBaseCost: null"));
   assert.ok(source.includes("laborVariance: laborVarianceResponse"));

@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { LinawMark } from "@/components/linaw-mark";
 import { EmployeeHomeDashboard } from "@/components/employee-home-dashboard";
+import { EmployeeWorkforcePanel } from "@/components/employee-workforce-panel";
 import { EmployeeExplainPay } from "@/components/employee-explain-pay";
 import { EmployeeContributionIssueModal } from "@/components/employee-contribution-issue-modal";
 import { EmployeeDocumentsPanel } from "@/components/employee-documents-panel";
@@ -867,6 +868,7 @@ export function SelfServicePortal() {
               <div><span>Out</span><strong>{timeLabel(today?.timeOut ?? null)}</strong></div>
             </div>
           </div>
+          <EmployeeWorkforcePanel />
           <article className="employee-list-card">
             <div className="employee-list-card-head">
               <div><span className="card-kicker">RECENT ATTENDANCE</span><h3>Last {data.attendance.recent.length} records</h3></div>

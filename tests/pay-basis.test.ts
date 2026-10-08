@@ -17,6 +17,7 @@ import {
 import {
   attendanceDeductionsForCutoff,
   basicPayForCutoff,
+  effectivePayProfileForDate,
   fixedMonthlyBasicForTimeline,
   leaveAdjustmentForCutoff,
   monthlyRetroForReleasedCutoff,
@@ -276,6 +277,44 @@ test("release refuses a pay profile changed after payroll calculation", async ()
   }
 });
 
+
+test("historical WFM labor rates resolve from pay revision history, not the current profile", () => {
+  const currentProfile = {
+    payBasis: "monthly",
+    rateAmount: 26000,
+    standardWorkDaysPerMonth: 22,
+    standardHoursPerDay: 8,
+  };
+  const revisions = [{
+    effectiveDate: "2026-09-23",
+    previousPayBasis: "monthly",
+    previousRateAmount: 22000,
+    previousStandardWorkDaysPerMonth: 22,
+    previousStandardHoursPerDay: 8,
+    newPayBasis: "monthly",
+    newRateAmount: 26000,
+    newStandardWorkDaysPerMonth: 22,
+    newStandardHoursPerDay: 8,
+    reason: "Promotion",
+  }];
+
+  assert.equal(
+    Number(effectivePayProfileForDate({
+      currentProfile,
+      revisions,
+      workDate: "2026-09-20",
+    }).hourlyRate.toFixed(4)),
+    125,
+  );
+  assert.equal(
+    Number(effectivePayProfileForDate({
+      currentProfile,
+      revisions,
+      workDate: "2026-09-24",
+    }).hourlyRate.toFixed(4)),
+    147.7273,
+  );
+});
 
 test("effective-dated monthly pay prorates the cutoff without rewriting earlier days", () => {
   const timeline = resolvePayTimeline({
