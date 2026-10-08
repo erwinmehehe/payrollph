@@ -5,6 +5,7 @@ import {
   automationEventLog,
   automationExecutions,
   compensationAutomationIntents,
+  compensationEvents,
 } from "@/db/schema";
 import { runAutomationEvent } from "@/lib/automation";
 
@@ -41,6 +42,19 @@ export async function enqueueCompensationAutomationIntents(
     || !["compensation.changed", "employee.field_changed"].includes(intent.trigger)
   )) {
     throw new Error("Compensation automation event key or trigger is invalid.");
+  }
+
+  // Foreign keys prove only that each referenced row exists; they do not
+  // prove that the event and employee belong to this same tenant. A mismatch
+  // must roll back the financial transition, not enqueue a misrouted event.
+  const [financialSource] = await tx.select({ id: compensationEvents.id })
+    .from(compensationEvents).where(and(
+      eq(compensationEvents.id, input.compensationEventId),
+      eq(compensationEvents.organizationId, input.organizationId),
+      eq(compensationEvents.employeeId, input.employeeId),
+    )).limit(1);
+  if (!financialSource) {
+    throw new Error("Compensation notification source must match the event's employer and employee.");
   }
 
   return tx.insert(compensationAutomationIntents).values(input.intents.map((intent) => ({
@@ -119,6 +133,21 @@ export async function dispatchCompensationAutomationIntent(
   if (!row) return { id, status: "skipped", reason: "not_due_or_already_claimed" };
 
   try {
+    // A malformed/legacy outbox row must never use the intended tenant's
+    // authority to send another worker's compensation to Automation Studio.
+    // Verify again at delivery because old data may predate current writers.
+    const [source] = await db.select({ id: compensationEvents.id })
+      .from(compensationEvents).where(and(
+        eq(compensationEvents.id, row.compensationEventId),
+        eq(compensationEvents.organizationId, row.organizationId),
+        eq(compensationEvents.employeeId, row.employeeId),
+      )).limit(1);
+    if (!source) {
+      return persistDispatchResult(row, "needs_review", {
+        now, error: "Compensation notification tenant or employee source mismatch; dispatch prohibited.",
+      });
+    }
+
     // A previous worker might have begun running the rule but crashed before
     // confirming the outbox row. Such events require investigation, not replay.
     if (await automationLedgerSeen(row)) {
@@ -321,6 +350,15 @@ export async function retryUnstartedCompensationAutomationIntent(input: {
       eq(compensationAutomationIntents.organizationId, input.organizationId),
     )).limit(1);
     if (!intent || intent.status !== "needs_review") throw new Error("Compensation automation intent is not in review.");
+    const [source] = await tx.select({ id: compensationEvents.id })
+      .from(compensationEvents).where(and(
+        eq(compensationEvents.id, intent.compensationEventId),
+        eq(compensationEvents.organizationId, input.organizationId),
+        eq(compensationEvents.employeeId, intent.employeeId),
+      )).limit(1);
+    if (!source) {
+      throw new Error("Compensation automation intent has a tenant or worker source mismatch; manual retry prohibited.");
+    }
     if (intent.lastError?.includes("lease expired")) {
       throw new Error("An expired dispatch lease may have external side effects; require separate execution evidence review.");
     }
