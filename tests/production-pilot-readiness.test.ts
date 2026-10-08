@@ -213,6 +213,16 @@ test("production pilot sign-off verifies independent figures server-side instead
   assert.ok(route.includes("employeeLevelReconciliationConfirmed"), "human independent reviewer must attest to per-employee reconciliation");
   assert.ok(route.includes('"Bank file dry-run generated"'), "no-money parallel trial must accept audited bank-file dry-run evidence");
   assert.ok(route.includes("!payoutCompleted && !dryRunBankExport"), "sign-off must require either completed payout proof or no-money bank export");
+  assert.ok(route.includes("event.createdAt >= releaseReceipt.createdAt"), "no-money preview must be generated after the payroll release");
+  assert.ok(route.includes("bankExportMissingDestinations"), "bank preview cannot have missing payout destinations");
+  assert.ok(route.includes("bankExportMissingPaymentSnapshots"), "bank preview must use captured immutable payroll payout snapshots");
+  assert.ok(route.includes("bankExportRowCount"), "bank preview roster must match released employee count");
+  assert.ok(route.includes("bankExportTotalNet"), "bank preview payout sum must match released net pay");
+  assert.ok(route.includes("bankExportSha256"), "no-money preview must have a recorded SHA-256 integrity hash");
+  const exportRoute = read("src/app/api/payroll-runs/[id]/exports/route.ts");
+  assert.ok(exportRoute.includes('createHash("sha256").update(file.body)'));
+  assert.ok(exportRoute.includes("bankExportMissingDestinations"));
+  assert.ok(exportRoute.includes("bankExportSyntheticDemoDestinations"));
   assert.ok(route.includes("independentFigures"), "audit evidence must preserve the submitted independent totals");
   assert.ok(route.includes("verifiedFigures"), "audit evidence must preserve the server-derived totals");
   assert.ok(route.includes("reconciliationVariances"), "audit evidence must preserve reconciliation variances");
