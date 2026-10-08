@@ -1,4 +1,6 @@
 import { encryptBankAccount } from "@/lib/bank-account-crypto";
+import { encryptGovernmentId } from "@/lib/government-id-crypto";
+import { employeeMasterMigrationBlockers } from "@/lib/hcm-migration-safety";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -124,6 +126,7 @@ export async function POST(request: Request) {
   let csv = "";
   let fileName = "migration.csv";
   let dryRun = true;
+  let evidenceReference = "";
 
   const contentType = request.headers.get("content-type") ?? "";
   if (contentType.includes("multipart/form-data")) {
@@ -132,6 +135,7 @@ export async function POST(request: Request) {
     source = String(form.get("source") ?? "generic") as MigrationSource;
     kind = String(form.get("kind") ?? "employees") as MigrationKind;
     dryRun = String(form.get("dryRun") ?? "true") !== "false";
+    evidenceReference = String(form.get("evidenceReference") ?? "").trim();
 
     const upload = form.get("file");
     if (!upload || typeof upload === "string") {
@@ -170,6 +174,7 @@ export async function POST(request: Request) {
     csv = typeof body.csv === "string" ? body.csv : "";
     fileName = String(body.fileName ?? "migration.csv").slice(0, 200);
     dryRun = body.dryRun !== false;
+    evidenceReference = String(body.evidenceReference ?? "").trim();
   }
 
   if (!Number.isInteger(organizationId) || !csv.trim()) {
@@ -247,8 +252,16 @@ export async function POST(request: Request) {
         continue;
       }
       seen.add(key);
-      if (employeeByNo.has(key)) updatedCount += 1;
-      else {
+      if (employeeByNo.has(key)) {
+        updatedCount += 1;
+      } else {
+        if (!row.startDate) {
+          rowErrors.push({
+            line: lineByRow.get(row) ?? 0,
+            problems: [`Employee "${row.employeeNo}" has no verified hire/start date. Historical migration cannot replace it with today's date.`],
+          });
+          continue;
+        }
         createdCount += 1;
         newEmployees += 1;
       }
@@ -326,6 +339,9 @@ export async function POST(request: Request) {
     }
   }
 
+  const employeeMigrationBlockers = kind === "employees"
+    ? await employeeMasterMigrationBlockers(organizationId)
+    : [];
   const readyCount = createdCount + updatedCount;
   const attentionCount = Math.max(0, rowErrors.length - duplicateCount);
   const totalRows = parsed.rows.length + parsed.errors.length;
@@ -367,7 +383,59 @@ export async function POST(request: Request) {
       mappings: parsed.mappings,
       unmappedColumns: parsed.unmappedColumns,
       seatUsage: seatInfo,
+      migrationBlockers: employeeMigrationBlockers,
     });
+  }
+
+  // Employee-master migration can rewrite salary, legal identity, status,
+  // banking and employment data. Only the original pre-live HR migration
+  // is authorized here, never a replacement for governed HR/payroll changes.
+  if (kind === "employees") {
+    if (!["owner", "admin"].includes(access.role)) {
+      return Response.json({
+        error: "Only the company owner or administrator may commit an initial employee-master migration.",
+        code: "HCM_MIGRATION_ROLE_REQUIRED",
+      }, { status: 403 });
+    }
+    if (evidenceReference.length < 8 || evidenceReference.length > 200) {
+      return Response.json({
+        error: "Enter an 8-200 character HR migration evidence reference before committing employee data.",
+        code: "HCM_MIGRATION_EVIDENCE_REQUIRED",
+      }, { status: 422 });
+    }
+    if (employeeMigrationBlockers.length) {
+      return Response.json({
+        error: "Employee-master migration is only allowed before payroll and governed HR activity begins.",
+        code: "HCM_MIGRATION_LOCKED",
+        migrationBlockers: employeeMigrationBlockers,
+      }, { status: 409 });
+    }
+  }
+
+  // Validate production PII encryption for the entire batch *before* writing
+  // a batch row or employee, to avoid partial imports when keys are absent.
+  const protectedGovernmentIds = new Map<string, {
+    tin: string | null; tinBranchCode: string | null; sssNo: string | null;
+    philHealthNo: string | null; pagIbigNo: string | null;
+  }>();
+  if (kind === "employees") {
+    try {
+      for (const row of importRows as MigratedEmployee[]) {
+        if (!employeeByNo.has(row.employeeNo.trim().toLowerCase()) && !row.startDate) continue;
+        protectedGovernmentIds.set(row.employeeNo.trim().toLowerCase(), {
+          tin: encryptGovernmentId(row.tin, { required: process.env.NODE_ENV === "production" }),
+          tinBranchCode: encryptGovernmentId(row.tinBranchCode, { required: process.env.NODE_ENV === "production" }),
+          sssNo: encryptGovernmentId(row.sssNo, { required: process.env.NODE_ENV === "production" }),
+          philHealthNo: encryptGovernmentId(row.philHealthNo, { required: process.env.NODE_ENV === "production" }),
+          pagIbigNo: encryptGovernmentId(row.pagIbigNo, { required: process.env.NODE_ENV === "production" }),
+        });
+      }
+    } catch {
+      return Response.json({
+        error: "Government-ID encryption is unavailable. No employee migration rows have been written.",
+        code: "HCM_MIGRATION_PII_ENCRYPTION_UNAVAILABLE",
+      }, { status: 503 });
+    }
   }
 
   const [batch] = await db.insert(importBatches).values({
@@ -392,6 +460,11 @@ export async function POST(request: Request) {
       if (seen.has(key)) continue;
       seen.add(key);
       const existing = employeeByNo.get(key);
+      if (!existing && !row.startDate) continue;
+      const encryptedIds = protectedGovernmentIds.get(key);
+      if (!encryptedIds) {
+        return Response.json({ error: "Government-ID encryption preflight was incomplete." }, { status: 503 });
+      }
       const values = {
         firstName: row.firstName,
         middleName: row.middleName,
@@ -406,11 +479,7 @@ export async function POST(request: Request) {
         mobile: row.mobile,
         bankAccount: encryptBankAccount(row.bankAccount),
         bankCode: row.bankCode,
-        tin: row.tin,
-        tinBranchCode: row.tinBranchCode,
-        sssNo: row.sssNo,
-        philHealthNo: row.philHealthNo,
-        pagIbigNo: row.pagIbigNo,
+        ...encryptedIds,
       };
       let employeeId: number;
       if (existing) {
@@ -425,7 +494,7 @@ export async function POST(request: Request) {
           employeeNo: row.employeeNo,
           ...values,
           avatarInitials: `${row.firstName[0] ?? "?"}${row.lastName[0] ?? "?"}`.toUpperCase(),
-          startDate: row.startDate ?? today(),
+          startDate: row.startDate,
         }).returning({ id: employees.id });
         employeeId = createdEmployee.id;
       }
@@ -564,6 +633,8 @@ export async function POST(request: Request) {
       duplicateCount,
       mappings: parsed.mappings,
       unmappedColumns: parsed.unmappedColumns,
+      evidenceReference: kind === "employees" ? evidenceReference : undefined,
+      migrationSafetyPreflight: kind === "employees" ? "pre-live-only" : undefined,
     },
   });
 
