@@ -5057,7 +5057,7 @@ export const automationOperationalCases = pgTable(
       .where(sql`${table.caseType} = 'execution_dead_letter'`),
     index("automation_operations_org_status_idx").on(table.organizationId, table.status, table.createdAt),
     index("automation_operations_execution_idx").on(table.organizationId, table.executionId),
-    check("automation_operations_case_type_check", sql`${table.caseType} in ('coverage_recovery','timesheet_escalation','attendance_resolution','payroll_readiness','statutory_followup','execution_dead_letter')`),
+    check("automation_operations_case_type_check", sql`${table.caseType} in ('coverage_recovery','timesheet_escalation','missing_timesheet_escalation','attendance_resolution','payroll_readiness','statutory_followup','execution_dead_letter')`),
     check("automation_operations_status_check", sql`${table.status} in ('open','acknowledged','resolved')`),
     check("automation_operations_step_index_check", sql`${table.stepIndex} is null or ${table.stepIndex} >= 0`),
     check("automation_operations_dead_letter_shape_check", sql`${table.caseType} <> 'execution_dead_letter' or (${table.sourceType} = 'automation_execution' and ${table.stepIndex} is not null)`),
