@@ -3,7 +3,7 @@ set -euo pipefail
 
 # This drill is deliberately limited to the disposable PostgreSQL GitHub
 # Actions service. It must never be pointed at a customer/production database.
-if [ "DR_REHEARSAL_MODE" != "isolated-ci-only" ] || [ "CI" != "true" ] || [ -z "PG_CONTAINER" ]; then
+if [ "$(printenv DR_REHEARSAL_MODE || true)" != "isolated-ci-only" ] || [ "$(printenv CI || true)" != "true" ] || [ -z "$(printenv PG_CONTAINER || true)" ]; then
   echo "Refusing DR rehearsal outside isolated GitHub CI PostgreSQL."
   exit 2
 fi
