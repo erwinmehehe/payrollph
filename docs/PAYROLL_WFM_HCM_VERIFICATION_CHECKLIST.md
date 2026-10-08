@@ -67,7 +67,7 @@ This checklist turns the product roadmap into evidence gates. A capability is no
 - [x] HR + Finance + manager/owner workforce-plan approval routing through the shared approval engine. (#570)
 - [x] Approved position -> requisition handoff. (#300, #563)
 - [x] Top-down org-unit headcount/budget allocations and versioned bottom-up manager submissions with maker-checker decisions.
-- [ ] Budget variance by org unit and cost center.
+- [x] Published-baseline budget variance by named org unit and cost center, with headcount/FTE deltas and payroll-cost redaction.
 - [ ] Attrition/backfill planning.
 - [ ] Salary bands by job profile + level + location.
 - [ ] Compa-ratio and range penetration.
@@ -137,10 +137,9 @@ This checklist turns the product roadmap into evidence gates. A capability is no
 
 ## Current priority
 
-1. Add org-unit/cost-center budget variance drilldown.
-2. Add attrition assumptions and governed backfill planning.
-3. Add controlled approved-plan -> bulk position creation/change execution.
-4. Extend Dynamic Groups into permission assignments and approval routing.
-5. Keep the fresh-tenant WFM -> payroll pilot green while expanding production proof.
-6. Complete real-employer payroll reconciliation, attendance hardware certification, and external government/bank acceptance evidence.
+1. Add attrition assumptions and governed backfill planning.
+2. Add controlled approved-plan -> bulk position creation/change execution.
+3. Extend Dynamic Groups into permission assignments and approval routing.
+4. Keep the fresh-tenant WFM -> payroll pilot green while expanding production proof.
+5. Complete real-employer payroll reconciliation, attendance hardware certification, and external government/bank acceptance evidence.
 
