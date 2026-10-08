@@ -5,7 +5,7 @@ import { hashPassword } from "@/lib/crypto";
 import { randomToken } from "@/lib/crypto";
 import { authenticateScim, scimError } from "@/lib/scim";
 import { recordAuditEvent } from "@/lib/audit";
-import { EnterpriseProvisioningError, parseScimActive, parseScimMemberRole, scimProvisioningOrgUnit, shouldRevokeScimSessions } from "@/lib/enterprise-identity-policy";
+import { EnterpriseProvisioningError, parseScimActive, parseScimMemberRole, scimProvisioningOrgUnit, assertScimWorkerScope, shouldRevokeScimSessions } from "@/lib/enterprise-identity-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -218,6 +218,12 @@ export async function POST(request: Request) {
         requestedRole: role,
         existingMembership: existingMembership ?? null,
       });
+      if (employee) {
+        assertScimWorkerScope({
+          workerOrgUnitId: employee.orgUnitId,
+          membershipOrgUnitId: orgUnitId,
+        });
+      }
       if (!user) {
         [user] = await tx.insert(users).values({
           email,
