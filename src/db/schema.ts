@@ -4417,6 +4417,110 @@ export const workerEffectiveChanges = pgTable(
   ],
 );
 
+export const hcmBusinessProcessDefinitions = pgTable(
+  "hcm_business_process_definitions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    code: varchar("code", { length: 64 }).notNull(),
+    name: varchar("name", { length: 160 }).notNull(),
+    processType: varchar("process_type", { length: 48 }).notNull(),
+    supervisoryOrgUnitId: integer("supervisory_org_unit_id").references(() => orgUnits.id, { onDelete: "restrict" }),
+    version: integer("version").notNull().default(1),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until"),
+    steps: jsonb("steps").notNull().default([]),
+    active: boolean("active").notNull().default(true),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_bp_definitions_org_code_unique").on(table.organizationId, table.code),
+    index("hcm_bp_definitions_lookup_idx").on(
+      table.organizationId,
+      table.processType,
+      table.supervisoryOrgUnitId,
+      table.active,
+      table.effectiveFrom,
+    ),
+    check(
+      "hcm_bp_definition_dates_check",
+      sql`${table.effectiveUntil} is null or ${table.effectiveUntil} >= ${table.effectiveFrom}`,
+    ),
+  ],
+);
+
+export const hcmBusinessProcessInstances = pgTable(
+  "hcm_business_process_instances",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    definitionId: integer("definition_id").references(() => hcmBusinessProcessDefinitions.id, { onDelete: "restrict" }),
+    definitionCode: varchar("definition_code", { length: 64 }).notNull(),
+    definitionVersion: integer("definition_version").notNull(),
+    processType: varchar("process_type", { length: 48 }).notNull(),
+    sourceType: varchar("source_type", { length: 48 }).notNull(),
+    sourceKey: varchar("source_key", { length: 160 }).notNull(),
+    employeeId: integer("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    supervisoryOrgUnitId: integer("supervisory_org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    effectiveDate: date("effective_date"),
+    status: varchar("status", { length: 24 }).notNull().default("in_progress"),
+    currentStepIndex: integer("current_step_index").notNull().default(0),
+    definitionSnapshot: jsonb("definition_snapshot").notNull(),
+    initiatedByUserId: integer("initiated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    initiatedByName: varchar("initiated_by_name", { length: 120 }).notNull(),
+    initiatedAt: timestamp("initiated_at", { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    cancelledByUserId: integer("cancelled_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    cancelledByName: varchar("cancelled_by_name", { length: 120 }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_bp_instances_source_unique").on(table.organizationId, table.sourceType, table.sourceKey),
+    index("hcm_bp_instances_status_idx").on(table.organizationId, table.status, table.initiatedAt),
+    index("hcm_bp_instances_employee_idx").on(table.organizationId, table.employeeId, table.initiatedAt),
+    check(
+      "hcm_bp_instance_status_check",
+      sql`${table.status} in ('in_progress','approved','declined','cancelled','applied','failed')`,
+    ),
+  ],
+);
+
+export const hcmBusinessProcessInstanceSteps = pgTable(
+  "hcm_business_process_instance_steps",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    instanceId: integer("instance_id").notNull().references(() => hcmBusinessProcessInstances.id, { onDelete: "cascade" }),
+    stepIndex: integer("step_index").notNull(),
+    stepType: varchar("step_type", { length: 24 }).notNull(),
+    label: varchar("label", { length: 120 }).notNull(),
+    assignee: varchar("assignee", { length: 120 }).notNull(),
+    priority: varchar("priority", { length: 16 }).notNull().default("Normal"),
+    status: varchar("status", { length: 24 }).notNull().default("waiting"),
+    dueAt: timestamp("due_at", { withTimezone: true }),
+    approvalTaskId: integer("approval_task_id").references(() => approvalTasks.id, { onDelete: "set null" }),
+    completedByUserId: integer("completed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    completedByName: varchar("completed_by_name", { length: 120 }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    decisionNote: text("decision_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("hcm_bp_instance_steps_unique").on(table.instanceId, table.stepIndex),
+    index("hcm_bp_instance_steps_task_idx").on(table.approvalTaskId),
+    index("hcm_bp_instance_steps_inbox_idx").on(table.organizationId, table.status, table.assignee),
+    check("hcm_bp_step_type_check", sql`${table.stepType} in ('approval','review','to_do')`),
+    check(
+      "hcm_bp_step_status_check",
+      sql`${table.status} in ('waiting','pending','completed','declined','cancelled','skipped')`,
+    ),
+  ],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Enterprise identity, permissions, session policy, and workflow automation   */
 /* -------------------------------------------------------------------------- */
