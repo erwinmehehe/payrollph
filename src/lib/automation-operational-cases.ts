@@ -8,12 +8,14 @@ import {
   complianceActionTasks,
   openShifts,
   payrollRuns,
+  workforceTimesheetExpectations,
   workforceTimesheets,
 } from "@/db/schema";
 
 export const OPERATIONAL_REVIEW_CASE_TYPES = [
   "coverage_recovery",
   "timesheet_escalation",
+  "missing_timesheet_escalation",
   "attendance_resolution",
   "payroll_readiness",
   "statutory_followup",
@@ -44,6 +46,13 @@ const REVIEW_CONFIG: Record<OperationalReviewCaseType, ReviewConfig> = {
     sourceType: "workforce_timesheet",
     ownerTeam: "Workforce / Payroll",
     title: "Timesheet cutoff escalation",
+  },
+  missing_timesheet_escalation: {
+    trigger: ["timesheet.missing_approaching"],
+    idField: "timesheetExpectationId",
+    sourceType: "workforce_timesheet_expectation",
+    ownerTeam: "Workforce / Payroll",
+    title: "Missing timesheet escalation",
   },
   attendance_resolution: {
     trigger: ["attendance.exception_created", "attendance.exception_aging"],
@@ -103,11 +112,17 @@ export function operationalReviewPolicyBlocks(input: {
   if (input.caseType === "timesheet_escalation" && positiveId(input.context.timesheetVersion) == null) {
     blocks.push("Timesheet escalation requires the exact source version.");
   }
+  if (input.caseType === "missing_timesheet_escalation" && positiveId(input.context.timesheetExpectationVersion) == null) {
+    blocks.push("Missing-timesheet escalation requires the exact expectation version.");
+  }
   if (input.caseType === "attendance_resolution" && positiveId(input.employeeId) == null) {
     blocks.push("Attendance resolution requires an employee-scoped authoritative exception.");
   }
   if (input.caseType === "timesheet_escalation" && positiveId(input.employeeId) == null) {
     blocks.push("Timesheet escalation requires an employee-scoped authoritative timesheet.");
+  }
+  if (input.caseType === "missing_timesheet_escalation" && positiveId(input.employeeId) == null) {
+    blocks.push("Missing-timesheet escalation requires an employee-scoped authoritative expectation.");
   }
   return blocks;
 }
@@ -163,6 +178,44 @@ export async function loadOperationalReviewSource(input: {
         periodEnd: String(row.periodEnd),
         blockerCount: row.blockerCount, exceptionCount: row.exceptionCount,
         snapshotHash: row.snapshotHash,
+      },
+    };
+  }
+  if (caseType === "missing_timesheet_escalation") {
+    const [row] = await db.select().from(workforceTimesheetExpectations).where(and(
+      eq(workforceTimesheetExpectations.organizationId, organizationId),
+      eq(workforceTimesheetExpectations.id, sourceId),
+    )).limit(1);
+    if (!row) return null;
+    const [run] = await db.select({
+      id: payrollRuns.id,
+      status: payrollRuns.status,
+      periodLabel: payrollRuns.periodLabel,
+      payDate: payrollRuns.payDate,
+    }).from(payrollRuns).where(and(
+      eq(payrollRuns.organizationId, organizationId),
+      eq(payrollRuns.id, row.payrollRunId),
+    )).limit(1);
+    const inactiveRun = !run || ["Released", "Failed", "Cancelled", "Voided", "Superseded"].includes(run.status);
+    return {
+      sourceVersion: row.version,
+      employeeId: row.employeeId,
+      active: row.status === "expected" && !inactiveRun,
+      evidence: {
+        timesheetExpectationId: row.id,
+        timesheetExpectationVersion: row.version,
+        expectationStatus: row.status,
+        employeeId: row.employeeId,
+        payrollRunId: row.payrollRunId,
+        payrollRunStatus: run?.status ?? null,
+        payrollPeriodLabel: run?.periodLabel ?? null,
+        payDate: run?.payDate ? String(run.payDate) : null,
+        periodStart: String(row.periodStart),
+        periodEnd: String(row.periodEnd),
+        expectedBy: String(row.expectedBy),
+        enforcementMode: row.enforcementMode,
+        latestTimesheetId: row.latestTimesheetId,
+        latestTimesheetVersion: row.latestTimesheetVersion,
       },
     };
   }
@@ -252,6 +305,10 @@ export async function prepareOperationalReviewCase(input: {
   }
   if (input.caseType === "timesheet_escalation" && source.sourceVersion !== input.context.timesheetVersion) {
     throw new Error("Timesheet revision changed since the original cutoff event.");
+  }
+  if (input.caseType === "missing_timesheet_escalation"
+      && source.sourceVersion !== input.context.timesheetExpectationVersion) {
+    throw new Error("Timesheet expectation changed since the missing-timesheet event.");
   }
   if (input.caseType === "statutory_followup" &&
       input.context.complianceActionTaskId !== sourceId) {
