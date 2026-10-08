@@ -2629,9 +2629,16 @@ CREATE TABLE IF NOT EXISTS "attendance_exception_events" (
   "fingerprint_sha256" varchar(64) NOT NULL,
   "status" varchar(16) NOT NULL DEFAULT 'open'
     CHECK ("status" IN ('open','resolved')),
+  "owner_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "owner_name" varchar(120),
+  "sla_due_at" timestamptz,
   "first_detected_at" timestamptz NOT NULL DEFAULT now(),
   "last_detected_at" timestamptz NOT NULL DEFAULT now(),
   "resolved_at" timestamptz,
+  "resolution_note" text,
+  "resolved_by_user_id" integer REFERENCES "users"("id") ON DELETE set null,
+  "resolved_by_name" varchar(120),
+  "resolution_recorded_at" timestamptz,
   "created_at" timestamptz NOT NULL DEFAULT now(),
   "updated_at" timestamptz NOT NULL DEFAULT now()
 );
@@ -2644,6 +2651,12 @@ CREATE INDEX IF NOT EXISTS "attendance_exception_events_open_idx"
 
 CREATE INDEX IF NOT EXISTS "attendance_exception_events_employee_idx"
   ON "attendance_exception_events" ("organization_id","employee_id","work_date");
+
+CREATE INDEX IF NOT EXISTS "attendance_exception_events_owner_idx"
+  ON "attendance_exception_events" ("organization_id","status","owner_user_id","sla_due_at");
+
+CREATE INDEX IF NOT EXISTS "attendance_exception_events_sla_idx"
+  ON "attendance_exception_events" ("organization_id","status","sla_due_at");
 
 
 -- Automation Studio version governance: draft, publish, rollback and immutable history.
