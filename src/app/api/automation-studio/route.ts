@@ -581,7 +581,7 @@ export async function POST(request: Request) {
     userId: user.id,
     action: "automation-studio-" + (action || "mutation"),
     resourceId: organizationId,
-    limit: 40,
+    limit: action === "draft-from-language" ? 8 : 40,
     windowMs: 5 * 60_000,
   });
   if (rateDenied) return rateDenied;
@@ -789,7 +789,7 @@ export async function POST(request: Request) {
         organizationId,
         actor: user.name,
         action: "Automation Studio language draft proposed",
-        resource: result.draft.name,
+        resource: "language-workflow-proposal",
         metadata: {
           source: result.source,
           trigger: result.draft.trigger,
