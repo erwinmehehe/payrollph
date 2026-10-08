@@ -5,7 +5,9 @@ import {
   approvalChainInstances,
   approvalChainPolicies,
   approvalTasks,
+  dynamicWorkerGroups,
 } from "@/db/schema";
+import { validDynamicWorkerGroupConditions } from "@/lib/dynamic-worker-group-conditions";
 
 export type ApprovalChainStepDefinition = {
   label: string;
@@ -13,6 +15,11 @@ export type ApprovalChainStepDefinition = {
   dueLabel?: string;
   priority?: string;
   minimumAmount?: number;
+  // A group narrows the existing named/role approver; it never replaces one.
+  dynamicGroupCode?: string;
+  // Frozen when an approval request starts; never accepted from policy input.
+  dynamicGroupId?: number;
+  dynamicGroupVersion?: number;
 };
 
 function normalizeApprovalChainSteps(value: unknown): ApprovalChainStepDefinition[] | null {
@@ -27,6 +34,8 @@ function normalizeApprovalChainSteps(value: unknown): ApprovalChainStepDefinitio
     const approver = String(row.approver ?? "").trim();
     const dueLabel = String(row.dueLabel ?? "Review required").trim();
     const priority = String(row.priority ?? "Normal").trim();
+    const dynamicGroupCode = row.dynamicGroupCode == null ? "" : String(row.dynamicGroupCode).trim().toLowerCase();
+    if (dynamicGroupCode && !/^[a-z0-9][a-z0-9-]{0,79}$/.test(dynamicGroupCode)) return null;
     const minimumRaw = row.minimumAmount == null || row.minimumAmount === "" ? 0 : Number(row.minimumAmount);
     if (!label || !approver || !Number.isFinite(minimumRaw) || minimumRaw < 0 || minimumRaw > 999_999_999_999.99) {
       return null;
@@ -41,9 +50,42 @@ function normalizeApprovalChainSteps(value: unknown): ApprovalChainStepDefinitio
       dueLabel: dueLabel.slice(0, 80) || "Review required",
       priority: priority.slice(0, 32) || "Normal",
       minimumAmount,
+      ...(dynamicGroupCode ? { dynamicGroupCode } : {}),
     });
   }
   return steps;
+}
+
+/**
+ * Locks down each selected Dynamic Group's tenant-scoped identity/version as
+ * governed routing evidence. In-flight approval steps fail closed if the group
+ * is later disabled or redefined. Live worker membership is checked separately
+ * at decision time and never stored as a static membership allowlist.
+ */
+export async function freezeDynamicGroupApprovalSteps(
+  organizationId: number,
+  steps: ApprovalChainStepDefinition[],
+): Promise<ApprovalChainStepDefinition[]> {
+  const groupCodes = [...new Set(steps.flatMap((step) => step.dynamicGroupCode ? [step.dynamicGroupCode] : []))];
+  if (!groupCodes.length) return steps;
+
+  const groups = await db.select().from(dynamicWorkerGroups).where(and(
+    eq(dynamicWorkerGroups.organizationId, organizationId),
+    eq(dynamicWorkerGroups.active, true),
+  ));
+  const byCode = new Map(groups.map((group) => [group.code, group]));
+  return steps.map((step) => {
+    if (!step.dynamicGroupCode) return step;
+    const group = byCode.get(step.dynamicGroupCode);
+    if (!group || !validDynamicWorkerGroupConditions(group.conditions)) {
+      throw new Error(`Approval Dynamic Group "${step.dynamicGroupCode}" is missing, inactive or invalid.`);
+    }
+    return {
+      ...step,
+      dynamicGroupId: group.id,
+      dynamicGroupVersion: group.version,
+    };
+  });
 }
 
 export function approvalStepsForAmount(
@@ -108,8 +150,9 @@ export async function createApprovalFromConfiguredChain(input: {
   if (amount != null && !amountBasis) {
     throw new Error("Approval amount basis is required when an amount is supplied.");
   }
-  const routedSteps = approvalStepsForAmount(steps, amount);
-  if (routedSteps.length < 1) throw new Error(`Approval chain "${chainCode}" has no applicable approval step.`);
+  const eligibleSteps = approvalStepsForAmount(steps, amount);
+  if (eligibleSteps.length < 1) throw new Error(`Approval chain "${chainCode}" has no applicable approval step.`);
+  const routedSteps = await freezeDynamicGroupApprovalSteps(input.organizationId, eligibleSteps);
 
   return db.transaction(async (tx) => {
     const [existing] = await tx.select().from(approvalChainInstances).where(and(
