@@ -42,6 +42,8 @@ export function ProductionPilotSignoffCard({
 
   const [evidenceReference, setEvidenceReference] = useState("");
   const [independentPreparedBy, setIndependentPreparedBy] = useState("");
+  const [reconciliationReportSha256, setReconciliationReportSha256] = useState("");
+  const [reconciledEmployeeCount, setReconciledEmployeeCount] = useState("");
   const [independentSourceConfirmed, setIndependentSourceConfirmed] = useState(false);
   const [operatorCompletedWithoutDeveloper, setOperatorCompletedWithoutDeveloper] = useState(false);
   const [employeeLevelReconciliationConfirmed, setEmployeeLevelReconciliationConfirmed] = useState(false);
@@ -67,6 +69,8 @@ export function ProductionPilotSignoffCard({
           setSelectedRunId(Number(event.target.value));
           setEvidenceReference("");
           setIndependentPreparedBy("");
+          setReconciliationReportSha256("");
+          setReconciledEmployeeCount("");
           setIndependentSourceConfirmed(false);
           setEmployeeLevelReconciliationConfirmed(false);
           setOperatorCompletedWithoutDeveloper(false);
@@ -104,6 +108,8 @@ export function ProductionPilotSignoffCard({
         body: JSON.stringify({
           evidenceReference: evidenceReference.trim(),
           independentPreparedBy: independentPreparedBy.trim(),
+          reconciliationReportSha256: reconciliationReportSha256.trim(),
+          reconciledEmployeeCount: Number(reconciledEmployeeCount),
           independentSourceConfirmed,
           employeeLevelReconciliationConfirmed,
           operatorCompletedWithoutDeveloper,
@@ -205,6 +211,27 @@ export function ProductionPilotSignoffCard({
               placeholder="Name or responsible reviewer"
             />
           </label>
+          <label>
+            Private reconciliation report SHA-256
+            <input
+              value={reconciliationReportSha256}
+              maxLength={64}
+              onChange={(event) => setReconciliationReportSha256(event.target.value)}
+              placeholder="64-character SHA-256 of independently reviewed private report"
+              autoComplete="off"
+            />
+          </label>
+          <label>
+            Employees covered by the independent reconciliation
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={reconciledEmployeeCount}
+              onChange={(event) => setReconciledEmployeeCount(event.target.value)}
+              placeholder="Reconciled employee count"
+            />
+          </label>
         </div>
 
         <div>
@@ -271,6 +298,8 @@ export function ProductionPilotSignoffCard({
               saving
               || evidenceReference.trim().length < 8
               || independentPreparedBy.trim().length < 3
+              || !/^[0-9a-f]{64}$/.test(reconciliationReportSha256.trim().toLowerCase())
+              || Number(reconciledEmployeeCount) !== releasedRun.employeeCount
               || !allFiguresPresent
               || !independentSourceConfirmed
               || !employeeLevelReconciliationConfirmed
