@@ -131,3 +131,11 @@ test("workforce planning compatibility creates plan parent before scenarios", ()
   assert.ok(source.includes("workforce_plans_org_status_idx"));
 });
 
+
+
+test("hosted demo upgrades organization, identity, approval, and bank preview fields", () => {
+  const source = read("src/lib/core-schema-compat.ts");
+  for (const marker of ["ALTER TABLE org_units", "ADD COLUMN IF NOT EXISTS manager_employee_id", "ADD COLUMN IF NOT EXISTS local_password_enabled", "CREATE TABLE IF NOT EXISTS organization_security_policies", "ADD COLUMN IF NOT EXISTS approval_chain_instance_id", "ADD COLUMN IF NOT EXISTS adapter_stage"]) {
+    assert.ok(source.includes(marker), `Missing hosted-demo model upgrade: ${marker}`);
+  }
+});

@@ -2075,6 +2075,91 @@ CREATE INDEX IF NOT EXISTS bir_withholding_remittance_filing_idx
           ON workforce_plan_baselines(organization_id, published_at);
       `);
 
+      // Keep the core demo launch/read models compatible with pre-HCM and
+      // pre-enterprise-identity deployments. Existing policy values remain intact.
+      await client.query(`
+ALTER TABLE user_organizations
+  ADD COLUMN IF NOT EXISTS active boolean DEFAULT true NOT NULL;
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS active boolean DEFAULT true NOT NULL,
+  ADD COLUMN IF NOT EXISTS local_password_enabled boolean DEFAULT true NOT NULL;
+
+ALTER TABLE sessions
+  ADD COLUMN IF NOT EXISTS auth_method varchar(24) DEFAULT 'local' NOT NULL,
+  ADD COLUMN IF NOT EXISTS identity_provider_id integer;
+
+CREATE TABLE IF NOT EXISTS organization_security_policies (
+  id serial PRIMARY KEY NOT NULL,
+  organization_id integer NOT NULL UNIQUE REFERENCES organizations(id) ON DELETE cascade,
+  session_idle_minutes integer DEFAULT 1440 NOT NULL,
+  session_max_hours integer DEFAULT 336 NOT NULL,
+  max_active_sessions integer DEFAULT 10 NOT NULL,
+  require_mfa boolean DEFAULT false NOT NULL,
+  sso_mode varchar(24) DEFAULT 'optional' NOT NULL,
+  updated_by_user_id integer REFERENCES users(id) ON DELETE set null,
+  created_at timestamp with time zone DEFAULT now() NOT NULL,
+  updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+CREATE INDEX IF NOT EXISTS organization_security_policies_org_idx ON organization_security_policies (organization_id);
+
+ALTER TABLE org_units
+  ADD COLUMN IF NOT EXISTS legal_entity_id integer REFERENCES legal_entities(id) ON DELETE RESTRICT,
+  ADD COLUMN IF NOT EXISTS cost_center_id integer REFERENCES cost_centers(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS manager_employee_id integer REFERENCES employees(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS effective_from date,
+  ADD COLUMN IF NOT EXISTS effective_until date,
+  ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+
+ALTER TABLE approval_tasks
+  ADD COLUMN IF NOT EXISTS approval_chain_instance_id integer,
+  ADD COLUMN IF NOT EXISTS approval_chain_step_index integer;
+
+ALTER TABLE bank_templates
+  ADD COLUMN IF NOT EXISTS bank_code varchar(32),
+  ADD COLUMN IF NOT EXISTS product_name varchar(120),
+  ADD COLUMN IF NOT EXISTS adapter_stage varchar(24) NOT NULL DEFAULT 'draft',
+  ADD COLUMN IF NOT EXISTS spec_source varchar(24) NOT NULL DEFAULT 'unknown',
+  ADD COLUMN IF NOT EXISTS spec_reference text,
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
+CREATE TABLE IF NOT EXISTS compliance_action_tasks (
+  id serial PRIMARY KEY NOT NULL,
+  organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE cascade,
+  source_type varchar(48) NOT NULL,
+  source_key varchar(120) NOT NULL,
+  agency varchar(24),
+  applicable_month varchar(7),
+  severity varchar(16) NOT NULL,
+  title varchar(180) NOT NULL,
+  detail varchar(360) NOT NULL,
+  due_date date,
+  status varchar(24) DEFAULT 'open' NOT NULL,
+  assigned_to_user_id integer REFERENCES users(id) ON DELETE set null,
+  assigned_to_name varchar(120),
+  acknowledged_at timestamptz,
+  acknowledged_by_user_id integer REFERENCES users(id) ON DELETE set null,
+  acknowledged_by_name varchar(120),
+  first_detected_at timestamptz DEFAULT now() NOT NULL,
+  last_detected_at timestamptz DEFAULT now() NOT NULL,
+  resolved_at timestamptz,
+  created_at timestamptz DEFAULT now() NOT NULL,
+  updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+ALTER TABLE compliance_action_tasks
+  ADD COLUMN IF NOT EXISTS severity_changed_at timestamptz NOT NULL DEFAULT NOW(),
+  ADD COLUMN IF NOT EXISTS escalation_episode integer NOT NULL DEFAULT 1;
+
+CREATE UNIQUE INDEX IF NOT EXISTS compliance_action_source_unique
+  ON compliance_action_tasks (organization_id, source_type, source_key);
+CREATE INDEX IF NOT EXISTS compliance_action_status_idx
+  ON compliance_action_tasks (organization_id, status, severity);
+CREATE INDEX IF NOT EXISTS compliance_action_assignee_idx
+  ON compliance_action_tasks (organization_id, assigned_to_user_id, status);
+      `);
+
       await client.query("COMMIT");
       coreSchemaReady = true;
     } catch (error) {

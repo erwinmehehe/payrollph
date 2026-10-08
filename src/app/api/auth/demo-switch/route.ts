@@ -10,6 +10,7 @@ import { DEMO_MODE, ensureSeedData } from "@/db/seed";
 import { ensurePublicDemoTenant } from "@/db/public-demo";
 import { DEMO_ROLE_IDS, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { publicDemoRequestAllowed } from "@/lib/demo-host";
+import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 
 export const dynamic = "force-dynamic";
@@ -174,6 +175,7 @@ export async function POST(request: Request) {
 
   try {
     await ensureCoreCompatibilitySchema();
+    await ensureLeavePayrollSchema();
     if (DEMO_MODE && process.env.NODE_ENV !== "production") {
       await ensureSeedData();
     } else {
