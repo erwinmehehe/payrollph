@@ -135,6 +135,7 @@ export async function cancelGovernedCompensationProposal(input: {
   actorUserId: number;
   actorName: string;
   now?: Date;
+  onCancelled?: (tx: CompensationTransaction) => Promise<void>;
 }) {
   const now = input.now ?? new Date();
   const today = philippineBusinessDate(now);
@@ -281,6 +282,7 @@ export async function cancelGovernedCompensationProposal(input: {
       metadata: { employeeId: updated.employeeId, ...evidence },
     });
 
+    await input.onCancelled?.(tx);
     return { proposal: updated, invalidatedPayrollRunIds, cancelledPayRevisionId };
   });
 }
