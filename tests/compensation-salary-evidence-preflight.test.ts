@@ -247,7 +247,7 @@ test("incorrect audit links, event dates and missing notification types fail vis
       "audit_event_link_mismatch",
       "audit_revision_mismatch",
       "missing_notification_intent",
-    ]) assert.ok(codes.includes(expected), `Missing expected issue ${expected}`);
+    ] as const) assert.ok(codes.includes(expected), `Missing expected issue ${expected}`);
   });
 });
 
