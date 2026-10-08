@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { ImportPanel } from "@/components/import-panel";
 import { HcmCapabilitiesPanel } from "@/components/hcm-capabilities-panel";
+import { HcmBusinessProcessAdmin } from "@/components/hcm-business-process-admin";
 import { HcmBusinessProcessInbox } from "@/components/hcm-business-process-inbox";
 import { HcmEmploymentLifecycleActionCenter } from "@/components/hcm-employment-lifecycle-action-center";
 import { HcmEmploymentLifecycleWorker } from "@/components/hcm-employment-lifecycle-worker";
@@ -450,6 +451,10 @@ export function PeopleView({
 
       {canManageLifecycle && (
         <HcmLifecyclePolicyPanel organizationId={data.selectedOrganization.id} />
+      )}
+
+      {canManageLifecycle && (
+        <HcmBusinessProcessAdmin organizationId={data.selectedOrganization.id} />
       )}
 
       {canViewLifecycleNotifications && (
