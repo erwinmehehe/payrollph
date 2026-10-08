@@ -437,8 +437,24 @@ export async function POST(request: Request) {
         // changes together. Other operational routes must share a migration
         // lock before simultaneous live cutovers can be certified.
         await tx.execute(sql`SELECT pg_advisory_xact_lock(4213, ${organizationId})`);
-        const lateBlockers = await employeeMasterMigrationBlockers(organizationId);
-        if (lateBlockers.length) throw new Error("HCM_MIGRATION_LOCKED");
+        // Recheck authoritative state using this same transaction/connection
+        // (important when PG_POOL_MAX=1). No nested pool read is allowed.
+        const lateState = await tx.execute(sql`
+          SELECT (
+            EXISTS(SELECT 1 FROM hcm_business_process_definitions
+              WHERE organization_id = ${organizationId} AND process_type = 'hire')
+            OR EXISTS(SELECT 1 FROM payroll_runs WHERE organization_id = ${organizationId})
+            OR EXISTS(SELECT 1 FROM historical_payroll_entries WHERE organization_id = ${organizationId})
+            OR EXISTS(SELECT 1 FROM hcm_business_process_instances WHERE organization_id = ${organizationId})
+            OR EXISTS(SELECT 1 FROM worker_effective_changes WHERE organization_id = ${organizationId})
+            OR EXISTS(SELECT 1 FROM position_assignments WHERE organization_id = ${organizationId})
+            OR EXISTS(SELECT 1 FROM employee_pay_revisions WHERE organization_id = ${organizationId})
+            OR EXISTS(SELECT 1 FROM import_batches
+              WHERE organization_id = ${organizationId} AND import_kind = 'employees'
+                AND (created_count > 0 OR updated_count > 0))
+          ) AS blocked
+        `);
+        if (lateState.rows[0]?.blocked === true) throw new Error("HCM_MIGRATION_LOCKED");
         const currentStaff = await tx.select({ id: employees.id, employeeNo: employees.employeeNo })
           .from(employees).where(eq(employees.organizationId, organizationId));
         const expectedIds = new Set(staff.map((worker) => worker.id));
