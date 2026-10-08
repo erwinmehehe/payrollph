@@ -47,7 +47,7 @@ function Brand() {
       <BrandMark />
       <span>
         <strong>Linaw</strong>
-        <small>PEOPLE � TIME � PAY</small>
+        <small>PEOPLE &middot; TIME &middot; PAY</small>
       </span>
     </Link>
   );
@@ -242,7 +242,7 @@ export function SiteFooter() {
         ))}
       </div>
       <div className="ln-footer-bottom">
-        <span>� {new Date().getFullYear()} Linaw. People, time, and pay.</span>
+        <span>&copy; {new Date().getFullYear()} Linaw. People, time, and pay.</span>
         <div>
           <Link href="/security">Security</Link>
           <Link href="/status">System status</Link>
