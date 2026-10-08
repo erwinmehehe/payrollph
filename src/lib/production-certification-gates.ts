@@ -213,12 +213,12 @@ export function evaluateOperationalReadiness(
   }
   const rpoTarget = recovery.rpoObjectiveMinutes;
   const rtoTarget = recovery.rtoObjectiveMinutes;
-  if (!Number.isInteger(rpoTarget) || Number(rpoTarget) < 0 || Number(rpoTarget) > 10_080) {
+  if (typeof rpoTarget !== "number" || !Number.isInteger(rpoTarget) || rpoTarget < 0 || rpoTarget > 10_080) {
     issues.push("Document a valid employer-agreed RPO objective in minutes.");
   } else if (measuredRpoMinutes !== null && measuredRpoMinutes > Number(rpoTarget)) {
     issues.push("Measured rehearsal RPO exceeds the agreed objective.");
   }
-  if (!Number.isInteger(rtoTarget) || Number(rtoTarget) < 1 || Number(rtoTarget) > 10_080) {
+  if (typeof rtoTarget !== "number" || !Number.isInteger(rtoTarget) || rtoTarget < 1 || rtoTarget > 10_080) {
     issues.push("Document a valid employer-agreed RTO objective in minutes.");
   } else if (measuredRtoMinutes !== null && measuredRtoMinutes > Number(rtoTarget)) {
     issues.push("Measured rehearsal RTO exceeds the agreed objective.");
