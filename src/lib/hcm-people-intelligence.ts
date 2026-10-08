@@ -89,8 +89,8 @@ export type PeopleIntelligenceSummary = {
   medianHireDays: number | null;
   approvedCompensationDeltaAnnual: number | null;
   activeCycleBudget: number | null;
-  releasedPayrollGross: number;
-  releasedPayrollNet: number;
+  releasedPayrollGross: number | null;
+  releasedPayrollNet: number | null;
   releasedRunCount: number;
   trends: Array<{ date: string; headcount: number | null; verified: number; eligible: number }>;
   units: Array<{ orgUnit: string; headcount: number }> | null;
@@ -246,8 +246,9 @@ export function summarizeHcmPeopleIntelligence(input: {
   const hires = input.workers.filter((row) => row.startDate >= windowStart && row.startDate <= asOf).length;
   // Only released final-pay separation evidence counts as a completed exit;
   // draft/approved packages and "Separating" do not count as leavers.
-  const completedExits = input.separations.filter((row) =>
-    row.status === "released" && row.lastDay >= windowStart && row.lastDay <= asOf).length;
+  const completedExits = new Set(input.separations.filter((row) =>
+    row.status === "released" && row.lastDay >= windowStart && row.lastDay <= asOf)
+    .map((row) => `${row.employeeId}:${row.lastDay}`)).size;
   const avgHeadcount = starting.headcount != null && current.headcount != null
     ? (starting.headcount + current.headcount) / 2 : null;
   const turnoverRate = avgHeadcount != null && avgHeadcount > 0
@@ -280,11 +281,12 @@ export function summarizeHcmPeopleIntelligence(input: {
   const hireDays: number[] = [];
   for (const applicant of input.applicants) {
     if (!applicant.hiredAt) continue;
-    const hiredDate = applicant.hiredAt.slice(0, 10);
+    const hiredDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date(applicant.hiredAt));
     if (hiredDate < windowStart || hiredDate > asOf) continue;
     const req = recruitments.get(applicant.requisitionId);
     if (!req) continue;
-    const days = daysBetween(req.createdAt.slice(0, 10), hiredDate);
+    const reqCreated = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date(req.createdAt));
+    const days = daysBetween(reqCreated, hiredDate);
     if (days >= 0 && days <= 3650) hireDays.push(days);
   }
 
@@ -294,10 +296,10 @@ export function summarizeHcmPeopleIntelligence(input: {
   const releasedPayrollNet = releasedRuns.reduce((sum, row) => sum + Number(row.netPay), 0);
   const safeGross = Number.isFinite(releasedPayrollGross) && releasedPayrollGross >= 0
     && releasedRuns.every((row) => money(row.grossPay) != null)
-    ? Number(releasedPayrollGross.toFixed(2)) : 0;
+    ? Number(releasedPayrollGross.toFixed(2)) : null;
   const safeNet = Number.isFinite(releasedPayrollNet) && releasedPayrollNet >= 0
     && releasedRuns.every((row) => money(row.netPay) != null)
-    ? Number(releasedPayrollNet.toFixed(2)) : 0;
+    ? Number(releasedPayrollNet.toFixed(2)) : null;
 
   const activeCycles = input.cycles.filter((row) => row.status === "active");
   const cycleIds = new Set(activeCycles.map((row) => row.id));
