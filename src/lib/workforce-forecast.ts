@@ -64,8 +64,8 @@ export type WorkforceForecastAssumptions = {
   demandGrowthPercent: number;
   vacancyFillPercent: number;
   employerLoadPercent: number;
-  annualAttritionPercent: number;
-  attritionBackfillPercent: number;
+  annualAttritionPercent?: number;
+  attritionBackfillPercent?: number;
 };
 
 const VACANT_POSITION_STATUSES = new Set(["planned", "approved", "open"]);
@@ -182,8 +182,8 @@ export function buildWorkforceDemandForecast(input: {
     demandGrowthPercent,
     vacancyFillPercent,
     employerLoadPercent,
-    annualAttritionPercent,
-    attritionBackfillPercent,
+    annualAttritionPercent = 0,
+    attritionBackfillPercent = 100,
   } = input.assumptions;
 
   const windowDays = inclusiveDays(startDate, endDate);
