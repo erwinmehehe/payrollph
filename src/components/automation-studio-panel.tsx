@@ -123,6 +123,7 @@ type Execution = {
 };
 
 type ImpactPreviewResponse = {
+  previewReceipt: string;
   draft: {
     ruleId: number;
     version: number;
@@ -821,7 +822,7 @@ export function AutomationStudioPanel({
       setLanguageProposal(null);
       setLanguageRequest("");
       await load();
-      setNotice("Unpublished workflow saved as inactive draft. Run Impact Preview, then approve/publish explicitly.");
+      setNotice("Inactive workflow draft saved. Run Impact Preview and approve/publish, then separately enable when ready.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Could not save language proposal.");
     } finally {
@@ -903,12 +904,15 @@ export function AutomationStudioPanel({
           organizationId,
           action: "publish-rule",
           ruleId: rule.id,
+          previewReceipt: currentPreview.previewReceipt,
+          humanApproved: true,
         }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         if (payload.impactPreview) {
           setImpactPreview({
+            previewReceipt: currentPreview.previewReceipt,
             draft: currentPreview.draft,
             generatedAt: new Date().toISOString(),
             dataNote: currentPreview.dataNote,
@@ -1053,6 +1057,7 @@ export function AutomationStudioPanel({
               placeholder="When a new employee is hired, create an onboarding checklist and send them a welcome email."
             />
           </label>
+          <p className="modal-note" style={{ marginBottom: 12 }}>Describe policies and events, not individual employees. Do not include names, IDs, bank details, payroll figures or other personal data in AI drafting requests.</p>
           <div className="run-actions">
             <button type="button" className="secondary-button"
               disabled={draftingLanguage || languageRequest.trim().length < 12}
@@ -1084,7 +1089,7 @@ export function AutomationStudioPanel({
                   <Plus size={14} /> {savingLanguage ? "Saving…" : "Save inactive draft"}
                 </button>
               </div>
-              <p className="modal-note">After saving, find this workflow under Configured automations. Run Impact Preview for its exact draft version and review the results before selecting Publish. Saving is not approval.</p>
+              <p className="modal-note">After saving, find this workflow under Configured automations. Run Impact Preview for its exact draft version and review the results before selecting Publish. It stays inactive after publication until separately enabled. Saving is not approval.</p>
             </div>
           )}
         </div>
