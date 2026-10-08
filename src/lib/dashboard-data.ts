@@ -33,6 +33,7 @@ import {
 } from "@/db/schema";
 import { ensureSeedData } from "@/db/seed";
 import { getAccess, PAYROLL_CHECKER_ROLES, PAYROLL_OPERATOR_ROLES, PAYROLL_VIEW_ROLES, PEOPLE_PAYROLL_ROLES, roleAllowed } from "@/lib/access";
+import { roleApproverMatchesRole } from "@/lib/delegation";
 import { getSessionUser, publicUser } from "@/lib/auth";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
@@ -272,6 +273,7 @@ export async function getDashboardData(organizationId?: number) {
       ? taskRowsRaw.filter(
           (task) =>
             task.approver.toLowerCase() === sessionUser.name.toLowerCase() ||
+            roleApproverMatchesRole(task.approver, access.role) ||
             delegatedToUser.has(task.approver.toLowerCase()),
         )
       : taskRowsRaw;
