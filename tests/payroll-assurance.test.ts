@@ -137,3 +137,43 @@ test("server assurance hard-blocks incomplete stored payroll coverage", async ()
   assert.ok(source.includes("processedChunks < totalChunks"));
   assert.ok(source.includes("assurance.summary.blocking += 1"));
 });
+
+test("ambiguous cross-boundary WFM premium allocation blocks checker approval", () => {
+  const ambiguous = entry({
+    status: "Exception",
+    trace: {
+      flags: [
+        "2026-10-05: Scheduled 60-minute break has no actual location; cross-boundary premium allocation requires review.",
+      ],
+    },
+  });
+  const result = evaluatePayrollAssurance([ambiguous], []);
+  assert.equal(result.summary.blocking, 1);
+  assert.ok(result.findings.some((finding) =>
+    finding.code === "WFM_PREMIUM_ALLOCATION_UNVERIFIED"
+    && finding.severity === "high"
+    && finding.blocking === true
+  ));
+});
+
+test("invalid located breaks and split-shift mismatch are blocking premium evidence errors", () => {
+  const flags = [
+    "2026-10-05: Break timestamps are incomplete or invalid; premium allocation was not inferred.",
+    "2026-10-06: workforce schedule has 2 segment(s) but attendance has 1 punch record(s); verify split/shift attendance before release.",
+    "2026-10-07: payable-time segmentation produced 405 worked minute(s), but attendance derivation produced 420; calendar-boundary pricing was not applied.",
+  ];
+  for (const flag of flags) {
+    const result = evaluatePayrollAssurance([entry({ status: "Exception", trace: { flags: [flag] } })], []);
+    assert.equal(result.summary.blocking, 1, flag);
+  }
+});
+
+test("ordinary attendance warnings are reviewable and do not become premium blockers", () => {
+  const result = evaluatePayrollAssurance([entry({
+    status: "Exception",
+    trace: { flags: ["Incomplete punch pair, reviewer sign-off required", "Overtime has no authorization, entitlement is preserved."] },
+  })], []);
+  assert.equal(result.summary.blocking, 0);
+  assert.ok(result.findings.some((finding) => finding.code === "ENGINE_EXCEPTION"));
+  assert.ok(result.findings.every((finding) => finding.code !== "WFM_PREMIUM_ALLOCATION_UNVERIFIED"));
+});

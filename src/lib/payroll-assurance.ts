@@ -268,6 +268,23 @@ export function evaluatePayrollAssurance(
       });
     }
 
+    // An unlocated break or ambiguous split-shift boundary can change the
+    // legally payable night, holiday, rest-day or overtime premium bucket.
+    // Do not allow a checker to approve guessed premium allocation.
+    const ambiguousPremium = flags.find((flag) =>
+      /premium allocation requires review|premium allocation was not inferred|calendar-boundary pricing was not applied|verify split\/shift attendance before release/i.test(flag)
+    );
+    if (ambiguousPremium) {
+      findings.push({
+        code: "WFM_PREMIUM_ALLOCATION_UNVERIFIED",
+        severity: "high",
+        blocking: true,
+        title: "Workforce premium allocation needs verified attendance",
+        detail: `Correct the actual punch, break or shift evidence and recalculate payroll before checker approval. ${ambiguousPremium}`,
+        employeeId: entry.employeeId,
+      });
+    }
+
     const employee = employeeById.get(entry.employeeId);
     const punches = traceNumber(entry, "punches");
     const payBasis = traceInputsOf(entry)
