@@ -46,7 +46,7 @@ npm run compensation:automation:recover -- 42 73 "Reviewed by Payroll Ops" --con
 
 The operation must use privileged credentials approved for this specific employer, and it writes a separate audit record. It requeues **only** the original stored automation intent, resetting retry attempts; it never edits the compensation event or creates a new financial authorization. Authorization is an **operational access-control responsibility** of the CLI environment—this command does not implement interactive SSO/MFA or role verification itself. Do not grant it to general payroll viewers.
 
-Do **not** use this command for `leased`, stale-lease, `dispatched`, or ledger-present events. An expired lease has uncertain side effects; engage a reviewer to reconcile external provider receipts and Automation Studio's execution evidence first. Do not issue a new event key to bypass deduplication.
+Do **not** use this command for `leased`, stale-lease, `dispatched`, or ledger-present events. It is intentionally restricted to intents tagged with exactly **five exhausted pre-ledger retry attempts**; even if the automation ledger is later purged, ambiguous/expired-lease dispositions remain permanently ineligible for this recovery path. An expired lease has uncertain side effects; engage a reviewer to reconcile external provider receipts and Automation Studio's execution evidence first. Do not issue a new event key to bypass deduplication.
 
 ## Monitoring
 
