@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { employees, orgUnits, scimIdentities, sessions, userOrganizations, users } from "@/db/schema";
 import { authenticateScim, scimError } from "@/lib/scim";
 import { recordAuditEvent } from "@/lib/audit";
-import { assertScimGlobalIdentityChange, EnterpriseProvisioningError, parseScimActive, parseScimMemberRole, scimProvisioningOrgUnit, shouldRevokeScimSessions } from "@/lib/enterprise-identity-policy";
+import { assertScimGlobalIdentityChange, EnterpriseProvisioningError, parseScimActive, parseScimMemberRole, scimProvisioningOrgUnit, assertScimWorkerScope, shouldRevokeScimSessions } from "@/lib/enterprise-identity-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -240,6 +240,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       const nextRole = role ?? liveMembership.role;
       const nextActive = active ?? liveMembership.active;
       const nextWorkerId = employee?.id ?? existingWorkerId;
+      if (employee) {
+        assertScimWorkerScope({
+          workerOrgUnitId: employee.orgUnitId,
+          membershipOrgUnitId: nextOrgUnitId,
+        });
+      }
 
       if (emailChanged || nameChanged || globalWorkerLinkChanged) {
         await tx.update(users).set({
