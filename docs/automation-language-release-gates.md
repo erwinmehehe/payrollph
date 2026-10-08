@@ -35,31 +35,14 @@ An authorized reviewer other than the PR author must verify:
 
 ## Optional live-provider contract check — NOT automatic
 
-`scripts/automation-language-live-provider-check.ts` makes **two requests about synthetic workflow policies only** and checks the actual model response through the server's typed validator. It does not save a draft, use an actual employee record, invoke workflow actions, or contact the app's database.
+Use the canonical operator guide:
+**[Controlled provider acceptance](automation-language-provider-acceptance.md)**.
 
-Run only after an independent reviewer has approved the exact code and a protected, isolated staging secret store has supplied a **dedicated non-production provider key**. The key must never be pasted into chat, the command line, a PR comment, or a log.
+The one maintained executable is `scripts/automation-language-live-provider-contract.ts`. It requires explicit synthetic-only opt-in, a securely injected **staging-only** provider key, and **no `DATABASE_URL`**, then provides its own intentionally unreachable local pool setting so application imports cannot access a remote database.
 
-Environment variables required in the protected job:
+It blocks unsafe requests before sending anything to the provider; checks the actual provider output for the expected trigger, every requested step, no unexpected conditions, and correct recipient; and prints only sanitized result metadata.
 
-| Variable | Value / source |
-|---|---|
-| `AUTOMATION_LANGUAGE_PROVIDER_ACCEPTANCE` | `synthetic-only` |
-| `OPENAI_AUTOMATION_DRAFT_ENABLED` | `true` |
-| `OPENAI_API_KEY` | Dedicated staging-only key via environment secret |
-| `OPENAI_AUTOMATION_DRAFT_MODEL` | Reviewed compatible model, optional |
-| `DATABASE_URL` | Omit or use a local-only dummy DSN; remote DB URLs are rejected |
-
-From the reviewed project directory, after the environment has securely injected the key:
-
-```bash
-npx tsx scripts/automation-language-live-provider-check.ts
-```
-
-For GitHub-hosted execution, use **manual `workflow_dispatch` on the reviewed branch** under an environment with required reviewers, and bind `AUTOMATION_LANGUAGE_APPROVED_COMMIT` to the exact `GITHUB_SHA`. Do not add this script to automatic `pull_request` CI; never expose an external-provider secret to unreviewed code.
-
-Expected success: `result: PASS`, `test: synthetic-live-provider-contract`, two successful scenarios, `savedDrafts: 0`, `executionsCreated: 0`, and `productionCertified: false`. On any mismatch, treat the check as failed and diagnose privately; the script emits only sanitized status.
-
-**A live-provider contract PASS is not a staging UI test.** An operator still needs a separately configured staging tenant, dedicated non-production database, MFA-enabled admin, and an end-to-end review. No PayrollPH project was found in the previously connected Vercel workspace.
+Do not run this from automatic PR workflows or unreviewed code. The check was **prepared, not performed**: no provider key was supplied. Even when it passes, it does not replace an isolated application staging test or an independent human code review.
 
 ## Final release decision
 
