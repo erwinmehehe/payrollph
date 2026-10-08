@@ -1582,7 +1582,10 @@ function latestBusinessStepResults(result: Array<Record<string, unknown>>) {
     .map(([, row]) => row);
 }
 
-function terminalExecutionState(result: Array<Record<string, unknown>>) {
+function terminalExecutionState(result: Array<Record<string, unknown>>): {
+  status: "completed" | "partial" | "failed";
+  error: string | null;
+} {
   const businessResults = latestBusinessStepResults(result);
   const failed = businessResults.filter((row) => row.status === "failed");
   const succeeded = businessResults.filter((row) => row.status !== "failed");
