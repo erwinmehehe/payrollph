@@ -60,14 +60,18 @@ export function SiteNav() {
   useEffect(() => {
     const closeMenus = (event: Event) => {
       const key = event as KeyboardEvent;
+      if (event.type === "keydown" && key.key !== "Escape") return;
       const outside = !header.current?.contains(event.target as Node);
       if (key.key !== "Escape" && !outside) return;
-      header.current
-        ?.querySelectorAll("details[open]")
-        .forEach((detail) => detail.removeAttribute("open"));
+      const openMenus = header.current?.querySelectorAll<HTMLDetailsElement>("details[open]");
+      if (key.key === "Escape" && !drawer && !openMenus?.length) return;
+      const summary = openMenus?.[0]?.querySelector("summary");
+      openMenus?.forEach((detail) => detail.removeAttribute("open"));
       if (key.key === "Escape") {
+        key.preventDefault();
         setDrawer(false);
-        toggle.current?.focus();
+        if (drawer) toggle.current?.focus();
+        else summary?.focus();
       }
       if (outside) setDrawer(false);
     };
@@ -77,7 +81,7 @@ export function SiteNav() {
       document.removeEventListener("pointerdown", closeMenus);
       document.removeEventListener("keydown", closeMenus);
     };
-  }, []);
+  }, [drawer]);
   return (
     <header ref={header} className="linaw-site-nav ln-header">
       <nav className="ln-nav" aria-label="Primary">
