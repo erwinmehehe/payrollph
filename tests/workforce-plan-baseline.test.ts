@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  compareHeadcountPlanDimensions,
   compareHeadcountPlanSummary,
   summarizeHeadcountPlan,
 } from "../src/lib/workforce-plan-baseline";
@@ -92,6 +93,65 @@ test("plan-vs-actual comparison returns auditable deltas", () => {
   });
 });
 
+
+test("dimension comparison includes baseline-only and live-only rows with budget deltas", () => {
+  const rows = compareHeadcountPlanDimensions(
+    [
+      {
+        key: 10,
+        requestedHeadcount: 2,
+        approvedHeadcount: 2,
+        filledHeadcount: 1,
+        requestedFte: 2,
+        approvedFte: 2,
+        filledFte: 1,
+        annualPositionBudget: 1_000_000,
+      },
+      {
+        key: 20,
+        requestedHeadcount: 1,
+        approvedHeadcount: 1,
+        filledHeadcount: 1,
+        requestedFte: 1,
+        approvedFte: 1,
+        filledFte: 1,
+        annualPositionBudget: 500_000,
+      },
+    ],
+    [
+      {
+        key: 10,
+        requestedHeadcount: 3,
+        approvedHeadcount: 2,
+        filledHeadcount: 2,
+        requestedFte: 3,
+        approvedFte: 2,
+        filledFte: 1.5,
+        annualPositionBudget: 1_300_000,
+      },
+      {
+        key: 30,
+        requestedHeadcount: 1,
+        approvedHeadcount: 0,
+        filledHeadcount: 0,
+        requestedFte: 1,
+        approvedFte: 0,
+        filledFte: 0,
+        annualPositionBudget: 300_000,
+      },
+    ],
+  );
+
+  assert.deepEqual(rows.map((row) => row.key), [10, 20, 30]);
+  assert.equal(rows[0].variance.requestedHeadcount, 1);
+  assert.equal(rows[0].variance.filledFte, 0.5);
+  assert.equal(rows[0].variance.annualPositionBudget, 300_000);
+  assert.equal(rows[1].actual.requestedHeadcount, 0);
+  assert.equal(rows[1].variance.annualPositionBudget, -500_000);
+  assert.equal(rows[2].baseline.requestedHeadcount, 0);
+  assert.equal(rows[2].variance.annualPositionBudget, 300_000);
+});
+
 test("published baseline persistence exists in schema migration and compatibility path", () => {
   const schema = readFileSync("src/db/schema.ts", "utf8");
   const migration = readFileSync("drizzle/0086_workforce_plan_baselines.sql", "utf8");
@@ -129,13 +189,18 @@ test("baseline reads reconcile locked plan evidence against current actuals with
 
   assert.ok(route.includes("summarizeHeadcountPlan"));
   assert.ok(route.includes("compareHeadcountPlanSummary"));
+  assert.ok(route.includes("compareHeadcountPlanDimensions"));
+  assert.ok(route.includes("orgUnitById"));
+  assert.ok(route.includes("costCenterById"));
+  assert.ok(route.includes("dimensionVariance"));
   assert.ok(route.includes("PEOPLE_PAYROLL_ROLES"));
   assert.ok(route.includes("redactSummaryCosts"));
+  assert.ok(route.includes("redactDimensionVarianceCosts"));
   assert.ok(route.includes("annualPositionBudget: null"));
   assert.ok(route.includes("row.current"));
 });
 
-test("planning UI publishes approved baselines and shows baseline vs live workforce", () => {
+test("planning UI publishes baselines and drills plan variance down by org unit and cost center", () => {
   const panel = readFileSync("src/components/workforce-planning-panel.tsx", "utf8");
 
   assert.ok(panel.includes("PUBLISHED HEADCOUNT PLAN"));
@@ -144,8 +209,12 @@ test("planning UI publishes approved baselines and shows baseline vs live workfo
   assert.ok(panel.includes("Publish baseline"));
   assert.ok(panel.includes("Publish new baseline"));
   assert.ok(panel.includes("Current baseline"));
-  assert.ok(panel.includes("requested ·"));
-  assert.ok(panel.includes("filled FTE"));
+  assert.ok(panel.includes("PLAN VS ACTUAL DRILLDOWN"));
+  assert.ok(panel.includes("Budget variance by org unit &amp; cost center"));
+  assert.ok(panel.includes('renderDimensionTable("ORGANIZATION UNIT"'));
+  assert.ok(panel.includes('renderDimensionTable("COST CENTER"'));
+  assert.ok(panel.includes("Budget amounts are restricted for your role."));
+  assert.ok(panel.includes("signedPeso(row.variance.annualPositionBudget)"));
 });
 
 test("approved and published plans remain executable in workforce demand handoff", () => {
