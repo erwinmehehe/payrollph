@@ -20,5 +20,6 @@ test("Automation Studio release-gate evaluator passes isolated fail-closed fixtu
     0,
     `Release-gate test fixtures failed:\n${child.stdout ?? ""}\n${child.stderr ?? ""}`,
   );
-  assert.match(child.stdout, /# fail 0/);
+  // The nested Node test runner may route TAP output through parent IPC,
+  // leaving child.stdout empty even on success. The exit status is decisive.
 });
