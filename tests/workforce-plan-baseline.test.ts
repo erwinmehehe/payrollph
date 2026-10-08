@@ -182,6 +182,10 @@ test("publishing requires approved company-wide evidence and creates a locked ve
   assert.ok(route.includes('"hcm-headcount-baseline-v1"'));
   assert.ok(route.includes("snapshotHash = hash(snapshot)"));
   assert.ok(route.includes('"Workforce plan baseline published"'));
+  assert.ok(route.includes("annualAttritionPercent: Number(scenario.annualAttritionPercent)"));
+  assert.ok(route.includes("attritionBackfillPercent: Number(scenario.attritionBackfillPercent)"));
+  assert.ok(route.includes("expectedAttritionExits"));
+  assert.ok(route.includes("plannedAttritionBackfills"));
 });
 
 test("baseline reads reconcile locked plan evidence against current actuals with cost redaction", () => {
