@@ -19,6 +19,27 @@ export const DE_MINIMIS_2026 = {
 
 export type DeMinimisType = keyof typeof DE_MINIMIS_2026;
 
+export const DE_MINIMIS_RULE_PACKS = [
+  {
+    version: "BIR-RR29-2025",
+    effectiveFrom: "2026-01-06",
+    effectiveUntil: "2026-12-31",
+    rules: DE_MINIMIS_2026,
+  },
+] as const;
+
+export function deMinimisRulesForDate(asOf: string) {
+  const packs = DE_MINIMIS_RULE_PACKS.filter((pack) =>
+    pack.effectiveFrom <= asOf && asOf <= pack.effectiveUntil
+  );
+  if (packs.length !== 1) {
+    throw new Error(
+      `No certified BIR de minimis rule pack covers ${asOf}. Add the applicable BIR rule version before calculating de minimis benefits for this date.`,
+    );
+  }
+  return packs[0];
+}
+
 export type DeMinimisGrantInput = {
   id: number;
   benefitType: DeMinimisType;
@@ -32,7 +53,7 @@ export type DeMinimisGrantInput = {
  * annual categories reset every January.
  */
 export function deMinimisStatutoryPeriodStart(type: DeMinimisType, payDate: string) {
-  const rule = DE_MINIMIS_2026[type];
+  const rule = deMinimisRulesForDate(payDate).rules[type];
   const year = Number(payDate.slice(0, 4));
   const month = Number(payDate.slice(5, 7));
   if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
@@ -59,14 +80,16 @@ export function deMinimisStatutoryPeriodStart(type: DeMinimisType, payDate: stri
 export function aggregateDeMinimisForSemiMonthly(
   grants: DeMinimisGrantInput[],
   priorPaidInStatutoryPeriod: Partial<Record<DeMinimisType, number>> = {},
+  asOf = "2026-10-08",
 ) {
+  const rules = deMinimisRulesForDate(asOf);
   const byType = new Map<DeMinimisType, DeMinimisGrantInput[]>();
   for (const grant of grants) {
     byType.set(grant.benefitType, [...(byType.get(grant.benefitType) ?? []), grant]);
   }
 
   return [...byType.entries()].map(([benefitType, rows]) => {
-    const rule = DE_MINIMIS_2026[benefitType];
+    const rule = rules.rules[benefitType];
     const semiMonthlyGranted = round2(rows.reduce(
       (sum, row) => sum + deMinimisPerSemiMonthlyPeriod(row.amount, row.frequency),
       0,
@@ -94,8 +117,9 @@ export function aggregateDeMinimisForSemiMonthly(
   });
 }
 
-export function deMinimisTreatment(type: DeMinimisType, granted: number) {
-  const rule = DE_MINIMIS_2026[type];
+export function deMinimisTreatment(type: DeMinimisType, granted: number, asOf = "2026-10-08") {
+  const pack = deMinimisRulesForDate(asOf);
+  const rule = pack.rules[type];
   const amount = Math.max(0, Number(granted) || 0);
   const exempt = round2(Math.min(amount, rule.ceiling));
   const excess = round2(Math.max(0, amount - rule.ceiling));
@@ -109,7 +133,7 @@ export function deMinimisTreatment(type: DeMinimisType, granted: number) {
     ceiling: rule.ceiling,
     /** Excess joins the 13th-month / other-benefits PHP 90k annual stack. */
     treatment: excess > 0 ? "excess_to_other_benefits_90k_pool" : "fully_de_minimis_exempt",
-    ruleVersion: PH_COMPLIANCE_RULE_VERSION,
+    ruleVersion: pack.version,
   };
 }
 
