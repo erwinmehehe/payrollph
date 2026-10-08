@@ -937,7 +937,7 @@ export async function PATCH(request: Request) {
         organizationId,
         actor: user.name,
         action: "Employee payroll profile updated (legacy direct correction)",
-        resource: `${employee.firstName} ${employee.lastName} (${employee.employeeNo})`,
+        resource: `${employee.firstName} ${employee.lastName} (${employee.employeeNo})`.slice(0, 160),
         metadata: {
           employeeId,
           fields: [...Object.keys(patch), "payBasis", "rateAmount", "standardWorkDaysPerMonth", "standardHoursPerDay"],
