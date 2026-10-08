@@ -44,6 +44,13 @@ jobs:
         continue-on-error: true
         run: npm audit --include=dev --audit-level=high
       - run: npm run db:push
+      - name: Check compensation outbox PostgreSQL schema compatibility (read-only)
+        run: npm run compensation:release:schema:check
+      - name: Rehearse compensation outbox migration in rollback-only CI schema
+        env:
+          CI: "true"
+          COMPENSATION_MIGRATION_REHEARSAL_MODE: isolated-ci-only
+        run: npm run compensation:release:migration:rehearse
       - name: Rehearse isolated PostgreSQL backup and restore
         env:
           CI: "true"
