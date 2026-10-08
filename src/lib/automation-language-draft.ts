@@ -96,7 +96,7 @@ function checkConditions(conditions: unknown, errors: string[]): conditions is S
     }
     const field = String(clause.field ?? "");
     const operator = String(clause.operator ?? "");
-    const kind = CONDITION_FIELDS.get(field as keyof typeof CONDITION_FIELDS);
+    const kind = CONDITION_FIELDS.get(field as (typeof AUTOMATION_CONDITION_FIELDS)[number]["value"]);
     if (!kind || field === "dynamicGroupCodes" || !OPERATORS.has(operator)) {
       errors.push(`Unsupported or tenant-dependent IF condition: ${field || "missing field"}.`);
       continue;
