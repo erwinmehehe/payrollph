@@ -3,14 +3,14 @@ import { resolve } from "node:path";
 import { evaluateProductionCertificationBundle } from "../src/lib/production-certification-gates";
 
 const args = process.argv.slice(2);
-if (args.length !== 5) {
+if (args.length !== 6) {
   console.error(
-    "Usage: npm run payroll:ga:evidence -- <parallel.json> <external.json> <operational.json> <private-files-root> <exact-reviewed-commit-sha>",
+    "Usage: npm run payroll:ga:evidence -- <parallel.json> <external.json> <operational.json> <bindings.json> <private-files-root> <exact-reviewed-commit-sha>",
   );
   process.exitCode = 2;
 } else {
   try {
-    const [parallelFile, externalFile, operationalFile, privateRoot, expectedEngineCommitSha] = args;
+    const [parallelFile, externalFile, operationalFile, bindingsFile, privateRoot, expectedEngineCommitSha] = args;
     const load = (filePath: string): unknown => {
       const absolute = resolve(filePath);
       const stat = statSync(absolute);
@@ -23,6 +23,7 @@ if (args.length !== 5) {
       parallelManifest: load(parallelFile),
       externalManifest: load(externalFile),
       operationalManifest: load(operationalFile),
+      bindingsManifest: load(bindingsFile),
       privateRoot: resolve(privateRoot),
       expectedEngineCommitSha,
     });

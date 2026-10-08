@@ -9,6 +9,7 @@
 | Mid-period hire, variable pay, 13th-month and final-pay review | **Pending independent sample sign-off** | Engine tests exist, but reviewer must validate real employer policies and samples |
 | BIR 2316 / 1601-C / Alphalist | **Pending external validation and receipts** | 2316 reviewed sample; BIR output and required acceptance artifacts per actual filing workflow |
 | SSS / PhilHealth / Pag-IBIG files | **Pending external agency acceptance** | Real employer file, current template and distinct portal acceptance |
+| Cross-source acceptance evidence binding | Automated validation available; **real employer evidence pending** | Mandatory `bindings.json` reconciles reviewer, filing receipts, bank UAT, legal employer, months and exact reviewed commit |
 | Controlled PayMongo/bank UAT | **Pending external bank test** | Owner/checker approval, low-value positive case, rejected case, reversal/failure reconciliation |
 | Synthetic CI backup/restore rehearsal | Automated — new workflow | PostgreSQL 16 backup SHA, restored tables/records, tamper check, FK/rollback; not production proof |
 | Encrypted production-like DR/rollback rehearsal | **Pending witnessed staging recovery** | Restore to isolated environment; verify payroll source and RPO/RTO against agreed objectives |
@@ -21,7 +22,8 @@ See [Production payroll certification and controlled-GA gate](docs/payroll-certi
 
 - `payroll:parallel:check` — actual incumbent vs PayrollPH reconciliation, no PII output.
 - `payroll:evidence:check` — external reviewer, government acceptance, positive/negative bank proof, all hashes.
-- `payroll:ga:evidence` — employer/month alignment, 10-worker threshold, independent operational proof, RPO/RTO, release SHA, role separation.
+- `payroll:acceptance:check` — offline cross-reference checks for exact filing submission/receipt, reviewer license, bank acceptance/rejection and reviewed source revision.
+- `payroll:ga:evidence` — **now requires bindings.json** along with payroll, external and operational manifests; blocks on mismatched or reused evidence, employer/month alignment, 10-worker threshold, RPO/RTO and role separation.
 
 A successful combined output says **`evidence-ready-for-independent-final-review`**, explicitly **`gaApproved: false`**. A named employer representative and an independent reviewer must authenticate underlying receipts/signatures and sign the final decision outside automated CI. No fake government, bank, or production recovery outcomes may be substituted.
 

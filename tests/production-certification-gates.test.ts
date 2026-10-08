@@ -12,6 +12,7 @@ import {
 } from "../src/lib/production-certification-gates";
 import type { ParallelReconciliationResult } from "../src/lib/private-parallel-payroll-reconciliation";
 import type { CertificationEvidenceResult } from "../src/lib/external-certification-evidence";
+import type { AcceptanceBindingResult } from "../src/lib/external-acceptance-bindings";
 
 const COMMIT = "a".repeat(40);
 const ENTITY = "PAYROLL-PH-EMPLOYER-01";
@@ -87,6 +88,18 @@ function parallel(): ParallelReconciliationResult {
     })),
   };
 }
+function acceptanceBinding(): AcceptanceBindingResult {
+  return {
+    status: "structurally-bound-pending-authenticity-review",
+    gaApproved: false,
+    boundPayrollMonths: 2,
+    boundGovernmentFilings: 5,
+    boundBankCases: 2,
+    issues: [],
+    disclaimer: "Metadata only; external authenticity requires manual review.",
+  };
+}
+
 function external(): CertificationEvidenceResult {
   return {
     status: "package-ready-for-human-verification",
@@ -110,6 +123,7 @@ test("a structurally complete synthetic package is never automatically GA-certif
       parallel: parallel(),
       external: external(),
       operational: operations,
+      acceptanceBindings: acceptanceBinding(),
       parallelMonths: ["2026-07", "2026-08"],
       externalMonths: ["2026-07", "2026-08"],
       parallelEmployerCode: ENTITY,
@@ -119,6 +133,9 @@ test("a structurally complete synthetic package is never automatically GA-certif
     });
     assert.equal(combined.status, "evidence-ready-for-independent-final-review");
     assert.equal(combined.gaApproved, false);
+    assert.equal(combined.acceptanceBindingStatus, "structurally-bound-pending-authenticity-review");
+    assert.equal(combined.boundGovernmentFilings, 5);
+    assert.equal(combined.boundBankCases, 2);
     assert.equal(combined.issues.length, 0);
     assert.match(combined.disclaimer, /cannot certify/i);
   });
@@ -189,6 +206,7 @@ test("10 real matched workers per cycle and identical employer/months are hard g
       parallel: parallel(),
       external: external(),
       operational: ops,
+      acceptanceBindings: acceptanceBinding(),
       parallelMonths: ["2026-07", "2026-08"],
       externalMonths: ["2026-07", "2026-09"],
       parallelEmployerCode: ENTITY,
@@ -216,3 +234,37 @@ test("checked-in template remains intentionally incomplete and cannot pass", () 
 });
 
 
+
+
+test("private GA assessor fails closed without a structurally linked acceptance package", () => {
+  withFixture((root, manifest) => {
+    const operational = evaluateOperationalReadiness(manifest, root, COMMIT);
+    const binding = acceptanceBinding();
+    binding.status = "binding-blocked";
+    binding.issues.push("A government receipt SHA-256 was inconsistent.");
+    const result = combineProductionCertificationEvidence({
+      parallel: parallel(),
+      external: external(),
+      operational,
+      acceptanceBindings: binding,
+      parallelMonths: ["2026-07", "2026-08"],
+      externalMonths: ["2026-07", "2026-08"],
+      parallelEmployerCode: ENTITY,
+      externalEmployerCode: ENTITY,
+      operationalEmployerCode: ENTITY,
+      engineCommitSha: COMMIT,
+    });
+    assert.equal(result.status, "blocked");
+    assert.equal(result.gaApproved, false);
+    assert.ok(result.issues.some((value) => value.includes("Acceptance bindings")));
+  });
+});
+
+test("GA CLI requires binding manifest as a mandatory sixth argument", () => {
+  const cli = readFileSync("scripts/check-production-certification.ts", "utf8");
+  const gate = readFileSync("src/lib/production-certification-gates.ts", "utf8");
+  assert.ok(cli.includes("args.length !== 6"));
+  assert.ok(cli.includes("bindingsManifest: load(bindingsFile)"));
+  assert.ok(gate.includes("evaluateExternalAcceptanceBindings"));
+  assert.ok(gate.includes('status !== "structurally-bound-pending-authenticity-review"'));
+});

@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "legalEntityCode": "REPLACE-WITH-REAL-LEGAL-EMPLOYER",
+  "engineCommitSha": "REPLACE-40-CHAR-REVIEWED-ENGINE-COMMIT",
+  "payrollMonths": [
+    "YYYY-MM",
+    "YYYY-MM"
+  ],
+  "independentReview": {
+    "reviewEvidenceId": "REPLACE-REVIEW-ID",
+    "reviewSha256": "REPLACE-ACTUAL-SHA256",
+    "licenseEvidenceId": "REPLACE-LICENSE-ID",
+    "licenseSha256": "REPLACE-ACTUAL-SHA256"
+  },
+  "governmentFilings": [
+    {
+      "agency": "BIR",
+      "form": "1601-C",
+      "submissionId": "REPLACE-SUBMISSION-DOCUMENT-ID",
+      "submissionSha256": "REPLACE-ACTUAL-SHA256",
+      "submissionExternalReference": "REPLACE-GENUINE-ISSUER-REFERENCE",
+      "acceptanceId": "REPLACE-ACCEPTANCE-DOCUMENT-ID",
+      "acceptanceSha256": "REPLACE-ACTUAL-SHA256",
+      "acceptanceExternalReference": "REPLACE-GENUINE-AGENCY-ACKNOWLEDGEMENT"
+    },
+    {
+      "agency": "BIR",
+      "form": "Alphalist",
+      "submissionId": "REPLACE-SUBMISSION-DOCUMENT-ID",
+      "submissionSha256": "REPLACE-ACTUAL-SHA256",
+      "submissionExternalReference": "REPLACE-GENUINE-ISSUER-REFERENCE",
+      "acceptanceId": "REPLACE-ACCEPTANCE-DOCUMENT-ID",
+      "acceptanceSha256": "REPLACE-ACTUAL-SHA256",
+      "acceptanceExternalReference": "REPLACE-GENUINE-AGENCY-ACKNOWLEDGEMENT"
+    },
+    {
+      "agency": "SSS",
+      "form": "R-3",
+      "submissionId": "REPLACE-SUBMISSION-DOCUMENT-ID",
+      "submissionSha256": "REPLACE-ACTUAL-SHA256",
+      "submissionExternalReference": "REPLACE-GENUINE-ISSUER-REFERENCE",
+      "acceptanceId": "REPLACE-ACCEPTANCE-DOCUMENT-ID",
+      "acceptanceSha256": "REPLACE-ACTUAL-SHA256",
+      "acceptanceExternalReference": "REPLACE-GENUINE-AGENCY-ACKNOWLEDGEMENT"
+    },
+    {
+      "agency": "PhilHealth",
+      "form": "EPRS",
+      "submissionId": "REPLACE-SUBMISSION-DOCUMENT-ID",
+      "submissionSha256": "REPLACE-ACTUAL-SHA256",
+      "submissionExternalReference": "REPLACE-GENUINE-ISSUER-REFERENCE",
+      "acceptanceId": "REPLACE-ACCEPTANCE-DOCUMENT-ID",
+      "acceptanceSha256": "REPLACE-ACTUAL-SHA256",
+      "acceptanceExternalReference": "REPLACE-GENUINE-AGENCY-ACKNOWLEDGEMENT"
+    },
+    {
+      "agency": "Pag-IBIG",
+      "form": "eSRS/MCRF",
+      "submissionId": "REPLACE-SUBMISSION-DOCUMENT-ID",
+      "submissionSha256": "REPLACE-ACTUAL-SHA256",
+      "submissionExternalReference": "REPLACE-GENUINE-ISSUER-REFERENCE",
+      "acceptanceId": "REPLACE-ACCEPTANCE-DOCUMENT-ID",
+      "acceptanceSha256": "REPLACE-ACTUAL-SHA256",
+      "acceptanceExternalReference": "REPLACE-GENUINE-AGENCY-ACKNOWLEDGEMENT"
+    }
+  ],
+  "bankUat": {
+    "bankName": "REPLACE-REAL-BANK-NAME",
+    "accepted": {
+      "evidenceId": "REPLACE-ACCEPTED-BANK-DOCUMENT-ID",
+      "sha256": "REPLACE-ACTUAL-SHA256",
+      "externalReference": "REPLACE-REAL-BANK-REFERENCE"
+    },
+    "rejected": {
+      "evidenceId": "REPLACE-REJECTED-BANK-DOCUMENT-ID",
+      "sha256": "REPLACE-ACTUAL-SHA256",
+      "externalReference": "REPLACE-REAL-BANK-REFERENCE"
+    }
+  }
+}

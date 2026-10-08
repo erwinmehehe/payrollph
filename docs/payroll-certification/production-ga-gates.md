@@ -27,7 +27,7 @@ Keep a **separate bundle for each actual legal employer**. Never commit real pay
 3. Independently validate *current* government outputs with their actual portals and save acceptance receipts, not only local CSV/PDF generation. Validate a genuine BIR 2316 sample separately.
 4. Obtain bank-authorized low-value transfer and negative/reversal UAT evidence. Confirm exact legal employer, released amount, provider reference, no duplicate payout and separate owner/checker approval.
 5. Rehearse restore from an **encrypted real production-like staging snapshot** to an isolated environment. Capture snapshot, incident and verified restore timestamps; verify totals, schema/FKs and payroll exports, test rollback, compare RPO/RTO to employer-agreed objectives and get an independent reviewer to sign.
-6. Copy `certification/operational-evidence-template.json` into the private vault. Supply the nine actual operational proof files/hashes, recovery measurements and three distinct role names.
+6. Copy `certification/operational-evidence-template.json` **and** `certification/acceptance-bindings-template.json` into the private vault. Supply the nine actual operational proof files/hashes, recovery measurements, three distinct role names and issuer-linked government/bank/reviewer evidence IDs, hashes, and references.
 7. Run the combined checker locally (replace names and SHA with the actual employer/commit):
 
 ~~~bash
@@ -35,11 +35,12 @@ npm run payroll:ga:evidence -- \
   certification/external-private/EMPLOYER_CODE/parallel.json \
   certification/external-private/EMPLOYER_CODE/manifest.json \
   certification/external-private/EMPLOYER_CODE/operational.json \
+  certification/external-private/EMPLOYER_CODE/bindings.json \
   certification/external-private/EMPLOYER_CODE/files \
   EXACT_40_CHARACTER_REVIEWED_ENGINE_COMMIT_SHA
 ~~~
 
-Only `evidence-ready-for-independent-final-review` with `gaApproved: false` is a successful automated result. It must not be represented as approval to go live. The separate release committee must authenticate the original evidence, verify source release/version, approve employer scope and record a dated signed out-of-band decision.
+The combined command **requires the acceptance-bindings manifest** and rejects a missing, stale, reused or cross-employer government/bank/reviewer reference. See [acceptance binding controls](../../docs/acceptance-bindings.md). Only `evidence-ready-for-independent-final-review` with `gaApproved: false` is a successful automated result. It must not be represented as approval to go live. The separate release committee must authenticate the original evidence, verify source release/version, approve employer scope and record a dated signed out-of-band decision.
 
 ## Disaster recovery controls
 

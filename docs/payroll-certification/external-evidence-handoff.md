@@ -65,3 +65,16 @@ agreement, and at least 10 matched employees per month.
 
 The combined validator **never issues GA approval**. Final signature and
 government/bank evidence authentication remain human, external decisions.
+
+
+## Mandatory cross-document acceptance binding
+
+The combined `payroll:ga:evidence` command now **requires** an additional
+`bindings.json` file based on
+[`certification/acceptance-bindings-template.json`](../../certification/acceptance-bindings-template.json).
+It must match the exact payroll employer, reviewed engine commit and two verified
+payroll months, and tie each filing submission/acceptance pair, professional
+review/license and both bank UAT cases to the previously hash-checked evidence
+IDs, byte hashes and original issuer references. A reused or mismatched
+acknowledgement blocks the combined result. See
+[external acceptance binding controls](../../docs/acceptance-bindings.md).
