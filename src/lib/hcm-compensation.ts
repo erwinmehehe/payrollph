@@ -602,6 +602,45 @@ export async function applyScheduledCompensationProposal(
 export type RecurringCompensationDecision = "approve" | "decline" | "cancel";
 
 /**
+ * Same-day approvals and scheduled activations must persist identical
+ * notification snapshots in the same commit as the financial event.
+ */
+function recurringActivationIntents(
+  assignment: typeof employeeCompensationComponents.$inferSelect,
+) {
+  return [
+        {
+          trigger: "compensation.changed",
+          eventKey: `compensation-component-active:${assignment.id}`,
+          context: {
+            compensationComponentAssignmentId: assignment.id,
+            compensationComponentId: assignment.componentId,
+            effectiveDate: assignment.effectiveFrom,
+            eventAmount: Number(assignment.amount),
+            compensationChangeKind: "recurring_component",
+          },
+        },
+        {
+          trigger: "employee.field_changed",
+          eventKey: `compensation-component-active:${assignment.id}:field-change:recurringcompensationamount`,
+          context: fieldChangeContext({
+            field: "recurringCompensationAmount",
+            previousValue: 0,
+            newValue: Number(assignment.amount),
+            effectiveDate: String(assignment.effectiveFrom),
+            source: "compensation-component",
+            metadata: {
+              compensationComponentAssignmentId: assignment.id,
+              compensationComponentId: assignment.componentId,
+            },
+          }),
+        },
+  ];
+
+}
+
+
+/**
  * Recurring compensation is already read by payroll when scheduled, so a
  * status change and every affected payroll reset must commit together.
  *
@@ -709,8 +748,9 @@ export async function decideRecurringCompensationComponent(input: {
     )).returning();
     if (!updated) throw new Error("COMPONENT_ASSIGNMENT_STALE");
 
+    let compensationEventId: number | null = null;
     if (input.decision !== "decline") {
-      await tx.insert(compensationEvents).values({
+      const [financialEvent] = await tx.insert(compensationEvents).values({
         organizationId: updated.organizationId,
         employeeId: updated.employeeId,
         eventType: input.decision === "approve"
@@ -727,7 +767,21 @@ export async function decideRecurringCompensationComponent(input: {
         },
         actorUserId: input.actorUserId,
         actorName: input.actorName,
-      });
+      }).returning({ id: compensationEvents.id });
+      compensationEventId = financialEvent.id;
+
+      // Effective-today approval is already ACTIVE. It will never visit the
+      // scheduled-activation worker, so snapshot its two notification intents
+      // now; a failed insert must roll the approval, payroll reset, and audit
+      // back together.
+      if (input.decision === "approve" && nextStatus === "active") {
+        await enqueueCompensationAutomationIntents(tx, {
+          organizationId: updated.organizationId,
+          employeeId: updated.employeeId,
+          compensationEventId: financialEvent.id,
+          intents: recurringActivationIntents(updated),
+        });
+      }
     }
 
     const auditAction = input.decision === "approve"
@@ -748,6 +802,7 @@ export async function decideRecurringCompensationComponent(input: {
         effectiveFrom,
         decision: input.decision,
         invalidatedPayrollRunIds,
+        compensationEventId,
       },
     });
 
@@ -824,34 +879,7 @@ export async function activateCompensationComponentAssignment(
       organizationId: active.organizationId,
       employeeId: active.employeeId,
       compensationEventId: event.id,
-      intents: [
-        {
-          trigger: "compensation.changed",
-          eventKey: `compensation-component-active:${active.id}`,
-          context: {
-            compensationComponentAssignmentId: active.id,
-            compensationComponentId: active.componentId,
-            effectiveDate: active.effectiveFrom,
-            eventAmount: Number(active.amount),
-            compensationChangeKind: "recurring_component",
-          },
-        },
-        {
-          trigger: "employee.field_changed",
-          eventKey: `compensation-component-active:${active.id}:field-change:recurringcompensationamount`,
-          context: fieldChangeContext({
-            field: "recurringCompensationAmount",
-            previousValue: 0,
-            newValue: Number(active.amount),
-            effectiveDate: String(active.effectiveFrom),
-            source: "compensation-component",
-            metadata: {
-              compensationComponentAssignmentId: active.id,
-              compensationComponentId: active.componentId,
-            },
-          }),
-        },
-      ],
+      intents: recurringActivationIntents(active),
     });
 
     return { skipped: false as const, assignment: active, event, audit };
