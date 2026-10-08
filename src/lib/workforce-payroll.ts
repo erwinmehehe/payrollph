@@ -45,7 +45,11 @@ export function payableTimeEvidenceFlagsForPayroll(
   segmentation: PayableTimeSegmentation,
   derivedWorkedMinutes: number,
 ): string[] {
-  if (segmentation.allocationComplete || segmentation.flags.length === 0) return [];
+  // Missing price segments for independently derived worked minutes must
+  // block approval even when an upstream caller unexpectedly forgot to emit
+  // a flag or marked the segmentation complete.
+  const unpricedWorkedTime = segmentation.segments.length === 0 && derivedWorkedMinutes > 0;
+  if (segmentation.allocationComplete && !unpricedWorkedTime) return [];
 
   const pricingClasses = new Set(segmentation.segments.map((segment) =>
     `${segment.calendarDate}|${segment.overtime ? "ot" : "regular"}|${segment.night ? "night" : "day"}`,
@@ -53,10 +57,12 @@ export function payableTimeEvidenceFlagsForPayroll(
   const mandatoryCorrection = segmentation.flags.some((flag) =>
     flag.startsWith(`${WFM_PREMIUM_ALLOCATION_UNVERIFIED}:`),
   );
-  const unpricedWorkedTime = segmentation.segments.length === 0 && derivedWorkedMinutes > 0;
   if (!mandatoryCorrection && !unpricedWorkedTime && pricingClasses.size <= 1) return [];
+  const evidence = segmentation.flags.length > 0 ? segmentation.flags : [
+    "Worked attendance has no payable-time price segments; independent premium allocation is required before payroll approval.",
+  ];
 
-  return segmentation.flags.map((flag) =>
+  return evidence.map((flag) =>
     flag.startsWith(`${WFM_PREMIUM_ALLOCATION_UNVERIFIED}:`)
       ? flag
       : `${WFM_PREMIUM_ALLOCATION_UNVERIFIED}: ${flag}`,
