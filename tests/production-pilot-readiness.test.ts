@@ -211,6 +211,8 @@ test("production pilot sign-off verifies independent figures server-side instead
   assert.ok(route.includes('mismatches.push("employeeCount")'), "employee count must match exactly");
   assert.ok(route.includes("independentSourceConfirmed"), "sign-off must confirm figures came from an independent source");
   assert.ok(route.includes("employeeLevelReconciliationConfirmed"), "human independent reviewer must attest to per-employee reconciliation");
+  assert.ok(route.includes("reconciliationReportSha256"), "signoff must link to a private independently reviewed reconciliation report");
+  assert.ok(route.includes("reconciledEmployeeCount !== entries.length"), "signoff must block a partial employee population");
   assert.ok(route.includes('"Bank file dry-run generated"'), "no-money parallel trial must accept audited bank-file dry-run evidence");
   assert.ok(route.includes("!payoutCompleted && !dryRunBankExport"), "sign-off must require either completed payout proof or no-money bank export");
   assert.ok(route.includes("event.createdAt.getTime() >= releaseReceipt.createdAt.getTime()"), "no-money preview must be generated after the payroll release");
