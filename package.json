@@ -23,7 +23,8 @@
     "payroll:evidence:check": "tsx scripts/check-external-payroll-evidence.ts",
     "payroll:parallel:check": "tsx scripts/check-private-parallel-payroll.ts",
     "payroll:ga:evidence": "tsx scripts/check-production-certification.ts",
-    "payroll:acceptance:check": "tsx scripts/check-external-acceptance-bindings.ts"
+    "payroll:acceptance:check": "tsx scripts/check-external-acceptance-bindings.ts",
+    "compensation:expiry:audit": "tsx scripts/audit-compensation-expiry-evidence.ts"
   },
   "dependencies": {
     "@types/nodemailer": "^8.0.2",
