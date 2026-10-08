@@ -15,6 +15,7 @@ import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/acc
 import { recordAuditEvent } from "@/lib/audit";
 import { applyWorkerEffectiveChange, philippineBusinessDate } from "@/lib/hcm-effective-changes";
 import {
+  cancelHcmBusinessProcessForSourceTx,
   findHcmBusinessProcessForSource,
   processTypeForMovement,
   startHcmBusinessProcessTx,
@@ -534,9 +535,14 @@ export async function PATCH(request: Request) {
       actor: user.name,
       action: "Effective-dated HCM change declined",
       resource: `Employee #${row.employeeId}`,
-      metadata: { effectiveChangeId: row.id, effectiveDate: row.effectiveDate, movementType: row.movementType },
+      metadata: {
+        effectiveChangeId: row.id,
+        effectiveDate: row.effectiveDate,
+        movementType: row.movementType,
+        businessProcessInstanceId: linkedBusinessProcess?.id ?? null,
+      },
     });
-    return Response.json({ change: row });
+    return Response.json({ change: row, businessProcessCancelled: linkedBusinessProcess?.status === "in_progress" });
   }
 
   if (action === "cancel") {
@@ -551,6 +557,16 @@ export async function PATCH(request: Request) {
       : "approved";
 
     const row = await db.transaction(async (tx) => {
+      if (linkedBusinessProcess?.status === "in_progress") {
+        await cancelHcmBusinessProcessForSourceTx(tx, {
+          organizationId: change.organizationId,
+          sourceType: "worker_effective_change",
+          sourceKey: String(change.id),
+          actorUserId: user.id,
+          actorName: user.name,
+        });
+      }
+
       if (change.targetPositionId && ["scheduled", "failed"].includes(change.status)) {
         await tx.update(positions).set({
           status: previousPositionStatus,
