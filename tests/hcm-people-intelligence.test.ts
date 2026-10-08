@@ -20,7 +20,8 @@ const workers: HcmAnalyticsWorker[] = Array.from({ length: 12 }, (_, index) => (
   orgUnitId: index < 6 ? 1 : 2,
   employmentType: "Regular",
 })).concat([{ id: 13, startDate: "2026-09-25", status: "Active", orgUnitId: 1, employmentType: "Regular" }]);
-const events: HcmAnalyticsEmploymentEvent[] = workers.map((worker) => ({
+const events: HcmAnalyticsEmploymentEvent[] = [
+  ...workers.map((worker): HcmAnalyticsEmploymentEvent => ({
   id: worker.id,
   employeeId: worker.id,
   effectiveDate: worker.startDate,
@@ -29,12 +30,12 @@ const events: HcmAnalyticsEmploymentEvent[] = workers.map((worker) => ({
   toStatus: "Active",
   fromOrgUnitId: null,
   toOrgUnitId: worker.orgUnitId,
-})).concat([
+  })),
   { id: 20, employeeId: 1, effectiveDate: "2026-09-14", eventType: "separation_started",
     fromStatus: "Active", toStatus: "Separating", fromOrgUnitId: 1, toOrgUnitId: 1 },
   { id: 21, employeeId: 1, effectiveDate: "2026-10-01", eventType: "separation_released",
     fromStatus: "Separating", toStatus: "Separated", fromOrgUnitId: 1, toOrgUnitId: 1 },
-]);
+];
 const positions: HcmAnalyticsPosition[] = [
   { id: 1, status: "approved", orgUnitId: 1, annualBudget: "500000.00" },
   { id: 2, status: "filled", orgUnitId: 1, annualBudget: "300000.00" },
