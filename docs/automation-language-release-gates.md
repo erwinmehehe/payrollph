@@ -75,7 +75,10 @@ by the regular CI suite through
 `tests/automation-release-gate-integration.test.ts`.
 
 The checker makes **read-only GitHub API requests** and reports whether all
-evidence is present on the exact pinned PR head. It checks six completed
+evidence is present on the exact pinned PR head. It additionally checks
+that GitHub reports a cleanly mergeable pull request and that a fresh comparison
+against current `main` has zero commits behind. This prevents old green CI
+from concealing newly diverged upstream changes. It checks six completed
 successful workflows, a trusted independent human approval on that commit,
 closure of [independent review #621](https://github.com/erwinmehehe/payrollph/issues/621),
 and closure of [staging acceptance #622](https://github.com/erwinmehehe/payrollph/issues/622)

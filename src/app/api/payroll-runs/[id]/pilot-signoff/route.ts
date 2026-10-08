@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, payrollEntries, payrollRuns, payslips } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { isValidPilotBankDryRunEvidence } from "@/lib/pilot-bank-dry-run-evidence";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
@@ -126,6 +127,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const body = await request.json().catch(() => ({}));
   const evidenceReference = typeof body.evidenceReference === "string" ? body.evidenceReference.trim() : "";
   const independentPreparedBy = typeof body.independentPreparedBy === "string" ? body.independentPreparedBy.trim() : "";
+  const reconciliationReportSha256 = typeof body.reconciliationReportSha256 === "string"
+    ? body.reconciliationReportSha256.trim().toLowerCase()
+    : "";
   const supplied = body.independentFigures && typeof body.independentFigures === "object"
     ? body.independentFigures as Record<string, unknown>
     : {};
@@ -142,9 +146,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       { status: 400 },
     );
   }
+  if (!/^[0-9a-f]{64}$/.test(reconciliationReportSha256)) {
+    return Response.json(
+      { error: "Provide the SHA-256 of the privately reviewed employee-level reconciliation report." },
+      { status: 400 },
+    );
+  }
   if (body.independentSourceConfirmed !== true) {
     return Response.json(
       { error: "Confirm that the figures were prepared independently and were not copied from Linaw." },
+      { status: 400 },
+    );
+  }
+  if (body.employeeLevelReconciliationConfirmed !== true) {
+    return Response.json(
+      { error: "Confirm every employee was reconciled to independent source figures within one cent, with no unexplained variances." },
       { status: 400 },
     );
   }
@@ -167,6 +183,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     independentFigures[key] = value;
   }
   const employeeCount = asEmployeeCount(supplied.employeeCount);
+  const reconciledEmployeeCount = asEmployeeCount(body.reconciledEmployeeCount);
+  if (reconciledEmployeeCount === null) {
+    return Response.json(
+      { error: "Record the number of employees covered by the independent private reconciliation." },
+      { status: 400 },
+    );
+  }
   if (employeeCount === null) {
     return Response.json(
       { error: "Independent employee count must be a positive whole number." },
@@ -200,7 +223,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       : {};
     return meta.kind === "journal";
   });
-  const alreadySigned = runEvents.find((event) => event.action === "Production payroll pilot signed off");
+  const dryRunBankExport = runEvents.find((event) => isValidPilotBankDryRunEvidence(
+    event,
+    releaseReceipt?.createdAt ?? null,
+    { employeeCount: entries.length, netPay: Number(run.netPay) },
+  ));
+  // A no-money reconciliation can be upgraded after actual bank settlement,
+  // but cannot be submitted twice in the same evidence mode.
+  const alreadySigned = runEvents.find((event) => {
+    if (event.action !== "Production payroll pilot signed off") return false;
+    if (!payoutCompleted) return true;
+    const metadata = event.metadata && typeof event.metadata === "object"
+      ? event.metadata as Record<string, unknown>
+      : {};
+    return metadata.payoutEvidenceMode === "completed-payout";
+  });
 
   if (alreadySigned) {
     return Response.json(
@@ -215,8 +252,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const evidenceFailures: string[] = [];
   if (entries.length === 0) evidenceFailures.push("released payroll entries");
+  if (reconciledEmployeeCount !== entries.length) {
+    evidenceFailures.push("independent employee-level reconciliation population does not match the released payroll register");
+  }
   if (!releaseReceipt) evidenceFailures.push("release receipt");
-  if (!payoutCompleted) evidenceFailures.push("completed payout evidence");
+  if (!payoutCompleted && !dryRunBankExport) {
+    evidenceFailures.push("completed payout or post-release bank-file dry-run with complete real destinations, immutable payment/identity snapshots, matching file-part counts and totals, and SHA-256 proof");
+  }
   if (slips.length < entries.length) evidenceFailures.push("payslips for every released entry");
   if (!accountingExport) evidenceFailures.push("accounting journal export");
 
@@ -273,9 +315,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     metadata: {
       runId: run.id,
       evidenceReference,
+      reconciliationReportSha256,
+      reconciledEmployeeCount,
       independentPreparedBy,
       independentSourceConfirmed: true,
+      employeeLevelReconciliationConfirmed: true,
       operatorCompletedWithoutDeveloper: true,
+      payoutEvidenceMode: payoutCompleted ? "completed-payout" : "no-money-bank-file-dry-run",
+      bankPreviewSha256: dryRunBankExport && typeof (dryRunBankExport.metadata as Record<string, unknown>).bankExportSha256 === "string"
+        ? (dryRunBankExport.metadata as Record<string, unknown>).bankExportSha256
+        : null,
       independentFigures,
       verifiedFigures,
       reconciliationVariances: variances,

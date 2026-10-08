@@ -7,7 +7,8 @@ const oldSha = 'b'.repeat(40);
 const fixture = () => ({
   expectedSha: sha,
   pr: { head: { sha, ref: 'feature/automation-studio-language-drafts', repo: { full_name: 'erwinmehehe/payrollph' } },
-    base: { ref: 'main' }, user: { login: 'author' }, state: 'open', draft: false, merged_at: null },
+    base: { ref: 'main' }, user: { login: 'author' }, state: 'open', draft: false, merged_at: null, mergeable: true },
+  baseComparison: { status: 'ahead', behind_by: 0, ahead_by: 74 },
   reviews: [{ id: 1, user: { login: 'reviewer' }, author_association: 'COLLABORATOR', state: 'APPROVED',
     commit_id: sha, submitted_at: '2026-10-08T11:00:00Z' }],
   issueReview: { state: 'closed' },
@@ -34,6 +35,24 @@ test('fail closed on changed head, branch, base, PR status or repository', () =>
     (x) => { x.pr.merged_at = '2026-10-08T12:00:00Z'; },
   ];
   for (const edit of edits) { const x = fixture(); edit(x); assert.equal(evaluateGate(x).readyForHumanMergeDecision, false); }
+});
+
+test('rejects outdated or conflicted PRs even when all six workflows previously passed', () => {
+  const cases = [
+    (x) => { x.pr.mergeable = false; },
+    (x) => { x.pr.mergeable = null; },
+    (x) => { x.baseComparison.behind_by = 2; x.baseComparison.status = 'diverged'; },
+    (x) => { x.baseComparison.behind_by = 1; },
+    (x) => { x.baseComparison = null; },
+    (x) => { x.baseComparison.status = 'diverged'; },
+    (x) => { x.baseComparison.ahead_by = null; },
+  ];
+  for (const change of cases) {
+    const x = fixture();
+    change(x);
+    const result = evaluateGate(x);
+    assert.equal(result.readyForHumanMergeDecision, false, JSON.stringify(result));
+  }
 });
 
 test('rejects self-review, untrusted reviews and stale approvals', () => {

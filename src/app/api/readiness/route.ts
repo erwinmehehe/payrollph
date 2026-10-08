@@ -37,8 +37,19 @@ export async function buildReadinessPayload() {
   const [{ value: activeSubs }] = await db.select({ value: count() }).from(subscriptions).where(eq(subscriptions.status, "active"));
   const [{ value: paymongoPreflightPasses }] = await db.select({ value: count() }).from(auditEvents)
     .where(eq(auditEvents.action, "PayMongo payroll preflight passed"));
+  // The no-money bank preview milestone must NEVER satisfy the broad-launch
+  // production pilot gate. Count only explicit completed-payout proof from the
+  // newer sign-off route; legacy records without that mode need re-verification.
   const [{ value: productionPilotSignoffs }] = await db.select({ value: count() }).from(auditEvents)
-    .where(eq(auditEvents.action, "Production payroll pilot signed off"));
+    .where(and(
+      eq(auditEvents.action, "Production payroll pilot signed off"),
+      sql`${auditEvents.metadata} ->> 'payoutEvidenceMode' = 'completed-payout'`,
+    ));
+  const [{ value: noMoneyPilotReconciliations }] = await db.select({ value: count() }).from(auditEvents)
+    .where(and(
+      eq(auditEvents.action, "Production payroll pilot signed off"),
+      sql`${auditEvents.metadata} ->> 'payoutEvidenceMode' = 'no-money-bank-file-dry-run'`,
+    ));
   const acceptedBankFileValidations = await acceptedBankFileValidationCount();
 
   const [{ value: plaintextBankAccounts }] = await db.select({ value: count() }).from(employees)
@@ -274,15 +285,17 @@ export async function buildReadinessPayload() {
     },
     {
       key: "production-pilot-signoff",
-      label: "Independent production payroll pilot signed off",
+      label: "Independent completed-payout payroll pilot signed off",
       ready: Number(productionPilotSignoffs) > 0,
       detail: Number(productionPilotSignoffs) > 0
-        ? `${productionPilotSignoffs} production payroll pilot sign-off(s) are recorded with independent reconciliation evidence.`
-        : "No Owner has signed off a released production payroll against independently prepared expected figures yet.",
+        ? `${productionPilotSignoffs} completed-payout payroll pilot sign-off(s) are recorded with independent reconciliation evidence.`
+        : Number(noMoneyPilotReconciliations) > 0
+          ? `${noMoneyPilotReconciliations} no-money payroll pilot reconciliation(s) recorded. Bank-file previews do not prove settlement and cannot clear the broad-launch pilot gate.`
+          : "No Owner has signed off a completed-payout payroll against independently prepared expected figures yet.",
       blocks: Number(productionPilotSignoffs) > 0 ? "none" : "launch",
       manualWorkaround: Number(productionPilotSignoffs) > 0
         ? undefined
-        : "Complete one controlled production payroll, reconcile it independently, then record the production pilot sign-off before broad launch.",
+        : "A no-money pilot is a separate milestone. Complete and independently review a real settled payroll, then record the completed-payout sign-off before broad launch.",
     },
     {
       key: "gov-bir-1601c",
@@ -413,7 +426,7 @@ export async function buildReadinessPayload() {
           : `${unworkaroundableBlockers.length} blocker(s) have no manual workaround and must be fixed even for a manual-ops pilot: ${unworkaroundableBlockers.map((g) => g.label).join(", ")}.`,
     },
     gates,
-    counts: { users: userCount, queuedMail, sentMail, deliveredMail, failedMail, paidInvoices, activeSubs, paymongoPreflightPasses, productionPilotSignoffs, plaintextBankAccounts, plaintextBankSnapshots },
+    counts: { users: userCount, queuedMail, sentMail, deliveredMail, failedMail, paidInvoices, activeSubs, paymongoPreflightPasses, productionPilotSignoffs, noMoneyPilotReconciliations, plaintextBankAccounts, plaintextBankSnapshots },
     generatedAt: new Date().toISOString(),
   };
 }

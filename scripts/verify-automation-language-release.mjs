@@ -30,7 +30,7 @@ const trustworthy = (record, author) => human(record?.user?.login)
   && record.user.login !== author && TRUSTED_ASSOCIATIONS.has(record.author_association);
 
 /** Pure logic, exercised by tests with synthetic GitHub data. */
-export function evaluateGate({ pr, reviews, issueReview, issueStaging, comments, runs, expectedSha }) {
+export function evaluateGate({ pr, baseComparison, reviews, issueReview, issueStaging, comments, runs, expectedSha }) {
   const reasons = [];
   const sha = pr?.head?.sha;
   const author = pr?.user?.login;
@@ -43,6 +43,17 @@ export function evaluateGate({ pr, reviews, issueReview, issueStaging, comments,
   if (pr?.head?.ref !== 'feature/automation-studio-language-drafts') reasons.push('Unexpected PR head branch');
   if (pr?.head?.repo?.full_name && pr.head.repo.full_name !== 'erwinmehehe/payrollph') {
     reasons.push('Unexpected PR head repository');
+  }
+  // A green build on an older branch does not prove it merges with the
+  // current main branch. Fail closed on conflicts, unknown ancestry or lag.
+  if (pr?.mergeable !== true) {
+    reasons.push('GitHub does not confirm the current PR can merge cleanly');
+  }
+  if (!baseComparison
+    || baseComparison.behind_by !== 0
+    || !['ahead', 'identical'].includes(baseComparison.status)
+    || !Number.isSafeInteger(baseComparison.ahead_by)) {
+    reasons.push('PR head is behind main or current main ancestry could not be verified');
   }
 
   const latestRuns = new Map();
@@ -138,15 +149,16 @@ export async function main() {
 
   const root = `https://api.github.com/repos/${repo}`;
   const get = async (path) => (await fetchJson(root + path, token)).data;
-  const [pr, reviews, issueReview, issueStaging, comments, runs] = await Promise.all([
+  const [pr, baseComparison, reviews, issueReview, issueStaging, comments, runs] = await Promise.all([
     get('/pulls/609'),
+    get(`/compare/main...${sha}`),
     getPages(root, '/pulls/609/reviews?per_page=100', token),
     get('/issues/621'),
     get('/issues/622'),
     getPages(root, '/issues/622/comments?per_page=100', token),
     getPages(root, `/actions/runs?branch=feature%2Fautomation-studio-language-drafts&per_page=100`, token, 'workflow_runs'),
   ]);
-  const result = evaluateGate({ pr, reviews, issueReview, issueStaging, comments, runs, expectedSha: sha });
+  const result = evaluateGate({ pr, baseComparison, reviews, issueReview, issueStaging, comments, runs, expectedSha: sha });
   console.log(JSON.stringify({ gate: 'PayrollPH Automation Studio PR #609', ...result }, null, 2));
   if (!result.readyForHumanMergeDecision) process.exitCode = 1;
 }
