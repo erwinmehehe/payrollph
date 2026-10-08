@@ -155,10 +155,10 @@ Built:
 - Continuous baseline vs live requested/approved/filled headcount, FTE, vacancy and position-budget reconciliation
 - Cost redaction for workforce roles without payroll-cost permission
 - Published and approved plans remain executable in downstream WFM demand handoff
+- New draft forecast revisions can be seeded from the current published baseline plus current authoritative headcount/position actuals, with baseline hash/version provenance preserved and live payroll-grounded forecast recalculated
 
 Remaining:
 - Dedicated top-down allocation controls for plan owners and bottom-up manager submissions
-- Forecast-plan creation from the latest published baseline plus latest actuals
 - Budget variance drilldown with named org-unit and cost-center dimensions in the published-baseline UI
 - Attrition assumptions and governed backfill planning
 - Controlled publish-to-execution actions for bulk position creation/changes from an approved plan
