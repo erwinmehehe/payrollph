@@ -115,10 +115,13 @@ test("payroll engine and approval/release routes wire the same hard-blocking ass
   const { readFileSync } = await import("node:fs");
   const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
   const submit = readFileSync("src/app/api/payroll-runs/[id]/submit-review/route.ts", "utf8");
+  const approve = readFileSync("src/app/api/approvals/[id]/route.ts", "utf8");
   const release = readFileSync("src/app/api/payroll-runs/[id]/release/route.ts", "utf8");
   assert.ok(engine.includes("payableTimeEvidenceFlagsForPayroll(\n      segmentation,\n      derived.workedMinutes,"));
   assert.ok(submit.includes("finding.blocking"));
+  assert.ok(approve.includes("finding.blocking"));
   assert.ok(release.includes("finding.blocking"));
   assert.ok(submit.includes("blockingFindings: blockers"));
+  assert.ok(approve.includes("blockingFindings: blockers"));
   assert.ok(release.includes("blockingFindings,"));
 });
