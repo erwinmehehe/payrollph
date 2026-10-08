@@ -8,7 +8,8 @@ test("enterprise HCM business process persistence is migrated and mirrored", () 
   const migration = read("drizzle/0092_hcm_business_process_core.sql");
   const schema = read("src/db/schema.ts");
   const baseline = read("drizzle/baseline.sql");
-  for (const source of [migration, schema, baseline]) {
+  const compatibility = read("src/lib/core-schema-compat.ts");
+  for (const source of [migration, schema, baseline, compatibility]) {
     assert.ok(source.includes("hcm_business_process_definitions"));
     assert.ok(source.includes("hcm_business_process_instances"));
     assert.ok(source.includes("hcm_business_process_instance_steps"));
