@@ -164,6 +164,7 @@ test("OT/night meal allowance pays zero when attendance has no qualifying day", 
   assert.equal(result.semiMonthlyGranted, 0);
   assert.equal(result.semiMonthlyExempt, 0);
   assert.equal(result.semiMonthlyOtherBenefitsPool, 0);
+  assert.ok("eligibleDays" in result);
   assert.equal(result.eligibleDays, 0);
 });
 
