@@ -77,6 +77,14 @@ export async function GET(request: Request) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
 
+  const denied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    WORKFORCE_MANAGER_ROLES,
+    "Your role is not allowed to view workforce allocation planning.",
+  );
+  if (denied) return denied;
+
   const access = await workforceAccess(user.id, organizationId);
   if (!access) {
     return Response.json({ error: "Workforce-manager access is required." }, { status: 403 });
@@ -145,6 +153,14 @@ export async function POST(request: Request) {
   if (!Number.isInteger(organizationId) || organizationId <= 0) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
+
+  const workforceDenied = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    WORKFORCE_MANAGER_ROLES,
+    "Your role is not allowed to manage workforce allocation planning.",
+  );
+  if (workforceDenied) return workforceDenied;
 
   const access = await workforceAccess(user.id, organizationId);
   if (!access) {
@@ -417,6 +433,14 @@ export async function PATCH(request: Request) {
     .where(eq(workforcePlanManagerSubmissions.id, submissionId))
     .limit(1);
   if (!submission) return Response.json({ error: "Manager submission not found." }, { status: 404 });
+
+  const workforceDenied = await assertOrganizationRole(
+    user.id,
+    submission.organizationId,
+    WORKFORCE_MANAGER_ROLES,
+    "Your role is not allowed to manage workforce allocation planning.",
+  );
+  if (workforceDenied) return workforceDenied;
 
   const access = await workforceAccess(user.id, submission.organizationId);
   if (!access || !visibleToAccess(submission.orgUnitId, access)) {
