@@ -42,6 +42,8 @@ type MigrationResult = {
   seatLimit?: number;
   currentlyUsed?: number;
   newEmployees?: number;
+  migrationBlockers?: string[];
+  code?: string;
 };
 
 type Batch = {
