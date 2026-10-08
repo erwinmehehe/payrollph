@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
+import { payrollRunSupportsTimesheetExpectationAutomation } from "@/lib/workforce-timesheet-expectations";
 import {
   attendanceExceptionEvents,
   auditEvents,
@@ -196,7 +197,7 @@ export async function loadOperationalReviewSource(input: {
       eq(payrollRuns.organizationId, organizationId),
       eq(payrollRuns.id, row.payrollRunId),
     )).limit(1);
-    const inactiveRun = !run || ["Released", "Failed", "Cancelled", "Voided", "Superseded"].includes(run.status);
+    const inactiveRun = !run || !payrollRunSupportsTimesheetExpectationAutomation(run.status);
     return {
       sourceVersion: row.version,
       employeeId: row.employeeId,
