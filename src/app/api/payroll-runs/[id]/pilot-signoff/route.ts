@@ -148,6 +148,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       { status: 400 },
     );
   }
+  if (body.employeeLevelReconciliationConfirmed !== true) {
+    return Response.json(
+      { error: "Confirm every employee was reconciled to independent source figures within one cent, with no unexplained variances." },
+      { status: 400 },
+    );
+  }
   if (body.operatorCompletedWithoutDeveloper !== true) {
     return Response.json(
       { error: "Confirm that the payroll operator completed the cycle without developer intervention." },
@@ -200,6 +206,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       : {};
     return meta.kind === "journal";
   });
+  const dryRunBankExport = runEvents.find((event) => {
+    if (event.action !== "Bank file dry-run generated") return false;
+    const metadata = event.metadata && typeof event.metadata === "object"
+      ? event.metadata as Record<string, unknown>
+      : {};
+    return metadata.kind === "bank" && metadata.dryRun === true;
+  });
   const alreadySigned = runEvents.find((event) => event.action === "Production payroll pilot signed off");
 
   if (alreadySigned) {
@@ -216,7 +229,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const evidenceFailures: string[] = [];
   if (entries.length === 0) evidenceFailures.push("released payroll entries");
   if (!releaseReceipt) evidenceFailures.push("release receipt");
-  if (!payoutCompleted) evidenceFailures.push("completed payout evidence");
+  if (!payoutCompleted && !dryRunBankExport) {
+    evidenceFailures.push("completed payout or bank-file dry-run evidence");
+  }
   if (slips.length < entries.length) evidenceFailures.push("payslips for every released entry");
   if (!accountingExport) evidenceFailures.push("accounting journal export");
 
@@ -275,7 +290,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       evidenceReference,
       independentPreparedBy,
       independentSourceConfirmed: true,
+      employeeLevelReconciliationConfirmed: true,
       operatorCompletedWithoutDeveloper: true,
+      payoutEvidenceMode: payoutCompleted ? "completed-payout" : "no-money-bank-file-dry-run",
+      bankValidationStillRequired: !payoutCompleted,
       independentFigures,
       verifiedFigures,
       reconciliationVariances: variances,
