@@ -1384,11 +1384,7 @@ export function AutomationStudioPanel({
                               onChange={(event) => updateAction(row.id, { caseType: event.target.value })}
                             >
                               {Object.entries(OPERATIONAL_REVIEW_BY_TRIGGER)
-                                .filter(([eventTrigger], index, all) =>
-                                  eventTrigger === selectedTrigger?.value && all.findIndex(([, value]) =>
-                                    value === OPERATIONAL_REVIEW_BY_TRIGGER[eventTrigger]
-                                  ) <= index
-                                )
+                                .filter(([eventTrigger]) => eventTrigger === selectedTrigger?.value)
                                 .map(([eventTrigger, caseType]) => (
                                   <option key={eventTrigger} value={caseType}>
                                     {caseType.replaceAll("_", " ")}
@@ -1743,11 +1739,31 @@ export function AutomationStudioPanel({
                       <small style={{ display: "block", color: "var(--muted)" }}>Execution #{item.executionId} · {item.status}</small>
                     </td>
                     <td>
-                      {item.failedSteps.map((step) => (
-                        <small key={step.stepIndex} style={{ display: "block", color: "var(--danger)", maxWidth: 420 }}>
-                          Step {step.stepIndex + 1} · {step.type}: {step.error}
-                        </small>
-                      ))}
+                      {item.failedSteps.map((step) => {
+                        const letter = item.deadLetters.find((entry) => entry.stepIndex === step.stepIndex);
+                        return (
+                          <div key={step.stepIndex} style={{ marginBottom: 8 }}>
+                            <small style={{ display: "block", color: "var(--danger)", maxWidth: 420 }}>
+                              Step {step.stepIndex + 1} · {step.type}: {step.error}
+                            </small>
+                            {letter?.caseId ? (
+                              <small style={{ display: "block", color: "var(--muted)" }}>
+                                Dead letter #{letter.caseId} · {letter.status} · evidence in case queue below
+                              </small>
+                            ) : (
+                              <button
+                                type="button"
+                                className="secondary-button"
+                                disabled={mutatingExecutionId === item.executionId}
+                                onClick={() => void quarantineExecutionStep(item.executionId, step.stepIndex)}
+                                style={{ marginTop: 4 }}
+                              >
+                                <CircleAlert size={13} /> Quarantine failed step
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </td>
                     <td>
                       <span className={item.slaState === "breached" ? "status status-failed" : "status"}>
@@ -1781,6 +1797,89 @@ export function AutomationStudioPanel({
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article className="card" style={{ marginTop: 16 }}>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">OPERATIONS CASES · DEAD LETTERS</div>
+            <h2>Manual WFM/payroll recovery queue</h2>
+            <p>
+              Review cases are attached to live workforce, payroll or compliance source records.
+              Dead letters preserve ambiguous failed-step evidence. Case acknowledgements and dispositions
+              never change the authoritative source, retry an action, or mark an execution successful.
+            </p>
+          </div>
+          <ShieldCheck size={17} className="i-purple" />
+        </div>
+        <div className="card-body" style={{ paddingTop: 6 }}>
+          <div className="modal-note">
+            Open: {data.executionCenter.caseCounts.open} · Acknowledged: {data.executionCenter.caseCounts.acknowledged}
+            · Resolved: {data.executionCenter.caseCounts.resolved} · Outstanding dead letters: {data.executionCenter.caseCounts.deadLetters}
+          </div>
+        </div>
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead><tr><th>CASE / SOURCE</th><th>OWNER / EVIDENCE</th><th>STATUS</th><th>HUMAN CONTROL</th></tr></thead>
+            <tbody>
+              {data.executionCenter.operationalCases.length === 0 && (
+                <tr><td colSpan={4}><div className="empty-state">No review cases or dead letters recorded.</div></td></tr>
+              )}
+              {data.executionCenter.operationalCases.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <strong>{item.title}</strong>
+                    <small style={{ display: "block", color: "var(--muted)" }}>
+                      Case #{item.id} · {item.caseType.replaceAll("_", " ")} · {item.sourceType} #{item.sourceId}
+                      {item.sourceVersion != null ? ` · source v${item.sourceVersion}` : ""}
+                    </small>
+                    <small style={{ display: "block" }}>{item.detail}</small>
+                  </td>
+                  <td>
+                    <strong>{item.ownerTeam}</strong>
+                    <small style={{ display: "block", color: "var(--muted)" }}>
+                      Created {formatDateTime(item.createdAt)}
+                      {item.executionId != null ? ` · execution #${item.executionId}` : ""}
+                    </small>
+                    {item.resolutionNote && <small style={{ display: "block" }}>Disposition: {item.resolutionNote}</small>}
+                  </td>
+                  <td>
+                    <span className={item.status === "resolved" ? "status status-verified" : item.status === "open" ? "status status-failed" : "status"}>
+                      {item.status}
+                    </span>
+                    {item.acknowledgedByName && <small style={{ display: "block" }}>Acknowledged by {item.acknowledgedByName}</small>}
+                    {item.resolvedByName && <small style={{ display: "block" }}>Resolved by {item.resolvedByName}</small>}
+                  </td>
+                  <td>
+                    {item.status === "open" && (
+                      <button type="button" className="secondary-button"
+                        disabled={mutatingCaseId === item.id}
+                        onClick={() => void triageOperationalCase(item, "acknowledge")}
+                      >Acknowledge</button>
+                    )}
+                    {item.status === "acknowledged" && (
+                      <button type="button" className="secondary-button"
+                        disabled={mutatingCaseId === item.id}
+                        onClick={() => void triageOperationalCase(item, "resolve")}
+                      >Record resolution</button>
+                    )}
+                    {item.status === "resolved" && (
+                      <button type="button" className="secondary-button"
+                        disabled={mutatingCaseId === item.id}
+                        onClick={() => void triageOperationalCase(item, "reopen")}
+                      >Reopen</button>
+                    )}
+                    <small style={{ display: "block", color: "var(--muted)", marginTop: 5 }}>
+                      {item.caseType === "execution_dead_letter"
+                        ? "Manual disposition does not rewrite the failed execution."
+                        : "Underlying issue must be resolved in its governed workspace first."}
+                    </small>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
