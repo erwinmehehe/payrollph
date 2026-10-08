@@ -95,6 +95,19 @@ type Claim = {
   requestedBy: string;
 };
 
+type SourceHandoffStatus = {
+  sourceId: number;
+  eligible: boolean;
+  approval: {
+    id: number;
+    status: string;
+    policyCode: string;
+    sourceCurrent: boolean;
+  } | null;
+};
+
+type HandoffChain = { code: string; name: string; version: number };
+
 type ClaimRecommendation = {
   openShiftId: number;
   recommendations: Array<{
@@ -297,6 +310,10 @@ export function WorkforceCoveragePanel({
   const [saving, setSaving] = useState<string | null>(null);
   const [simulateHighRisk, setSimulateHighRisk] = useState(false);
   const [dynamicGroupCode, setDynamicGroupCode] = useState("");
+  const [reviewChains, setReviewChains] = useState<HandoffChain[]>([]);
+  const [reviewChainCode, setReviewChainCode] = useState("");
+  const [reviewByClaimId, setReviewByClaimId] = useState<Record<number, SourceHandoffStatus>>({});
+  const [reviewSavingClaimId, setReviewSavingClaimId] = useState<number | null>(null);
 
   const [requirementDate, setRequirementDate] = useState(localToday());
   const [requirementWorksiteId, setRequirementWorksiteId] = useState("");
@@ -325,6 +342,25 @@ export function WorkforceCoveragePanel({
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Could not load coverage planning.");
       setPayload(body as Payload);
+      const claimIds = (body.claims ?? [])
+        .filter((claim: Claim) => claim.status === "pending")
+        .map((claim: Claim) => claim.id);
+      const reviewParams = new URLSearchParams({
+        organizationId: String(organizationId),
+        sourceType: "wfm_roster_claim_review",
+      });
+      if (claimIds.length) reviewParams.set("sourceIds", claimIds.slice(0, 40).join(","));
+      const reviewResponse = await fetch(`/api/governed-handoffs?${reviewParams.toString()}`, { cache: "no-store" });
+      if (reviewResponse.ok) {
+        const reviewPayload = await reviewResponse.json().catch(() => ({}));
+        const chains = (reviewPayload.approvalChains ?? []) as HandoffChain[];
+        setReviewChains(chains);
+        setReviewChainCode((current) => chains.some((row) => row.code === current)
+          ? current : chains[0]?.code ?? "");
+        setReviewByClaimId(Object.fromEntries(
+          (reviewPayload.handoffs ?? []).map((row: SourceHandoffStatus) => [row.sourceId, row]),
+        ));
+      }
     } catch (error) {
       notify(error instanceof Error ? error.message : "Could not load coverage planning.", "err");
     } finally {
@@ -416,6 +452,34 @@ export function WorkforceCoveragePanel({
         employeeId: fill.employeeId,
       })),
     }, "Recovery plan staged as pending claims for governed approval.");
+  }
+
+  async function requestRosterReview(claimId: number) {
+    if (!reviewChainCode) {
+      notify("Configure and activate an Automation Studio approval chain before requesting roster review.", "err");
+      return;
+    }
+    setReviewSavingClaimId(claimId);
+    try {
+      const response = await fetch("/api/governed-handoffs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          sourceType: "wfm_roster_claim_review",
+          sourceId: claimId,
+          chainCode: reviewChainCode,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Roster review handoff could not be routed.");
+      notify(`Human approval requested for claim #${claimId}. A manager must still approve the claim after that review.`, "ok");
+      await load();
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Roster review handoff failed.", "err");
+    } finally {
+      setReviewSavingClaimId(null);
+    }
   }
 
   async function decideClaim(claimId: number, decision: "approved" | "rejected") {
@@ -981,9 +1045,43 @@ export function WorkforceCoveragePanel({
                         )}
                         {claim.status === "pending" && canManage && (
                           <>
-                            <button className="secondary-button" onClick={() => void decideClaim(claim.id, "approved")} disabled={saving !== null}>Approve</button>
+                            <select
+                              aria-label={`Human approval policy for claim #${claim.id}`}
+                              value={reviewChainCode}
+                              onChange={(event) => setReviewChainCode(event.target.value)}
+                              disabled={reviewSavingClaimId !== null || reviewChains.length === 0}
+                              style={{ maxWidth: 180 }}
+                            >
+                              {reviewChains.length === 0 && <option value="">No active approval policy</option>}
+                              {reviewChains.map((chain) => (
+                                <option key={chain.code} value={chain.code}>{chain.name} · v{chain.version}</option>
+                              ))}
+                            </select>
+                            <button
+                              className="secondary-button"
+                              disabled={saving !== null || reviewSavingClaimId !== null || !reviewChainCode}
+                              onClick={() => void requestRosterReview(claim.id)}
+                            >
+                              {reviewSavingClaimId === claim.id ? "Routing..." : "Request human review"}
+                            </button>
+                            <button
+                              className="secondary-button"
+                              onClick={() => void decideClaim(claim.id, "approved")}
+                              disabled={saving !== null || (reviewByClaimId[claim.id]?.approval != null
+                                && (!reviewByClaimId[claim.id].approval?.sourceCurrent
+                                  || reviewByClaimId[claim.id].approval?.status !== "approved"))}
+                            >Approve</button>
                             <button className="secondary-button" onClick={() => void decideClaim(claim.id, "rejected")} disabled={saving !== null}>Reject</button>
                           </>
+                        )}
+                        {reviewByClaimId[claim.id]?.approval && (
+                          <span className="id">
+                            Human review #{reviewByClaimId[claim.id].approval?.id}
+                            {" · "}
+                            {reviewByClaimId[claim.id].approval?.sourceCurrent
+                              ? reviewByClaimId[claim.id].approval?.status
+                              : "stale source — request new review"}
+                          </span>
                         )}
                         {recommendation && claim.status === "pending" && (
                           <span className="id" style={{ flexBasis: "100%", paddingLeft: 2 }}>
