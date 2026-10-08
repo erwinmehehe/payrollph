@@ -1,10 +1,11 @@
-import { eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, ne, notInArray } from "drizzle-orm";
 import { db } from "@/db";
 import {
   attendanceExceptionEvents,
   openShifts,
   payrollRuns,
   schedulerState,
+  workforceTimesheetExpectations,
   workforceTimesheets,
 } from "@/db/schema";
 import { runAutomationEventSafely } from "@/lib/automation";
@@ -134,6 +135,74 @@ async function emitTimesheetCutoffEvents(today: string) {
   return outcomes;
 }
 
+async function emitMissingTimesheetEvents(today: string) {
+  const rows = await db.select({
+    expectationId: workforceTimesheetExpectations.id,
+    expectationVersion: workforceTimesheetExpectations.version,
+    expectationStatus: workforceTimesheetExpectations.status,
+    organizationId: workforceTimesheetExpectations.organizationId,
+    employeeId: workforceTimesheetExpectations.employeeId,
+    orgUnitId: workforceTimesheetExpectations.orgUnitId,
+    payrollRunId: workforceTimesheetExpectations.payrollRunId,
+    periodStart: workforceTimesheetExpectations.periodStart,
+    periodEnd: workforceTimesheetExpectations.periodEnd,
+    expectedBy: workforceTimesheetExpectations.expectedBy,
+    enforcementMode: workforceTimesheetExpectations.enforcementMode,
+    payrollRunStatus: payrollRuns.status,
+    payrollPeriodLabel: payrollRuns.periodLabel,
+    payDate: payrollRuns.payDate,
+  }).from(workforceTimesheetExpectations)
+    .innerJoin(payrollRuns, and(
+      eq(payrollRuns.id, workforceTimesheetExpectations.payrollRunId),
+      eq(payrollRuns.organizationId, workforceTimesheetExpectations.organizationId),
+    ))
+    .where(and(
+      eq(workforceTimesheetExpectations.status, "expected"),
+      notInArray(payrollRuns.status, ["Released", "Failed", "Cancelled", "Voided", "Superseded"]),
+    ));
+  const outcomes = [];
+
+  for (const row of rows) {
+    const daysUntilDeadline = daysUntilDate(String(row.expectedBy), today);
+    const bucket = deadlineBucket(daysUntilDeadline);
+    if (!bucket) continue;
+
+    const automation = await runAutomationEventSafely({
+      organizationId: row.organizationId,
+      employeeId: row.employeeId,
+      trigger: "timesheet.missing_approaching",
+      eventKey: `timesheet-missing:${row.expectationId}:${row.expectationVersion}:${bucket}`,
+      context: {
+        deadlineType: "timesheet_submission",
+        deadlineBucket: bucket,
+        daysUntilDeadline,
+        timesheetExpectationId: row.expectationId,
+        timesheetExpectationVersion: row.expectationVersion,
+        timesheetExpectationStatus: row.expectationStatus,
+        timesheetRequirementMode: row.enforcementMode,
+        payrollRunId: row.payrollRunId,
+        payrollRunStatus: row.payrollRunStatus,
+        payrollPeriodLabel: row.payrollPeriodLabel,
+        payDate: String(row.payDate),
+        orgUnitId: row.orgUnitId,
+        periodStart: String(row.periodStart),
+        periodEnd: String(row.periodEnd),
+        expectedBy: String(row.expectedBy),
+      },
+    });
+
+    outcomes.push({
+      expectationId: row.expectationId,
+      employeeId: row.employeeId,
+      payrollRunId: row.payrollRunId,
+      bucket,
+      automation,
+    });
+  }
+
+  return outcomes;
+}
+
 async function emitAttendanceAgingEvents(now: Date) {
   const rows = await db.select().from(attendanceExceptionEvents)
     .where(eq(attendanceExceptionEvents.status, "open"));
@@ -221,9 +290,10 @@ export async function runScheduledAutomationTemporalEvents(options: {
   }
 
   const today = phBusinessDate(now);
-  const [payroll, timesheets, attendance, coverage] = await Promise.all([
+  const [payroll, timesheets, missingTimesheets, attendance, coverage] = await Promise.all([
     emitPayrollPayDateEvents(today),
     emitTimesheetCutoffEvents(today),
+    emitMissingTimesheetEvents(today),
     emitAttendanceAgingEvents(now),
     emitCoverageDeadlineEvents(today),
   ]);
@@ -233,11 +303,13 @@ export async function runScheduledAutomationTemporalEvents(options: {
     today,
     payrollEvents: payroll.length,
     timesheetEvents: timesheets.length,
+    missingTimesheetEvents: missingTimesheets.length,
     attendanceEvents: attendance.length,
     coverageEvents: coverage.length,
     results: {
       payroll: payroll.slice(0, 50),
       timesheets: timesheets.slice(0, 50),
+      missingTimesheets: missingTimesheets.slice(0, 50),
       attendance: attendance.slice(0, 50),
       coverage: coverage.slice(0, 50),
     },

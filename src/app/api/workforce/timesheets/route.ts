@@ -23,6 +23,10 @@ import {
   latestTimesheetsForPeriod,
   loadTimesheetPolicy,
 } from "@/lib/workforce-timesheet-server";
+import {
+  linkTimesheetExpectationsToTimesheet,
+  listTimesheetExpectationsForPeriod,
+} from "@/lib/workforce-timesheet-expectations";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +92,13 @@ export async function GET(request: Request) {
       )).orderBy(asc(workforceTimesheets.employeeId), desc(workforceTimesheets.version))
     : [];
 
+  const expectations = await listTimesheetExpectationsForPeriod({
+    organizationId,
+    employeeIds,
+    periodStart,
+    periodEnd,
+  });
+
   return Response.json({
     policy: await loadTimesheetPolicy(organizationId),
     manager,
@@ -99,6 +110,7 @@ export async function GET(request: Request) {
     })),
     latest,
     history: allHistory,
+    expectations,
   });
 }
 
@@ -218,24 +230,37 @@ export async function POST(request: Request) {
       periodEnd,
     });
     const version = (existing[0]?.version ?? 0) + 1;
-    const [created] = await db.insert(workforceTimesheets).values({
-      organizationId,
-      employeeId,
-      periodStart,
-      periodEnd,
-      version,
-      status: "submitted",
-      scheduledMinutes: built.scheduledMinutes,
-      workedMinutes: built.workedMinutes,
-      overtimeMinutes: built.overtimeMinutes,
-      exceptionCount: built.exceptionCount,
-      blockerCount: built.blockerCount,
-      snapshot: built.snapshot,
-      snapshotHash: built.snapshotHash,
-      submittedBy: user.name,
-      submittedByUserId: user.id,
-      submittedAt: new Date(),
-    }).returning();
+    const [created] = await db.transaction(async (tx) => {
+      const [submitted] = await tx.insert(workforceTimesheets).values({
+        organizationId,
+        employeeId,
+        periodStart,
+        periodEnd,
+        version,
+        status: "submitted",
+        scheduledMinutes: built.scheduledMinutes,
+        workedMinutes: built.workedMinutes,
+        overtimeMinutes: built.overtimeMinutes,
+        exceptionCount: built.exceptionCount,
+        blockerCount: built.blockerCount,
+        snapshot: built.snapshot,
+        snapshotHash: built.snapshotHash,
+        submittedBy: user.name,
+        submittedByUserId: user.id,
+        submittedAt: new Date(),
+      }).returning();
+      await linkTimesheetExpectationsToTimesheet({
+        organizationId,
+        employeeId,
+        periodStart,
+        periodEnd,
+        timesheetId: submitted.id,
+        timesheetVersion: submitted.version,
+        timesheetStatus: submitted.status,
+        submittedAt: submitted.submittedAt,
+      }, tx);
+      return [submitted];
+    });
 
     await recordAuditEvent({
       organizationId,
@@ -316,17 +341,31 @@ export async function POST(request: Request) {
       }
     }
 
-    const [updated] = await db.update(workforceTimesheets).set({
-      status: decision,
-      decidedBy: user.name,
-      decidedByUserId: user.id,
-      decidedAt: new Date(),
-      decisionNote,
-      updatedAt: new Date(),
-    }).where(and(
-      eq(workforceTimesheets.id, timesheet.id),
-      eq(workforceTimesheets.status, "submitted"),
-    )).returning();
+    const [updated] = await db.transaction(async (tx) => {
+      const [decided] = await tx.update(workforceTimesheets).set({
+        status: decision,
+        decidedBy: user.name,
+        decidedByUserId: user.id,
+        decidedAt: new Date(),
+        decisionNote,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(workforceTimesheets.id, timesheet.id),
+        eq(workforceTimesheets.status, "submitted"),
+      )).returning();
+      if (!decided) return [];
+      await linkTimesheetExpectationsToTimesheet({
+        organizationId,
+        employeeId: decided.employeeId,
+        periodStart: String(decided.periodStart),
+        periodEnd: String(decided.periodEnd),
+        timesheetId: decided.id,
+        timesheetVersion: decided.version,
+        timesheetStatus: decided.status,
+        submittedAt: decided.submittedAt,
+      }, tx);
+      return [decided];
+    });
     if (!updated) return Response.json({ error: "Timesheet state changed while deciding it. Refresh and retry." }, { status: 409 });
 
     await recordAuditEvent({

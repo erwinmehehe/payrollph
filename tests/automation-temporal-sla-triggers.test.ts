@@ -55,6 +55,7 @@ test("Automation Studio exposes temporal payroll and WFM SLA triggers", () => {
   for (const trigger of [
     "payroll.pay_date_approaching",
     "timesheet.cutoff_approaching",
+    "timesheet.missing_approaching",
     "attendance.exception_aging",
     "coverage.gap_approaching",
   ]) {
@@ -69,6 +70,9 @@ test("Automation Studio exposes temporal payroll and WFM SLA triggers", () => {
     "ageBucket",
     "timesheetStatus",
     "timesheetBlockerCount",
+    "timesheetExpectationId",
+    "timesheetExpectationVersion",
+    "timesheetExpectationStatus",
     "openShiftId",
     "coverageSlots",
   ]) {
@@ -95,13 +99,13 @@ test("scheduler emits bucket-keyed events only for unresolved authoritative reco
   assert.ok(scheduler.includes("automationTemporalEvents"));
 });
 
-test("timesheet SLA foundation intentionally targets existing unresolved versions", () => {
+test("missing-timesheet SLA is emitted only from explicit frozen expectations", () => {
   const temporal = read("src/lib/automation-temporal-events.ts");
-  assert.ok(temporal.includes("workforceTimesheets"));
-  assert.ok(temporal.includes('timesheetStatus: row.status'));
-  assert.equal(
-    temporal.includes("missing timesheet"),
-    false,
-    "missing-timesheet generation is a separate future authoritative source, not inferred by this scheduler",
-  );
+  assert.ok(temporal.includes("workforceTimesheetExpectations"));
+  assert.ok(temporal.includes('eq(workforceTimesheetExpectations.status, "expected")'));
+  assert.ok(temporal.includes('notInArray(payrollRuns.status, ["Released", "Failed", "Cancelled", "Voided", "Superseded"])'));
+  assert.ok(temporal.includes('trigger: "timesheet.missing_approaching"'));
+  assert.ok(temporal.includes('eventKey: `timesheet-missing:${row.expectationId}:${row.expectationVersion}:${bucket}`'));
+  assert.ok(temporal.includes("timesheetExpectationId: row.expectationId"));
+  assert.ok(temporal.includes("timesheetExpectationVersion: row.expectationVersion"));
 });

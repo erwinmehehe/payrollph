@@ -20,6 +20,7 @@ test("governed operations actions accept only matching authoritative trigger fam
   const rows = [
     ["coverage_recovery", "coverage.gap_approaching", "openShiftId"],
     ["timesheet_escalation", "timesheet.cutoff_approaching", "timesheetId"],
+    ["missing_timesheet_escalation", "timesheet.missing_approaching", "timesheetExpectationId"],
     ["attendance_resolution", "attendance.exception_aging", "attendanceExceptionId"],
     ["payroll_readiness", "payroll.pay_date_approaching", "payrollRunId"],
     ["statutory_followup", "government.remittance_due", "complianceActionTaskId"],
@@ -67,6 +68,20 @@ test("operational cases reject missing, forged or non-integer source evidence", 
   }).some((row) => row.includes("exact source version")));
 
   assert.ok(operationalReviewPolicyBlocks({
+    caseType: "missing_timesheet_escalation",
+    trigger: "timesheet.missing_approaching",
+    context: { timesheetExpectationId: 20 },
+    employeeId: 4,
+  }).some((row) => row.includes("exact expectation version")));
+
+  assert.deepEqual(operationalReviewPolicyBlocks({
+    caseType: "missing_timesheet_escalation",
+    trigger: "timesheet.missing_approaching",
+    context: { timesheetExpectationId: 20, timesheetExpectationVersion: 1 },
+    employeeId: 4,
+  }), []);
+
+  assert.ok(operationalReviewPolicyBlocks({
     caseType: "attendance_resolution",
     trigger: "attendance.exception_aging",
     context: { attendanceExceptionId: 7 },
@@ -112,6 +127,7 @@ test("operational review execution reads authoritative tenant rows and only inse
   for (const entity of [
     "openShifts.organizationId",
     "workforceTimesheets.organizationId",
+    "workforceTimesheetExpectations.organizationId",
     "attendanceExceptionEvents.organizationId",
     "payrollRuns.organizationId",
     "complianceActionTasks.organizationId",
@@ -121,6 +137,8 @@ test("operational review execution reads authoritative tenant rows and only inse
   assert.ok(source.includes('row.status !== "Released"'));
   assert.ok(source.includes("source.employeeId !== input.employeeId"));
   assert.ok(source.includes("source.sourceVersion !== input.context.timesheetVersion"));
+  assert.ok(source.includes("source.sourceVersion !== input.context.timesheetExpectationVersion"));
+  assert.ok(source.includes('row.status === "expected" && !inactiveRun'));
   assert.ok(source.includes("tx.insert(automationOperationalCases)"));
   assert.ok(source.includes(".onConflictDoNothing().returning()"));
   assert.ok(source.includes("tx.insert(auditEvents)"));
@@ -196,6 +214,7 @@ test("review-case templates and UI are usable without automatic payroll or WFM m
   for (const id of [
     "wfm-coverage-recovery-review",
     "wfm-timesheet-cutoff-escalation",
+    "wfm-never-submitted-timesheet-escalation",
     "wfm-attendance-exception-sla-review",
     "payroll-pay-date-readiness-review",
     "compliance-remittance-operational-followup",

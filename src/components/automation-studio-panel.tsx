@@ -364,6 +364,7 @@ function actionCount(value: unknown) {
 const OPERATIONAL_REVIEW_BY_TRIGGER: Record<string, string> = {
   "coverage.gap_approaching": "coverage_recovery",
   "timesheet.cutoff_approaching": "timesheet_escalation",
+  "timesheet.missing_approaching": "missing_timesheet_escalation",
   "attendance.exception_created": "attendance_resolution",
   "attendance.exception_aging": "attendance_resolution",
   "payroll.pay_date_approaching": "payroll_readiness",

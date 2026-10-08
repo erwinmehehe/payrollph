@@ -23,12 +23,27 @@ type Timesheet = {
   decisionNote: string | null;
 };
 
+type TimesheetExpectation = {
+  id: number;
+  payrollRunId: number;
+  employeeId: number;
+  periodStart: string;
+  periodEnd: string;
+  expectedBy: string;
+  enforcementMode: "advisory" | "block";
+  status: "expected" | "submitted" | "approved" | "cancelled";
+  version: number;
+  latestTimesheetId: number | null;
+  latestTimesheetVersion: number | null;
+};
+
 type Payload = {
   policy: { active: boolean; enforcementMode: "advisory" | "block" };
   manager: boolean;
   employees: Array<{ id: number; employeeNo: string; name: string; orgUnitId: number | null }>;
   latest: Timesheet[];
   history: Timesheet[];
+  expectations: TimesheetExpectation[];
 };
 
 function localToday() {
@@ -108,10 +123,18 @@ export function WorkforceTimesheetPanel({
     () => new Map((payload?.latest ?? []).map((row) => [row.employeeId, row])),
     [payload],
   );
+  const expectationByEmployee = useMemo(() => {
+    const map = new Map<number, TimesheetExpectation>();
+    for (const row of payload?.expectations ?? []) {
+      if (!map.has(row.employeeId)) map.set(row.employeeId, row);
+    }
+    return map;
+  }, [payload]);
 
   const approved = (payload?.latest ?? []).filter((row) => row.status === "approved").length;
   const submitted = (payload?.latest ?? []).filter((row) => row.status === "submitted").length;
   const stale = (payload?.latest ?? []).filter((row) => row.status === "stale").length;
+  const missingExpected = [...expectationByEmployee.values()].filter((row) => row.status === "expected").length;
   const blockers = (payload?.latest ?? []).reduce((sum, row) => sum + row.blockerCount, 0);
 
   async function updatePolicy(mode: "advisory" | "block") {
@@ -130,7 +153,7 @@ export function WorkforceTimesheetPanel({
           <div className="card-kicker">Period finalization</div>
           <h2>Approve the time payroll will consume.</h2>
           <p>
-            Each submitted version stores an immutable attendance and schedule snapshot. Changed evidence makes the submitted version stale instead of rewriting history.
+            Each submitted version stores an immutable attendance and schedule snapshot. New payroll runs also freeze the exact employee cohort expected to submit, so a true missing timesheet is distinguishable from a period with no obligation.
           </p>
         </div>
         <button className="secondary-button" onClick={() => void load()}>
@@ -142,6 +165,7 @@ export function WorkforceTimesheetPanel({
         <Metric label="Approved" value={String(approved)} hint="latest employee versions" icon={<CheckCircle2 size={16} />} tone="mint" />
         <Metric label="Submitted" value={String(submitted)} hint="awaiting independent review" icon={<FileCheck2 size={16} />} tone={submitted ? "amber" : "slate"} />
         <Metric label="Stale" value={String(stale)} hint="evidence changed after submission" icon={<RefreshCcw size={16} />} tone={stale ? "amber" : "slate"} />
+        <Metric label="Expected missing" value={String(missingExpected)} hint="frozen payroll cohort; never submitted" icon={<Clock3 size={16} />} tone={missingExpected ? "amber" : "slate"} />
         <Metric label="Blockers" value={String(blockers)} hint="attendance / OT integrity issues" icon={<ShieldAlert size={16} />} tone={blockers ? "amber" : "slate"} />
       </section>
 
@@ -188,6 +212,7 @@ export function WorkforceTimesheetPanel({
           <tbody>
             {(payload?.employees ?? []).map((employee) => {
               const row = latestByEmployee.get(employee.id);
+              const expectation = expectationByEmployee.get(employee.id);
               return (
                 <tr key={employee.id}>
                   <td><strong>{employee.name}</strong><div className="id">{employee.employeeNo}</div></td>
@@ -201,7 +226,13 @@ export function WorkforceTimesheetPanel({
                         : <span className="id">{row.exceptionCount} review note(s)</span>
                       : "—"}
                   </td>
-                  <td>{row ? <Status value={row.status} /> : <Status value="Not submitted" />}</td>
+                  <td>
+                    {row
+                      ? <Status value={row.status} />
+                      : expectation?.status === "expected"
+                        ? <><Status value="Expected · not submitted" /><div className="id">Payroll #{expectation.payrollRunId} · due {expectation.expectedBy} · {expectation.enforcementMode}</div></>
+                        : <Status value="Not expected / no submission" />}
+                  </td>
                   <td>
                     {!row || ["rejected", "stale"].includes(row.status) ? (
                       <button

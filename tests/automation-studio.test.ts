@@ -34,6 +34,7 @@ test("Automation Studio exposes the broad event catalog with live and planned ad
     "payroll.released",
     "payroll.pay_date_approaching",
     "timesheet.cutoff_approaching",
+    "timesheet.missing_approaching",
     "attendance.exception_created",
     "attendance.exception_aging",
     "coverage.gap_approaching",

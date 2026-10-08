@@ -1019,6 +1019,37 @@ export const payrollRuns = pgTable("payroll_runs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const workforceTimesheetExpectations = pgTable(
+  "workforce_timesheet_expectations",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    orgUnitId: integer("org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    expectedBy: date("expected_by").notNull(),
+    enforcementMode: varchar("enforcement_mode", { length: 16 }).notNull().default("advisory"),
+    status: varchar("status", { length: 24 }).notNull().default("expected"),
+    version: integer("version").notNull().default(1),
+    latestTimesheetId: integer("latest_timesheet_id").references(() => workforceTimesheets.id, { onDelete: "set null" }),
+    latestTimesheetVersion: integer("latest_timesheet_version"),
+    firstSubmittedAt: timestamp("first_submitted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("workforce_timesheet_expectation_run_employee_unique").on(table.payrollRunId, table.employeeId),
+    index("workforce_timesheet_expectation_due_idx").on(table.organizationId, table.status, table.expectedBy),
+    index("workforce_timesheet_expectation_employee_period_idx").on(table.organizationId, table.employeeId, table.periodStart, table.periodEnd),
+    check("workforce_timesheet_expectation_period_check", sql`${table.periodEnd} >= ${table.periodStart}`),
+    check("workforce_timesheet_expectation_mode_check", sql`${table.enforcementMode} in ('advisory','block')`),
+    check("workforce_timesheet_expectation_status_check", sql`${table.status} in ('expected','submitted','approved','cancelled')`),
+    check("workforce_timesheet_expectation_version_check", sql`${table.version} >= 1`),
+  ],
+);
+
 export const employeePayRetroAdjustments = pgTable(
   "employee_pay_retro_adjustments",
   {
@@ -5026,7 +5057,7 @@ export const automationOperationalCases = pgTable(
       .where(sql`${table.caseType} = 'execution_dead_letter'`),
     index("automation_operations_org_status_idx").on(table.organizationId, table.status, table.createdAt),
     index("automation_operations_execution_idx").on(table.organizationId, table.executionId),
-    check("automation_operations_case_type_check", sql`${table.caseType} in ('coverage_recovery','timesheet_escalation','attendance_resolution','payroll_readiness','statutory_followup','execution_dead_letter')`),
+    check("automation_operations_case_type_check", sql`${table.caseType} in ('coverage_recovery','timesheet_escalation','missing_timesheet_escalation','attendance_resolution','payroll_readiness','statutory_followup','execution_dead_letter')`),
     check("automation_operations_status_check", sql`${table.status} in ('open','acknowledged','resolved')`),
     check("automation_operations_step_index_check", sql`${table.stepIndex} is null or ${table.stepIndex} >= 0`),
     check("automation_operations_dead_letter_shape_check", sql`${table.caseType} <> 'execution_dead_letter' or (${table.sourceType} = 'automation_execution' and ${table.stepIndex} is not null)`),

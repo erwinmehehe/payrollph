@@ -260,6 +260,20 @@ const RAW_AUTOMATION_WORKFLOW_TEMPLATES = [
     }],
   },
   {
+    id: "wfm-never-submitted-timesheet-escalation",
+    version: 1,
+    category: "Workforce",
+    name: "Never-submitted timesheet escalation",
+    description: "Uses the frozen payroll-run employee cohort to escalate only timesheets that were actually expected and still have no submitted version.",
+    trigger: "timesheet.missing_approaching",
+    conditions: { version: 1, all: [], any: [] },
+    actions: [{
+      type: "prepare_operational_review",
+      caseType: "missing_timesheet_escalation",
+      reason: "Contact the employee or manager and resolve the expected-but-never-submitted timesheet through the normal WFM submission workflow.",
+    }],
+  },
+  {
     id: "wfm-attendance-exception-sla-review",
     version: 1,
     category: "Workforce",
