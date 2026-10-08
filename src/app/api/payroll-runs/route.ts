@@ -14,6 +14,7 @@ import { runAutomationEventSafely } from "@/lib/automation";
 import { statutoryRuleVersionsForDate } from "@/lib/ph-statutory-rule-packs";
 import { nationalHolidayCalendarForDate } from "@/lib/wage-orders";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
+import { createTimesheetExpectationsForPayrollRun } from "@/lib/workforce-timesheet-expectations";
 
 export const dynamic = "force-dynamic";
 
@@ -265,6 +266,7 @@ export async function POST(request: Request) {
   const employeesInScope = await db
     .select({
       id: employees.id,
+      orgUnitId: employees.orgUnitId,
       firstName: employees.firstName,
       lastName: employees.lastName,
       bankAccount: employees.bankAccount,
@@ -318,22 +320,39 @@ export async function POST(request: Request) {
   }
 
   const periodLabel = periodLabelFromDates(periodStart, periodEnd);
-  const [run] = await db.insert(payrollRuns).values({
-    organizationId,
-    legalEntityId: legalEntity.id,
-    periodLabel,
-    periodStart,
-    periodEnd,
-    scopeLabel,
-    scopeOrgUnitId,
-    status: "Draft",
-    payDate,
-    employeeCount: 0,
-    grossPay: "0",
-    netPay: "0",
-    exceptions: 0,
-    ruleVersion: PAYROLL_RULE_VERSION,
-  }).returning();
+  const [run] = await db.transaction(async (tx) => {
+    const [created] = await tx.insert(payrollRuns).values({
+      organizationId,
+      legalEntityId: legalEntity.id,
+      periodLabel,
+      periodStart,
+      periodEnd,
+      scopeLabel,
+      scopeOrgUnitId,
+      status: "Draft",
+      payDate,
+      employeeCount: 0,
+      grossPay: "0",
+      netPay: "0",
+      exceptions: 0,
+      ruleVersion: PAYROLL_RULE_VERSION,
+    }).returning();
+
+    if (timesheetGate.policy.active) {
+      await createTimesheetExpectationsForPayrollRun({
+        organizationId,
+        payrollRunId: created.id,
+        periodStart,
+        periodEnd,
+        enforcementMode: timesheetGate.policy.enforcementMode,
+        employees: employeesInScope.map((employee) => ({
+          id: employee.id,
+          orgUnitId: employee.orgUnitId,
+        })),
+      }, tx);
+    }
+    return [created];
+  });
 
   await recordAuditEvent({
     organizationId,
@@ -354,6 +373,9 @@ export async function POST(request: Request) {
       attendanceCutoffGate: attendanceCutoffGate.gate,
       timesheetPolicy: timesheetGate.policy,
       timesheetGate: timesheetGate.gate,
+      timesheetExpectationCohort: timesheetGate.policy.active
+        ? { source: "payroll_run_creation", employeeCount: employeesInScope.length, historicalBackfill: false }
+        : null,
     },
   });
 
