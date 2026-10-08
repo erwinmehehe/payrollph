@@ -43,6 +43,7 @@ import {
 } from "@/lib/automation";
 import { AUTOMATION_DOCUMENT_TEMPLATES } from "@/lib/automation-document-templates";
 import { draftAutomationFromLanguage, LanguageDraftError } from "@/lib/automation-language-draft";
+import { fingerprintAutomationDraft, issueAutomationPreviewReceipt, verifyAutomationPreviewReceipt } from "@/lib/automation-preview-approval";
 import {
   AUTOMATION_WORKFLOW_TEMPLATES,
   getAutomationWorkflowTemplate,
@@ -262,8 +263,19 @@ export async function GET(request: Request) {
       })),
     });
 
+    const previewReceipt = issueAutomationPreviewReceipt({
+      organizationId,
+      actorUserId: user.id,
+      sessionId: user.sessionId,
+      sessionToken: user.sessionToken,
+      ruleId: draft.ruleId,
+      draftVersion: draft.version,
+      draftHash: fingerprintAutomationDraft(draft),
+    });
+
     return Response.json({
       preview,
+      previewReceipt,
       draft: {
         ruleId: draft.ruleId,
         version: draft.version,
@@ -770,7 +782,7 @@ export async function POST(request: Request) {
   }
 
   if (action === "draft-from-language") {
-    // No writes, execution, or publication: input is converted and checked in memory.
+    // No workflow writes, execution, or publication: only an audit record is written.
     try {
       const result = await draftAutomationFromLanguage(String(body.request ?? ""));
       await recordAuditEvent({
@@ -927,6 +939,23 @@ export async function POST(request: Request) {
     if (!draft) {
       return Response.json({ error: "This workflow has no saved draft to publish." }, { status: 409 });
     }
+    if (body.humanApproved !== true) {
+      return Response.json({ error: "Explicit human publication approval is required." }, { status: 409 });
+    }
+    const draftHash = fingerprintAutomationDraft(draft);
+    if (!verifyAutomationPreviewReceipt(body.previewReceipt, {
+      organizationId,
+      actorUserId: user.id,
+      sessionId: user.sessionId,
+      sessionToken: user.sessionToken,
+      ruleId: draft.ruleId,
+      draftVersion: draft.version,
+      draftHash,
+    })) {
+      return Response.json({
+        error: "Impact Preview proof is missing, stale, or for a different saved draft. Preview this exact version again.",
+      }, { status: 409 });
+    }
     const draftTrigger = draft.trigger as AutomationTrigger;
     const draftActions = normalizeAutomationActions(draft.actions);
     if (
@@ -972,6 +1001,7 @@ export async function POST(request: Request) {
         organizationId,
         ruleId,
         actorUserId: user.id,
+        expectedDraftHash: draftHash,
       });
       await recordAuditEvent({
         organizationId,
