@@ -94,6 +94,9 @@ function checkConditions(conditions: unknown, errors: string[]): conditions is S
   if (all.length && any.length) {
     errors.push("Use either ALL or ANY condition matching, not both.");
   }
+  if (all.length + any.length > 6) {
+    errors.push("Natural-language workflows allow at most six IF conditions.");
+  }
   for (const clause of [...all, ...any]) {
     if (!record(clause)) {
       errors.push("Each IF condition must be a typed clause.");
@@ -108,6 +111,11 @@ function checkConditions(conditions: unknown, errors: string[]): conditions is S
     }
     if (Object.keys(clause).some((key) => !["field", "operator", "value"].includes(key))) {
       errors.push(`Unexpected property in IF condition ${field}.`);
+    }
+    if ((kind === "string" && ["gt", "gte", "lt", "lte"].includes(operator))
+      || (kind === "number" && operator === "contains")
+      || (kind === "boolean" && !["eq", "neq", "in", "exists"].includes(operator))) {
+      errors.push(`IF operator ${operator} is not meaningful for ${kind} field ${field}.`);
     }
     if (invalidConditionValue(kind, operator, clause.value)) {
       errors.push(`IF condition ${field} must use a ${kind} value compatible with ${operator}.`);
@@ -151,6 +159,13 @@ export function validateNaturalLanguageDraft(value: unknown): LanguageDraftValid
       if (Object.keys(rawAction).some((key) => !allowed.includes(key))) {
         errors.push(`Action ${index + 1} contains unsupported properties.`);
       }
+      if (actionType === "create_task" && (typeof rawAction.owner !== "string" || !rawAction.owner.trim())) {
+        errors.push("Each generated task must have an explicit owner.");
+      }
+      if ((actionType === "request_approval" || actionType === "approval_gate")
+        && (typeof rawAction.approver !== "string" || !rawAction.approver.trim())) {
+        errors.push("Every generated approval step must name its approver.");
+      }
       if (actionType === "send_email" && (rawAction.recipient === "custom" || rawAction.email !== undefined)) {
         errors.push("Language drafting cannot choose arbitrary email recipients.");
       }
@@ -175,6 +190,11 @@ export function validateNaturalLanguageDraft(value: unknown): LanguageDraftValid
   if (actions && LIVE_TRIGGERS.has(triggerName)) {
     const compatibilityError = validateAutomationActionTrigger(trigger, actions);
     if (compatibilityError) errors.push(compatibilityError);
+  }
+  if (record(value.conditions)
+    && Array.isArray(value.conditions.all) && Array.isArray(value.conditions.any)
+    && value.conditions.all.length === 0 && value.conditions.any.length === 0) {
+    warnings.push("No IF filter: this workflow could match every authoritative event of the chosen trigger.");
   }
   if (actions?.some((action) => action.type === "send_email")) {
     warnings.push("Verify notification content and employee/manager recipients before saving.");
