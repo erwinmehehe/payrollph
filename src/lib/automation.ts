@@ -978,6 +978,7 @@ function automationConditionReason(
 
 function previewStepPolicyBlocks(input: {
   step: RunnableAutomationStep;
+  trigger: AutomationTrigger;
   employeeId?: number | null;
   context: Record<string, unknown>;
 }) {
@@ -1000,10 +1001,10 @@ function previewStepPolicyBlocks(input: {
   if (step.type === "prepare_operational_review") {
     blocks.push(...operationalReviewPolicyBlocks({
       caseType: step.caseType,
-      trigger: String(input.context.trigger ?? ""),
+      trigger: input.trigger,
       context: input.context,
       employeeId: input.employeeId,
-    }).filter((reason) => !reason.includes("cannot run on")));
+    }));
   }
   if (step.type === "send_email") {
     if (step.recipient === "employee" && !String(input.context.employeeEmail ?? "").trim()) {
@@ -1078,6 +1079,7 @@ export function simulateAutomationImpact(input: {
         }
         eventBlocks.push(...previewStepPolicyBlocks({
           step,
+          trigger: input.trigger,
           employeeId: event.employeeId,
           context,
         }));
