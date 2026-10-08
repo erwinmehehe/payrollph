@@ -19,6 +19,7 @@ import { fieldChangeContext } from "@/lib/automation-change-events";
 import {
   dispatchCompensationAutomationEvent,
   enqueueCompensationAutomationIntents,
+  type CompensationAutomationIntentInput,
 } from "@/lib/compensation-automation-outbox";
 import { annualizePay, compaRatio } from "@/lib/compensation";
 import { resolvePayProfile } from "@/lib/pay-basis";
@@ -607,7 +608,7 @@ export type RecurringCompensationDecision = "approve" | "decline" | "cancel";
  */
 function recurringActivationIntents(
   assignment: typeof employeeCompensationComponents.$inferSelect,
-) {
+): CompensationAutomationIntentInput[] {
   return [
         {
           trigger: "compensation.changed",
@@ -636,7 +637,6 @@ function recurringActivationIntents(
           }),
         },
   ];
-
 }
 
 
