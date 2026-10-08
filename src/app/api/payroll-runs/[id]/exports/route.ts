@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -163,6 +164,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       ? file.validation
       : null;
 
+  const bankUsesMobile = /gcash|maya|paymaya/i.test(template);
+  const bankPreviewDigest = kind === "bank" && dryRun
+    ? createHash("sha256").update(file.body).digest("hex")
+    : null;
+  const missingBankPreviewDestinations = bankExportValidation == null
+    ? null
+    : bankUsesMobile
+      ? bankExportValidation.missingMobiles
+      : bankExportValidation.missingAccounts;
+
   await recordAuditEvent({
     organizationId: run.organizationId,
     actor,
@@ -177,6 +188,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       bankFileCount: bankExportValidation?.fileCount ?? null,
       bankFileSplitApplied: bankExportValidation?.splitApplied ?? null,
       bankFileParts: bankExportValidation?.files ?? null,
+      bankExportRowCount: bankExportValidation?.rowCount ?? null,
+      bankExportTotalNet: bankExportValidation?.totalNet ?? null,
+      bankExportMissingDestinations: missingBankPreviewDestinations,
+      bankExportMissingPaymentSnapshots: bankExportValidation?.missingPaymentSnapshots ?? null,
+      bankExportSyntheticDemoDestinations: bankExportValidation?.syntheticDemoDestinations ?? null,
+      bankExportSha256: bankPreviewDigest,
       payoutProfileId: bankExportValidation?.payoutProfileId ?? null,
       ruleVersion: "PH-2026.01",
       treasury: kind === "bank" && !dryRun ? finalBankTreasuryEvidence : null,
