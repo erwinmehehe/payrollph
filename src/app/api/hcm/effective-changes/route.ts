@@ -14,6 +14,11 @@ import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { applyWorkerEffectiveChange, philippineBusinessDate } from "@/lib/hcm-effective-changes";
+import {
+  findHcmBusinessProcessForSource,
+  processTypeForMovement,
+  startHcmBusinessProcessTx,
+} from "@/lib/hcm-business-process";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
@@ -321,34 +326,63 @@ export async function POST(request: Request) {
   };
 
   let row: typeof workerEffectiveChanges.$inferSelect | null = null;
+  let businessProcess: { id: number; definitionCode: string; definitionVersion: number; status: string } | null = null;
   try {
-    const inserted = await db.insert(workerEffectiveChanges).values({
-      organizationId,
-      employeeId,
-      changeType: targetPosition ? "position_change" : "employment_change",
-      movementType,
-      effectiveDate,
-      status: "pending_approval",
-      targetPositionId,
-      targetOrgUnitId: owns(changes, "orgUnitId") && changes.orgUnitId !== null ? Number(changes.orgUnitId) : null,
-      targetSupervisoryOrgUnitId: owns(changes, "supervisoryOrgUnitId") && changes.supervisoryOrgUnitId !== null ? Number(changes.supervisoryOrgUnitId) : null,
-      targetLegalEntityId: owns(changes, "legalEntityId") && changes.legalEntityId !== null ? Number(changes.legalEntityId) : null,
-      targetCostCenterId: owns(changes, "costCenterId") && changes.costCenterId !== null ? Number(changes.costCenterId) : null,
-      targetManagerEmployeeId: owns(changes, "managerEmployeeId") && changes.managerEmployeeId !== null ? Number(changes.managerEmployeeId) : null,
-      targetEmploymentType: owns(changes, "employmentType") && changes.employmentType !== null ? String(changes.employmentType).slice(0, 32) : null,
-      targetEmployeeStatus: owns(changes, "employeeStatus") && changes.employeeStatus !== null ? String(changes.employeeStatus).slice(0, 32) : null,
-      targetFte: targetFte !== null ? targetFte.toFixed(4) : null,
-      reason: reason.slice(0, 240),
-      fromSnapshot,
-      toSnapshot,
-      requestedByUserId: user.id,
-      requestedBy: user.name,
-    }).returning();
-    row = inserted[0] ?? null;
-    if (!row) throw new Error("HCM change insert returned no row.");
-  } catch {
+    const created = await db.transaction(async (tx) => {
+      const [inserted] = await tx.insert(workerEffectiveChanges).values({
+        organizationId,
+        employeeId,
+        changeType: targetPosition ? "position_change" : "employment_change",
+        movementType,
+        effectiveDate,
+        status: "pending_approval",
+        targetPositionId,
+        targetOrgUnitId: owns(changes, "orgUnitId") && changes.orgUnitId !== null ? Number(changes.orgUnitId) : null,
+        targetSupervisoryOrgUnitId: owns(changes, "supervisoryOrgUnitId") && changes.supervisoryOrgUnitId !== null ? Number(changes.supervisoryOrgUnitId) : null,
+        targetLegalEntityId: owns(changes, "legalEntityId") && changes.legalEntityId !== null ? Number(changes.legalEntityId) : null,
+        targetCostCenterId: owns(changes, "costCenterId") && changes.costCenterId !== null ? Number(changes.costCenterId) : null,
+        targetManagerEmployeeId: owns(changes, "managerEmployeeId") && changes.managerEmployeeId !== null ? Number(changes.managerEmployeeId) : null,
+        targetEmploymentType: owns(changes, "employmentType") && changes.employmentType !== null ? String(changes.employmentType).slice(0, 32) : null,
+        targetEmployeeStatus: owns(changes, "employeeStatus") && changes.employeeStatus !== null ? String(changes.employeeStatus).slice(0, 32) : null,
+        targetFte: targetFte !== null ? targetFte.toFixed(4) : null,
+        reason: reason.slice(0, 240),
+        fromSnapshot,
+        toSnapshot,
+        requestedByUserId: user.id,
+        requestedBy: user.name,
+      }).returning();
+      if (!inserted) throw new Error("HCM change insert returned no row.");
+
+      const supervisoryOrgUnitId = targetPosition?.supervisoryOrgUnitId
+        ?? (owns(changes, "supervisoryOrgUnitId") && changes.supervisoryOrgUnitId !== null
+          ? Number(changes.supervisoryOrgUnitId)
+          : currentPosition?.supervisoryOrgUnitId ?? null);
+      const process = await startHcmBusinessProcessTx(tx, {
+        organizationId,
+        processType: processTypeForMovement(movementType),
+        sourceType: "worker_effective_change",
+        sourceKey: String(inserted.id),
+        employeeId,
+        employeeLabel: `${employee.firstName} ${employee.lastName}`.trim(),
+        supervisoryOrgUnitId,
+        effectiveDate,
+        initiatedByUserId: user.id,
+        initiatedByName: user.name,
+      });
+      return { inserted, process };
+    });
+    row = created.inserted;
+    businessProcess = {
+      id: created.process.id,
+      definitionCode: created.process.definitionCode,
+      definitionVersion: created.process.definitionVersion,
+      status: created.process.status,
+    };
+  } catch (error) {
     return Response.json({
-      error: "This worker or target position already has an active pending/scheduled HCM change. Decide or cancel it before creating another.",
+      error: error instanceof Error && error.message.startsWith("Business-process")
+        ? error.message
+        : "This worker or target position already has an active pending/scheduled HCM change. Decide or cancel it before creating another.",
     }, { status: 409 });
   }
 
@@ -374,7 +408,7 @@ export async function POST(request: Request) {
     auditWarning = error instanceof Error ? error.message : "Audit recording failed.";
   }
 
-  return Response.json({ ...row, auditWarning }, { status: 201 });
+  return Response.json({ ...row, businessProcess, auditWarning }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
@@ -392,6 +426,19 @@ export async function PATCH(request: Request) {
 
   const [change] = await db.select().from(workerEffectiveChanges).where(eq(workerEffectiveChanges.id, id)).limit(1);
   if (!change) return Response.json({ error: "Effective-dated HCM change not found." }, { status: 404 });
+
+  const linkedBusinessProcess = await findHcmBusinessProcessForSource({
+    organizationId: change.organizationId,
+    sourceType: "worker_effective_change",
+    sourceKey: String(change.id),
+  });
+  if (linkedBusinessProcess && ["approve", "decline"].includes(action)) {
+    return Response.json({
+      error: "This HCM change is governed by a business process. Decide the current work item from the HCM Inbox or Approvals workspace.",
+      businessProcessInstanceId: linkedBusinessProcess.id,
+      businessProcessStatus: linkedBusinessProcess.status,
+    }, { status: 409 });
+  }
 
   const gate = await assertCompanyWidePeople(user.id, change.organizationId);
   if ("error" in gate) return gate.error;
