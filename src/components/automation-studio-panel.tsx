@@ -259,6 +259,7 @@ type StudioData = {
 };
 
 type LanguageProposal = {
+  proposalReceipt: string;
   draft: {
     name: string;
     trigger: string;
@@ -795,7 +796,7 @@ export function AutomationStudioPanel({
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Could not interpret the workflow request.");
       setLanguageProposal(payload as LanguageProposal);
-      setNotice("Typed proposal validated. Review the entire definition before saving the unpublished draft.");
+      setNotice("Typed proposal validated. Review it and save within 15 minutes, or generate it again.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Natural-language draft failed.");
     } finally {
@@ -813,15 +814,16 @@ export function AutomationStudioPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           organizationId,
-          action: "save-rule",
-          ...languageProposal.draft,
-          active: false, // A language proposal never activates a workflow on save.
+          action: "save-language-draft",
+          draft: languageProposal.draft,
+          proposalReceipt: languageProposal.proposalReceipt,
         }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Could not save typed workflow draft.");
       setLanguageProposal(null);
       setLanguageRequest("");
+      setSafePromptConfirmed(false);
       await load();
       setNotice("Inactive workflow draft saved. Run Impact Preview and approve/publish, then separately enable when ready.");
     } catch (error) {
@@ -1098,7 +1100,7 @@ export function AutomationStudioPanel({
                   <Plus size={14} /> {savingLanguage ? "Saving…" : "Save inactive draft"}
                 </button>
               </div>
-              <p className="modal-note">After saving, find this workflow under Configured automations. Run Impact Preview for its exact draft version and review the results before selecting Publish. It stays inactive after publication until separately enabled. Saving is not approval.</p>
+              <p className="modal-note">Only this signed proposal can be saved, within 15 minutes of generation. After saving, run Impact Preview for its exact version. Publication requires a separate human approval, and the workflow stays inactive until enabled.</p>
             </div>
           )}
         </div>
