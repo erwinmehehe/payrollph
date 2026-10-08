@@ -26,13 +26,10 @@ export const DE_MINIMIS_2026 = {
 export type DeMinimisType = keyof typeof DE_MINIMIS_2026;
 export const OT_NIGHT_MEAL_TYPE = "otNightMealAllowance" as const;
 
-type FixedDeMinimisRule = {
-  ceiling: number;
-  period: "month" | "semester" | "year";
-  label: string;
-};
+type DeMinimisRule = (typeof DE_MINIMIS_2026)[DeMinimisType];
+type FixedDeMinimisRule = Extract<DeMinimisRule, { ceiling: number }>;
 
-function isFixedDeMinimisRule(rule: (typeof DE_MINIMIS_2026)[DeMinimisType]): rule is FixedDeMinimisRule {
+function isFixedDeMinimisRule(rule: DeMinimisRule): rule is FixedDeMinimisRule {
   return "ceiling" in rule;
 }
 
