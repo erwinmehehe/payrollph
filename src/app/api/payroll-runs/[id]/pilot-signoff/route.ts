@@ -126,6 +126,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const body = await request.json().catch(() => ({}));
   const evidenceReference = typeof body.evidenceReference === "string" ? body.evidenceReference.trim() : "";
   const independentPreparedBy = typeof body.independentPreparedBy === "string" ? body.independentPreparedBy.trim() : "";
+  const reconciliationReportSha256 = typeof body.reconciliationReportSha256 === "string"
+    ? body.reconciliationReportSha256.trim().toLowerCase()
+    : "";
   const supplied = body.independentFigures && typeof body.independentFigures === "object"
     ? body.independentFigures as Record<string, unknown>
     : {};
@@ -139,6 +142,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (independentPreparedBy.length < 3 || independentPreparedBy.length > 120) {
     return Response.json(
       { error: "Identify who prepared the independent expected payroll figures." },
+      { status: 400 },
+    );
+  }
+  if (!/^[0-9a-f]{64}$/.test(reconciliationReportSha256)) {
+    return Response.json(
+      { error: "Provide the SHA-256 of the privately reviewed employee-level reconciliation report." },
       { status: 400 },
     );
   }
@@ -173,6 +182,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     independentFigures[key] = value;
   }
   const employeeCount = asEmployeeCount(supplied.employeeCount);
+  const reconciledEmployeeCount = asEmployeeCount(body.reconciledEmployeeCount);
+  if (reconciledEmployeeCount === null) {
+    return Response.json(
+      { error: "Record the number of employees covered by the independent private reconciliation." },
+      { status: 400 },
+    );
+  }
   if (employeeCount === null) {
     return Response.json(
       { error: "Independent employee count must be a positive whole number." },
@@ -239,6 +255,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const evidenceFailures: string[] = [];
   if (entries.length === 0) evidenceFailures.push("released payroll entries");
+  if (reconciledEmployeeCount !== entries.length) {
+    evidenceFailures.push("independent employee-level reconciliation population does not match the released payroll register");
+  }
   if (!releaseReceipt) evidenceFailures.push("release receipt");
   if (!payoutCompleted && !dryRunBankExport) {
     evidenceFailures.push("completed payout or post-release bank-file dry-run with complete real destinations, immutable snapshots, correct employee count, matching net sum and SHA-256 proof");
@@ -299,6 +318,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     metadata: {
       runId: run.id,
       evidenceReference,
+      reconciliationReportSha256,
+      reconciledEmployeeCount,
       independentPreparedBy,
       independentSourceConfirmed: true,
       employeeLevelReconciliationConfirmed: true,
