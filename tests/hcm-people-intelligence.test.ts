@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
   hcmAnalyticsDate,
+  hcmManilaDay,
   hcmDateOffset,
   hcmWorkerStatusAt,
   summarizeHcmPeopleIntelligence,
@@ -212,6 +213,13 @@ test("invalid released payroll amounts are withheld rather than misrepresented a
   assert.equal(report.releasedPayrollGross, null);
   assert.equal(report.releasedPayrollNet, 120);
   assert.ok(report.warnings.some((message) => message.includes("invalid recorded amounts")));
+});
+
+test("business date reconstruction is invariant across international Node locale behavior", () => {
+  assert.equal(hcmManilaDay("2026-10-07T16:30:00.000Z"), "2026-10-08");
+  assert.equal(hcmManilaDay("2026-10-08T15:59:59.000Z"), "2026-10-08");
+  assert.equal(hcmManilaDay("2026-10-08T16:00:00.000Z"), "2026-10-09");
+  assert.throws(() => hcmManilaDay("invalid date"), /Invalid People Intelligence timestamp/);
 });
 
 test("hire-to-requisition days obey Asia/Manila business date boundaries", () => {
