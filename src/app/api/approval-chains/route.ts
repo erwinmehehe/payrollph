@@ -192,6 +192,17 @@ export async function POST(request: Request) {
     if (!existing) return Response.json({ error: "Approval chain not found." }, { status: 404 });
 
     const nextActive = Boolean(body.active);
+    if (nextActive) {
+      const steps = validateApprovalChainSteps(existing.steps);
+      if (!steps) return Response.json({ error: "Approval policy steps are invalid." }, { status: 409 });
+      try {
+        await freezeDynamicGroupApprovalSteps(organizationId, steps);
+      } catch (error) {
+        return Response.json({
+          error: error instanceof Error ? error.message : "The approval Dynamic Group is inactive or missing.",
+        }, { status: 409 });
+      }
+    }
     const [updated] = await db.transaction(async (tx) => {
       if (nextActive && existing.purpose === "workforce_plan") {
         await tx.update(approvalChainPolicies).set({
