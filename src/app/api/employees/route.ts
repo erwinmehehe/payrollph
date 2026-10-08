@@ -688,7 +688,52 @@ export async function PATCH(request: Request) {
     patch.basicRate = nextPayProfile.monthlyEquivalent.toFixed(2);
   }
 
+  let payWriteConflict: string | null = null;
   const result = await db.transaction(async (tx) => {
+    if (nextPayProfile) {
+      // This is the same advisory lock used by HCM compensation approval
+      // and effective salary application; a direct edit cannot interleave
+      // with another properly locked revision for this employee.
+      await tx.execute(sql`select pg_advisory_xact_lock(4221, ${employeeId})`);
+
+      // A policy may have been configured between initial verification and
+      // entering the write transaction. Never treat an unexpected result as
+      // authorization to change money.
+      const governance = await tx.execute(compensationGovernanceQuery(organizationId));
+      if (governance.rows[0]?.blocked !== false) {
+        throw new Error("HCM_GOVERNED_COMPENSATION_REQUIRED");
+      }
+
+      const [currentProfile] = await tx.select().from(employeePayProfiles)
+        .where(and(
+          eq(employeePayProfiles.organizationId, organizationId),
+          eq(employeePayProfiles.employeeId, employeeId),
+        ))
+        .limit(1);
+      if (!existingPayProfile || !currentProfile
+        || currentProfile.id !== existingPayProfile.id
+        || currentProfile.updatedAt.getTime() !== existingPayProfile.updatedAt.getTime()
+        || currentProfile.payBasis !== existingPayProfile.payBasis
+        || currentProfile.rateAmount !== existingPayProfile.rateAmount
+        || currentProfile.standardWorkDaysPerMonth !== existingPayProfile.standardWorkDaysPerMonth
+        || currentProfile.standardHoursPerDay !== existingPayProfile.standardHoursPerDay
+      ) {
+        throw new Error("HCM_DIRECT_PAY_STALE");
+      }
+
+      const [freshRevision] = await tx.select({ id: employeePayRevisions.id })
+        .from(employeePayRevisions)
+        .where(and(
+          eq(employeePayRevisions.organizationId, organizationId),
+          eq(employeePayRevisions.employeeId, employeeId),
+        ))
+        .orderBy(desc(employeePayRevisions.effectiveDate), desc(employeePayRevisions.id))
+        .limit(1);
+      if ((freshRevision?.id ?? null) !== latestPayRevisionId) {
+        throw new Error("HCM_DIRECT_PAY_STALE");
+      }
+    }
+
     const [updated] = await tx.update(employees)
       .set(patch)
       .where(and(
@@ -884,8 +929,58 @@ export async function PATCH(request: Request) {
       }
     }
 
-    return { updated, revisionId, restDayRevisionId, retroAdjustments, retroTotal };
+    // Financial audit must be committed with every pay revision and retro
+    // row. Missing audit storage now rolls back the pay modification.
+    let payAuditId: number | null = null;
+    if (nextPayProfile && payEffectiveDate) {
+      const [payAudit] = await tx.insert(auditEvents).values({
+        organizationId,
+        actor: user.name,
+        action: "Employee payroll profile updated (legacy direct correction)",
+        resource: `${employee.firstName} ${employee.lastName} (${employee.employeeNo})`,
+        metadata: {
+          employeeId,
+          fields: [...Object.keys(patch), "payBasis", "rateAmount", "standardWorkDaysPerMonth", "standardHoursPerDay"],
+          previousPayBasis: existingPayProfile?.payBasis,
+          previousRateAmount: existingPayProfile?.rateAmount,
+          newPayBasis: nextPayProfile.payBasis,
+          newRateAmount: nextPayProfile.rateAmount.toFixed(2),
+          payEffectiveDate,
+          payChangeReason,
+          payRevisionId: revisionId,
+          retroAdjustments,
+          retroTotal,
+          route: "legacy-direct-pay-correction",
+          governanceRecheckedUnderLock: true,
+          previousStartDate: nextStartDate ? employee.startDate : undefined,
+          newStartDate: nextStartDate,
+          previousRestDay: changedRestDay ? employee.restDay : undefined,
+          newRestDay: changedRestDay ? nextRestDay : undefined,
+          restDayRevisionId,
+        },
+      }).returning({ id: auditEvents.id });
+      if (!payAudit) throw new Error("Pay audit insert did not return an event.");
+      payAuditId = payAudit.id;
+    }
+    return { updated, revisionId, restDayRevisionId, retroAdjustments, retroTotal, payAuditId };
+  }).catch((error) => {
+    if (error instanceof Error && ["HCM_DIRECT_PAY_STALE", "HCM_GOVERNED_COMPENSATION_REQUIRED"].includes(error.message)) {
+      payWriteConflict = error.message;
+      return null;
+    }
+    throw error;
   });
+  if (!result) {
+    return Response.json(
+      payWriteConflict === "HCM_GOVERNED_COMPENSATION_REQUIRED"
+        ? HCM_GOVERNED_COMPENSATION_REQUIRED
+        : {
+            code: "HCM_DIRECT_PAY_STALE",
+            error: "The employee pay profile or effective revisions changed during review. Reload the worker before submitting another correction.",
+          },
+      { status: 409 },
+    );
+  }
   const updated = result.updated;
 
   const governmentFields = ["middleName", "tin", "tinBranchCode", "sssNo", "philHealthNo", "pagIbigNo", "nationality"];
@@ -904,7 +999,9 @@ export async function PATCH(request: Request) {
             ? "Employee employment dates updated"
             : "Employee work schedule updated";
 
-  const audit = await recordAuditEvent({
+  const audit = result.payAuditId
+    ? { id: result.payAuditId }
+    : await recordAuditEvent({
     organizationId,
     actor: user.name,
     action,
