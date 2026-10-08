@@ -1937,6 +1937,38 @@ export async function ensureCoreCompatibilitySchema() {
           ON government_loan_remittance_members(organization_id, legal_entity_id, posting_status);
       `);
 
+      // Published workforce-plan baselines preserve the approved planning
+      // evidence separately from live positions so plan-vs-actual remains auditable.
+      await client.query(`
+        CREATE TABLE IF NOT EXISTS workforce_plan_baselines (
+          id serial PRIMARY KEY,
+          organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+          plan_id integer NOT NULL REFERENCES workforce_plans(id) ON DELETE CASCADE,
+          scenario_id integer NOT NULL REFERENCES workforce_planning_scenarios(id) ON DELETE RESTRICT,
+          version integer NOT NULL DEFAULT 1,
+          scope_org_unit_id integer REFERENCES org_units(id) ON DELETE SET NULL,
+          worksite_id integer REFERENCES worksites(id) ON DELETE SET NULL,
+          current boolean NOT NULL DEFAULT true,
+          snapshot jsonb NOT NULL DEFAULT '{}'::jsonb,
+          snapshot_hash varchar(64) NOT NULL,
+          published_by_user_id integer NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+          published_by varchar(120) NOT NULL,
+          published_at timestamptz NOT NULL DEFAULT NOW(),
+          superseded_at timestamptz,
+          created_at timestamptz NOT NULL DEFAULT NOW()
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS workforce_plan_baselines_plan_version_unique
+          ON workforce_plan_baselines(plan_id, version);
+        CREATE UNIQUE INDEX IF NOT EXISTS workforce_plan_baselines_scenario_unique
+          ON workforce_plan_baselines(organization_id, scenario_id);
+        CREATE INDEX IF NOT EXISTS workforce_plan_baselines_current_idx
+          ON workforce_plan_baselines(organization_id, current, plan_id);
+        CREATE INDEX IF NOT EXISTS workforce_plan_baselines_scope_idx
+          ON workforce_plan_baselines(organization_id, scope_org_unit_id, current);
+        CREATE INDEX IF NOT EXISTS workforce_plan_baselines_published_idx
+          ON workforce_plan_baselines(organization_id, published_at);
+      `);
+
       await client.query("COMMIT");
       coreSchemaReady = true;
     } catch (error) {

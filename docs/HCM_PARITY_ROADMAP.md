@@ -132,18 +132,34 @@ Why: Deel connects workforce planning to ATS; Frappe validates openings against 
 
 ## Tranche 3 — Workforce and headcount planning
 
-Foundation implemented with planning windows, plan budgets, position-level budgets, statuses, and effective-dated incumbents. Remaining:
+Status: Published Headcount Plans are implemented. Workforce Planning 2.0 remains in progress.
 
-- Annual/quarterly workforce plan versioning
-- Requested vs approved vs filled headcount
-- Scenario planning
-- Fully loaded cost forecast using Linaw payroll/benefit data
-- Approval workflow across HR + Finance + hiring manager
-- Convert approved position into recruitment requisition
-- Budget variance by org unit and cost center
-- Attrition/backfill planning
+Built:
+- Governed planning windows and plan budgets
+- Position-level budgets, statuses, org-unit/cost-center ownership and effective-dated incumbents
+- Requested vs approved vs filled headcount and FTE evidence
+- Driver-based staffing scenarios with demand growth, vacancy-fill and employer-load assumptions
+- Immutable scenario snapshots with SHA-256 evidence hashes
+- Maker-checker scenario submission and approval
+- Fully loaded labor-cost forecasting using payroll pay profiles, employer statutory burden, employer-paid benefits and recurring compensation
+- Role-demand and capacity-gap forecasting tied to WFM staffing requirements
+- Plan-authorized demand handoff into WFM
+- Approved/open/filled position to requisition handoff
+- Company-wide approved scenario -> published headcount-plan baseline
+- Versioned published baselines with publisher identity, hash, supersession history and plan status
+- Continuous baseline vs live requested/approved/filled headcount, FTE, vacancy and position-budget reconciliation
+- Cost redaction for workforce roles without payroll-cost permission
+- Published and approved plans remain executable in downstream WFM demand handoff
 
-This should become a differentiator because Linaw can use actual Philippine payroll burden and employer contribution data instead of generic salary-only planning.
+Remaining:
+- Dedicated top-down allocation controls for plan owners and bottom-up manager submissions
+- Configurable multi-step workforce-plan approval chain that can explicitly require HR, Finance and business-owner sign-off
+- Forecast-plan creation from the latest published baseline plus latest actuals
+- Budget variance drilldown with named org-unit and cost-center dimensions in the published-baseline UI
+- Attrition assumptions and governed backfill planning
+- Controlled publish-to-execution actions for bulk position creation/changes from an approved plan
+
+This should remain a differentiator because Linaw can use actual Philippine payroll burden and employer contribution data instead of generic salary-only planning.
 
 ## Tranche 4 — Compensation management
 

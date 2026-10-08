@@ -3825,6 +3825,34 @@ export const workforcePlanningScenarios = pgTable(
   ],
 );
 
+export const workforcePlanBaselines = pgTable(
+  "workforce_plan_baselines",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    planId: integer("plan_id").notNull().references(() => workforcePlans.id, { onDelete: "cascade" }),
+    scenarioId: integer("scenario_id").notNull().references(() => workforcePlanningScenarios.id, { onDelete: "restrict" }),
+    version: integer("version").notNull().default(1),
+    scopeOrgUnitId: integer("scope_org_unit_id").references(() => orgUnits.id, { onDelete: "set null" }),
+    worksiteId: integer("worksite_id").references(() => worksites.id, { onDelete: "set null" }),
+    current: boolean("current").notNull().default(true),
+    snapshot: jsonb("snapshot").notNull().default({}),
+    snapshotHash: varchar("snapshot_hash", { length: 64 }).notNull(),
+    publishedByUserId: integer("published_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    publishedBy: varchar("published_by", { length: 120 }).notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+    supersededAt: timestamp("superseded_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("workforce_plan_baselines_plan_version_unique").on(table.planId, table.version),
+    uniqueIndex("workforce_plan_baselines_scenario_unique").on(table.organizationId, table.scenarioId),
+    index("workforce_plan_baselines_current_idx").on(table.organizationId, table.current, table.planId),
+    index("workforce_plan_baselines_scope_idx").on(table.organizationId, table.scopeOrgUnitId, table.current),
+    index("workforce_plan_baselines_published_idx").on(table.organizationId, table.publishedAt),
+  ],
+);
+
 export const positions = pgTable(
   "positions",
   {
