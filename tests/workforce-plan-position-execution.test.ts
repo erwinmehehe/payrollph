@@ -166,6 +166,9 @@ test("published baseline freezes exact position specifications for execution", (
   assert.ok(route.includes('"hcm-position-execution-source-v1"'));
   assert.ok(route.includes("normalizePositionSpec"));
   assert.ok(route.includes("positionExecutionSourceCount"));
+  assert.ok(route.includes("executionPositions"));
+  assert.ok(route.includes("positionExecutionSource: Object.keys(executionSource).length"));
+  assert.ok(route.includes("annualBudget: null"));
 });
 
 test("position execution persistence exists in schema, migration, fresh baseline and compatibility path", () => {
