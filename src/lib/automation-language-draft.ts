@@ -259,7 +259,7 @@ export function matchApprovedLanguageTemplate(request: string): TypedAutomationL
 // Block common direct identifiers before any optional third-party model request.
 // This is a guardrail, not a general-purpose PII detector; the UI still requires
 // the administrator to avoid names and other sensitive employee details.
-const LIKELY_PERSONAL_DATA = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}|(?:\\+63|0)9[\\s-]?\\d{3}[\\s-]?\\d{3}[\\s-]?\\d{4}|\\b\\d{8,}\\b/i;
+const LIKELY_PERSONAL_DATA = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:\+63|0)9[\s-]?\d{3}[\s-]?\d{3}[\s-]?\d{4}|\b\d{8,}\b/i;
 
 const UNSAFE_DIRECT_REQUEST = /\b(bypass approval|skip (?:review|approval)|publish (?:it )?automatically|auto.?publish|execute immediately|send (?:money|payment|payout)|transfer funds)\b/i;
 
