@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
 
 /**
  * Disposable, synthetic HTTP acceptance for Automation Studio's language lane.
@@ -66,6 +67,9 @@ async function main() {
   const setup = await json<{ organizationId: number }>(bootstrap, 201, "isolated workspace setup");
   assert.ok(Number.isSafeInteger(setup.organizationId) && setup.organizationId > 0);
   const orgId = setup.organizationId;
+  // Share only the synthetic organization ID with the subsequent default-off
+  // test on the same disposable GitHub runner; no cookie or receipt is stored.
+  writeFileSync("/tmp/payrollph-automation-acceptance-org-id", String(orgId), { mode: 0o600 });
   const cookie = (bootstrap.headers.get("set-cookie") ?? "").split(";")[0];
   assert.ok(cookie.startsWith("__Host-linaw_session="), "Expected production-mode HttpOnly session");
   const headers = {
