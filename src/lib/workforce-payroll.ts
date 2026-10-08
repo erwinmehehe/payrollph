@@ -31,6 +31,44 @@ export type PayableTimeSegmentation = {
   flags: string[];
 };
 
+// Keep the machine-readable warning stable across segmentation, the stored
+// payroll trace and checker/release assurance. A free-text warning alone is
+// insufficient for a financial release gate.
+export const WFM_PREMIUM_ALLOCATION_UNVERIFIED = "WFM_PREMIUM_ALLOCATION_UNVERIFIED";
+
+/**
+ * Returns only payroll-blocking pricing evidence flags. An unlocated break in
+ * one price bucket can remain reviewable, but an ambiguous boundary, or a
+ * complete worked punch that cannot be segmented at all, cannot be waived.
+ */
+export function payableTimeEvidenceFlagsForPayroll(
+  segmentation: PayableTimeSegmentation,
+  derivedWorkedMinutes: number,
+): string[] {
+  // Missing price segments for independently derived worked minutes must
+  // block approval even when an upstream caller unexpectedly forgot to emit
+  // a flag or marked the segmentation complete.
+  const unpricedWorkedTime = segmentation.segments.length === 0 && derivedWorkedMinutes > 0;
+  if (segmentation.allocationComplete && !unpricedWorkedTime) return [];
+
+  const pricingClasses = new Set(segmentation.segments.map((segment) =>
+    `${segment.calendarDate}|${segment.overtime ? "ot" : "regular"}|${segment.night ? "night" : "day"}`,
+  ));
+  const mandatoryCorrection = segmentation.flags.some((flag) =>
+    flag.startsWith(`${WFM_PREMIUM_ALLOCATION_UNVERIFIED}:`),
+  );
+  if (!mandatoryCorrection && !unpricedWorkedTime && pricingClasses.size <= 1) return [];
+  const evidence = segmentation.flags.length > 0 ? segmentation.flags : [
+    "Worked attendance has no payable-time price segments; independent premium allocation is required before payroll approval.",
+  ];
+
+  return evidence.map((flag) =>
+    flag.startsWith(`${WFM_PREMIUM_ALLOCATION_UNVERIFIED}:`)
+      ? flag
+      : `${WFM_PREMIUM_ALLOCATION_UNVERIFIED}: ${flag}`,
+  );
+}
+
 const PH_OFFSET_MS = 8 * 60 * 60_000;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_OF_DAY = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
@@ -173,6 +211,17 @@ export function segmentPayableTime(input: {
   }
 
   const attendanceCalendarDates = calendarDatesTouched(actualIn, actualOut);
+  // The boundary enumerator is deliberately capped at eight PH calendar dates.
+  // Never silently price the remainder of a longer punch without its midnight
+  // and night-differential boundaries. Such evidence requires manual correction.
+  if (attendanceCalendarDates.at(-1) !== phDateText(new Date(actualOut.getTime() - 1))) {
+    return {
+      segments: [],
+      attendanceCalendarDates,
+      allocationComplete: false,
+      flags: [`${WFM_PREMIUM_ALLOCATION_UNVERIFIED}: Attendance punch exceeds eight Philippine calendar dates; premium allocation requires correction before payroll approval.`],
+    };
+  }
   const crossesMidnight =
     Boolean(input.shift.spansMidnight) || input.shift.end <= input.shift.start;
   const shiftEndDate = crossesMidnight
