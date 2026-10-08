@@ -426,7 +426,11 @@ export async function POST(request: Request) {
       return Response.json({
         error: "Government-ID encryption is unavailable. No employee migration rows have been written.",
         code: "HCM_MIGRATION_PII_ENCRYPTION_UNAVAILABLE",
-      }, { status:  if (kind === "employees") {
+      }, { status: 503 });
+    }
+  }
+
+  if (kind === "employees") {
     try {
       const committedBatch = await db.transaction(async (tx) => {
         // Serialize initial employee migrations and roll back worker/pay/audit
@@ -589,9 +593,6 @@ export async function POST(request: Request) {
     createdBy: user.name,
   }).returning();
 
-      });
-    }
-  }
 
   if (kind === "payroll_history") {
     const rows = importRows as MigratedPayrollHistory[];
