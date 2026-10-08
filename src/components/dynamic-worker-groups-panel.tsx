@@ -19,6 +19,8 @@ type GroupRow = {
   active: boolean;
   automationDependencyCount?: number;
   activeAutomationDependencyCount?: number;
+  permissionAssignmentCount?: number;
+  activeApprovalPolicyCount?: number;
   automationDependencies?: Array<{ id: number; name: string; active: boolean }>;
   createdAt: string;
   updatedAt: string;
@@ -471,8 +473,15 @@ export function DynamicWorkerGroupsPanel({
               <span>
                 {group.code} · v{group.version} · {group.active ? "live" : "disabled"}
                 {(group.automationDependencyCount ?? 0) > 0 ? ` · used by ${group.automationDependencyCount} workflow(s)` : ""}
+                {(group.permissionAssignmentCount ?? 0) > 0 ? ` · ${group.permissionAssignmentCount} permission guard(s)` : ""}
+                {(group.activeApprovalPolicyCount ?? 0) > 0 ? ` · ${group.activeApprovalPolicyCount} active approval policy(ies)` : ""}
               </span>
               {group.description && <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>{group.description}</small>}
+              {((group.permissionAssignmentCount ?? 0) > 0 || (group.activeApprovalPolicyCount ?? 0) > 0) && (
+                <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
+                  Unlink permission guards and disable dependent approval policies before editing or disabling this group.
+                </small>
+              )}
               {(group.activeAutomationDependencyCount ?? 0) > 0 && (
                 <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>
                   {group.activeAutomationDependencyCount} active automation dependency(ies) must be disabled before membership logic can change.
