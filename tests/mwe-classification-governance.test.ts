@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { eq } from "drizzle-orm";
@@ -120,4 +121,31 @@ test("MWE classification uses maker-checker approval and persists effective wage
     await db.delete(users).where(eq(users.id, maker.id));
     await db.delete(users).where(eq(users.id, checker.id));
   }
+});
+
+
+test("MWE governance is enforced consistently in migration, schema, compatibility upgrade and payroll runtime", () => {
+  const migration = readFileSync("drizzle/0093_mwe_classification_governance.sql", "utf8");
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  const compat = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  const assurance = readFileSync("src/lib/payroll-assurance-server.ts", "utf8");
+  const requestRoute = readFileSync("src/app/api/employees/[id]/mwe-classifications/route.ts", "utf8");
+  const decisionRoute = readFileSync("src/app/api/employees/[id]/mwe-classifications/[classificationId]/route.ts", "utf8");
+
+  for (const source of [migration, schema, compat]) {
+    assert.ok(source.includes("employee_mwe_classifications"));
+    assert.ok(source.includes("wage_order_reference"));
+    assert.ok(source.includes("evidence_reference"));
+    assert.ok(source.includes("requested_by_user_id"));
+    assert.ok(source.includes("decided_by_user_id"));
+  }
+  assert.ok(migration.includes("employee_mwe_classifications_no_approved_overlap"));
+  assert.ok(compat.includes("employee_mwe_classifications_no_approved_overlap"));
+  assert.ok(engine.includes("resolveMweClassification"));
+  assert.ok(engine.includes("mweClassificationSource="));
+  assert.ok(assurance.includes("MWE_CLASSIFICATION_GOVERNANCE"));
+  assert.ok(requestRoute.includes("requireSensitiveActionMfa"));
+  assert.ok(decisionRoute.includes("PAYROLL_TAX_APPROVER_ROLES"));
+  assert.ok(decisionRoute.includes("requireSensitiveActionMfa"));
 });

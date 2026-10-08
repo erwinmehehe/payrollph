@@ -2243,6 +2243,19 @@ CREATE INDEX IF NOT EXISTS employee_mwe_classifications_status_idx
 CREATE UNIQUE INDEX IF NOT EXISTS employee_mwe_classifications_open_effective_unique
   ON employee_mwe_classifications (employee_id, effective_from)
   WHERE status IN ('pending','approved');
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+DO $mwe$
+BEGIN
+  ALTER TABLE employee_mwe_classifications
+    ADD CONSTRAINT employee_mwe_classifications_no_approved_overlap
+    EXCLUDE USING gist (
+      employee_id WITH =,
+      daterange(effective_from, COALESCE(effective_until, 'infinity'::date), '[]') WITH &&
+    )
+    WHERE (status = 'approved');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $mwe$;
 
 ALTER TABLE approval_tasks
   ADD COLUMN IF NOT EXISTS payroll_run_id integer REFERENCES payroll_runs(id) ON DELETE SET NULL,
