@@ -255,3 +255,14 @@ test("declining pending component writes audit without mutating calculated payro
     assert.ok(current.audits.some((event) => event.action === "Recurring compensation component declined"));
   });
 });
+
+test("scheduled component effective today cannot be silently cancelled", async () => {
+  await withFixture("scheduled", async (fixture) => {
+    await assert.rejects(decision(fixture, "cancel"), /COMPONENT_CANCELLATION_RETROACTIVE/);
+    const current = await state(fixture);
+    assert.equal(current.assignment.status, "scheduled");
+    assert.equal(current.run.status, "Needs review");
+    assert.equal(current.entries.length, 1);
+    assert.equal(current.audits.length, 0);
+  }, "2026-10-08");
+});
