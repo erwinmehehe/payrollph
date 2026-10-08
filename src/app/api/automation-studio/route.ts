@@ -44,6 +44,7 @@ import {
 import { AUTOMATION_DOCUMENT_TEMPLATES } from "@/lib/automation-document-templates";
 import { draftAutomationFromLanguage, LanguageDraftError, validateNaturalLanguageDraft } from "@/lib/automation-language-draft";
 import { fingerprintLanguageProposal, issueLanguageProposalReceipt, verifyLanguageProposalReceipt } from "@/lib/automation-language-proposal-receipt";
+import { automationLanguageStudioEnabled } from "@/lib/automation-language-release";
 import { fingerprintAutomationDraft, issueAutomationPreviewReceipt, verifyAutomationPreviewReceipt } from "@/lib/automation-preview-approval";
 import {
   AUTOMATION_WORKFLOW_TEMPLATES,
@@ -480,6 +481,7 @@ export async function GET(request: Request) {
   }).slice(0, 120);
 
   return Response.json({
+    features: { languageDraftingEnabled: automationLanguageStudioEnabled() },
     rules,
     versions,
     executions,
@@ -578,6 +580,17 @@ export async function POST(request: Request) {
 
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+
+  // A separate, runtime server-side kill switch covers BOTH the model and
+  // code-reviewed template fallback. Keep the existing manual Studio available.
+  if ((action === "draft-from-language" || action === "save-language-draft")
+    && !automationLanguageStudioEnabled()) {
+    return Response.json({
+      error: "Natural-language Automation Studio drafting is disabled in this environment.",
+      code: "LANGUAGE_DRAFTING_DISABLED",
+    }, { status: 403 });
+  }
+
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id,
     action: "automation-studio-" + (action || "mutation"),
