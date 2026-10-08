@@ -234,7 +234,7 @@ export function CompensationPanel({
       if (response.status === 409) await load();
       return;
     }
-    setNotice(success);
+    setNotice(body.automationWarning ? `${success} ${body.automationWarning}` : success);
     await load();
   }
 
