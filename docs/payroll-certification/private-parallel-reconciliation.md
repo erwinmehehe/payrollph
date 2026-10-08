@@ -35,7 +35,8 @@ payment snapshots does **not** count. Do **not** submit any payout.
 npm run payroll:parallel:check -- \
   certification/external-private/EMPLOYER_CODE/parallel.json \
   certification/external-private/EMPLOYER_CODE/parallel-files \
-  --pilot
+  --pilot > certification/external-private/EMPLOYER_CODE/parallel-report.json
+sha256sum certification/external-private/EMPLOYER_CODE/parallel-report.json
 ```
 
 The normal command **without `--pilot`** continues to require **at least two**
