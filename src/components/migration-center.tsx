@@ -296,7 +296,14 @@ export function MigrationCenter({
           <div style={{ padding: "0 17px 17px" }}>
             {preview.error ? (
               <div className="notice notice-amber">
-                <span><strong>{preview.error}</strong></span>
+                <span>
+                  <strong>{preview.error}</strong>
+                  {(preview.migrationBlockers ?? []).length > 0 && (
+                    <span style={{ display: "block", marginTop: 6 }}>
+                      {(preview.migrationBlockers ?? []).join(" ")}
+                    </span>
+                  )}
+                </span>
               </div>
             ) : (
               <>
