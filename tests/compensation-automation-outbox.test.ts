@@ -191,7 +191,7 @@ test("pre-existing automation ledger quarantines an ambiguous intent instead of 
       organizationId: f.organizationId,
       intentId: id,
       reviewer: "Payroll reviewer",
-    }), /Automation may have run/);
+    }), /Only exhausted pre-ledger retries/i);
 
     // Ledger cleanup must never turn prior ambiguity into "unstarted" proof.
     await db.delete(automationEventLog).where(and(
