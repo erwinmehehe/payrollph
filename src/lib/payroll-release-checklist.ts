@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, employees, payrollEntries, payrollRuns } from "@/db/schema";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
+import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
 
 export type PayrollReleaseChecklistItem = {
   key: "inputs" | "attendance" | "calculation" | "exceptions" | "statutory" | "approval" | "bank";
@@ -21,10 +22,11 @@ export async function buildPayrollReleaseChecklist(runId: number, options: { ack
     .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
     .where(eq(payrollEntries.payrollRunId, run.id));
 
-  const approvalRows = await db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, run.organizationId));
-  const approval = approvalRows
-    .filter((task) => task.detail.includes(`Payroll run #${run.id}`))
-    .sort((a,b) => b.id - a.id)[0] ?? null;
+  const approvalRows = await db.select().from(approvalTasks).where(eq(approvalTasks.payrollRunId, run.id));
+  const approval = approvalRows.sort((a,b) => b.id - a.id)[0] ?? null;
+  const approvalSnapshotValid = approval?.status === "Approved"
+    ? (await verifyPayrollApprovalSnapshot(run, approval)).valid
+    : false;
 
   const assuranceResult = await buildPayrollAssurance(run.id);
   const findings = assuranceResult?.assurance.findings ?? [];
@@ -48,7 +50,7 @@ export async function buildPayrollReleaseChecklist(runId: number, options: { ack
   const attendancePassed = missingAttendance.length === 0 || Boolean(options.acknowledgeExceptions);
   const bankPassed = Boolean(options.allowRedactedDemoPayout) || (rows.length > 0 && missingBank.length === 0);
   const statutoryPassed = statutoryReview.length === 0;
-  const approvalPassed = approval?.status === "Approved";
+  const approvalPassed = approval?.status === "Approved" && approvalSnapshotValid;
   const nonBankBlockers = blockers.filter((finding) => finding.code !== "MISSING_BANK_DETAILS");
   const exceptionPassed = nonBankBlockers.length === 0 && (Number(run.exceptions) === 0 || Boolean(options.acknowledgeExceptions));
 
@@ -58,7 +60,7 @@ export async function buildPayrollReleaseChecklist(runId: number, options: { ack
     { key:"calculation", label:"Payroll calculation", passed:calculationComplete, blocking:true, detail:calculationComplete ? `${rows.length}/${expectedEntries} entries calculated and all chunks completed.` : `Calculation incomplete: ${rows.length}/${expectedEntries} entries, ${run.processedChunks ?? 0}/${run.totalChunks ?? 0} chunks.` },
     { key:"exceptions", label:"Exceptions", passed:exceptionPassed, blocking:true, acknowledgeable: nonBankBlockers.length === 0 && Number(run.exceptions) > 0, detail:exceptionPassed ? "No unresolved release-blocking payroll exception remains." : `${nonBankBlockers.length} blocking assurance finding(s) and/or ${run.exceptions} engine exception(s) still require action.` },
     { key:"statutory", label:"Statutory calculations", passed:statutoryPassed, blocking:true, detail:statutoryPassed ? "SSS, PhilHealth and Pag-IBIG treatment is present where compensation requires it." : `${statutoryReview.length} employee(s) need statutory treatment confirmation.` },
-    { key:"approval", label:"Checker approval", passed:approvalPassed, blocking:true, detail:approvalPassed ? `Approved by ${approval?.decidedBy ?? approval?.approver ?? "the assigned checker"}.` : approval?.status === "Pending" ? `Waiting for ${approval.approver}.` : "No current approved checker task exists for this run." },
+    { key:"approval", label:"Checker approval", passed:approvalPassed, blocking:true, detail:approvalPassed ? `Approved by ${approval?.decidedBy ?? approval?.approver ?? "the assigned checker"} for this exact payroll snapshot.` : approval?.status === "Approved" ? "Checker approval is stale because the payroll contents no longer match the approved snapshot." : approval?.status === "Pending" ? `Waiting for ${approval.approver}.` : "No current approved checker task exists for this run." },
     { key:"bank", label:"Payout readiness", passed:bankPassed, blocking:true, detail: options.allowRedactedDemoPayout ? "Public sandbox payout destinations are intentionally redacted. Any generated bank file uses synthetic demo-only destinations and live disbursement remains disabled." : bankPassed ? "Every positive-net employee has complete payout details." : `${missingBank.length} positive-net employee(s) have incomplete bank details.` },
   ];
 

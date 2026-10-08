@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } from "../src/db/schema";
 import { buildPayrollReleaseChecklist } from "../src/lib/payroll-release-checklist";
+import { managedPayrollRunFingerprint } from "../src/lib/managed-payroll";
 
 test("release checklist gates payout readiness and approved checker state", async () => {
   const [org] = await db.insert(organizations).values({
@@ -63,6 +64,7 @@ test("release checklist gates payout readiness and approved checker state", asyn
       },
     });
 
+    const payrollFingerprint = await managedPayrollRunFingerprint(run.id);
     await db.insert(approvalTasks).values({
       organizationId: org.id,
       title: "Review payroll",
@@ -72,6 +74,11 @@ test("release checklist gates payout readiness and approved checker state", asyn
       status: "Approved",
       decidedBy: "Checker",
       decidedAt: new Date(),
+      payrollRunId: run.id,
+      payrollFingerprint,
+      payrollGross: run.grossPay,
+      payrollNet: run.netPay,
+      payrollEmployeeCount: run.employeeCount,
     });
 
     const ready = await buildPayrollReleaseChecklist(run.id);

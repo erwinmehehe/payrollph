@@ -2208,8 +2208,15 @@ ALTER TABLE org_units
   ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT NOW();
 
 ALTER TABLE approval_tasks
+  ADD COLUMN IF NOT EXISTS payroll_run_id integer REFERENCES payroll_runs(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS payroll_fingerprint varchar(64),
+  ADD COLUMN IF NOT EXISTS payroll_gross numeric(14,2),
+  ADD COLUMN IF NOT EXISTS payroll_net numeric(14,2),
+  ADD COLUMN IF NOT EXISTS payroll_employee_count integer,
   ADD COLUMN IF NOT EXISTS approval_chain_instance_id integer,
   ADD COLUMN IF NOT EXISTS approval_chain_step_index integer;
+CREATE INDEX IF NOT EXISTS approval_tasks_payroll_run_idx
+  ON approval_tasks (organization_id, payroll_run_id, id);
 
 ALTER TABLE bank_templates
   ADD COLUMN IF NOT EXISTS bank_code varchar(32),

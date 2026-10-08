@@ -11,6 +11,7 @@ import { isPublicDemoIdentity } from "@/lib/demo-security";
 import { resumeAutomationExecutionFromApproval, runAutomationEventSafely } from "@/lib/automation";
 import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
 import { advanceApprovalChainAfterDecisionTx } from "@/lib/approval-chains";
+import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(request);
@@ -38,8 +39,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (deniedOrg) return deniedOrg;
   const actor = sessionUser.name;
 
-  const payrollRunMatch = task.detail.match(/Payroll run #(\d+)/);
-  const payrollRunId = payrollRunMatch ? Number(payrollRunMatch[1]) : null;
+  const legacyPayrollTask = !task.payrollRunId && task.detail.includes("Payroll run #");
+  if (legacyPayrollTask) {
+    return Response.json({
+      error: "This legacy payroll approval is missing its structural payroll-run link. Resubmit the payroll for checker review so approval is bound to an exact payroll snapshot.",
+    }, { status: 409 });
+  }
+  const payrollRunId = task.payrollRunId;
   let payrollSubmission: { actor: string; metadata: Record<string, unknown> } | null = null;
   let workforceScenarioApproval: {
     scenarioId: number;
@@ -99,6 +105,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (payrollRun.status !== "Pending approval") {
       return Response.json({
         error: `This payroll is not awaiting approval (currently ${payrollRun.status}). Recalculate or submit it for review again.`,
+      }, { status: 409 });
+    }
+
+    const snapshot = await verifyPayrollApprovalSnapshot(payrollRun, task);
+    if (!snapshot.valid) {
+      return Response.json({
+        error: "Payroll contents changed after review submission, or this approval lacks a certified payroll snapshot. Recalculate/resubmit before approval.",
+        code: "PAYROLL_APPROVAL_SNAPSHOT_STALE",
       }, { status: 409 });
     }
 
