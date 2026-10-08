@@ -125,3 +125,10 @@ test("de minimis statutory periods reset monthly, semi-annually or annually by c
   assert.equal(deMinimisStatutoryPeriodStart("medicalCashDependents", "2026-08-15"), "2026-07-01");
   assert.equal(deMinimisStatutoryPeriodStart("uniformClothing", "2026-08-15"), "2026-01-01");
 });
+
+
+test("RR 29-2025 de minimis rules are effective-dated and fail closed outside certified coverage", () => {
+  assert.equal(deMinimisTreatment("riceSubsidy", 2_500, "2026-01-06").exempt, 2_500);
+  assert.throws(() => deMinimisTreatment("riceSubsidy", 2_500, "2026-01-05"), /No certified BIR de minimis rule pack/);
+  assert.throws(() => aggregateDeMinimisForSemiMonthly([], {}, "2027-01-01"), /No certified BIR de minimis rule pack/);
+});

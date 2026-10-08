@@ -40,7 +40,7 @@ export async function GET(request: Request) {
       employeeName: visibleStaff.find((employee) => employee.id === grant.employeeId)
         ? `${visibleStaff.find((employee) => employee.id === grant.employeeId)!.firstName} ${visibleStaff.find((employee) => employee.id === grant.employeeId)!.lastName}`
         : "Unknown employee",
-      treatment: deMinimisTreatment(grant.benefitType as DeMinimisType, Number(grant.amount)),
+      treatment: deMinimisTreatment(grant.benefitType as DeMinimisType, Number(grant.amount), String(grant.effectiveOn)),
     })),
   });
 }
@@ -86,7 +86,14 @@ export async function POST(request: Request) {
     effectiveOn,
   }).returning();
 
-  const treatment = deMinimisTreatment(benefitType, amount);
+  let treatment;
+  try {
+    treatment = deMinimisTreatment(benefitType, amount, effectiveOn);
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "No certified BIR de minimis rule covers this effective date.",
+    }, { status: 422 });
+  }
   await recordAuditEvent({
     organizationId,
     actor: user.name,

@@ -1,3 +1,11 @@
+import {
+  BIR_WITHHOLDING_RULE_PACKS,
+  PAGIBIG_RULE_PACKS,
+  PHILHEALTH_RULE_PACKS,
+  SSS_RULE_PACKS,
+  resolveEffectiveRulePack,
+} from "@/lib/ph-statutory-rule-packs";
+
 export type HolidayType = "ordinary" | "regular" | "special" | "double";
 
 /**
@@ -5,17 +13,19 @@ export type HolidayType = "ordinary" | "regular" | "special" | "double";
  * 15% regular contribution: 5% employee, 10% employer on MSC PHP 5,000–35,000.
  * EC is employer-only: PHP 10 under MSC 15,000; PHP 30 at/above 15,000.
  */
-export function computeSss(monthlySalary: number) {
-  const msc = Math.min(35_000, Math.max(5_000, Math.round(monthlySalary / 500) * 500));
-  const regularMsc = Math.min(20_000, msc);
+export function computeSss(monthlySalary: number, asOf = "2026-10-08") {
+  const rule = resolveEffectiveRulePack(SSS_RULE_PACKS, asOf, "SSS");
+  const { mscFloor, mscCeiling, mscStep, regularMscCeiling, employeeRate, employerRate, ecThreshold, ecBelow, ecAtOrAbove } = rule.params;
+  const msc = Math.min(mscCeiling, Math.max(mscFloor, Math.round(monthlySalary / mscStep) * mscStep));
+  const regularMsc = Math.min(regularMscCeiling, msc);
   const mpfMsc = Math.max(0, msc - regularMsc);
-  const employeeRegular = round(regularMsc * 0.05);
-  const employeeMpf = round(mpfMsc * 0.05);
-  const employerRegular = round(regularMsc * 0.1);
-  const employerMpf = round(mpfMsc * 0.1);
+  const employeeRegular = round(regularMsc * employeeRate);
+  const employeeMpf = round(mpfMsc * employeeRate);
+  const employerRegular = round(regularMsc * employerRate);
+  const employerMpf = round(mpfMsc * employerRate);
   const employee = round(employeeRegular + employeeMpf);
   const employer = round(employerRegular + employerMpf);
-  const employerEC = msc < 15_000 ? 10 : 30;
+  const employerEC = msc < ecThreshold ? ecBelow : ecAtOrAbove;
   return {
     monthlySalaryCredit: msc,
     regularMsc,
@@ -32,14 +42,16 @@ export function computeSss(monthlySalary: number) {
   };
 }
 
-export function computePhilHealth(monthlySalary: number) {
-  const base = Math.min(100_000, Math.max(10_000, monthlySalary));
-  const total = round(base * 0.05);
+export function computePhilHealth(monthlySalary: number, asOf = "2026-10-08") {
+  const rule = resolveEffectiveRulePack(PHILHEALTH_RULE_PACKS, asOf, "PhilHealth");
+  const { salaryFloor, salaryCeiling, premiumRate, employeeShare } = rule.params;
+  const base = Math.min(salaryCeiling, Math.max(salaryFloor, monthlySalary));
+  const total = round(base * premiumRate);
   // Split the already-rounded statutory premium in centavos. When the total
   // has an odd centavo, keep the employee share at the lower centavo and put
   // the unavoidable one-centavo remainder on the employer share.
   const totalCentavos = Math.round(total * 100);
-  const employee = Math.floor(totalCentavos / 2) / 100;
+  const employee = Math.floor(totalCentavos * employeeShare) / 100;
   const employer = round(total - employee);
   return { base, total, employee, employer };
 }
@@ -73,26 +85,23 @@ export function computeCutoffStatutoryDeduction(input: {
     : round(target / 2);
 }
 
-export function computePagIbig(monthlySalary: number) {
-  const fundSalary = Math.min(10_000, Math.max(0, monthlySalary));
-  const employeeRate = monthlySalary <= 1_500 ? 0.01 : 0.02;
+export function computePagIbig(monthlySalary: number, asOf = "2026-10-08") {
+  const rule = resolveEffectiveRulePack(PAGIBIG_RULE_PACKS, asOf, "Pag-IBIG");
+  const { fundSalaryCeiling, lowRateThreshold, employeeLowRate, employeeStandardRate, employerRate } = rule.params;
+  const fundSalary = Math.min(fundSalaryCeiling, Math.max(0, monthlySalary));
+  const employeeRate = monthlySalary <= lowRateThreshold ? employeeLowRate : employeeStandardRate;
   const employee = round(fundSalary * employeeRate);
-  const employer = round(fundSalary * 0.02);
-  return { fundSalary, employeeRate, employerRate: 0.02, employee, employer, total: round(employee + employer) };
+  const employer = round(fundSalary * employerRate);
+  return { fundSalary, employeeRate, employerRate, employee, employer, total: round(employee + employer) };
 }
 
 /** TRAIN annual brackets effective 2023 onward (still applicable in 2026). */
-export function computeAnnualWithholdingTax(taxableAnnualIncome: number, isMwe = false) {
-  if (isMwe || taxableAnnualIncome <= 250_000) return 0;
-  const brackets = [
-    [400_000, 250_000, 0.15, 0],
-    [800_000, 400_000, 0.2, 22_500],
-    [2_000_000, 800_000, 0.25, 102_500],
-    [8_000_000, 2_000_000, 0.3, 402_500],
-    [Infinity, 8_000_000, 0.35, 2_202_500],
-  ] as const;
-  const bracket = brackets.find(([limit]) => taxableAnnualIncome <= limit) ?? brackets[brackets.length - 1];
-  return round(bracket[3] + (taxableAnnualIncome - bracket[1]) * bracket[2]);
+export function computeAnnualWithholdingTax(taxableAnnualIncome: number, isMwe = false, asOf = "2026-10-08") {
+  if (isMwe) return 0;
+  const rule = resolveEffectiveRulePack(BIR_WITHHOLDING_RULE_PACKS, asOf, "BIR withholding");
+  const bracket = rule.params.annual.find((row) => taxableAnnualIncome <= row.limit)
+    ?? rule.params.annual[rule.params.annual.length - 1];
+  return round(bracket.base + Math.max(0, taxableAnnualIncome - bracket.floor) * bracket.rate);
 }
 
 /**
@@ -100,28 +109,26 @@ export function computeAnnualWithholdingTax(taxableAnnualIncome: number, isMwe =
  * Input is monthly taxable compensation AFTER employee statutory deductions and
  * non-taxable items, not gross basic salary.
  */
-export function computeMonthlyWithholdingTax(monthlyTaxableIncome: number, isMwe = false) {
+export function computeMonthlyWithholdingTax(monthlyTaxableIncome: number, isMwe = false, asOf = "2026-10-08") {
   const income = Math.max(0, Number(monthlyTaxableIncome) || 0);
-  if (isMwe || income <= 20_833) return 0;
-  if (income <= 33_333) return round((income - 20_833) * 0.15);
-  if (income <= 66_667) return round(1_875 + (income - 33_333) * 0.2);
-  if (income <= 166_667) return round(8_541.8 + (income - 66_667) * 0.25);
-  if (income <= 666_667) return round(33_541.8 + (income - 166_667) * 0.3);
-  return round(183_541.8 + (income - 666_667) * 0.35);
+  if (isMwe) return 0;
+  const rule = resolveEffectiveRulePack(BIR_WITHHOLDING_RULE_PACKS, asOf, "BIR withholding");
+  const bracket = rule.params.monthly.find((row) => income <= row.limit)
+    ?? rule.params.monthly[rule.params.monthly.length - 1];
+  return round(bracket.base + Math.max(0, income - bracket.floor) * bracket.rate);
 }
 
 /**
  * BIR Revised Withholding Tax Table, Semi-monthly (RR 11-2018, 2023 onward).
  * This is the published semi-monthly table, not a monthly-table approximation.
  */
-export function computeSemiMonthlyWithholdingTax(semiMonthlyTaxableIncome: number, isMwe = false) {
+export function computeSemiMonthlyWithholdingTax(semiMonthlyTaxableIncome: number, isMwe = false, asOf = "2026-10-08") {
   const income = Math.max(0, Number(semiMonthlyTaxableIncome) || 0);
-  if (isMwe || income <= 10_417) return 0;
-  if (income <= 16_667) return round((income - 10_417) * 0.15);
-  if (income <= 33_333) return round(937.5 + (income - 16_667) * 0.2);
-  if (income <= 83_333) return round(4_270.7 + (income - 33_333) * 0.25);
-  if (income <= 333_333) return round(16_770.7 + (income - 83_333) * 0.3);
-  return round(91_770.7 + (income - 333_333) * 0.35);
+  if (isMwe) return 0;
+  const rule = resolveEffectiveRulePack(BIR_WITHHOLDING_RULE_PACKS, asOf, "BIR withholding");
+  const bracket = rule.params.semiMonthly.find((row) => income <= row.limit)
+    ?? rule.params.semiMonthly[rule.params.semiMonthly.length - 1];
+  return round(bracket.base + Math.max(0, income - bracket.floor) * bracket.rate);
 }
 
 export function holidayMultiplier(input: { holiday: HolidayType; worked: boolean; restDay?: boolean; overtime?: boolean }) {

@@ -102,6 +102,27 @@ export const NATIONAL_HOLIDAYS_2026: HolidayCalendarEntry[] = [
   { date: "2026-12-31", name: "Last Day of the Year", kind: "special" },
 ];
 
+export const NATIONAL_HOLIDAY_RULE_PACKS = [
+  {
+    version: "PH-HOLIDAYS-2026-P1006+P1189+P1264",
+    effectiveFrom: "2026-01-01",
+    effectiveUntil: "2026-12-31",
+    calendar: NATIONAL_HOLIDAYS_2026,
+  },
+] as const;
+
+export function nationalHolidayCalendarForDate(asOf: string): HolidayCalendarEntry[] {
+  const packs = NATIONAL_HOLIDAY_RULE_PACKS.filter((pack) =>
+    pack.effectiveFrom <= asOf && asOf <= pack.effectiveUntil
+  );
+  if (packs.length !== 1) {
+    throw new Error(
+      `No certified Philippine national-holiday rule pack covers ${asOf}. Add the proclaimed holiday calendar before calculating that payroll period.`,
+    );
+  }
+  return [...packs[0].calendar];
+}
+
 export function holidaysOn(date: string, calendar: readonly HolidayCalendarEntry[] = NATIONAL_HOLIDAYS_2026) {
   return calendar.filter((row) => row.date === date);
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { holidayMultiplier } from "../src/lib/payroll-rules";
-import { holidayOn, isBelowMinimum, wageOrderFor, WAGE_ORDERS } from "../src/lib/wage-orders";
+import { holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, wageOrderFor, WAGE_ORDERS } from "../src/lib/wage-orders";
 
 test("NCR screening reference uses the current official Oct 2026 high tier", () => {
   const order = wageOrderFor("NCR");
@@ -56,4 +56,11 @@ test("every region has exactly one wage order, and the hire form's dropdown has 
   for (const region of ["NCR", "CAR", "I", "II", "III", "IV-A", "IV-B", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "BARMM"]) {
     assert.ok(regions.includes(region), `missing region ${region}`);
   }
+});
+
+
+test("national holiday calendar is effective-dated and fails closed outside certified coverage", () => {
+  assert.equal(nationalHolidayCalendarForDate("2026-12-25").some((holiday) => holiday.date === "2026-12-25"), true);
+  assert.throws(() => nationalHolidayCalendarForDate("2025-12-25"), /No certified Philippine national-holiday rule pack/);
+  assert.throws(() => nationalHolidayCalendarForDate("2027-01-01"), /No certified Philippine national-holiday rule pack/);
 });

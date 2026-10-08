@@ -17,6 +17,7 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { managedPayrollReleaseRequirement } from "@/lib/managed-payroll";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 
 const RELEASABLE = ["Ready for release"];
 
@@ -73,6 +74,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   if (!RELEASABLE.includes(run.status)) {
     return Response.json({ error: `Run must be processed before release (currently ${run.status}).` }, { status: 409 });
+  }
+
+  const periodConflict = await findPayrollPeriodConflict({
+    organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
+    scopeOrgUnitId: run.scopeOrgUnitId,
+    periodStart: String(run.periodStart),
+    periodEnd: String(run.periodEnd),
+    excludeRunId: run.id,
+    conflictStatuses: ["Releasing", "Released"],
+  });
+  if (periodConflict) {
+    return Response.json({
+      error: `Payroll overlaps ${periodConflict.status.toLowerCase()} run #${periodConflict.id} (${periodConflict.periodLabel}). A worker population cannot be released twice for overlapping payroll periods.`,
+      code: "PAYROLL_RELEASE_PERIOD_CONFLICT",
+      conflictingRun: periodConflict,
+    }, { status: 409 });
   }
 
   const approvalRows = await db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, run.organizationId));
