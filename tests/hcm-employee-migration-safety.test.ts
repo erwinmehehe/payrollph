@@ -59,6 +59,10 @@ test("migration path requires HR source evidence and encrypts government identit
   assert.ok(source.includes('code: "HCM_MIGRATION_LOCKED"'));
   assert.ok(source.includes('code: "HCM_MIGRATION_EVIDENCE_REQUIRED"'));
   assert.ok(source.includes("protectedGovernmentIds"));
+  assert.ok(source.includes("const committedBatch = await db.transaction(async (tx)"));
+  assert.ok(source.includes("tx.insert(auditEvents)"));
+  assert.ok(source.includes("pg_advisory_xact_lock(4213"));
+  assert.ok(source.includes("lateState.rows[0]?.blocked === true"));
   assert.ok(source.includes("encryptGovernmentId(row.tin"));
   assert.ok(!source.includes("tin: row.tin,"));
   assert.ok(!source.includes("startDate: row.startDate ?? today()"));
