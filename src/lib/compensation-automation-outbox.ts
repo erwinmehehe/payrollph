@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents,
@@ -252,6 +252,51 @@ export async function drainCompensationAutomationIntents(
     needsReview: results.filter((row) => row.status === "needs_review").length + quarantined.length,
     quarantined,
     results,
+  };
+}
+
+/**
+ * Read-only tenant-scoped operational review. No salary snapshot/context,
+ * worker identity or provider information is returned through this interface.
+ * Scan all pages before declaring the compensation queue reconciled.
+ */
+export async function inspectCompensationAutomationIntents(input: {
+  organizationId: number;
+  afterId?: number;
+  limit?: number;
+}) {
+  const afterId = input.afterId ?? 0;
+  const limit = input.limit ?? 100;
+  if (!Number.isSafeInteger(input.organizationId) || input.organizationId <= 0
+    || !Number.isSafeInteger(afterId) || afterId < 0
+    || !Number.isSafeInteger(limit) || limit < 1 || limit > 250) {
+    throw new Error("Compensation queue audit requires a positive organizationId, nonnegative cursor and limit of 1-250.");
+  }
+  const rows = await db.select({
+    id: compensationAutomationIntents.id,
+    compensationEventId: compensationAutomationIntents.compensationEventId,
+    trigger: compensationAutomationIntents.trigger,
+    status: compensationAutomationIntents.status,
+    attempts: compensationAutomationIntents.attempts,
+    nextAttemptAt: compensationAutomationIntents.nextAttemptAt,
+  }).from(compensationAutomationIntents).where(and(
+    eq(compensationAutomationIntents.organizationId, input.organizationId),
+    gt(compensationAutomationIntents.id, afterId),
+  )).orderBy(asc(compensationAutomationIntents.id)).limit(limit + 1);
+  const hasMore = rows.length > limit;
+  const page = rows.slice(0, limit);
+  return {
+    organizationId: input.organizationId,
+    examined: page.length,
+    pending: page.filter((row) => row.status === "pending").length,
+    retry: page.filter((row) => row.status === "retry").length,
+    dispatched: page.filter((row) => row.status === "dispatched").length,
+    needsReview: page.filter((row) => row.status === "needs_review").length,
+    leased: page.filter((row) => row.status === "leased").length,
+    rows: page,
+    nextCursor: hasMore ? page[page.length - 1].id : null,
+    readOnly: true as const,
+    financiallyCertified: false as const,
   };
 }
 
