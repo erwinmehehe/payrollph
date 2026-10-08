@@ -181,6 +181,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
   const [approvalConfiguration, setApprovalConfiguration] = useState<WorkforceApprovalConfiguration>({ configured: false, conflict: false, policy: null });
   const [baselines, setBaselines] = useState<WorkforcePlanBaseline[]>([]);
   const [baselinePublishing, setBaselinePublishing] = useState<number | null>(null);
+  const [forecastPlanCreating, setForecastPlanCreating] = useState<number | null>(null);
   const [costVisible, setCostVisible] = useState(true);
   const [loading, setLoading] = useState(true);
   const [showArchitecture, setShowArchitecture] = useState(false);
@@ -390,6 +391,36 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
       setNotice("Could not reach published headcount plan management.");
     } finally {
       setBaselinePublishing(null);
+    }
+  }
+
+  async function createForecastRevision(baseline: WorkforcePlanBaseline) {
+    setForecastPlanCreating(baseline.id);
+    try {
+      const response = await fetch("/api/workforce-planning/forecast-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          planId: baseline.planId,
+          startDate: forecastStart,
+          endDate: forecastEnd,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? "Could not create a forecast revision from the published baseline.");
+        return;
+      }
+      await load();
+      setScenarioPlanId(String(baseline.planId));
+      setNotice(
+        `Created ${payload.scenario?.name ?? "forecast revision"} v${payload.scenario?.version ?? ""} from published baseline v${payload.seed?.baselineVersion ?? baseline.version} plus live workforce actuals. Review the draft, then submit it through Approvals.`,
+      );
+    } catch {
+      setNotice("Could not reach workforce forecast-plan creation.");
+    } finally {
+      setForecastPlanCreating(null);
     }
   }
 
@@ -915,9 +946,19 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
                     </td>
                     <td className="right">
                       <strong>{peso(baseline.actual.annualPositionBudget)}</strong>
-                      <small style={{ display: "block", color: "var(--muted)" }}>
+                      <small style={{ display: "block", color: "var(--muted)", marginBottom: 8 }}>
                         {delta?.annualPositionBudget == null ? "cost restricted" : `${delta.annualPositionBudget >= 0 ? "+" : ""}${peso(delta.annualPositionBudget)} vs baseline`}
                       </small>
+                      {baseline.current && (
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          disabled={forecastPlanCreating === baseline.id}
+                          onClick={() => void createForecastRevision(baseline)}
+                        >
+                          <RefreshCw size={14} /> {forecastPlanCreating === baseline.id ? "Creating..." : "Start forecast revision"}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
