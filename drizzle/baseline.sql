@@ -1766,6 +1766,8 @@ CREATE TABLE IF NOT EXISTS "workforce_planning_scenarios" (
   "demand_growth_percent" numeric(7,2) DEFAULT '0' NOT NULL,
   "vacancy_fill_percent" numeric(7,2) DEFAULT '100' NOT NULL,
   "employer_load_percent" numeric(7,2) DEFAULT '0' NOT NULL,
+  "annual_attrition_percent" numeric(7,2) DEFAULT '0' NOT NULL,
+  "attrition_backfill_percent" numeric(7,2) DEFAULT '100' NOT NULL,
   "status" varchar(24) DEFAULT 'draft' NOT NULL,
   "snapshot" jsonb DEFAULT '{}'::jsonb NOT NULL,
   "snapshot_hash" varchar(64) NOT NULL,
@@ -1784,7 +1786,11 @@ CREATE TABLE IF NOT EXISTS "workforce_planning_scenarios" (
   CONSTRAINT "workforce_scenarios_vacancy_fill_check"
     CHECK ("vacancy_fill_percent" >= 0 AND "vacancy_fill_percent" <= 100),
   CONSTRAINT "workforce_scenarios_employer_load_check"
-    CHECK ("employer_load_percent" >= 0 AND "employer_load_percent" <= 100)
+    CHECK ("employer_load_percent" >= 0 AND "employer_load_percent" <= 100),
+  CONSTRAINT "workforce_scenarios_annual_attrition_check"
+    CHECK ("annual_attrition_percent" >= 0 AND "annual_attrition_percent" <= 100),
+  CONSTRAINT "workforce_scenarios_attrition_backfill_check"
+    CHECK ("attrition_backfill_percent" >= 0 AND "attrition_backfill_percent" <= 100)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "workforce_scenarios_org_name_version_unique"
