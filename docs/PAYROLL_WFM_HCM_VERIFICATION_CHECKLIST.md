@@ -35,10 +35,10 @@ This checklist turns the product roadmap into evidence gates. A capability is no
 ## Gate C — WFM depth tied to payroll
 
 - [x] Schedule templates, assignments, overrides, swaps, split shifts, and overnight shifts have regression coverage. (#569)
-- [ ] Punch pairing and break allocation fail visibly on ambiguous evidence.
+- [x] Punch pairing and break allocation fail visibly on ambiguous evidence. Payroll approval now blocks unverified cross-premium break/split-shift allocations; resolved breaks retain exact night/day minute evidence (WFM premium boundary regression suite).
 - [x] Attendance corrections require governed approval and snapshot protection. (#435, #448, #569)
 - [x] Actual OT is preserved even when authorization is missing or rejected. (#454, #571)
-- [ ] OT authorization failures become payroll review exceptions and never suppress statutory entitlement.
+- [x] OT authorization failures become payroll review exceptions and never suppress statutory entitlement (workforce-attendance and workforce-overtime-payroll-trace tests).
 - [x] Required vs scheduled vs actual coverage reconciles hours. (#458, #558)
 - [x] Labor cost forecast vs actual reconciles to payroll-grade rates. (#558, #569)
 - [ ] Holiday/rest-day/worksite/shift classifications flow consistently from WFM evidence into payroll.
