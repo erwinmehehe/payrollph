@@ -33,6 +33,7 @@ import {
 } from "@/lib/compensation";
 import {
   applyScheduledCompensationProposal,
+  decideRecurringCompensationComponent,
   compensationPayrollConflicts,
   invalidatePayrollRunsForCompensationChange,
   philippineBusinessDate,
@@ -672,150 +673,70 @@ export async function PATCH(request: Request) {
     const scoped = await employeeInScope(user.id, assignment.organizationId, assignment.employeeId);
     if ("error" in scoped) return scoped.error;
 
-    if (action === "approve") {
-      if (assignment.status !== "pending_approval") return Response.json({ error: "Only pending compensation components can be approved." }, { status: 409 });
-      if (assignment.requestedByUserId === user.id) {
+    let result;
+    try {
+      result = await decideRecurringCompensationComponent({
+        assignmentId: id,
+        organizationId: assignment.organizationId,
+        employeeId: assignment.employeeId,
+        decision: action as "approve" | "decline" | "cancel",
+        actorUserId: user.id,
+        actorName: user.name,
+      });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "COMPONENT_MAKER_CHECKER_CONFLICT") {
         return Response.json({ error: "Maker-checker control: the requester cannot approve their own recurring compensation component." }, { status: 403 });
       }
-      if (String(assignment.effectiveFrom) < philippineBusinessDate()) {
+      if (code === "COMPONENT_APPROVAL_RETROACTIVE") {
         return Response.json({ error: "This recurring component is now retroactive. Cancel and handle past payroll through an audited adjustment." }, { status: 409 });
       }
-
-      let affectedRuns;
-      try {
-        affectedRuns = await compensationPayrollConflicts({
-          organizationId: assignment.organizationId,
-          employeeOrgUnitId: scoped.employee.orgUnitId,
-          effectiveFrom: String(assignment.effectiveFrom),
-          effectiveUntil: assignment.effectiveUntil ? String(assignment.effectiveUntil) : null,
-        });
-        await invalidatePayrollRunsForCompensationChange(assignment.organizationId, affectedRuns);
-      } catch (error) {
-        return Response.json({ error: error instanceof Error ? error.message : "Compensation conflicts with payroll state." }, { status: 409 });
+      if (code === "COMPONENT_CANCELLATION_RETROACTIVE") {
+        return Response.json({ error: "The scheduled component is already effective. Use an audited payroll correction instead of cancelling an earned-pay period." }, { status: 409 });
       }
+      if (code === "COMPONENT_ASSIGNMENT_STALE" || code === "COMPONENT_EMPLOYEE_STALE") {
+        return Response.json({ error: "The component assignment or employee record changed. Refresh and review the current state before deciding." }, { status: 409 });
+      }
+      if (code.startsWith("Payroll run #") || code.startsWith("Compensation cannot change")) {
+        return Response.json({ error: code }, { status: 409 });
+      }
+      return Response.json({ error: "Recurring compensation could not be committed. Payroll runs were not invalidated; refresh and retry." }, { status: 409 });
+    }
 
-      const now = new Date();
-      const today = philippineBusinessDate(now);
-      const nextStatus = String(assignment.effectiveFrom) <= today ? "active" : "scheduled";
-      const row = await db.transaction(async (tx) => {
-        const [updated] = await tx.update(employeeCompensationComponents).set({
-          status: nextStatus,
-          approvedByUserId: user.id,
-          approvedBy: user.name,
-          approvedAt: now,
-          activatedAt: nextStatus === "active" ? now : null,
-          updatedAt: now,
-        }).where(and(
-          eq(employeeCompensationComponents.id, id),
-          eq(employeeCompensationComponents.status, "pending_approval"),
-        )).returning();
-        if (!updated) return null;
+    const row = result.assignment;
+    if (action !== "approve") return Response.json(row);
 
-        await tx.insert(compensationEvents).values({
-          organizationId: updated.organizationId,
-          employeeId: updated.employeeId,
-          eventType: nextStatus === "active" ? "component_activated" : "component_scheduled",
-          effectiveDate: String(updated.effectiveFrom),
-          componentAssignmentId: updated.id,
-          metadata: {
-            componentId: updated.componentId,
-            amount: Number(updated.amount),
-            effectiveUntil: updated.effectiveUntil,
-            reason: updated.reason,
+    // The financial decision and its audit evidence are already committed.
+    // Automation is a separate side effect and cannot make an operator believe
+    // the approval failed (which could otherwise invite a second submission).
+    let automation: Awaited<ReturnType<typeof runAutomationEventSafely>> = [];
+    let automationWarning: string | null = null;
+    if (result.nextStatus === "active") {
+      try {
+        automation = await runAutomationEventSafely({
+          organizationId: row.organizationId,
+          employeeId: row.employeeId,
+          trigger: "compensation.changed",
+          eventKey: `compensation-component-active:${row.id}`,
+          context: {
+            compensationComponentAssignmentId: row.id,
+            compensationComponentId: row.componentId,
+            effectiveDate: row.effectiveFrom,
+            eventAmount: Number(row.amount),
+            compensationChangeKind: "recurring_component",
           },
-          actorUserId: user.id,
-          actorName: user.name,
         });
-        return updated;
-      });
-      if (!row) return Response.json({ error: "The compensation component changed before approval." }, { status: 409 });
-
-      await recordAuditEvent({
-        organizationId: row.organizationId,
-        actor: user.name,
-        action: nextStatus === "active" ? "Recurring compensation component approved and activated" : "Recurring compensation component approved and scheduled",
-        resource: `Employee #${row.employeeId}`,
-        metadata: { componentAssignmentId: row.id, componentId: row.componentId, effectiveFrom: row.effectiveFrom, invalidatedPayrollRunIds: affectedRuns.map((run) => run.id) },
-      });
-
-      const automation = nextStatus === "active"
-        ? await runAutomationEventSafely({
-            organizationId: row.organizationId,
-            employeeId: row.employeeId,
-            trigger: "compensation.changed",
-            eventKey: `compensation-component-active:${row.id}`,
-            context: {
-              compensationComponentAssignmentId: row.id,
-              compensationComponentId: row.componentId,
-              effectiveDate: row.effectiveFrom,
-              eventAmount: Number(row.amount),
-              compensationChangeKind: "recurring_component",
-            },
-          })
-        : [];
-
-      return Response.json({ ...row, automation });
-    }
-
-    if (action === "decline") {
-      if (assignment.status !== "pending_approval") return Response.json({ error: "Only pending component assignments can be declined." }, { status: 409 });
-      const [row] = await db.update(employeeCompensationComponents).set({
-        status: "declined",
-        approvedByUserId: user.id,
-        approvedBy: user.name,
-        approvedAt: new Date(),
-        updatedAt: new Date(),
-      }).where(and(
-        eq(employeeCompensationComponents.id, id),
-        eq(employeeCompensationComponents.status, "pending_approval"),
-      )).returning();
-      if (!row) return Response.json({ error: "The compensation component was already decided." }, { status: 409 });
-      await recordAuditEvent({ organizationId: row.organizationId, actor: user.name, action: "Recurring compensation component declined", resource: `Employee #${row.employeeId}`, metadata: { componentAssignmentId: row.id } });
-      return Response.json(row);
-    }
-
-    if (!["pending_approval", "scheduled"].includes(assignment.status)) {
-      return Response.json({ error: "Only pending or scheduled component assignments can be cancelled. End active compensation with a new governed effective-dated change." }, { status: 409 });
-    }
-
-    if (assignment.status === "scheduled") {
-      try {
-        const affectedRuns = await compensationPayrollConflicts({
-          organizationId: assignment.organizationId,
-          employeeOrgUnitId: scoped.employee.orgUnitId,
-          effectiveFrom: String(assignment.effectiveFrom),
-          effectiveUntil: assignment.effectiveUntil ? String(assignment.effectiveUntil) : null,
-        });
-        await invalidatePayrollRunsForCompensationChange(assignment.organizationId, affectedRuns);
-      } catch (error) {
-        return Response.json({ error: error instanceof Error ? error.message : "Cancellation conflicts with payroll state." }, { status: 409 });
+      } catch {
+        automationWarning = "Component approved; the follow-up automation requires review.";
       }
     }
 
-    const [row] = await db.update(employeeCompensationComponents).set({
-      status: "cancelled",
-      cancelledByUserId: user.id,
-      cancelledBy: user.name,
-      cancelledAt: new Date(),
-      updatedAt: new Date(),
-    }).where(and(
-      eq(employeeCompensationComponents.id, id),
-      eq(employeeCompensationComponents.status, assignment.status),
-    )).returning();
-    if (!row) return Response.json({ error: "The compensation component changed before cancellation." }, { status: 409 });
-
-    await db.insert(compensationEvents).values({
-      organizationId: row.organizationId,
-      employeeId: row.employeeId,
-      eventType: "component_cancelled",
-      effectiveDate: String(row.effectiveFrom),
-      componentAssignmentId: row.id,
-      metadata: { componentId: row.componentId, amount: Number(row.amount) },
-      actorUserId: user.id,
-      actorName: user.name,
+    return Response.json({
+      ...row,
+      automation,
+      invalidatedPayrollRunIds: result.invalidatedPayrollRunIds,
+      ...(automationWarning ? { automationWarning } : {}),
     });
-    await recordAuditEvent({ organizationId: row.organizationId, actor: user.name, action: "Recurring compensation component cancelled", resource: `Employee #${row.employeeId}`, metadata: { componentAssignmentId: row.id } });
-    return Response.json(row);
   }
 
   if (entityType !== "proposal") return Response.json({ error: "Unsupported compensation entity type." }, { status: 400 });
