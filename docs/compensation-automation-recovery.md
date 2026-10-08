@@ -41,10 +41,14 @@ First determine whether Automation Studio has an authoritative event-ledger or e
 For a `needs_review` intent caused by exhausting **pre-ledger** retries, once an independent reviewer confirms the absence of any external activity, an authorized operator may run:
 
 ```bash
-npm run compensation:automation:recover -- 42 73 "Reviewed by Payroll Ops" --confirm-reviewed
+npm run compensation:automation:recover -- 42 73 /private/approved-recovery-42-73.json --confirm-reviewed
 ```
 
-The operation must use privileged credentials approved for this specific employer, and it writes a separate audit record. It requeues **only** the original stored automation intent, resetting retry attempts; it never edits the compensation event or creates a new financial authorization. Authorization is an **operational access-control responsibility** of the CLI environment—this command does not implement interactive SSO/MFA or role verification itself. Do not grant it to general payroll viewers.
+**New fail-closed approval requirement:** the JSON file must be a short-lived, independently **Ed25519-signed** exact-state approval issued by a reviewer other than the operator. The approved payload contains `version: 1`, `purpose: "compensation-preledger-retry-v1"`, the organization and intent IDs, `reviewerId`, `operatorId`, `ticketId`, `intentUpdatedAt`, and UTC `issuedAt`/`expiresAt`. Its detached `signature` is base64url Ed25519 over the exact UTF-8 JSON array returned by `compensationRecoveryApprovalMessage(payload)` from `src/lib/compensation-recovery-approval.ts`. The approval is valid for **at most 10 minutes**, and only for the exact current intent row version; changed evidence invalidates it.
+
+The trusted public key `COMPENSATION_RECOVERY_APPROVER_PUBLIC_KEY` (PEM) and verified `COMPENSATION_RECOVERY_OPERATOR_ID` must be supplied by a **separate audited operator identity/secrets boundary**. The private signing key must be held only by the independent approver's controlled process, never on the recovery worker or in the repository. In the absence of these controls **manual recovery is disabled**. The CLI argument is a signed approval file, **not** a self-reported reviewer name.
+
+The operation requires privileged employer-scoped credentials, writes reviewer, distinct operator, ticket reference and approval digest into the internal audit record, and requeues **only** the original stored intent. It never edits the compensation event. The detached signature verifies reviewer provenance but **does not** authenticate the OS operator, prove MFA, confirm external-provider non-delivery, or replace independently witnessed staging authorization. Those remain operational release gates; do not grant this CLI to general payroll viewers.
 
 Do **not** use this command for `leased`, stale-lease, `dispatched`, or ledger-present events. It is intentionally restricted to intents tagged with exactly **five exhausted pre-ledger retry attempts**; even if the automation ledger is later purged, ambiguous/expired-lease dispositions remain permanently ineligible for this recovery path. An expired lease has uncertain side effects; engage a reviewer to reconcile external provider receipts and Automation Studio's execution evidence first. Do not issue a new event key to bypass deduplication.
 

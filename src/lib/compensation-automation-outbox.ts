@@ -8,6 +8,7 @@ import {
   compensationEvents,
 } from "@/db/schema";
 import { runAutomationEvent } from "@/lib/automation";
+import { verifyCompensationRecoveryApproval } from "@/lib/compensation-recovery-approval";
 
 type OutboxTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type CompensationAutomationTrigger = "compensation.changed" | "employee.field_changed";
@@ -343,17 +344,19 @@ export async function inspectCompensationAutomationIntents(input: {
 
 /**
  * Operator-only recovery. A needs-review intent is re-queued only if no event
- * ledger or execution exists. Use with an independently authorized reviewer;
- * ambiguous event-ledger/execution states must go through Automation Studio.
+ * ledger or execution exists AND an independently signed, exact-state,
+ * short-lived recovery approval is verified. Ambiguous executions stay blocked.
  */
 export async function retryUnstartedCompensationAutomationIntent(input: {
   organizationId: number;
   intentId: number;
-  reviewer: string;
+  approval: unknown;
   now?: Date;
 }) {
   const now = input.now ?? new Date();
-  if (!input.reviewer.trim()) throw new Error("A human reviewer is required.");
+  const authorization = verifyCompensationRecoveryApproval(input.approval, {
+    organizationId: input.organizationId, intentId: input.intentId, now,
+  });
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(4270, ${input.intentId})`);
     const [intent] = await tx.select().from(compensationAutomationIntents).where(and(
@@ -361,6 +364,9 @@ export async function retryUnstartedCompensationAutomationIntent(input: {
       eq(compensationAutomationIntents.organizationId, input.organizationId),
     )).limit(1);
     if (!intent || intent.status !== "needs_review") throw new Error("Compensation automation intent is not in review.");
+    if (!intent.updatedAt || intent.updatedAt.toISOString() !== authorization.intentUpdatedAt) {
+      throw new Error("Recovery approval is stale: intent state changed after independent review.");
+    }
     const [source] = await tx.select({ id: compensationEvents.id, eventType: compensationEvents.eventType })
       .from(compensationEvents).where(and(
         eq(compensationEvents.id, intent.compensationEventId),
@@ -408,7 +414,7 @@ export async function retryUnstartedCompensationAutomationIntent(input: {
     if (!updated) throw new Error("Compensation automation intent changed during review.");
     await tx.insert(auditEvents).values({
       organizationId: input.organizationId,
-      actor: input.reviewer,
+      actor: authorization.reviewerId,
       action: "Compensation automation pre-ledger retry authorized",
       resource: `Compensation automation intent #${intent.id}`,
       metadata: {
@@ -417,6 +423,9 @@ export async function retryUnstartedCompensationAutomationIntent(input: {
         trigger: intent.trigger,
         eventKey: intent.eventKey,
         previousStatus: "needs_review",
+        operatorId: authorization.operatorId,
+        ticketId: authorization.ticketId,
+        approvalDigest: authorization.approvalDigest,
       },
     });
     return { intentId: intent.id, status: "retry" as const };

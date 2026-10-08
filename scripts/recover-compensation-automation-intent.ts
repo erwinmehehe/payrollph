@@ -1,24 +1,27 @@
+import { readFileSync, statSync } from "node:fs";
 import { retryUnstartedCompensationAutomationIntent } from "../src/lib/compensation-automation-outbox";
 
 async function main() {
-  const [orgRaw, intentRaw, reviewer, confirmation] = process.argv.slice(2);
+  const [orgRaw, intentRaw, approvalFile, confirmation, ...extra] = process.argv.slice(2);
   const organizationId = Number(orgRaw);
   const intentId = Number(intentRaw);
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0
     || !Number.isSafeInteger(intentId) || intentId <= 0
-    || !reviewer?.trim() || reviewer.length > 120 || confirmation !== "--confirm-reviewed") {
-    console.error("Usage: npm run compensation:automation:recover -- <organizationId> <intentId> <reviewer> --confirm-reviewed");
-    console.error("Human approval and authorized database credentials required. Never requeue an ambiguous execution.");
+    || !approvalFile || confirmation !== "--confirm-reviewed" || extra.length > 0) {
+    console.error("Usage: npm run compensation:automation:recover -- <organizationId> <intentId> <signed-approval.json> --confirm-reviewed");
+    console.error("An independently signed Ed25519 approval, dedicated authorized operator identity and least-privilege DB credential are required.");
     process.exitCode = 2;
     return;
   }
   try {
+    if (statSync(approvalFile).size > 8192) throw new Error("Oversized approval file.");
+    const approval: unknown = JSON.parse(readFileSync(approvalFile, "utf8"));
     const result = await retryUnstartedCompensationAutomationIntent({
-      organizationId, intentId, reviewer,
+      organizationId, intentId, approval,
     });
     console.log(JSON.stringify(result));
   } catch {
-    console.error("Recovery was refused. The intent is not a safe, unstarted event or the tenant scope was invalid.");
+    console.error("Recovery refused: missing/invalid approval or unsafe/changed intent evidence.");
     process.exitCode = 1;
   }
 }

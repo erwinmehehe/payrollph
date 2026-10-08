@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { generateKeyPairSync, randomUUID, sign } from "node:crypto";
+import { COMPENSATION_RECOVERY_PURPOSE, compensationRecoveryApprovalMessage } from "../src/lib/compensation-recovery-approval";
 import test from "node:test";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "../src/db";
@@ -77,6 +78,31 @@ async function readIntent(id: number) {
     .where(eq(compensationAutomationIntents.id, id)).limit(1);
   assert.ok(row);
   return row;
+}
+
+const recoveryKeys = generateKeyPairSync("ed25519");
+process.env.COMPENSATION_RECOVERY_APPROVER_PUBLIC_KEY = recoveryKeys.publicKey.export({ type: "spki", format: "pem" }).toString();
+process.env.COMPENSATION_RECOVERY_OPERATOR_ID = "qa-operator";
+
+async function signTestRecoveryApproval(organizationId: number, intentId: number) {
+  const row = await readIntent(intentId);
+  const now = new Date();
+  const payload = {
+    version: 1 as const,
+    purpose: COMPENSATION_RECOVERY_PURPOSE,
+    organizationId,
+    intentId,
+    reviewerId: "qa-independent-reviewer",
+    operatorId: "qa-operator",
+    ticketId: "QA-RECOVERY-1234",
+    intentUpdatedAt: row.updatedAt.toISOString(),
+    issuedAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + 5 * 60_000).toISOString(),
+  };
+  return {
+    ...payload,
+    signature: sign(null, Buffer.from(compensationRecoveryApprovalMessage(payload)), recoveryKeys.privateKey).toString("base64url"),
+  };
 }
 
 test("retry backoff is deterministic and bounded", () => {
@@ -190,7 +216,7 @@ test("pre-existing automation ledger quarantines an ambiguous intent instead of 
     await assert.rejects(retryUnstartedCompensationAutomationIntent({
       organizationId: f.organizationId,
       intentId: id,
-      reviewer: "Payroll reviewer",
+      approval: await signTestRecoveryApproval(f.organizationId, id),
     }), /Only exhausted pre-ledger retries/i);
 
     // Ledger cleanup must never turn prior ambiguity into "unstarted" proof.
@@ -201,7 +227,7 @@ test("pre-existing automation ledger quarantines an ambiguous intent instead of 
     await assert.rejects(retryUnstartedCompensationAutomationIntent({
       organizationId: f.organizationId,
       intentId: id,
-      reviewer: "Payroll reviewer",
+      approval: await signTestRecoveryApproval(f.organizationId, id),
     }), /Only exhausted pre-ledger retries/i);
     assert.equal((await readIntent(id)).status, "needs_review");
   });
@@ -225,7 +251,7 @@ test("expired dispatch lease is quarantined and cannot be blindly requeued", asy
     await assert.rejects(retryUnstartedCompensationAutomationIntent({
       organizationId: f.organizationId,
       intentId: id,
-      reviewer: "Payroll reviewer",
+      approval: await signTestRecoveryApproval(f.organizationId, id),
     }), /expired dispatch lease/i);
   });
 });
@@ -241,14 +267,14 @@ test("explicit pre-ledger recovery is tenant-scoped and records a human audit wi
     await assert.rejects(retryUnstartedCompensationAutomationIntent({
       organizationId: f.organizationId + 1000000,
       intentId: id,
-      reviewer: "Payroll reviewer",
-    }), /not in review/i);
+      approval: await signTestRecoveryApproval(f.organizationId, id),
+    }), /does not match requested employer/i);
     const beforeEvents = await db.select().from(compensationEvents)
       .where(eq(compensationEvents.id, f.compensationEventId));
     const resumed = await retryUnstartedCompensationAutomationIntent({
       organizationId: f.organizationId,
       intentId: id,
-      reviewer: "Authorized payroll reviewer",
+      approval: await signTestRecoveryApproval(f.organizationId, id),
     });
     assert.equal(resumed.status, "retry");
     const intent = await readIntent(id);
@@ -276,7 +302,7 @@ test("manual recovery rejects false pre-ledger retry exhaustion even with no aut
     await assert.rejects(retryUnstartedCompensationAutomationIntent({
       organizationId: f.organizationId,
       intentId: id,
-      reviewer: "Payroll reviewer",
+      approval: await signTestRecoveryApproval(f.organizationId, id),
     }), /Only exhausted pre-ledger retries/i);
     assert.equal((await readIntent(id)).status, "needs_review");
   });
