@@ -394,11 +394,13 @@ test("production Vercel aliases are accepted from forwarded host plus deployment
   );
 });
 
-test("shared public nav uses the same blue start CTA as the homepage", () => {
+test("shared public nav uses the approved leaf brand and blue action", () => {
   const chrome = read("src/components/marketing/site-chrome.tsx");
-  assert.ok(chrome.includes('bg-[#f2f7ff]'));
-  assert.ok(chrome.includes('text-[#0868dc]'));
-  assert.ok(!chrome.includes('bg-[#11141F] px-5 py-2.5 text-[14px] font-semibold text-white'));
+  const css = read("src/components/marketing/public-pages.css");
+  assert.ok(chrome.includes("LinawMark"));
+  assert.ok(chrome.includes('className="ln-primary"'));
+  assert.match(css, /background:\s*#0877f9\s*!important/);
+  assert.ok(!chrome.includes('bg-[#11141F]'));
 });
 
 

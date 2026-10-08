@@ -1,148 +1,252 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import "./public-pages.css";
+import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
 import { LinawMark } from "@/components/linaw-mark";
-import { Menu, X } from "lucide-react";
-import { PUBLIC_FOOTER_GROUPS, PUBLIC_PRIMARY_LINKS } from "./public-navigation";
+import { PUBLIC_FOOTER_GROUPS } from "./public-navigation";
+import "./public-pages.css";
 
 export function BrandMark({ size = 32 }: { size?: number }) {
-  return <span className="inline-flex shrink-0 items-center justify-center [&>svg]:h-full [&>svg]:w-full" style={{ width: size, height: size }}><LinawMark /></span>;
+  return (
+    <span className="ln-mark" style={{ width: size, height: size }}>
+      <LinawMark />
+    </span>
+  );
+}
+
+const menus = [
+  {
+    label: "Product",
+    intro: "People, time, and pay. Connected.",
+    links: PUBLIC_FOOTER_GROUPS[0].links.filter(
+      (link) =>
+        ![
+          "/#product",
+          "/pricing",
+          "/developers",
+          "/payroll-outsourcing",
+        ].includes(link.href),
+    ),
+  },
+  {
+    label: "Resources",
+    intro: "Make your next payroll decision clearer.",
+    links: PUBLIC_FOOTER_GROUPS[1].links.slice(0, 7),
+  },
+  {
+    label: "Company",
+    intro: "Get to know Linaw and the controls behind it.",
+    links: PUBLIC_FOOTER_GROUPS[2].links.slice(0, 7),
+  },
+];
+
+function Brand() {
+  return (
+    <Link href="/" className="ln-brand" aria-label="Linaw home">
+      <BrandMark />
+      <span>
+        <strong>Linaw</strong>
+        <small>PEOPLE &middot; TIME &middot; PAY</small>
+      </span>
+    </Link>
+  );
 }
 
 export function SiteNav() {
-  const [stuck, setStuck] = useState(false);
   const [drawer, setDrawer] = useState(false);
-
+  const header = useRef<HTMLElement>(null);
+  const toggle = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    const onScroll = () => setStuck(window.scrollY > 8);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
+    const closeMenus = (event: Event) => {
+      const key = event as KeyboardEvent;
+      if (event.type === "keydown" && key.key !== "Escape") return;
+      const outside = !header.current?.contains(event.target as Node);
+      if (key.key !== "Escape" && !outside) return;
+      const openMenus = header.current?.querySelectorAll<HTMLDetailsElement>("details[open]");
+      if (key.key === "Escape" && !drawer && !openMenus?.length) return;
+      const summary = openMenus?.[0]?.querySelector("summary");
+      openMenus?.forEach((detail) => detail.removeAttribute("open"));
+      if (key.key === "Escape") {
+        key.preventDefault();
+        setDrawer(false);
+        if (drawer) toggle.current?.focus();
+        else summary?.focus();
+      }
+      if (outside) setDrawer(false);
+    };
+    document.addEventListener("pointerdown", closeMenus);
+    document.addEventListener("keydown", closeMenus);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenus);
+      document.removeEventListener("keydown", closeMenus);
+    };
+  }, [drawer]);
   return (
-    <>
-      <header
-        className={`linaw-site-nav sticky top-0 z-50 border-b transition-all duration-300 ${
-          stuck
-            ? "border-[#E8EAF3] bg-white/92 shadow-[0_8px_24px_-18px_rgba(16,18,38,.28)] backdrop-blur-xl"
-            : "border-transparent bg-white/85 backdrop-blur-lg"
-        }`}
-      >
-        <nav className="mx-auto flex h-[68px] max-w-[1240px] items-center justify-between gap-5 px-5 sm:px-8" aria-label="Primary">
-          <Link href="/" className="group flex shrink-0 items-center gap-2.5" aria-label="Linaw home">
-            <span className="transition-transform duration-300 group-hover:-rotate-6 group-hover:scale-105">
-              <BrandMark />
-            </span>
-            <span className="leading-none">
-              <span className="font-display block text-[19px] font-semibold tracking-tight text-[#0B0D1A]">Linaw</span>
-              <span className="mt-1 block text-[8.5px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">Philippine Payroll</span>
-            </span>
-          </Link>
-
-          <div className="hidden min-w-0 items-center justify-center gap-0.5 xl:flex">
-            {PUBLIC_PRIMARY_LINKS.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="whitespace-nowrap rounded-full px-3.5 py-2 text-[13.5px] font-medium text-[#2B2F45] transition-colors hover:bg-[#F1F2F8] hover:text-[#0B0D1A]"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-
-          <div className="hidden shrink-0 items-center gap-2 xl:flex">
-            <Link href="/login" className="rounded-full px-4 py-2.5 text-[14px] font-semibold text-[#2B2F45] hover:bg-[#F1F2F8]">
-              Sign in
-            </Link>
-            <Link
-              href="/signup"
-              className="inline-flex items-center rounded-[10px] border border-[#cddfff] bg-[#f2f7ff] px-4 py-2.5 text-[14px] font-semibold text-[#0868dc] transition-all hover:border-[#abcfff] hover:bg-[#e5f0ff]"
+    <header ref={header} className="linaw-site-nav ln-header">
+      <nav className="ln-nav" aria-label="Primary">
+        <Brand />
+        <div className="ln-desktop">
+          {menus.map((menu) => (
+            <details
+              key={menu.label}
+              className="ln-menu"
+              onToggle={(event) => {
+                const current = event.currentTarget;
+                if (current.open)
+                  header.current
+                    ?.querySelectorAll("details[open]")
+                    .forEach((detail) => {
+                      if (detail !== current) detail.removeAttribute("open");
+                    });
+              }}
             >
-              Request trial access
+              <summary>
+                {menu.label}
+                <ChevronDown size={14} />
+              </summary>
+              <div className="ln-dropdown">
+                <p>{menu.intro}</p>
+                <div>
+                  {menu.links.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() =>
+                        header.current
+                          ?.querySelectorAll("details[open]")
+                          .forEach((detail) => detail.removeAttribute("open"))
+                      }
+                    >
+                      {link.label}
+                      <ArrowRight size={13} />
+                    </Link>
+                  ))}
+                </div>
+                <Link className="ln-dropdown-demo" href="/demo">
+                  Explore the role-based demo <ArrowRight size={15} />
+                </Link>
+              </div>
+            </details>
+          ))}
+          <Link href="/payroll-outsourcing">Outsourcing</Link>
+          <Link href="/pricing">Pricing</Link>
+        </div>
+        <div className="ln-actions">
+          <Link href="/login">Sign in</Link>
+          <Link href="/demo" className="ln-demo">
+            Try demo
+          </Link>
+          <Link href="/book-demo" className="ln-primary">
+            Book a demo <ArrowRight size={15} />
+          </Link>
+        </div>
+        <button
+          ref={toggle}
+          className="ln-toggle"
+          type="button"
+          aria-label={drawer ? "Close menu" : "Open menu"}
+          aria-expanded={drawer}
+          aria-controls="linaw-mobile-nav"
+          onClick={() => setDrawer(!drawer)}
+        >
+          {drawer ? <X size={22} /> : <Menu size={22} />}
+        </button>
+      </nav>
+      {drawer && (
+        <nav
+          id="linaw-mobile-nav"
+          className="ln-mobile"
+          aria-label="Mobile primary"
+        >
+          {menus.map((menu) => (
+            <details key={menu.label}>
+              <summary>
+                {menu.label}
+                <ChevronDown size={16} />
+              </summary>
+              <div>
+                {menu.links.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setDrawer(false)}
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            </details>
+          ))}
+          <Link href="/payroll-outsourcing">Payroll outsourcing</Link>
+          <Link href="/pricing">Pricing</Link>
+          <div className="ln-mobile-actions">
+            <Link href="/login">Sign in</Link>
+            <Link href="/demo">Try demo</Link>
+            <Link href="/book-demo" className="ln-primary">
+              Book a demo
             </Link>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setDrawer((current) => !current)}
-            aria-expanded={drawer}
-            aria-label={drawer ? "Close menu" : "Open menu"}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#E8EAF3] bg-white text-[#0B0D1A] xl:hidden"
-          >
-            {drawer ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
         </nav>
-
-        <div className={`overflow-hidden bg-white transition-all duration-300 xl:hidden ${drawer ? "max-h-[620px] border-t border-[#E8EAF3] opacity-100" : "max-h-0 opacity-0"}`}>
-          <div className="mx-auto max-w-[1240px] px-5 pb-6 pt-3 sm:px-8">
-            <div className="grid gap-1 sm:grid-cols-2">
-              {PUBLIC_PRIMARY_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setDrawer(false)}
-                  className="rounded-xl px-4 py-3 text-[15px] font-semibold text-[#2B2F45] hover:bg-[#F6F7FB]"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
-            <div className="mt-3 flex gap-2 border-t border-[#E8EAF3] pt-4">
-              <Link href="/login" onClick={() => setDrawer(false)} className="flex-1 rounded-full border border-[#E8EAF3] px-5 py-3 text-center text-[14px] font-semibold">
-                Sign in
-              </Link>
-              <Link href="/signup" onClick={() => setDrawer(false)} className="flex-1 rounded-[10px] border border-[#cddfff] bg-[#f2f7ff] px-5 py-3 text-center text-[14px] font-semibold text-[#0868dc]">
-                Request trial access
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
-    </>
+      )}
+    </header>
   );
 }
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-[#EDEFF7] bg-[#FAFBFD]">
-      <div className="mx-auto max-w-[1240px] px-5 pb-10 pt-14 sm:px-8 sm:pt-16">
-        <div className="grid gap-10 md:grid-cols-[1.45fr_1fr_1fr_1fr]">
-          <div>
-            <Link href="/" className="flex items-center gap-3" aria-label="Linaw home">
-              <BrandMark size={40} />
-              <span className="leading-none">
-                <span className="font-display block text-[22px] font-semibold tracking-tight text-[#0B0D1A]">Linaw</span>
-                <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#7C82A1]">Philippine Payroll</span>
-              </span>
-            </Link>
-            <p className="mt-5 max-w-[340px] text-[14px] leading-relaxed text-[#5B6080]">
-              Philippine payroll software for teams that want every run, approval and peso to be traceable.
-            </p>
-          </div>
-
-          {PUBLIC_FOOTER_GROUPS.map((group) => (
-            <nav key={group.label} aria-label={group.label}>
-              <p className="text-[12px] font-bold uppercase tracking-[0.13em] text-[#8B90AA]">{group.label}</p>
-              <ul className="mt-4 space-y-3">
-                {group.links.map((link) => (
-                  <li key={link.href}>
-                    <Link href={link.href} className="text-[14px] font-medium text-[#2B2F45] transition-colors hover:text-[#0868dc]">
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          ))}
+    <footer className="ln-footer">
+      <div className="ln-footer-top">
+        <div>
+          <span className="ln-eyebrow">A clearer payday starts here</span>
+          <h2>
+            Your people. Your time.
+            <br />
+            Your next payday.
+          </h2>
+          <p>Explore the workflow, or talk through what your team needs.</p>
         </div>
-
-        <div className="mt-12 flex flex-col gap-2 border-t border-[#E2E4F0] pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[13px] font-medium text-[#5B6080]">Linaw · Philippine payroll software.</p>
-          <p className="text-[12.5px] text-[#8B90AA]">Government worksheet output is labelled DRAFT until validated.</p>
+        <div className="ln-footer-cta">
+          <Link href="/book-demo" className="ln-primary">
+            Book a demo <ArrowRight size={16} />
+          </Link>
+          <Link href="/demo">
+            Explore the product <ArrowRight size={16} />
+          </Link>
+        </div>
+      </div>
+      <div className="ln-footer-grid">
+        <div className="ln-footer-brand">
+          <Brand />
+          <p>Connected payroll and people software for Philippine teams.</p>
+          <Link href="/contact">
+            Talk to our team <ArrowRight size={14} />
+          </Link>
+          <span>Built around a clearer payday.</span>
+        </div>
+        {PUBLIC_FOOTER_GROUPS.map((group) => (
+          <nav key={group.label} aria-label={group.label}>
+            <h3>
+              {group.label === "Trust & access"
+                ? "Company & trust"
+                : group.label}
+            </h3>
+            <ul>
+              {group.links.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href}>{link.label}</Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))}
+      </div>
+      <div className="ln-footer-bottom">
+        <span>&copy; {new Date().getFullYear()} Linaw. People, time, and pay.</span>
+        <div>
+          <Link href="/security">Security</Link>
+          <Link href="/status">System status</Link>
+          <Link href="/methodology">Our methodology</Link>
         </div>
       </div>
     </footer>
