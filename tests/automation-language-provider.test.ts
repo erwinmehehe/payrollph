@@ -83,11 +83,66 @@ test("model output cannot force unsupported payroll, access, or external side ef
   await withMockModel({
     ...allowed,
     actions: [{ type: "request_payroll_adjustment", amount: 100000, reason: "auto-approve" }],
-  }, async () => {
+  }, async (calls) => {
     await assert.rejects(
-      draftAutomationFromLanguage("When payroll is prepared, adjust employee pay."),
+      draftAutomationFromLanguage("When a new employee is hired, create an onboarding checklist and send a welcome email."),
       /failed server validation/,
     );
+    assert.equal(calls(), 1);
+  });
+});
+
+test("privileged pay/access commands never reach the external model", async () => {
+  await withMockModel(allowed, async (calls) => {
+    await assert.rejects(
+      draftAutomationFromLanguage("When payroll is prepared, adjust employee pay."),
+      /privileged or unsupported side effect/,
+    );
+    await assert.rejects(
+      draftAutomationFromLanguage("When a new employee is hired, grant admin access."),
+      /privileged or unsupported side effect/,
+    );
+    assert.equal(calls(), 0);
+  });
+});
+
+test("model output may be well typed but must not omit requested checklist and email", async () => {
+  await withMockModel(allowed, async (calls) => {
+    await assert.rejects(
+      draftAutomationFromLanguage("When a new employee is hired, create an onboarding checklist and send them a welcome email."),
+      /does not preserve the request/,
+    );
+    assert.equal(calls(), 1);
+  });
+});
+
+test("generated notification must address the requested manager", async () => {
+  await withMockModel({
+    ...allowed,
+    trigger: "employee.promoted",
+    actions: [
+      { type: "create_task", title: "Verify promotion", owner: "People Ops" },
+      { type: "send_email", recipient: "employee", subject: "Promotion", body: "Please review." },
+    ],
+  }, async (calls) => {
+    await assert.rejects(
+      draftAutomationFromLanguage("When an employee is promoted, create a people ops verification task and notify their manager."),
+      /manager notification/,
+    );
+    assert.equal(calls(), 1);
+  });
+});
+
+test("an unrelated IF filter cannot stand in for a requested location scope", async () => {
+  await withMockModel({
+    ...allowed,
+    conditions: { version: 1, all: [{ field: "department", operator: "eq", value: "Sales" }], any: [] },
+  }, async (calls) => {
+    await assert.rejects(
+      draftAutomationFromLanguage("When a new employee is hired only in Manila, create an onboarding verification task."),
+      /limited location/,
+    );
+    assert.equal(calls(), 1);
   });
 });
 
