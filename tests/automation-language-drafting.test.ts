@@ -25,7 +25,12 @@ test("language drafting uses typed, allow-listed Studio primitives and rejects p
 });
 
 test("language proposal is non-mutating; persistence uses versioned draft lane", () => {
-  const languageBranch = api.slice(api.indexOf('action === "draft-from-language"'), api.indexOf('action === "save-language-draft"'));
+  // Anchor at the actual request-handler block, not the earlier rollout
+  // guard that mentions both action names in one condition.
+  const generateStart = api.indexOf('  if (action === "draft-from-language") {');
+  const saveStart = api.indexOf('  if (action === "save-language-draft") {', generateStart);
+  assert.ok(generateStart >= 0 && saveStart > generateStart, "Language action handlers must exist");
+  const languageBranch = api.slice(generateStart, saveStart);
   assert.ok(languageBranch.includes("draftAutomationFromLanguage"));
   assert.equal(languageBranch.includes("saveAutomationRuleDraft("), false);
   assert.equal(languageBranch.includes("publishAutomationRuleDraft("), false);
