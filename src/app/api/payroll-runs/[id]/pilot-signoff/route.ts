@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, payrollEntries, payrollRuns, payslips } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { isValidPilotBankDryRunEvidence } from "@/lib/pilot-bank-dry-run-evidence";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
@@ -222,24 +223,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       : {};
     return meta.kind === "journal";
   });
-  const dryRunBankExport = runEvents.find((event) => {
-    if (event.action !== "Bank file dry-run generated" || !releaseReceipt) return false;
-    const metadata = event.metadata && typeof event.metadata === "object"
-      ? event.metadata as Record<string, unknown>
-      : {};
-    // A preview prepared before the final release or containing placeholder
-    // destinations cannot stand in for a real employer's no-money bank-file proof.
-    return metadata.kind === "bank"
-      && metadata.dryRun === true
-      && event.createdAt.getTime() >= releaseReceipt.createdAt.getTime()
-      && Number(metadata.bankExportRowCount) === entries.length
-      && Math.abs(Number(metadata.bankExportTotalNet) - Number(run.netPay)) <= 0.01
-      && Number(metadata.bankExportMissingDestinations) === 0
-      && Number(metadata.bankExportMissingPaymentSnapshots) === 0
-      && metadata.bankExportSyntheticDemoDestinations === false
-      && typeof metadata.bankExportSha256 === "string"
-      && /^[0-9a-f]{64}$/.test(metadata.bankExportSha256);
-  });
+  const dryRunBankExport = runEvents.find((event) => isValidPilotBankDryRunEvidence(
+    event,
+    releaseReceipt?.createdAt ?? null,
+    { employeeCount: entries.length, netPay: Number(run.netPay) },
+  ));
   const alreadySigned = runEvents.find((event) => event.action === "Production payroll pilot signed off");
 
   if (alreadySigned) {
@@ -260,7 +248,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   if (!releaseReceipt) evidenceFailures.push("release receipt");
   if (!payoutCompleted && !dryRunBankExport) {
-    evidenceFailures.push("completed payout or post-release bank-file dry-run with complete real destinations, immutable snapshots, correct employee count, matching net sum and SHA-256 proof");
+    evidenceFailures.push("completed payout or post-release bank-file dry-run with complete real destinations, immutable payment/identity snapshots, matching file-part counts and totals, and SHA-256 proof");
   }
   if (slips.length < entries.length) evidenceFailures.push("payslips for every released entry");
   if (!accountingExport) evidenceFailures.push("accounting journal export");
