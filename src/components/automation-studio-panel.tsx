@@ -257,6 +257,18 @@ type StudioData = {
   };
 };
 
+type LanguageProposal = {
+  draft: {
+    name: string;
+    trigger: string;
+    conditions: { version: 1; all: Array<{ field: string; operator: string; value?: unknown }>; any: Array<{ field: string; operator: string; value?: unknown }> };
+    actions: Array<Record<string, unknown>>;
+  };
+  validation: { valid: boolean; warnings: string[]; errors: string[] };
+  source: "model" | "approved-template";
+  sourceNote: string;
+};
+
 type ConditionDraft = {
   id: string;
   field: string;
@@ -403,6 +415,10 @@ export function AutomationStudioPanel({
   const [previewingRuleId, setPreviewingRuleId] = useState<number | null>(null);
   const [impactPreview, setImpactPreview] = useState<ImpactPreviewResponse | null>(null);
   const [showBuilder, setShowBuilder] = useState(false);
+  const [languageRequest, setLanguageRequest] = useState("");
+  const [languageProposal, setLanguageProposal] = useState<LanguageProposal | null>(null);
+  const [draftingLanguage, setDraftingLanguage] = useState(false);
+  const [savingLanguage, setSavingLanguage] = useState(false);
   const [name, setName] = useState("");
   const [trigger, setTrigger] = useState("employee.hired");
   const [matchMode, setMatchMode] = useState<"all" | "any">("all");
@@ -764,6 +780,55 @@ export function AutomationStudioPanel({
     }
   }
 
+  async function generateLanguageProposal() {
+    setDraftingLanguage(true);
+    setLanguageProposal(null);
+    setImpactPreview(null);
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, action: "draft-from-language", request: languageRequest }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not interpret the workflow request.");
+      setLanguageProposal(payload as LanguageProposal);
+      setNotice("Typed proposal validated. Review the entire definition before saving the unpublished draft.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Natural-language draft failed.");
+    } finally {
+      setDraftingLanguage(false);
+    }
+  }
+
+  async function saveLanguageProposal() {
+    if (!languageProposal?.validation.valid) return;
+    setSavingLanguage(true);
+    setImpactPreview(null);
+    try {
+      const response = await fetch("/api/automation-studio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId,
+          action: "save-rule",
+          ...languageProposal.draft,
+          active: false, // A language proposal never activates a workflow on save.
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not save typed workflow draft.");
+      setLanguageProposal(null);
+      setLanguageRequest("");
+      await load();
+      setNotice("Unpublished workflow saved as inactive draft. Run Impact Preview, then approve/publish explicitly.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not save language proposal.");
+    } finally {
+      setSavingLanguage(false);
+    }
+  }
+
   async function instantiateTemplate(template: WorkflowTemplateCatalog) {
     const requestedName = window.prompt("Draft workflow name", template.name)?.trim();
     if (!requestedName) return;
@@ -965,6 +1030,64 @@ export function AutomationStudioPanel({
           </span>
         </div>
       </article>
+
+      <section className="card" style={{ marginTop: 16 }} data-automation-language-studio>
+        <div className="card-header">
+          <div>
+            <div className="card-kicker">NATURAL-LANGUAGE DRAFTING</div>
+            <h2>Describe an automation in plain English</h2>
+            <p>Request → typed draft → validation → save inactive draft → Impact Preview → human approval/publish. Language cannot execute or publish workflows.</p>
+          </div>
+          <Bot size={18} className="i-purple" />
+        </div>
+        <div className="card-body">
+          <label style={{ display: "block", marginBottom: 12 }}>
+            What should happen?
+            <textarea
+              value={languageRequest}
+              onChange={(event) => { setLanguageRequest(event.target.value); setLanguageProposal(null); }}
+              rows={3}
+              maxLength={2000}
+              style={{ display: "block", width: "100%", marginTop: 6 }}
+              placeholder="When a new employee is hired, create an onboarding checklist and send them a welcome email."
+            />
+          </label>
+          <div className="run-actions">
+            <button type="button" className="secondary-button"
+              disabled={draftingLanguage || languageRequest.trim().length < 12}
+              onClick={() => void generateLanguageProposal()}>
+              <Bot size={14} /> {draftingLanguage ? "Drafting…" : "Generate typed draft"}
+            </button>
+          </div>
+          {languageProposal && (
+            <div style={{ marginTop: 18 }} data-language-typed-draft>
+              <div className="notice notice-amber">
+                <ShieldCheck size={16} />
+                <span><strong>Unpublished, inactive proposal.</strong> {languageProposal.sourceNote}</span>
+              </div>
+              <h3 style={{ marginTop: 14 }}>{languageProposal.draft.name}</h3>
+              <div className="modal-note" style={{ marginBottom: 10 }}>
+                WHEN <strong>{languageProposal.draft.trigger}</strong> · IF {languageProposal.draft.conditions.all.length + languageProposal.draft.conditions.any.length} conditions · THEN {languageProposal.draft.actions.length} actions.
+              </div>
+              <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 360, overflowY: "auto", padding: 14, fontSize: 12, background: "var(--surface, #f8fafc)", borderRadius: 8 }}>
+                {JSON.stringify(languageProposal.draft, null, 2)}
+              </pre>
+              {languageProposal.validation.warnings.map((warning) => (
+                <div className="modal-note" key={warning} style={{ marginTop: 8 }}>{warning}</div>
+              ))}
+              <div className="run-actions" style={{ marginTop: 14 }}>
+                <button type="button" className="secondary-button" onClick={() => setLanguageProposal(null)}>Discard proposal</button>
+                <button type="button" className="primary-button"
+                  disabled={!languageProposal.validation.valid || savingLanguage}
+                  onClick={() => void saveLanguageProposal()}>
+                  <Plus size={14} /> {savingLanguage ? "Saving…" : "Save inactive draft"}
+                </button>
+              </div>
+              <p className="modal-note">After saving, find this workflow under Configured automations. Run Impact Preview for its exact draft version and review the results before selecting Publish. Saving is not approval.</p>
+            </div>
+          )}
+        </div>
+      </section>
 
       <section className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
