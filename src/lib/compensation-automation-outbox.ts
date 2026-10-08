@@ -18,6 +18,7 @@ export type CompensationAutomationIntentInput = {
 };
 
 const MAX_AUTO_ATTEMPTS = 5;
+const PRE_LEDGER_RETRIES_EXHAUSTED = "Maximum pre-ledger retry attempts reached. Human reconciliation required.";
 const DISPATCH_LEASE_MS = 10 * 60 * 1000;
 
 /**
@@ -152,7 +153,7 @@ export async function dispatchCompensationAutomationIntent(
         now,
         error: ledgerExists
           ? "Dispatch failed after an automation event might have executed. Inspect execution evidence; no automatic replay."
-          : "Maximum pre-ledger retry attempts reached. Human reconciliation required.",
+          : PRE_LEDGER_RETRIES_EXHAUSTED,
       });
     }
     return persistDispatchResult(row, "retry", {
@@ -322,6 +323,13 @@ export async function retryUnstartedCompensationAutomationIntent(input: {
     if (!intent || intent.status !== "needs_review") throw new Error("Compensation automation intent is not in review.");
     if (intent.lastError?.includes("lease expired")) {
       throw new Error("An expired dispatch lease may have external side effects; require separate execution evidence review.");
+    }
+    // A later ledger deletion is NOT proof that earlier side effects never
+    // happened. Only rows quarantined specifically after all five confirmed
+    // pre-ledger attempts are ever eligible for manual requeueing.
+    if (intent.lastError !== PRE_LEDGER_RETRIES_EXHAUSTED
+        || intent.attempts !== MAX_AUTO_ATTEMPTS) {
+      throw new Error("Only exhausted pre-ledger retries may be requeued; ambiguous automation evidence must remain under review.");
     }
     const [[event], [execution]] = await Promise.all([
       tx.select({ id: automationEventLog.id }).from(automationEventLog).where(and(
