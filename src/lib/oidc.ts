@@ -1,6 +1,7 @@
 import { createHash, createPublicKey, verify, type JsonWebKey as NodeJsonWebKey } from "node:crypto";
 import { getValidatedJson, postValidatedForm, resolveWebhookTarget } from "@/lib/security-network";
 import { decryptEnterpriseSecret } from "@/lib/enterprise-secret";
+import { validateOidcIdentityClaims } from "@/lib/oidc-identity-claims";
 
 export type OidcDiscovery = {
   issuer: string;
@@ -121,29 +122,14 @@ export async function verifyOidcIdToken(input: {
   const signature = Buffer.from(parts[2], "base64url");
   if (!verify("RSA-SHA256", signingInput, publicKey, signature)) throw new Error("OIDC ID token signature is invalid.");
 
-  const now = Math.floor(Date.now() / 1000);
-  if (payload.iss !== normalizeIssuer(input.issuer)) throw new Error("OIDC issuer claim is invalid.");
-  const audience = Array.isArray(payload.aud) ? payload.aud : payload.aud ? [payload.aud] : [];
-  if (!audience.includes(input.clientId)) throw new Error("OIDC audience claim is invalid.");
-  if (audience.length > 1 && payload.azp !== input.clientId) throw new Error("OIDC authorized-party claim is invalid.");
-  if (!payload.exp || payload.exp <= now - 30) throw new Error("OIDC ID token is expired.");
-  if (payload.iat && payload.iat > now + 120) throw new Error("OIDC ID token was issued in the future.");
-  if (payload.nonce !== input.nonce) throw new Error("OIDC nonce is invalid.");
-  if (!payload.sub) throw new Error("OIDC subject claim is missing.");
-  if (payload.email_verified === false) throw new Error("OIDC provider reports that the email is not verified.");
-
-  const rawEmail = payload[input.emailClaim];
-  const email = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
-  if (!email || email.length > 180 || !email.includes("@")) throw new Error("OIDC ID token does not contain a usable email claim.");
-
-  const amr = Array.isArray(payload.amr) ? payload.amr.filter((value): value is string => typeof value === "string") : [];
-  const mfaSatisfied = amr.some((value) => ["mfa", "otp", "hwk", "fido", "webauthn"].includes(value.toLowerCase()));
-
-  return {
-    subject: payload.sub,
-    email,
-    name: typeof payload.name === "string" ? payload.name.slice(0, 120) : null,
-    mfaSatisfied,
+  // Never trust claims until the ID token signature above verifies against
+  // the provider's pinned discovery JWKS.
+  return validateOidcIdentityClaims({
     payload,
-  };
+    issuer: normalizeIssuer(input.issuer),
+    clientId: input.clientId,
+    nonce: input.nonce,
+    emailClaim: input.emailClaim,
+    nowSeconds: Math.floor(Date.now() / 1000),
+  });
 }
