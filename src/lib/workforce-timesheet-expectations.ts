@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  payrollRuns,
   workforceTimesheetExpectations,
   workforceTimesheets,
 } from "@/db/schema";
@@ -103,10 +104,18 @@ export async function listTimesheetExpectationsForPeriod(input: {
   periodEnd: string;
 }) {
   if (input.employeeIds.length === 0) return [];
-  return db.select().from(workforceTimesheetExpectations).where(and(
+  const rows = await db.select().from(workforceTimesheetExpectations).where(and(
     eq(workforceTimesheetExpectations.organizationId, input.organizationId),
     inArray(workforceTimesheetExpectations.employeeId, input.employeeIds),
     eq(workforceTimesheetExpectations.periodStart, input.periodStart),
     eq(workforceTimesheetExpectations.periodEnd, input.periodEnd),
   )).orderBy(asc(workforceTimesheetExpectations.employeeId), desc(workforceTimesheetExpectations.id));
+  if (rows.length === 0) return rows;
+  const activeRuns = await db.select({ id: payrollRuns.id }).from(payrollRuns).where(and(
+    eq(payrollRuns.organizationId, input.organizationId),
+    inArray(payrollRuns.id, [...new Set(rows.map((row) => row.payrollRunId))]),
+    notInArray(payrollRuns.status, ["Released", "Failed", "Cancelled", "Voided", "Superseded"]),
+  ));
+  const activeRunIds = new Set(activeRuns.map((row) => row.id));
+  return rows.filter((row) => activeRunIds.has(row.payrollRunId));
 }
