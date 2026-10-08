@@ -31,6 +31,38 @@ export type PayableTimeSegmentation = {
   flags: string[];
 };
 
+// Keep the machine-readable warning stable across segmentation, the stored
+// payroll trace and checker/release assurance. A free-text warning alone is
+// insufficient for a financial release gate.
+export const WFM_PREMIUM_ALLOCATION_UNVERIFIED = "WFM_PREMIUM_ALLOCATION_UNVERIFIED";
+
+/**
+ * Returns only payroll-blocking pricing evidence flags. An unlocated break in
+ * one price bucket can remain reviewable, but an ambiguous boundary, or a
+ * complete worked punch that cannot be segmented at all, cannot be waived.
+ */
+export function payableTimeEvidenceFlagsForPayroll(
+  segmentation: PayableTimeSegmentation,
+  derivedWorkedMinutes: number,
+): string[] {
+  if (segmentation.allocationComplete || segmentation.flags.length === 0) return [];
+
+  const pricingClasses = new Set(segmentation.segments.map((segment) =>
+    `${segment.calendarDate}|${segment.overtime ? "ot" : "regular"}|${segment.night ? "night" : "day"}`,
+  ));
+  const mandatoryCorrection = segmentation.flags.some((flag) =>
+    flag.startsWith(`${WFM_PREMIUM_ALLOCATION_UNVERIFIED}:`),
+  );
+  const unpricedWorkedTime = segmentation.segments.length === 0 && derivedWorkedMinutes > 0;
+  if (!mandatoryCorrection && !unpricedWorkedTime && pricingClasses.size <= 1) return [];
+
+  return segmentation.flags.map((flag) =>
+    flag.startsWith(`${WFM_PREMIUM_ALLOCATION_UNVERIFIED}:`)
+      ? flag
+      : `${WFM_PREMIUM_ALLOCATION_UNVERIFIED}: ${flag}`,
+  );
+}
+
 const PH_OFFSET_MS = 8 * 60 * 60_000;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_OF_DAY = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
@@ -181,7 +213,7 @@ export function segmentPayableTime(input: {
       segments: [],
       attendanceCalendarDates,
       allocationComplete: false,
-      flags: ["Attendance punch exceeds eight Philippine calendar dates; premium allocation requires correction before payroll approval."],
+      flags: [`${WFM_PREMIUM_ALLOCATION_UNVERIFIED}: Attendance punch exceeds eight Philippine calendar dates; premium allocation requires correction before payroll approval.`],
     };
   }
   const crossesMidnight =
