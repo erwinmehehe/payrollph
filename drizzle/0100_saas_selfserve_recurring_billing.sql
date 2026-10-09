@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS saas_billing_state (
   provider_plan_id varchar(180),
   last_paid_cycle_id varchar(180),
   paid_through timestamptz,
+  recovery_url text,
   cancel_at_period_end boolean NOT NULL DEFAULT false,
   cancelled_at timestamptz,
   updated_at timestamptz NOT NULL DEFAULT now()
