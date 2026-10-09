@@ -797,9 +797,11 @@ export async function GET(request: Request) {
   ]);
   const journey = buildHcmWorkerJourney({
     employeeStatus: employee.status,
+    asOfDate: today,
     recruitment: linkedApplicantRows[0] ?? null,
     currentPositionId: position?.id ?? null,
-    lastPositionAssignmentId: assignmentHistoryRows[0]?.id ?? null,
+    currentPositionEffectiveFrom: position?.effectiveFrom ?? null,
+    lastPositionAssignmentId: assignmentHistoryRows.find((row) => String(row.effectiveFrom) <= today)?.id ?? null,
     onboarding: taskRows.filter((row) => row.kind === "onboarding"),
     offboarding: taskRows.filter((row) => row.kind === "offboarding"),
     latestPerformance: latestReviewRows[0] ?? null,
