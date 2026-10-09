@@ -19,6 +19,7 @@ import {
   evaluatePayrollConnectedRelease,
   type ConnectedReleaseResult,
 } from "@/lib/payroll-connected-release-gate";
+import { loadTimesheetPolicy } from "@/lib/workforce-timesheet-server";
 
 const MAX_SOURCE_ROWS = 500;
 
@@ -117,6 +118,7 @@ export async function buildPayrollConnectedReleaseReadiness(runId: number): Prom
   const earliest = run.periodStart;
   const end = run.periodEnd;
   const since = completedJob.createdAt;
+  const timesheetPolicy = await loadTimesheetPolicy(companyId);
 
   const [
     workerChanges,
@@ -242,6 +244,7 @@ export async function buildPayrollConnectedReleaseReadiness(runId: number): Prom
     calculationStartedAt: since,
     calculatedEmployeeIds: entries.map((entry) => entry.employeeId),
     expectedEmployeeIds: eligibleEmployees.map((employee) => employee.id),
+    timesheetApprovalRequired: timesheetPolicy.active && timesheetPolicy.enforcementMode === "block",
     workerChanges: workerChanges.slice(0, MAX_SOURCE_ROWS),
     payoutChanges: payoutChanges.slice(0, MAX_SOURCE_ROWS),
     attendanceCorrections: correctionRows.slice(0, MAX_SOURCE_ROWS),
