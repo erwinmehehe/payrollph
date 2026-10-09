@@ -14,7 +14,7 @@ import {
   requireSensitiveActionMfa,
 } from "@/lib/security-request";
 import {
-  conflictingCutoff, parsePositiveUnderpaymentCents,
+  conflictingCutoff, hasOriginalBasicPayLine, parsePositiveUnderpaymentCents,
   payrollSourceFingerprint, validCalendarDate,
 } from "@/lib/payroll-underpayment";
 
@@ -156,6 +156,12 @@ export async function POST(request: Request) {
     }, { status: 409 });
   }
   const sourceEntry = sourceEntries[0];
+  if (!hasOriginalBasicPayLine(sourceEntry.lineItems)) {
+    return Response.json({
+      code: "UNDERPAYMENT_NO_BASIC_SOURCE",
+      error: "The source Released register has no BASIC earning line for this worker. Reconcile that source before submitting a basic-pay underpayment.",
+    }, { status: 409 });
+  }
   if (sourceRun.status !== "Released" || !["Active", "On leave"].includes(worker.status)) {
     return Response.json({ error: "Source must be Released and the worker must be eligible for the next payroll." }, { status: 409 });
   }
@@ -176,6 +182,7 @@ export async function POST(request: Request) {
       ]);
       if (freshRun?.status !== "Released" || freshEntries.length !== 1
         || freshEntries[0].id !== sourceEntry.id
+        || !hasOriginalBasicPayLine(freshEntries[0].lineItems)
         || payrollSourceFingerprint(freshEntries[0]) !== payrollSourceFingerprint(sourceEntry)) {
         throw new Error("UNDERPAYMENT_SOURCE_CHANGED");
       }
@@ -275,6 +282,7 @@ export async function PATCH(request: Request) {
       ]);
       if (run?.status !== "Released" || entries.length !== 1
         || entries[0].id !== pending.sourcePayrollEntryId
+        || !hasOriginalBasicPayLine(entries[0].lineItems)
         || payrollSourceFingerprint(entries[0]) !== pending.sourceEntryHash) {
         throw new Error("UNDERPAYMENT_SOURCE_CHANGED");
       }
