@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, employees, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, separationRecords, workforceTimesheets, workforcePlanningScenarios, workforcePlans } from "@/db/schema";
+import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, employees, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforceTimesheets, workforcePlanningScenarios, workforcePlans } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
@@ -17,6 +17,7 @@ import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { isPublicDemoIdentity } from "@/lib/demo-security";
 import { resumeAutomationExecutionFromApproval, runAutomationEventSafely } from "@/lib/automation";
 import { checkEmployeeLeaveEligibility } from "@/lib/hcm-leave-employment";
+import { loadCurrentHcmSeparation } from "@/lib/hcm-work-period-guard";
 import { advanceApprovalChainAfterDecisionTx } from "@/lib/approval-chains";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
 import {
@@ -440,20 +441,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             eq(employees.organizationId, task.organizationId),
           )).limit(1);
           if (!worker) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
-          const [currentSeparation] = worker.status === "Separating"
-            ? await tx.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
-              .where(and(
-                eq(separationRecords.organizationId, task.organizationId),
-                eq(separationRecords.employeeId, worker.id),
-                inArray(separationRecords.status, ["draft", "approved"]),
-              )).orderBy(desc(separationRecords.id)).limit(1)
-            : [];
+          const currentSeparation = await loadCurrentHcmSeparation({
+      employeeId: worker.id, organizationId: task.organizationId,
+      status: worker.status, startDate: String(worker.startDate),
+    }, tx as unknown as Pick<typeof db, "select">);
           const eligible = checkEmployeeLeaveEligibility({
             employeeStatus: worker.status,
             employmentStartDate: String(worker.startDate),
             leaveStartDate: String(leaveForDecision.startDate),
             leaveEndDate: String(leaveForDecision.endDate),
             separationLastDay: currentSeparation?.lastDay ?? null,
+            separationStatus: currentSeparation?.status ?? null,
           });
           if (eligible) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
         }

@@ -9,7 +9,6 @@ import {
   leaveRequestIntervals,
   leaveRequestIntervalSets,
   leaveRequests,
-  separationRecords,
   userOrganizations,
   users,
   workforceTimesheets,
@@ -25,6 +24,7 @@ import {
   type PreciseLeaveInterval,
 } from "@/lib/workforce-absence-intervals";
 import { loadResolvedEmployeeSchedule } from "@/lib/workforce-schedule-evidence-server";
+import { loadCurrentHcmSeparation } from "@/lib/hcm-work-period-guard";
 import {
   checkEmployeeLeaveEligibility,
   leaveDateWindow,
@@ -234,20 +234,17 @@ export async function POST(request: Request) {
         error: "Approved/rejected leave timing is immutable. Withdraw and submit a new governed request instead.",
       }, { status: 409 });
     }
-    const [pendingSeparation] = employee.status === "Separating"
-      ? await db.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
-          .where(and(
-            eq(separationRecords.organizationId, organizationId),
-            eq(separationRecords.employeeId, employee.id),
-            inArray(separationRecords.status, ["draft", "approved"]),
-          )).orderBy(desc(separationRecords.id)).limit(1)
-      : [];
+    const pendingSeparation = await loadCurrentHcmSeparation({
+      employeeId: employee.id, organizationId: organizationId,
+      status: employee.status, startDate: String(employee.startDate),
+    });
     const eligibility = checkEmployeeLeaveEligibility({
       employeeStatus: employee.status,
       employmentStartDate: String(employee.startDate),
       leaveStartDate: String(leave.startDate),
       leaveEndDate: String(leave.endDate),
       separationLastDay: pendingSeparation?.lastDay ?? null,
+      separationStatus: pendingSeparation?.status ?? null,
     });
     if (eligibility) {
       return Response.json({ code: eligibility.code, error: eligibility.message }, { status: 409 });
@@ -284,20 +281,17 @@ export async function POST(request: Request) {
             || String(freshLeave.endDate) !== String(leave.endDate)) {
           throw new Error("LEAVE_REVISION_STALE");
         }
-        const [liveSeparation] = freshEmployee.status === "Separating"
-          ? await tx.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
-            .where(and(
-              eq(separationRecords.organizationId, organizationId),
-              eq(separationRecords.employeeId, employee.id),
-              inArray(separationRecords.status, ["draft", "approved"]),
-            )).orderBy(desc(separationRecords.id)).limit(1)
-          : [];
+        const liveSeparation = await loadCurrentHcmSeparation({
+      employeeId: freshEmployee.id, organizationId: organizationId,
+      status: freshEmployee.status, startDate: String(freshEmployee.startDate),
+    }, tx as unknown as Pick<typeof db, "select">);
         const currentEligibility = checkEmployeeLeaveEligibility({
           employeeStatus: freshEmployee.status,
           employmentStartDate: String(freshEmployee.startDate),
           leaveStartDate: String(freshLeave.startDate),
           leaveEndDate: String(freshLeave.endDate),
           separationLastDay: liveSeparation?.lastDay ?? null,
+          separationStatus: liveSeparation?.status ?? null,
         });
         if (currentEligibility) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
 
@@ -417,20 +411,17 @@ export async function POST(request: Request) {
   ) {
     return Response.json({ error: "Managers can submit leave only for employees in their assigned unit." }, { status: 403 });
   }
-  const [pendingSeparation] = employee.status === "Separating"
-    ? await db.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
-        .where(and(
-          eq(separationRecords.organizationId, organizationId),
-          eq(separationRecords.employeeId, employee.id),
-          inArray(separationRecords.status, ["draft", "approved"]),
-        )).orderBy(desc(separationRecords.id)).limit(1)
-    : [];
+  const pendingSeparation = await loadCurrentHcmSeparation({
+      employeeId: employee.id, organizationId: organizationId,
+      status: employee.status, startDate: String(employee.startDate),
+    });
   const eligibility = checkEmployeeLeaveEligibility({
     employeeStatus: employee.status,
     employmentStartDate: String(employee.startDate),
     leaveStartDate: startDate,
     leaveEndDate: endDate,
     separationLastDay: pendingSeparation?.lastDay ?? null,
+    separationStatus: pendingSeparation?.status ?? null,
   });
   if (eligibility) {
     return Response.json({ code: eligibility.code, error: eligibility.message }, { status: 409 });
@@ -505,20 +496,17 @@ export async function POST(request: Request) {
       eq(employees.organizationId, organizationId),
     )).limit(1);
     if (!freshWorker) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
-    const [currentSeparation] = freshWorker.status === "Separating"
-      ? await tx.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
-        .where(and(
-          eq(separationRecords.organizationId, organizationId),
-          eq(separationRecords.employeeId, employeeId),
-          inArray(separationRecords.status, ["draft", "approved"]),
-        )).orderBy(desc(separationRecords.id)).limit(1)
-      : [];
+    const currentSeparation = await loadCurrentHcmSeparation({
+      employeeId: freshWorker.id, organizationId: organizationId,
+      status: freshWorker.status, startDate: String(freshWorker.startDate),
+    }, tx as unknown as Pick<typeof db, "select">);
     const liveEligibility = checkEmployeeLeaveEligibility({
       employeeStatus: freshWorker.status,
       employmentStartDate: String(freshWorker.startDate),
       leaveStartDate: startDate,
       leaveEndDate: endDate,
       separationLastDay: currentSeparation?.lastDay ?? null,
+      separationStatus: currentSeparation?.status ?? null,
     });
     if (liveEligibility) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
 
@@ -577,6 +565,7 @@ export async function POST(request: Request) {
         workerStatusAtSubmission: freshWorker.status,
         employmentStartDate: freshWorker.startDate,
         separationLastDay: currentSeparation?.lastDay ?? null,
+        separationStatus: currentSeparation?.status ?? null,
       },
     });
     return { task, row, intervalSet };

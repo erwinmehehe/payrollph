@@ -72,6 +72,29 @@ test("separating workers can take leave through verified last day only", () => {
   })?.code, "LEAVE_SEPARATION_END_UNVERIFIED");
 });
 
+test("active worker cannot override a current separation record, nor approve released final pay as leave", () => {
+  for (const employeeStatus of ["Active", "On leave"]) {
+    for (const separationStatus of ["draft", "approved", "released"]) {
+      const rejected = checkEmployeeLeaveEligibility({
+        ...worker, employeeStatus, separationStatus,
+        separationLastDay: "2026-10-10",
+      });
+      assert.equal(rejected?.code, "LEAVE_EMPLOYMENT_STATE_CONFLICT");
+    }
+  }
+  assert.equal(checkEmployeeLeaveEligibility({
+    ...worker, employeeStatus: "Separating",
+    separationStatus: "released", separationLastDay: "2026-10-10",
+  })?.code, "LEAVE_FINAL_PAY_ALREADY_RELEASED");
+  assert.equal(checkEmployeeLeaveEligibility({
+    ...worker, employeeStatus: "Separating",
+    separationStatus: "approved", separationLastDay: "2026-10-10",
+  }), null);
+  assert.equal(checkEmployeeLeaveEligibility({
+    ...worker, separationStatus: null, separationLastDay: null,
+  }), null);
+});
+
 test("normal active and on-leave employees preserve valid requests", () => {
   assert.equal(checkEmployeeLeaveEligibility(worker), null);
   assert.equal(checkEmployeeLeaveEligibility({
@@ -88,7 +111,8 @@ test("new leave submission and preview guard both require employment bounds", ()
   for (const source of [create, preview]) {
     assert.ok(source.includes("checkEmployeeLeaveEligibility({"));
     assert.ok(source.includes("leaveDateWindow("));
-    assert.ok(source.includes("separationRecords.lastDay"));
+    assert.ok(source.includes("loadCurrentHcmSeparation("));
+    assert.ok(source.includes("separationStatus:"));
     assert.ok(source.includes("MAX_PRECISE_LEAVE_INTERVALS"));
   }
   assert.ok(create.includes("if (eligibility)"));
@@ -129,6 +153,7 @@ test("leave approval decides task, leave status and payroll timesheet stale stat
   assert.ok(transaction.includes("LEAVE_SELF_APPROVAL"));
   assert.ok(transaction.includes("LEAVE_REQUESTER_IDENTITY_UNKNOWN"));
   assert.ok(transaction.includes("LEAVE_EMPLOYMENT_NOT_ELIGIBLE"));
+  assert.ok(transaction.includes("loadCurrentHcmSeparation("));
   assert.ok(transaction.includes("for update"));
   assert.ok(transaction.includes("checkEmployeeLeaveEligibility({"));
   assert.ok(!src.includes("await db.update(leaveRequests).set"));
