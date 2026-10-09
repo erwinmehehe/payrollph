@@ -124,6 +124,10 @@ test("leave approval decides task, leave status and payroll timesheet stale stat
   assert.ok(transaction.includes("tx.update(workforceTimesheets)"));
   assert.ok(transaction.includes("tx.insert(auditEvents)"));
   assert.ok(transaction.includes("LEAVE_APPROVAL_STALE"));
+  assert.ok(transaction.includes("leaveRequestIntervalSets.revision, 1"));
+  assert.ok(transaction.includes("originalIntervalSet?.createdByUserId === sessionUser.id"));
+  assert.ok(transaction.includes("LEAVE_SELF_APPROVAL"));
+  assert.ok(transaction.includes("LEAVE_REQUESTER_IDENTITY_UNKNOWN"));
   assert.ok(transaction.includes("LEAVE_EMPLOYMENT_NOT_ELIGIBLE"));
   assert.ok(transaction.includes("for update"));
   assert.ok(transaction.includes("checkEmployeeLeaveEligibility({"));
