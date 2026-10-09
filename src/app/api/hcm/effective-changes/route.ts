@@ -490,6 +490,20 @@ export async function PATCH(request: Request) {
         eq(workerEffectiveChanges.status, "pending_approval"),
       )).returning();
       if (!row) throw new Error("CHANGE_DECISION_CONFLICT");
+      await tx.insert(auditEvents).values({
+        organizationId: row.organizationId,
+        actor: user.name.slice(0, 120),
+        action: "Effective-dated HCM change approved",
+        resource: `Employee #${row.employeeId}`,
+        metadata: {
+          effectiveChangeId: row.id,
+          effectiveDate: row.effectiveDate,
+          movementType: row.movementType,
+          requestedByUserId: row.requestedByUserId,
+          approvedByUserId: user.id,
+          targetPositionId: row.targetPositionId,
+        },
+      });
       return row;
     }).catch((error: unknown) => {
       if (error instanceof Error && error.message === "TARGET_POSITION_NOT_AVAILABLE") {
@@ -501,14 +515,6 @@ export async function PATCH(request: Request) {
       throw error;
     });
     if (approved instanceof Response) return approved;
-
-    await recordAuditEvent({
-      organizationId: approved.organizationId,
-      actor: user.name,
-      action: "Effective-dated HCM change approved",
-      resource: `Employee #${approved.employeeId}`,
-      metadata: { effectiveChangeId: approved.id, effectiveDate: approved.effectiveDate, movementType: approved.movementType },
-    });
 
     if (String(approved.effectiveDate) <= philippineBusinessDate()) {
       try {
@@ -529,30 +535,35 @@ export async function PATCH(request: Request) {
     if (change.status !== "pending_approval") {
       return Response.json({ error: "Only pending HCM changes can be declined." }, { status: 409 });
     }
-    const [row] = await db.update(workerEffectiveChanges).set({
-      status: "declined",
-      approvedByUserId: user.id,
-      approvedBy: user.name,
-      approvedAt: new Date(),
-      updatedAt: new Date(),
-    }).where(and(
-      eq(workerEffectiveChanges.id, id),
-      eq(workerEffectiveChanges.status, "pending_approval"),
-    )).returning();
-    if (!row) return Response.json({ error: "This HCM change was already decided." }, { status: 409 });
-
-    await recordAuditEvent({
-      organizationId: row.organizationId,
-      actor: user.name,
-      action: "Effective-dated HCM change declined",
-      resource: `Employee #${row.employeeId}`,
-      metadata: {
-        effectiveChangeId: row.id,
-        effectiveDate: row.effectiveDate,
-        movementType: row.movementType,
-        businessProcessInstanceId: linkedBusinessProcess?.id ?? null,
-      },
+    const row = await db.transaction(async tx => {
+      const [declined] = await tx.update(workerEffectiveChanges).set({
+        status: "declined",
+        approvedByUserId: user.id,
+        approvedBy: user.name,
+        approvedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(and(
+        eq(workerEffectiveChanges.id, id),
+        eq(workerEffectiveChanges.organizationId, change.organizationId),
+        eq(workerEffectiveChanges.status, "pending_approval"),
+      )).returning();
+      if (!declined) return null;
+      await tx.insert(auditEvents).values({
+        organizationId: declined.organizationId,
+        actor: user.name.slice(0, 120),
+        action: "Effective-dated HCM change declined",
+        resource: `Employee #${declined.employeeId}`,
+        metadata: {
+          effectiveChangeId: declined.id,
+          reviewerUserId: user.id,
+          effectiveDate: declined.effectiveDate,
+          movementType: declined.movementType,
+          businessProcessInstanceId: linkedBusinessProcess?.id ?? null,
+        },
+      });
+      return declined;
     });
+    if (!row) return Response.json({ error: "This HCM change was already decided." }, { status: 409 });
     return Response.json({ change: row, businessProcessCancelled: linkedBusinessProcess?.status === "in_progress" });
   }
 
