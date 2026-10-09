@@ -12,8 +12,8 @@ import {
   requireSensitiveActionMfa,
 } from "@/lib/security-request";
 import {
-  activeLoanPayrollConflict, independentLoanReviewer,
-  loanApprovalReference, moneyFromCents, parseLoanCents, validLoanDate,
+  activeLoanPayrollConflict, approvedPayrollLoanType, externalLoanPaymentReference,
+  independentLoanReviewer, loanApprovalReference, moneyFromCents, parseLoanCents, validLoanDate,
 } from "@/lib/payroll-loan-approval";
 
 export const dynamic = "force-dynamic";
@@ -142,7 +142,7 @@ export async function POST(request: Request) {
     ? (monthlyCents == null ? null : Math.round(monthlyCents / 2))
     : parseLoanCents(body.cutoffDeduction, MAX_AMORTIZATION_CENTS);
   if (
-    !loanType || loanType.length > 64
+    !loanType || !approvedPayrollLoanType(loanType) || loanType.length > 64
     || referenceNo.length < 4 || referenceNo.length > 64
     || !validLoanDate(startDate) || (endDate && (!validLoanDate(endDate) || endDate < startDate))
     || !authorization || notes.length > 2000
@@ -168,7 +168,6 @@ export async function POST(request: Request) {
       }).from(employeeLoans).where(and(
         eq(employeeLoans.organizationId, organizationId),
         eq(employeeLoans.employeeId, employeeId),
-        inArray(employeeLoans.status, ["pending_approval", "active", "paused"]),
       ));
       if (existing.some(row => row.referenceNo.toLowerCase() === referenceNo.toLowerCase())) {
         throw new Error("LOAN_DUPLICATE_REFERENCE");
@@ -266,7 +265,7 @@ export async function PATCH(request: Request) {
   const reviewerRef = approverAction && action !== "reject"
     ? loanApprovalReference(body.reviewEvidenceReference) : null;
   const reason = reviewReason(body.reviewReason, ["approve", "reject", "resume"].includes(action) ? 20 : 8);
-  const paymentRef = typeof body.reference === "string" ? body.reference.trim() : "";
+  const paymentRef = externalLoanPaymentReference(body.reference) ?? "";
   const paymentCents = action === "record_payment"
     ? parseLoanCents(body.amount, MAX_AMORTIZATION_CENTS) : null;
   if (
@@ -370,6 +369,14 @@ export async function PATCH(request: Request) {
         if (!Number.isSafeInteger(nextPaid) || nextPaid > 999_999_999_999) {
           throw new Error("LOAN_CORRUPT_LEDGER_BALANCE");
         }
+        // Serialize duplicate receipt checks under the locked loan row.
+        // Manual attestation is not independent bank settlement proof.
+        const [duplicateReceipt] = await tx.select({ id: loanPayments.id })
+          .from(loanPayments).where(and(
+            eq(loanPayments.loanId, id),
+            sql`lower(${loanPayments.reference}) = lower(${paymentRef})`,
+          )).limit(1);
+        if (duplicateReceipt) throw new Error("LOAN_PAYMENT_REFERENCE_ALREADY_RECORDED");
         const nextRemaining = remaining - paymentCents;
         nextStatus = nextRemaining === 0 ? "paid_off" : fresh.status;
         await tx.insert(loanPayments).values({
@@ -385,6 +392,7 @@ export async function PATCH(request: Request) {
         metadata.paymentAmount = paymentAmount;
         metadata.remainingBalance = updated.remainingBalance;
         metadata.externalPaymentReference = paymentRef;
+        metadata.externalEvidenceOperatorAttestedNotBankVerified = true;
       } else if (action === "pause") {
         if (fresh.status !== "active") throw new Error("LOAN_REVIEW_STATE_CHANGED");
         const [updated] = await tx.update(employeeLoans).set({ status: "paused" })
@@ -434,6 +442,7 @@ export async function PATCH(request: Request) {
       LOAN_PAYROLL_ALREADY_STARTED: "An affected payroll period has already begun calculation or approval. Do not activate a new deduction until the register is reconciled.",
       LOAN_PAYMENT_STATUS_INVALID: "Only active or paused loans can receive verified external payments.",
       LOAN_PAYMENT_EXCEEDS_BALANCE: "The verified payment must be positive and no greater than the remaining balance.",
+      LOAN_PAYMENT_REFERENCE_ALREADY_RECORDED: "This receipt or bank reference is already recorded for the loan. Do not credit the same payment twice.",
       LOAN_CORRUPT_LEDGER_BALANCE: "Loan balance cannot be reconciled. Correct source accounting before changes.",
       LOAN_CLOSE_REQUIRES_ZERO_BALANCE: "A nonzero loan may not be marked paid-off without a separately reviewed write-off process.",
     };
