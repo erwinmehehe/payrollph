@@ -10,6 +10,7 @@ export type RecoveryCandidate = {
   score: number;
   workloadRisk: "low" | "medium" | "high";
   scheduledMinutesInWindow: number;
+  consecutiveWorkingDaysBeforeShift?: number;
 };
 export type RecoveryDemand = {
   requirementId: number;
@@ -44,6 +45,7 @@ export type RecoveryDraft = {
     score: number;
     workloadRisk: RecoveryCandidate["workloadRisk"];
     projectedWindowMinutes: number;
+    projectedConsecutiveDays: number | null;
     explanation: string;
   }>;
   baselineGap: number;
@@ -52,6 +54,9 @@ export type RecoveryDraft = {
   requirementsStillAtRisk: number;
   avoidedHighRiskCandidates: number;
   avoidedConflictingAssignments: number;
+  avoidedProjectedOverload: number;
+  avoidedConsecutiveStreak: number;
+  missingWorkloadEvidence: number;
   limitedToFiftyClaims: boolean;
 };
 
@@ -118,31 +123,50 @@ export function planSmartRecoveryDraft(input: {
   requirements: RecoveryDemand[];
   mode?: RecoveryMode;
   allowHighWorkloadRisk?: boolean;
+  /** Employer planning defaults, not statutory rules. */
+  maxProjectedMinutesInWindow?: number;
+  maxConsecutiveWorkingDays?: number;
 }): RecoveryDraft {
   const mode: RecoveryMode = input.mode === "balanced" ? "balanced" : "coverage";
   const allowHigh = Boolean(input.allowHighWorkloadRisk);
+  const enforceMinutes = input.maxProjectedMinutesInWindow !== undefined;
+  const enforceDays = input.maxConsecutiveWorkingDays !== undefined;
+  if ((enforceMinutes && (!Number.isSafeInteger(input.maxProjectedMinutesInWindow) || input.maxProjectedMinutesInWindow! <= 0)) ||
+      (enforceDays && (!Number.isSafeInteger(input.maxConsecutiveWorkingDays) || input.maxConsecutiveWorkingDays! < 1 || input.maxConsecutiveWorkingDays! > 14))) {
+    throw new Error("Invalid company planning cap; review the WFM policy configuration.");
+  }
   const open = input.requirements.filter(row =>
     Number.isSafeInteger(row.requirementId) && row.requirementId > 0 &&
     Number.isSafeInteger(row.gap) && row.gap > 0);
   const baselineGap = open.reduce((total, row) => total + row.gap, 0);
   const eligible = (row: RecoveryDemand) => row.candidates.filter(candidate =>
     Number.isSafeInteger(candidate.employeeId) && candidate.employeeId > 0 &&
-    Number.isFinite(candidate.score) && Number.isFinite(candidate.scheduledMinutesInWindow) &&
-    candidate.scheduledMinutesInWindow >= 0 &&
-    (allowHigh || candidate.workloadRisk !== "high"));
+    Number.isFinite(candidate.score) && (allowHigh || candidate.workloadRisk !== "high"));
 
   // Demand with less candidate slack must be considered first, before broad
   // requirements can use scarce workers. Stable tie breaking aids audit.
+  // Chronological dates ensure proposed consecutive-day evidence is cumulative.
+  // Scarce eligible skill coverage takes priority within each work date.
   const ordered = [...open].sort((a, b) =>
+    a.workDate.localeCompare(b.workDate) ||
     (eligible(a).length / a.gap) - (eligible(b).length / b.gap) ||
-    eligible(a).length - eligible(b).length ||
-    a.workDate.localeCompare(b.workDate) || a.requirementId - b.requirementId);
+    eligible(a).length - eligible(b).length || a.requirementId - b.requirementId);
 
   const fills: RecoveryDraft["fills"] = [];
   const chosen: RecoveryProposal[] = [];
   const assignedMinutes = new Map<number, number>();
+  const projectedStreak = new Map<number, { date: string; days: number }>();
   let avoidedHighRiskCandidates = 0;
   let avoidedConflictingAssignments = 0;
+  let avoidedProjectedOverload = 0;
+  let avoidedConsecutiveStreak = 0;
+  let missingWorkloadEvidence = 0;
+  const priorDate = (value: string) => {
+    const day = new Date(value + "T00:00:00Z");
+    if (!Number.isFinite(day.getTime())) return null;
+    day.setUTCDate(day.getUTCDate() - 1);
+    return day.toISOString().slice(0, 10);
+  };
   for (const row of ordered) {
     const range = recoveryShiftInterval(row);
     if (!range || !Number.isFinite(row.paidMinutes) ||
@@ -150,8 +174,10 @@ export function planSmartRecoveryDraft(input: {
     const candidates = eligible(row);
     for (let slot = 0; slot < row.gap && fills.length < MAX_DRAFT_CLAIMS; slot++) {
       const available = [...candidates].sort((a, b) => {
-        const left = a.scheduledMinutesInWindow + (assignedMinutes.get(a.employeeId) ?? 0);
-        const right = b.scheduledMinutesInWindow + (assignedMinutes.get(b.employeeId) ?? 0);
+        const left = (Number.isSafeInteger(a.scheduledMinutesInWindow) && a.scheduledMinutesInWindow >= 0
+          ? a.scheduledMinutesInWindow : Number.MAX_SAFE_INTEGER) + (assignedMinutes.get(a.employeeId) ?? 0);
+        const right = (Number.isSafeInteger(b.scheduledMinutesInWindow) && b.scheduledMinutesInWindow >= 0
+          ? b.scheduledMinutesInWindow : Number.MAX_SAFE_INTEGER) + (assignedMinutes.get(b.employeeId) ?? 0);
         return mode === "balanced"
           ? left - right || b.score - a.score || a.employeeId - b.employeeId
           : (b.score - a.score) - Math.sign(left - right) * 0.01 ||
@@ -171,9 +197,34 @@ export function planSmartRecoveryDraft(input: {
           avoidedConflictingAssignments++;
           continue;
         }
+        if (!Number.isSafeInteger(candidate.scheduledMinutesInWindow) || candidate.scheduledMinutesInWindow < 0) {
+          missingWorkloadEvidence++;
+          continue;
+        }
         const total = candidate.scheduledMinutesInWindow +
           (assignedMinutes.get(candidate.employeeId) ?? 0) + row.paidMinutes;
+        if (enforceMinutes && total > input.maxProjectedMinutesInWindow!) {
+          avoidedProjectedOverload++;
+          continue;
+        }
+        let streakAfter: number | null = null;
+        if (enforceDays) {
+          const reported = candidate.consecutiveWorkingDaysBeforeShift;
+          const yesterday = priorDate(row.workDate);
+          if (!Number.isSafeInteger(reported) || reported! < 0 || yesterday === null) {
+            missingWorkloadEvidence++;
+            continue;
+          }
+          const previous = projectedStreak.get(candidate.employeeId);
+          const before = previous?.date === yesterday ? Math.max(reported!, previous.days) : reported!;
+          streakAfter = before + 1;
+          if (streakAfter > input.maxConsecutiveWorkingDays!) {
+            avoidedConsecutiveStreak++;
+            continue;
+          }
+        }
         chosen.push(proposal);
+        if (streakAfter !== null) projectedStreak.set(candidate.employeeId, { date: row.workDate, days: streakAfter });
         assignedMinutes.set(candidate.employeeId,
           (assignedMinutes.get(candidate.employeeId) ?? 0) + row.paidMinutes);
         fills.push({
@@ -184,6 +235,7 @@ export function planSmartRecoveryDraft(input: {
           score: candidate.score,
           workloadRisk: candidate.workloadRisk,
           projectedWindowMinutes: total,
+          projectedConsecutiveDays: streakAfter,
           explanation: mode === "balanced"
             ? "Balanced planned hours among eligible colleagues; manager approval required."
             : "Ranked eligible coverage with scarce roles prioritized; manager approval required.",
@@ -210,6 +262,9 @@ export function planSmartRecoveryDraft(input: {
     requirementsStillAtRisk: open.length - requirementsRecovered,
     avoidedHighRiskCandidates,
     avoidedConflictingAssignments,
+    avoidedProjectedOverload,
+    avoidedConsecutiveStreak,
+    missingWorkloadEvidence,
     limitedToFiftyClaims: fills.length >= MAX_DRAFT_CLAIMS && baselineGap > fills.length,
   };
 }

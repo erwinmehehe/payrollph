@@ -42,6 +42,10 @@ import {
   type AutomationWorkflowStep,
 } from "@/lib/automation";
 import { AUTOMATION_DOCUMENT_TEMPLATES } from "@/lib/automation-document-templates";
+import { draftAutomationFromLanguage, LanguageDraftError, validateNaturalLanguageDraft } from "@/lib/automation-language-draft";
+import { fingerprintLanguageProposal, issueLanguageProposalReceipt, verifyLanguageProposalReceipt } from "@/lib/automation-language-proposal-receipt";
+import { automationLanguageStudioEnabled } from "@/lib/automation-language-release";
+import { fingerprintAutomationDraft, issueAutomationPreviewReceipt, verifyAutomationPreviewReceipt } from "@/lib/automation-preview-approval";
 import {
   AUTOMATION_WORKFLOW_TEMPLATES,
   getAutomationWorkflowTemplate,
@@ -261,8 +265,19 @@ export async function GET(request: Request) {
       })),
     });
 
+    const previewReceipt = issueAutomationPreviewReceipt({
+      organizationId,
+      actorUserId: user.id,
+      sessionId: user.sessionId,
+      sessionToken: user.sessionToken,
+      ruleId: draft.ruleId,
+      draftVersion: draft.version,
+      draftHash: fingerprintAutomationDraft(draft),
+    });
+
     return Response.json({
       preview,
+      previewReceipt,
       draft: {
         ruleId: draft.ruleId,
         version: draft.version,
@@ -466,6 +481,7 @@ export async function GET(request: Request) {
   }).slice(0, 120);
 
   return Response.json({
+    features: { languageDraftingEnabled: automationLanguageStudioEnabled() },
     rules,
     versions,
     executions,
@@ -564,11 +580,22 @@ export async function POST(request: Request) {
 
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+
+  // A separate, runtime server-side kill switch covers BOTH the model and
+  // code-reviewed template fallback. Keep the existing manual Studio available.
+  if ((action === "draft-from-language" || action === "save-language-draft")
+    && !automationLanguageStudioEnabled()) {
+    return Response.json({
+      error: "Natural-language Automation Studio drafting is disabled in this environment.",
+      code: "LANGUAGE_DRAFTING_DISABLED",
+    }, { status: 403 });
+  }
+
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id,
     action: "automation-studio-" + (action || "mutation"),
     resourceId: organizationId,
-    limit: 40,
+    limit: action === "draft-from-language" ? 8 : 40,
     windowMs: 5 * 60_000,
   });
   if (rateDenied) return rateDenied;
@@ -768,6 +795,99 @@ export async function POST(request: Request) {
     }
   }
 
+  if (action === "draft-from-language") {
+    // No workflow writes, execution, or publication: only an audit record is written.
+    try {
+      const result = await draftAutomationFromLanguage(String(body.request ?? ""));
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Automation Studio language draft proposed",
+        resource: "language-workflow-proposal",
+        metadata: {
+          source: result.source,
+          trigger: result.draft.trigger,
+          actionTypes: result.draft.actions.map((step) => step.type),
+          // Never log a raw prompt, employee detail, or model response.
+        },
+      });
+      const proposalReceipt = issueLanguageProposalReceipt({
+        organizationId,
+        actorUserId: user.id,
+        sessionId: user.sessionId,
+        sessionToken: user.sessionToken,
+        draftHash: fingerprintLanguageProposal(result.draft),
+      }, result.source);
+      return Response.json({ ...result, proposalReceipt });
+    } catch (error) {
+      if (error instanceof LanguageDraftError) {
+        return Response.json({ error: error.message }, { status: error.status });
+      }
+      throw error;
+    }
+  }
+
+  if (action === "save-language-draft") {
+    // A model proposal cannot be substituted for a different workflow or activated at save.
+    const validation = validateNaturalLanguageDraft(body.draft);
+    if (!validation.valid || !validation.draft) {
+      return Response.json({
+        error: "The language proposal is no longer a valid typed workflow. Generate and review it again.",
+        validationErrors: validation.errors,
+      }, { status: 400 });
+    }
+    const draft = validation.draft;
+    const source = verifyLanguageProposalReceipt(body.proposalReceipt, {
+      organizationId,
+      actorUserId: user.id,
+      sessionId: user.sessionId,
+      sessionToken: user.sessionToken,
+      draftHash: fingerprintLanguageProposal(draft),
+    });
+    if (!source) {
+      return Response.json({
+        error: "Language proposal proof is missing, expired, or does not match this exact definition. Generate a new proposal.",
+      }, { status: 409 });
+    }
+
+    try {
+      const result = await saveAutomationRuleDraft({
+        organizationId,
+        name: draft.name,
+        trigger: draft.trigger,
+        conditions: draft.conditions,
+        actions: draft.actions,
+        active: false,
+        actorUserId: user.id,
+      });
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Automation Studio signed language draft saved",
+        resource: result.draft.name,
+        metadata: {
+          ruleId: result.rule.id,
+          draftVersion: result.draft.version,
+          source,
+          trigger: draft.trigger,
+          active: false,
+          actionTypes: draft.actions.map((item) => item.type),
+        },
+      });
+      return Response.json(result, { status: 201 });
+    } catch (error) {
+      if (error instanceof AutomationVersionError) {
+        return Response.json({ error: error.message }, { status: error.status });
+      }
+      if (uniqueConstraintViolation(error)) {
+        return Response.json({
+          error: "Another Automation Studio rule already uses this name. Generate or choose a different workflow.",
+        }, { status: 409 });
+      }
+      throw error;
+    }
+  }
+
   if (action === "create-from-template") {
     const templateId = String(body.templateId ?? "").trim();
     const template = getAutomationWorkflowTemplate(templateId);
@@ -901,6 +1021,23 @@ export async function POST(request: Request) {
     if (!draft) {
       return Response.json({ error: "This workflow has no saved draft to publish." }, { status: 409 });
     }
+    if (body.humanApproved !== true) {
+      return Response.json({ error: "Explicit human publication approval is required." }, { status: 409 });
+    }
+    const draftHash = fingerprintAutomationDraft(draft);
+    if (!verifyAutomationPreviewReceipt(body.previewReceipt, {
+      organizationId,
+      actorUserId: user.id,
+      sessionId: user.sessionId,
+      sessionToken: user.sessionToken,
+      ruleId: draft.ruleId,
+      draftVersion: draft.version,
+      draftHash,
+    })) {
+      return Response.json({
+        error: "Impact Preview proof is missing, stale, or for a different saved draft. Preview this exact version again.",
+      }, { status: 409 });
+    }
     const draftTrigger = draft.trigger as AutomationTrigger;
     const draftActions = normalizeAutomationActions(draft.actions);
     if (
@@ -940,12 +1077,19 @@ export async function POST(request: Request) {
         impactPreview,
       }, { status: 409 });
     }
+    if (impactPreview.authoritativeEvents === 0 && body.limitedEvidenceAcknowledged !== true) {
+      return Response.json({
+        error: "Impact Preview has no authoritative event samples. Explicitly acknowledge limited evidence before publishing.",
+        impactPreview,
+      }, { status: 409 });
+    }
 
     try {
       const result = await publishAutomationRuleDraft({
         organizationId,
         ruleId,
         actorUserId: user.id,
+        expectedDraftHash: draftHash,
       });
       await recordAuditEvent({
         organizationId,
@@ -957,6 +1101,7 @@ export async function POST(request: Request) {
           publishedVersion: result.published.version,
           trigger: result.rule.trigger,
           active: result.rule.active,
+          limitedEvidenceAcknowledged: impactPreview.authoritativeEvents === 0,
           impactPreview: {
             eventsEvaluated: impactPreview.eventsEvaluated,
             matchedEvents: impactPreview.matchedEvents,

@@ -86,12 +86,15 @@ test("old open time-in is evidence review, not proof of current onsite status", 
 test("split shifts do not reuse one punch for a distant second segment", () => {
   const second = { ...day, segmentOrder: 2, startTime: "16:00", endTime: "20:00" };
   const punched = { id: 1, timeIn: "2026-10-09T01:00:00Z", timeOut: "2026-10-09T04:00:00Z" };
-  assert.equal(sample("2026-10-09T10:00:00Z", { segment: second, punches: [punched] }).status, "upcoming");
+  assert.equal(sample("2026-10-09T07:00:00Z", { segment: second, punches: [punched] }).status, "upcoming");
+  assert.equal(sample("2026-10-09T10:00:00Z", { segment: second, punches: [punched] }).status, "clock_in_unconfirmed");
+  const earlyInAndOut = { id: 5, timeIn: "2026-10-09T06:30:00Z", timeOut: "2026-10-09T07:15:00Z" };
+  assert.equal(sample("2026-10-09T10:00:00Z", { segment: second, punches: [earlyInAndOut] }).status, "clock_in_unconfirmed");
 });
 
 test("invalid schedule clocks and nonexistent dates cannot produce fake floor status", () => {
   assert.throws(() => floorSegmentBounds("2026-02-30", day), /Invalid schedule calendar date/);
-  assert.throws(() => floorSegmentBounds("2026-10-09", { ...day, startTime: "25:00" }), /Invalid shift time/);
+  assert.throws(() => floorSegmentBounds("2026-10-09", { ...day, startTime: "25:00" }), /Invalid Philippine schedule date or clock/);
   assert.throws(() => sample("not-a-date"), /Live-floor clock/);
 });
 

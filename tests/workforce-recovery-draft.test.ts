@@ -116,3 +116,57 @@ test("no rank preference can assign the same worker twice on the same date", () 
   assert.equal(plan.projectedGap, 1);
   assert.ok(plan.avoidedConflictingAssignments >= 1);
 });
+
+
+test("recovery draft applies cumulative 14-day planning-hour limits across staged days", () => {
+  const overloaded = { ...candidate(101), scheduledMinutesInWindow: 90 * 60, consecutiveWorkingDaysBeforeShift: 0 };
+  const requirements = [
+    shift(12, "2026-10-11", 1, [overloaded]),
+    shift(11, "2026-10-10", 1, [overloaded]),
+  ];
+  const result = planSmartRecoveryDraft({
+    requirements, maxProjectedMinutesInWindow: 96 * 60, maxConsecutiveWorkingDays: 6,
+  });
+  assert.equal(result.fills.length, 0);
+  assert.equal(result.avoidedProjectedOverload, 2);
+});
+
+test("recovery draft carries projected consecutive days across adjacent shifts", () => {
+  const rested = { ...candidate(101), consecutiveWorkingDaysBeforeShift: 5 };
+  const result = planSmartRecoveryDraft({
+    requirements: [
+      shift(11, "2026-10-11", 1, [rested]),
+      shift(10, "2026-10-10", 1, [rested]),
+    ],
+    maxProjectedMinutesInWindow: 96 * 60, maxConsecutiveWorkingDays: 6,
+  });
+  assert.equal(result.fills.length, 1);
+  assert.equal(result.fills[0].workDate, "2026-10-10");
+  assert.equal(result.fills[0].projectedConsecutiveDays, 6);
+  assert.equal(result.avoidedConsecutiveStreak, 1);
+});
+
+test("recovery rejects unknown streak and malformed planning caps", () => {
+  const result = planSmartRecoveryDraft({
+    requirements: [shift(30, "2026-10-10", 1, [candidate(5)])],
+    maxConsecutiveWorkingDays: 6, maxProjectedMinutesInWindow: 5760,
+  });
+  assert.equal(result.fills.length, 0);
+  assert.equal(result.missingWorkloadEvidence, 1);
+  assert.throws(() => planSmartRecoveryDraft({
+    requirements: [], maxConsecutiveWorkingDays: 0,
+  }), /Invalid company planning cap/);
+});
+
+test("balanced mode still enforces the same company workload cap", () => {
+  const result = planSmartRecoveryDraft({
+    mode: "balanced",
+    requirements: [shift(40, "2026-10-10", 1, [
+      { ...candidate(1), scheduledMinutesInWindow: 96 * 60, consecutiveWorkingDaysBeforeShift: 0 },
+      { ...candidate(2), scheduledMinutesInWindow: 8 * 60, consecutiveWorkingDaysBeforeShift: 0 },
+    ])],
+    maxProjectedMinutesInWindow: 96 * 60, maxConsecutiveWorkingDays: 6,
+  });
+  assert.equal(result.fills.length, 1);
+  assert.equal(result.fills[0].employeeId, 2);
+});

@@ -110,7 +110,10 @@ export function classifyFloorSegment(input: FloorInput): FloorRow {
       continue;
     }
     // Punches can be clocked early. Never credit one unrelated punch to every split segment.
-    if (!Number.isFinite(inAt) || inAt < start - 6 * 3600000 || inAt > end) continue;
+    // Bound punch attribution to each segment. A punch for an earlier split
+    // shift must not automatically make a later shift look attended.
+    if (!Number.isFinite(inAt) || inAt < start - 2 * 3600000 || inAt > end) continue;
+    if (outAt !== null && Number.isFinite(outAt) && outAt <= start) continue;
     if (
       [outAt, breakAt, breakEndAt].some(value => value !== null && !Number.isFinite(value))
       || inAt > nowMs + 5 * 60000

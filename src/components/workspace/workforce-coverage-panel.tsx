@@ -564,6 +564,9 @@ export function WorkforceCoveragePanel({
   const simulation = useMemo(() => planSmartRecoveryDraft({
     mode: recoveryMode,
     allowHighWorkloadRisk: simulateHighRisk,
+    // Draft-only company planning guidance; configurable governed policy is the source of truth.
+    maxProjectedMinutesInWindow: 96 * 60,
+    maxConsecutiveWorkingDays: 6,
     requirements: (payload?.coverage ?? [])
       .filter((row) => row.gap > 0)
       .map((row) => {
@@ -590,6 +593,7 @@ export function WorkforceCoveragePanel({
             score: candidate.score,
             workloadRisk: candidate.workloadRisk,
             scheduledMinutesInWindow: candidate.scheduledMinutesInWindow,
+            consecutiveWorkingDaysBeforeShift: candidate.consecutiveWorkingDaysBeforeShift,
           })),
         };
       }),
@@ -846,10 +850,11 @@ export function WorkforceCoveragePanel({
             <Metric label="Requirements recovered" value={String(simulation.requirementsRecovered)} hint="fully covered in scenario" icon={<UsersRound size={16} />} tone="blue" />
             <Metric label="Still at risk" value={String(simulation.requirementsStillAtRisk)} hint={simulation.avoidedHighRiskCandidates + " high-risk candidate(s) excluded"} icon={<CircleAlert size={16} />} tone={simulation.requirementsStillAtRisk ? "amber" : "mint"} />
             <Metric label="Conflicts avoided" value={String(simulation.avoidedConflictingAssignments)} hint="duplicate day or overnight overlap" icon={<ShieldCheck size={16} />} tone="blue" />
+            <Metric label="Workload/rest exclusions" value={String(simulation.avoidedProjectedOverload + simulation.avoidedConsecutiveStreak + simulation.missingWorkloadEvidence)} hint="14-day hours, consecutive days or missing evidence" icon={<ShieldCheck size={16} />} tone="slate" />
           </section>
           <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
             <span>
-              <strong>Review-first automation.</strong> Drafts avoid proposed double bookings and overnight overlaps; staging creates pending claims only, not a published roster.
+              <strong>Review-first automation.</strong> Drafts avoid proposed double bookings, overnight overlaps, more than 96 planned hours in the 14-day view, and more than six consecutive working days when source evidence is available. These are conservative planning guidelines, <em>not Philippine statutory compliance conclusions</em>. Staging creates pending claims only, not a published roster.
               Each approval rechecks the live staffing gap, job profile, skills/credentials, worksite eligibility, leave,
               availability, current schedule, and blocking schedule guardrails before an override can be created.
             </span>
@@ -861,7 +866,7 @@ export function WorkforceCoveragePanel({
                 <span key={fill.requirementId + "-" + fill.employeeId}>
                   <b>{fill.workDate} · Requirement #{fill.requirementId}</b>
                   <small style={{ display: "block", color: "var(--muted)" }}>
-                    {fill.employeeName} · score {fill.score} · {fill.workloadRisk} workload risk · projected {(fill.projectedWindowMinutes / 60).toFixed(1)}h
+                    {fill.employeeName} · score {fill.score} · {fill.workloadRisk} workload risk · projected {(fill.projectedWindowMinutes / 60).toFixed(1)}h{fill.projectedConsecutiveDays !== null ? ` · ${fill.projectedConsecutiveDays} projected consecutive days` : ""}
                   </small>
                 </span>
               ))}
