@@ -1,6 +1,7 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   costCenters,
   employees,
   legalEntities,
@@ -12,7 +13,7 @@ import {
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
-import { recordAuditEvent } from "@/lib/audit";
+import { effectiveHcmSourceDrift } from "@/lib/hcm-effective-source-integrity";
 import { applyWorkerEffectiveChange, philippineBusinessDate } from "@/lib/hcm-effective-changes";
 import {
   cancelHcmBusinessProcessForSourceTx,
@@ -370,6 +371,28 @@ export async function POST(request: Request) {
         initiatedByUserId: user.id,
         initiatedByName: user.name,
       });
+
+      // Creation, approval-process initiation and the immutable actor audit
+      // form one atomic source event. Never leave a pending HCM process without
+      // the requester's reviewed source snapshot in its event trail.
+      await tx.insert(auditEvents).values({
+        organizationId,
+        actor: user.name.slice(0, 120),
+        action: "Effective-dated HCM change requested",
+        resource: `Employee #${employeeId}`,
+        metadata: {
+          effectiveChangeId: inserted.id,
+          requesterUserId: user.id,
+          businessProcessInstanceId: process.id,
+          employeeId,
+          effectiveDate,
+          movementType,
+          targetPositionId,
+          changes,
+          fromSnapshot,
+          toSnapshot,
+        },
+      });
       return { inserted, process };
     });
     row = created.inserted;
@@ -380,36 +403,24 @@ export async function POST(request: Request) {
       status: created.process.status,
     };
   } catch (error) {
-    return Response.json({
-      error: error instanceof Error && error.message.startsWith("Business-process")
-        ? error.message
-        : "This worker or target position already has an active pending/scheduled HCM change. Decide or cancel it before creating another.",
-    }, { status: 409 });
+    // Duplicate workers/target positions and configured BP policy errors are
+    // expected business conflicts. A failed audit insert or database outage
+    // must propagate as an error; its surrounding transaction rolled back.
+    const code = error && typeof error === "object" && "code" in error
+      ? String(error.code) : "";
+    const message = error instanceof Error ? error.message : "";
+    if (code === "23505" || /Business-process|pending\/scheduled HCM change/.test(message)) {
+      return Response.json({
+        error: message.startsWith("Business-process")
+          ? message
+          : "This worker or target position already has a pending/scheduled HCM change. Decide or cancel it before creating another.",
+      }, { status: 409 });
+    }
+    throw error;
   }
 
   if (!row) return Response.json({ error: "The HCM change could not be created." }, { status: 500 });
-
-  let auditWarning: string | null = null;
-  try {
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Effective-dated HCM change requested",
-      resource: `Employee #${employeeId}`,
-      metadata: {
-        effectiveChangeId: row.id,
-        employeeId,
-        effectiveDate,
-        movementType,
-        targetPositionId,
-        changes,
-      },
-    });
-  } catch (error) {
-    auditWarning = error instanceof Error ? error.message : "Audit recording failed.";
-  }
-
-  return Response.json({ ...row, businessProcess, auditWarning }, { status: 201 });
+  return Response.json({ ...row, businessProcess }, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
