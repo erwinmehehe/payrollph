@@ -8,7 +8,7 @@ import { auditEvents, employeeLoans, employees, loanPayments, organizations } fr
 import {
   SUPPORTED_LOAN_TYPES, MAX_LOAN_PRINCIPAL_CENTS, MAX_PAYMENT_CENTS,
   isoCalendarDate, nextLoanState, pesoString, phpCents,
-  validManualRepayment, validateLoanRegistration,
+  validManualRepayment, validateLoanRegistration, validPayrollLoanSchedule,
 } from "../src/lib/loan-ledger-guards";
 
 function sampleRegistration(override: Record<string, unknown> = {}) {
@@ -99,6 +99,23 @@ test("loan dates must be real Gregorian dates and end after the start", () => {
     assert.equal(parsed.ok, false, JSON.stringify(dates));
     if (!parsed.ok) assert.equal(parsed.code, "LOAN_DATES_INVALID");
   }
+});
+
+test("malformed legacy loan schedules cannot reach net pay or loan settlement", () => {
+  assert.equal(validPayrollLoanSchedule({ cutoffDeduction: 1000, remainingBalance: 2000 }), true);
+  for (const loan of [
+    { cutoffDeduction: -100, remainingBalance: 2000 },
+    { cutoffDeduction: 0, remainingBalance: 2000 },
+    { cutoffDeduction: Number.NaN, remainingBalance: 2000 },
+    { cutoffDeduction: Number.POSITIVE_INFINITY, remainingBalance: 2000 },
+    { cutoffDeduction: 100.001, remainingBalance: 2000 },
+    { cutoffDeduction: 100, remainingBalance: -1 },
+    { cutoffDeduction: 100, remainingBalance: 0 },
+    { cutoffDeduction: 100, remainingBalance: Number.NaN },
+  ]) assert.equal(validPayrollLoanSchedule(loan), false, JSON.stringify(loan));
+  const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  assert.ok(engine.includes("validPayrollLoanSchedule(loan)"));
+  assert.ok(engine.includes("No loan deduction applied; pause and reconcile"));
 });
 
 test("manual loan repayment requires independent unique receipt evidence", () => {
