@@ -7,6 +7,7 @@ import { EmptyState, Metric, Spinner, Status } from "./ui";
 import { paidShiftMinutes } from "@/lib/workforce-labor-variance";
 import { planSmartRecoveryDraft, type RecoveryMode } from "@/lib/workforce-recovery-draft";
 import { buildWfmManagerActionQueue, phWorkDateAt } from "@/lib/workforce-manager-actions";
+import { WorkforceLiveFloor } from "./workforce-live-floor";
 
 type Shift = {
   id: number;
@@ -674,6 +675,8 @@ export function WorkforceCoveragePanel({
         <Metric label="Open shifts" value={String((payload?.openShifts ?? []).filter((row) => row.status === "open").length)} hint="coverage recovery" icon={<UsersRound size={16} />} tone="blue" />
         <Metric label="Pending claims" value={String(pendingClaims)} hint="manager decision needed" icon={<UsersRound size={16} />} tone={pendingClaims ? "amber" : "slate"} />
       </section>
+
+      <WorkforceLiveFloor organizationId={organizationId} />
 
       {payload && (
         <section style={{ padding: "0 18px 18px" }} data-wfm-manager-queue>
