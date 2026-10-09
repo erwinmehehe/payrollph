@@ -71,7 +71,7 @@ test("HCM 0100-0103 release-train additions are unique, contiguous, and present"
 test("HCM loan 0103 alone stays blocked until its predecessors have landed", () => {
   const loan = { status: "A", path: "drizzle/0103_independent_employee_loan_deductions.sql" };
   const alone = analyzeMigrationChanges(base, [loan]);
-  assert.match(alone.errors.join("\n"), /Missing predecessor: expected drizzle\\/0100_/);
+  assert.match(alone.errors.join("\n"), /Missing predecessor: expected drizzle\/0100_/);
   const prerequisites = [...base,
     "drizzle/0100_compensation_automation_intents.sql",
     "drizzle/0101_reviewed_payroll_underpayments.sql",
