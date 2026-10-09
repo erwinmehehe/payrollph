@@ -1,0 +1,28 @@
+name: Payroll Scheduler Staging Health (Manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-staging-check:
+    runs-on: ubuntu-latest
+    environment: payroll-staging
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Test staging verifier (no external access)
+        run: node --test tests/scheduler-staging-health.test.mjs
+      - name: Verify protected staging scheduler liveness
+        env:
+          PAYROLL_STAGING_URL: ${{ vars.PAYROLL_STAGING_URL }}
+          PAYROLL_STAGING_EXPECTED_HOST: ${{ vars.PAYROLL_STAGING_EXPECTED_HOST }}
+          PAYROLL_PRODUCTION_HOST: ${{ vars.PAYROLL_PRODUCTION_HOST }}
+          PAYROLL_STAGING_WORKER_TOKEN: ${{ secrets.PAYROLL_STAGING_WORKER_TOKEN }}
+        run: node scripts/check-scheduler-staging-health.mjs
