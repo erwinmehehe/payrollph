@@ -39,6 +39,12 @@ import {
   HCM_GOVERNED_COMPENSATION_REQUIRED,
   isGovernedCompensationWorkspace,
 } from "@/lib/hcm-direct-pay-governance";
+import {
+  employeeHasPayrollRegisterEntry,
+  legacyPayoutChangeBlockReason,
+  payoutHistoryUnderLockQuery,
+  REVIEWED_PAYOUT_DESTINATION_REQUIRED,
+} from "@/lib/hcm-payout-destination-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -581,6 +587,7 @@ export async function PATCH(request: Request) {
       error: "Bank account and bank code must be complete together before payroll payout.",
     }, { status: 422 });
   }
+  let legacyPayoutEdit = false;
   if (wantsPayoutUpdate) {
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return mfaDenied;
@@ -609,10 +616,31 @@ export async function PATCH(request: Request) {
       ].some((field) => body[field] !== undefined);
 
     const treasuryPolicy = await treasuryControlPolicy(organizationId);
-    if (treasuryPolicy?.enabled && hasNonPayoutMutation) {
+    if (hasNonPayoutMutation) {
       return Response.json({
-        error: "When treasury separation is enabled, submit payout destination changes separately from other employee profile edits.",
+        code: "PAYOUT_DESTINATION_SEPARATE_CHANGE_REQUIRED",
+        error: "For an auditable payout destination change, submit bank/mobile details separately from salary, employment, schedule and government identity edits.",
       }, { status: 409 });
+    }
+
+    if (!treasuryPolicy?.enabled) {
+      const hasPayrollRegisterEntry = await employeeHasPayrollRegisterEntry(organizationId, employeeId);
+      const legacyDecision = legacyPayoutChangeBlockReason({
+        treasuryEnabled: false,
+        hasPayrollRegisterEntry,
+        companyWide: access?.companyWide ?? false,
+        role: access?.role ?? "",
+      });
+      if (legacyDecision === "review_required") {
+        return Response.json(REVIEWED_PAYOUT_DESTINATION_REQUIRED, { status: 409 });
+      }
+      if (legacyDecision === "role_required") {
+        return Response.json({
+          code: "PAYOUT_DESTINATION_COMPANY_OWNER_REQUIRED",
+          error: "Initial payout destination entry without Treasury Controls requires company-wide owner or administrator permissions.",
+        }, { status: 403 });
+      }
+      legacyPayoutEdit = true;
     }
 
     const payoutChangeRequest = await createPayoutDestinationChangeRequest({
@@ -695,7 +723,41 @@ export async function PATCH(request: Request) {
   }
 
   let payWriteConflict: string | null = null;
+  let payoutWriteConflict = false;
   const result = await db.transaction(async (tx) => {
+    if (legacyPayoutEdit) {
+      // Protect the legacy pre-first-payment setup against races with another
+      // employee edit, Treasury policy enablement, and already released wages.
+      await tx.execute(sql`
+        SELECT id FROM employees
+        WHERE id = ${employeeId} AND organization_id = ${organizationId}
+        FOR UPDATE
+      `);
+      const [current] = await tx.select({
+        bankAccount: employees.bankAccount,
+        bankCode: employees.bankCode,
+        mobile: employees.mobile,
+      }).from(employees).where(and(
+        eq(employees.id, employeeId),
+        eq(employees.organizationId, organizationId),
+      )).limit(1);
+      if (!current || current.bankAccount !== employee.bankAccount
+        || current.bankCode !== employee.bankCode || current.mobile !== employee.mobile) {
+        throw new Error("PAYOUT_DESTINATION_STALE");
+      }
+      const lockedHistory = await tx.execute(payoutHistoryUnderLockQuery(organizationId, employeeId));
+      if (lockedHistory.rows.length > 0) {
+        throw new Error("PAYOUT_DESTINATION_REVIEW_REQUIRED");
+      }
+      const treasuryNow = await tx.execute(sql`
+        SELECT enabled FROM treasury_control_policies
+        WHERE organization_id = ${organizationId} FOR SHARE
+      `);
+      if (treasuryNow.rows.some(row => row.enabled === true)) {
+        throw new Error("PAYOUT_DESTINATION_POLICY_CHANGED");
+      }
+    }
+
     if (nextPayProfile) {
       // This is the same advisory lock used by HCM compensation approval
       // and effective salary application; a direct edit cannot interleave
@@ -968,14 +1030,53 @@ export async function PATCH(request: Request) {
       if (!payAudit) throw new Error("Pay audit insert did not return an event.");
       payAuditId = payAudit.id;
     }
-    return { updated, revisionId, restDayRevisionId, retroAdjustments, retroTotal, payAuditId };
+    // Keep the actor audit in the same transaction as legacy payout setup:
+    // if audit storage fails, no new bank/mobile coordinates are committed.
+    let payoutAuditId: number | null = null;
+    if (legacyPayoutEdit) {
+      const [payoutAudit] = await tx.insert(auditEvents).values({
+        organizationId,
+        actor: user.name,
+        action: "Employee initial payout destination updated (pre-payroll)",
+        resource: `Employee #${employeeId}`,
+        metadata: {
+          employeeId,
+          actorUserId: user.id,
+          fields: Object.keys(patch),
+          previousMaskedAccount: maskBankAccount(employee.bankAccount),
+          proposedMaskedAccount: maskBankAccount(updated.bankAccount),
+          previousBankCode: employee.bankCode,
+          newBankCode: updated.bankCode,
+          mobileChanged: employee.mobile !== updated.mobile,
+          route: "legacy-pre-first-payment",
+          existingPayrollRegisterRecheckedUnderLock: true,
+        },
+      }).returning({ id: auditEvents.id });
+      if (!payoutAudit) throw new Error("Initial payout destination audit did not persist.");
+      payoutAuditId = payoutAudit.id;
+    }
+    return { updated, revisionId, restDayRevisionId, retroAdjustments, retroTotal, payAuditId, payoutAuditId };
   }).catch((error) => {
     if (error instanceof Error && ["HCM_DIRECT_PAY_STALE", "HCM_GOVERNED_COMPENSATION_REQUIRED"].includes(error.message)) {
       payWriteConflict = error.message;
       return null;
     }
+    if (error instanceof Error && [
+      "PAYOUT_DESTINATION_STALE",
+      "PAYOUT_DESTINATION_REVIEW_REQUIRED",
+      "PAYOUT_DESTINATION_POLICY_CHANGED",
+    ].includes(error.message)) {
+      payoutWriteConflict = true;
+      return null;
+    }
     throw error;
   });
+  if (payoutWriteConflict) {
+    return Response.json({
+      code: "PAYOUT_DESTINATION_REVIEW_REQUIRED",
+      error: "Payroll register, treasury settings or payout coordinates changed during the request. Reload the employee and use independent approval after payroll calculation.",
+    }, { status: 409 });
+  }
   if (!result) {
     return Response.json(
       payWriteConflict === "HCM_GOVERNED_COMPENSATION_REQUIRED"
@@ -1007,7 +1108,9 @@ export async function PATCH(request: Request) {
 
   const audit = result.payAuditId
     ? { id: result.payAuditId }
-    : await recordAuditEvent({
+    : result.payoutAuditId
+      ? { id: result.payoutAuditId }
+      : await recordAuditEvent({
     organizationId,
     actor: user.name,
     action,
