@@ -1,0 +1,208 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { validateStagingTarget, checkStagingDeployment, validateExpectedSchedulerState, checkDisabledSchedulerResponse, checkSchedulerResponse, main } from "../scripts/check-scheduler-staging-health.mjs";
+
+const proofTime = new Date("2026-10-09T00:01:30.000Z");
+const approvedSha = "a".repeat(40);
+const healthyDeployment = {deploymentSha: approvedSha, deploymentEnvironment:"preview"};
+const healthy = {
+  ok: true, state: "healthy",
+  lastSuccessfulRunAt: "2026-10-09T00:00:00.000Z",
+  secondsSinceSuccess: 90, lastLeaseStatus: "completed",
+};
+
+test("requires HTTPS exact staging host and refuses a production host", () => {
+  assert.equal(validateStagingTarget("https://staging.example.test/","staging.example.test",
+    "prod.example.test").pathname,"/api/jobs/status");
+  assert.throws(()=>validateStagingTarget("http://staging.example.test/","staging.example.test","prod.example.test"),/Staging target/);
+  assert.throws(()=>validateStagingTarget("https://staging.example.test/","staging.example.test"),/production hostname/);
+  assert.throws(()=>validateStagingTarget("https://prod.example.test/","prod.example.test","prod.example.test"),/Staging target/);
+  assert.throws(()=>validateStagingTarget("https://other.example.test/","staging.example.test","prod.example.test"),/Staging target/);
+  assert.throws(()=>validateStagingTarget("https://staging.example.test/?token=x","staging.example.test","prod.example.test"),/Staging target/);
+  assert.throws(()=>validateStagingTarget("https://u:p@staging.example.test/","staging.example.test","prod.example.test"),/Staging target/);
+});
+test("strict authenticated healthy status must be recent and have a lease", () => {
+  assert.equal(checkSchedulerResponse(200,healthy,proofTime).ok,true);
+  for(const value of [
+    {...healthy,secondsSinceSuccess:601},
+    {...healthy,secondsSinceSuccess:-1},
+    {...healthy,ok:false},
+    {...healthy,state:"last-run-failed"},
+    {...healthy,lastLeaseStatus:"failed"},
+    {...healthy,lastSuccessfulRunAt:"not-a-date"},
+  ])assert.equal(checkSchedulerResponse(200,value,proofTime).ok,false);
+  assert.equal(checkSchedulerResponse(401,healthy).ok,false);
+  assert.equal(checkSchedulerResponse(503,healthy).ok,false);
+});
+test("rejects cached or inconsistent healthy-looking scheduler evidence", () => {
+  assert.deepEqual(
+    checkSchedulerResponse(200, {...healthy, lastSuccessfulRunAt: "2026-10-08T23:00:00.000Z"},proofTime),
+    {ok:false,reason:"stale-or-inconsistent-scheduler-timestamp"}
+  );
+  assert.equal(checkSchedulerResponse(200,{...healthy,secondsSinceSuccess:599},proofTime).ok,false);
+  assert.equal(checkSchedulerResponse(200,{...healthy,lastSuccessfulRunAt:"2026-10-09T00:05:00.000Z"},proofTime).ok,false);
+});
+
+test("read-only GET uses bounded request, explicit host and does not trigger work", async () => {
+  const requests = [];
+  const fakeFetch=async(url,request)=>{
+    requests.push({path:url.pathname,method:request.method,secret:request.headers["x-scheduler-monitor-token"]});
+    return {status:200,headers:{get:()=> "application/json"},
+      json:async()=>url.pathname === "/api/readiness/deployment" ? healthyDeployment : healthy};
+  };
+  try {
+    const verdict=await main({
+      PAYROLL_STAGING_URL:"https://staging.example.test/",
+      PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
+      PAYROLL_PRODUCTION_HOST:"prod.example.test",
+      PAYROLL_STAGING_MONITOR_TOKEN:"synthetic-stage-monitor-token-is-over-32-characters",
+      PAYROLL_STAGING_EXPECTED_COMMIT_SHA:approvedSha,
+      PAYROLL_STAGING_EXPECTED_SCHEDULER_STATE:"enabled",
+    },fakeFetch,proofTime);
+    assert.equal(verdict.ok,true);
+    assert.deepEqual(requests.map(x=>x.path),["/api/readiness/deployment","/api/jobs/status"]);
+    assert.ok(requests.every(x=>x.method==="GET"));
+    assert.equal(requests[0].secret,undefined,"deployment metadata must be checked without credentials");
+    assert.equal(requests[1].secret,"synthetic-stage-monitor-token-is-over-32-characters");
+  }finally{process.exitCode=0}
+});
+test("missing staging secret fails closed before networking", async()=>{
+  await assert.rejects(()=>main({
+    PAYROLL_STAGING_URL:"https://staging.example.test/",
+    PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
+    PAYROLL_PRODUCTION_HOST:"prod.example.test",
+    PAYROLL_STAGING_EXPECTED_COMMIT_SHA:approvedSha,
+      PAYROLL_STAGING_EXPECTED_SCHEDULER_STATE:"enabled",
+  },async()=>{throw new Error("should not connect")}),/staging monitor token/);
+});
+
+
+test("secret-bearing staging workflow cannot be dispatched from an unreviewed PR branch", async () => {
+  const { readFileSync } = await import("node:fs");
+  const workflow = readFileSync(".github/workflows/scheduler-staging-health.yml", "utf8");
+  assert.ok(workflow.includes("if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'"));
+  assert.ok(workflow.includes("environment: payroll-staging"));
+  assert.ok(workflow.includes("persist-credentials: false"));
+  assert.ok(!workflow.includes("pull_request_target:"));
+});
+
+
+test("GitHub job summary never persists network response data", async () => {
+  const { mkdtempSync, readFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const folder = mkdtempSync(join(tmpdir(), "payroll-staging-summary-"));
+  const summary = join(folder, "summary.txt");
+  const env = {
+    PAYROLL_STAGING_URL:"https://staging.example.test/",
+    PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
+    PAYROLL_PRODUCTION_HOST:"prod.example.test",
+    PAYROLL_STAGING_MONITOR_TOKEN:"synthetic-stage-monitor-token-is-over-32-characters",
+    PAYROLL_STAGING_EXPECTED_COMMIT_SHA:approvedSha,
+      PAYROLL_STAGING_EXPECTED_SCHEDULER_STATE:"enabled",
+    GITHUB_STEP_SUMMARY:summary,
+  };
+  try {
+    await main(env, async(url) => url.pathname === "/api/readiness/deployment"
+      ? {status:200,headers:{get:()=>"application/json"},json:async()=>healthyDeployment}
+      : {status:599,headers:{get:()=>"text/plain"},json:async()=>({secret:"UNTRUSTED_CANARY"})},
+    proofTime);
+    const text = readFileSync(summary, "utf8");
+    assert.ok(text.includes("Outcome: FAIL"));
+    assert.ok(!text.includes("599") && !text.includes("UNTRUSTED_CANARY"));
+    assert.ok(!text.includes("Observed HTTP status"));
+    assert.ok(!text.includes("PAYROLL_STAGING_MONITOR_TOKEN"));
+  } finally {
+    process.exitCode=0;
+    rmSync(folder, {recursive:true,force:true});
+  }
+});
+
+
+test("staging deployment revision or production environment mismatch blocks secret-bearing request", async () => {
+  for (const deployment of [
+    {...healthyDeployment,deploymentSha:"b".repeat(40)},
+    {...healthyDeployment,deploymentEnvironment:"production"},
+    {...healthyDeployment,deploymentSha:null},
+  ]) {
+    const requests=[];
+    try {
+      const result=await main({
+        PAYROLL_STAGING_URL:"https://staging.example.test/",
+        PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
+        PAYROLL_PRODUCTION_HOST:"prod.example.test",
+        PAYROLL_STAGING_MONITOR_TOKEN:"synthetic-stage-monitor-token-is-over-32-characters",
+        PAYROLL_STAGING_EXPECTED_COMMIT_SHA:approvedSha,
+      PAYROLL_STAGING_EXPECTED_SCHEDULER_STATE:"enabled",
+      },async(url,options)=>{
+        requests.push({path:url.pathname,secret:options.headers["x-scheduler-monitor-token"]});
+        return {status:200,headers:{get:()=>"application/json"},json:async()=>deployment};
+      },proofTime);
+      assert.equal(result.ok,false);
+      assert.deepEqual(requests.map(x=>x.path),["/api/readiness/deployment"]);
+      assert.equal(requests[0].secret,undefined);
+    } finally {process.exitCode=0;}
+  }
+  assert.equal(checkStagingDeployment(200,healthyDeployment,approvedSha).ok,true);
+  assert.equal(checkStagingDeployment(200,{...healthyDeployment,deploymentEnvironment:"production"},approvedSha).ok,false);
+});
+
+test("staging mode is mandatory and must be an explicit operator choice", () => {
+  assert.equal(validateExpectedSchedulerState("enabled"), "enabled");
+  assert.equal(validateExpectedSchedulerState("disabled"), "disabled");
+  for (const mode of [undefined, "", "healthy", "disabled ", "production", "TRUE"]) {
+    assert.throws(()=>validateExpectedSchedulerState(mode), /explicitly enabled or disabled/);
+  }
+});
+
+test("only the exact disabled HTTP 503 JSON counts as a successful kill-switch check", () => {
+  const stopped = {ok:false,state:"scheduler-disabled"};
+  assert.equal(checkDisabledSchedulerResponse(503,stopped).ok,true);
+  for (const [status,payload] of [
+    [200,stopped],[401,stopped],[503,{ok:true,state:"scheduler-disabled"}],
+    [503,{ok:false,state:"monitor-unavailable"}],[503,{ok:false,state:"last-run-failed"}],
+    [503,null],[503,"scheduler-disabled"],
+  ])assert.equal(checkDisabledSchedulerResponse(status,payload).ok,false);
+  assert.equal(checkSchedulerResponse(503,stopped,proofTime).ok,false);
+});
+
+test("disabled-state witness reads deployment SHA without secret, then status using monitor-only secret", async()=>{
+  const events=[];
+  const token="synthetic-stage-monitor-token-is-over-32-characters";
+  const env={
+    PAYROLL_STAGING_URL:"https://staging.example.test/",
+    PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
+    PAYROLL_PRODUCTION_HOST:"prod.example.test",
+    PAYROLL_STAGING_EXPECTED_COMMIT_SHA:approvedSha,
+    PAYROLL_STAGING_MONITOR_TOKEN:token,
+    PAYROLL_STAGING_EXPECTED_SCHEDULER_STATE:"disabled",
+  };
+  const fakeFetch=async(url,options)=>{
+    events.push({path:url.pathname,method:options.method,monitorToken:options.headers["x-scheduler-monitor-token"]});
+    return url.pathname==="/api/readiness/deployment"
+      ? {status:200,headers:{get:()=>"application/json"},json:async()=>healthyDeployment}
+      : {status:503,headers:{get:()=>"application/json"},json:async()=>({ok:false,state:"scheduler-disabled"})};
+  };
+  try {
+    assert.equal((await main(env,fakeFetch,proofTime)).ok,true);
+    assert.deepEqual(events.map(x=>x.path),["/api/readiness/deployment","/api/jobs/status"]);
+    assert.ok(events.every(x=>x.method==="GET"));
+    assert.equal(events[0].monitorToken,undefined);
+    assert.equal(events[1].monitorToken,token);
+    const bad=await main(env,async(url)=>({status:200,headers:{get:()=>"application/json"},
+      json:async()=>url.pathname==="/api/readiness/deployment"?healthyDeployment:healthy}),proofTime);
+    assert.equal(bad.ok,false,"scheduler unexpectedly enabled must fail disabled-state witness");
+  }finally{process.exitCode=0;}
+});
+
+test("missing explicit scheduler mode fails before any external request",async()=>{
+  let calls=0;
+  await assert.rejects(()=>main({
+    PAYROLL_STAGING_URL:"https://staging.example.test/",
+    PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
+    PAYROLL_PRODUCTION_HOST:"prod.example.test",
+    PAYROLL_STAGING_EXPECTED_COMMIT_SHA:approvedSha,
+    PAYROLL_STAGING_MONITOR_TOKEN:"synthetic-stage-monitor-token-is-over-32-characters",
+  },async()=>{calls++;throw Error("unexpected network request");}),/explicitly enabled or disabled/);
+  assert.equal(calls,0);
+});
