@@ -2860,6 +2860,12 @@ export const separationRecords = pgTable("separation_records", {
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   releasedAt: timestamp("released_at", { withTimezone: true }),
   releaseReference: varchar("release_reference", { length: 160 }),
+  // Stable maker/checker/releaser identities. Missing legacy IDs fail closed
+  // until final-pay evidence has been freshly prepared and independently
+  // reapproved; actor-name-only audit cannot authorize money release.
+  preparedByUserId: integer("prepared_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  approvedByUserId: integer("approved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  releasedByUserId: integer("released_by_user_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
