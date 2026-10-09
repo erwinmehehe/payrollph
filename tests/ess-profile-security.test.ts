@@ -6,8 +6,8 @@ import {
 import { encryptProfilePhoto, decryptProfilePhoto } from "../src/lib/ess-photo-crypto";
 import { decryptGovernmentId, encryptGovernmentId, maskGovernmentId } from "../src/lib/government-id-crypto";
 
-const key = { PII_ENCRYPTION_KEY: "f9".repeat(32) } as NodeJS.ProcessEnv;
-const wrong = { PII_ENCRYPTION_KEY: "ab".repeat(32) } as NodeJS.ProcessEnv;
+const key: NodeJS.ProcessEnv = { NODE_ENV: "test", PII_ENCRYPTION_KEY: "f9".repeat(32) };
+const wrong: NodeJS.ProcessEnv = { NODE_ENV: "test", PII_ENCRYPTION_KEY: "ab".repeat(32) };
 
 test("ESS identifier allowlist excludes arbitrary properties", () => {
   assert.equal(isEssIdentifierKind("__proto__"), false);
@@ -42,7 +42,7 @@ test("government IDs are encrypted, masked and support rotation", () => {
   assert.equal(maskGovernmentId(encrypted, key), "••••9012");
   assert.equal(decryptGovernmentId(encrypted, key), "123456789012");
   assert.throws(() => decryptGovernmentId(encrypted, wrong));
-  assert.throws(() => encryptGovernmentId("1234", { required: true, env: {} }));
+  assert.throws(() => encryptGovernmentId("1234", { required: true, env: { NODE_ENV: "test" } }));
 });
 
 test("ESS profile photos use purpose-separated AES-GCM and reject other keys", () => {
