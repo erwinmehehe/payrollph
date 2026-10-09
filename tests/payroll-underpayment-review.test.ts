@@ -18,7 +18,7 @@ function pgCode(error: unknown): string | undefined {
   let current: unknown = error;
   for (let i = 0; i < 5 && current && typeof current === "object"; i += 1) {
     const node = current as { code?: unknown; cause?: unknown };
-    if (typeof node.code === "string" && /^23\\d{3}$/.test(node.code)) return node.code;
+    if (typeof node.code === "string" && /^23\d{3}$/.test(node.code)) return node.code;
     current = node.cause;
   }
   return undefined;
