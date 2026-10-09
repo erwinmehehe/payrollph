@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   BadgeCheck,
@@ -14,6 +14,7 @@ import {
   House,
   IdCard,
   LogOut,
+  Menu,
   Pencil,
   Phone,
   Search,
@@ -21,6 +22,8 @@ import {
   UserCheck,
   UserRound,
   WalletCards,
+  X,
+  type LucideIcon,
 } from "lucide-react";
 import { LinawMark } from "@/components/linaw-mark";
 import { EmployeeHomeDashboard } from "@/components/employee-home-dashboard";
@@ -194,6 +197,20 @@ type Payload = {
 
 type SelfTab = "home" | "pay" | "time" | "leave" | "documents" | "performance" | "profile";
 
+const ESS_TAB_CONFIG: Record<SelfTab, { label: string; icon: LucideIcon }> = {
+  home: { label: "Home", icon: House },
+  pay: { label: "Payslips", icon: WalletCards },
+  time: { label: "Attendance", icon: Clock },
+  leave: { label: "Leave", icon: CalendarDays },
+  documents: { label: "Documents", icon: FileText },
+  performance: { label: "Performance", icon: BadgeCheck },
+  profile: { label: "My info", icon: UserRound },
+};
+
+const ESS_PRIMARY_TABS: SelfTab[] = ["home", "pay", "time", "leave"];
+const ESS_MORE_TABS: SelfTab[] = ["documents", "performance", "profile"];
+const ESS_ALL_TABS: SelfTab[] = [...ESS_PRIMARY_TABS, ...ESS_MORE_TABS];
+
 const peso = (value: string | number) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 }).format(Number(value));
 
@@ -246,6 +263,9 @@ export function SelfServicePortal() {
   const [webBundyOpen, setWebBundyOpen] = useState(false);
   const [switchingRole, setSwitchingRole] = useState<DemoRoleId | null>(null);
   const [tab, setTab] = useState<SelfTab>("home");
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const moreFirstLinkRef = useRef<HTMLButtonElement>(null);
   const [openPayslip, setOpenPayslip] = useState<number | null>(null);
   const [nonce, setNonce] = useState(0);
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -267,6 +287,28 @@ export function SelfServicePortal() {
     agency?: string;
     applicableMonth?: string;
   } | null>(null);
+
+  function navigateTo(next: SelfTab) {
+    setMoreOpen(false);
+    setTab(next);
+  }
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }, [tab]);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    moreFirstLinkRef.current?.focus();
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMoreOpen(false);
+        moreButtonRef.current?.focus();
+      }
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [moreOpen]);
 
   async function load() {
     const response = await fetch("/api/self/payslips", { cache: "no-store" });
@@ -471,22 +513,23 @@ export function SelfServicePortal() {
           <div><strong>Linaw</strong><span>PayrollPH</span></div>
         </div>
         <div className="workspace-label employee-workspace-label"><span className="pulse-dot" />Employee workspace</div>
-        <nav className="side-navigation employee-side-nav">
-          {([
-            ["home", "Home"],
-            ["pay", "Pay"],
-            ["time", "Time"],
-            ["leave", "Leave"],
-            ["documents", "Documents"],
-            ["profile", "Profile"],
-          ] as Array<[SelfTab, string]>).map(([value, label]) => (
-            <button key={value} className={`nav-item ${tab === value ? "active" : ""}`} data-tone="green" onClick={() => setTab(value)}>
-              <span className="nav-icon t-green">
-                {value === "home" ? <House size={15} /> : value === "pay" ? <WalletCards size={15} /> : value === "time" ? <Clock size={15} /> : value === "leave" ? <CalendarDays size={15} /> : value === "documents" ? <FileText size={15} /> : <UserRound size={15} />}
-              </span>
-              {value === "pay" ? "Payslips" : value === "time" ? "Attendance" : value === "profile" ? "My info" : label}
-            </button>
-          ))}
+        <nav className="side-navigation employee-side-nav" aria-label="Employee pages">
+          {ESS_ALL_TABS.map((value) => {
+            const { icon: Icon, label } = ESS_TAB_CONFIG[value];
+            return (
+              <button
+                key={value}
+                type="button"
+                className={tab === value ? "nav-item active" : "nav-item"}
+                data-tone="green"
+                aria-current={tab === value ? "page" : undefined}
+                onClick={() => navigateTo(value)}
+              >
+                <span className="nav-icon t-green"><Icon size={17} aria-hidden="true" /></span>
+                {label}
+              </button>
+            );
+          })}
         </nav>
       </aside>
 
@@ -499,8 +542,8 @@ export function SelfServicePortal() {
             </div>
           </div>
           <div className="employee-shell-top-actions employee-self-service-actions">
-            <button className="employee-clock-button" onClick={() => setWebBundyOpen(true)}>
-              <Clock size={15} /> <span>Clock in</span>
+            <button className="employee-clock-button" type="button" aria-label="Open time clock" onClick={() => setWebBundyOpen(true)}>
+              <Clock size={18} /> <span>Time clock</span>
             </button>
             {isDemo && (
               <label className="role-pill-btn employee-role-switcher">
@@ -510,7 +553,7 @@ export function SelfServicePortal() {
                 </select>
               </label>
             )}
-            <button className="top-profile-button employee-shell-profile" type="button" onClick={() => setTab("profile")} aria-label="Open profile">
+            <button className="top-profile-button employee-shell-profile" type="button" onClick={() => navigateTo("profile")} aria-label="Open profile">
               <span className="employee-app-avatar">{data.employee.firstName.charAt(0)}{data.employee.lastName.charAt(0)}</span>
               <span className="clean-profile-copy"><strong>{data.employee.firstName} {data.employee.lastName}</strong><small>Employee</small></span>
             </button>
@@ -522,25 +565,72 @@ export function SelfServicePortal() {
 
         <main className="content-area employee-app employee-self-service">
           <span className="employee-contract-copy">My pay · What did I get paid, and what do I need today? · Payslip available</span>
+          {error && <div className="notice notice-amber" role="alert"><span>{error}</span></div>}
 
-          <nav className="employee-tabs" aria-label="Employee self-service">
-        {([
-          ["home", "Home"],
-          ["pay", "Pay"],
-          ["time", "Time"],
-          ["leave", "Leave"],
-          ["documents", "Documents"],
-          ["performance", "Performance"],
-          ["profile", "Profile"],
-        ] as Array<[SelfTab, string]>).map(([value, label]) => (
-          <button key={value} className={tab === value ? "active" : ""} onClick={() => setTab(value)}>
-            <span className="employee-tab-icon">
-              {value === "home" ? <House size={16} /> : value === "pay" ? <WalletCards size={16} /> : value === "performance" ? <BadgeCheck size={16} /> : value === "time" ? <Clock size={16} /> : value === "leave" ? <CalendarDays size={16} /> : value === "documents" ? <FileText size={16} /> : <UserRound size={16} />}
-            </span>
-            <span>{value === "pay" ? "Payslips" : value === "time" ? "Attendance" : value === "profile" ? "My info" : label}</span>
-          </button>
-        ))}
-      </nav>
+          <nav className="employee-tabs employee-mobile-nav" aria-label="Employee pages">
+            {ESS_PRIMARY_TABS.map((value) => {
+              const { icon: Icon, label } = ESS_TAB_CONFIG[value];
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  className={tab === value ? "active" : ""}
+                  aria-current={tab === value ? "page" : undefined}
+                  onClick={() => navigateTo(value)}
+                >
+                  <span className="employee-tab-icon"><Icon size={20} aria-hidden="true" /></span>
+                  <span>{label}</span>
+                </button>
+              );
+            })}
+            <button
+              ref={moreButtonRef}
+              type="button"
+              className={moreOpen || ESS_MORE_TABS.includes(tab) ? "active" : ""}
+              aria-expanded={moreOpen}
+              aria-controls={moreOpen ? "employee-more-panel" : undefined}
+              aria-label="More employee pages"
+              onClick={() => setMoreOpen((open) => !open)}
+            >
+              <span className="employee-tab-icon"><Menu size={20} aria-hidden="true" /></span>
+              <span>More</span>
+            </button>
+          </nav>
+          {moreOpen && (
+            <>
+              <button className="employee-more-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setMoreOpen(false)} />
+              <section id="employee-more-panel" className="employee-more-panel" aria-label="Additional employee pages">
+                <div className="employee-more-header">
+                  <strong>More from Linaw</strong>
+                  <button type="button" aria-label="Close more pages" onClick={() => { setMoreOpen(false); moreButtonRef.current?.focus(); }}>
+                    <X size={20} aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="employee-more-links">
+                  {ESS_MORE_TABS.map((value, index) => {
+                    const { icon: Icon, label } = ESS_TAB_CONFIG[value];
+                    return (
+                      <button
+                        key={value}
+                        ref={index === 0 ? moreFirstLinkRef : undefined}
+                        type="button"
+                        aria-current={tab === value ? "page" : undefined}
+                        onClick={() => navigateTo(value)}
+                      >
+                        <Icon size={20} aria-hidden="true" />
+                        <span>{label}</span>
+                        <ChevronRight size={18} aria-hidden="true" />
+                      </button>
+                    );
+                  })}
+                </div>
+                <button className="employee-more-signout" type="button" disabled={busy} onClick={() => void signOut()}>
+                  <LogOut size={20} aria-hidden="true" />
+                  <span>{busy ? "Signing out…" : "Sign out"}</span>
+                </button>
+              </section>
+            </>
+          )}
 
       {isDemo && (
         <DemoSandboxBar
@@ -552,7 +642,7 @@ export function SelfServicePortal() {
               setWebBundyOpen(true);
               return;
             }
-            setTab("pay");
+            navigateTo("pay");
           }}
         />
       )}
@@ -561,10 +651,10 @@ export function SelfServicePortal() {
         <div>
           <EmployeeHomeDashboard
             data={data}
-            onPayslip={(id) => { setOpenPayslip(id); setTab("pay"); }}
-            onPay={() => setTab("pay")}
-            onAttendance={() => setTab("time")}
-            onLeave={() => { setTab("leave"); setLeaveOpen(true); }}
+            onPayslip={(id) => { setOpenPayslip(id); navigateTo("pay"); }}
+            onPay={() => navigateTo("pay")}
+            onAttendance={() => navigateTo("time")}
+            onLeave={() => { navigateTo("leave"); if (data.leave.policies.length) setLeaveOpen(true); }}
           />
           {data.nextPay && (
             <div className="employee-contract-handoff" aria-hidden>
@@ -826,7 +916,7 @@ export function SelfServicePortal() {
               const expanded = openPayslip === slip.entryId;
               return (
                 <div className="employee-pay-row" key={slip.entryId}>
-                  <button className="employee-pay-row-main" onClick={() => setOpenPayslip(expanded ? null : slip.entryId)}>
+                  <button className="employee-pay-row-main" type="button" aria-expanded={expanded} aria-controls={"employee-payslip-" + slip.entryId} onClick={() => setOpenPayslip(expanded ? null : slip.entryId)}>
                     <div>
                       <strong>{slip.period}</strong>
                       <span>{payDateLabel(slip.payDate)}</span>
@@ -838,7 +928,7 @@ export function SelfServicePortal() {
                     <ChevronRight size={15} className={expanded ? "open" : ""} />
                   </button>
                   {expanded && (
-                    <div className="employee-pay-row-detail">
+                    <div className="employee-pay-row-detail" id={"employee-payslip-" + slip.entryId}>
                       <div><span>Gross</span><strong>{peso(slip.gross)}</strong></div>
                       <div><span>Deductions</span><strong>{peso(slip.deductions)}</strong></div>
                       <a className="secondary-button" href={"/api/self/payslips/" + slip.entryId}><Download size={13} /> Download PDF</a>
