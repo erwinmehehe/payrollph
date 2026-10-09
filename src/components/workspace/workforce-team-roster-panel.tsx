@@ -134,9 +134,9 @@ export function WorkforceTeamRosterPanel({
   }
 
   function openDay(employee: TeamRosterEmployee, day: TeamRosterDay) {
-    if (!canManage || day.source === "override") return;
+    if (!canManage || day.source === "override" || day.segments.length > 1) return;
     setEditor({ employee, day });
-    setShiftChoice(day.isRestDay ? "REST" : String(day.segments[0]?.shiftDefinitionId ?? "REST"));
+    setShiftChoice("");
     setWorksiteChoice("");
     setReason("");
     setAcknowledged(false);
@@ -144,7 +144,7 @@ export function WorkforceTeamRosterPanel({
   }
 
   async function saveOverride() {
-    if (!editor || !canManage || !acknowledged || !reason.trim() || saving) return;
+    if (!editor || !canManage || !acknowledged || !reason.trim() || !shiftChoice || saving) return;
     setSaving(true);
     setEditorError("");
     const rest = shiftChoice === "REST";
@@ -270,7 +270,7 @@ export function WorkforceTeamRosterPanel({
                         const day = row.days.find((item) => item.date === date);
                         if (row.error) return <td key={date}><span className="id">Needs review</span></td>;
                         if (!day) return <td key={date}><span className="id">No data</span></td>;
-                        const editable = canManage && day.source !== "override";
+                        const editable = canManage && day.source !== "override" && day.segments.length <= 1;
                         const label = dayLabel(day);
                         return (
                           <td key={date} style={{ minWidth: 136, verticalAlign: "top" }}>
@@ -278,7 +278,7 @@ export function WorkforceTeamRosterPanel({
                               type="button"
                               disabled={!editable}
                               onClick={() => openDay(row.employee, day)}
-                              title={day.source === "override" ? "Existing approved override; use day-level controls" : label}
+                              title={day.source === "override" ? "Existing approved override; use day-level controls" : day.segments.length > 1 ? "Split shift requires the advanced day-level editor" : label}
                               aria-label={row.employee.name + ", " + date + ", " + label + (editable ? ", edit day" : "")}
                               style={{
                                 width: "100%",
@@ -336,6 +336,7 @@ export function WorkforceTeamRosterPanel({
             <label>
               Day assignment
               <select value={shiftChoice} onChange={(event) => setShiftChoice(event.target.value)}>
+                <option value="">Choose a new shift or rest day</option>
                 <option value="REST">Rest day / off</option>
                 {(payload?.shifts ?? []).map((shift) => (
                   <option key={shift.id} value={String(shift.id)}>
@@ -370,7 +371,7 @@ export function WorkforceTeamRosterPanel({
           </div>
           {editorError && <div className="notice notice-red" role="alert" style={{ margin: "0 18px 16px" }}>{editorError}</div>}
           <div className="run-actions" style={{ padding: "0 18px 18px" }}>
-            <button type="button" className="primary-button brand" disabled={saving || !reason.trim() || !acknowledged || (!payload?.shifts.length && shiftChoice !== "REST")} onClick={() => void saveOverride()}>
+            <button type="button" className="primary-button brand" disabled={saving || !reason.trim() || !acknowledged || !shiftChoice || (!payload?.shifts.length && shiftChoice !== "REST")} onClick={() => void saveOverride()}>
               {saving ? <Spinner label="Saving" /> : <ShieldCheck size={15} />} Apply audited override
             </button>
           </div>
