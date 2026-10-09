@@ -55,3 +55,24 @@ test("the team tab is real, and day changes use the existing guarded mutation", 
   assert.ok(panel.includes("acknowledged"));
   assert.ok(!panel.includes("localStorage"));
 });
+
+test("manager roster renders scoped digest and focus without a new data endpoint", () => {
+  assert.ok(panel.includes("summarizeTeamRosterByDate(payload.rows, payload.weekDates)"));
+  assert.ok(panel.includes("filterTeamRosterRows(payload.rows, payload.weekDates"));
+  assert.ok(panel.includes("Needs schedule attention"));
+  assert.ok(panel.includes("Overnight shifts"));
+  assert.ok(panel.includes("Download page CSV"));
+  assert.ok(panel.includes("buildTeamRosterPageCsv(payload.rows, payload.weekDates)"));
+  assert.ok(panel.includes("current authorized page only"));
+  assert.ok(!panel.includes("allEmployees"));
+});
+
+test("manager view cancels obsolete requests and does not silently change historical location", () => {
+  assert.ok(panel.includes("pendingRequest.current?.abort()"));
+  assert.ok(panel.includes("signal: controller.signal"));
+  assert.ok(panel.includes("if (controller.signal.aborted) return"));
+  assert.ok(panel.includes("editor.organizationId !== organizationId"));
+  assert.ok(panel.includes("editor.day.date <= todayInManila()"));
+  assert.ok(panel.includes("worksiteChoice ? Number(worksiteChoice) : editor.day.worksiteId"));
+  assert.ok(panel.includes("Keep effective scheduled worksite"));
+});
