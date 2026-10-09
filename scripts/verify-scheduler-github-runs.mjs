@@ -33,9 +33,9 @@ function requireToken(token) {
   }
 }
 
-async function githubJson(path, token, fetcher) {
+async function githubJson(path, token, fetcher, expectArray = false) {
   // path is composed exclusively from validated decimal IDs or a fixed suffix.
-  if (!/^\/repos\/erwinmehehe\/payrollph\/actions\/(?:runs\/[1-9]\d{0,18}(?:\/jobs\?per_page=10)?|workflows\/[1-9]\d{0,18})$/.test(path)) {
+  if (!/^\/repos\/erwinmehehe\/payrollph\/actions\/(?:runs\/[1-9]\d{0,18}(?:\/jobs\?per_page=10|\/approvals)?|workflows\/[1-9]\d{0,18})$/.test(path)) {
     reject('UNSAFE_GITHUB_API_PATH');
   }
   let response;
@@ -91,7 +91,7 @@ async function githubJson(path, token, fetcher) {
     if (error instanceof ProvenanceError) throw error;
     reject('GITHUB_API_RESPONSE_INVALID');
   }
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+  if (expectArray ? !Array.isArray(body) : !body || typeof body !== 'object' || Array.isArray(body)) {
     reject('GITHUB_API_RESPONSE_INVALID');
   }
   return body;
@@ -113,6 +113,9 @@ export async function verifyRunProvenance(evidence, {token, fetcher = fetch} = {
         !validSha(run.head_sha) ||
         ![WORKFLOW_PATH, WORKFLOW_PATH + '@refs/heads/main'].includes(run.path)) {
       reject('GITHUB_RUN_PROVENANCE_MISMATCH');
+    }
+    if (typeof run.actor?.login !== 'string' || !/^[A-Za-z0-9-]{1,39}$/.test(run.actor.login)) {
+      reject('GITHUB_RUN_ACTOR_INVALID');
     }
     if (workflowHeadSha === null) workflowHeadSha = run.head_sha;
     else if (workflowHeadSha !== run.head_sha) reject('GITHUB_WORKFLOW_REVISION_CHANGED');
@@ -149,8 +152,34 @@ export async function verifyRunProvenance(evidence, {token, fetcher = fetch} = {
           step.status === 'completed' && step.conclusion === 'success')) {
       reject('GITHUB_MONITOR_JOB_NOT_PROVEN');
     }
+
+    // This is GET-only GitHub review history. An approved *payroll-staging*
+    // environment must have been released by a human OTHER than the actor
+    // who manually dispatched the run. Missing, denied or inaccessible
+    // approvals are not a reason to bypass the environment review gate.
+    const approvals = await githubJson(
+      REPO_PATH + '/actions/runs/' + runId + '/approvals', token, fetcher, true,
+    );
+    if (approvals.length === 0 || approvals.length > 100) {
+      reject('GITHUB_PROTECTED_ENVIRONMENT_APPROVAL_MISSING');
+    }
+    const forStaging = approvals.filter(review => review && typeof review === 'object' &&
+      Array.isArray(review.environments) &&
+      review.environments.some(environment => environment?.name === 'payroll-staging'));
+    if (forStaging.some(review => review.state === 'rejected') ||
+        !forStaging.some(review => review.state === 'approved' &&
+          typeof review.user?.login === 'string' &&
+          /^[A-Za-z0-9-]{1,39}$/.test(review.user.login) &&
+          review.user.login.toLowerCase() !== run.actor.login.toLowerCase())) {
+      reject('GITHUB_INDEPENDENT_STAGE_REVIEW_NOT_PROVEN');
+    }
   }
-  return {verifiedRunMetadata: 3, verifiedMonitorJobs: 3, independentApprovalStillRequired: true};
+  return {
+    verifiedRunMetadata: 3,
+    verifiedMonitorJobs: 3,
+    verifiedStageReviewHistory: 3,
+    independentApprovalStillRequired: true,
+  };
 }
 
 if (process.argv[1] && resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1])) {
@@ -160,8 +189,8 @@ if (process.argv[1] && resolve(fileURLToPath(import.meta.url)) === resolve(proce
     // authenticate a potentially different version after a path swap.
     const manifest = readEvidenceFile(process.argv[2]);
     await verifyRunProvenance(manifest, {token: process.env.GH_TOKEN});
-    console.log('PASS: 3 GitHub workflow runs and monitor job results match the manifest.');
-    console.log('NOT APPROVED: Verify run input phases, protected environment approvals, deployed SHA, live worker and reviewer sign-offs independently.');
+    console.log('PASS: 3 workflow runs, monitor jobs, and recorded staging environment approvals match the manifest.');
+    console.log('NOT APPROVED: Independently check dispatch modes, protected environment policy, deployed SHA, live worker, and required release sign-offs.');
   })().catch(error => {
     // No raw responses, tokens, file paths or stack traces in operator output.
     const code = error instanceof ProvenanceError || error instanceof InvalidEvidence
