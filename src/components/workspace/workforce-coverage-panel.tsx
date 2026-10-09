@@ -139,7 +139,7 @@ type ProactiveSuggestion = {
     score: number;
     preferred: boolean;
     scheduledMinutesInWindow: number;
-    consecutiveWorkingDaysBeforeShift: number;
+    consecutiveWorkingDaysBeforeShift: number | null;
     workloadRisk: "low" | "medium" | "high";
     reasons: string[];
   }>;
@@ -593,7 +593,7 @@ export function WorkforceCoveragePanel({
             score: candidate.score,
             workloadRisk: candidate.workloadRisk,
             scheduledMinutesInWindow: candidate.scheduledMinutesInWindow,
-            consecutiveWorkingDaysBeforeShift: candidate.consecutiveWorkingDaysBeforeShift,
+            consecutiveWorkingDaysBeforeShift: candidate.consecutiveWorkingDaysBeforeShift ?? undefined,
           })),
         };
       }),

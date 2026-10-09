@@ -392,7 +392,7 @@ async function coverageRows(input: {
     db.select().from(scheduleOverrides).where(and(
       eq(scheduleOverrides.organizationId, input.organizationId),
       inArray(scheduleOverrides.employeeId, input.employeeIds),
-      gte(scheduleOverrides.workDate, input.startDate),
+      gte(scheduleOverrides.workDate, addDays(input.startDate, -7)),
       lte(scheduleOverrides.workDate, input.endDate),
     )).orderBy(asc(scheduleOverrides.employeeId), asc(scheduleOverrides.workDate)),
     db.select().from(employeeWorksiteAssignments).where(and(
@@ -443,6 +443,7 @@ async function coverageRows(input: {
 
   const shiftsById = new Map(data.shifts.map((shift) => [shift.id, shift]));
   const dates = datesBetween(input.startDate, input.endDate);
+  const historyDates = datesBetween(addDays(input.startDate, -7), addDays(input.startDate, -1));
   const scheduled = [];
   const scheduledSegments: Array<{
     employeeId: number;
@@ -493,6 +494,49 @@ async function coverageRows(input: {
         effectiveFrom: String(row.effectiveFrom),
         effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
       }));
+
+
+    // These seven days provide a conservative rest-streak history only. Never
+    // count them as work in the selected 14-day coverage/labor totals.
+    const historyResolver = {
+      assignments: employeeAssignments.map(row => ({
+        id: row.id, patternId: row.patternId,
+        effectiveFrom: String(row.effectiveFrom),
+        effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+        anchorDate: String(row.anchorDate),
+        workLocationOrgUnitId: row.workLocationOrgUnitId, worksiteId: row.worksiteId,
+      })),
+      patterns: data.patterns.map(row => ({
+        id: row.id, code: row.code, name: row.name, cycleDays: row.cycleDays,
+      })),
+      patternDays: data.days, patternSegments: data.segments,
+      shifts: data.shifts.map(row => ({
+        id: row.id, code: row.code, name: row.name,
+        startTime: row.startTime, endTime: row.endTime,
+        breakMinutes: row.breakMinutes, spansMidnight: row.spansMidnight,
+      })),
+      overrides: employeeOverrides.map(row => ({
+        id: row.id, workDate: String(row.workDate),
+        kind: row.kind as "shift" | "split_shift" | "rest_day" | "off" | "location",
+        isRestDay: row.isRestDay,
+        segments: Array.isArray(row.segments) ? row.segments as WorkforceScheduleOverrideSegment[] : [],
+        workLocationOrgUnitId: row.workLocationOrgUnitId, worksiteId: row.worksiteId,
+        status: row.status as "pending" | "approved" | "rejected" | "cancelled",
+        reason: row.reason,
+      })),
+    };
+    for (const historicDate of historyDates) {
+      try {
+        const historicDay = resolveDailySchedule({
+          ...historyResolver, date: historicDate,
+          defaultWorksiteId: selectEffectiveWorksiteAssignment(defaultWorksites, historicDate)?.worksiteId ?? null,
+        });
+        schedules.set(employeeId + "|" + historicDate, historicDay);
+      } catch {
+        // Invalid historical patterns never count as proven rest days.
+        // Missing schedule entries remain unknown in the recovery draft.
+      }
+    }
 
     for (const date of dates) {
       const role = resolveEmployeeJobProfileAtDate({
@@ -1057,6 +1101,8 @@ export async function GET(request: Request) {
 
     const candidates = [];
     for (const employee of visibleEmployees) {
+      if (!["active", "on leave"].includes(employee.status.toLowerCase()) ||
+          String(employee.startDate) > coverageRow.workDate) continue;
       const key = `${employee.id}|${coverageRow.workDate}`;
       const current = coverageData.schedules.get(key);
       if (current && !current.isRestDay && current.segments.length > 0) continue;
@@ -1105,10 +1151,16 @@ export async function GET(request: Request) {
       if (leave.conflict) continue;
 
       let consecutiveWorkingDaysBeforeShift = 0;
+      let completeStreakEvidence = true;
       for (let offset = 1; offset <= 7; offset += 1) {
         const previousDate = addDays(coverageRow.workDate, -offset);
-        const previous = coverageData.schedules.get(`${employee.id}|${previousDate}`);
-        if (!previous || previous.isRestDay || previous.segments.length === 0) break;
+        if (String(employee.startDate) > previousDate) break;
+        const previous = coverageData.schedules.get(employee.id + "|" + previousDate);
+        if (!previous || previous.source === "unassigned") {
+          completeStreakEvidence = false;
+          break;
+        }
+        if (previous.isRestDay || previous.segments.length === 0) break;
         consecutiveWorkingDaysBeforeShift += 1;
       }
 
@@ -1118,6 +1170,7 @@ export async function GET(request: Request) {
         preferred: preferredForShift({ rules, date: coverageRow.workDate, shift }),
         scheduledMinutesInWindow: scheduledMinutesByEmployee.get(employee.id) ?? 0,
         consecutiveWorkingDaysBeforeShift,
+        completeStreakEvidence,
         alreadyWorkingThatDay: false,
       });
     }
@@ -1135,7 +1188,12 @@ export async function GET(request: Request) {
         }),
         candidates,
         maxRecommendations: 5,
-      }).map((candidate, index) => ({ ...candidate, rank: index + 1 })),
+      }).map((candidate, index) => ({
+        ...candidate, rank: index + 1,
+        consecutiveWorkingDaysBeforeShift:
+          candidates.find(source => source.employeeId === candidate.employeeId)?.completeStreakEvidence
+            ? candidate.consecutiveWorkingDaysBeforeShift : null,
+      })),
     });
   }
 
