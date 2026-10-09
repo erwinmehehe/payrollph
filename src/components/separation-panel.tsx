@@ -67,6 +67,9 @@ type SeparationRecord = {
   netFinalPay: string;
   finalPayDueDate?: string | null;
   status: string;
+  preparedByUserId?: number | null;
+  approvedByUserId?: number | null;
+  releasedByUserId?: number | null;
   coeIssued: boolean;
   approvedAt?: string | null;
   releasedAt?: string | null;
@@ -89,6 +92,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   const [selectedRecord, setSelectedRecord] = useState<SeparationRecord | null>(null);
   const [showCoeModal, setShowCoeModal] = useState(false);
   const [releaseReference, setReleaseReference] = useState("");
+  const [clearanceEvidenceReference, setClearanceEvidenceReference] = useState("");
 
   const [form, setForm] = useState({
     employeeId: "",
@@ -235,7 +239,12 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   }
 
   async function updateClearance(id: number, dept: "it" | "admin" | "finance" | "hr", value: boolean) {
-    const payload: any = { id, action: "clearance" };
+    const evidenceReference = clearanceEvidenceReference.trim();
+    if (evidenceReference.length < 8 || evidenceReference.length > 200) {
+      setNotice("Enter an 8-200 character departmental clearance evidence reference before attesting or rescinding clearance.");
+      return;
+    }
+    const payload: any = { id, action: "clearance", evidenceReference };
     if (dept === "it") payload.itCleared = value;
     if (dept === "admin") payload.adminCleared = value;
     if (dept === "finance") payload.financeCleared = value;
@@ -246,10 +255,13 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (res.ok) {
-      setNotice(`${dept.toUpperCase()} clearance updated.`);
-      reload();
+    const response = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setNotice(response.error ?? "Clearance update was not accepted.");
+      return;
     }
+    setNotice(`${dept.toUpperCase()} clearance recorded with the actor and reference in the audit trail.`);
+    reload();
   }
 
   async function requestSeparationReadinessReview(id: number) {
@@ -569,7 +581,10 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             <div style={{ display: "flex", gap: 8 }}>
               <button className="secondary-button" onClick={() => setShowCoeModal(true)}><FileText size={15} className="i-teal" /> View COE Draft</button>
               {selectedRecord.status === "draft" && (
-                <button className="primary-button" onClick={() => transitionFinalPay(selectedRecord.id, "approve")}>Approve Final Pay</button>
+                <div style={{ display: "grid", gap: 8 }}>
+                  <small>Independent approval required. Preparer user #{selectedRecord.preparedByUserId ?? "unknown"} cannot approve this package.</small>
+                  <button className="primary-button" onClick={() => transitionFinalPay(selectedRecord.id, "approve")}>Approve Final Pay</button>
+                </div>
               )}
               {selectedRecord.status === "approved" && (
                 <div style={{ display: "grid", gap: 8, minWidth: 240 }}>
@@ -579,7 +594,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                     placeholder="Bank / payout reference"
                     aria-label="Final pay payout reference"
                   />
-                  <button className="primary-button" disabled={!releaseReference.trim()} onClick={() => transitionFinalPay(selectedRecord.id, "release")}>
+                  <button className="primary-button" disabled={releaseReference.trim().length < 8} onClick={() => transitionFinalPay(selectedRecord.id, "release")}>
                     Mark Final Pay Released
                   </button>
                 </div>
@@ -649,6 +664,19 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             </select>
           </label>
         </div>
+        <div style={{ padding: "10px 16px" }}>
+          <label>
+            Department clearance evidence reference
+            <input
+              aria-label="Separation clearance evidence reference"
+              value={clearanceEvidenceReference}
+              maxLength={200}
+              placeholder="IT/HR/Finance/Admin clearance ticket or signed review record"
+              onChange={(event) => setClearanceEvidenceReference(event.target.value)}
+            />
+          </label>
+          <small>Each attestation requires a permitted department role, recent MFA, an audit record and a Draft package. Separate the final-pay preparer from the approving checker.</small>
+        </div>
         <div className="data-table-wrap">
           <table className="data-table">
             <thead>
@@ -671,16 +699,16 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                   <td>{sep.lastDay}</td>
                   <td>
                     <div style={{ display: "flex", gap: 4 }}>
-                      <button className={`secondary-button ${sep.itCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} onClick={() => updateClearance(sep.id, "it", !sep.itCleared)}>
+                      <button className={`secondary-button ${sep.itCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} disabled={sep.status !== "draft" || clearanceEvidenceReference.trim().length < 8} onClick={() => updateClearance(sep.id, "it", !sep.itCleared)}>
                         IT {sep.itCleared ? "✓" : "-"}
                       </button>
-                      <button className={`secondary-button ${sep.adminCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} onClick={() => updateClearance(sep.id, "admin", !sep.adminCleared)}>
+                      <button className={`secondary-button ${sep.adminCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} disabled={sep.status !== "draft" || clearanceEvidenceReference.trim().length < 8} onClick={() => updateClearance(sep.id, "admin", !sep.adminCleared)}>
                         ADM {sep.adminCleared ? "✓" : "-"}
                       </button>
-                      <button className={`secondary-button ${sep.financeCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} onClick={() => updateClearance(sep.id, "finance", !sep.financeCleared)}>
+                      <button className={`secondary-button ${sep.financeCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} disabled={sep.status !== "draft" || clearanceEvidenceReference.trim().length < 8} onClick={() => updateClearance(sep.id, "finance", !sep.financeCleared)}>
                         FIN {sep.financeCleared ? "✓" : "-"}
                       </button>
-                      <button className={`secondary-button ${sep.hrCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} onClick={() => updateClearance(sep.id, "hr", !sep.hrCleared)}>
+                      <button className={`secondary-button ${sep.hrCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} disabled={sep.status !== "draft" || clearanceEvidenceReference.trim().length < 8} onClick={() => updateClearance(sep.id, "hr", !sep.hrCleared)}>
                         HR {sep.hrCleared ? "✓" : "-"}
                       </button>
                     </div>
