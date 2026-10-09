@@ -3,9 +3,10 @@ import { db } from "@/db";
 import { approvalTasks, employees, payrollEntries, payrollRuns } from "@/db/schema";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
+import { connectedPayrollReleaseGateEnabled, safePayrollConnectedReleaseReadiness } from "@/lib/payroll-connected-release-gate-server";
 
 export type PayrollReleaseChecklistItem = {
-  key: "inputs" | "attendance" | "calculation" | "exceptions" | "statutory" | "approval" | "bank";
+  key: "inputs" | "attendance" | "calculation" | "exceptions" | "statutory" | "approval" | "bank" | "connected";
   label: string;
   passed: boolean;
   blocking: boolean;
@@ -63,6 +64,23 @@ export async function buildPayrollReleaseChecklist(runId: number, options: { ack
     { key:"approval", label:"Checker approval", passed:approvalPassed, blocking:true, detail:approvalPassed ? `Approved by ${approval?.decidedBy ?? approval?.approver ?? "the assigned checker"} for this exact payroll snapshot.` : approval?.status === "Approved" ? "Checker approval is stale because the payroll contents no longer match the approved snapshot." : approval?.status === "Pending" ? `Waiting for ${approval.approver}.` : "No current approved checker task exists for this run." },
     { key:"bank", label:"Payout readiness", passed:bankPassed, blocking:true, detail: options.allowRedactedDemoPayout ? "Public sandbox payout destinations are intentionally redacted. Any generated bank file uses synthetic demo-only destinations and live disbursement remains disabled." : bankPassed ? "Every positive-net employee has complete payout details." : `${missingBank.length} positive-net employee(s) have incomplete bank details.` },
   ];
+
+  // Default OFF: existing release behavior is byte-for-byte equivalent.
+  // Enabling the flag adds an independent, non-acknowledgeable blocker.
+  if (connectedPayrollReleaseGateEnabled()) {
+    const upstream = await safePayrollConnectedReleaseReadiness(runId);
+    items.push({
+      key: "connected",
+      label: "HRIS / WFM / HCM source integrity",
+      passed: upstream.ready,
+      blocking: true,
+      detail: upstream.ready
+        ? "Payroll population, latest completed calculation, and actionable upstream changes were reviewed. This is not independent payroll certification."
+        : upstream.findings.length
+          ? `${upstream.blockingCount} source-integrity blocker(s) and ${upstream.reviewCount} review item(s). Resolve upstream evidence, recalculate when required, and request fresh checker approval. ${upstream.findings[0].detail}`
+          : "Connected payroll source integrity is not verified. Release is blocked.",
+    });
+  }
 
   return {
     run,
