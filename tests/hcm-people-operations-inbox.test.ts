@@ -147,6 +147,16 @@ test("released Separation with incomplete clearance or assets remains a review f
   assert.equal(second.find((row) => row.category === "separation")?.priority, "review");
 });
 
+test("a released package without checklist is a neutral source check, not confirmed completion", () => {
+  const result = buildPeopleOperationsItems(fixture({
+    employees: [{ ...worker, status: "Separated" }],
+    separations: [cleared],
+  }));
+  const row = result.find((item) => item.category === "separation");
+  assert.equal(row?.priority, "source_check");
+  assert.match(row?.detail ?? "", /external clearance evidence/);
+});
+
 test("pending Separation becomes review when last day is past, otherwise follow up", () => {
   const future = buildPeopleOperationsItems(fixture({
     separations: [{ ...cleared, id: 12, lastDay: "2026-11-04", status: "draft" }],
