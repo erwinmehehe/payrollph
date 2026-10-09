@@ -23,7 +23,7 @@ alternative to an employer's explicitly configured Hire business process.
   **Start Date (YYYY-MM-DD)**, rather than recording the time of CSV import as
   their first day. Existing old CSV templates without this column fail
   validation with a specific explanation.
-- **Input validation:** All 17 configured wage-region codes are recognized.
+- **Input validation:** An explicit verified wage region is mandatory for each imported employee; a blank/missing region is rejected instead of silently assuming NCR. All 17 configured wage-region codes are recognized.
   Employee statuses for direct initial intake are limited to Active and
   On leave, while any separation must use its lifecycle path.
   Bank destination pairs, MWE flag values, pay precision and calendar dates
@@ -34,8 +34,8 @@ alternative to an employer's explicitly configured Hire business process.
 
 ## Operator instructions
 
-1. Download the new CSV template. Complete all required columns including
-   verified actual Start Date.
+1. Download the new CSV template. Complete all required columns, including
+   verified actual Start Date and an explicit NWPC wage Region for each employee.
 2. Click **Validate only**. Review precise source-line errors, seat limits
    and new-eligible counts.
 3. Correct duplicates. The CSV importer does not update existing employees.

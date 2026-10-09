@@ -48,7 +48,7 @@ export const IMPORT_COLUMNS: Record<string, keyof ParsedEmployee> = {
 };
 
 const REGIONS = new Set(WAGE_ORDERS.map((row) => row.region));
-const REQUIRED_COLUMNS = ["employeeNo", "firstName", "lastName", "startDate", "monthlyBasic"] as const;
+const REQUIRED_COLUMNS = ["employeeNo", "firstName", "lastName", "startDate", "monthlyBasic", "region"] as const;
 
 function isCalendarDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -137,9 +137,13 @@ export function parseEmployeeRow(row: ImportRow): { ok: true; value: ParsedEmplo
     problems.push("monthlyBasic exceeds supported payroll precision");
   }
 
-  const region = (str("region") || "NCR").toUpperCase();
-  if (!REGIONS.has(region)) {
-    problems.push(`region "${region}" is not a supported wage region (${[...REGIONS].join(", ")})`);
+  // Missing geography must never silently become NCR in a payroll import.
+  const regionInput = str("region");
+  const region = regionInput.toUpperCase();
+  if (!regionInput) {
+    problems.push("region is required; enter the employee's verified Philippine wage region");
+  } else if (region.length > 16 || !REGIONS.has(region)) {
+    problems.push(`region "${region.slice(0, 24)}" is not a supported wage region (${[...REGIONS].join(", ")})`);
   }
 
   const email = str("email").toLowerCase() || null;

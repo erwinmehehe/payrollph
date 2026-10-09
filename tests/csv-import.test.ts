@@ -10,6 +10,7 @@ const employee = (more: Record<string, string> = {}) => ({
   lastName: "Reyes",
   startDate: START,
   monthlyBasic: "20000.00",
+  region: "NCR",
   ...more,
 });
 
@@ -30,7 +31,7 @@ test("customers can upload aliased column names and order", () => {
 
 test("unknown extra columns are ignored and reported", () => {
   const result = parseEmployeeCsv(
-    "Employee No,First Name,Last Name,Start Date,Monthly Basic,Birthday,Favorite Color\nE1,Ana,Reyes,2025-05-17,20000,1990-01-01,Blue\n",
+    "Employee No,First Name,Last Name,Start Date,Monthly Basic,Region,Birthday,Favorite Color\nE1,Ana,Reyes,2025-05-17,20000,NCR,1990-01-01,Blue\n",
   );
   assert.equal(result.valid.length, 1);
   assert.ok(result.unmapped.includes("Birthday"));
@@ -143,11 +144,27 @@ test("payroll amount precision is enforced at the CSV boundary", () => {
 
 test("valid source line numbers are retained even after invalid records", () => {
   const result = parseEmployeeCsv(
-    "Employee No,First Name,Last Name,Start Date,Monthly Basic\n"
-    + "E1,Ana,Reyes,2025-05-17,20000\n"
-    + "E2,Ben,Santos,2026-02-30,20000\n"
-    + "E3,Cora,Lopez,2024-04-01,21000\n",
+    "Employee No,First Name,Last Name,Start Date,Monthly Basic,Region\n"
+    + "E1,Ana,Reyes,2025-05-17,20000,NCR\n"
+    + "E2,Ben,Santos,2026-02-30,20000,NCR\n"
+    + "E3,Cora,Lopez,2024-04-01,21000,NCR\n",
   );
   assert.deepEqual(result.validRows.map((row) => row.line), [2, 4]);
   assert.deepEqual(result.errors.map((row) => row.line), [3]);
+});
+
+test("initial employee CSV requires explicit wage region instead of assuming NCR", () => {
+  const missingValue = parseEmployeeRow(employee({ region: "" }));
+  assert.equal(missingValue.ok, false);
+  if (!missingValue.ok) assert.match(missingValue.problems.join(" "), /region is required/);
+
+  const absentColumn = parseEmployeeCsv(
+    "Employee No,First Name,Last Name,Start Date,Monthly Basic\nE9,Ana,Reyes,2025-05-17,20000\n",
+  );
+  assert.equal(absentColumn.valid.length, 0);
+  assert.match(absentColumn.errors[0].problems.join(" "), /Missing required CSV columns: region/);
+
+  const canonical = parseEmployeeRow(employee({ region: " iv-b " }));
+  assert.equal(canonical.ok, true);
+  if (canonical.ok) assert.equal(canonical.value.region, "IV-B");
 });
