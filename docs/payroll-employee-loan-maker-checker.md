@@ -13,6 +13,21 @@ This release candidate closes the direct activation bypass for **new**
 company/agency loan schedules. It does **not** declare deductions legally
 authorized merely because an operator types an evidence reference.
 
+## Default-off approval safety gate
+
+The server will **not** activate or resume a loan merely because this PR is
+deployed. Both money-bearing actions fail with
+`LOAN_DEDUCTION_ACTIVATION_NOT_CERTIFIED` until the production operator
+explicitly sets `PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED=true` after
+independent payroll, legal authorization, security and controlled-pilot QA
+signoff. The UI shows a disabled-activation notice and disables the approval
+and resume controls. Submitting a pending request, rejecting an invalid
+request, recording externally reconciled repayments or emergency-pausing an
+already-active loan remain available under their respective roles.
+
+This environment flag is **not** a certification itself and does not prove
+the signed source documents or actual bank disbursement.
+
 ## New operation
 
 1. A company-wide payroll maker with recent MFA records the employee, source
