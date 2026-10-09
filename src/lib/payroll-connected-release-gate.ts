@@ -2,7 +2,8 @@
  * Payroll-connected SOURCE READINESS — gated release policy.
  *
  * Unlike the HRIS/WFM/HCM advisory dashboard, a release decision is anchored
- * to the LAST COMPLETED CALCULATION and only considers the payroll population.
+ * to the START of a successfully completed calculation job (conservative for
+ * changes during chunk processing), and only considers the payroll population.
  * Never classify an ordinary pay revision as unauthorized solely for lacking
  * an HCM proposal: legacy finance-approved revisions remain valid sources.
  *
@@ -72,8 +73,8 @@ type EffectiveRevision = {
 export type ConnectedReleaseInput = {
   periodStart: string;
   periodEnd: string;
-  /** Null signals missing or invalid completed calculation evidence. */
-  calculatedAt: Date | string | null;
+  /** Job queued/start timestamp, backed by an actually completed job. */
+  calculationStartedAt: Date | string | null;
   calculatedEmployeeIds: number[];
   expectedEmployeeIds: number[];
   workerChanges?: DatedWorkerChange[];
@@ -124,14 +125,14 @@ export function evaluatePayrollConnectedRelease(input: ConnectedReleaseInput): C
     && input.periodStart <= input.periodEnd;
   if (!cutoffValid) add("INVALID_PAYROLL_PERIOD", "integrity", "blocker", "Payroll period dates are invalid.");
 
-  const calculatedAt = timestamp(input.calculatedAt);
-  if (calculatedAt == null) {
+  const calculationStartedAt = timestamp(input.calculationStartedAt);
+  if (calculationStartedAt == null) {
     add("PAYROLL_CALCULATION_TIME_MISSING", "integrity", "blocker",
       "A completed payroll calculation timestamp is missing or invalid. Recalculate the run before release.");
   }
   const changedAfterCalculation = (value: Date | string | null | undefined) => {
     const time = timestamp(value);
-    return calculatedAt != null && time != null && time > calculatedAt;
+    return calculationStartedAt != null && time != null && time > calculationStartedAt;
   };
 
   const enrolled = new Set(input.calculatedEmployeeIds);
@@ -268,7 +269,7 @@ export function evaluatePayrollConnectedRelease(input: ConnectedReleaseInput): C
   const reviewCount = findings.length - blockingCount;
   return {
     version: "connected-payroll-release-v1",
-    ready: blockingCount === 0 && calculatedAt != null && cutoffValid,
+    ready: blockingCount === 0 && calculationStartedAt != null && cutoffValid,
     incomplete: truncatedSources.length > 0,
     blockingCount,
     reviewCount,
