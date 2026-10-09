@@ -27,6 +27,11 @@ or final-pay offset cannot be entered as an arbitrary loan type.
   the monthly installment or loan principal.
 - Start/end dates are validated as actual calendar dates. The existing payroll
   engine already respects those dates when selecting loan deductions.
+- The payroll engine also checks **legacy loan rows from before this fix**.
+  Invalid zero/negative, NaN or overprecision cutoff/balance values cannot
+  enter the deduction calculation; the employee receives a payroll
+  `Exception` rather than an accidental wage credit or deduction. The
+  payroll operator must pause and correct the historical schedule.
 - Separating/separated workers cannot be registered for a new automatic
   deduction; any unresolved final-pay debt needs its own review.
 - Concurrent registrations are serialized per employer. The same worker,
