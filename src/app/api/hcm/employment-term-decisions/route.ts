@@ -463,20 +463,8 @@ export async function PATCH(request: Request) {
   }
   const scheduled = sealed.decision;
 
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: "HCM employment-term decision approved",
-    resource: `Employee #${scheduled.employeeId}`,
-    metadata: {
-      employmentTermDecisionId: id,
-      effectiveDate: scheduled.effectiveDate,
-      decisionKind: scheduled.decisionKind,
-      evidenceSnapshotSha256: sealed.evidenceSnapshotSha256,
-      evidenceNoteCount: sealed.noteCount,
-      evidenceAttachmentCount: sealed.attachmentCount,
-    },
-  });
+  // Approval, evidence sealing, immutable event and actor audit are already
+  // committed together inside approveEmploymentDecisionWithEvidence.
 
   if (String(scheduled.effectiveDate) <= philippineBusinessDate(now)) {
     try {
