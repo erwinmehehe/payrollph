@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lte, notInArray, or } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, lte, notInArray, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   attendanceCorrectionRequests,
@@ -71,10 +71,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     db.select({
       id: workerEffectiveChanges.id, employeeId: workerEffectiveChanges.employeeId,
       status: workerEffectiveChanges.status, effectiveDate: workerEffectiveChanges.effectiveDate,
+      appliedAt: workerEffectiveChanges.appliedAt,
     }).from(workerEffectiveChanges).where(and(
       eq(workerEffectiveChanges.organizationId, organizationId),
       lte(workerEffectiveChanges.effectiveDate, run.periodEnd),
-      notInArray(workerEffectiveChanges.status, ["applied", "cancelled", "canceled", "rejected", "declined", "voided", "superseded"]),
+      or(
+        notInArray(workerEffectiveChanges.status, ["applied", "cancelled", "canceled", "rejected", "declined", "voided", "superseded"]),
+        and(eq(workerEffectiveChanges.status, "applied"), gte(workerEffectiveChanges.appliedAt, run.createdAt)),
+      ),
     )).limit(ROW_CAP + 1),
     db.select({
       id: employeePayoutChangeRequests.id, employeeId: employeePayoutChangeRequests.employeeId,
@@ -126,21 +130,36 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       or(
         gte(compensationCycles.effectiveDate, run.periodStart),
         notInArray(compensationProposals.status, ["applied", "cancelled", "canceled", "declined", "rejected", "voided", "superseded"]),
+        and(eq(compensationProposals.status, "applied"), gte(compensationProposals.appliedAt, run.createdAt)),
       ),
     )).limit(ROW_CAP + 1),
     db.select({
       id: employeePayRevisions.id, employeeId: employeePayRevisions.employeeId,
       effectiveDate: employeePayRevisions.effectiveDate,
+      createdAt: employeePayRevisions.createdAt,
     }).from(employeePayRevisions).innerJoin(
       employees, eq(employeePayRevisions.employeeId, employees.id),
     ).where(and(
       eq(employeePayRevisions.organizationId, organizationId),
       eq(employees.organizationId, organizationId),
-      gte(employeePayRevisions.effectiveDate, run.periodStart),
       lte(employeePayRevisions.effectiveDate, run.periodEnd),
+      or(
+        gte(employeePayRevisions.effectiveDate, run.periodStart),
+        and(
+          lt(employeePayRevisions.effectiveDate, run.periodStart),
+          gte(employeePayRevisions.createdAt, run.createdAt),
+        ),
+      ),
     )).limit(ROW_CAP + 1),
   ]);
 
+  const runCreatedAtMs = run.createdAt instanceof Date
+    ? run.createdAt.getTime() : Date.parse(String(run.createdAt));
+  const appliedAfterRunCreation = (value: Date | string | null | undefined) => {
+    if (value == null || !Number.isFinite(runCreatedAtMs)) return false;
+    const appliedMs = value instanceof Date ? value.getTime() : Date.parse(value);
+    return Number.isFinite(appliedMs) && appliedMs > runCreatedAtMs;
+  };
   const approvalByRevision = new Map<number, typeof proposals[number]>();
   for (const proposal of proposals) {
     if (proposal.status !== "applied" || !proposal.approvedByUserId
@@ -151,6 +170,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const proposal = approvalByRevision.get(revision.id);
     return {
       ...revision,
+      createdAfterRunCreated: appliedAfterRunCreation(revision.createdAt),
       compensationProposalId: proposal
         && proposal.employeeId === revision.employeeId
         && proposal.effectiveDate === revision.effectiveDate ? proposal.id : null,
@@ -172,9 +192,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const report = buildPayrollConnectedImpact({
     periodStart: run.periodStart,
     periodEnd: run.periodEnd,
-    employmentChanges: employment.slice(0, ROW_CAP),
-    payoutChanges: payout.slice(0, ROW_CAP),
-    attendanceCorrections: corrections.slice(0, ROW_CAP),
+    employmentChanges: employment.slice(0, ROW_CAP).map((row) => ({
+      ...row,
+      appliedAfterRunCreated: appliedAfterRunCreation(row.appliedAt),
+    })),
+    payoutChanges: payout.slice(0, ROW_CAP).map((row) => ({
+      ...row,
+      appliedAfterRunCreated: appliedAfterRunCreation(row.appliedAt),
+    })),
+    attendanceCorrections: corrections.slice(0, ROW_CAP).map((row) => ({
+      ...row,
+      appliedAfterRunCreated: appliedAfterRunCreation(row.appliedAt),
+    })),
     attendanceExceptions: exceptions.slice(0, ROW_CAP),
     timesheets: timesheets.slice(0, ROW_CAP),
     compensationProposals: proposals.slice(0, ROW_CAP),
