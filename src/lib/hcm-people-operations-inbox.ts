@@ -294,6 +294,14 @@ export function buildPeopleOperationsItems(input: PeopleOpsInput): PeopleOpsItem
           dueDate: separation.lastDay,
           today: input.today,
         }));
+      } else if (separation.status === "released" && offboarding.length === 0) {
+        output.push(actionItem(employee, {
+          category: "separation", priority: "source_check", page: "Separation",
+          title: "Verify offboarding checklist history",
+          detail: "The Separation package is released with cleared approvals but no linked exit checklist. Verify historical or external clearance evidence.",
+          responsibleTeam: "People Ops / IT / Finance",
+          today: input.today,
+        }));
       } else if (separation.status !== "released") {
         output.push(actionItem(employee, {
           category: "separation",
