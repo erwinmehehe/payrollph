@@ -98,13 +98,24 @@ export function previewWorkforceRecovery(input: {
 
   const baseline = coverage.reduce((total, row) => total + row.gap, 0);
   const coveredRequirementIds = new Set(coverage.map((row) => row.requirementId));
-  const invalidDistribution = input.draft.fills.some((fill) =>
-    !coveredRequirementIds.has(fill.requirementId)
-  ) || coverage.some((row) =>
-    !Number.isSafeInteger(row.gap) || !Number.isSafeInteger(row.availableScheduledHeadcount)
-    || row.availableScheduledHeadcount < 0 || row.requiredHeadcount < 0
-    || (fillsByRequirement.get(row.requirementId) ?? 0) > row.gap
-  ) || baseline !== input.draft.baselineGap ||
+  // Compare the recovery draft against the same authoritative coverage math.
+  // A missing/malformed demand row cannot be silently filtered away into a
+  // plausible zero-cost plan.
+  const invalidRows = input.coverage.some((row) =>
+    !Number.isSafeInteger(row.requirementId) || row.requirementId <= 0
+    || !Number.isSafeInteger(row.gap) || row.gap < 0
+    || !Number.isSafeInteger(row.requiredHeadcount) || row.requiredHeadcount < 0
+    || !Number.isSafeInteger(row.availableScheduledHeadcount) || row.availableScheduledHeadcount < 0
+    || row.gap !== Math.max(0, row.requiredHeadcount - row.availableScheduledHeadcount)
+  );
+  const duplicateDemand = new Set(input.coverage.map((row) => row.requirementId)).size
+    !== input.coverage.length;
+  const invalidDistribution = invalidRows || duplicateDemand ||
+    input.draft.fills.some((fill) =>
+      !coveredRequirementIds.has(fill.requirementId)
+    ) || coverage.some((row) =>
+      (fillsByRequirement.get(row.requirementId) ?? 0) > row.gap
+    ) || baseline !== input.draft.baselineGap ||
     input.draft.projectedGap !== Math.max(0, baseline - input.draft.fills.length);
 
   if (invalidDistribution) warnings.push("Recovery proposal and staffing demand do not reconcile.");
