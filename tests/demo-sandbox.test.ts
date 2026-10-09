@@ -152,12 +152,18 @@ test("expanded payroll-input demo pages match the existing server authorization 
   );
   for (const [name, route] of [
     ["benefits", benefits],
-    ["loans", loans],
     ["de minimis", deMinimis],
     ["expenses", expenses],
   ] as const) {
     assert.ok(route.includes("PEOPLE_PAYROLL_ROLES"), `${name} must use the shared payroll-input server gate`);
   }
+
+  // Loan deductions are more sensitive than ordinary payroll inputs: their
+  // activation now requires an independent payroll/tax checker, company-wide
+  // access and a separate release gate, not the general HR input roles.
+  assert.ok(loans.includes("PAYROLL_OPERATOR_ROLES"), "loan makers need payroll operator authority");
+  assert.ok(loans.includes("PAYROLL_TAX_APPROVER_ROLES"), "loan activation needs a distinct payroll reviewer");
+  assert.ok(loans.includes("!access?.companyWide"), "loan mutations must be company-wide only");
 
   assert.ok(migrations.includes("ORG_ADMIN_ROLES"), "migration must remain an organization-admin-only workflow");
   assert.ok(!leave.includes('"payroll"'), "leave administration must not be widened to payroll");
