@@ -2683,7 +2683,16 @@ export const employeeLoans = pgTable("employee_loans", {
   cutoffDeduction: numeric("cutoff_deduction", { precision: 10, scale: 2 }).notNull(),
   remainingBalance: numeric("remaining_balance", { precision: 12, scale: 2 }).notNull(),
   totalPaid: numeric("total_paid", { precision: 12, scale: 2 }).notNull().default("0"),
-  status: varchar("status", { length: 32 }).notNull().default("active"), // "active", "paid_off", "paused"
+  // Newly registered loans are inert until a different payroll checker
+  // reviews the employer/agency deduction authorization. Pre-existing active
+  // loans retain their statuses and require historical evidence review.
+  status: varchar("status", { length: 32 }).notNull().default("pending_approval"),
+  requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  deductionAuthorizationReference: varchar("deduction_authorization_reference", { length: 200 }),
+  reviewEvidenceReference: varchar("review_evidence_reference", { length: 200 }),
+  reviewReason: varchar("review_reason", { length: 500 }),
   startDate: date("startDate"),
   endDate: date("endDate"),
   notes: text("notes"),
