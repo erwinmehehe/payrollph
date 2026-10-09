@@ -93,6 +93,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   const [showCoeModal, setShowCoeModal] = useState(false);
   const [releaseReference, setReleaseReference] = useState("");
   const [clearanceEvidenceReference, setClearanceEvidenceReference] = useState("");
+  const [coeEvidenceReference, setCoeEvidenceReference] = useState("");
 
   const [form, setForm] = useState({
     employeeId: "",
@@ -293,17 +294,23 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   }
 
   async function issueCoe(id: number) {
+    const evidenceReference = coeEvidenceReference.trim();
+    if (evidenceReference.length < 8 || evidenceReference.length > 200) {
+      setNotice("Record the issued COE's delivery/signature reference before marking it issued.");
+      return;
+    }
     const res = await fetch("/api/separation", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, action: "issue_coe" }),
+      body: JSON.stringify({ id, action: "issue_coe", evidenceReference }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setNotice(data.error ?? "Could not mark the COE as issued.");
       return;
     }
-    setNotice("COE marked issued in the separation record.");
+    setNotice("COE issuance attested with an HR actor and delivery evidence reference.");
+    setCoeEvidenceReference("");
     setShowCoeModal(false);
     setSelectedRecord(null);
     reload();
@@ -638,9 +645,19 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                 <span>Authorized Signatory</span>
               </div>
             </div>
+            <label style={{ display: "block", marginTop: 14 }}>
+              Certificate issuance / delivery evidence reference
+              <input
+                aria-label="COE delivery evidence reference"
+                value={coeEvidenceReference}
+                maxLength={200}
+                placeholder="Signed receipt, sent-email event ID or employee request case"
+                onChange={(event) => setCoeEvidenceReference(event.target.value)}
+              />
+            </label>
             <div className="modal-actions">
               <button className="secondary-button" onClick={() => setShowCoeModal(false)}>Close</button>
-              <button className="primary-button" onClick={() => void issueCoe(selectedRecord.id)}>Mark COE Issued</button>
+              <button className="primary-button" disabled={coeEvidenceReference.trim().length < 8} onClick={() => void issueCoe(selectedRecord.id)}>Mark COE Issued</button>
             </div>
           </section>
         </div>
