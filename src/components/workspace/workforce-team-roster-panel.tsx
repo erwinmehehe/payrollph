@@ -35,6 +35,10 @@ type TeamRosterResponse = {
 
 type DayEditor = { employee: TeamRosterEmployee; day: TeamRosterDay };
 
+function todayInManila() {
+  return new Date(Date.now() + 8 * 60 * 60_000).toISOString().slice(0, 10);
+}
+
 function mondayInManila() {
   const manila = new Date(Date.now() + 8 * 60 * 60_000);
   const weekdayFromMonday = (manila.getUTCDay() + 6) % 7;
@@ -134,7 +138,7 @@ export function WorkforceTeamRosterPanel({
   }
 
   function openDay(employee: TeamRosterEmployee, day: TeamRosterDay) {
-    if (!canManage || day.source === "override" || day.segments.length > 1) return;
+    if (!canManage || day.date <= todayInManila() || day.source === "override" || day.segments.length > 1) return;
     setEditor({ employee, day });
     setShiftChoice("");
     setWorksiteChoice("");
@@ -197,7 +201,7 @@ export function WorkforceTeamRosterPanel({
         </div>
         <div className="notice notice-slate" style={{ margin: "0 18px 16px" }}>
           <ShieldCheck size={16} className="i-green" />
-          <span>Schedules come from the payroll-connected resolver. Changes are checked by the existing role, MFA, worksite and roster-guardrail controls. No automatic payroll release occurs.</span>
+          <span>Schedules come from the payroll-connected resolver. Future-day changes use role, MFA, worksite and roster-guardrail checks; current and past days require the detailed correction workflow. No automatic payroll release occurs.</span>
         </div>
         <div className="run-actions" style={{ flexWrap: "wrap", padding: "0 18px 16px", alignItems: "center" }}>
           <button type="button" className="secondary-button" onClick={() => changeWeek(-1)} aria-label="Previous week">
@@ -270,7 +274,7 @@ export function WorkforceTeamRosterPanel({
                         const day = row.days.find((item) => item.date === date);
                         if (row.error) return <td key={date}><span className="id">Needs review</span></td>;
                         if (!day) return <td key={date}><span className="id">No data</span></td>;
-                        const editable = canManage && day.source !== "override" && day.segments.length <= 1;
+                        const editable = canManage && day.date > todayInManila() && day.source !== "override" && day.segments.length <= 1;
                         const label = dayLabel(day);
                         return (
                           <td key={date} style={{ minWidth: 136, verticalAlign: "top" }}>
@@ -278,7 +282,7 @@ export function WorkforceTeamRosterPanel({
                               type="button"
                               disabled={!editable}
                               onClick={() => openDay(row.employee, day)}
-                              title={day.source === "override" ? "Existing approved override; use day-level controls" : day.segments.length > 1 ? "Split shift requires the advanced day-level editor" : label}
+                              title={day.date <= todayInManila() ? "Current or past date: use detailed correction workflow" : day.source === "override" ? "Existing approved override; use day-level controls" : day.segments.length > 1 ? "Split shift requires the advanced day-level editor" : label}
                               aria-label={row.employee.name + ", " + date + ", " + label + (editable ? ", edit day" : "")}
                               style={{
                                 width: "100%",
