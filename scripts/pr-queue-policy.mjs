@@ -4,7 +4,6 @@
  * Run from trusted default-branch source in pull_request_target; do NOT check
  * out the PR head or use a write-capable token.
  */
-import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 export const MAX_READY_FOR_REVIEW = 3;
@@ -164,8 +163,7 @@ export async function main(env = process.env) {
   }
   const result = evaluatePullQueue(prs, filesByNumber, currentNumber);
   const summary = formatQueueSummary(result, currentNumber);
-  process.stdout.write(summary + "\n");
-  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summary + "\n");
+  // Print a read-only assessment without writing untrusted GitHub API values\n  // into runner-owned files (avoids a network-to-file CodeQL taint path).\n  process.stdout.write(summary + "\n");
   if (result.failures.length) process.exitCode = 1;
   return result;
 }
