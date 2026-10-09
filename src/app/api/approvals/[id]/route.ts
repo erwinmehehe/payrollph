@@ -677,7 +677,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     data: { taskId, title: task.title, status, decidedBy: actor, onBehalfOf: onBehalf },
   });
 
-  const [linkedLeave] = await db.select().from(leaveRequests).where(eq(leaveRequests.approvalTaskId, taskId)).limit(1);
+  const [linkedLeave] = await db.select().from(leaveRequests).where(and(
+    eq(leaveRequests.approvalTaskId, taskId),
+    eq(leaveRequests.organizationId, task.organizationId),
+  )).limit(1);
   const [linkedIntervalSet] = linkedLeave
     ? await db.select().from(leaveRequestIntervalSets).where(and(
         eq(leaveRequestIntervalSets.organizationId, task.organizationId),
