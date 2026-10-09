@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../src/db";
-import { attendanceExceptionEvents, auditEvents, employees, payrollRuns, timePunches, userOrganizations, users } from "../src/db/schema";
+import { attendanceExceptionEvents, auditEvents, employees, leaveRequests, payrollRuns, separationRecords, timePunches, userOrganizations, users } from "../src/db/schema";
 import { hashPassword } from "../src/lib/crypto";
 import { isEncryptedBankAccount } from "../src/lib/bank-account-crypto";
 import { reconcileAttendanceExceptionEvents } from "../src/lib/workforce-attendance-exception-events";
@@ -132,6 +132,74 @@ async function main() {
   ]);
   report.roles = { owner: "Olivia Owner", payroll: payrollUser.name, checker: checkerUser.name, employee: employeeUser.name };
   (report.lifecycle as string[]).push("real-role-identities-created");
+
+  // HTTP-level HCM/WFM app acceptance smoke, using this ephemeral CI tenant.
+  // These are synthetic negative cases; human HR/bookkeeper review is still required.
+  const invalidLeave = await owner.json("/api/leave", {
+    method: "POST",
+    json: {
+      organizationId, employeeId: created[0].id, leaveType: "Vacation",
+      startDate: "2026-02-30", endDate: "2026-02-30", days: 1,
+    },
+  });
+  assert.equal(invalidLeave.response.status, 400, "Invalid Gregorian leave date must be rejected.");
+  assert.equal(invalidLeave.payload.code, "LEAVE_DATE_INVALID");
+
+  const beforeEmployment = await owner.json("/api/leave", {
+    method: "POST",
+    json: {
+      organizationId, employeeId: created[0].id, leaveType: "Vacation",
+      startDate: "2025-12-31", endDate: "2025-12-31", days: 1,
+    },
+  });
+  assert.equal(beforeEmployment.response.status, 409, "Pre-hire leave must be rejected.");
+  assert.equal(beforeEmployment.payload.code, "LEAVE_BEFORE_EMPLOYMENT");
+
+  // An Active status alone cannot override an overlapping, reviewed exit.
+  // Delete the synthetic exit in finally so the ordinary payroll pilot remains
+  // a valid positive control even when a negative-case assertion fails.
+  const [conflictingExit] = await db.insert(separationRecords).values({
+    organizationId, employeeId: created[0].id, separationType: "resignation",
+    noticeDate: "2026-09-01", lastDay: "2026-09-30",
+    status: "approved",
+  }).returning({ id: separationRecords.id });
+  try {
+    const conflictingLeave = await owner.json("/api/leave", {
+      method: "POST",
+      json: {
+        organizationId, employeeId: created[0].id, leaveType: "Vacation",
+        startDate: "2026-09-16", endDate: "2026-09-16", days: 1,
+      },
+    });
+    assert.equal(conflictingLeave.response.status, 409, "An unresolved Active/separation conflict must block new leave.");
+    assert.equal(conflictingLeave.payload.code, "LEAVE_EMPLOYMENT_STATE_CONFLICT");
+    const conflictingPreview = await owner.json("/api/leave/preview", {
+      method: "POST",
+      json: {
+        organizationId, employeeId: created[0].id,
+        intervals: [{ workDate: "2026-09-16", kind: "full_day", timezone: "Asia/Manila" }],
+      },
+    });
+    assert.equal(conflictingPreview.response.status, 409, "Leave preview must share the same employment gate.");
+    assert.equal(conflictingPreview.payload.code, "LEAVE_EMPLOYMENT_STATE_CONFLICT");
+  } finally {
+    await db.delete(separationRecords).where(and(
+      eq(separationRecords.id, conflictingExit.id),
+      eq(separationRecords.organizationId, organizationId),
+    ));
+  }
+  const strayLeaves = await db.select({ id: leaveRequests.id }).from(leaveRequests)
+    .where(eq(leaveRequests.organizationId, organizationId));
+  assert.equal(strayLeaves.length, 0, "Rejected leave cases must not create pending leave or payroll source evidence.");
+  report.hcmLeaveHttpSafety = {
+    invalidGregorianDate: "blocked-400",
+    preHireLeave: "blocked-409",
+    activeSeparationConflict: "blocked-409",
+    conflictingLeavePreview: "blocked-409",
+    unauthorizedLeaveWrites: 0,
+    syntheticExitRemoved: true,
+  };
+  (report.lifecycle as string[]).push("hcm-leave-http-negative-cases-passed");
 
   const shiftPayload = await expectOk(owner, "/api/workforce/schedules", {
     method: "POST",
