@@ -10,6 +10,7 @@ import {
   employees,
   payrollRuns,
   workerEffectiveChanges,
+  workforceTimesheets,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_VIEW_ROLES } from "@/lib/access";
@@ -66,7 +67,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
 
   const organizationId = run.organizationId;
-  const [employment, payout, corrections, exceptions, proposals, revisions] = await Promise.all([
+  const [employment, payout, corrections, exceptions, timesheets, proposals, revisions] = await Promise.all([
     db.select({
       id: workerEffectiveChanges.id, employeeId: workerEffectiveChanges.employeeId,
       status: workerEffectiveChanges.status, effectiveDate: workerEffectiveChanges.effectiveDate,
@@ -99,6 +100,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       lte(attendanceExceptionEvents.workDate, run.periodEnd),
     )).limit(ROW_CAP + 1),
     db.select({
+      id: workforceTimesheets.id, employeeId: workforceTimesheets.employeeId,
+      periodStart: workforceTimesheets.periodStart, periodEnd: workforceTimesheets.periodEnd,
+      version: workforceTimesheets.version, status: workforceTimesheets.status,
+    }).from(workforceTimesheets).where(and(
+      eq(workforceTimesheets.organizationId, organizationId),
+      eq(workforceTimesheets.periodStart, run.periodStart),
+      eq(workforceTimesheets.periodEnd, run.periodEnd),
+    )).limit(ROW_CAP + 1),
+    db.select({
       id: compensationProposals.id, employeeId: compensationProposals.employeeId,
       status: compensationProposals.status, effectiveDate: compensationCycles.effectiveDate,
     }).from(compensationProposals).innerJoin(
@@ -126,6 +136,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     payoutChanges: payout,
     attendanceCorrections: corrections,
     attendanceExceptions: exceptions,
+    timesheets,
     compensationProposals: proposals,
     payRevisions: revisions,
   };
@@ -139,6 +150,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     payoutChanges: payout.slice(0, ROW_CAP),
     attendanceCorrections: corrections.slice(0, ROW_CAP),
     attendanceExceptions: exceptions.slice(0, ROW_CAP),
+    timesheets: timesheets.slice(0, ROW_CAP),
     compensationProposals: proposals.slice(0, ROW_CAP),
     payRevisions: revisions.slice(0, ROW_CAP),
     truncatedSources,
