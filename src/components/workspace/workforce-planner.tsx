@@ -26,6 +26,7 @@ import { LaborCostingPanel } from "./labor-costing-panel";
 import { WorkforceWorksitesPanel } from "./workforce-worksites-panel";
 import { WorkforceCoveragePanel } from "./workforce-coverage-panel";
 import { WorkforceTimesheetPanel } from "./workforce-timesheet-panel";
+import { WorkforceTeamRosterPanel } from "./workforce-team-roster-panel";
 
 type ShiftRow = {
   id: number;
@@ -386,7 +387,7 @@ export function WorkforcePlanner({
         const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
         tabs[next]?.focus(); tabs[next]?.click();
       }}>
-        {[['roster', 'Roster'], ['coverage', 'Coverage'], ['timesheets', 'Timesheets'], ['overtime', 'Overtime'], ['swaps', 'Schedule swaps'], ['worksites', 'Worksites'], ['costing', 'Labor costing'], ['guardrails', 'Guardrails']].map(([key, label]) => (
+        {[['roster', 'Individual roster'], ['team', 'Team roster'], ['coverage', 'Coverage'], ['timesheets', 'Timesheets'], ['overtime', 'Overtime'], ['swaps', 'Schedule swaps'], ['worksites', 'Worksites'], ['costing', 'Labor costing'], ['guardrails', 'Guardrails']].map(([key, label]) => (
           <button type="button" key={key} id={`wfm-tab-${key}`} role="tab" tabIndex={workspaceTab === key ? 0 : -1} aria-selected={workspaceTab === key} aria-controls={`wfm-panel-${key}`} className={workspaceTab === key ? "active" : ""} onClick={() => setWorkspaceTab(key)}>{label}</button>
         ))}
       </div>
@@ -715,6 +716,7 @@ export function WorkforcePlanner({
         </div>
       )}
       </div>
+      <div role="tabpanel" id="wfm-panel-team" aria-labelledby="wfm-tab-team" hidden={workspaceTab !== 'team'}><WorkforceTeamRosterPanel organizationId={organizationId} canManage={canManage} notify={notify} onScheduleChanged={() => { void loadCatalog(); void loadPreview(); }} /></div>
       <div role="tabpanel" id="wfm-panel-coverage" aria-labelledby="wfm-tab-coverage" hidden={workspaceTab !== 'coverage'}><WorkforceCoveragePanel data={data} notify={notify} canManage={canManage} /></div>
       <div role="tabpanel" id="wfm-panel-timesheets" aria-labelledby="wfm-tab-timesheets" hidden={workspaceTab !== 'timesheets'}><WorkforceTimesheetPanel data={data} notify={notify} canManage={canManage} /></div>
       <div role="tabpanel" id="wfm-panel-overtime" aria-labelledby="wfm-tab-overtime" hidden={workspaceTab !== 'overtime'}><WorkforceOvertimePanel data={data} notify={notify} /></div>
