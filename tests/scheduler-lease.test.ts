@@ -28,6 +28,8 @@ test("a scheduler lease serializes workers and fences stale owners", async () =>
          SET last_run_at = NOW() - INTERVAL '16 minutes'
        WHERE job_name = ${jobName}
     `);
+    assert.equal(await refreshSchedulerLease(first, jobName), false,
+      "an expired owner cannot refresh and revive itself before takeover");
     assert.equal(await acquireSchedulerLease(second, jobName), true);
     assert.equal(await refreshSchedulerLease(first, jobName), false);
     assert.equal(await releaseSchedulerLease(first, "completed", jobName), false);
