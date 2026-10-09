@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
-import { acquireSchedulerLease, refreshSchedulerLease, releaseSchedulerLease } from "@/lib/scheduler-lease";
+import { acquireSchedulerLease, refreshSchedulerLease, releaseSchedulerLease, recordSchedulerCompletion } from "@/lib/scheduler-lease";
 import { db } from "@/db";
 import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
@@ -52,7 +52,7 @@ export async function tickScheduler(force = false) {
 
   let completed = false;
   try {
-    const result = await runScheduledJobs(force, async () => {
+    const result = await runScheduledJobs(force, ownerToken, async () => {
       // A heartbeat only marks lease loss; it cannot stop an in-flight job.
       // Reconfirm ownership before starting each financial/HR side effect.
       if (leaseLost || !(await refreshSchedulerLease(ownerToken))) {
@@ -79,6 +79,7 @@ export async function tickScheduler(force = false) {
 
 async function runScheduledJobs(
   force: boolean,
+  ownerToken: string,
   assertLeaseOwnership: () => Promise<void>,
 ) {
   const now = new Date();
@@ -324,13 +325,11 @@ async function runScheduledJobs(
   };
 
   await assertLeaseOwnership();
-  // Liveness reports must represent *completed* work, not when a potentially
-  // long-running scheduler cycle began.
-  const completedAt = new Date();
-  if (row) {
-    await db.update(schedulerState).set({ lastRunAt: completedAt, lastResult: payload }).where(eq(schedulerState.id, row.id));
-  } else {
-    await db.insert(schedulerState).values({ jobName: "delivery-drain", lastRunAt: completedAt, lastResult: payload });
+  // Final liveness evidence is written under a row lock on the current
+  // lease in the SAME SQL statement. A stale owner cannot race a takeover.
+  const committed = await recordSchedulerCompletion(ownerToken, payload);
+  if (!committed) {
+    throw new Error("Central scheduler lost its lease before completion receipt.");
   }
 
   return { skipped: false as const, ...payload };

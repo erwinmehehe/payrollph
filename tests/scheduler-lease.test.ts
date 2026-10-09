@@ -7,6 +7,7 @@ import {
   acquireSchedulerLease,
   refreshSchedulerLease,
   releaseSchedulerLease,
+  recordSchedulerCompletion,
 } from "../src/lib/scheduler-lease";
 
 test("a scheduler lease serializes workers and fences stale owners", async () => {
@@ -106,7 +107,7 @@ test("lease ownership is checked before every separately invoked high-impact sch
     assert.ok(lastFence >= 0 && previousTask.length < 550, functionName + " needs a nearby lease check");
   }
   const finalLeaseGuard = source.lastIndexOf("await assertLeaseOwnership();");
-  const completedWrite = source.indexOf("await db.update(schedulerState).set({ lastRunAt: completedAt", finalLeaseGuard);
+  const completedWrite = source.indexOf("await recordSchedulerCompletion(ownerToken, payload)", finalLeaseGuard);
   assert.ok(finalLeaseGuard >= 0 && completedWrite > finalLeaseGuard,
     "the scheduler completion receipt must remain guarded by the final lease fence");
 });
@@ -117,7 +118,46 @@ test("a stale scheduler cannot falsely acknowledge success after losing the leas
   assert.ok(source.includes('const released = await releaseSchedulerLease(ownerToken, completed ? "completed" : "failed")'));
   assert.ok(source.includes("if (completed && !released)"));
   assert.ok(source.includes("Central scheduler completed work but no longer owned the lease"));
-  assert.ok(source.includes("const completedAt = new Date();"));
-  assert.ok(source.includes("lastRunAt: completedAt"));
+  assert.ok(source.includes("const committed = await recordSchedulerCompletion(ownerToken, payload)"));
+  assert.ok(source.includes("Central scheduler lost its lease before completion receipt."));
   assert.ok(!source.includes("lastRunAt: now, lastResult: payload"));
+});
+
+
+test("PostgreSQL completion receipt cannot be overwritten by a stale worker after takeover", async () => {
+  const leaseName = "scheduler-receipt-lease-" + randomUUID().slice(0, 14);
+  const receiptName = "scheduler-receipt-test-" + randomUUID().slice(0, 14);
+  const oldOwner = randomUUID();
+  const newOwner = randomUUID();
+  try {
+    assert.equal(await acquireSchedulerLease(oldOwner, leaseName), true);
+    assert.equal(await recordSchedulerCompletion(oldOwner, { tag: "first" }, receiptName, leaseName), true);
+
+    const before = await db.execute(sql`
+      SELECT last_result->>'tag' AS tag FROM scheduler_state WHERE job_name = ${receiptName}
+    `);
+    assert.equal(before.rows[0]?.tag, "first");
+
+    // Simulate a stopped worker, expiration, and another worker's takeover.
+    await db.execute(sql`
+      UPDATE scheduler_state SET last_run_at = NOW() - INTERVAL '16 minutes'
+       WHERE job_name = ${leaseName}
+    `);
+    assert.equal(await acquireSchedulerLease(newOwner, leaseName), true);
+    assert.equal(await recordSchedulerCompletion(oldOwner, { tag: "stale" }, receiptName, leaseName), false);
+    const protectedReceipt = await db.execute(sql`
+      SELECT last_result->>'tag' AS tag FROM scheduler_state WHERE job_name = ${receiptName}
+    `);
+    assert.equal(protectedReceipt.rows[0]?.tag, "first", "stale owner must not overwrite completion evidence");
+
+    assert.equal(await recordSchedulerCompletion(newOwner, { tag: "second" }, receiptName, leaseName), true);
+    const after = await db.execute(sql`
+      SELECT last_result->>'tag' AS tag FROM scheduler_state WHERE job_name = ${receiptName}
+    `);
+    assert.equal(after.rows[0]?.tag, "second");
+  } finally {
+    await releaseSchedulerLease(oldOwner, "failed", leaseName);
+    await releaseSchedulerLease(newOwner, "failed", leaseName);
+    await db.execute(sql`DELETE FROM scheduler_state WHERE job_name IN (${receiptName}, ${leaseName})`);
+  }
 });

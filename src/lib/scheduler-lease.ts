@@ -62,3 +62,40 @@ export async function releaseSchedulerLease(
   `);
   return result.rows.length === 1;
 }
+
+
+/**
+ * Write the scheduler's final delivery receipt ONLY while the caller holds
+ * its live database lease. The SELECT FOR UPDATE and upsert are one Postgres
+ * statement, so a lease takeover cannot interleave between the ownership
+ * check and the completion record. Uses database time, not process clocks.
+ *
+ * This fences completion evidence; it cannot undo in-flight side effects.
+ */
+export async function recordSchedulerCompletion(
+  ownerToken: string,
+  payload: unknown,
+  receiptJobName = "delivery-drain",
+  leaseJobName = CENTRAL_SCHEDULER_LEASE,
+): Promise<boolean> {
+  const serialized = JSON.stringify(payload);
+  if (!serialized) throw new Error("A serializable scheduler completion payload is required.");
+  const result = await db.execute(sql`
+    WITH owned_lease AS MATERIALIZED (
+      SELECT id FROM scheduler_state
+       WHERE job_name = ${leaseJobName}
+         AND last_result->>'status' = 'running'
+         AND last_result->>'ownerToken' = ${ownerToken}
+         AND last_run_at >= NOW() - (${LEASE_TIMEOUT_MINUTES} * INTERVAL '1 minute')
+       FOR UPDATE
+    )
+    INSERT INTO scheduler_state (job_name, last_run_at, last_result)
+    SELECT ${receiptJobName}, NOW(), ${serialized}::jsonb
+      FROM owned_lease WHERE true
+    ON CONFLICT (job_name) DO UPDATE
+      SET last_run_at = EXCLUDED.last_run_at,
+          last_result = EXCLUDED.last_result
+    RETURNING id
+  `);
+  return result.rows.length === 1;
+}

@@ -25,3 +25,8 @@ Every separate delivery drain (webhooks, email, marketing), retention/erasure, s
 ### Completion acknowledgements
 
 A scheduler that loses the lease between its last action and final lease release now fails its completion acknowledgement rather than reporting success from a former owner. The `delivery-drain` last-success timestamp is recorded at the end of the work, so staging monitoring measures the age of a **completed** scheduler cycle instead of its start. These controls do not roll back already committed task side effects and do not certify retry idempotency; independent two-worker production-like staging is still required.
+
+
+### Atomic final completion receipt
+
+The final `delivery-drain` completion timestamp and JSON receipt are now written with one PostgreSQL `INSERT ... SELECT` under `SELECT ... FOR UPDATE` on the current lease row. An old worker that lost ownership during a takeover gets no write; the scheduler fails rather than publishing an incorrect healthy completion. A real isolated PostgreSQL test exercises a 16-minute abandoned lease, takeover, stale-owner rejection and new-owner success. This fences **completion evidence only**; it does not interrupt committed statutory/compensation effects or certify production concurrency. Continue to require witnessed staging and independent payroll review under #637.
