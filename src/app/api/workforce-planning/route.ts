@@ -1,8 +1,13 @@
-import { enforceSameOriginMutation } from "@/lib/security-request";
+import {
+  enforceSameOriginMutation,
+  enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
+} from "@/lib/security-request";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, isNull, like, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   costCenters,
   employees,
   jobFamilies,
@@ -32,6 +37,11 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { startHcmBusinessProcessTx } from "@/lib/hcm-business-process";
 import { freezeHcmPositionSource } from "@/lib/hcm-position-business-process";
+import {
+  directPositionAssignmentGovernanceQuery,
+  HCM_GOVERNED_POSITION_ASSIGNMENT_REQUIRED,
+  isGovernedPositionAssignmentWorkspace,
+} from "@/lib/hcm-position-assignment-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -530,6 +540,33 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
+    const peopleDenied = await assertOrganizationRole(
+      user.id, organizationId, PEOPLE_ADMIN_ROLES,
+      "Direct position assignment requires People administration rights.",
+    );
+    if (peopleDenied) return peopleDenied;
+    const companyAccess = await getAccess(user.id, organizationId);
+    if (!companyAccess?.companyWide) {
+      return Response.json({
+        error: "Direct position assignment requires company-wide People administration. Use governed job changes for departmental decisions.",
+        code: "HCM_DIRECT_ASSIGNMENT_SCOPE_REQUIRED",
+      }, { status: 403 });
+    }
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+    const rateDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id,
+      action: "hcm-manual-position-assignment",
+      resourceId: `${employeeId}:${positionId}`,
+      limit: 5,
+      windowMs: 15 * 60_000,
+    });
+    if (rateDenied) return rateDenied;
+
+    if (await isGovernedPositionAssignmentWorkspace(organizationId)) {
+      return Response.json(HCM_GOVERNED_POSITION_ASSIGNMENT_REQUIRED, { status: 409 });
+    }
+
     const [position] = await db.select().from(positions)
       .where(and(eq(positions.id, positionId), eq(positions.organizationId, organizationId))).limit(1);
     if (!position) return Response.json({ error: "Position not found in this workspace." }, { status: 404 });
@@ -570,8 +607,7 @@ export async function POST(request: Request) {
         effectiveChangeStatus: unresolvedEffectiveChange.status,
       }, { status: 409 });
     }
-    const access = await getAccess(user.id, organizationId);
-    const employeeScope = assertScope(access, employee.orgUnitId);
+    const employeeScope = assertScope(companyAccess, employee.orgUnitId);
     if (!employeeScope.ok) return Response.json({ error: employeeScope.error }, { status: employeeScope.status });
 
     const rowOrResponse = await db.transaction(async (tx) => {
