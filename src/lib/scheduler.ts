@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isCentralSchedulerEnabled } from "@/lib/scheduler-activation";
 import { eq, sql } from "drizzle-orm";
 import { acquireSchedulerLease, refreshSchedulerLease, releaseSchedulerLease, recordSchedulerCompletion } from "@/lib/scheduler-lease";
 import { db } from "@/db";
@@ -28,6 +29,11 @@ const MIN_INTERVAL_MS = 30_000;
  * Public health probes never execute scheduler work or drain queues.
  */
 export async function tickScheduler(force = false) {
+  // An enabled payroll worker does not authorize automatic HR, salary,
+  // statutory or retention jobs. Require separate, deliberate activation.
+  if (!isCentralSchedulerEnabled()) {
+    return { skipped: true as const, reason: "scheduler-disabled" as const };
+  }
   const ownerToken = randomUUID();
   if (!(await acquireSchedulerLease(ownerToken))) {
     return { skipped: true as const, reason: "another-worker" as const };

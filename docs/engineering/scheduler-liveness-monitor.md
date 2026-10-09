@@ -30,3 +30,12 @@ A scheduler that loses the lease between its last action and final lease release
 ### Atomic final completion receipt
 
 The final `delivery-drain` completion timestamp and JSON receipt are now written with one PostgreSQL `INSERT ... SELECT` under `SELECT ... FOR UPDATE` on the current lease row. An old worker that lost ownership during a takeover gets no write; the scheduler fails rather than publishing an incorrect healthy completion. A real isolated PostgreSQL test exercises a 16-minute abandoned lease, takeover, stale-owner rejection and new-owner success. This fences **completion evidence only**; it does not interrupt committed statutory/compensation effects or certify production concurrency. Continue to require witnessed staging and independent payroll review under #637.
+
+
+### Default-off central scheduler activation (staging first)
+
+`WORKER_ENABLED=true` starts the dedicated worker and may process **already queued payroll jobs**; it does **not** imply approval to run the central scheduler. The central scheduler now separately requires `CENTRAL_SCHEDULER_ENABLED=true` (exact lower-case string). Missing, blank, `false`, `1`, `TRUE` or any other value causes `tickScheduler()` to return `scheduler-disabled` before lease acquisition or side effects. This covers both the worker call path and authenticated `POST /api/jobs/tick`, including forced ticks. By default, neither route can activate salary, employment, statutory, workflow, retention or delivery-drain jobs through the central scheduler.
+
+A valid separate monitor token can still authenticate `GET /api/jobs/status`, but while central scheduling is disabled it returns a non-cacheable HTTP **503** with `state: scheduler-disabled` even if a prior successful receipt is recent. Health must never be reported from stale state after this switch is turned off. Other worker payroll queue processing is **not** disabled by this flag; leave `WORKER_ENABLED=false` where payroll job execution has not separately been accepted.
+
+Only turn on `CENTRAL_SCHEDULER_ENABLED` in an isolated synthetic-data staging deployment after authorized review of the worker and job list. Verify the exact deployed SHA, read-only monitor token isolation, two-worker lease takeover, downstream idempotency, restart behavior and alerting. Production activation still needs independent security/DBA/privacy, statutory payroll and employer-specific evidence in #637, #630, #112 and #579. Repository CI alone does not approve the flag.

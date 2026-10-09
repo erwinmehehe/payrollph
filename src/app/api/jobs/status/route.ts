@@ -4,6 +4,7 @@ import { schedulerState } from "@/db/schema";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
 import { operationalSecret } from "@/lib/operational-secret";
 import { evaluateSchedulerLiveness } from "@/lib/scheduler-liveness";
+import { isCentralSchedulerEnabled } from "@/lib/scheduler-activation";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,14 @@ export async function GET(request: Request) {
   }
   if (!constantTimeSecretEqual(request.headers.get("x-scheduler-monitor-token"), expected)) {
     return Response.json({ error: "Authorized scheduler monitor token required." }, { status: 401 });
+  }
+  // An old successful delivery receipt must never make a deliberately
+  // disabled scheduler appear healthy. Check only after monitor auth.
+  if (!isCentralSchedulerEnabled()) {
+    return Response.json({ ok: false, state: "scheduler-disabled" }, {
+      status: 503,
+      headers: { "Cache-Control": "no-store" },
+    });
   }
   try {
     const rows = await db.select({
