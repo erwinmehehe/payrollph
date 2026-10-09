@@ -75,6 +75,7 @@ export function PayrollRunView({
   onPage,
   onRefresh,
   notify,
+  availablePages = [],
 }: {
   data: DashboardData;
   busy: boolean;
@@ -85,6 +86,7 @@ export function PayrollRunView({
   onPage: (page: string) => void;
   onRefresh: () => Promise<void>;
   notify: Notify;
+  availablePages?: readonly string[];
 }) {
   const [selectedId, setSelectedId] = useState<number | undefined>(data.payrollRuns[0]?.id);
   const [query, setQuery] = useState("");
@@ -409,7 +411,7 @@ export function PayrollRunView({
         }
       />
 
-      <PayrollConnectedImpactPanel runId={run.id} onPage={onPage} />
+      <PayrollConnectedImpactPanel runId={run.id} onPage={onPage} allowedPages={availablePages} />
 
       {!payrollOfficerMode && !ownerMode && (
         <PayrollHandoff
