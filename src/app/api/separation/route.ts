@@ -819,15 +819,16 @@ export async function POST(request: Request) {
           )).returning({ id: hcmBusinessProcessInstances.id });
         if (!claimed) throw new Error("Separation approval changed before it could be applied.");
       }
-        await tx.insert(auditEvents).values({
-          organizationId,
-          actor: user.name,
-          action: existingOpen && existingOpen.status !== "released"
+      await tx.insert(auditEvents).values({
+        organizationId,
+        actor: user.name,
+        action: existingOpen && existingOpen.status !== "released"
             ? "Separation final pay recomputed"
             : "Separation final pay computed",
           resource: `${sources.employee.firstName} ${sources.employee.lastName} (Final Pay: PHP ${result.netFinalPay.toFixed(2)})`.slice(0, 160),
           metadata: {
-            separationId: created.id,
+            separationId: record.id,
+            preparedByUserId: user.id,
             businessProcessInstanceId: separationProcess?.id ?? null,
             lastDay,
             finalPayDueDate: dueDate,
@@ -855,8 +856,6 @@ export async function POST(request: Request) {
         });
       return record;
     });
-
-
 
     return Response.json({
       ...created,
