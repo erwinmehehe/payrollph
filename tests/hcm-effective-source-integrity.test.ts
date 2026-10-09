@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   effectiveHcmSourceDrift,
+  effectiveHcmTargetDrift,
   type HcmEffectiveSourceState,
 } from "../src/lib/hcm-effective-source-integrity";
 
@@ -76,6 +77,25 @@ test("change with no assigned position accepts a stable, unassigned worker", () 
   assert.equal(effectiveHcmSourceDrift(none, newlyAssigned)?.field, "assignment");
 });
 
+test("approved destination is immutable even when its vacancy status is normally reserved", () => {
+  const target = structuredClone(baseline.position);
+  assert.equal(effectiveHcmTargetDrift({ targetPosition: target }, structuredClone(target)), null);
+  assert.equal(effectiveHcmTargetDrift({ targetPosition: null }, null), null);
+
+  for (const field of ["orgUnitId", "supervisoryOrgUnitId", "legalEntityId",
+    "managerEmployeeId", "costCenterId", "employmentType", "code", "id"]) {
+    const changed = structuredClone(baseline.position);
+    if (changed) changed[field] = field === "employmentType" ? "Fixed term"
+      : field === "code" ? "NEW-OWNER"
+      : 9999;
+    const result = effectiveHcmTargetDrift({ targetPosition: baseline.position }, changed);
+    assert.equal(result?.code, "HCM_EFFECTIVE_SOURCE_CHANGED", field);
+    assert.equal(result?.field, `targetPosition.${field}`, field);
+  }
+  assert.equal(effectiveHcmTargetDrift({}, baseline.position)?.code, "HCM_EFFECTIVE_SOURCE_MISSING");
+  assert.equal(effectiveHcmTargetDrift({ targetPosition: null }, baseline.position)?.field, "targetPosition");
+});
+
 test("missing or malformed legacy approval source fails closed before any HCM mutation", () => {
   for (const missing of [{}, { employee: baseline.employee }, null, [], {
     employee: baseline.employee, assignment: undefined, position: null,
@@ -96,6 +116,8 @@ test("apply commits worker, position, event, decision and audit together or none
   assert.ok(committed.includes("pg_advisory_xact_lock(4203"));
   assert.ok(committed.includes("pg_advisory_xact_lock(4204"));
   assert.ok(committed.includes("effectiveHcmSourceDrift(change.fromSnapshot"));
+  assert.ok(committed.includes("effectiveHcmTargetDrift(change.toSnapshot"));
+  assert.ok(committed.includes("ORDER BY id FOR UPDATE"));
   assert.ok(committed.includes("tx.update(positionAssignments)"));
   assert.ok(committed.includes("tx.update(employees)"));
   assert.ok(committed.includes("tx.insert(workerEmploymentEvents)"));
@@ -137,6 +159,7 @@ test("request, approval, decline, cancellation and retry decisions each audit in
   assert.ok(route.includes("HCM_RETRY_BP_NOT_APPROVED"));
   assert.ok(route.includes("HCM_RETRY_TARGET_NOT_RESERVED"));
   assert.ok(route.includes("effectiveHcmSourceDrift(change.fromSnapshot"));
+  assert.ok(route.includes("effectiveHcmTargetDrift(change.toSnapshot"));
   assert.ok(route.includes("FOR UPDATE"));
   assert.ok(route.includes("HCM_RETRY_DECISION_STALE"));
 });
