@@ -1074,16 +1074,31 @@ export async function PATCH(request: Request) {
       return Response.json({ error: "Final pay must be approved before release." }, { status: 409 });
     }
     const releaseReference = String(body.releaseReference ?? "").trim();
-    if (!releaseReference) {
+    if (releaseReference.length < 8 || releaseReference.length > 160) {
       return Response.json({
-        error: "Enter a payout or bank reference before marking Final Pay released.",
+        error: "Enter a verified external payout or bank evidence reference (8-160 characters). A text reference is an operator attestation, not electronic payment proof.",
       }, { status: 422 });
     }
 
     const released = await db.transaction(async (tx) => {
-      const [fresh] = await tx.select().from(separationRecords).where(eq(separationRecords.id, id)).limit(1);
+      await tx.execute(sql`SELECT id FROM separation_records WHERE id = ${id}
+        AND organization_id = ${sep.organizationId} FOR UPDATE`);
+      const [fresh] = await tx.select().from(separationRecords).where(and(
+        eq(separationRecords.id, id), eq(separationRecords.organizationId, sep.organizationId),
+      )).limit(1);
       if (!fresh || fresh.status !== "approved") {
         throw new Error("Final-pay release state changed. Refresh and try again.");
+      }
+      if (fresh.preparedByUserId == null || fresh.approvedByUserId == null) {
+        throw new Error("FINAL_PAY_THREE_ACTOR_EVIDENCE_MISSING: reprepare and independently approve this legacy final pay before release.");
+      }
+      if (fresh.preparedByUserId === user.id
+        || fresh.approvedByUserId === user.id
+        || fresh.preparedByUserId === fresh.approvedByUserId) {
+        throw new Error("FINAL_PAY_THREE_ACTOR_REQUIRED: preparer, checker, and releaser must be three distinct accounts.");
+      }
+      if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
+        throw new Error("Final-pay operational clearances changed after approval. Refresh and reapprove.");
       }
 
       const [linkedTermDecision] = await tx.select().from(hcmEmploymentTermDecisions).where(and(
@@ -1173,6 +1188,7 @@ export async function PATCH(request: Request) {
         status: "released",
         releasedAt: new Date(),
         releaseReference: releaseReference.slice(0, 160),
+        releasedByUserId: user.id,
       }).where(and(
         eq(separationRecords.id, id),
         eq(separationRecords.status, "approved"),
@@ -1254,26 +1270,31 @@ export async function PATCH(request: Request) {
         });
       }
 
+      // Release is not committed unless immutable payout evidence and
+      // all linked employee, loan, position, and final-pay audit writes succeed.
+      await tx.insert(auditEvents).values({
+        organizationId: sep.organizationId,
+        actor: user.name,
+        action: "Final pay released with independently separated approvers",
+        resource: `Separation #${sep.id}`,
+        metadata: {
+          employeeId: sep.employeeId,
+          preparedByUserId: fresh.preparedByUserId,
+          approvedByUserId: fresh.approvedByUserId,
+          releasedByUserId: user.id,
+          releasedAt: updated.releasedAt?.toISOString(),
+          finalPayDueDate: fresh.finalPayDueDate,
+          netFinalPay: Number(fresh.netFinalPay),
+          loanDeductions: Number(fresh.loanDeductions),
+          deferredLoanBalance: Number(
+            (fresh.computationSnapshot as Record<string, unknown> | null)?.deferredLoanBalance ?? 0,
+          ),
+          releaseReference,
+          bankSettlementVerifiedByPlatform: false,
+          offboarding2316Available: true,
+        },
+      });
       return updated;
-    });
-
-    await recordAuditEvent({
-      organizationId: sep.organizationId,
-      actor: user.name,
-      action: "Final pay released",
-      resource: `Separation #${sep.id}`,
-      metadata: {
-        employeeId: sep.employeeId,
-        releasedAt: released.releasedAt,
-        finalPayDueDate: sep.finalPayDueDate,
-        netFinalPay: Number(sep.netFinalPay),
-        loanDeductions: Number(sep.loanDeductions),
-        deferredLoanBalance: Number(
-          (sep.computationSnapshot as Record<string, unknown> | null)?.deferredLoanBalance ?? 0,
-        ),
-        releaseReference: releaseReference.slice(0, 160),
-        offboarding2316Available: true,
-      },
     });
 
     const automation = await runLifecycleAutomations({
