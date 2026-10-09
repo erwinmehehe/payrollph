@@ -257,7 +257,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       // A checker may not approve a run whose upstream HR/WFM/HCM sources have
       // changed since calculation. The source gate is OFF unless explicitly
       // enabled and reviewed for the tenant's payroll workflow.
-      if (connectedPayrollReleaseGateEnabled()) {
+      if (connectedPayrollReleaseGateEnabled(payrollRun.organizationId)) {
         const connected = await safePayrollConnectedReleaseReadiness(payrollRunId);
         if (!connected.ready) {
           return Response.json({
