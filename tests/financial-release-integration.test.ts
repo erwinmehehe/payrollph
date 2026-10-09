@@ -61,9 +61,10 @@ test("integrated Drizzle schema retains all four independent financial-control m
 test("loan governance test and runbook refer to the integrated migration", () => {
   const testSource = readFileSync("tests/payroll-loan-approval-governance.test.ts", "utf8");
   const runbook = readFileSync("docs/payroll-employee-loan-maker-checker.md", "utf8");
-  for (const source of [testSource, runbook]) {
-    assert.ok(source.includes("0103_independent_employee_loan_deductions.sql"));
-    assert.ok(!source.includes("0100_independent_employee_loan_deductions.sql"),
-      "source loan migration number collides with compensation 0100");
-  }
+  assert.ok(testSource.includes('readFileSync("drizzle/0103_independent_employee_loan_deductions.sql"'),
+    "active regression test must load the canonical 0103 SQL file");
+  assert.match(runbook, /The additive migration is\\s+`drizzle\\/0103_independent_employee_loan_deductions\\.sql`/,
+    "runbook must name the actual staged SQL filename");
+  // The runbook may legitimately cite the retired 0100 loan basename in its
+  // historical explanation. Do not mistake prose for a live migration path.
 });
