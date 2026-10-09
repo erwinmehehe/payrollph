@@ -1868,7 +1868,7 @@ function PersonDrawer({
                 </label>
               </div>
               <div className="modal-note" style={{ margin: "0 16px 10px" }}>
-                Leave account number blank to keep the saved destination; newly supplied numbers are encrypted server-side and returned masked. Once this employee has a Released payroll entry, bank/mobile payout changes require enterprise Treasury Controls and a different assigned treasury approver. Without that policy, direct entry is available only before this worker's first payroll to a company-wide owner/admin with MFA. Never bypass an approval by creating a replacement employee.
+                Leave account number blank to keep the saved destination; newly supplied numbers are encrypted server-side and returned masked. Once this employee appears in any payroll register (including a calculated Draft), bank/mobile payout changes require enterprise Treasury Controls and a different assigned treasury approver. Without that policy, direct entry is available only before this worker's first payroll calculation to a company-wide owner/admin with MFA. Never bypass an approval by creating a replacement employee.
               </div>
               {payoutError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{payoutError}</span></div>}
               {payoutNotice && <div className="notice notice-slate" style={{ margin: "0 16px 10px" }}><span>{payoutNotice}</span></div>}
