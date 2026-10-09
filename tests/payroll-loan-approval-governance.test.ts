@@ -6,8 +6,9 @@ import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import { employeeLoans, employees, organizations, users } from "../src/db/schema";
 import {
-  activeLoanPayrollConflict, independentLoanReviewer,
-  loanApprovalReference, moneyFromCents, parseLoanCents, validLoanDate,
+  activeLoanPayrollConflict, approvedPayrollLoanType, externalLoanPaymentReference,
+  independentLoanReviewer, loanApprovalReference, moneyFromCents, parseLoanCents, validLoanDate,
+  validPayrollLoanSchedule,
 } from "../src/lib/payroll-loan-approval";
 
 test("loan amounts must be centavo-exact, positive and within database precision", () => {
@@ -167,4 +168,32 @@ test("migration and Drizzle schema preserve historical active rows and enforce a
   assert.ok(schema.includes('default("pending_approval")'));
   assert.ok(schema.includes('check("employee_loans_independent_deduction_check"'));
   assert.ok(!baseline.includes("employee_loans_independent_deduction_check"), "Immutable historical baseline is not rewritten");
+});
+
+test("unsafe legacy deduction amounts are skipped instead of corrupting take-home pay", () => {
+  assert.equal(validPayrollLoanSchedule({ cutoffDeduction: 500, remainingBalance: 1000 }), true);
+  for (const invalid of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 100000000]) {
+    assert.equal(validPayrollLoanSchedule({ cutoffDeduction: invalid, remainingBalance: 1000 }), false);
+  }
+  assert.equal(validPayrollLoanSchedule({ cutoffDeduction: 500, remainingBalance: 0 }), false);
+  assert.equal(validPayrollLoanSchedule({ cutoffDeduction: 500, remainingBalance: -20 }), false);
+  const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  assert.ok(source.includes("validPayrollLoanSchedule(loan)"));
+  assert.ok(source.includes("No loan deduction applied; pause and reconcile"));
+});
+
+test("loan issuance and manual receipts reject unsupported deductions and duplicate-prone placeholder references", () => {
+  assert.equal(approvedPayrollLoanType("SSS Salary Loan"), true);
+  assert.equal(approvedPayrollLoanType("Company Emergency Loan"), true);
+  assert.equal(approvedPayrollLoanType("Payroll overpayment recovery"), false);
+  assert.equal(approvedPayrollLoanType("Surprise automatic deduction"), false);
+  assert.equal(externalLoanPaymentReference("BPI-RECEIPT-20261009-A"), "BPI-RECEIPT-20261009-A");
+  for (const ref of ["Manual Payment", "Direct Employee Remittance", "N/A", "bad", "ABC\\nReceipt"]) {
+    assert.equal(externalLoanPaymentReference(ref), null);
+  }
+  const route = readFileSync("src/app/api/loans/route.ts", "utf8");
+  assert.ok(route.includes("LOAN_PAYMENT_REFERENCE_ALREADY_RECORDED"));
+  assert.ok(route.includes("eq(loanPayments.loanId, id)"));
+  assert.ok(route.includes("lower(${loanPayments.reference}) = lower(${paymentRef})"));
+  assert.ok(route.includes('status: "pending_approval"'));
 });
