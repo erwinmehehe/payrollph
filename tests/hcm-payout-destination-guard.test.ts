@@ -135,5 +135,5 @@ test("employee payout PATCH restricts legacy changes and commits audited pre-fir
   assert.ok(source.includes("existingPayrollRegisterRecheckedUnderLock: true"));
   assert.ok(!source.includes("previousMobile: employee.mobile"));
   assert.ok(!source.includes("newMobile: updated.mobile"));
-  assert.ok(ui.includes("has a Released payroll entry"));
+  assert.ok(ui.includes("appears in any payroll register"));
 });
