@@ -30,6 +30,15 @@ export type WorkImpactSource = {
   severity?: string | null;
   appliedAt?: string | Date | null;
 };
+export type TimesheetImpactSource = {
+  id: number;
+  employeeId: number;
+  periodStart: string;
+  periodEnd: string;
+  version: number;
+  status: string;
+};
+
 export type AppliedPayRevision = {
   id: number;
   employeeId: number;
@@ -56,6 +65,7 @@ export type ConnectedImpactInput = {
   payoutChanges?: PayoutImpactSource[];
   attendanceCorrections?: WorkImpactSource[];
   attendanceExceptions?: WorkImpactSource[];
+  timesheets?: TimesheetImpactSource[];
   compensationProposals?: DatedImpactSource[];
   payRevisions?: AppliedPayRevision[];
   truncatedSources?: string[];
@@ -148,6 +158,29 @@ export function buildPayrollConnectedImpact(input: ConnectedImpactInput): Connec
       employeeId: row.employeeId, sourceId: row.id, date: row.workDate,
       status: status(row.status), title: "Attendance exception remains open",
       detail: "An attendance exception for this cutoff has not been resolved. Check the source time evidence and payroll premium/exception trace.",
+      action: "Time & attendance",
+    });
+  }
+
+  // The existing configured Timesheet Payroll Gate remains authoritative.
+  // Surface only the most recent version per employee/period; a superseded
+  // submission must not hide a newer stale or unapproved version.
+  const latestTimesheet = new Map<number, TimesheetImpactSource>();
+  for (const row of input.timesheets ?? []) {
+    if (row.periodStart !== input.periodStart || row.periodEnd !== input.periodEnd) continue;
+    if (!Number.isSafeInteger(row.version) || row.version <= 0) continue;
+    const previous = latestTimesheet.get(row.employeeId);
+    if (!previous || row.version > previous.version || (row.version === previous.version && row.id > previous.id)) {
+      latestTimesheet.set(row.employeeId, row);
+    }
+  }
+  for (const row of latestTimesheet.values()) {
+    if (status(row.status) === "approved") continue;
+    add(findings, {
+      area: "WFM", severity: "attention", code: "WFM_TIMESHEET_NOT_APPROVED",
+      employeeId: row.employeeId, sourceId: row.id, date: row.periodEnd,
+      status: status(row.status), title: "Latest timesheet is not approved",
+      detail: "The latest submitted timesheet version for this cutoff is not approved. Resolve or resubmit it through the existing maker-checker timesheet workflow before relying on its payroll snapshot.",
       action: "Time & attendance",
     });
   }
