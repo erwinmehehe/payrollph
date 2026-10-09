@@ -2697,7 +2697,15 @@ export const employeeLoans = pgTable("employee_loans", {
   endDate: date("endDate"),
   notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("employee_loans_org_status_idx").on(table.organizationId, table.status, table.id),
+  check("employee_loans_independent_deduction_check", sql`
+    ${table.requestedByUserId} is null
+    or ${table.status} not in ('active', 'paused', 'paid_off')
+    or (${table.reviewedByUserId} is not null
+      and ${table.requestedByUserId} <> ${table.reviewedByUserId})
+  `),
+]);
 
 export const loanPayments = pgTable("loan_payments", {
   id: serial("id").primaryKey(),
