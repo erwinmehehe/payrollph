@@ -88,6 +88,7 @@ export async function GET(request: Request) {
   const earnings = new Map(posted.map(row => [row.id, row]));
   return Response.json({
     currentUserId: user.id,
+    postingEnabled: process.env.PAYROLL_UNDERPAYMENT_POSTING_ENABLED === "true",
     employees: workerRows,
     releasedRuns: sourceRuns.filter(row => row.status === "Released"),
     requests: claims.map(row => ({
@@ -249,6 +250,16 @@ export async function PATCH(request: Request) {
       error: "Valid request/action and 20-500 character reviewer rationale are required. Approval also needs an 8-200 character payroll/tax verification reference.",
     }, { status: 400 });
   }
+  // A signed-off feature gate defaults OFF even if the code is present or
+  // a draft preview deployment shares a real payroll connection. Requests
+  // and rejection reviews remain possible; only posting money is gated.
+  if (action === "approve" && process.env.PAYROLL_UNDERPAYMENT_POSTING_ENABLED !== "true") {
+    return Response.json({
+      code: "UNDERPAYMENT_POSTING_NOT_CERTIFIED",
+      error: "Historical underpayment posting is disabled until independent payroll/tax validation, staging reconciliation and controlled-pilot sign-off are complete.",
+    }, { status: 409 });
+  }
+
   const denied = await assertOrganizationRole(user.id, organizationId, PAYROLL_TAX_APPROVER_ROLES);
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
