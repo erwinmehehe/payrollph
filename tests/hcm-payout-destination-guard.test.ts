@@ -36,7 +36,7 @@ test("paid workers require independent review even when Treasury Controls are tu
   }), null);
   assert.equal(legacyPayoutChangeBlockReason({
     treasuryEnabled: true, hasReleasedPayroll: true, companyWide: false, role: "hr",
-  }), null, "Treasure approval-request path uses the existing independent checker");
+  }), null, "Treasury approval-request path uses the existing independent checker");
   assert.equal(REVIEWED_PAYOUT_DESTINATION_REQUIRED.code, "PAYOUT_DESTINATION_REVIEW_REQUIRED");
 });
 
@@ -125,7 +125,8 @@ test("employee payout PATCH restricts legacy changes and commits audited pre-fir
   assert.ok(source.includes("requireSensitiveActionMfa(user)"));
   assert.ok(source.includes("payoutHistoryUnderLockQuery(organizationId, employeeId)"));
   assert.ok(source.includes("FOR UPDATE"));
-  assert.ok(source.includes("FOR SHARE"));
+  const guard = readFileSync("src/lib/hcm-payout-destination-guard.ts", "utf8");
+  assert.ok(guard.includes("FOR SHARE OF pr"));
   assert.ok(source.includes("PAYOUT_DESTINATION_STALE"));
   assert.ok(source.includes("PAYOUT_DESTINATION_POLICY_CHANGED"));
   assert.ok(source.includes("tx.insert(auditEvents)"));
