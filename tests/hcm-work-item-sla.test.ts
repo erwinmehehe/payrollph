@@ -34,9 +34,11 @@ test("HCM command center is read-only and company-wide",()=>{
   assert.match(source,/automationOperationalCases/);
   assert.doesNotMatch(source,/db\.(insert|update|delete)\(/);
 });
-test("migration fields exist in Drizzle schema",()=>{
+test("canonical sequential migration fields exist in Drizzle schema",()=>{
   const schema=read("src/db/schema.ts");
-  const migration=read("migrations/20261009_hcm_work_item_sla.sql");
+  const migration=read("drizzle/0104_hcm_work_item_sla.sql");
+  assert.ok(migration.includes("ALTER TABLE automation_operational_cases"));
+  assert.ok(migration.includes("CREATE TABLE IF NOT EXISTS hcm_work_item_events"));
   for(const [column,field] of [
     ["assigned_owner_user_id","assignedOwnerUserId"],
     ["sla_due_at","slaDueAt"],

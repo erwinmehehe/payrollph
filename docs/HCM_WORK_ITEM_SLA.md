@@ -2,8 +2,12 @@
 
 This enhancement extends existing `automation_operational_cases` rather than copying cases to a second queue.
 
+## Required ordered SQL dependency (never auto-apply in production)
+
+This PR is **stacked on the reviewed SQL 0100-0103 train (PR #667)**. The HCM ownership/SLA extension is its next consecutive append-only migration, `drizzle/0104_hcm_work_item_sla.sql`. The `drizzle/` folder contains the canonical numbered migration history; the former ad-hoc `migrations/` path was removed to prevent bypassing the release guard. **Do not deploy this API/UI before an authorized DBA has confirmed actual applied-history/checksums, rehearsed the isolated rollback, and manually applied 0100-0104 in the approved order.** Passing CI `db:push` on an ephemeral database does not prove staging or production migration acceptance.
+
 ## Release steps
-1. Apply `migrations/20261009_hcm_work_item_sla.sql` to the workspace database.
+1. Apply `drizzle/0104_hcm_work_item_sla.sql` to the workspace database.
 2. Deploy the feature branch after tests and permission review.
 3. Set a strong random `HCM_SLA_CRON_SECRET` and configure a scheduler to call `POST /api/hcm/work-items/escalate` with `Authorization: Bearer <secret>` every 5-15 minutes. No secret means the endpoint returns 503 and does no work.
 4. Update your HCM case management UI to display and edit `ownerTeam`, `ownerUserId`, `dueAt`, `escalateAt`, and `overdue` via the API. API work does not automatically ship UI.
