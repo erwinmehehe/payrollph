@@ -109,6 +109,7 @@ test("source fingerprint seals the payroll entry, amount, trace, status and line
 
 test("review route is default-off, tenant-scoped, MFA-protected and cannot mutate money or HCM state", () => {
   const route = readFileSync("src/app/api/payroll-overpayment-preview/route.ts", "utf8");
+  const source = readFileSync("src/lib/payroll-overpayment-preview-server.ts", "utf8");
   const client = readFileSync("src/components/payroll-overpayment-preview-panel.tsx", "utf8");
   const compensation = readFileSync("src/components/compensation-panel.tsx", "utf8");
 
@@ -122,7 +123,10 @@ test("review route is default-off, tenant-scoped, MFA-protected and cannot mutat
   assert.ok(route.includes("eq(payrollRuns.organizationId, organizationId)"));
   assert.ok(route.includes("eq(employees.organizationId, organizationId)"));
   assert.ok(route.includes('eq(payrollRuns.status, "Released")'));
-  assert.ok(route.includes("entries.length !== 1"));
+  assert.ok(route.includes("loadReleasedOverpaymentEvidence("));
+  assert.ok(source.includes("entries.length !== 1"));
+  assert.ok(source.includes("eq(payrollRuns.organizationId, organizationId)"));
+  assert.ok(source.includes("eq(employees.organizationId, organizationId)"));
   assert.ok(route.includes("fingerprintReleasedPayrollEntry("));
   assert.ok(route.includes("reviewOnly: true"));
   assert.ok(route.includes("saved: false"));
@@ -132,6 +136,8 @@ test("review route is default-off, tenant-scoped, MFA-protected and cannot mutat
     "enqueuePayrollRun(", "drainPayrollQueue(", "recordAuditEvent(",
   ]) assert.ok(!route.includes(forbidden), "Do not allow money or employee mutation via preview: " + forbidden);
   assert.ok(client.includes("Results are not saved"));
+  assert.ok(client.includes("controller.abort()"));
+  assert.ok(client.includes("setPreview(null)"));
   assert.ok(client.includes("automatedRecoveryAllowed"));
   assert.ok(compensation.includes("<PayrollOverpaymentPreviewPanel organizationId={organizationId} />"));
 });
