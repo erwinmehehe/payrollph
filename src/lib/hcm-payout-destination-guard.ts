@@ -4,14 +4,14 @@ import { payrollEntries, payrollRuns } from "@/db/schema";
 
 /**
  * A legacy employee-profile editor must never rewrite bank/mobile payout
- * coordinates after this worker has appeared in a released payroll register.
+ * coordinates after this worker has appeared in any calculated payroll register.
  * A company with configured treasury separation already has the approved,
  * independent payout-destination change workflow.
  *
  * Check per worker, not per company: a newly hired worker without an existing
- * released register may still complete initial payout setup before first pay.
+ * payroll entry may still complete initial payout setup before calculation.
  */
-export async function employeeHasReleasedPayroll(
+export async function employeeHasPayrollRegisterEntry(
   organizationId: number,
   employeeId: number,
 ): Promise<boolean> {
@@ -24,7 +24,6 @@ export async function employeeHasReleasedPayroll(
     .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
     .where(and(
       eq(payrollRuns.organizationId, organizationId),
-      eq(payrollRuns.status, "Released"),
       eq(payrollEntries.employeeId, employeeId),
     )).limit(1);
   return Boolean(entry);
@@ -49,17 +48,17 @@ export function payoutHistoryUnderLockQuery(organizationId: number, employeeId: 
 
 export function legacyPayoutChangeBlockReason(input: {
   treasuryEnabled: boolean;
-  hasReleasedPayroll: boolean;
+  hasPayrollRegisterEntry: boolean;
   companyWide: boolean;
   role: string;
 }): "review_required" | "role_required" | null {
   if (input.treasuryEnabled) return null; // Existing dual-control flow is authoritative.
-  if (input.hasReleasedPayroll) return "review_required";
+  if (input.hasPayrollRegisterEntry) return "review_required";
   if (!input.companyWide || !["owner", "admin"].includes(input.role)) return "role_required";
   return null;
 }
 
 export const REVIEWED_PAYOUT_DESTINATION_REQUIRED = {
   code: "PAYOUT_DESTINATION_REVIEW_REQUIRED",
-  error: "This employee already appears in Released payroll. Direct changes to their bank account, bank code or payout mobile number are blocked until Treasury Controls and the independent payout-destination approval workflow are enabled. Do not create a replacement employee or silently change the original payroll register.",
+  error: "This employee already appears in a payroll register (even if not released). Direct bank account, bank code or payout mobile changes require Treasury Controls and independent payout-destination approval. Do not alter a calculated register, create a replacement employee or bypass the approved workflow.",
 } as const;
