@@ -9,7 +9,7 @@ import {
   payrollUnderpaymentRequests, users,
 } from "../src/db/schema";
 import {
-  conflictingCutoff, parsePositiveUnderpaymentCents,
+  conflictingCutoff, hasOriginalBasicPayLine, parsePositiveUnderpaymentCents,
   payrollSourceFingerprint, validCalendarDate,
 } from "../src/lib/payroll-underpayment";
 
@@ -31,6 +31,15 @@ test("source fingerprints are deterministic and reject altered payroll amounts o
   assert.equal(a, payrollSourceFingerprint({ ...original }));
   assert.notEqual(a, payrollSourceFingerprint({ ...original, grossPay: "20001.00" }));
   assert.notEqual(a, payrollSourceFingerprint({ ...original, lineItems: [{ code: "BASIC", amount: "20001.00" }] }));
+  assert.notEqual(a, payrollSourceFingerprint({ ...original, deductions: "2000.00" }));
+  assert.notEqual(a, payrollSourceFingerprint({ ...original, trace: { signed: "later" } }));
+});
+
+test("basic salary underpayment cannot be based on an unrelated earning-only source", () => {
+  assert.equal(hasOriginalBasicPayLine([{ code: "BASIC", amount: "0.00" }]), true);
+  assert.equal(hasOriginalBasicPayLine([{ code: "OT", amount: "1200.00" }]), false);
+  assert.equal(hasOriginalBasicPayLine([]), false);
+  assert.equal(hasOriginalBasicPayLine({ code: "BASIC" }), false);
 });
 
 test("only an empty Draft overlapping employee cutoff is eligible", () => {
@@ -124,6 +133,8 @@ test("API implements company-wide MFA, independent maker-checker and atomic payr
   assert.ok(route.includes('earningType: "other_taxable"'));
   assert.ok(route.includes("payrollSourceFingerprint(entries[0]) !== pending.sourceEntryHash"));
   assert.ok(route.includes("sourceEntries.length !== 1"));
+  assert.ok(route.includes("hasOriginalBasicPayLine(entries[0].lineItems)"));
+  assert.ok(route.includes("UNDERPAYMENT_NO_BASIC_SOURCE"));
   assert.ok(route.includes("entries.length !== 1"));
   assert.ok(earnings.includes("REVIEWED_UNDERPAYMENT_IMMUTABLE"));
   assert.ok(earnings.includes("payrollUnderpaymentRequests.postedEarningId"));
