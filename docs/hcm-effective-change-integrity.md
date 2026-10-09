@@ -51,7 +51,8 @@ meaningful employment change.
 - **Post-commit failure honesty:** A failed document obligation sync,
   lifecycle notification, promotion workflow or employee-field automation
   is reported as a **post-apply warning**, not a failed source mutation.
-  These delivery warnings must be reconciled separately.
+  The scheduled worker's result also carries these warnings, so operators
+  can reconcile delivery without trying to reapply a successful movement.
 
 ## Operator experience
 
