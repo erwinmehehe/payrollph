@@ -1,4 +1,4 @@
-# HCM employee payout destination control after first Released payroll
+# HCM employee payout destination control after first payroll calculation
 
 ## Why
 
@@ -6,7 +6,7 @@ The legacy employee profile editor allowed direct changes to employee bank
 account, bank code and payout-mobile fields whenever optional enterprise
 Treasury Controls were off. MFA and auditing alone do **not** replace the
 independent approval required for high-impact payee redirection after an
-employee has already received payroll. Incorrect data can divert future funds.
+employee appears in a calculated or released payroll register. Incorrect data can divert future funds.
 
 ## What this code changes
 
@@ -40,15 +40,15 @@ enablement rechecked inside the write transaction.
 
 The initial payout record and masked audit evidence commit in the **same
 database transaction**. An audit-store failure rolls back the payout
-change. A concurrent bank edit, Treasury policy change or newly Released
-payroll observed before commit yields HTTP 409 rather than overwriting
+change. A concurrent bank edit, Treasury policy change or newly recorded
+payroll entry observed before commit yields HTTP 409 rather than overwriting
 payee data. Audit metadata does not store raw bank accounts or phone
 numbers.
 
 ## Operational migration and limitations
 
 - **Customer workflow change:** legacy workspaces without the enterprise
-  Treasury feature may be unable to change a paid employee's bank/mobile
+  Treasury feature may be unable to change an already-calculated employee's bank/mobile
   details until a supported independent-review path is provisioned.
   Product/support must validate plan entitlements and provide an
   accessible, approved alternative before customer rollout. Do not tell
