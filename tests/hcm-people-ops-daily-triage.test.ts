@@ -139,6 +139,8 @@ test("API guards company-wide People role before loading sources and validates t
 test("daily triage stays in native People Inbox with source navigation and no write actions", () => {
   const ui = readFileSync("src/components/hcm-people-operations-inbox.tsx", "utf8");
   assert.ok(ui.includes("HR daily triage"));
+  assert.ok(ui.includes("data.attention.dueToday + data.attention.dueNext7"));
+  assert.ok(ui.includes("data.attention.dueToday + data.attention.dueNext7 + data.attention.dueNext30"));
   assert.ok(ui.includes("Team workload across the organization"));
   assert.ok(ui.includes("Filter People Operations by source due date"));
   assert.ok(ui.includes("Filter People Operations by responsible team"));
