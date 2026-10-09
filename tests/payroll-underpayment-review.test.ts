@@ -120,6 +120,8 @@ test("API implements company-wide MFA, independent maker-checker and atomic payr
   const panel = readFileSync("src/components/payroll-underpayment-panel.tsx", "utf8");
   assert.ok(route.includes("PAYROLL_OPERATOR_ROLES"));
   assert.ok(route.includes("PAYROLL_TAX_APPROVER_ROLES"));
+  assert.ok(route.includes('process.env.PAYROLL_UNDERPAYMENT_POSTING_ENABLED !== "true"'));
+  assert.ok(route.includes('code: "UNDERPAYMENT_POSTING_NOT_CERTIFIED"'));
   assert.ok(route.includes("PAYROLL_VIEW_ROLES"));
   assert.ok(route.includes("!access?.companyWide"));
   assert.ok(route.includes("requireSensitiveActionMfa(user)"));
