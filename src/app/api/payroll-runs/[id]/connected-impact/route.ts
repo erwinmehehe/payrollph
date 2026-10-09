@@ -13,7 +13,7 @@ import {
   workforceTimesheets,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_VIEW_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { buildPayrollConnectedImpact } from "@/lib/payroll-connected-impact";
 
 export const dynamic = "force-dynamic";
@@ -43,8 +43,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
   if (!run) return Response.json({ error: "Payroll run not found." }, { status: 404 });
   const denied = await assertOrganizationRole(
-    user.id, run.organizationId, PAYROLL_VIEW_ROLES,
-    "Only authorized payroll reviewers can view upstream payroll evidence.",
+    user.id, run.organizationId, PAYROLL_OPERATOR_ROLES,
+    "Only authorized payroll operators can inspect upstream HR and compensation evidence.",
   );
   if (denied) return denied;
   const scopeDenied = await assertOrganizationUnitAccess(
