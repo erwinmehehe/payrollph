@@ -20,6 +20,7 @@ import { checkEmployeeLeaveEligibility } from "@/lib/hcm-leave-employment";
 import { loadCurrentHcmSeparation } from "@/lib/hcm-work-period-guard";
 import { advanceApprovalChainAfterDecisionTx } from "@/lib/approval-chains";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
+import { connectedPayrollReleaseGateEnabled, safePayrollConnectedReleaseReadiness } from "@/lib/payroll-connected-release-gate-server";
 import {
   advanceHcmBusinessProcessAfterApprovalTx,
   finalizeHcmBusinessProcessSource,
@@ -253,6 +254,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     if (status === "Approved") {
+      // A checker may not approve a run whose upstream HR/WFM/HCM sources have
+      // changed since calculation. The source gate is OFF unless explicitly
+      // enabled and reviewed for the tenant's payroll workflow.
+      if (connectedPayrollReleaseGateEnabled()) {
+        const connected = await safePayrollConnectedReleaseReadiness(payrollRunId);
+        if (!connected.ready) {
+          return Response.json({
+            error: "HRIS, WFM or HCM payroll source evidence is unresolved. Resolve and recalculate before approval.",
+            code: "PAYROLL_CONNECTED_SOURCE_INTEGRITY_BLOCK",
+            blockingCount: connected.blockingCount,
+            findings: connected.findings.filter((finding) => finding.severity === "blocker").slice(0, 15),
+          }, { status: 409 });
+        }
+      }
       const assuranceResult = await buildPayrollAssurance(payrollRunId);
       const blockers = assuranceResult?.assurance.findings.filter(
         (finding) => finding.blocking && !(sharedDemo && finding.code === "MISSING_BANK_DETAILS"),
