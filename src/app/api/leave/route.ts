@@ -63,7 +63,8 @@ async function validatePreciseTiming(input: {
       intervals: [] as PreciseLeaveInterval[],
     };
   }
-  if (input.intervals.some((interval) => !validLeaveDate(interval.workDate))) {
+  if (input.intervals.some((interval) =>
+    !interval || typeof interval.workDate !== "string" || !validLeaveDate(interval.workDate))) {
     return {
       ok: false as const,
       errors: ["Each leave interval needs a real YYYY-MM-DD work date."],
