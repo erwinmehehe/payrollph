@@ -423,10 +423,19 @@ export async function PATCH(request: Request) {
           });
           return Response.json({ decision: applied.decision, applied: true });
         } catch (error) {
+          // Scheduling and its actor audit already committed. The activation
+          // failure must not be reported as a failed retry submission.
+          const [current] = await db.select().from(hcmEmploymentTermDecisions).where(and(
+            eq(hcmEmploymentTermDecisions.id, id),
+            eq(hcmEmploymentTermDecisions.organizationId, organizationId),
+          )).limit(1);
           return Response.json({
-            error: error instanceof Error ? error.message : "Decision application failed.",
+            decision: current ?? scheduled,
+            applied: false,
             retryRecorded: true,
-          }, { status: 409 });
+            warning: "Retry was recorded, but employment-term application needs reconciliation.",
+            applicationError: error instanceof Error ? error.message : "Decision application failed.",
+          }, { status: 202 });
         }
       }
       return Response.json({ decision: scheduled, applied: false });
@@ -459,7 +468,9 @@ export async function PATCH(request: Request) {
     if (error instanceof DecisionEvidenceApprovalError) {
       return Response.json({ error: error.message }, { status: error.status });
     }
-    return Response.json({ error: "Employment-term decision approval failed." }, { status: 409 });
+    // Unknown storage faults must be surfaced as actual server failures,
+    // not disguised as a business-rule denial after a rolled-back transaction.
+    throw error;
   }
   const scheduled = sealed.decision;
 
@@ -471,7 +482,19 @@ export async function PATCH(request: Request) {
       const applied = await applyEmploymentTermDecision({ decisionId: id, actor: user.name, actorUserId: user.id, now });
       return Response.json({ decision: applied.decision, applied: true });
     } catch (error) {
-      return Response.json({ error: error instanceof Error ? error.message : "Decision application failed." }, { status: 409 });
+      // Approval and sealed audit already committed. A later activation
+      // failure requires reconciliation; do not imply approval was undone.
+      const [current] = await db.select().from(hcmEmploymentTermDecisions).where(and(
+        eq(hcmEmploymentTermDecisions.id, id),
+        eq(hcmEmploymentTermDecisions.organizationId, organizationId),
+      )).limit(1);
+      return Response.json({
+        decision: current ?? scheduled,
+        approved: true,
+        applied: false,
+        warning: "Independent approval was recorded, but effective-dated application needs reconciliation.",
+        applicationError: error instanceof Error ? error.message : "Decision application failed.",
+      }, { status: 202 });
     }
   }
 
