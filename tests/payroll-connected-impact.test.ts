@@ -125,3 +125,48 @@ test("connected-impact API reads only cutoff-matching timesheets, with feature f
   assert.ok(source.includes("eq(workforceTimesheets.periodEnd, run.periodEnd)"));
   assert.ok(source.includes("timesheets: timesheets.slice(0, ROW_CAP)"));
 });
+
+
+test("effective pay revisions show whether an approved compensation proposal is linked", () => {
+  const report = buildPayrollConnectedImpact({
+    ...cutoff,
+    payRevisions: [
+      { id: 11, employeeId: 1, effectiveDate: "2026-10-04", compensationProposalId: 200 },
+      { id: 12, employeeId: 2, effectiveDate: "2026-10-05" },
+      { id: 13, employeeId: 3, effectiveDate: "2026-09-30", compensationProposalId: 201 },
+    ],
+  });
+  assert.equal(report.summary.HCM, 2);
+  assert.equal(report.review, 2);
+  assert.deepEqual(report.findings.map((f) => f.code).sort(),
+    ["HCM_LINKED_PAY_REVISION", "HCM_PAY_REVISION_SOURCE_REVIEW"]);
+  assert.ok(report.findings.every((f) => !JSON.stringify(f).includes("proposedAnnual")));
+});
+
+test("HRIS payout and WFM correction decisions with inconsistent applied evidence stay visible", () => {
+  const report = buildPayrollConnectedImpact({
+    ...cutoff,
+    payoutChanges: [
+      { id: 10, employeeId: 1, status: "approved", appliedAt: null },
+      { id: 11, employeeId: 2, status: "pending", appliedAt: "2026-10-05" },
+      { id: 12, employeeId: 3, status: "approved", appliedAt: "2026-10-05" },
+      { id: 13, employeeId: 4, status: "rejected", appliedAt: null },
+    ],
+    attendanceCorrections: [
+      { id: 21, employeeId: 1, status: "approved", workDate: "2026-10-03", appliedAt: null },
+      { id: 22, employeeId: 2, status: "pending", workDate: "2026-10-03", appliedAt: "2026-10-04" },
+      { id: 23, employeeId: 3, status: "approved", workDate: "2026-10-03", appliedAt: "2026-10-04" },
+      { id: 24, employeeId: 4, status: "rejected", workDate: "2026-10-03", appliedAt: null },
+    ],
+  });
+  assert.deepEqual(report.summary, { HRIS: 2, WFM: 2, HCM: 0 });
+  assert.equal(report.attention, 4);
+});
+
+test("linked compensation source selection requires matching approved/apply evidence", () => {
+  const route = readFileSync("src/app/api/payroll-runs/[id]/connected-impact/route.ts", "utf8");
+  assert.ok(route.includes("proposal.status !== \"applied\""));
+  assert.ok(route.includes("!proposal.approvedAt || !proposal.appliedAt"));
+  assert.ok(route.includes("proposal?.employeeId === revision.employeeId"));
+  assert.ok(route.includes("proposal.effectiveDate === revision.effectiveDate"));
+});
