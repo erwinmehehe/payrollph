@@ -78,6 +78,12 @@ export function evaluateHcmWorkPeriod(input: {
         "This worker is separating but has no verifiable current separation end date. Ask People Operations to reconcile the lifecycle record.",
       );
     }
+    if (separation.status === "released") {
+      return deny(
+        "HCM_WORKER_EXIT_STATE_CONFLICT",
+        "This worker's final-pay separation record is already released, but the worker is still marked Separating. Reconcile HR and payroll status before adding wage evidence.",
+      );
+    }
     if (startDate > separation.lastDay || endDate > separation.lastDay) {
       return deny(
         "HCM_WORK_AFTER_LAST_DAY",
