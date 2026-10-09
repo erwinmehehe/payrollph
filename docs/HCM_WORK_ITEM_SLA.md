@@ -22,3 +22,12 @@ Only existing, open/acknowledged cases are eligible for ownership updates. Owner
 - Company-wide HR access is required. Scoped HR accounts receive 403 until unit-safe case scopes are implemented.
 - Add automated API/database tests for cross-tenant access, owner membership validation, overdue boundary, reassignments, idempotency, race conditions and closing a case.
 - Configure expected SLA targets by case type/priority; current implementation requires HR to enter explicit deadlines.
+
+
+## Unified HCM command center (first integration slice)
+- The authenticated workspace links to `/hcm/command-center`.
+- The command center displays live tenant-scoped employee record count, unresolved lifecycle follow-ups, operational cases, and recent payroll-run exceptions.
+- It links to `/hcm/work-items?organizationId=<org>` and the existing `/app` workspace.
+- The overview is read-only; payroll release and employee-state mutations remain in their original authorized workflows.
+- Only company-wide People-admin roles can view these aggregate HR metrics; unit-scoped users are blocked until source-specific unit scoping is available.
+- It is an integration slice, **not** a fully unified employee lifecycle or production-tested Workday-equivalent HCM implementation.
