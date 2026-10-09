@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   availabilityConflictForShift,
@@ -457,4 +458,85 @@ test("roster publish readiness is ready only when no unresolved signals remain",
   assert.equal(readiness.status, "ready");
   assert.equal(readiness.blockerCount, 0);
   assert.equal(readiness.warningCount, 0);
+});
+
+test("best-fit draft accumulates selected shift hours and uses another worker at planning cap", () => {
+  const a = { employeeId: 7, employeeName: "A", score: 95, workloadRisk: "low" as const,
+    scheduledMinutesInWindow: 480, consecutiveWorkingDaysBeforeShift: 0 };
+  const b = { employeeId: 8, employeeName: "B", score: 60, workloadRisk: "low" as const,
+    scheduledMinutesInWindow: 0, consecutiveWorkingDaysBeforeShift: 0 };
+  const result = simulateBestFitCoverage({
+    maxProjectedMinutesInWindow: 1440,
+    maxConsecutiveWorkingDays: 6,
+    requirements: ["2026-10-12", "2026-10-13", "2026-10-14"].map((date, i) => ({
+      requirementId: 80 + i, workDate: date, gap: 1, shiftPaidMinutes: 480,
+      candidates: i === 2 ? [a, b] : [a],
+    })),
+  });
+  assert.equal(result.projectedGap, 0);
+  assert.deepEqual(result.fills.map(row => row.employeeId), [7, 7, 8]);
+  assert.equal(result.avoidedProjectedOverload, 1);
+  assert.equal(result.missingWorkloadEvidence, 0);
+});
+
+test("best-fit draft tracks consecutive shifts across earlier proposed dates", () => {
+  const worker = { employeeId: 70, employeeName: "A", score: 95, workloadRisk: "low" as const,
+    scheduledMinutesInWindow: 0, consecutiveWorkingDaysBeforeShift: 5 };
+  const second = { ...worker, consecutiveWorkingDaysBeforeShift: 0 };
+  const fallback = { employeeId: 71, employeeName: "B", score: 60, workloadRisk: "low" as const,
+    scheduledMinutesInWindow: 0, consecutiveWorkingDaysBeforeShift: 0 };
+  const result = simulateBestFitCoverage({
+    maxProjectedMinutesInWindow: 5760,
+    maxConsecutiveWorkingDays: 6,
+    requirements: [
+      { requirementId: 102, workDate: "2026-10-13", gap: 1, shiftPaidMinutes: 480, candidates: [second, fallback] },
+      { requirementId: 101, workDate: "2026-10-12", gap: 1, shiftPaidMinutes: 480, candidates: [worker] },
+    ],
+  });
+  assert.equal(result.projectedGap, 0);
+  assert.deepEqual(result.fills.map(row => row.employeeId), [70, 71]);
+  assert.equal(result.avoidedConsecutiveStreak, 1);
+});
+
+test("simulated recovery fails closed when a configured cap lacks paid-hours evidence", () => {
+  const missing = simulateBestFitCoverage({
+    maxProjectedMinutesInWindow: 5760, maxConsecutiveWorkingDays: 6,
+    requirements: [{ requirementId: 901, workDate: "2026-10-12", gap: 1, candidates: [
+      { employeeId: 3, employeeName: "C", score: 95, workloadRisk: "low",
+        scheduledMinutesInWindow: 2400, consecutiveWorkingDaysBeforeShift: 1 },
+    ] }],
+  });
+  assert.equal(missing.fills.length, 0);
+  assert.equal(missing.missingWorkloadEvidence, 1);
+  const badCap = simulateBestFitCoverage({
+    maxProjectedMinutesInWindow: NaN, maxConsecutiveWorkingDays: 6,
+    requirements: [{ requirementId: 902, workDate: "2026-10-12", gap: 1, shiftPaidMinutes: 480, candidates: [
+      { employeeId: 3, employeeName: "C", score: 95, workloadRisk: "low",
+        scheduledMinutesInWindow: 2400, consecutiveWorkingDaysBeforeShift: 1 },
+    ] }],
+  });
+  assert.equal(badCap.fills.length, 0);
+  assert.ok(badCap.missingWorkloadEvidence > 0);
+});
+
+test("high-risk override in preview cannot silently override cumulative planning caps", () => {
+  const result = simulateBestFitCoverage({
+    allowHighWorkloadRisk: true, maxProjectedMinutesInWindow: 5760, maxConsecutiveWorkingDays: 6,
+    requirements: [{ requirementId: 123, workDate: "2026-10-12", gap: 1, shiftPaidMinutes: 480, candidates: [
+      { employeeId: 4, employeeName: "D", score: 99, workloadRisk: "high",
+        scheduledMinutesInWindow: 5720, consecutiveWorkingDaysBeforeShift: 1 },
+    ] }],
+  });
+  assert.equal(result.projectedGap, 1);
+  assert.equal(result.avoidedProjectedOverload, 1);
+});
+
+test("recovery preview uses real shift paid minutes and cumulatively guarded staging hints", () => {
+  const client = readFileSync("src/components/workspace/workforce-coverage-panel.tsx", "utf8");
+  assert.ok(client.includes("maxProjectedMinutesInWindow: 96 * 60"));
+  assert.ok(client.includes("maxConsecutiveWorkingDays: 6"));
+  assert.ok(client.includes("paidShiftMinutes(shift)"));
+  assert.ok(client.includes("scheduledMinutesInWindow: candidate.scheduledMinutesInWindow"));
+  assert.ok(client.includes("consecutiveWorkingDaysBeforeShift: candidate.consecutiveWorkingDaysBeforeShift"));
+  assert.ok(client.includes('"stage_recovery_plan"'));
 });

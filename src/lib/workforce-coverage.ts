@@ -310,11 +310,16 @@ export type CoverageSimulationRequirement = {
   requirementId: number;
   workDate: string;
   gap: number;
+  /** Verified payable duration of the proposed shift; required for guarded drafts. */
+  shiftPaidMinutes?: number;
   candidates: Array<{
     employeeId: number;
     employeeName: string;
     score: number;
     workloadRisk: "low" | "medium" | "high";
+    /** Baseline minutes scheduled across this exact planning window. */
+    scheduledMinutesInWindow?: number;
+    consecutiveWorkingDaysBeforeShift?: number;
   }>;
 };
 
@@ -330,32 +335,68 @@ export type CoverageSimulation = {
   baselineGap: number;
   projectedGap: number;
   avoidedHighRiskCandidates: number;
+  /** Additional shifts that would breach an explicit planning-window cap. */
+  avoidedProjectedOverload: number;
+  /** Additional shifts that would break the manager's consecutive-day policy. */
+  avoidedConsecutiveStreak: number;
+  /** Candidate rows excluded because their required workload evidence is unknown. */
+  missingWorkloadEvidence: number;
   requirementsRecovered: number;
   requirementsStillAtRisk: number;
 };
 
+function previousIsoDate(date: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const stamp = Date.parse(date + "T00:00:00Z");
+  if (!Number.isFinite(stamp) || new Date(stamp).toISOString().slice(0, 10) !== date) return null;
+  return new Date(stamp - 86_400_000).toISOString().slice(0, 10);
+}
+
+/**
+ * A draft-only, deterministic recovery plan. Never publishes shifts. Guards
+ * accumulate across proposed dates instead of treating each row independently.
+ * All authoritative employment, OT, rest, leave and role checks still belong to
+ * the existing manager-stage/approval handlers.
+ */
 export function simulateBestFitCoverage(input: {
   requirements: CoverageSimulationRequirement[];
   allowHighWorkloadRisk?: boolean;
-}) : CoverageSimulation {
+  /** Optional company planning guideline, not a statutory PH weekly-hour rule. */
+  maxProjectedMinutesInWindow?: number;
+  maxConsecutiveWorkingDays?: number;
+}): CoverageSimulation {
   const usedEmployeeDate = new Set<string>();
+  const extraMinutesByEmployee = new Map<number, number>();
+  const selectedCountByEmployee = new Map<number, number>();
+  const projectedStreak = new Map<number, { date: string; consecutiveDays: number }>();
   const fills: CoverageSimulation["fills"] = [];
   let avoidedHighRiskCandidates = 0;
+  let avoidedProjectedOverload = 0;
+  let avoidedConsecutiveStreak = 0;
+  let missingWorkloadEvidence = 0;
   let requirementsRecovered = 0;
   let requirementsStillAtRisk = 0;
+  const enforceMinutes = input.maxProjectedMinutesInWindow !== undefined;
+  const enforceDays = input.maxConsecutiveWorkingDays !== undefined;
+  const minuteCap = input.maxProjectedMinutesInWindow;
+  const dayCap = input.maxConsecutiveWorkingDays;
+  const validMinuteCap = !enforceMinutes || (Number.isSafeInteger(minuteCap) && minuteCap! > 0);
+  const validDayCap = !enforceDays || (Number.isSafeInteger(dayCap) && dayCap! >= 1 && dayCap! <= 14);
   const baselineGap = input.requirements.reduce(
-    (sum, row) => sum + Math.max(0, row.gap),
-    0,
+    (sum, row) => sum + Math.max(0, row.gap), 0,
   );
 
+  // Chronological selection is required so earlier draft shifts influence
+  // next-day streaks and later shifts consume their actual available capacity.
   for (const requirement of [...input.requirements].sort((a, b) =>
-    b.gap - a.gap || a.workDate.localeCompare(b.workDate) || a.requirementId - b.requirementId
+    a.workDate.localeCompare(b.workDate) || b.gap - a.gap || a.requirementId - b.requirementId
   )) {
     let remaining = Math.max(0, requirement.gap);
     const ranked = [...requirement.candidates].sort((a, b) =>
-      b.score - a.score || a.employeeName.localeCompare(b.employeeName)
+      (b.score - (selectedCountByEmployee.get(b.employeeId) ?? 0) * 12)
+      - (a.score - (selectedCountByEmployee.get(a.employeeId) ?? 0) * 12)
+      || a.employeeName.localeCompare(b.employeeName)
     );
-
     for (const candidate of ranked) {
       if (remaining <= 0) break;
       const key = `${candidate.employeeId}|${requirement.workDate}`;
@@ -364,27 +405,73 @@ export function simulateBestFitCoverage(input: {
         avoidedHighRiskCandidates += 1;
         continue;
       }
+
+      let extraMinutes = 0;
+      if (enforceMinutes) {
+        const initial = candidate.scheduledMinutesInWindow;
+        const shift = requirement.shiftPaidMinutes;
+        if (!validMinuteCap || !Number.isSafeInteger(initial) || initial! < 0
+          || !Number.isSafeInteger(shift) || shift! <= 0) {
+          missingWorkloadEvidence += 1;
+          continue;
+        }
+        extraMinutes = extraMinutesByEmployee.get(candidate.employeeId) ?? 0;
+        if (initial! + extraMinutes + shift! > minuteCap!) {
+          avoidedProjectedOverload += 1;
+          continue;
+        }
+      }
+
+      let streakAfter = 0;
+      if (enforceDays) {
+        const dateBefore = previousIsoDate(requirement.workDate);
+        const reported = candidate.consecutiveWorkingDaysBeforeShift;
+        if (!validDayCap || dateBefore === null
+          || !Number.isSafeInteger(reported) || reported! < 0) {
+          missingWorkloadEvidence += 1;
+          continue;
+        }
+        const previous = projectedStreak.get(candidate.employeeId);
+        const before = previous?.date === dateBefore
+          ? Math.max(reported!, previous.consecutiveDays)
+          : reported!;
+        streakAfter = before + 1;
+        if (streakAfter > dayCap!) {
+          avoidedConsecutiveStreak += 1;
+          continue;
+        }
+      }
+
       usedEmployeeDate.add(key);
+      if (enforceMinutes) extraMinutesByEmployee.set(
+        candidate.employeeId, extraMinutes + requirement.shiftPaidMinutes!,
+      );
+      if (enforceDays) projectedStreak.set(candidate.employeeId, {
+        date: requirement.workDate, consecutiveDays: streakAfter,
+      });
+      const previousCount = selectedCountByEmployee.get(candidate.employeeId) ?? 0;
+      selectedCountByEmployee.set(candidate.employeeId, previousCount + 1);
       fills.push({
         requirementId: requirement.requirementId,
         workDate: requirement.workDate,
         employeeId: candidate.employeeId,
         employeeName: candidate.employeeName,
-        score: candidate.score,
+        score: candidate.score - previousCount * 12,
         workloadRisk: candidate.workloadRisk,
       });
       remaining -= 1;
     }
-
     if (requirement.gap > 0 && remaining === 0) requirementsRecovered += 1;
     if (remaining > 0) requirementsStillAtRisk += 1;
   }
-
   return {
     fills,
     baselineGap,
     projectedGap: Math.max(0, baselineGap - fills.length),
     avoidedHighRiskCandidates,
+    avoidedProjectedOverload,
+    avoidedConsecutiveStreak,
+    missingWorkloadEvidence,
     requirementsRecovered,
     requirementsStillAtRisk,
   };

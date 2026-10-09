@@ -5,6 +5,7 @@ import { CalendarClock, CircleAlert, Plus, RefreshCcw, ShieldCheck, UsersRound }
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
 import { simulateBestFitCoverage } from "@/lib/workforce-coverage";
+import { paidShiftMinutes } from "@/lib/workforce-labor-variance";
 
 type Shift = {
   id: number;
@@ -12,6 +13,8 @@ type Shift = {
   name: string;
   startTime: string;
   endTime: string;
+  breakMinutes: number;
+  spansMidnight: boolean;
 };
 
 type Worksite = {
@@ -558,20 +561,38 @@ export function WorkforceCoveragePanel({
   const labor = payload?.laborVariance;
   const simulation = useMemo(() => simulateBestFitCoverage({
     allowHighWorkloadRisk: simulateHighRisk,
+    // Company-planning safeguards, NOT a universal statutory 48-hour rule.
+    // This UI displays a 14-day window and conservatively caps the proposed
+    // cumulative workload to 96h and six consecutive working days.
+    maxProjectedMinutesInWindow: 96 * 60,
+    maxConsecutiveWorkingDays: 6,
     requirements: (payload?.coverage ?? [])
       .filter((row) => row.gap > 0)
-      .map((row) => ({
-        requirementId: row.requirementId,
-        workDate: row.workDate,
-        gap: row.gap,
-        candidates: (proactiveByRequirement.get(row.requirementId)?.recommendations ?? []).map((candidate) => ({
-          employeeId: candidate.employeeId,
-          employeeName: candidate.employeeName,
-          score: candidate.score,
-          workloadRisk: candidate.workloadRisk,
-        })),
-      })),
-  }), [payload?.coverage, proactiveByRequirement, simulateHighRisk]);
+      .map((row) => {
+        const shift = (payload?.shifts ?? []).find(s => s.id === row.shiftDefinitionId);
+        let shiftPaidMinutes: number | undefined;
+        try {
+          shiftPaidMinutes = shift ? paidShiftMinutes(shift) : undefined;
+        } catch {
+          // Do not guess a missing or invalid shift duration.
+          shiftPaidMinutes = undefined;
+        }
+        return {
+          requirementId: row.requirementId,
+          workDate: row.workDate,
+          gap: row.gap,
+          shiftPaidMinutes,
+          candidates: (proactiveByRequirement.get(row.requirementId)?.recommendations ?? []).map((candidate) => ({
+            employeeId: candidate.employeeId,
+            employeeName: candidate.employeeName,
+            score: candidate.score,
+            workloadRisk: candidate.workloadRisk,
+            scheduledMinutesInWindow: candidate.scheduledMinutesInWindow,
+            consecutiveWorkingDaysBeforeShift: candidate.consecutiveWorkingDaysBeforeShift,
+          })),
+        };
+      }),
+  }), [payload?.coverage, payload?.shifts, proactiveByRequirement, simulateHighRisk]);
 
   return (
     <article className="card" style={{ marginTop: 16 }} data-wfm-coverage>
@@ -756,11 +777,11 @@ export function WorkforceCoveragePanel({
             <Metric label="Current uncovered" value={String(simulation.baselineGap)} hint="recorded staffing gap" icon={<CircleAlert size={16} />} tone={simulation.baselineGap ? "amber" : "mint"} />
             <Metric label="Projected uncovered" value={String(simulation.projectedGap)} hint="after best-fit simulation" icon={<UsersRound size={16} />} tone={simulation.projectedGap ? "amber" : "mint"} />
             <Metric label="Requirements recovered" value={String(simulation.requirementsRecovered)} hint="fully covered in scenario" icon={<UsersRound size={16} />} tone="blue" />
-            <Metric label="Still at risk" value={String(simulation.requirementsStillAtRisk)} hint={simulation.avoidedHighRiskCandidates + " high-risk candidate(s) avoided"} icon={<CircleAlert size={16} />} tone={simulation.requirementsStillAtRisk ? "amber" : "mint"} />
+            <Metric label="Still at risk" value={String(simulation.requirementsStillAtRisk)} hint={(simulation.avoidedHighRiskCandidates + simulation.avoidedProjectedOverload + simulation.avoidedConsecutiveStreak + simulation.missingWorkloadEvidence) + " workload/roster exclusion(s)"} icon={<CircleAlert size={16} />} tone={simulation.requirementsStillAtRisk ? "amber" : "mint"} />
           </section>
           <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
             <span>
-              <strong>Governed handoff.</strong> Staging creates pending open-shift claims only. It does not change the roster.
+              <strong>Governed handoff.</strong> The draft checks cumulative hours (96h across this 14-day view), consecutive days (max six), and existing employee risk. Those are conservative company-planning guidelines, not statutory PH payroll determinations. Staging creates pending open-shift claims only and never directly changes the roster.
               Each approval rechecks the live staffing gap, job profile, skills/credentials, worksite eligibility, leave,
               availability, current schedule, and blocking schedule guardrails before an override can be created.
             </span>
