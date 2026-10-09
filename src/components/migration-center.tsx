@@ -42,6 +42,8 @@ type MigrationResult = {
   seatLimit?: number;
   currentlyUsed?: number;
   newEmployees?: number;
+  migrationBlockers?: string[];
+  code?: string;
 };
 
 type Batch = {
@@ -87,6 +89,7 @@ export function MigrationCenter({
   const [preview, setPreview] = useState<MigrationResult | null>(null);
   const [history, setHistory] = useState<Batch[]>([]);
   const [busy, setBusy] = useState(false);
+  const [evidenceReference, setEvidenceReference] = useState("");
 
   const selectedSource = useMemo(
     () => MIGRATION_SOURCES.find((item) => item.id === source) ?? MIGRATION_SOURCES.at(-1)!,
@@ -114,6 +117,7 @@ export function MigrationCenter({
       form.set("source", source);
       form.set("kind", kind);
       form.set("dryRun", String(dryRun));
+      if (kind === "employees") form.set("evidenceReference", evidenceReference.trim());
       form.set("file", file, file.name);
 
       const response = await fetch("/api/migrations", {
@@ -260,6 +264,24 @@ export function MigrationCenter({
             </div>
           )}
 
+          {kind === "employees" && (
+            <div style={{ marginTop: 12 }}>
+              <label className="input-label">
+                HR migration evidence reference (required before commit)
+                <input
+                  value={evidenceReference}
+                  maxLength={200}
+                  placeholder="Approved migration workbook / owner sign-off reference"
+                  onChange={(event) => setEvidenceReference(event.target.value)}
+                />
+              </label>
+              <p className="auth-copy">
+                Initial employee-master migration is available only before payroll, governed HR activity,
+                pay revisions and position assignments exist. Existing records may be overwritten only
+                through an authorized, evidenced first migration; do not use it for live HR corrections.
+              </p>
+            </div>
+          )}
           <div className="run-actions" style={{ paddingLeft: 0, paddingRight: 0 }}>
             <button className="secondary-button" disabled={busy || !file} onClick={() => void submit(true)}>
               <ShieldCheck size={14} /> {busy ? "Checking…" : "Validate migration"}
@@ -274,7 +296,14 @@ export function MigrationCenter({
           <div style={{ padding: "0 17px 17px" }}>
             {preview.error ? (
               <div className="notice notice-amber">
-                <span><strong>{preview.error}</strong></span>
+                <span>
+                  <strong>{preview.error}</strong>
+                  {(preview.migrationBlockers ?? []).length > 0 && (
+                    <span style={{ display: "block", marginTop: 6 }}>
+                      {(preview.migrationBlockers ?? []).join(" ")}
+                    </span>
+                  )}
+                </span>
               </div>
             ) : (
               <>
@@ -326,6 +355,12 @@ export function MigrationCenter({
                   </div>
                 )}
 
+                {kind === "employees" && (preview.migrationBlockers ?? []).length > 0 && (
+                  <div className="notice notice-amber" style={{ marginTop: 12 }}>
+                    <span><strong>Initial employee migration is locked.</strong> {(preview.migrationBlockers ?? []).join(" ")}</span>
+                  </div>
+                )}
+
                 {kind === "payroll_history" && (
                   <div className="notice notice-blue" style={{ marginTop: 12 }}>
                     <History size={16} className="i-purple" />
@@ -337,7 +372,15 @@ export function MigrationCenter({
 
                 {validPreview && (
                   <div className="run-actions" style={{ paddingLeft: 0, paddingRight: 0 }}>
-                    <button className="primary-button brand" disabled={busy} onClick={() => void submit(false)}>
+                    <button
+                      className="primary-button brand"
+                      disabled={busy || (kind === "employees" && (
+                        evidenceReference.trim().length < 8
+                        || evidenceReference.trim().length > 200
+                        || (preview.migrationBlockers ?? []).length > 0
+                      ))}
+                      onClick={() => void submit(false)}
+                    >
                       <ArrowRight size={15} /> {busy ? "Importing…" : "Complete migration"}
                     </button>
                   </div>
