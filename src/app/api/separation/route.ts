@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, isNull, like, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   employeeLoans,
   employeePayProfiles,
   employees,
@@ -34,7 +35,7 @@ import { resolvePayProfile } from "@/lib/pay-basis";
 import { computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "@/lib/final-pay";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
-import { requireSensitiveActionMfa } from "@/lib/security-request";
+import { enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { runLifecycleAutomations } from "@/lib/automation";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
@@ -632,6 +633,20 @@ export async function POST(request: Request) {
     }
 
     const created = await db.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(4106, ${employeeId})`);
+      if (!newSeparation && existingOpen && existingOpen.status !== "released") {
+        // Recomputing an approved amount must invalidate its earlier review;
+        // never overwrite a concurrent decision based on stale sources.
+        await tx.execute(sql`select id from separation_records where id = ${existingOpen.id} and organization_id = ${organizationId} for update`);
+        const [freshPackage] = await tx.select().from(separationRecords).where(and(
+          eq(separationRecords.id, existingOpen.id), eq(separationRecords.organizationId, organizationId),
+        )).limit(1);
+        if (!freshPackage || freshPackage.status !== existingOpen.status
+          || JSON.stringify(freshPackage.computationSnapshot) !== JSON.stringify(existingOpen.computationSnapshot)
+          || freshPackage.approvedByUserId !== existingOpen.approvedByUserId) {
+          throw new Error("Final-pay package changed during recomputation. Refresh and try again.");
+        }
+      }
       if (newSeparation) {
         // Serialize initiation and claim the approved intent before any employee
         // status or final-pay source record may be changed.
@@ -696,6 +711,9 @@ export async function POST(request: Request) {
         finalPayDueDate: dueDate,
         computationSnapshot,
         status: "draft",
+        preparedByUserId: user.id,
+        approvedByUserId: null,
+        releasedByUserId: null,
         approvedAt: null,
         releasedAt: null,
       } as const;
@@ -814,43 +832,44 @@ export async function POST(request: Request) {
           )).returning({ id: hcmBusinessProcessInstances.id });
         if (!claimed) throw new Error("Separation approval changed before it could be applied.");
       }
+      await tx.insert(auditEvents).values({
+        organizationId,
+        actor: user.name,
+        action: existingOpen && existingOpen.status !== "released"
+          ? "Separation final pay recomputed"
+          : "Separation final pay computed",
+        resource: `${sources.employee.firstName} ${sources.employee.lastName} (Final Pay: ₱${result.netFinalPay.toFixed(2)})`,
+        metadata: {
+          separationId: created.id,
+          businessProcessInstanceId: separationProcess?.id ?? null,
+          lastDay,
+          finalPayDueDate: dueDate,
+          basicSalaryEarnedYtd: result.basicSalaryEarnedYtd,
+          thirteenthEntitlement: result.thirteenthEntitlement,
+          thirteenthAlreadyPaid: result.thirteenthPaidYtd,
+          thirteenthDue: result.thirteenthDue,
+          unpaidBasicSalary,
+          leaveMonetizationPay,
+          leaveTaxReviewed,
+          leaveMonetizationTaxExempt,
+          separationPay,
+          retirementPay,
+          separationPayTaxExempt,
+          retirementPayTaxExempt,
+          otherBenefits,
+          finalStatutoryDeductions,
+          finalStatutoryReviewed,
+          taxAdjustment: result.taxAdjustment,
+          requestedLoanDeductions: result.requestedLoanDeductions,
+          loanDeductions: result.loanDeductions,
+          deferredLoanBalance: result.deferredLoanBalance,
+          netFinalPay: result.netFinalPay,
+        },
+      });
       return record;
     });
 
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: existingOpen && existingOpen.status !== "released"
-        ? "Separation final pay recomputed"
-        : "Separation final pay computed",
-      resource: `${sources.employee.firstName} ${sources.employee.lastName} (Final Pay: ₱${result.netFinalPay.toFixed(2)})`,
-      metadata: {
-        separationId: created.id,
-        businessProcessInstanceId: separationProcess?.id ?? null,
-        lastDay,
-        finalPayDueDate: dueDate,
-        basicSalaryEarnedYtd: result.basicSalaryEarnedYtd,
-        thirteenthEntitlement: result.thirteenthEntitlement,
-        thirteenthAlreadyPaid: result.thirteenthPaidYtd,
-        thirteenthDue: result.thirteenthDue,
-        unpaidBasicSalary,
-        leaveMonetizationPay,
-        leaveTaxReviewed,
-        leaveMonetizationTaxExempt,
-        separationPay,
-        retirementPay,
-        separationPayTaxExempt,
-        retirementPayTaxExempt,
-        otherBenefits,
-        finalStatutoryDeductions,
-        finalStatutoryReviewed,
-        taxAdjustment: result.taxAdjustment,
-        requestedLoanDeductions: result.requestedLoanDeductions,
-        loanDeductions: result.loanDeductions,
-        deferredLoanBalance: result.deferredLoanBalance,
-        netFinalPay: result.netFinalPay,
-      },
-    });
+
 
     return Response.json({
       ...created,
