@@ -216,37 +216,59 @@ async function loadFinalPaySources(input: {
 }
 
 function fingerprint(sources: Awaited<ReturnType<typeof loadFinalPaySources>>) {
+  // Stable row order matters: PostgreSQL does not guarantee implicit ordering
+  // for the same Released payroll, migration history or outstanding loans.
+  // Include every input that can affect a final-pay calculation or collection.
   return {
     employeeStatus: sources.employee.status,
     employeeBasicRate: Number(sources.employee.basicRate),
+    employeeMwe: sources.employee.mwe,
+    employeeOrgUnitId: sources.employee.orgUnitId,
+    employeeLegalEntityId: sources.employee.legalEntityId,
+    employeeEmploymentType: sources.employee.employmentType,
+    employeeStartDate: String(sources.employee.startDate),
     payProfile: {
+      id: sources.payProfile.id,
       payBasis: sources.payProfile.payBasis,
       rateAmount: Number(sources.payProfile.rateAmount),
       standardWorkDaysPerMonth: Number(sources.payProfile.standardWorkDaysPerMonth),
       standardHoursPerDay: Number(sources.payProfile.standardHoursPerDay),
       updatedAt: sources.payProfile.updatedAt?.toISOString?.() ?? String(sources.payProfile.updatedAt),
     },
-    released: sources.released.map((row) => ({
-      runId: row.runId,
-      entryId: row.entryId,
-      grossPay: Number(row.grossPay),
-      periodEnd: String(row.periodEnd),
-      lineItems: row.lineItems,
-      trace: row.trace,
-    })),
-    historical: sources.historical.map((row) => ({
-      id: row.id,
-      grossPay: Number(row.grossPay),
-      basicSalary: row.basicSalary == null ? null : Number(row.basicSalary),
-      thirteenthMonth: Number(row.thirteenthMonth),
-      taxWithheld: Number(row.taxWithheld),
-      payDate: String(row.payDate),
-    })),
-    loans: sources.loans.map((loan) => ({
-      id: loan.id,
-      remainingBalance: Number(loan.remainingBalance),
-      status: loan.status,
-    })),
+    released: [...sources.released]
+      .sort((a, b) => a.runId - b.runId || a.entryId - b.entryId)
+      .map((row) => ({
+        runId: row.runId,
+        entryId: row.entryId,
+        grossPay: Number(row.grossPay),
+        periodStart: String(row.periodStart),
+        periodEnd: String(row.periodEnd),
+        payDate: String(row.payDate),
+        lineItems: row.lineItems,
+        trace: row.trace,
+      })),
+    historical: [...sources.historical]
+      .sort((a, b) => a.id - b.id)
+      .map((row) => ({
+        id: row.id,
+        grossPay: Number(row.grossPay),
+        basicSalary: row.basicSalary == null ? null : Number(row.basicSalary),
+        thirteenthMonth: Number(row.thirteenthMonth),
+        taxWithheld: Number(row.taxWithheld),
+        sssEmployee: Number(row.sssEmployee),
+        philHealthEmployee: Number(row.philHealthEmployee),
+        pagIbigEmployee: Number(row.pagIbigEmployee),
+        payDate: String(row.payDate),
+      })),
+    loans: [...sources.loans]
+      .sort((a, b) => a.id - b.id)
+      .map((loan) => ({
+        id: loan.id,
+        loanType: loan.loanType,
+        totalPaid: Number(loan.totalPaid),
+        remainingBalance: Number(loan.remainingBalance),
+        status: loan.status,
+      })),
   };
 }
 
