@@ -39,6 +39,12 @@ non-renewal handoff.
   decision **in the same transaction**, before attempting activation. This
   prevents a cancelled decision from orphaning approved successor terms.
 
+- **Post-approval failures:** Approval and retry are committed independently of
+  later same-day activation. If activation fails, the API returns HTTP 202 with
+  the current persisted decision and an explicit reconciliation warning, not a
+  misleading 409 that implies the decision was rolled back. The People
+  interface displays that warning.
+
 ## Explicit limitations
 
 - A prepared successor that later fails activation requires reconciliation
