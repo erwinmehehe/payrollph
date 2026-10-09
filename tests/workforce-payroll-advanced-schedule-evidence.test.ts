@@ -156,3 +156,36 @@ test("approved schedule-swap override preserves split schedule identity for payr
   assert.equal(trace.source, "override");
   assert.deepEqual(trace.segments.map((segment) => segment.shiftDefinitionId), [1, 2]);
 });
+
+
+test("oversized attendance punches cannot silently omit later premium boundaries", () => {
+  const result = segmentPayableTime({
+    punch: {
+      id: 901,
+      workDate: "2026-10-05",
+      timeIn: "2026-10-05T00:00:00.000Z",
+      timeOut: "2026-10-14T00:00:00.000Z",
+    },
+    shift: { start: "08:00", end: "17:00", breakMinutes: 0 },
+  });
+
+  assert.equal(result.allocationComplete, false);
+  assert.deepEqual(result.segments, []);
+  assert.match(result.flags.join(" "), /exceeds eight Philippine calendar dates/i);
+});
+
+test("eight-date punch retains complete calendar boundary evidence", () => {
+  const result = segmentPayableTime({
+    punch: {
+      id: 902,
+      workDate: "2026-10-05",
+      timeIn: "2026-10-05T00:00:00.000Z",
+      timeOut: "2026-10-12T08:00:00.000Z",
+    },
+    shift: { start: "08:00", end: "17:00", breakMinutes: 0 },
+  });
+
+  assert.equal(result.allocationComplete, true);
+  assert.equal(result.attendanceCalendarDates.length, 8);
+  assert.ok(result.segments.some((segment) => segment.calendarDate === "2026-10-12"));
+});

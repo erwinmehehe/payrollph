@@ -23,6 +23,11 @@ import {
   type OvertimeBudgetPolicyRecord,
 } from "@/lib/workforce-overtime-budget";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
+import {
+  checkHcmWorkPeriod,
+  hcmWorkPeriodGuardEnabled,
+  workPeriodDeniedResponse,
+} from "@/lib/hcm-work-period-guard";
 import { attendanceMutationLock, loadActiveAttendanceLocks } from "@/lib/workforce-attendance-lock";
 import { runAutomationEventSafely } from "@/lib/automation";
 import {
@@ -473,8 +478,17 @@ export async function POST(request: Request) {
 
     const employeeCheck = await scopedEmployee(user.id, organizationId, employeeId);
     if (employeeCheck.denied) return employeeCheck.denied;
+    const worker = employeeCheck.employee!;
+    const verifiedWindow = await checkHcmWorkPeriod({
+      employeeId: worker.id,
+      organizationId,
+      status: worker.status,
+      startDate: String(worker.startDate),
+    }, workDate, workDate);
+    const rejectedWindow = workPeriodDeniedResponse(verifiedWindow);
+    if (rejectedWindow) return rejectedWindow;
 
-    const [created] = await db.insert(overtimeRequests).values({
+    const requestValues: typeof overtimeRequests.$inferInsert = {
       organizationId,
       employeeId,
       workDate,
@@ -484,7 +498,31 @@ export async function POST(request: Request) {
       status: "pending",
       requestedBy: user.name,
       requestedByUserId: user.id,
-    }).returning();
+    };
+    // Only controlled-pilot HCM enforcement activates additional locking.
+    // The employee row is held while the request is written so a simultaneous
+    // exit transaction cannot change status between check and insert.
+    const createdOrBlocked = hcmWorkPeriodGuardEnabled()
+      ? await db.transaction(async tx => {
+          await tx.execute(sql`select id from employees where id = ${employeeId} and organization_id = ${organizationId} for share`);
+          const [freshWorker] = await tx.select().from(employees).where(and(
+            eq(employees.id, employeeId), eq(employees.organizationId, organizationId),
+          )).limit(1);
+          if (!freshWorker) {
+            return { denied: Response.json({ error: "Employee record changed during overtime submission." }, { status: 409 }) };
+          }
+          const currentWindow = await checkHcmWorkPeriod({
+            employeeId: freshWorker.id, organizationId,
+            status: freshWorker.status, startDate: String(freshWorker.startDate),
+          }, workDate, workDate, tx as unknown as Pick<typeof db, "select">);
+          const denied = workPeriodDeniedResponse(currentWindow);
+          if (denied) return { denied };
+          const [created] = await tx.insert(overtimeRequests).values(requestValues).returning();
+          return { created };
+        })
+      : { created: (await db.insert(overtimeRequests).values(requestValues).returning())[0] };
+    if ("denied" in createdOrBlocked) return createdOrBlocked.denied;
+    const created = createdOrBlocked.created;
 
     const staleTimesheets = await markTimesheetsStaleForEmployeeDate({
       organizationId,
@@ -566,6 +604,29 @@ export async function POST(request: Request) {
       });
       if (candidates.error) {
         return { response: candidates.error, candidates: null, budget: null, updated: null };
+      }
+
+      if (decision === "approved" && hcmWorkPeriodGuardEnabled()) {
+        for (const item of candidates.selected) {
+          await tx.execute(sql`select id from employees where id = ${item.employee.id} and organization_id = ${organizationId} for share`);
+          const [freshWorker] = await tx.select().from(employees).where(and(
+            eq(employees.id, item.employee.id),
+            eq(employees.organizationId, organizationId),
+          )).limit(1);
+          if (!freshWorker) {
+            return {
+              response: Response.json({ error: "Worker lifecycle changed during overtime approval." }, { status: 409 }),
+              candidates, budget: null, updated: null,
+            };
+          }
+          const verified = await checkHcmWorkPeriod({
+            employeeId: freshWorker.id, organizationId,
+            status: freshWorker.status, startDate: String(freshWorker.startDate),
+          }, String(item.request.workDate), String(item.request.workDate),
+          tx as unknown as Pick<typeof db, "select">);
+          const denied = workPeriodDeniedResponse(verified);
+          if (denied) return { response: denied, candidates, budget: null, updated: null };
+        }
       }
 
       const lockedCandidate = candidates.selected.find((item) =>
