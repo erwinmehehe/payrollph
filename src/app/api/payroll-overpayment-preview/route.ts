@@ -72,7 +72,7 @@ export async function GET(request: Request) {
     releasedRuns: runs,
     employees: staff,
     scope: "Read-only financial discrepancy preview; no overpayment recovery, offset, withholding, loan or final-pay deduction is authorized.",
-  });
+  }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
 }
 
 export async function POST(request: Request) {
@@ -169,5 +169,5 @@ export async function POST(request: Request) {
       "If worker is separated, reconcile final pay separately; this preview does not change separation, loan or final-pay state.",
     ],
     warning: "Differences are NOT established debt or recoverable wages. Nothing was stored, deducted, transferred, submitted, or posted to payroll.",
-  });
+  }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
 }
