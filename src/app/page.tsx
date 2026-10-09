@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Payroll Software Philippines | Payroll System PH | Linaw",
-  description: "Philippine payroll software connects HRIS, WFM and HCM. Manage employee records, attendance, statutory calculations, approvals and audit trails.",
+  description: "Philippine payroll software connects HRIS, WFM and HCM. Manage employee records, attendance, statutory calculations, approvals and audit trails in one place.",
   alternates: { canonical: "/" },
 };
 
