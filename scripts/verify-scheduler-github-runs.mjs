@@ -168,7 +168,9 @@ export async function verifyRunProvenance(evidence, {token, fetcher = fetch} = {
       review.environments.some(environment => environment?.name === 'payroll-staging'));
     if (forStaging.some(review => review.state === 'rejected') ||
         !forStaging.some(review => review.state === 'approved' &&
-          typeof review.user?.login === 'string' &&
+          // Environment approval must come from a real GitHub User, not a bot or an unknown actor type.
+          review.user?.type === 'User' &&
+          typeof review.user.login === 'string' &&
           /^[A-Za-z0-9-]{1,39}$/.test(review.user.login) &&
           review.user.login.toLowerCase() !== run.actor.login.toLowerCase())) {
       reject('GITHUB_INDEPENDENT_STAGE_REVIEW_NOT_PROVEN');
