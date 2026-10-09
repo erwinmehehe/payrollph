@@ -132,9 +132,10 @@ test("schema and SQL migration define status check, owner separation and unique 
   const schema = readFileSync("src/db/schema.ts", "utf8");
   const migration = readFileSync("drizzle/0101_reviewed_payroll_underpayments.sql", "utf8");
   const baseline = readFileSync("drizzle/baseline.sql", "utf8");
-  for (const source of [schema, migration, baseline]) {
+  for (const source of [schema, migration]) {
     assert.ok(source.includes("payroll_underpayment_requests"));
     assert.ok(source.includes("payroll_underpayment_one_source_unique"));
     assert.ok(source.includes("payroll_underpayment_posted_consistency_check"));
   }
+  assert.ok(!baseline.includes("payroll_underpayment_requests"), "Historical baseline stays immutable; apply new 0101 migration.");
 });
