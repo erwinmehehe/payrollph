@@ -170,3 +170,43 @@ test("linked compensation source selection requires matching approved/apply evid
   assert.ok(route.includes("proposal.employeeId === revision.employeeId"));
   assert.ok(route.includes("proposal.effectiveDate === revision.effectiveDate"));
 });
+
+
+test("late HRIS, payout, attendance and retroactive salary changes are flagged after run creation", () => {
+  const report = buildPayrollConnectedImpact({
+    ...cutoff,
+    employmentChanges: [
+      { id: 31, employeeId: 5, status: "applied", effectiveDate: "2026-09-15", appliedAfterRunCreated: true },
+      { id: 32, employeeId: 6, status: "applied", effectiveDate: "2026-10-03", appliedAfterRunCreated: false },
+    ],
+    payoutChanges: [
+      { id: 33, employeeId: 5, status: "approved", appliedAt: "2026-10-07", appliedAfterRunCreated: true },
+      { id: 34, employeeId: 6, status: "approved", appliedAt: "2026-10-05", appliedAfterRunCreated: false },
+    ],
+    attendanceCorrections: [
+      { id: 35, employeeId: 5, status: "approved", appliedAt: "2026-10-07", workDate: "2026-10-04", appliedAfterRunCreated: true },
+      { id: 36, employeeId: 6, status: "approved", appliedAt: "2026-10-05", workDate: "2026-10-04", appliedAfterRunCreated: false },
+    ],
+    payRevisions: [
+      { id: 37, employeeId: 5, effectiveDate: "2026-09-01", createdAfterRunCreated: true },
+      { id: 38, employeeId: 6, effectiveDate: "2026-09-01", createdAfterRunCreated: false },
+    ],
+  });
+  assert.deepEqual(report.summary, { HRIS: 2, WFM: 1, HCM: 1 });
+  assert.equal(report.attention, 4);
+  assert.deepEqual(new Set(report.findings.map((f) => f.code)), new Set([
+    "HRIS_LATE_EMPLOYMENT_CHANGE",
+    "HRIS_LATE_PAYOUT_CHANGE",
+    "WFM_LATE_ATTENDANCE_CORRECTION",
+    "HCM_LATE_EFFECTIVE_PAY_REVISION",
+  ]));
+});
+
+test("late-source query coverage retains backdated revisions but excludes settled historical events", () => {
+  const route = readFileSync("src/app/api/payroll-runs/[id]/connected-impact/route.ts", "utf8");
+  assert.ok(route.includes("gte(workerEffectiveChanges.appliedAt, run.createdAt)"));
+  assert.ok(route.includes("gte(compensationProposals.appliedAt, run.createdAt)"));
+  assert.ok(route.includes("lt(employeePayRevisions.effectiveDate, run.periodStart)"));
+  assert.ok(route.includes("gte(employeePayRevisions.createdAt, run.createdAt)"));
+  assert.ok(route.includes("createdAfterRunCreated: appliedAfterRunCreation(revision.createdAt)"));
+});
