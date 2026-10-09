@@ -93,6 +93,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   const [showCoeModal, setShowCoeModal] = useState(false);
   const [releaseReference, setReleaseReference] = useState("");
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [manualReleaseEnabled, setManualReleaseEnabled] = useState(false);
   const [clearanceEvidenceReference, setClearanceEvidenceReference] = useState("");
   const [clearanceReason, setClearanceReason] = useState("");
   const [coeEvidenceReference, setCoeEvidenceReference] = useState("");
@@ -138,6 +139,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         const records = (data.separations ?? []) as SeparationRecord[];
         setSeparations(records);
         setCurrentUserId(Number.isInteger(data.currentUserId) ? data.currentUserId : null);
+        setManualReleaseEnabled(data.manualReleaseEnabled === true);
         const ids = records.filter((row) => row.status === "draft").map((row) => row.id);
         const query = new URLSearchParams({
           organizationId: String(organizationId),
@@ -598,6 +600,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
               {selectedRecord.status === "approved" && (
                 <div style={{ display: "grid", gap: 8, minWidth: 240 }}>
                   <small>Record a verified external payout reference. This marks final pay released in the HR ledger; it does not initiate a bank transfer. Preparer, checker and releaser must be distinct accounts.</small>
+                  {!manualReleaseEnabled && <small><strong>Release disabled:</strong> independent bank/finance verification and controlled-pilot signoff are required before the server will allow a manual final-pay release.</small>}
                   <input
                     value={releaseReference}
                     onChange={(event) => setReleaseReference(event.target.value)}
@@ -605,7 +608,8 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                     aria-label="Final pay payout reference"
                   />
                   <button className="primary-button" disabled={
-                    releaseReference.trim().length < 8
+                    !manualReleaseEnabled
+                    || releaseReference.trim().length < 8
                     || selectedRecord.preparedByUserId == null
                     || selectedRecord.approvedByUserId == null
                     || selectedRecord.preparedByUserId === currentUserId
