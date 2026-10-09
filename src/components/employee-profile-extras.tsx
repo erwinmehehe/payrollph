@@ -246,8 +246,8 @@ export function EmployeeProfileExtras({
       <section className="employee-edit-card ess-profile-card" aria-labelledby="ess-id-heading">
         <div className="ess-profile-card-heading">
           <div>
-            <h3 id="ess-id-heading"><Fingerprint size={20} aria-hidden="true" /> Government IDs & credentials</h3>
-            <p>Numbers are masked. Submit changes securely; HR verifies them before they affect official records or payroll.</p>
+            <h3 id="ess-id-heading"><Fingerprint size={20} aria-hidden="true" /> Government ID numbers & credentials</h3>
+            <p>Enter ID numbers only. No pictures, scans, or copies of ID cards are needed. HR reviews changes before they affect official records or payroll.</p>
           </div>
           <span className="employee-status-pill neutral"><LockKeyhole size={13} /> Protected</span>
         </div>
@@ -288,7 +288,7 @@ export function EmployeeProfileExtras({
                 required
               />
             </label>
-            <p>Enter the number from your official record. The saved value stays encrypted and is not immediately applied to payroll.</p>
+            <p>Type the number only. The value is encrypted and is not applied to payroll until HR approves it.</p>
             <div className="ess-inline-actions">
               <button type="button" className="secondary-button" disabled={idBusy} onClick={() => { setIdKind(null); setIdValue(""); }}>Cancel</button>
               <button type="submit" className="primary-button brand" disabled={idBusy || !idValue.trim()}>
@@ -314,7 +314,7 @@ export function EmployeeProfileExtras({
             ))}
           </details>
         )}
-        <p className="ess-privacy-note"><FileCheck2 size={16} aria-hidden="true" /> Never enter a PhilSys Number (PSN) or upload identity documents in this field. Use the official Documents section for files requested by HR.</p>
+        <p className="ess-privacy-note"><FileCheck2 size={16} aria-hidden="true" /> ID numbers only. No ID card uploads are required. Do not enter a PhilSys Number (PSN).</p>
       </section>
 
       <section className="employee-edit-card ess-profile-card" aria-labelledby="ess-employment-heading">
