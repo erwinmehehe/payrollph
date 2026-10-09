@@ -49,3 +49,10 @@ test("manager queue stays read-only and links to existing scoped WFM workflows",
   const engine = readFileSync("src/lib/workforce-manager-actions.ts", "utf8");
   assert.doesNotMatch(engine, /db\.insert|db\.update|db\.delete|fetch\(/);
 });
+
+test("coverage window defaults to Philippine dates and manager queue renders valid block elements", () => {
+  const page = readFileSync("src/components/workspace/workforce-coverage-panel.tsx", "utf8");
+  assert.match(page, /function localToday\(\) \{[\s\S]*?return phWorkDateAt\(\)/);
+  assert.ok(page.includes('<div key={item.id}'), "Queue rows must be valid div containers");
+  assert.ok(!page.includes('<span key={item.id}'), "Do not render a div nested inside span during SSR");
+});

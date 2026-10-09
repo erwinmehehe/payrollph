@@ -268,9 +268,8 @@ type Payload = {
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function localToday() {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
+  // A Philippine WFM work date is not the manager browser's local date.
+  return phWorkDateAt();
 }
 
 function addDays(dateText: string, days: number) {
@@ -695,7 +694,7 @@ export function WorkforceCoveragePanel({
             {managerActions.actions.length > 0 ? (
               <div className="policy-lines" style={{ padding: "0 18px 18px" }}>
                 {managerActions.actions.slice(0, 10).map((item) => (
-                  <span key={item.id} style={{ display: "block" }}>
+                  <div key={item.id} style={{ display: "block" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <Status value={item.priority} />
                       <b>{item.title}</b>
@@ -703,7 +702,7 @@ export function WorkforceCoveragePanel({
                     </div>
                     <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>{item.detail}</small>
                     <a href={item.destination} className="id" style={{ display: "inline-block", marginTop: 6 }}>Open the relevant review workflow →</a>
-                  </span>
+                  </div>
                 ))}
               </div>
             ) : (

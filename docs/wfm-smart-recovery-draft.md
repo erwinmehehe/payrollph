@@ -48,3 +48,4 @@ The WFM coverage page now also prioritizes existing **scoped** coverage gaps, pe
 5. **Real operational proof:** multi-site employer staging, actual attendance-device certification, independent payroll reconciliation to the centavo, app UX acceptance, security/privacy and controlled rollout.
 
 Unlike Rippling's marketed AI-generated schedules, this phase intentionally uses **auditable deterministic suggestions** from the already governed PayrollPH rule base. Do not describe it as AI-driven, live-deployed or production-certified.
+The manager's initial coverage date now uses the Philippine business date (Asia/Manila), avoiding off-by-one-day default roster windows for authorized managers in other timezones. Queue cards use valid block-level markup for stable React hydration.
