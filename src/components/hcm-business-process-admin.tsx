@@ -186,7 +186,9 @@ export function HcmBusinessProcessAdmin({ organizationId }: { organizationId: nu
 
       {error && <div className="notice notice-amber" style={{ margin: "0 16px 12px" }}><span>{error}</span></div>}
 
-      <HcmGovernanceReadinessPanel organizationId={organizationId} />
+      {process.env.NEXT_PUBLIC_HCM_GOVERNANCE_READINESS_ENABLED === "true" && (
+        <HcmGovernanceReadinessPanel organizationId={organizationId} />
+      )}
 
       <div className="card-body">
         <div className="module-grid two" style={{ margin: 0 }}>
