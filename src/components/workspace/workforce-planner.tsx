@@ -18,6 +18,7 @@ import type {
   ScheduleGuardrailPolicy,
 } from "@/lib/workforce-schedule-guardrails";
 import type { DashboardData, Notify } from "./types";
+import { buildRotationTemplateDraft } from "@/lib/workforce-rotation-template";
 import { EmptyState, ErrorState, Metric, PageHeading, Spinner, Status } from "./ui";
 import { WorkforceOvertimePanel } from "./workforce-overtime-panel";
 import { WorkforceScheduleSwapPanel } from "./workforce-schedule-swap-panel";
@@ -315,60 +316,21 @@ export function WorkforcePlanner({
     if (ok) setAssignmentPatternId("");
   }
 
-  /**
-   * Editing aid only. A copied rotation is never assigned or published until
-   * the manager explicitly saves it as a new pattern. Split/complex patterns
-   * cannot be flattened into a single-shift seven-day editor.
-   */
   function useExistingPatternAsTemplate(pattern: PatternRow) {
-    if (!catalog || pattern.cycleDays !== 7) {
-      notify("Only compatible seven-day rotations can be copied in this editor.", "err");
+    if (!catalog) return;
+    const result = buildRotationTemplateDraft({
+      pattern, patterns: catalog.patterns, days: catalog.patternDays,
+      segments: catalog.patternSegments,
+      shiftIds: catalog.shifts.map(shift => shift.id),
+    });
+    if (!result.ok) {
+      notify(result.error, "err");
       return;
     }
-    const choices: string[] = [];
-    const days = catalog.patternDays.filter(day => day.patternId === pattern.id);
-    if (days.length !== 7 || new Set(days.map(day => day.dayIndex)).size !== 7) {
-      notify("This rotation has incomplete day evidence and cannot be copied safely.", "err");
-      return;
-    }
-    for (let index = 0; index < 7; index++) {
-      const day = days.find(item => item.dayIndex === index);
-      if (!day) {
-        notify("This rotation has a missing day; inspect it before copying.", "err");
-        return;
-      }
-      const segments = catalog.patternSegments.filter(item => item.patternDayId === day.id);
-      if (day.isRestDay) {
-        if (segments.length !== 0) {
-          notify("A rest day has unexpected shift segments; repair it before reuse.", "err");
-          return;
-        }
-        choices.push("REST");
-      } else if (segments.length === 1 && segments[0].segmentOrder === 1 &&
-        catalog.shifts.some(shift => shift.id === segments[0].shiftDefinitionId)) {
-        choices.push(String(segments[0].shiftDefinitionId));
-      } else {
-        notify("Split or complex rotation days need a dedicated editor; they cannot be copied as a single shift.", "err");
-        return;
-      }
-    }
-    const root = pattern.code.slice(0, 20).replace(/-COPY-\d+$/, "");
-    let nextCode = "";
-    for (let suffix = 1; suffix < 1000; suffix++) {
-      const candidate = (root + "-COPY-" + suffix).slice(0, 32);
-      if (!catalog.patterns.some(item => item.code.toUpperCase() === candidate.toUpperCase())) {
-        nextCode = candidate;
-        break;
-      }
-    }
-    if (!nextCode) {
-      notify("No unique copy code is available; create a new rotation code manually.", "err");
-      return;
-    }
-    setPatternCode(nextCode);
-    setPatternName((pattern.name + " (copy)").slice(0, 120));
-    setPatternChoices(choices);
-    notify("Rotation loaded in the editor for review. It has not been saved or assigned.");
+    setPatternCode(result.code);
+    setPatternName(result.name);
+    setPatternChoices(result.choices);
+    notify("Rotation loaded for review. It has not been saved or assigned.");
   }
 
   async function assignPattern() {
