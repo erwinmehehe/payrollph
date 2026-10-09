@@ -49,6 +49,7 @@ import {
   forecastCoverageRisk,
   buildRosterPublishReadiness,
   type AvailabilityRule,
+  type CoverageCandidateInput,
 } from "@/lib/workforce-coverage";
 import {
   DEFAULT_SCHEDULE_GUARDRAIL_POLICY,
@@ -1099,7 +1100,7 @@ export async function GET(request: Request) {
     const shift = shifts.find((row) => row.id === coverageRow.shiftDefinitionId);
     if (!shift) continue;
 
-    const candidates = [];
+    const candidates: Array<CoverageCandidateInput & { completeStreakEvidence: boolean }> = [];
     for (const employee of visibleEmployees) {
       if (!["active", "on leave"].includes(employee.status.toLowerCase()) ||
           String(employee.startDate) > coverageRow.workDate) continue;
