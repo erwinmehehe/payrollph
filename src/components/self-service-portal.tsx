@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Image from "next/image";
 import {
   BadgeCheck,
   CalendarDays,
@@ -27,6 +28,7 @@ import {
 } from "lucide-react";
 import { LinawMark } from "@/components/linaw-mark";
 import { EmployeeHomeDashboard } from "@/components/employee-home-dashboard";
+import { EmployeeProfileExtras } from "@/components/employee-profile-extras";
 import { EmployeeWorkforcePanel } from "@/components/employee-workforce-panel";
 import { EmployeeExplainPay } from "@/components/employee-explain-pay";
 import { EmployeeContributionIssueModal } from "@/components/employee-contribution-issue-modal";
@@ -163,6 +165,11 @@ type Payload = {
     employeeNo: string;
     firstName: string;
     lastName: string;
+    middleName?: string | null;
+    birthDate?: string | null;
+    nationality?: string | null;
+    education?: string | null;
+    dependentsCount?: number | null;
     title: string;
     employmentType: string;
     status: string;
@@ -264,6 +271,8 @@ export function SelfServicePortal() {
   const [switchingRole, setSwitchingRole] = useState<DemoRoleId | null>(null);
   const [tab, setTab] = useState<SelfTab>("home");
   const [moreOpen, setMoreOpen] = useState(false);
+  const [photoAvailable, setPhotoAvailable] = useState(false);
+  const [photoVersion, setPhotoVersion] = useState(0);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const moreFirstLinkRef = useRef<HTMLButtonElement>(null);
   const [openPayslip, setOpenPayslip] = useState<number | null>(null);
@@ -292,6 +301,16 @@ export function SelfServicePortal() {
     setMoreOpen(false);
     setTab(next);
   }
+
+  useEffect(() => {
+    let live = true;
+    void fetch("/api/self/photo", { method: "HEAD", cache: "no-store" }).then((res) => {
+      if (live) setPhotoAvailable(res.ok);
+    }).catch(() => {
+      if (live) setPhotoAvailable(false);
+    });
+    return () => { live = false; };
+  }, []);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -554,7 +573,11 @@ export function SelfServicePortal() {
               </label>
             )}
             <button className="top-profile-button employee-shell-profile" type="button" onClick={() => navigateTo("profile")} aria-label="Open profile">
-              <span className="employee-app-avatar">{data.employee.firstName.charAt(0)}{data.employee.lastName.charAt(0)}</span>
+              <span className="employee-app-avatar">
+                {photoAvailable
+                  ? <Image unoptimized width={44} height={44} src={`/api/self/photo?v=${photoVersion}`} alt="" />
+                  : <>{data.employee.firstName.charAt(0)}{data.employee.lastName.charAt(0)}</>}
+              </span>
               <span className="clean-profile-copy"><strong>{data.employee.firstName} {data.employee.lastName}</strong><small>Employee</small></span>
             </button>
             <button className="employee-icon-button employee-shell-signout" type="button" disabled={busy} onClick={() => void signOut()} aria-label="Sign out">
@@ -1059,6 +1082,16 @@ export function SelfServicePortal() {
               </div>
             </article>
           )}
+
+          <EmployeeProfileExtras
+            employee={data.employee}
+            photoAvailable={photoAvailable}
+            photoVersion={photoVersion}
+            onPhotoChanged={(available) => {
+              setPhotoAvailable(available);
+              setPhotoVersion((version) => version + 1);
+            }}
+          />
 
           <div className="employee-privacy-note">
             <ShieldCheck size={15} />
