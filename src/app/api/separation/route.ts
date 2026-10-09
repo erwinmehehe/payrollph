@@ -1045,14 +1045,46 @@ export async function PATCH(request: Request) {
   }
 
   if (action === "issue_coe") {
-    const [updated] = await db.update(separationRecords).set({ coeIssued: true })
-      .where(eq(separationRecords.id, id)).returning();
-    await recordAuditEvent({
-      organizationId: sep.organizationId,
-      actor: user.name,
-      action: "Certificate of Employment issued",
-      resource: `Separation #${sep.id}`,
-      metadata: { employeeId: sep.employeeId },
+    // A generated/downloadable COE draft is not proof of issuance to a worker.
+    // A human HR attestor must provide a traceable delivery/evidence reference.
+    if (!["owner", "admin", "hr"].includes(access.role)) {
+      return Response.json({ code: "COE_HR_ROLE_REQUIRED", error: "Only HR or an organization administrator can attest COE issuance." }, { status: 403 });
+    }
+    const evidenceReference = String(body.evidenceReference ?? "").trim();
+    if (evidenceReference.length < 8 || evidenceReference.length > 200) {
+      return Response.json({
+        code: "COE_ISSUANCE_EVIDENCE_REQUIRED",
+        error: "Provide an 8-200 character certificate issuance/delivery evidence reference.",
+      }, { status: 422 });
+    }
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+    const rateDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id, action: "separation-coe-issuance", resourceId: id,
+      limit: 5, windowMs: 15 * 60_000,
+    });
+    if (rateDenied) return rateDenied;
+    const updated = await db.transaction(async tx => {
+      await tx.execute(sql`select id from separation_records where id = ${id} and organization_id = ${sep.organizationId} for update`);
+      const [fresh] = await tx.select().from(separationRecords).where(and(
+        eq(separationRecords.id, id), eq(separationRecords.organizationId, sep.organizationId),
+      )).limit(1);
+      if (!fresh) throw new Error("COE separation record no longer exists.");
+      if (fresh.coeIssued) return fresh;
+      const [changed] = await tx.update(separationRecords).set({ coeIssued: true })
+        .where(and(eq(separationRecords.id, id), eq(separationRecords.organizationId, sep.organizationId),
+          eq(separationRecords.coeIssued, false))).returning();
+      if (!changed) throw new Error("COE issuance state changed while being recorded.");
+      await tx.insert(auditEvents).values({
+        organizationId: sep.organizationId, actor: user.name,
+        action: "Certificate of Employment issued",
+        resource: `Separation #${sep.id}`,
+        metadata: {
+          employeeId: sep.employeeId, issuerUserId: user.id,
+          evidenceReference, certificateDraftNotAutomaticallyDelivered: true,
+        },
+      });
+      return changed;
     });
     return Response.json(updated);
   }
