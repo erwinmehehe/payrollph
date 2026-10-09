@@ -43,7 +43,10 @@ import {
   FINAL_PAY_CONCURRENT_SOURCE_CONFLICT,
   isRetryableFinalPayConflict,
 } from "@/lib/final-pay-transaction-guard";
-import { finalPaySourceFingerprint as fingerprint } from "@/lib/final-pay-source-fingerprint";
+import {
+  expectedFinalPaySourceAfterInitiation,
+  finalPaySourceFingerprint as fingerprint,
+} from "@/lib/final-pay-source-fingerprint";
 
 export const dynamic = "force-dynamic";
 
@@ -476,7 +479,12 @@ export async function POST(request: Request) {
     });
 
     const dueDate = finalPayDueDate(lastDay);
-    const sourceFingerprint = fingerprint(sources);
+    const sourceFingerprintBeforeSeparation = fingerprint(sources);
+    // The computed package is applied together with the intentional status
+    // transition to Separating. Store that AFTER-state as the next checker
+    // approval fingerprint, but recheck the original BEFORE-state in this
+    // creation transaction to detect concurrent external changes.
+    const sourceFingerprint = expectedFinalPaySourceAfterInitiation(sourceFingerprintBeforeSeparation);
     const computationSnapshot = {
       rule: "13th month = total basic salary earned in calendar year / 12, less 13th month already paid",
       taxRuleVersion: "PH-2026.03",
@@ -630,7 +638,7 @@ export async function POST(request: Request) {
         { organizationId, employeeId, lastDay },
         { executor: tx as unknown as Pick<typeof db, "select">, skipSchemaSetup: true },
       );
-      if (!sameSnapshot(sourceFingerprint, fingerprint(transactionSources))) {
+      if (!sameSnapshot(sourceFingerprintBeforeSeparation, fingerprint(transactionSources))) {
         throw new Error("FINAL_PAY_SOURCE_CHANGED: a payroll, pay-profile, imported-history or loan record changed before final-pay computation.");
       }
       if (!newSeparation && existingOpen && existingOpen.status !== "released") {
