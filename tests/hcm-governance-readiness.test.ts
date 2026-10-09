@@ -106,6 +106,8 @@ test("readiness is GET only, company-wide, no-store and does not update HR or pa
   assert.ok(api.includes("PEOPLE_ADMIN_ROLES"));
   assert.ok(api.includes("!access?.companyWide"));
   assert.ok(api.includes('Cache-Control": "private, no-store'));
+  assert.ok(api.includes('process.env.HCM_GOVERNANCE_READINESS_ENABLED !== "true"'));
+  assert.ok(api.includes('code: "HCM_GOVERNANCE_READINESS_DISABLED"'));
   assert.ok(api.includes("loadHcmGovernanceReadiness(organizationId)"));
   assert.ok(loader.includes("hcm_business_process_instances"));
   assert.ok(loader.includes("WHERE e.organization_id = ${organizationId}"));
@@ -116,5 +118,6 @@ test("readiness is GET only, company-wide, no-store and does not update HR or pa
   assert.ok(!loader.includes("db.delete("));
   assert.ok(ui.includes("No employee identities"));
   assert.ok(ui.includes("not certification") || ui.includes("not certification."));
+  assert.ok(admin.includes('process.env.NEXT_PUBLIC_HCM_GOVERNANCE_READINESS_ENABLED === "true"'));
   assert.ok(admin.includes("<HcmGovernanceReadinessPanel organizationId={organizationId} />"));
 });
