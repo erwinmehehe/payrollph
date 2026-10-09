@@ -62,7 +62,7 @@ the signed source documents or actual bank disbursement.
 ## Existing loans and employer rollout
 
 The additive migration is
-`drizzle/0100_independent_employee_loan_deductions.sql`. It changes the
+`drizzle/0103_independent_employee_loan_deductions.sql`. It changes the
 default for **future new** loan records to `pending_approval`, stores the
 stable preparer and checker IDs and inserts a DB constraint preventing a
 newly prepared active/paused/paid-off loan from approving itself.
@@ -76,8 +76,7 @@ claiming they meet the new independent-review standard. A legacy paused loan
 with missing preparer ID cannot be resumed through this new route without an
 independently approved migration/correction procedure.
 
-Migration history in `drizzle/baseline.sql` stays untouched. Apply 0100 to
-staging after verified backup and DBA approval, inspect payroll for already
+Migration history in `drizzle/baseline.sql` stays untouched. Apply migration 0103 to an isolated staging clone **only after** independently reviewed sequential migrations 0100 (compensation #626), 0101 (underpayment #642), and 0102 (final pay #647) are staged or applied in the approved order, verified with the real applied-migration checksum journal, and authorized by the DBA. Never skip predecessors. This PR's 0103 alone is intentionally blocked by the repository's contiguous-migration guard while main ends at 0099. Once all prerequisites are merged and verified, inspect payroll for already
 active loan duplicates, and run a two-person employer pilot before rollout.
 
 ## Known limits
@@ -124,3 +123,7 @@ active loan duplicates, and run a two-person employer pilot before rollout.
 No bank, payroll release, employee record, live deduction, or government
 filing was initiated by this code PR. Keep it draft until operational proofs
 and human approvals are complete.
+
+## Collision resolution and ordered dependency (2026-10-09)
+
+The former loan migration filename `0100_independent_employee_loan_deductions.sql` conflicted with the compensation release candidate. The **unmerged** loan file has been renamed to `0103_independent_employee_loan_deductions.sql` without changing its SQL statements. The ordered candidates are 0100 compensation (#626), 0101 reviewed historical underpayments (#642), 0102 final pay (#647), and 0103 loans (this PR). The advisory SQL-history guard must **reject** merging a PR that skips missing predecessor numbers; this is a required gate, not a failed feature. Stage/DBA approval must establish migration checksums, schema/backwards compatibility, rollout safety and rollback evidence before any code needing new columns is deployed. No applied production migration has been renamed.
