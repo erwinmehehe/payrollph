@@ -57,7 +57,7 @@ test("preview reconciles slot coverage and uses existing paid-shift minutes and 
 
 test("overnight estimates use paid minutes, not wall clock or gross hours", () => {
   const draft = makeDraft(6, 1);
-  const nightCoverage = [{ ...coverage[0], shiftDefinitionId: 6, gap: 1 }];
+  const nightCoverage = [{ ...coverage[0], shiftDefinitionId: 6, requiredHeadcount: 2, gap: 1 }];
   const result = previewWorkforceRecovery({
     draft, coverage: nightCoverage, shifts, labor: makeLabor(150, true, "workspace-average"),
   });
