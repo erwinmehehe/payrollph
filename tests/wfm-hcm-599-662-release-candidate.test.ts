@@ -78,3 +78,34 @@ test("WFM and HCM both preserve valid within-employment ordinary work", () => {
     leaveEndDate: "2026-10-05",
   }), null);
 });
+
+test("invalid break evidence and conflicting Active exit both fail closed in the combined candidate", () => {
+  const pricing = segmentPayableTime({
+    punch: {
+      id: 3, workDate: "2026-10-05",
+      timeIn: "2026-10-05T00:00:00.000Z",
+      timeOut: "2026-10-05T08:00:00.000Z",
+      breakStart: "2026-10-05T04:00:00.000Z",
+      breakEnd: null,
+    },
+    shift: { start: "08:00", end: "16:00", breakMinutes: 60 },
+  });
+  assert.equal(pricing.allocationComplete, false);
+  assert.ok(payableTimeEvidenceFlagsForPayroll(pricing, 420)
+    .some(flag => flag.startsWith("WFM_PREMIUM_ALLOCATION_UNVERIFIED:")));
+
+  const work = evaluateHcmWorkPeriod({
+    employee: { employeeId: 3, organizationId: 777, status: "Active", startDate: "2026-01-01" },
+    startDate: "2026-10-05", endDate: "2026-10-05",
+    separation: { status: "approved", lastDay: "2026-10-07" },
+  });
+  assert.equal(work.ok, false);
+  if (!work.ok) assert.equal(work.code, "HCM_WORKER_EXIT_STATE_CONFLICT");
+
+  const leave = checkEmployeeLeaveEligibility({
+    employeeStatus: "Active", employmentStartDate: "2026-01-01",
+    leaveStartDate: "2026-10-05", leaveEndDate: "2026-10-05",
+    separationStatus: "approved", separationLastDay: "2026-10-07",
+  });
+  assert.equal(leave?.code, "LEAVE_EMPLOYMENT_STATE_CONFLICT");
+});
