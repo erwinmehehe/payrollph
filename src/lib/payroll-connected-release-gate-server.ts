@@ -76,6 +76,7 @@ export async function buildPayrollConnectedReleaseReadiness(runId: number): Prom
     db.select({
       status: payrollJobs.status,
       completedAt: payrollJobs.completedAt,
+      createdAt: payrollJobs.createdAt,
       organizationId: payrollJobs.organizationId,
       payrollRunId: payrollJobs.payrollRunId,
     }).from(payrollJobs).where(eq(payrollJobs.payrollRunId, run.id)),
@@ -86,7 +87,7 @@ export async function buildPayrollConnectedReleaseReadiness(runId: number): Prom
     )),
   ]);
 
-  const lastCompleted = latestJobs.length === 1 && latestJobs[0].status === "completed"
+  const completedJob = latestJobs.length === 1 && latestJobs[0].status === "completed"
     && latestJobs[0].organizationId === run.organizationId
     && latestJobs[0].payrollRunId === run.id
     && latestJobs[0].completedAt != null
@@ -94,13 +95,14 @@ export async function buildPayrollConnectedReleaseReadiness(runId: number): Prom
     && Number(run.processedChunks) === Number(run.totalChunks)
     && entries.length > 0
     && entries.length === Number(run.employeeCount)
-      ? latestJobs[0].completedAt
+      ? latestJobs[0]
       : null;
 
-  // A missing calculation timestamp is intentionally a hard blocker.
-  // Don't perform a potentially huge or misleading source query when no
-  // immutable payroll population/cutoff has been calculated.
-  if (!lastCompleted) {
+  // The queued job's createdAt is a CONSERVATIVE start-of-calculation
+  // baseline. Checking only completion time would miss HR/WFM/HCM writes
+  // committed while early payroll chunks were already being calculated.
+  // The completedAt proof is still required to validate the job finished.
+  if (!completedJob || !completedJob.createdAt) {
     return blocked("PAYROLL_CALCULATION_NOT_VERIFIABLE",
       "Completed payroll job evidence, employee coverage, or chunk counts are invalid. Recalculate before release.");
   }
@@ -114,7 +116,7 @@ export async function buildPayrollConnectedReleaseReadiness(runId: number): Prom
   const companyId = run.organizationId;
   const earliest = run.periodStart;
   const end = run.periodEnd;
-  const since = lastCompleted;
+  const since = completedJob.createdAt;
 
   const [
     workerChanges,
