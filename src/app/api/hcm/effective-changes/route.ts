@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents,
@@ -639,33 +639,133 @@ export async function PATCH(request: Request) {
   if (change.status !== "failed") {
     return Response.json({ error: "Only failed HCM changes can be retried." }, { status: 409 });
   }
-  if (change.targetPositionId) {
-    const [position] = await db.select({ id: positions.id, status: positions.status }).from(positions).where(and(
-      eq(positions.id, change.targetPositionId),
-      eq(positions.organizationId, change.organizationId),
-    )).limit(1);
-    if (!position || position.status !== "reserved") {
-      return Response.json({ error: "The failed change's target position is no longer reserved. Cancel and create a new change." }, { status: 409 });
-    }
+  if (!change.requestedByUserId || !change.approvedByUserId
+    || change.requestedByUserId === change.approvedByUserId) {
+    return Response.json({
+      code: "HCM_RETRY_APPROVAL_EVIDENCE_MISSING",
+      error: "This failed HCM change lacks a valid independent requester/approver trail. Cancel and submit a fresh change for review.",
+    }, { status: 409 });
+  }
+  if (linkedBusinessProcess
+    && !["approved", "applied"].includes(linkedBusinessProcess.status)) {
+    return Response.json({
+      code: "HCM_RETRY_BP_NOT_APPROVED",
+      error: "The linked HCM business process is not approved. It cannot authorize a retry.",
+    }, { status: 409 });
   }
 
-  const [retried] = await db.update(workerEffectiveChanges).set({
-    status: "scheduled",
-    failure: null,
-    updatedAt: new Date(),
-  }).where(and(
-    eq(workerEffectiveChanges.id, id),
-    eq(workerEffectiveChanges.status, "failed"),
-  )).returning();
-  if (!retried) return Response.json({ error: "The failed HCM change changed before retry." }, { status: 409 });
+  const [sourceEmployee] = await db.select().from(employees).where(and(
+    eq(employees.id, change.employeeId),
+    eq(employees.organizationId, change.organizationId),
+  )).limit(1);
+  if (!sourceEmployee) {
+    return Response.json({
+      code: "HCM_RETRY_EMPLOYEE_MISSING",
+      error: "The worker no longer exists in the approved company; cancel this failed change.",
+    }, { status: 409 });
+  }
 
-  await recordAuditEvent({
-    organizationId: retried.organizationId,
-    actor: user.name,
-    action: "Effective-dated HCM change retried",
-    resource: `Employee #${retried.employeeId}`,
-    metadata: { effectiveChangeId: retried.id, effectiveDate: retried.effectiveDate, movementType: retried.movementType },
+  const [sourceAssignment] = await db.select().from(positionAssignments).where(and(
+    eq(positionAssignments.organizationId, change.organizationId),
+    eq(positionAssignments.employeeId, change.employeeId),
+    eq(positionAssignments.assignmentType, "primary"),
+    isNull(positionAssignments.effectiveUntil),
+  )).limit(1);
+  const sourcePosition = sourceAssignment
+    ? (await db.select().from(positions).where(and(
+        eq(positions.id, sourceAssignment.positionId),
+        eq(positions.organizationId, change.organizationId),
+      )).limit(1))[0] ?? null
+    : null;
+  const sourceDrift = effectiveHcmSourceDrift(change.fromSnapshot, {
+    employee: sourceEmployee,
+    assignment: sourceAssignment ?? null,
+    position: sourcePosition,
   });
+  if (sourceDrift) {
+    return Response.json({
+      code: sourceDrift.code,
+      field: sourceDrift.field,
+      error: sourceDrift.message,
+      nextAction: "Cancel the stale change and request a fresh independent HCM approval.",
+    }, { status: 409 });
+  }
+
+  let retried: typeof workerEffectiveChanges.$inferSelect | null = null;
+  try {
+    retried = await db.transaction(async tx => {
+      // Retry and decision audit must be a single operation. Two operators
+      // racing to retry cannot both revive the same failed source.
+      await tx.execute(sql`
+        SELECT id FROM worker_effective_changes
+        WHERE id = ${id} AND organization_id = ${change.organizationId}
+        FOR UPDATE
+      `);
+      const [freshChange] = await tx.select().from(workerEffectiveChanges).where(and(
+        eq(workerEffectiveChanges.id, id),
+        eq(workerEffectiveChanges.organizationId, change.organizationId),
+      )).limit(1);
+      if (!freshChange || freshChange.status !== "failed") {
+        throw new Error("HCM_RETRY_DECISION_STALE");
+      }
+      if (!freshChange.requestedByUserId || !freshChange.approvedByUserId
+        || freshChange.requestedByUserId === freshChange.approvedByUserId
+        || JSON.stringify(freshChange.fromSnapshot) !== JSON.stringify(change.fromSnapshot)) {
+        throw new Error("HCM_RETRY_DECISION_STALE");
+      }
+      if (freshChange.targetPositionId) {
+        const [target] = await tx.select({ status: positions.status }).from(positions).where(and(
+          eq(positions.id, freshChange.targetPositionId),
+          eq(positions.organizationId, freshChange.organizationId),
+        )).limit(1);
+        if (target?.status !== "reserved") {
+          throw new Error("HCM_RETRY_TARGET_NOT_RESERVED");
+        }
+      }
+      const [revived] = await tx.update(workerEffectiveChanges).set({
+        status: "scheduled",
+        failure: null,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(workerEffectiveChanges.id, id),
+        eq(workerEffectiveChanges.organizationId, change.organizationId),
+        eq(workerEffectiveChanges.status, "failed"),
+      )).returning();
+      if (!revived) throw new Error("HCM_RETRY_DECISION_STALE");
+
+      await tx.insert(auditEvents).values({
+        organizationId: revived.organizationId,
+        actor: user.name.slice(0, 120),
+        action: "Effective-dated HCM change retried",
+        resource: `Employee #${revived.employeeId}`,
+        metadata: {
+          effectiveChangeId: revived.id,
+          effectiveDate: revived.effectiveDate,
+          movementType: revived.movementType,
+          requesterUserId: revived.requestedByUserId,
+          originalApproverUserId: revived.approvedByUserId,
+          retriedByUserId: user.id,
+          sourceFingerprintValidated: true,
+          businessProcessInstanceId: linkedBusinessProcess?.id ?? null,
+        },
+      });
+      return revived;
+    });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "";
+    if (["HCM_RETRY_DECISION_STALE", "HCM_RETRY_TARGET_NOT_RESERVED"].includes(code)) {
+      return Response.json({
+        code,
+        error: code === "HCM_RETRY_TARGET_NOT_RESERVED"
+          ? "The approved target position reservation changed. Cancel and request a fresh reviewed movement."
+          : "The HCM approval changed during retry. Refresh and review the latest state.",
+      }, { status: 409 });
+    }
+    throw error;
+  }
+  if (!retried) {
+    return Response.json({ error: "Failed HCM change could not be rescheduled." }, { status: 409 });
+  }
 
   if (String(retried.effectiveDate) <= philippineBusinessDate()) {
     try {
