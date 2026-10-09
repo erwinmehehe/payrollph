@@ -48,9 +48,12 @@ salary revisions and original government filings stay unchanged.
   before approving a real adjustment.
 - The route requires an immutable source register, worker currently eligible
   for ordinary payroll and a current or future effective date.
-- The Released source must contain **exactly one** entry for that worker/run.
-  Missing or duplicated entries block the correction; payroll officers must
-  independently reconcile broken source evidence before posting.
+- The Released source must contain **exactly one** entry for that worker/run
+  with an actual BASIC earnings line. Missing, duplicated or unrelated
+  source records block the correction. The SHA-256 fingerprint includes the
+  released entry's gross/net/deductions, line items, status and calculation
+  trace, not just its employee ID; payroll officers must reconcile broken
+  source evidence before posting.
 - One pending/posted correction for a given organization, employee and released
   source run is permitted. Multi-correction or reversal scenarios need
   separate approval/evidence design.
