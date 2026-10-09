@@ -71,3 +71,39 @@ test("the central scheduler revalidates lease ownership before financial transit
     assert.match(source, new RegExp("await assertLeaseOwnership\\(\\);\\s+const \\w+ = await " + method + "\\("));
   }
 });
+
+test("lease ownership is checked before every separately invoked high-impact scheduler task", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("src/lib/scheduler.ts", "utf8");
+  for (const functionName of [
+    "drainWebhookRetries",
+    "drainOutboxRetries",
+    "drainMarketingLeadNotifications",
+    "runScheduledStatutoryRemittanceSync",
+    "runScheduledContributionCaseEscalations",
+    "resumeDueAutomationExecutions",
+    "runScheduledAutomationTemporalEvents",
+    "runScheduledWorkerEffectiveChanges",
+    "runScheduledEmploymentTerms",
+    "runScheduledEmploymentTermDecisions",
+    "runScheduledCompensationGovernance",
+  ]) {
+    const pattern = new RegExp("await assertLeaseOwnership\\(\\);\\s+const \\w+ = await " + functionName + "\\(");
+    assert.match(source, pattern, functionName + " must be preceded by live lease fencing");
+  }
+  for (const functionName of [
+    "purgeExpiredOperationalData",
+    "runScheduledHcmDocumentExpiry",
+    "runScheduledHcmLifecycleNotifications",
+    "runScheduledPerformanceReminders",
+    "runScheduledPerformanceActionReminders",
+    "runScheduledPerformanceEvidenceSealing",
+  ]) {
+    const callAt = source.indexOf("await " + functionName + "(");
+    assert.ok(callAt > 0, functionName + " must be scheduled");
+    const lastFence = source.lastIndexOf("await assertLeaseOwnership();", callAt);
+    const previousTask = source.slice(lastFence, callAt);
+    assert.ok(lastFence >= 0 && previousTask.length < 550, functionName + " needs a nearby lease check");
+  }
+  assert.match(source, /await assertLeaseOwnership\(\);\s+if \(row\) \{\s+await db\.update\(schedulerState\)/);
+});

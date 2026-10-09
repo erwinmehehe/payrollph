@@ -85,8 +85,10 @@ async function runScheduledJobs(
 
   await assertLeaseOwnership();
   const webhookResults = await drainWebhookRetries(25);
+  await assertLeaseOwnership();
   const mailResults = await drainOutboxRetries(25);
   const mailRetried = mailResults.filter((item) => item.retried);
+  await assertLeaseOwnership();
   const marketingLeadResults = await drainMarketingLeadNotifications(25);
 
   const [retentionState] = await db.select().from(schedulerState)
@@ -95,11 +97,13 @@ async function runScheduledJobs(
   const retentionDue =
     !retentionState?.lastRunAt
     || now.getTime() - retentionState.lastRunAt.getTime() >= 24 * 60 * 60 * 1000;
+  if (retentionDue) await assertLeaseOwnership();
   const retention = retentionDue ? await purgeExpiredOperationalData(now.getTime()) : null;
   await assertLeaseOwnership();
   const statutoryRemittanceActions = await runScheduledStatutoryRemittanceSync({
     actor: "System scheduler",
   });
+  await assertLeaseOwnership();
   const contributionCaseEscalations = await runScheduledContributionCaseEscalations({
     actor: "System scheduler",
   });
@@ -114,6 +118,7 @@ async function runScheduledJobs(
   const hcmDocumentDue =
     !hcmDocumentState?.lastRunAt
     || now.getTime() - hcmDocumentState.lastRunAt.getTime() >= 6 * 60 * 60 * 1000;
+  if (hcmDocumentDue) await assertLeaseOwnership();
   const hcmDocumentExpiry = hcmDocumentDue
     ? await runScheduledHcmDocumentExpiry({ actor: "System scheduler", now })
     : null;
@@ -152,6 +157,7 @@ async function runScheduledJobs(
   const hcmLifecycleNotificationsDue =
     !hcmLifecycleNotificationState?.lastRunAt
     || now.getTime() - hcmLifecycleNotificationState.lastRunAt.getTime() >= 60 * 60 * 1000;
+  if (hcmLifecycleNotificationsDue) await assertLeaseOwnership();
   const hcmLifecycleNotifications = hcmLifecycleNotificationsDue
     ? await runScheduledHcmLifecycleNotifications({ actor: "System scheduler", now })
     : null;
@@ -162,14 +168,17 @@ async function runScheduledJobs(
   const performanceRemindersDue =
     !performanceReminderState?.lastRunAt
     || now.getTime() - performanceReminderState.lastRunAt.getTime() >= 60 * 60 * 1000;
+  if (performanceRemindersDue) await assertLeaseOwnership();
   const performanceReminders = performanceRemindersDue
     ? await runScheduledPerformanceReminders({ actor: "System scheduler", now })
     : null;
+  if (performanceRemindersDue) await assertLeaseOwnership();
   const performanceActionReminders = performanceRemindersDue
     ? await runScheduledPerformanceActionReminders({ actor: "System scheduler", now })
     : null;
 
   if (performanceRemindersDue) {
+    await assertLeaseOwnership();
     const performanceReminderPayload = {
       at: now.toISOString(),
       reviewOrganizations: performanceReminders?.length ?? 0,
@@ -197,11 +206,13 @@ async function runScheduledJobs(
   const performanceEvidenceDue =
     !performanceEvidenceState?.lastRunAt
     || now.getTime() - performanceEvidenceState.lastRunAt.getTime() >= 6 * 60 * 60 * 1000;
+  if (performanceEvidenceDue) await assertLeaseOwnership();
   const performanceEvidenceSealing = performanceEvidenceDue
     ? await runScheduledPerformanceEvidenceSealing({ actor: "System scheduler", now })
     : null;
 
   if (performanceEvidenceDue) {
+    await assertLeaseOwnership();
     const performanceEvidencePayload = {
       at: now.toISOString(),
       sealedCycles: performanceEvidenceSealing?.length ?? 0,
@@ -222,6 +233,7 @@ async function runScheduledJobs(
   }
 
   if (hcmLifecycleNotificationsDue) {
+    await assertLeaseOwnership();
     const lifecyclePayload = {
       at: now.toISOString(),
       organizations: hcmLifecycleNotifications?.length ?? 0,
@@ -242,6 +254,7 @@ async function runScheduledJobs(
   }
 
   if (hcmDocumentDue) {
+    await assertLeaseOwnership();
     const hcmDocumentPayload = {
       at: now.toISOString(),
       processed: hcmDocumentExpiry?.length ?? 0,
@@ -262,6 +275,7 @@ async function runScheduledJobs(
   }
 
   if (retentionDue) {
+    await assertLeaseOwnership();
     const retentionPayload = { at: now.toISOString(), deleted: retention };
     if (retentionState) {
       await db.update(schedulerState).set({
@@ -304,6 +318,7 @@ async function runScheduledJobs(
     },
   };
 
+  await assertLeaseOwnership();
   if (row) {
     await db.update(schedulerState).set({ lastRunAt: now, lastResult: payload }).where(eq(schedulerState.id, row.id));
   } else {

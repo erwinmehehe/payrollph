@@ -17,3 +17,7 @@ In addition to the 30-second heartbeat, the central scheduler revalidates its fe
 ### Missing-lease negative case
 
 A recent `delivery-drain` row alone is not proof of a functioning leased central scheduler. The endpoint now fails closed with HTTP 503 and state `missing-or-invalid-lease` if the companion lease record is absent or has an unrecognized status; it also restricts emitted lease states to `running`, `completed`, or `failed` and never returns arbitrary job payloads. Regression tests cover missing, empty and invalid lease states. This remains a status check only, not a substitute for observed staging worker operations.
+
+### Full-cycle lease-loss fencing
+
+Every separate delivery drain (webhooks, email, marketing), retention/erasure, statutory sync, automation continuation, effective HR/compensation transition, notification, performance reminder, and evidence-sealing group now revalidates lease ownership before starting new work. Scheduled completion-state writes are also gated. This limits, but does not eliminate, races: a job already executing when a lease expires cannot be cancelled by these checks. Financial handlers must retain their own atomic idempotency and independent witnessed two-worker/restart validation under #637. A process that loses its lease must stop before starting further work, and its old owner must not overwrite the replacement owner's lease.
