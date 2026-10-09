@@ -141,6 +141,9 @@ test("new leave request, approval task, interval evidence and actor audit commit
   const end = src.indexOf("return { task, row, intervalSet };", start);
   assert.ok(start > 0 && end > start);
   const tx = src.slice(start, end);
+  assert.ok(tx.includes("for share"));
+  assert.ok(tx.includes("LEAVE_EMPLOYMENT_NOT_ELIGIBLE"));
+  assert.ok(tx.includes("checkEmployeeLeaveEligibility({"));
   assert.ok(tx.includes("tx.insert(approvalTasks)"));
   assert.ok(tx.includes("tx.insert(leaveRequests)"));
   assert.ok(tx.includes("tx.insert(leaveRequestIntervals)"));
