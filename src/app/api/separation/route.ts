@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, isNull, like, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   employeeLoans,
   employeePayProfiles,
   employees,
@@ -34,7 +35,7 @@ import { resolvePayProfile } from "@/lib/pay-basis";
 import { computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "@/lib/final-pay";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
-import { requireSensitiveActionMfa } from "@/lib/security-request";
+import { enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { runLifecycleAutomations } from "@/lib/automation";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
@@ -698,6 +699,10 @@ export async function POST(request: Request) {
         status: "draft",
         approvedAt: null,
         releasedAt: null,
+        releaseReference: null,
+        preparedByUserId: user.id,
+        approvedByUserId: null,
+        releasedByUserId: null,
       } as const;
 
       let record: typeof separationRecords.$inferSelect;
