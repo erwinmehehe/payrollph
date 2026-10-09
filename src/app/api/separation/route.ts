@@ -947,22 +947,106 @@ export async function PATCH(request: Request) {
   }
 
   if (action === "clearance") {
-    if (sep.status === "released") return Response.json({ error: "Released final pay is immutable." }, { status: 409 });
-    const itCleared = body.itCleared !== undefined ? Boolean(body.itCleared) : sep.itCleared;
-    const adminCleared = body.adminCleared !== undefined ? Boolean(body.adminCleared) : sep.adminCleared;
-    const financeCleared = body.financeCleared !== undefined ? Boolean(body.financeCleared) : sep.financeCleared;
-    const hrCleared = body.hrCleared !== undefined ? Boolean(body.hrCleared) : sep.hrCleared;
-    const allCleared = itCleared && adminCleared && financeCleared && hrCleared;
-
-    const [updated] = await db.update(separationRecords).set({
-      itCleared,
-      adminCleared,
-      financeCleared,
-      hrCleared,
-      clearanceStatus: allCleared ? "cleared" : "in_progress",
-    }).where(eq(separationRecords.id, id)).returning();
-
-    return Response.json(updated);
+    // A clearance is separate from final-pay approval; it must be a real,
+    // individually evidenced assertion by its authorized department.
+    const fields = ["itCleared", "adminCleared", "financeCleared", "hrCleared"] as const;
+    const changed = fields.filter(field => Object.prototype.hasOwnProperty.call(body, field));
+    if (changed.length !== 1) {
+      return Response.json({
+        error: "Submit exactly one IT, Admin, Finance or HR clearance change per request.",
+        code: "SEPARATION_CLEARANCE_ONE_DISCIPLINE",
+      }, { status: 400 });
+    }
+    const field = changed[0];
+    const requested = body[field];
+    const previous = body.previousValue;
+    const evidenceReference = String(body.clearanceEvidenceReference ?? "").trim();
+    const clearanceReason = String(body.clearanceReason ?? "").trim();
+    if (typeof requested !== "boolean" || typeof previous !== "boolean"
+      || evidenceReference.length < 8 || evidenceReference.length > 200
+      || clearanceReason.length < 12 || clearanceReason.length > 500) {
+      return Response.json({
+        error: "A boolean expected previous value, one boolean clearance change, 8-200 character evidence reference and 12-500 character reason are required.",
+      }, { status: 400 });
+    }
+    const authorizedRoles: Record<typeof field, readonly string[]> = {
+      itCleared: ["owner", "admin"],
+      adminCleared: ["owner", "admin"],
+      financeCleared: ["owner", "admin", "bookkeeper"],
+      hrCleared: ["owner", "admin", "hr"],
+    };
+    if (!authorizedRoles[field].includes(access.role)
+      || (field !== "hrCleared" && !access.companyWide)) {
+      return Response.json({
+        code: "SEPARATION_CLEARANCE_ROLE_REQUIRED",
+        error: "This department's clearance requires its authorized HR, finance or company administration role.",
+      }, { status: 403 });
+    }
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+    const limitDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id, action: "separation-clearance-update",
+      resourceId: `${id}:${field}`, limit: 10, windowMs: 15 * 60_000,
+    });
+    if (limitDenied) return limitDenied;
+    try {
+      const updated = await db.transaction(async tx => {
+        await tx.execute(sql`SELECT id FROM separation_records WHERE id = ${id}
+          AND organization_id = ${sep.organizationId} FOR UPDATE`);
+        const [fresh] = await tx.select().from(separationRecords).where(and(
+          eq(separationRecords.id, id), eq(separationRecords.organizationId, sep.organizationId),
+        )).limit(1);
+        if (!fresh || fresh.status !== "draft") {
+          throw new Error("SEPARATION_CLEARANCE_LOCKED");
+        }
+        if (fresh[field] !== previous) {
+          throw new Error("SEPARATION_CLEARANCE_STALE");
+        }
+        if (requested === previous) return fresh;
+        const next = {
+          itCleared: field === "itCleared" ? requested : fresh.itCleared,
+          adminCleared: field === "adminCleared" ? requested : fresh.adminCleared,
+          financeCleared: field === "financeCleared" ? requested : fresh.financeCleared,
+          hrCleared: field === "hrCleared" ? requested : fresh.hrCleared,
+        };
+        const [row] = await tx.update(separationRecords).set({
+          ...next,
+          clearanceStatus: Object.values(next).every(Boolean) ? "cleared" : "in_progress",
+        }).where(and(
+          eq(separationRecords.id, id),
+          eq(separationRecords.organizationId, sep.organizationId),
+          eq(separationRecords.status, "draft"),
+        )).returning();
+        if (!row) throw new Error("SEPARATION_CLEARANCE_STALE");
+        await tx.insert(auditEvents).values({
+          organizationId: sep.organizationId,
+          actor: user.name,
+          action: "Separation department clearance changed",
+          resource: `Separation #${id}`,
+          metadata: {
+            employeeId: sep.employeeId,
+            clearance: field,
+            previous, newValue: requested,
+            evidenceReference, clearanceReason,
+            actorUserId: user.id,
+            approvedFinalPayReset: false,
+          },
+        });
+        return row;
+      });
+      return Response.json(updated);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "SEPARATION_CLEARANCE_LOCKED" || code === "SEPARATION_CLEARANCE_STALE") {
+        return Response.json({
+          code,
+          error: code === "SEPARATION_CLEARANCE_LOCKED"
+            ? "Only Draft separation clearances can change. An approved or released final-pay package must first use a separately governed revision."
+            : "The clearance changed while it was being reviewed. Reload and verify before retrying.",
+        }, { status: 409 });
+      }
+      throw error;
+    }
   }
 
   if (action === "issue_coe") {
