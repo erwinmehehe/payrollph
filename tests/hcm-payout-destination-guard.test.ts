@@ -6,36 +6,36 @@ import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import { employees, organizations, payrollEntries, payrollRuns } from "../src/db/schema";
 import {
-  employeeHasReleasedPayroll,
+  employeeHasPayrollRegisterEntry,
   legacyPayoutChangeBlockReason,
   payoutHistoryUnderLockQuery,
   REVIEWED_PAYOUT_DESTINATION_REQUIRED,
 } from "../src/lib/hcm-payout-destination-guard";
 
-test("paid workers require independent review even when Treasury Controls are turned off", () => {
+test("workers in any payroll register require independent review even before release", () => {
   assert.equal(legacyPayoutChangeBlockReason({
-    treasuryEnabled: false, hasReleasedPayroll: true, companyWide: true, role: "owner",
+    treasuryEnabled: false, hasPayrollRegisterEntry: true, companyWide: true, role: "owner",
   }), "review_required");
   assert.equal(legacyPayoutChangeBlockReason({
-    treasuryEnabled: false, hasReleasedPayroll: true, companyWide: true, role: "admin",
+    treasuryEnabled: false, hasPayrollRegisterEntry: true, companyWide: true, role: "admin",
   }), "review_required");
   assert.equal(legacyPayoutChangeBlockReason({
-    treasuryEnabled: false, hasReleasedPayroll: false, companyWide: false, role: "hr",
+    treasuryEnabled: false, hasPayrollRegisterEntry: false, companyWide: false, role: "hr",
   }), "role_required");
   assert.equal(legacyPayoutChangeBlockReason({
-    treasuryEnabled: false, hasReleasedPayroll: false, companyWide: true, role: "hr",
+    treasuryEnabled: false, hasPayrollRegisterEntry: false, companyWide: true, role: "hr",
   }), "role_required");
   assert.equal(legacyPayoutChangeBlockReason({
-    treasuryEnabled: false, hasReleasedPayroll: false, companyWide: true, role: "bookkeeper",
+    treasuryEnabled: false, hasPayrollRegisterEntry: false, companyWide: true, role: "bookkeeper",
   }), "role_required");
   assert.equal(legacyPayoutChangeBlockReason({
-    treasuryEnabled: false, hasReleasedPayroll: false, companyWide: true, role: "owner",
+    treasuryEnabled: false, hasPayrollRegisterEntry: false, companyWide: true, role: "owner",
   }), null);
   assert.equal(legacyPayoutChangeBlockReason({
-    treasuryEnabled: false, hasReleasedPayroll: false, companyWide: true, role: "admin",
+    treasuryEnabled: false, hasPayrollRegisterEntry: false, companyWide: true, role: "admin",
   }), null);
   assert.equal(legacyPayoutChangeBlockReason({
-    treasuryEnabled: true, hasReleasedPayroll: true, companyWide: false, role: "hr",
+    treasuryEnabled: true, hasPayrollRegisterEntry: true, companyWide: false, role: "hr",
   }), null, "Treasury approval-request path uses the existing independent checker");
   assert.equal(REVIEWED_PAYOUT_DESTINATION_REQUIRED.code, "PAYOUT_DESTINATION_REVIEW_REQUIRED");
 });
@@ -46,7 +46,7 @@ test("history query fails closed for invalid organization or employee identifier
   assert.throws(() => payoutHistoryUnderLockQuery(Number.NaN, 1), /Valid organization and employee/);
 });
 
-test("tenant-scoped worker history identifies Released payroll but not draft history", async () => {
+test("tenant-scoped worker history identifies any posted payroll entry, including Draft", async () => {
   const suffix = randomUUID().slice(0, 8);
   const [alpha, beta] = await db.insert(organizations).values([
     { name: `Payout guard alpha ${suffix}`, legalName: "Payout guard alpha", plan: "Core" },
@@ -93,12 +93,12 @@ test("tenant-scoped worker history identifies Released payroll but not draft his
       },
     ]);
 
-    assert.equal(await employeeHasReleasedPayroll(alpha.id, paidWorker.id), true);
-    assert.equal(await employeeHasReleasedPayroll(alpha.id, draftWorker.id), false);
-    assert.equal(await employeeHasReleasedPayroll(beta.id, betaWorker.id), false);
+    assert.equal(await employeeHasPayrollRegisterEntry(alpha.id, paidWorker.id), true);
+    assert.equal(await employeeHasPayrollRegisterEntry(alpha.id, draftWorker.id), true);
+    assert.equal(await employeeHasPayrollRegisterEntry(beta.id, betaWorker.id), false);
     // A guessed cross-tenant employee ID cannot probe another employer's
     // released worker register through the organization-scoped query.
-    assert.equal(await employeeHasReleasedPayroll(beta.id, paidWorker.id), false);
+    assert.equal(await employeeHasPayrollRegisterEntry(beta.id, paidWorker.id), false);
     const statuses = await db.transaction(async tx => tx.execute(
       payoutHistoryUnderLockQuery(alpha.id, paidWorker.id),
     ));
@@ -117,13 +117,14 @@ test("tenant-scoped worker history identifies Released payroll but not draft his
 test("employee payout PATCH restricts legacy changes and commits audited pre-first-pay setup", () => {
   const source = readFileSync("src/app/api/employees/route.ts", "utf8");
   const ui = readFileSync("src/components/workspace/people.tsx", "utf8");
-  assert.ok(source.includes("employeeHasReleasedPayroll(organizationId, employeeId)"));
+  assert.ok(source.includes("employeeHasPayrollRegisterEntry(organizationId, employeeId)"));
   assert.ok(source.includes("legacyPayoutChangeBlockReason"));
   assert.ok(source.includes("REVIEWED_PAYOUT_DESTINATION_REQUIRED"));
   assert.ok(source.includes("PAYOUT_DESTINATION_COMPANY_OWNER_REQUIRED"));
   assert.ok(source.includes("PAYOUT_DESTINATION_SEPARATE_CHANGE_REQUIRED"));
   assert.ok(source.includes("requireSensitiveActionMfa(user)"));
   assert.ok(source.includes("payoutHistoryUnderLockQuery(organizationId, employeeId)"));
+  assert.ok(source.includes("if (lockedHistory.rows.length > 0)"));
   assert.ok(source.includes("FOR UPDATE"));
   const guard = readFileSync("src/lib/hcm-payout-destination-guard.ts", "utf8");
   assert.ok(guard.includes("FOR SHARE OF pr"));
@@ -131,7 +132,7 @@ test("employee payout PATCH restricts legacy changes and commits audited pre-fir
   assert.ok(source.includes("PAYOUT_DESTINATION_POLICY_CHANGED"));
   assert.ok(source.includes("tx.insert(auditEvents)"));
   assert.ok(source.includes("const audit = result.payoutAuditId"));
-  assert.ok(source.includes("releasedPayrollRecheckedUnderLock: true"));
+  assert.ok(source.includes("existingPayrollRegisterRecheckedUnderLock: true"));
   assert.ok(!source.includes("previousMobile: employee.mobile"));
   assert.ok(!source.includes("newMobile: updated.mobile"));
   assert.ok(ui.includes("has a Released payroll entry"));
