@@ -563,12 +563,18 @@ export function WorkforceCoveragePanel({
   );
   const siteExclusions = (payload?.coverage ?? []).reduce((sum, row) => sum + row.siteIneligibleHeadcount, 0);
   const labor = payload?.laborVariance;
+  // Historical coverage remains visible below for reconciliation, but a new
+  // proposal must never stage staffing for an already elapsed PH work date.
+  const planningToday = phWorkDateAt();
+  const futureCoverage = useMemo(() => (payload?.coverage ?? []).filter(
+    (row) => row.workDate >= planningToday,
+  ), [payload?.coverage, planningToday]);
   const draftInputs = useMemo(() => ({
     allowHighWorkloadRisk: simulateHighRisk,
     // Draft-only company planning guidance; configurable governed policy is the source of truth.
     maxProjectedMinutesInWindow: 96 * 60,
     maxConsecutiveWorkingDays: 6,
-    requirements: (payload?.coverage ?? [])
+    requirements: futureCoverage
       .filter((row) => row.gap > 0)
       .map((row) => {
         const shift = (payload?.shifts ?? []).find((item) => item.id === row.shiftDefinitionId);
@@ -598,7 +604,7 @@ export function WorkforceCoveragePanel({
           })),
         };
       }),
-  }), [payload?.coverage, payload?.shifts, proactiveByRequirement, simulateHighRisk]);
+  }), [futureCoverage, payload?.shifts, proactiveByRequirement, simulateHighRisk]);
 
   const simulation = useMemo(() => planSmartRecoveryDraft({
     ...draftInputs, mode: recoveryMode,
@@ -608,20 +614,20 @@ export function WorkforceCoveragePanel({
   }), [draftInputs, recoveryMode]);
   const activePlanningPreview = useMemo(() => previewWorkforceRecovery({
     draft: simulation,
-    coverage: payload?.coverage ?? [],
+    coverage: futureCoverage,
     shifts: payload?.shifts ?? [],
     labor: payload?.laborVariance ?? null,
-  }), [simulation, payload?.coverage, payload?.shifts, payload?.laborVariance]);
+  }), [simulation, futureCoverage, payload?.shifts, payload?.laborVariance]);
   const alternativePlanningPreview = useMemo(() => previewWorkforceRecovery({
     draft: alternativeSimulation,
-    coverage: payload?.coverage ?? [],
+    coverage: futureCoverage,
     shifts: payload?.shifts ?? [],
     labor: payload?.laborVariance ?? null,
-  }), [alternativeSimulation, payload?.coverage, payload?.shifts, payload?.laborVariance]);
+  }), [alternativeSimulation, futureCoverage, payload?.shifts, payload?.laborVariance]);
 
   const managerActions = useMemo(() => buildWfmManagerActionQueue({
     today: phWorkDateAt(),
-    coverage: payload?.coverage ?? [],
+    coverage: futureCoverage,
     openShifts: payload?.openShifts ?? [],
     claims: payload?.claims ?? [],
     blockingGuardrailIssues: payload?.guardrailReadiness?.blockingIssueCount ?? 0,
