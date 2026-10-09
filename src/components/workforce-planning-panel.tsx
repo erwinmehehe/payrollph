@@ -1542,7 +1542,7 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
 
       {showAssignment && (
         <article className="card" style={{ padding: 20, marginBottom: 16 }}>
-          <div className="card-header"><div><div className="card-kicker">POSITION ASSIGNMENT</div><h2>Place an employee into an approved position</h2></div></div>
+          <div className="card-header"><div><div className="card-kicker">POSITION ASSIGNMENT</div><h2>Place an employee into an approved position</h2><p>Manual assignment is for legacy workspaces without configured Hire, Transfer, Promotion or Change Job approvals. In governed workspaces, use Recruitment or the effective-dated HCM workflow.</p></div></div>
           <form onSubmit={assignPosition}>
             <div className="setting-form">
               <label>Position<select required value={assignmentForm.positionId} onChange={(e) => setAssignmentForm({ ...assignmentForm, positionId: e.target.value })}><option value="">Select position</option>{positions.filter((position) => !activeAssignmentByPosition.has(position.id) && ["approved", "open"].includes(position.status)).map((position) => <option key={position.id} value={position.id}>{position.code} · {profileById.get(position.jobProfileId)?.title}</option>)}</select></label>
@@ -1569,13 +1569,15 @@ export function WorkforcePlanningPanel({ organizationId, setNotice, onPage }: { 
                 const incumbent = assignment ? employeeById.get(assignment.employeeId) : null;
                 const profile = profileById.get(position.jobProfileId);
                 const statusOptions =
-                  position.status === "filled"
-                    ? ["filled"]
-                    : position.status === "reserved"
-                      ? ["reserved"]
+                  position.status === "planned"
+                    ? ["planned", "approved", "closed"]
+                    : position.status === "approved"
+                      ? ["approved", "frozen", "closed"]
                       : position.status === "open"
                         ? ["open", "frozen", "closed"]
-                        : ["planned", "approved", "frozen", "closed"];
+                        : position.status === "frozen"
+                          ? ["frozen", "closed"]
+                          : [position.status];
                 return (
                   <tr key={position.id}>
                     <td><strong>{position.code}</strong><small style={{ display: "block", color: "var(--muted)" }}>{position.employmentType}</small></td>

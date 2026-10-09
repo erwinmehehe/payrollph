@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { DEFAULT_HCM_LIFECYCLE_POLICY } from "@/lib/hcm-lifecycle-policy";
 import { probationReviewSnapshot } from "@/lib/hcm-probation-reviews";
 import {
+  auditEvents,
   documents,
   employees,
   hcmEmploymentDecisionDocuments,
@@ -375,6 +376,12 @@ export async function approveEmploymentDecisionWithEvidence(input: {
     if (decision.status !== "pending_approval") {
       throw new DecisionEvidenceApprovalError("Only pending employment-term decisions can be approved.");
     }
+    if (decision.requestedByUserId == null) {
+      throw new DecisionEvidenceApprovalError(
+        "Legacy employment-term decision has no accountable requester identity. Request a fresh reviewed decision.",
+        409,
+      );
+    }
     if (decision.requestedByUserId === input.approverUserId) {
       throw new DecisionEvidenceApprovalError(
         "Four-eyes control: the requester cannot approve their own employment-term decision.",
@@ -382,12 +389,29 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       );
     }
 
+    // Lock current worker and source terms before reading the approval
+    // snapshot; activation must not replace the terms in this interval.
+    await tx.execute(sql`select id from employees
+      where id = ${decision.employeeId} and organization_id = ${input.organizationId} for update`);
+    await tx.execute(sql`select id from hcm_employment_terms
+      where id = ${decision.employmentTermId} and organization_id = ${input.organizationId} for update`);
     const [term] = await tx.select().from(hcmEmploymentTerms).where(and(
       eq(hcmEmploymentTerms.id, decision.employmentTermId),
       eq(hcmEmploymentTerms.organizationId, decision.organizationId),
       eq(hcmEmploymentTerms.employeeId, decision.employeeId),
     )).limit(1);
-    if (!term) throw new DecisionEvidenceApprovalError("Source employment terms were not found.");
+    if (!term || term.status !== "active") {
+      throw new DecisionEvidenceApprovalError("The original active employment terms changed; create a new review against current terms.");
+    }
+    const [worker] = await tx.select({
+      id: employees.id, status: employees.status,
+    }).from(employees).where(and(
+      eq(employees.id, decision.employeeId),
+      eq(employees.organizationId, input.organizationId),
+    )).limit(1);
+    if (!worker || !["Active", "On leave"].includes(worker.status)) {
+      throw new DecisionEvidenceApprovalError("The worker changed lifecycle state; an employment-term decision cannot be approved while separating or inactive.");
+    }
 
     const notes = await tx.select().from(hcmEmploymentDecisionNotes).where(and(
       eq(hcmEmploymentDecisionNotes.organizationId, input.organizationId),
@@ -551,6 +575,24 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       createdAt: now,
     });
 
+    // Approver action, sealed evidence and actor audit must all commit.
+    // A missing audit row must roll back the approval and decision event.
+    await tx.insert(auditEvents).values({
+      organizationId: input.organizationId,
+      actor: input.approverName,
+      action: "HCM employment-term decision approved",
+      resource: `Employee #${scheduled.employeeId}`,
+      metadata: {
+        employmentTermDecisionId: input.decisionId,
+        effectiveDate: scheduled.effectiveDate,
+        decisionKind: scheduled.decisionKind,
+        evidenceSnapshotSha256: snapshotSha256,
+        evidenceNoteCount: notes.length,
+        evidenceAttachmentCount: attachments.length,
+        reviewerUserId: input.approverUserId,
+        requesterUserId: decision.requestedByUserId,
+      },
+    });
     return {
       decision: scheduled,
       evidenceSnapshotSha256: snapshotSha256,

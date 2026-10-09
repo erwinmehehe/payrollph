@@ -82,8 +82,13 @@ test("decision endpoint uses evidence-sealing approval instead of directly stamp
   assert.ok(route.includes("approveEmploymentDecisionWithEvidence"));
   assert.ok(route.includes("DecisionEvidenceApprovalError"));
   assert.ok(route.includes("evidenceSnapshotSha256"));
-  assert.ok(route.includes("evidenceNoteCount"));
-  assert.ok(route.includes("evidenceAttachmentCount"));
+  // These evidence counts now belong to the transactional approval service,
+  // not the thin HTTP handler. Verify the committed audit metadata there.
+  const evidenceService = read("src/lib/hcm-employment-decision-evidence.ts");
+  assert.ok(evidenceService.includes("approveEmploymentDecisionWithEvidence"));
+  assert.ok(evidenceService.includes("evidenceNoteCount: notes.length"));
+  assert.ok(evidenceService.includes("evidenceAttachmentCount: attachments.length"));
+  assert.ok(evidenceService.includes("tx.insert(auditEvents)"));
 });
 
 test("secure evidence API permits company People admins or the worker's current linked manager", () => {
