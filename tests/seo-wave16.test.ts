@@ -36,15 +36,22 @@ test("employee-loan guide claims match the implemented loan workflow", () => {
   assert.ok(guide.includes("Pause and resume controls"));
   assert.ok(guide.includes("Manual payment recording"));
 
+  // The published guide must describe implemented—not unsafe legacy—loan
+  // controls. Status transitions are now verified by the dedicated helper
+  // and salary-impacting mutations need evidence, MFA and an atomic audit.
   assert.ok(loansRoute.includes("employeeLoans"));
   assert.ok(loansRoute.includes('action === "record_payment"'));
-  assert.ok(loansRoute.includes('action === "pause" || action === "resume"'));
-  assert.ok(loansRoute.includes("Payment cannot exceed the remaining loan balance."));
-  assert.ok(loansRoute.includes('action: "Employee loan registered"'));
+  assert.ok(loansRoute.includes("nextLoanState("));
+  assert.ok(loansRoute.includes("LOAN_PAYMENT_EXCEEDS_BALANCE"));
+  assert.ok(loansRoute.includes('action: "Employee loan registered with payroll deduction authority"'));
+  assert.ok(loansRoute.includes("validateLoanRegistration(body)"));
+  assert.ok(loansRoute.includes("tx.insert(loanPayments)"));
+  assert.ok(loansRoute.includes("tx.insert(auditEvents)"));
 
   assert.ok(payrollEngine.includes('eq(employeeLoans.status, "active")'));
   assert.ok(payrollEngine.includes("cutoffDeduction: Number(l.cutoffDeduction)"));
-  assert.ok(payrollEngine.includes("requestedDeduction: Math.min(Number(loan.cutoffDeduction), Number(loan.remainingBalance))"));
+  assert.ok(payrollEngine.includes("validPayrollLoanSchedule(loan)"));
+  assert.ok(payrollEngine.includes("requestedDeduction: Math.min(loan.cutoffDeduction, loan.remainingBalance)"));
 });
 
 test("retro-pay guide claims match effective-dated revision and settlement behavior", () => {
