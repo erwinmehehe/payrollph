@@ -1249,6 +1249,24 @@ export async function PATCH(request: Request) {
         throw new Error("Final-pay source data changed before release. Recompute the package.");
       }
 
+      // Separation cannot overwrite a worker who was concurrently rehired,
+      // reactivated or moved out of Separating state.
+      const [freshWorker] = await tx.select({
+        id: employees.id,
+        status: employees.status,
+        orgUnitId: employees.orgUnitId,
+        legalEntityId: employees.legalEntityId,
+      }).from(employees).where(and(
+        eq(employees.id, fresh.employeeId),
+        eq(employees.organizationId, fresh.organizationId),
+      )).limit(1);
+      if (!freshWorker || freshWorker.status !== "Separating"
+        || freshWorker.status !== employee.status
+        || freshWorker.orgUnitId !== employee.orgUnitId
+        || freshWorker.legalEntityId !== employee.legalEntityId) {
+        throw new Error("FINAL_PAY_WORKER_STATE_CHANGED: the worker or legal employer changed before release.");
+      }
+
       const [activeAssignment] = await tx.select().from(positionAssignments).where(and(
         eq(positionAssignments.organizationId, fresh.organizationId),
         eq(positionAssignments.employeeId, fresh.employeeId),
@@ -1265,6 +1283,9 @@ export async function PATCH(request: Request) {
 
       if (activeAssignment && String(activeAssignment.effectiveFrom) > String(fresh.lastDay)) {
         throw new Error("The active position assignment begins after the employee last day. Correct the HCM assignment before releasing final pay.");
+      }
+      if (activeAssignment && (!activePosition || activePosition.status !== "filled")) {
+        throw new Error("FINAL_PAY_POSITION_STATE_CHANGED: worker occupancy and the active filled position no longer agree.");
       }
 
       const deductOutstandingLoans = Boolean(freshSnapshot.deductOutstandingLoans);
@@ -1325,25 +1346,34 @@ export async function PATCH(request: Request) {
       )).returning();
       if (!updated) throw new Error("Final-pay release state changed.");
 
-      await tx.update(employees).set({ status: "Separated" }).where(and(
+      const [separatedWorker] = await tx.update(employees).set({ status: "Separated" }).where(and(
         eq(employees.id, fresh.employeeId),
         eq(employees.organizationId, fresh.organizationId),
-      ));
+        eq(employees.status, "Separating"),
+      )).returning({ id: employees.id });
+      if (!separatedWorker) throw new Error("FINAL_PAY_WORKER_STATE_CHANGED: worker status changed during release.");
 
       if (activeAssignment) {
-        await tx.update(positionAssignments).set({
+        const [closedAssignment] = await tx.update(positionAssignments).set({
           effectiveUntil: fresh.lastDay,
         }).where(and(
           eq(positionAssignments.id, activeAssignment.id),
+          eq(positionAssignments.organizationId, fresh.organizationId),
           isNull(positionAssignments.effectiveUntil),
-        ));
+        )).returning({ id: positionAssignments.id });
+        if (!closedAssignment) throw new Error("FINAL_PAY_POSITION_STATE_CHANGED: the worker's active assignment changed.");
       }
 
       if (activePosition) {
-        await tx.update(positions).set({
+        const [vacantPosition] = await tx.update(positions).set({
           status: "open",
           updatedAt: new Date(),
-        }).where(eq(positions.id, activePosition.id));
+        }).where(and(
+          eq(positions.id, activePosition.id),
+          eq(positions.organizationId, fresh.organizationId),
+          eq(positions.status, "filled"),
+        )).returning({ id: positions.id });
+        if (!vacantPosition) throw new Error("FINAL_PAY_POSITION_STATE_CHANGED: position status changed before it could be reopened.");
       }
 
       await tx.insert(workerEmploymentEvents).values({
