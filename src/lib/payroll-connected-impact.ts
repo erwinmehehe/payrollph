@@ -15,12 +15,14 @@ export type DatedImpactSource = {
   employeeId: number;
   status: string;
   effectiveDate: string;
+  appliedAfterRunCreated?: boolean;
 };
 export type PayoutImpactSource = {
   id: number;
   employeeId: number;
   status: string;
   appliedAt?: string | Date | null;
+  appliedAfterRunCreated?: boolean;
 };
 export type WorkImpactSource = {
   id: number;
@@ -29,6 +31,7 @@ export type WorkImpactSource = {
   workDate: string;
   severity?: string | null;
   appliedAt?: string | Date | null;
+  appliedAfterRunCreated?: boolean;
 };
 export type TimesheetImpactSource = {
   id: number;
@@ -46,6 +49,7 @@ export type AppliedPayRevision = {
   // Existence of a matching, applied and explicitly approved proposal is
   // source-link evidence only. It does not independently certify the pay.
   compensationProposalId?: number | null;
+  createdAfterRunCreated?: boolean;
 };
 
 export type ConnectedImpactFinding = {
@@ -119,7 +123,18 @@ export function buildPayrollConnectedImpact(input: ConnectedImpactInput): Connec
   const findings: ConnectedImpactFinding[] = [];
 
   for (const row of input.employmentChanges ?? []) {
-    if (!stillOpen(row.status) || !validDate(row.effectiveDate) || row.effectiveDate > input.periodEnd) continue;
+    if (!validDate(row.effectiveDate) || row.effectiveDate > input.periodEnd) continue;
+    if (status(row.status) === "applied" && row.appliedAfterRunCreated) {
+      add(findings, {
+        area: "HRIS", severity: "attention", code: "HRIS_LATE_EMPLOYMENT_CHANGE",
+        employeeId: row.employeeId, sourceId: row.id, date: row.effectiveDate,
+        status: "applied", title: "Employment change applied after payroll was opened",
+        detail: "An effective-dated worker change was applied after this payroll run was created. Revalidate employee eligibility, costing, attendance and the current payroll input snapshot before approval.",
+        action: "People",
+      });
+      continue;
+    }
+    if (!stillOpen(row.status)) continue;
     add(findings, {
       area: "HRIS", severity: "attention", code: "HRIS_CHANGE_NOT_APPLIED",
       employeeId: row.employeeId, sourceId: row.id, date: row.effectiveDate,
@@ -136,6 +151,16 @@ export function buildPayrollConnectedImpact(input: ConnectedImpactInput): Connec
     const dismissed = ["cancelled", "canceled", "rejected", "declined", "voided", "superseded"].includes(decision)
       && !row.appliedAt;
     const applied = ["approved", "applied"].includes(decision) && !!row.appliedAt;
+    if (applied && row.appliedAfterRunCreated) {
+      add(findings, {
+        area: "HRIS", severity: "attention", code: "HRIS_LATE_PAYOUT_CHANGE",
+        employeeId: row.employeeId, sourceId: row.id, date: null,
+        status: decision, title: "Payout destination updated after payroll was opened",
+        detail: "A governed payout destination change was applied after run creation. Recheck any prior bank export or payout preflight and its immutable payee snapshot before submitting funds.",
+        action: "People",
+      });
+      continue;
+    }
     if (dismissed || applied) continue;
     add(findings, {
       area: "HRIS", severity: "attention", code: "HRIS_PAYOUT_REVIEW",
@@ -152,6 +177,16 @@ export function buildPayrollConnectedImpact(input: ConnectedImpactInput): Connec
     const dismissed = ["rejected", "cancelled", "canceled", "voided", "superseded"].includes(decision)
       && !row.appliedAt;
     const applied = ["approved", "applied"].includes(decision) && !!row.appliedAt;
+    if (applied && row.appliedAfterRunCreated) {
+      add(findings, {
+        area: "WFM", severity: "attention", code: "WFM_LATE_ATTENDANCE_CORRECTION",
+        employeeId: row.employeeId, sourceId: row.id, date: row.workDate,
+        status: decision, title: "Attendance corrected after payroll was opened",
+        detail: "A correction for this cutoff was applied after the payroll run was created. Verify the timesheet was marked stale where required, recalculate affected pay, and require fresh checker approval.",
+        action: "Time & attendance",
+      });
+      continue;
+    }
     if (dismissed || applied) continue;
     add(findings, {
       area: "WFM", severity: "attention", code: "WFM_CORRECTION_NOT_APPLIED",
