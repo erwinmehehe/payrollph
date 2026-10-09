@@ -14,7 +14,7 @@ export function validateStagingTarget(baseUrl, expectedHost, productionHost = ""
   return new URL("/api/jobs/status", url);
 }
 
-export function checkSchedulerResponse(httpStatus, payload) {
+export function checkSchedulerResponse(httpStatus, payload, now = new Date()) {
   if (httpStatus !== 200 || !payload || typeof payload !== "object" || Array.isArray(payload)) {
     return { ok: false, reason: "missing-or-unhealthy-scheduler" };
   }
@@ -27,6 +27,14 @@ export function checkSchedulerResponse(httpStatus, payload) {
       !["completed", "running"].includes(payload.lastLeaseStatus)) {
     return { ok: false, reason: "invalid-or-stale-scheduler-evidence" };
   }
+  // Never trust an API's claimed relative age without comparing its absolute
+  // last-success timestamp. A cached healthy JSON response must fail closed.
+  const timestampMs = Date.parse(payload.lastSuccessfulRunAt);
+  const ageMs = now.getTime() - timestampMs;
+  if (!Number.isFinite(ageMs) || ageMs < -60_000 || ageMs > 600_000 ||
+      Math.abs(ageMs / 1000 - payload.secondsSinceSuccess) > 60) {
+    return { ok: false, reason: "stale-or-inconsistent-scheduler-timestamp" };
+  }
   return {
     ok: true,
     state: "healthy",
@@ -35,7 +43,7 @@ export function checkSchedulerResponse(httpStatus, payload) {
   };
 }
 
-export async function main(env = process.env, fetcher = fetch) {
+export async function main(env = process.env, fetcher = fetch, now = new Date()) {
   const target = validateStagingTarget(env.PAYROLL_STAGING_URL, env.PAYROLL_STAGING_EXPECTED_HOST,
     env.PAYROLL_PRODUCTION_HOST ?? "");
   if (!env.PAYROLL_STAGING_MONITOR_TOKEN || env.PAYROLL_STAGING_MONITOR_TOKEN.length < 32) {
@@ -53,7 +61,7 @@ export async function main(env = process.env, fetcher = fetch) {
     // Do not log the raw response or headers: they may contain operational metadata.
     payload = await response.json();
   }
-  const verdict = checkSchedulerResponse(response.status, payload);
+  const verdict = checkSchedulerResponse(response.status, payload, now);
   const text = [
     "## Payroll staging scheduler — read-only verification",
     "",

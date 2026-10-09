@@ -10,3 +10,8 @@ Run the secret-bearing job **only from the protected default `main` branch**, af
 This workflow cannot prove that a worker is really configured or that employment/compensation work is correct. It checks only recent scheduler liveness in the **operator-selected** staging runtime. A connected, independent two-worker plus `/api/jobs/tick` concurrency/restart rehearsal, checked job idempotency and actual staging evidence remain necessary in issue #637. In particular, never run payroll/compensation side effects on real employers merely to satisfy this check.
 
 A normal repo unit test validates URL allowlisting, pass/fail evidence parsing and bounded GET behavior without contacting external services. The GitHub Actions workflow is manual and not an automatic production deployment or operational authorisation.
+
+
+### Replay-resistant health evidence
+
+The offline checker verifies the absolute `lastSuccessfulRunAt` timestamp against its own current clock as well as the server-reported `secondsSinceSuccess`. A stale cached response that claims a recent tick, an expired timestamp, or a timestamp beyond a small clock-skew window fails closed. The verifier cannot establish staging worker topology or control a scheduler; operations reviewers must still witness the actual deployment in #637.

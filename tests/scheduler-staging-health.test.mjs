@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { validateStagingTarget, checkSchedulerResponse, main } from "../scripts/check-scheduler-staging-health.mjs";
 
+const proofTime = new Date("2026-10-09T00:01:30.000Z");
 const healthy = {
   ok: true, state: "healthy",
   lastSuccessfulRunAt: "2026-10-09T00:00:00.000Z",
@@ -19,7 +20,7 @@ test("requires HTTPS exact staging host and refuses a production host", () => {
   assert.throws(()=>validateStagingTarget("https://u:p@staging.example.test/","staging.example.test","prod.example.test"),/Staging target/);
 });
 test("strict authenticated healthy status must be recent and have a lease", () => {
-  assert.equal(checkSchedulerResponse(200,healthy).ok,true);
+  assert.equal(checkSchedulerResponse(200,healthy,proofTime).ok,true);
   for(const value of [
     {...healthy,secondsSinceSuccess:601},
     {...healthy,secondsSinceSuccess:-1},
@@ -27,10 +28,19 @@ test("strict authenticated healthy status must be recent and have a lease", () =
     {...healthy,state:"last-run-failed"},
     {...healthy,lastLeaseStatus:"failed"},
     {...healthy,lastSuccessfulRunAt:"not-a-date"},
-  ])assert.equal(checkSchedulerResponse(200,value).ok,false);
+  ])assert.equal(checkSchedulerResponse(200,value,proofTime).ok,false);
   assert.equal(checkSchedulerResponse(401,healthy).ok,false);
   assert.equal(checkSchedulerResponse(503,healthy).ok,false);
 });
+test("rejects cached or inconsistent healthy-looking scheduler evidence", () => {
+  assert.deepEqual(
+    checkSchedulerResponse(200, {...healthy, lastSuccessfulRunAt: "2026-10-08T23:00:00.000Z"},proofTime),
+    {ok:false,reason:"stale-or-inconsistent-scheduler-timestamp"}
+  );
+  assert.equal(checkSchedulerResponse(200,{...healthy,secondsSinceSuccess:599},proofTime).ok,false);
+  assert.equal(checkSchedulerResponse(200,{...healthy,lastSuccessfulRunAt:"2026-10-09T00:05:00.000Z"},proofTime).ok,false);
+});
+
 test("read-only GET uses bounded request, explicit host and does not trigger work", async () => {
   let method = null;
   let path = null;
@@ -45,7 +55,7 @@ test("read-only GET uses bounded request, explicit host and does not trigger wor
       PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
       PAYROLL_PRODUCTION_HOST:"prod.example.test",
       PAYROLL_STAGING_MONITOR_TOKEN:"synthetic-stage-monitor-token-is-over-32-characters",
-    },fakeFetch);
+    },fakeFetch,proofTime);
     assert.equal(verdict.ok,true);
     assert.equal(method,"GET");
     assert.equal(path,"/api/jobs/status");
