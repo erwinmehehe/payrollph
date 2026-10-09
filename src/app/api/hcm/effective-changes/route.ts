@@ -608,19 +608,31 @@ export async function PATCH(request: Request) {
         updatedAt: new Date(),
       }).where(and(
         eq(workerEffectiveChanges.id, id),
+        eq(workerEffectiveChanges.organizationId, change.organizationId),
         eq(workerEffectiveChanges.status, change.status),
       )).returning();
-      return updated ?? null;
+      if (!updated) throw new Error("HCM_CHANGE_CANCEL_STALE");
+      await tx.insert(auditEvents).values({
+        organizationId: updated.organizationId,
+        actor: user.name.slice(0, 120),
+        action: "Effective-dated HCM change cancelled",
+        resource: `Employee #${updated.employeeId}`,
+        metadata: {
+          effectiveChangeId: updated.id,
+          cancelledByUserId: user.id,
+          effectiveDate: updated.effectiveDate,
+          movementType: updated.movementType,
+          previousStatus: change.status,
+          targetPositionId: updated.targetPositionId,
+          businessProcessInstanceId: linkedBusinessProcess?.id ?? null,
+        },
+      });
+      return updated;
+    }).catch((error: unknown) => {
+      if (error instanceof Error && error.message === "HCM_CHANGE_CANCEL_STALE") return null;
+      throw error;
     });
     if (!row) return Response.json({ error: "This HCM change changed before cancellation." }, { status: 409 });
-
-    await recordAuditEvent({
-      organizationId: row.organizationId,
-      actor: user.name,
-      action: "Effective-dated HCM change cancelled",
-      resource: `Employee #${row.employeeId}`,
-      metadata: { effectiveChangeId: row.id, effectiveDate: row.effectiveDate, movementType: row.movementType },
-    });
     return Response.json({ change: row });
   }
 
