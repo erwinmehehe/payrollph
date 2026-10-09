@@ -111,3 +111,56 @@ export function effectiveHcmSourceDrift(
   }
   return null;
 }
+
+/**
+ * The approved destination must be stable too. An approved vacancy may
+ * naturally move from "approved" to "reserved", but its legal employer,
+ * operating/supervisory organization, manager and job must not be silently
+ * rewritten after the original review.
+ */
+export function effectiveHcmTargetDrift(
+  approvedToSnapshot: unknown,
+  currentTargetPosition: Record<string, unknown> | null,
+): HcmEffectiveSourceDrift | null {
+  if (!isObject(approvedToSnapshot)
+    || !Object.hasOwn(approvedToSnapshot, "targetPosition")) {
+    return {
+      code: "HCM_EFFECTIVE_SOURCE_MISSING",
+      field: "toSnapshot.targetPosition",
+      message: "This approved HCM change has no frozen target-position evidence. Cancel and seek a fresh review.",
+    };
+  }
+  const stored = approvedToSnapshot.targetPosition;
+  if (stored !== null && !isObject(stored)) {
+    return {
+      code: "HCM_EFFECTIVE_SOURCE_MISSING",
+      field: "toSnapshot.targetPosition",
+      message: "The HCM target position evidence is malformed. Re-submit the worker move for review.",
+    };
+  }
+  if ((stored === null) !== (currentTargetPosition === null)) {
+    return {
+      code: "HCM_EFFECTIVE_SOURCE_CHANGED",
+      field: "targetPosition",
+      message: "The approved HCM destination was replaced or removed. Reconcile the vacancy and obtain fresh approval.",
+    };
+  }
+  if (stored === null || currentTargetPosition === null) return null;
+  for (const key of positionFields) {
+    if (!Object.hasOwn(stored, key)) {
+      return {
+        code: "HCM_EFFECTIVE_SOURCE_MISSING",
+        field: `targetPosition.${key}`,
+        message: `The approved HCM destination is missing ${key} evidence. Cancel and resubmit.`,
+      };
+    }
+    if (comparable(stored[key]) !== comparable(currentTargetPosition[key])) {
+      return {
+        code: "HCM_EFFECTIVE_SOURCE_CHANGED",
+        field: `targetPosition.${key}`,
+        message: `The approved destination's ${key} changed. Do not assign the employee to a different position/employer without fresh review.`,
+      };
+    }
+  }
+  return null;
+}
