@@ -41,7 +41,7 @@ restore excess PRs to draft.
 | Payroll & finance | #668, #661, #666, #685 → #688 | Independent payroll reconciliation; payout and release activation separate |
 | Position decisions | #648 | Effective-dated terms and HR/payroll downstream review |
 | Scheduler security | #632, #679 | Two-worker staging, authorization, rollout switches OFF |
-| SaaS subscription billing | #686 | Separate provider/security/DBA acceptance, no live-charge activation |
+| SaaS subscription billing | #667 → #673 → #682 → #686 (`0106`) | Separate provider/security/DBA acceptance, no live-charge activation |
 
 A dependency arrow shows **review/merge sequencing**, not approval or a
 promise of feature parity. Keep a parent PR open until its code is reviewed and
@@ -52,8 +52,9 @@ change with an independently checked diff and note on the closed PR.
 
 SQL migration filenames share **one repository-wide append-only** sequence.
 For example, #667 claims `0100–0103`; #673 follows with `0104`; #682
-proposes `0105`. Any competing `0100` or `0101` migration in #686 is a
-collision even if it lives on a different branch or targets a different table.
+proposes `0105`. Billing #686 now follows this chain with `0106` on a stacked
+branch. A future duplicate prefix is still a collision, even if it targets a
+different table or a different PR branch.
 
 The queue workflow inspects **incremental open-PR file lists** and flags the
 later claimant of the same four-digit prefix; the existing SQL history guard
@@ -83,8 +84,9 @@ and leave any uncertain migration unreleased.
 
 The queue action uses `pull_request_target` but checks out **only trusted
 default-branch source**, never PR-head code. Its temporary token has
-`contents:read` and `pull-requests:read`. It makes no API writes. A GitHub
-API or pagination failure must fail closed, not silently return an empty queue.
+`contents:read` and `pull-requests:read`. It makes no API writes, and the queue summary is printed to standard output
+rather than writing untrusted GitHub API text to runner-owned files.
+A GitHub API or pagination failure must fail closed, not silently return an empty queue.
 
 This CI status prevents a merge **only if a repository administrator makes it a
 required check in GitHub rulesets/branch protection**. The connector cannot
