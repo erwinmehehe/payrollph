@@ -3,7 +3,7 @@ import { appendFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export function validateStagingTarget(baseUrl, expectedHost, productionHost = "") {
-  if (!baseUrl || !expectedHost) throw new Error("Configured staging URL and expected staging hostname required.");
+  if (!baseUrl || !expectedHost || !productionHost) throw new Error("Configured staging URL, expected staging hostname and production hostname are required.");
   const url = new URL(baseUrl);
   const host = expectedHost.toLowerCase().trim();
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash ||

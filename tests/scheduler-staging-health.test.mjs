@@ -11,11 +11,12 @@ const healthy = {
 test("requires HTTPS exact staging host and refuses a production host", () => {
   assert.equal(validateStagingTarget("https://staging.example.test/","staging.example.test",
     "prod.example.test").pathname,"/api/jobs/status");
-  assert.throws(()=>validateStagingTarget("http://staging.example.test/","staging.example.test"),/Staging target/);
+  assert.throws(()=>validateStagingTarget("http://staging.example.test/","staging.example.test","prod.example.test"),/Staging target/);
+  assert.throws(()=>validateStagingTarget("https://staging.example.test/","staging.example.test"),/production hostname/);
   assert.throws(()=>validateStagingTarget("https://prod.example.test/","prod.example.test","prod.example.test"),/Staging target/);
-  assert.throws(()=>validateStagingTarget("https://other.example.test/","staging.example.test"),/Staging target/);
-  assert.throws(()=>validateStagingTarget("https://staging.example.test/?token=x","staging.example.test"),/Staging target/);
-  assert.throws(()=>validateStagingTarget("https://u:p@staging.example.test/","staging.example.test"),/Staging target/);
+  assert.throws(()=>validateStagingTarget("https://other.example.test/","staging.example.test","prod.example.test"),/Staging target/);
+  assert.throws(()=>validateStagingTarget("https://staging.example.test/?token=x","staging.example.test","prod.example.test"),/Staging target/);
+  assert.throws(()=>validateStagingTarget("https://u:p@staging.example.test/","staging.example.test","prod.example.test"),/Staging target/);
 });
 test("strict authenticated healthy status must be recent and have a lease", () => {
   assert.equal(checkSchedulerResponse(200,healthy).ok,true);
