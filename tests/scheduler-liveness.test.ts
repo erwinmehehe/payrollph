@@ -13,6 +13,14 @@ test("unconfigured or never-started worker is unhealthy",()=>{
   const x = evaluateSchedulerLiveness({now,lastSuccessfulRunAt:null,lastLeaseStatus:null});
   assert.equal(x.ok,false); assert.equal(x.state,"never-ran");
 });
+test("recent delivery activity cannot imply a healthy missing/invalid scheduler lease",()=>{
+  for (const lease of [null, "unknown", ""]) {
+    const x=evaluateSchedulerLiveness({now,lastSuccessfulRunAt:success,lastLeaseStatus:lease});
+    assert.equal(x.ok,false);
+    assert.equal(x.state,"missing-or-invalid-lease");
+  }
+});
+
 test("stale tick is unhealthy even if a process or a stuck lease reports running",()=>{
   const x = evaluateSchedulerLiveness({now,lastSuccessfulRunAt:new Date("2026-10-09T04:00:00.000Z"),lastLeaseStatus:"running"});
   assert.equal(x.ok,false); assert.equal(x.state,"overdue");
@@ -31,6 +39,7 @@ test("monitor route requires a distinct read-only monitor token and never trigge
   assert.ok(route.includes('constantTimeSecretEqual(expected, operationalSecret("worker"))'));
   assert.ok(route.includes('constantTimeSecretEqual(request.headers.get("x-scheduler-monitor-token"), expected)'));
   assert.ok(!route.includes('request.headers.get("x-worker-token")'));
+  assert.ok(route.includes('result.status === "running" || result.status === "completed" || result.status === "failed"'));
   assert.ok(route.includes('status: state.ok ? 200 : 503'));
   assert.ok(!route.includes("tickScheduler("));
 });

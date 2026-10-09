@@ -12,3 +12,8 @@ Verify one active dedicated worker, worker service restart/exit reporting and /a
 ### Stale-owner safety improvement (2026-10-09)
 
 In addition to the 30-second heartbeat, the central scheduler revalidates its fenced database lease before the start of the key statutory, automation, effective-dated HR and compensation job groups. A lease that has been stolen, expired or can no longer be refreshed stops **new** guarded work, rather than only raising an error after the entire scheduler cycle. Concurrent worker acquisition is now covered by a parallel PostgreSQL test. This is a **best-effort pre-work fencing gate**, not transaction-level fencing: already-running side effects cannot be canceled, and the downstream financial handlers still require their own idempotency/unique constraints. The independent two-worker staging/restart and live monitoring acceptance in #637 remains open.
+
+
+### Missing-lease negative case
+
+A recent `delivery-drain` row alone is not proof of a functioning leased central scheduler. The endpoint now fails closed with HTTP 503 and state `missing-or-invalid-lease` if the companion lease record is absent or has an unrecognized status; it also restricts emitted lease states to `running`, `completed`, or `failed` and never returns arbitrary job payloads. Regression tests cover missing, empty and invalid lease states. This remains a status check only, not a substitute for observed staging worker operations.

@@ -42,7 +42,9 @@ export async function GET(request: Request) {
     const result = lease?.lastResult && typeof lease.lastResult === "object" && !Array.isArray(lease.lastResult)
       ? lease.lastResult as Record<string, unknown>
       : {};
-    const lastLeaseStatus = typeof result.status === "string" ? result.status : null;
+    // Emit only documented states; never expose arbitrary stored JSON strings.
+    const lastLeaseStatus = result.status === "running" || result.status === "completed" || result.status === "failed"
+      ? result.status : null;
     const state = evaluateSchedulerLiveness({
       lastSuccessfulRunAt: completed?.lastRunAt ?? null,
       lastLeaseStatus,
