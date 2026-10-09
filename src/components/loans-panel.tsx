@@ -44,7 +44,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
   const [loans, setLoans] = useState<Loan[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [summary, setSummary] = useState({ totalActiveLoans: 0, totalPendingApproval: 0, totalOutstanding: 0, totalPaidOff: 0 });
-  const [viewer, setViewer] = useState({ currentUserId: 0, reviewerEligible: false, companyWide: false, loanActivationEnabled: false });
+  const [viewer, setViewer] = useState({ currentUserId: 0, reviewerEligible: false, operatorEligible: false, companyWide: false, loanActivationEnabled: false });
   const [loaded, setLoaded] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
@@ -85,6 +85,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
         setViewer({
           currentUserId: data.currentUserId ?? 0,
           reviewerEligible: data.reviewerEligible === true,
+          operatorEligible: data.operatorEligible === true,
           companyWide: data.companyWide === true,
           loanActivationEnabled: data.loanActivationEnabled === true,
         });
@@ -198,9 +199,11 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Employee Loan Ledger &amp; Amortization</h2>
           <p className="heading-copy">Review source loan authorization before scheduling deductions. Newly submitted loans stay inactive until a different payroll checker approves them.</p>
         </div>
-        <button className="primary-button" onClick={() => setShowAddForm(!showAddForm)}>
-          {showAddForm ? <X size={15} /> : <Plus size={15} className="i-green" />} {showAddForm ? "Cancel" : "Register Loan"}
-        </button>
+        {viewer.operatorEligible && (
+          <button className="primary-button" onClick={() => setShowAddForm(!showAddForm)}>
+            {showAddForm ? <X size={15} /> : <Plus size={15} className="i-green" />} {showAddForm ? "Cancel" : "Register Loan"}
+          </button>
+        )}
       </div>
 
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
@@ -332,7 +335,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
               ) : <small>Independent payroll checker action required. The requester cannot approve their own loan.</small>}
             </div>
           )}
-          {(selectedLoan.status === "active" || selectedLoan.status === "paused") && viewer.companyWide && (
+          {(selectedLoan.status === "active" || selectedLoan.status === "paused") && viewer.operatorEligible && (
             <>
               <div className="setting-form" style={{ marginTop: 12 }}>
                 <label>Verified external repayment amount (PHP)
@@ -350,14 +353,17 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
                 {selectedLoan.status === "active" && (
                   <button className="secondary-button" onClick={() => void changeLoanStatus(selectedLoan.id, "pause")}>Pause Deductions</button>
                 )}
-                {selectedLoan.status === "paused" && viewer.reviewerEligible
-                  && viewer.currentUserId !== selectedLoan.requestedByUserId && (
-                    <button className="secondary-button" disabled={!viewer.loanActivationEnabled} onClick={() => void changeLoanStatus(selectedLoan.id, "resume")}>Independently Reapprove / Resume</button>
-                  )}
+                
               </div>
               <small>Only confirmed external repayments belong here. Payroll-calculated deductions and bank remittances are tracked separately. Evidence reference alone is not independent bank verification.</small>
             </>
           )}
+          {selectedLoan.status === "paused" && viewer.reviewerEligible
+            && viewer.currentUserId !== selectedLoan.requestedByUserId && (
+              <div className="run-actions">
+                <button className="secondary-button" disabled={!viewer.loanActivationEnabled} onClick={() => void changeLoanStatus(selectedLoan.id, "resume")}>Independently Reapprove / Resume</button>
+              </div>
+            )}
           {["rejected", "paid_off"].includes(selectedLoan.status) && (
             <p>This request is not available for further deductions. Corrections require separately reviewed accounting evidence.</p>
           )}
