@@ -11,6 +11,10 @@ export type HcmGovernanceCounters = {
   releasedSeparationsWorkerNotSeparated: number;
   separatedWorkersWithOpenAssignments: number;
   inProgressBusinessProcesses: number;
+  pendingHcmSteps: number;
+  overdueHcmSteps: number;
+  pendingHcmApprovalTaskMismatch: number;
+  hcmProcessesWithoutPendingCurrentStep: number;
 };
 
 export type HcmGovernancePolicy = {
@@ -41,6 +45,27 @@ const CHECKS: Array<{
   title: string;
   nextAction: string;
 }> = [
+  {
+    field: "pendingHcmApprovalTaskMismatch",
+    code: "HCM_APPROVAL_TASK_MISMATCH",
+    severity: "high",
+    title: "Pending HCM approvals without a matching open approval task",
+    nextAction: "Review frozen process steps and linked approval-task status with People and security. Restore missing work items only through an audited recovery procedure, not by re-approving the worker change.",
+  },
+  {
+    field: "hcmProcessesWithoutPendingCurrentStep",
+    code: "HCM_PROCESS_NO_ACTIVE_STEP",
+    severity: "high",
+    title: "In-progress HCM processes without a pending current step",
+    nextAction: "Check source workflow status and the current step transition for failed activation or cancelled tasks. Use a controlled, audited resume/reconciliation process.",
+  },
+  {
+    field: "overdueHcmSteps",
+    code: "HCM_OVERDUE_WORK_ITEMS",
+    severity: "review",
+    title: "Pending HCM work items past their recorded due time",
+    nextAction: "Confirm the owner, business-calendar due date and supporting documents; follow up through the existing approval inbox without automatically approving, escalating or cancelling a case.",
+  },
   {
     field: "unsupportedWageRegions",
     code: "UNKNOWN_WAGE_REGION",
@@ -159,6 +184,8 @@ export function buildHcmGovernanceReadiness(input: {
       highPriorityCategories: warnings,
       reviewCategories: findings.length - warnings,
       inProgressBusinessProcesses: input.counters.inProgressBusinessProcesses,
+      pendingHcmSteps: input.counters.pendingHcmSteps,
+      overdueHcmSteps: input.counters.overdueHcmSteps,
     },
     findings,
     processes,
@@ -166,6 +193,8 @@ export function buildHcmGovernanceReadiness(input: {
       "Read-only aggregate evidence, not a compliance certificate or verification of employee-specific HCM approvals.",
       "An active policy definition may cover only one supervisory organization. Its coverage is not proven for every worker by this report.",
       "Zero flagged records does not demonstrate bank settlement, correct wage/tax computations, statutory filing acceptance or employer signoff.",
+      "Approval-task mismatches and stalled current-step indicators are diagnostic leads, not proof of a legal violation or permission to bypass the checker.",
+      "Overdue counts use recorded timestamps and do not automatically determine the applicable legal or internal business-day deadline.",
       "Counts are from separate SELECT statements and may change during concurrent HR activity; refresh before planning remediation.",
     ],
   };

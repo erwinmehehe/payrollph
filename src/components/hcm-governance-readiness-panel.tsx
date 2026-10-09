@@ -13,6 +13,8 @@ type HcmGovernanceReport = {
     highPriorityCategories: number;
     reviewCategories: number;
     inProgressBusinessProcesses: number;
+    pendingHcmSteps: number;
+    overdueHcmSteps: number;
   };
   findings: Array<{
     code: string;
@@ -130,7 +132,9 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
             <ShieldAlert size={16} />
             <span>
               <strong>Inventory, not certification.</strong> {report.asOf} ·
-              {report.summary.inProgressBusinessProcesses} HCM processes in progress.
+              {report.summary.inProgressBusinessProcesses} HCM processes in progress ·
+              {report.summary.pendingHcmSteps} pending work items ·
+              {report.summary.overdueHcmSteps} overdue pending items.
               This report does not authorize salary changes, final-pay release, agency filings, or production rollout.
             </span>
           </div>
