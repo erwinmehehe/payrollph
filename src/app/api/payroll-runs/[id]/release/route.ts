@@ -195,7 +195,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // claim without touching financial settlement. Source writers still need
   // coordinated locking before this can be treated as race-free certification.
   let connectedReleaseEvidence: { version: string; blockingCount: number; reviewCount: number } | null = null;
-  if (connectedPayrollReleaseGateEnabled()) {
+  if (connectedPayrollReleaseGateEnabled(run.organizationId)) {
     const connected = await safePayrollConnectedReleaseReadiness(runId);
     if (!connected.ready) {
       await db.update(payrollRuns)
