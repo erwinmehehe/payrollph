@@ -139,7 +139,9 @@ test("flag is default OFF and final release, checker and review submission conta
   const approve = readFileSync("src/app/api/approvals/[id]/route.ts", "utf8");
   const release = readFileSync("src/app/api/payroll-runs/[id]/release/route.ts", "utf8");
   const server = readFileSync("src/lib/payroll-connected-release-gate-server.ts", "utf8");
-  assert.ok(server.includes('process.env.PAYROLL_CONNECTED_RELEASE_GATE_ENABLED === "true"'));
+  assert.ok(server.includes('process.env.PAYROLL_CONNECTED_RELEASE_GATE_ENABLED !== "true"'));
+  assert.ok(server.includes("PAYROLL_CONNECTED_RELEASE_GATE_ORGANIZATION_IDS"));
+  assert.ok(server.includes("connectedPayrollReleaseGateEnabled(run.organizationId)"));
   assert.ok(server.includes('process.env.PAYROLL_CONNECTED_IMPACT_ENABLED !== "true"'));
   assert.ok(server.includes("companyId"));
   assert.ok(server.includes("inArray(workerEffectiveChanges.employeeId, employeeIds)"));
@@ -148,6 +150,9 @@ test("flag is default OFF and final release, checker and review submission conta
     && server.includes("gt(employeePayRevisions.createdAt, since)"));
   assert.ok(checklist.includes('key: "connected"'));
   assert.ok(submit.includes('item.key === "connected"'));
+  assert.ok(checklist.includes("connectedPayrollReleaseGateEnabled(run.organizationId)"));
+  assert.ok(approve.includes("connectedPayrollReleaseGateEnabled(payrollRun.organizationId)"));
+  assert.ok(release.includes("connectedPayrollReleaseGateEnabled(run.organizationId)"));
   assert.ok(approve.includes("safePayrollConnectedReleaseReadiness(payrollRunId)"));
   assert.ok(release.includes("safePayrollConnectedReleaseReadiness(runId)"));
   assert.ok(release.includes('eq(payrollRuns.status, "Releasing")'));
