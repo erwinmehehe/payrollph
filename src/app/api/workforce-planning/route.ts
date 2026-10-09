@@ -778,9 +778,44 @@ export async function PATCH(request: Request) {
   const unitScope = await scopedUnit(user.id, position.organizationId, position.orgUnitId);
   if ("error" in unitScope) return unitScope.error;
 
+  // Idempotent no-op is safe, but arbitrary status rewrites are not. In
+  // particular, moving frozen/closed positions straight back to "approved"
+  // previously bypassed independent position-creation review.
+  if (status === position.status) return Response.json(position);
+  const peopleDenied = await assertOrganizationRole(
+    user.id, position.organizationId, PEOPLE_ADMIN_ROLES,
+    "Position lifecycle transitions require company-wide People administration.",
+  );
+  if (peopleDenied) return peopleDenied;
+  if (!unitScope.access.companyWide) {
+    return Response.json({
+      error: "Position lifecycle transitions require company-wide People administration.",
+      code: "HCM_POSITION_SCOPE_REQUIRED",
+    }, { status: 403 });
+  }
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id,
+    action: "hcm-position-lifecycle-status",
+    resourceId: position.id,
+    limit: 8,
+    windowMs: 15 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
+
   const governedAction = status === "approved" && position.status === "planned"
     ? "create_position" : status === "closed" && position.status !== "closed"
       ? "close_position" : null;
+  if (!governedAction && (status !== "frozen" || !["approved", "open"].includes(position.status))) {
+    return Response.json({
+      error: "This position transition must use the approved position, recruitment, assignment or workforce-plan execution workflow. Direct status changes only allow a company-wide administrator to freeze an approved or recruiting vacancy.",
+      code: "HCM_POSITION_TRANSITION_REQUIRES_WORKFLOW",
+      fromStatus: position.status,
+      requestedStatus: status,
+    }, { status: 409 });
+  }
+
   if (governedAction) {
     const peopleDenied = await assertOrganizationRole(
       user.id, position.organizationId, PEOPLE_ADMIN_ROLES,
@@ -803,6 +838,9 @@ export async function PATCH(request: Request) {
     )).limit(1);
     if (!freshPosition) {
       throw new WorkforcePlanningConflict("Position no longer exists.");
+    }
+    if (freshPosition.status !== position.status) {
+      throw new WorkforcePlanningConflict("Position status changed during review. Reload and request a fresh transition.");
     }
 
     const freshRequisitions = await tx.select({ id: jobRequisitions.id, status: jobRequisitions.status })
@@ -903,9 +941,30 @@ export async function PATCH(request: Request) {
 
     const [updated] = await tx.update(positions)
       .set({ status, updatedAt: new Date() })
-      .where(eq(positions.id, id))
+      .where(and(
+        eq(positions.id, id),
+        eq(positions.organizationId, position.organizationId),
+        eq(positions.status, freshPosition.status),
+      ))
       .returning();
+    if (!updated) {
+      throw new WorkforcePlanningConflict("Position changed before its status could be frozen.");
+    }
 
+    await tx.insert(auditEvents).values({
+      organizationId: position.organizationId,
+      actor: user.name,
+      action: "Position status changed",
+      resource: position.code.slice(0, 160),
+      metadata: {
+        positionId: id,
+        from: freshPosition.status,
+        to: status,
+        requisitionId: activeRequisition?.id ?? null,
+        requisitionCancelled: cancelRequisition,
+        source: "companywide-mfa-vacancy-freeze",
+      },
+    });
     return {
       approvalRequired: false as const,
       updated,
@@ -943,18 +1002,6 @@ export async function PATCH(request: Request) {
     }, { status: 202 });
   }
 
-  await recordAuditEvent({
-    organizationId: position.organizationId,
-    actor: user.name,
-    action: "Position status changed",
-    resource: position.code,
-    metadata: {
-      positionId: id,
-      from: resultOrResponse.fromStatus,
-      to: status,
-      requisitionId: resultOrResponse.requisitionId,
-      requisitionCancelled: resultOrResponse.requisitionCancelled,
-    },
-  });
+  // Vacancy-freeze status and audit were committed in the same transaction.
   return Response.json(resultOrResponse.updated);
 }
