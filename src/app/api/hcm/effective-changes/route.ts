@@ -21,7 +21,11 @@ import {
   processTypeForMovement,
   startHcmBusinessProcessTx,
 } from "@/lib/hcm-business-process";
-import { enforceSameOriginMutation } from "@/lib/security-request";
+import {
+  enforceSameOriginMutation,
+  enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
+} from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
 
@@ -109,6 +113,16 @@ export async function POST(request: Request) {
 
   const gate = await assertCompanyWidePeople(user.id, organizationId);
   if ("error" in gate) return gate.error;
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id,
+    action: "hcm-effective-change-request",
+    resourceId: employeeId,
+    limit: 5,
+    windowMs: 15 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
 
   const [employee] = await db.select().from(employees).where(and(
     eq(employees.id, employeeId),
@@ -441,6 +455,16 @@ export async function PATCH(request: Request) {
 
   const gate = await assertCompanyWidePeople(user.id, change.organizationId);
   if ("error" in gate) return gate.error;
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id,
+    action: "hcm-effective-change-decision",
+    resourceId: id,
+    limit: 8,
+    windowMs: 15 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
 
   const linkedBusinessProcess = await findHcmBusinessProcessForSource({
     organizationId: change.organizationId,
