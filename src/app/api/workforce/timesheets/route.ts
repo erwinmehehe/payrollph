@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
@@ -13,6 +13,11 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import {
+  checkHcmWorkPeriod,
+  hcmWorkPeriodGuardEnabled,
+  workPeriodDeniedResponse,
+} from "@/lib/hcm-work-period-guard";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -212,6 +217,12 @@ export async function POST(request: Request) {
     if (!employee) return Response.json({ error: "Employee not found." }, { status: 404 });
     const scope = assertScope(access, employee.orgUnitId);
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+    const workPeriod = await checkHcmWorkPeriod({
+      employeeId, organizationId,
+      status: employee.status, startDate: String(employee.startDate),
+    }, periodStart, periodEnd);
+    const deniedWorkPeriod = workPeriodDeniedResponse(workPeriod);
+    if (deniedWorkPeriod) return deniedWorkPeriod;
 
     const existing = await db.select().from(workforceTimesheets).where(and(
       eq(workforceTimesheets.organizationId, organizationId),
@@ -231,6 +242,20 @@ export async function POST(request: Request) {
     });
     const version = (existing[0]?.version ?? 0) + 1;
     const [created] = await db.transaction(async (tx) => {
+      if (hcmWorkPeriodGuardEnabled()) {
+        // Hold the worker row while creating approval evidence; an exit
+        // transition cannot commit a different status during this interval.
+        await tx.execute(sql`select id from employees where id = ${employeeId} and organization_id = ${organizationId} for share`);
+        const [freshEmployee] = await tx.select().from(employees).where(and(
+          eq(employees.id, employeeId), eq(employees.organizationId, organizationId),
+        )).limit(1);
+        if (!freshEmployee) return [];
+        const verified = await checkHcmWorkPeriod({
+          employeeId, organizationId,
+          status: freshEmployee.status, startDate: String(freshEmployee.startDate),
+        }, periodStart, periodEnd, tx as unknown as Pick<typeof db, "select">);
+        if (!verified.ok) return [];
+      }
       const [submitted] = await tx.insert(workforceTimesheets).values({
         organizationId,
         employeeId,
@@ -261,6 +286,12 @@ export async function POST(request: Request) {
       }, tx);
       return [submitted];
     });
+    if (!created) {
+      return Response.json({
+        code: "HCM_WORKER_LIFECYCLE_CHANGED",
+        error: "The employee lifecycle changed while creating this timesheet. Recheck the verified employment dates before resubmitting.",
+      }, { status: 409 });
+    }
 
     await recordAuditEvent({
       organizationId,
@@ -316,6 +347,13 @@ export async function POST(request: Request) {
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
     if (decision === "approved") {
+      const workPeriod = await checkHcmWorkPeriod({
+        employeeId: employee.id, organizationId,
+        status: employee.status, startDate: String(employee.startDate),
+      }, String(timesheet.periodStart), String(timesheet.periodEnd));
+      const deniedWorkPeriod = workPeriodDeniedResponse(workPeriod);
+      if (deniedWorkPeriod) return deniedWorkPeriod;
+
       const current = await buildEmployeeTimesheetSnapshot({
         organizationId,
         employeeId: timesheet.employeeId,
@@ -342,6 +380,19 @@ export async function POST(request: Request) {
     }
 
     const [updated] = await db.transaction(async (tx) => {
+      if (decision === "approved" && hcmWorkPeriodGuardEnabled()) {
+        await tx.execute(sql`select id from employees where id = ${timesheet.employeeId} and organization_id = ${organizationId} for share`);
+        const [freshEmployee] = await tx.select().from(employees).where(and(
+          eq(employees.id, timesheet.employeeId), eq(employees.organizationId, organizationId),
+        )).limit(1);
+        if (!freshEmployee) return [];
+        const verified = await checkHcmWorkPeriod({
+          employeeId: freshEmployee.id, organizationId,
+          status: freshEmployee.status, startDate: String(freshEmployee.startDate),
+        }, String(timesheet.periodStart), String(timesheet.periodEnd),
+        tx as unknown as Pick<typeof db, "select">);
+        if (!verified.ok) return [];
+      }
       const [decided] = await tx.update(workforceTimesheets).set({
         status: decision,
         decidedBy: user.name,
@@ -366,7 +417,10 @@ export async function POST(request: Request) {
       }, tx);
       return [decided];
     });
-    if (!updated) return Response.json({ error: "Timesheet state changed while deciding it. Refresh and retry." }, { status: 409 });
+    if (!updated) return Response.json({
+      code: "TIMESHEET_APPROVAL_STALE_OR_OUTSIDE_EMPLOYMENT",
+      error: "Timesheet evidence or the employee's employment window changed during review. Refresh and reconcile before approving.",
+    }, { status: 409 });
 
     await recordAuditEvent({
       organizationId,
