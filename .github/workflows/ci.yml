@@ -60,6 +60,9 @@ jobs:
           if-no-files-found: warn
       - run: npx tsc --noEmit
       - run: npx tsx --test tests/*.test.ts
+        env:
+          CI: "true"
+          SCHEDULER_REHEARSAL_MODE: isolated-ci-only
       - name: Run statutory golden payroll certification
         run: npm run payroll:golden
       - name: Upload golden payroll certification evidence
