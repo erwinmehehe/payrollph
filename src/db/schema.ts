@@ -1702,6 +1702,46 @@ export const supplementaryEarnings = pgTable("supplementary_earnings", {
   index("supplementary_earnings_status_effective_idx").on(table.status, table.effectiveDate),
 ]);
 
+/**
+ * Reviewed, one-time historic basic-pay underpayment claims.
+ * An approval posts a separately settled taxable earning in a future cutoff.
+ * Historical released runs and current base-pay profiles remain immutable.
+ */
+export const payrollUnderpaymentRequests = pgTable(
+  "payroll_underpayment_requests",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+    sourcePayrollRunId: integer("source_payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "restrict" }),
+    sourcePayrollEntryId: integer("source_payroll_entry_id").notNull().references(() => payrollEntries.id, { onDelete: "restrict" }),
+    sourceEntryHash: varchar("source_entry_hash", { length: 64 }).notNull(),
+    amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+    effectiveDate: date("effective_date").notNull(),
+    reason: varchar("reason", { length: 500 }).notNull(),
+    evidenceReference: varchar("evidence_reference", { length: 200 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("pending_review"),
+    requestedByUserId: integer("requested_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    requestedBy: varchar("requested_by", { length: 120 }).notNull(),
+    reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+    reviewedBy: varchar("reviewed_by", { length: 120 }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    reviewReason: varchar("review_reason", { length: 500 }),
+    postedEarningId: integer("posted_earning_id").unique().references(() => supplementaryEarnings.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("payroll_underpayment_requests_org_status_idx").on(table.organizationId, table.status, table.createdAt),
+    uniqueIndex("payroll_underpayment_one_source_unique").on(table.organizationId, table.employeeId, table.sourcePayrollRunId)
+      .where(sql`${table.status} in ('pending_review','posted')`),
+    check("payroll_underpayment_amount_check", sql`${table.amount} > 0 and ${table.amount} <= 1000000`),
+    check("payroll_underpayment_status_check", sql`${table.status} in ('pending_review','posted','rejected')`),
+    check("payroll_underpayment_posted_consistency_check",
+      sql`(${table.status} = 'posted' and ${table.postedEarningId} is not null and ${table.reviewedByUserId} is not null)
+        or (${table.status} <> 'posted' and ${table.postedEarningId} is null)`),
+  ],
+);
+
 export const minWageOrders = pgTable("min_wage_orders", {
   id: serial("id").primaryKey(),
   region: varchar("region", { length: 32 }).notNull(),
