@@ -36,6 +36,12 @@ still required. No request parameter can bypass the feature gate.
    settlement, employee status and position updates, offboarding events
    and financial audit record are in a single transaction.
 
+Final-pay release now checks that the worker is still **Separating**
+with the same organization unit/legal employer and that any active primary
+position is still **Filled**. Transactional compare-and-set updates prevent
+silently overwriting a concurrent worker/assignment/position change. Failed
+checks roll back the entire release and its loan, audit and history writes.
+
 The release reference is **operator-attested evidence, not API-verified bank
 settlement**. A separate reconciliation/actual payment receipt is required
 before treating final pay as actually disbursed. Never make a payment based on
