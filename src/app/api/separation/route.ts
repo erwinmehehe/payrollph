@@ -29,7 +29,6 @@ import {
   PAYROLL_RELEASE_ROLES,
   PEOPLE_PAYROLL_ROLES,
 } from "@/lib/access";
-import { recordAuditEvent } from "@/lib/audit";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
 import { computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "@/lib/final-pay";
@@ -43,7 +42,7 @@ import { freezeSeparationIntent, separationEvidenceFromDefinition, separationInt
 
 export const dynamic = "force-dynamic";
 
-export function validSeparationDate(value: string) {
+function validSeparationDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
