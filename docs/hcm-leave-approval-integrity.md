@@ -30,8 +30,10 @@ employment day.
 
 ## Transactional behavior
 
-- **Leave submission:** approval task, leave request, initial precise timing
-  revision and submitter audit commit as one database transaction.
+- **Leave submission:** hold a shared employee lock and recheck actual
+  employment eligibility just before writing; the approval task, leave
+  request, initial precise timing revision and submitter audit commit as one
+  database transaction, or no record is created.
 - **Timing revision:** row-lock Pending leave, re-evaluate current employee
   and last-day eligibility, assign a unique next timing revision, supersede
   the old timing, update overlapping submitted/approved timesheets to Stale,
