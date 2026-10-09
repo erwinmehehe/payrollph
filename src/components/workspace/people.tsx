@@ -24,6 +24,9 @@ import { HcmEmploymentLifecycleActionCenter } from "@/components/hcm-employment-
 import { HcmEmploymentLifecycleWorker } from "@/components/hcm-employment-lifecycle-worker";
 import { HcmLifecycleNotificationInbox } from "@/components/hcm-lifecycle-notification-inbox";
 import { HcmLifecyclePolicyPanel } from "@/components/hcm-lifecycle-policy-panel";
+import { HcmWorkerJourneyPanel } from "@/components/hcm-worker-journey-panel";
+import { HcmWorkerJourneyActions } from "@/components/hcm-worker-journey-actions";
+import type { HcmWorkerJourney } from "@/lib/hcm-worker-journey";
 import type { DashboardData, Employee } from "./types";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, money } from "./ui";
@@ -50,6 +53,7 @@ type PayoutDestinationChangeRequest = {
 };
 
 type ConnectedWorkerProfile = {
+  journey: HcmWorkerJourney;
   position: null | {
     id: number;
     code: string;
@@ -1313,6 +1317,9 @@ function PersonDrawer({
                     </small>
                   </div>
                 </div>
+
+                <HcmWorkerJourneyPanel journey={connectedProfile.journey} onPage={onPage} />
+                <HcmWorkerJourneyActions journey={connectedProfile.journey} onPage={onPage} />
 
                 <div style={{ marginTop: 14 }}>
                   <div className="card-header" style={{ padding: 0, marginBottom: 8 }}>
