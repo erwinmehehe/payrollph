@@ -48,6 +48,11 @@ export function payableTimeEvidenceFlagsForPayroll(
   // Missing price segments for independently derived worked minutes must
   // block approval even when an upstream caller unexpectedly forgot to emit
   // a flag or marked the segmentation complete.
+  // Never silently treat malformed worked-minute evidence as zero.
+  // NaN and Infinity would otherwise bypass the no-segments check.
+  if (!Number.isSafeInteger(derivedWorkedMinutes) || derivedWorkedMinutes < 0) {
+    return [`${WFM_PREMIUM_ALLOCATION_UNVERIFIED}: Derived worked minutes are invalid; reconcile attendance and break evidence before payroll approval.`];
+  }
   const unpricedWorkedTime = segmentation.segments.length === 0 && derivedWorkedMinutes > 0;
   // A persistent machine-readable financial blocker always wins, even if an
   // upstream caller mistakenly marks otherwise plausible segments complete.
@@ -73,6 +78,12 @@ export function payableTimeEvidenceFlagsForPayroll(
 
 const PH_OFFSET_MS = 8 * 60 * 60_000;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+function isRealPhWorkDate(value: string) {
+  if (!ISO_DATE.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 const TIME_OF_DAY = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
 
 export function advancedScheduleForPayroll(
@@ -187,12 +198,12 @@ export function segmentPayableTime(input: {
   const actualIn = asInstant(input.punch.timeIn);
   const actualOut = asInstant(input.punch.timeOut);
 
-  if (!ISO_DATE.test(input.punch.workDate)) {
+  if (!isRealPhWorkDate(input.punch.workDate)) {
     return {
       segments: [],
       attendanceCalendarDates: [],
       allocationComplete: false,
-      flags: ["Payable-time segmentation requires a YYYY-MM-DD work date."],
+      flags: ["Payable-time segmentation requires a real YYYY-MM-DD work date."],
     };
   }
   if (!TIME_OF_DAY.test(input.shift.start) || !TIME_OF_DAY.test(input.shift.end)) {
