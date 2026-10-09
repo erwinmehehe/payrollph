@@ -3,7 +3,11 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
-import { employees, hcmBusinessProcessDefinitions, organizations, separationRecords } from "../src/db/schema";
+import {
+  approvalTasks, employees, hcmBusinessProcessDefinitions,
+  hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps,
+  organizations, separationRecords,
+} from "../src/db/schema";
 import { loadHcmGovernanceReadiness } from "../src/lib/hcm-governance-readiness-server";
 
 test("HCM aggregate read is strictly organization-scoped and does not reveal worker identities", async () => {
@@ -55,6 +59,46 @@ test("HCM aggregate read is strictly organization-scoped and does not reveal wor
       lastDay: "2026-02-01",
       status: "released",
     });
+    // The tenant-specific workflow examples contain no real employee data:
+    // one overdue pending approval with a lost task, one stalled workflow,
+    // and one healthy current approval linked to an open approval task.
+    const [missingTask, stalled, healthy] = await db.insert(hcmBusinessProcessInstances).values(
+      ["missing-task", "stalled", "healthy"].map((key) => ({
+        organizationId: beta.id,
+        definitionCode: "system-hire-default",
+        definitionVersion: 1,
+        processType: "hire",
+        sourceType: "readiness-fixture",
+        sourceKey: `beta-${key}-${unique}`,
+        currentStepIndex: 0,
+        definitionSnapshot: { code: "system-hire-default", steps: [{ type: "approval", label: "Review", assignee: "role:hr" }] },
+        initiatedByName: "QA",
+        status: "in_progress",
+      })),
+    ).returning();
+    const [healthyTask] = await db.insert(approvalTasks).values({
+      organizationId: beta.id,
+      title: "HCM current review",
+      detail: "Synthetic workflow integrity evidence",
+      approver: "role:hr",
+      dueLabel: "Due 2099-01-01",
+      status: "Pending",
+    }).returning();
+    await db.insert(hcmBusinessProcessInstanceSteps).values([
+      {
+        organizationId: beta.id, instanceId: missingTask.id, stepIndex: 0,
+        stepType: "approval", label: "Missing task", assignee: "role:hr",
+        status: "pending", dueAt: new Date("2020-01-01T00:00:00Z"),
+      },
+      {
+        organizationId: beta.id, instanceId: healthy.id, stepIndex: 0,
+        stepType: "approval", label: "Healthy pending", assignee: "role:hr",
+        approvalTaskId: healthyTask.id, status: "pending",
+        dueAt: new Date("2099-01-01T00:00:00Z"),
+      },
+    ]);
+    assert.ok(stalled.id !== healthy.id);
+
     // Intentionally only READ the tenant's aggregates; no migration, action
     // or PII-containing row should be returned from the service.
     const a = await loadHcmGovernanceReadiness(alpha.id);
@@ -69,6 +113,16 @@ test("HCM aggregate read is strictly organization-scoped and does not reveal wor
     assert.equal(a.findings.find(x => x.code === "FUTURE_EMPLOYMENT_START_DATE")?.affected, 1);
     assert.equal(a.processes.find(x => x.processType === "hire")?.configuredDefinitions, 0);
     assert.equal(b.processes.find(x => x.processType === "hire")?.configuredDefinitions, 1);
+    assert.equal(a.summary.pendingHcmSteps, 0);
+    assert.equal(a.summary.overdueHcmSteps, 0);
+    assert.equal(b.summary.pendingHcmSteps, 2);
+    assert.equal(b.summary.overdueHcmSteps, 1);
+    assert.equal(b.summary.inProgressBusinessProcesses, 3);
+    assert.equal(b.findings.find(x => x.code === "HCM_OVERDUE_WORK_ITEMS")?.affected, 1);
+    assert.equal(b.findings.find(x => x.code === "HCM_APPROVAL_TASK_MISMATCH")?.affected, 1);
+    assert.equal(b.findings.find(x => x.code === "HCM_PROCESS_NO_ACTIVE_STEP")?.affected, 1);
+    assert.equal(a.findings.find(x => x.code === "HCM_APPROVAL_TASK_MISMATCH"), undefined);
+    assert.equal(a.findings.find(x => x.code === "HCM_PROCESS_NO_ACTIVE_STEP"), undefined);
     for (const report of [a, b]) {
       const body = JSON.stringify(report);
       assert.ok(!body.includes("ONLY-ALPHA"));
