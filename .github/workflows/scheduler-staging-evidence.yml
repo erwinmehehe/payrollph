@@ -1,0 +1,39 @@
+name: Scheduler Staging Evidence Validator (Offline)
+
+on:
+  pull_request:
+    paths:
+      - "scripts/validate-scheduler-staging-evidence.mjs"
+      - "scripts/verify-scheduler-github-runs.mjs"
+      - "tests/scheduler-staging-evidence.test.mjs"
+      - "tests/scheduler-github-run-provenance.test.mjs"
+      - "docs/engineering/scheduler-staging-evidence-*.md"
+      - "docs/engineering/scheduler-staging-evidence-*.json"
+      - ".github/workflows/scheduler-staging-evidence.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/validate-scheduler-staging-evidence.mjs"
+      - "scripts/verify-scheduler-github-runs.mjs"
+      - "tests/scheduler-staging-evidence.test.mjs"
+      - "tests/scheduler-github-run-provenance.test.mjs"
+      - "docs/engineering/scheduler-staging-evidence-*.md"
+      - "docs/engineering/scheduler-staging-evidence-*.json"
+      - ".github/workflows/scheduler-staging-evidence.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  offline-validator-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Validate offline evidence and mock GitHub run/reviewer provenance (no credentials)
+        run: node --test tests/scheduler-staging-evidence.test.mjs tests/scheduler-github-run-provenance.test.mjs

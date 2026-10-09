@@ -19,10 +19,11 @@ test("approved leave feeds WFM coverage and full open-shift eligibility", () => 
 
 test("leave approval invalidates overlapping submitted or approved timesheets", () => {
   const approvals = read("src/app/api/approvals/[id]/route.ts");
-  assert.ok(approvals.includes("markTimesheetsStaleForEmployeeRange"));
+  assert.ok(approvals.includes("tx.update(workforceTimesheets)"));
   assert.ok(approvals.includes("leaveStaleTimesheetIds"));
-  assert.ok(approvals.includes("startDate: String(linkedLeave.startDate)"));
-  assert.ok(approvals.includes("endDate: String(linkedLeave.endDate)"));
+  assert.ok(approvals.includes("lte(workforceTimesheets.periodStart, String(decidedLeave.endDate))"));
+  assert.ok(approvals.includes("gte(workforceTimesheets.periodEnd, String(decidedLeave.startDate))"));
+  assert.ok(approvals.includes("tx.update(leaveRequests)"));
 });
 
 test("coverage UI distinguishes unavailable, unqualified and approved-leave exclusions", () => {
