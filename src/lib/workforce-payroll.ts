@@ -223,6 +223,22 @@ export function segmentPayableTime(input: {
     };
   }
 
+  // Work date is an authoritative payroll pricing input. If it is several
+  // calendar days away from the actual Philippine clock-in date, using that
+  // date to derive scheduled overtime could price the entire punch wrongly.
+  // Adjacent dates remain valid for early and overnight clock-ins.
+  const firstPunchDate = phDateText(actualIn);
+  const earliestWorkDate = addIsoDays(input.punch.workDate, -1);
+  const latestWorkDate = addIsoDays(input.punch.workDate, 1);
+  if (firstPunchDate < earliestWorkDate || firstPunchDate > latestWorkDate) {
+    return {
+      segments: [],
+      attendanceCalendarDates: [],
+      allocationComplete: false,
+      flags: [`${WFM_PREMIUM_ALLOCATION_UNVERIFIED}: Punch clock-in and source work date differ by more than one Philippine calendar day; reconcile the actual work date before payroll approval.`],
+    };
+  }
+
   const attendanceCalendarDates = calendarDatesTouched(actualIn, actualOut);
   // The boundary enumerator is deliberately capped at eight PH calendar dates.
   // Never silently price the remainder of a longer punch without its midnight
@@ -250,7 +266,18 @@ export function segmentPayableTime(input: {
     };
   }
 
-  const scheduledBreakMinutes = Math.max(0, Number(input.shift.breakMinutes ?? 0));
+  // Invalid schedule break lengths must not silently become zero or NaN.
+  // A malformed break changes payable minutes and can distort premium buckets.
+  const scheduledBreakMinutes = input.shift.breakMinutes ?? 0;
+  if (!Number.isSafeInteger(scheduledBreakMinutes)
+    || scheduledBreakMinutes < 0 || scheduledBreakMinutes > 24 * 60) {
+    return {
+      segments: [],
+      attendanceCalendarDates,
+      allocationComplete: false,
+      flags: [`${WFM_PREMIUM_ALLOCATION_UNVERIFIED}: Scheduled break duration is invalid; reconcile the schedule before payroll approval.`],
+    };
+  }
   const breakStart = asInstant(input.punch.breakStart);
   const breakEnd = asInstant(input.punch.breakEnd);
   let locatedBreak: { start: Date; end: Date } | null = null;
