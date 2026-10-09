@@ -417,6 +417,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       let staleLeaveTimesheetIds: number[] = [];
       if (leaveForDecision) {
         if (leaveForDecision.status !== "Pending") throw new Error("LEAVE_APPROVAL_STALE");
+        // Rely on immutable initial precise-leave evidence for maker/checker
+        // identity, not the mutable employee name or current interval author.
+        const [originalIntervalSet] = await tx.select({
+          createdByUserId: leaveRequestIntervalSets.createdByUserId,
+        }).from(leaveRequestIntervalSets).where(and(
+          eq(leaveRequestIntervalSets.organizationId, task.organizationId),
+          eq(leaveRequestIntervalSets.leaveRequestId, leaveForDecision.id),
+          eq(leaveRequestIntervalSets.revision, 1),
+        )).limit(1);
+        if (originalIntervalSet?.createdByUserId === sessionUser.id) {
+          throw new Error("LEAVE_SELF_APPROVAL");
+        }
+        if (status === "Approved" && !originalIntervalSet?.createdByUserId) {
+          throw new Error("LEAVE_REQUESTER_IDENTITY_UNKNOWN");
+        }
         if (status === "Approved") {
           await tx.execute(sql`select id from employees where id = ${leaveForDecision.employeeId}
             and organization_id = ${task.organizationId} for share`);
@@ -601,6 +616,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     hcmBusinessProcess = decisionResult.hcmResult;
     workforcePlanDecision = decisionResult.sourceDecision;
   } catch (error) {
+    if (error instanceof Error && error.message === "LEAVE_SELF_APPROVAL") {
+      return Response.json({
+        code: "LEAVE_SELF_APPROVAL",
+        error: "Maker-checker: the person who originally submitted this leave cannot decide its approval.",
+      }, { status: 403 });
+    }
+    if (error instanceof Error && error.message === "LEAVE_REQUESTER_IDENTITY_UNKNOWN") {
+      return Response.json({
+        code: "LEAVE_REQUESTER_IDENTITY_UNKNOWN",
+        error: "The legacy leave request lacks a verified requester identity. Resubmit it through the governed leave workflow.",
+      }, { status: 409 });
+    }
     if (error instanceof Error && (
       error.message === "PAYROLL_APPROVAL_CONFLICT" ||
       error.message === "APPROVAL_TASK_CONFLICT" ||
