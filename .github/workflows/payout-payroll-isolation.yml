@@ -4,6 +4,8 @@ on:
   pull_request:
     branches:
       - main
+      # Enforce full payroll release checks on dependent PR #688.
+      - feat/payroll-connected-impact-review-20261009
   workflow_dispatch:
 
 concurrency:
