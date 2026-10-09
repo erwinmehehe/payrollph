@@ -105,7 +105,10 @@ test("lease ownership is checked before every separately invoked high-impact sch
     const previousTask = source.slice(lastFence, callAt);
     assert.ok(lastFence >= 0 && previousTask.length < 550, functionName + " needs a nearby lease check");
   }
-  assert.match(source, /await assertLeaseOwnership\(\);\s+if \(row\) \{\s+await db\.update\(schedulerState\)/);
+  const finalLeaseGuard = source.lastIndexOf("await assertLeaseOwnership();");
+  const completedWrite = source.indexOf("await db.update(schedulerState).set({ lastRunAt: completedAt", finalLeaseGuard);
+  assert.ok(finalLeaseGuard >= 0 && completedWrite > finalLeaseGuard,
+    "the scheduler completion receipt must remain guarded by the final lease fence");
 });
 
 test("a stale scheduler cannot falsely acknowledge success after losing the lease", async () => {
