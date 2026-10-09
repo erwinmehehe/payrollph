@@ -99,6 +99,12 @@ test("separation API requires independent maker, checker and releaser before mon
   assert.ok(route.includes('action: "Final pay released with independently separated approvers"'));
   assert.ok(route.includes("await tx.insert(auditEvents)"));
   assert.ok(route.includes("FOR UPDATE"));
+  assert.ok(route.includes("FINAL_PAY_WORKER_STATE_CHANGED"));
+  assert.ok(route.includes("FINAL_PAY_POSITION_STATE_CHANGED"));
+  assert.ok(route.includes('eq(employees.status, "Separating")'));
+  assert.ok(route.includes('eq(positions.status, "filled")'));
+  assert.ok(route.includes("if (!closedAssignment)"));
+  assert.ok(route.includes("if (!vacantPosition)"));
   assert.ok(ui.includes("selectedRecord.preparedByUserId === currentUserId"));
   assert.ok(ui.includes("selectedRecord.approvedByUserId === currentUserId"));
 });
