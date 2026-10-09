@@ -19,12 +19,21 @@ export function validCalendarDate(value: string) {
 export function payrollSourceFingerprint(entry: {
   id: number; payrollRunId: number; employeeId: number;
   grossPay: string | number; netPay: string | number; lineItems: unknown;
+  deductions?: string | number; status?: string; trace?: unknown;
 }) {
   return createHash("sha256").update(JSON.stringify({
     id: entry.id, payrollRunId: entry.payrollRunId,
     employeeId: entry.employeeId,
-    grossPay: entry.grossPay, netPay: entry.netPay, lineItems: entry.lineItems,
+    grossPay: entry.grossPay, deductions: entry.deductions, netPay: entry.netPay,
+    status: entry.status, lineItems: entry.lineItems, trace: entry.trace,
   })).digest("hex");
+}
+
+export function hasOriginalBasicPayLine(value: unknown) {
+  return Array.isArray(value) && value.some(item =>
+    !!item && typeof item === "object" && !Array.isArray(item)
+    && (item as { code?: unknown }).code === "BASIC"
+  );
 }
 
 export function conflictingCutoff<T extends {
