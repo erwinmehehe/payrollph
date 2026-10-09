@@ -56,5 +56,6 @@ test("missing staging secret fails closed before networking", async()=>{
   await assert.rejects(()=>main({
     PAYROLL_STAGING_URL:"https://staging.example.test/",
     PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
+    PAYROLL_PRODUCTION_HOST:"prod.example.test",
   },async()=>{throw new Error("should not connect")}),/staging worker token/);
 });
