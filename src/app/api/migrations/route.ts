@@ -433,10 +433,10 @@ export async function POST(request: Request) {
   if (kind === "employees") {
     try {
       const committedBatch = await db.transaction(async (tx) => {
-        // Serialize initial employee migrations and roll back worker/pay/audit
-        // changes together. Other operational routes must share a migration
-        // lock before simultaneous live cutovers can be certified.
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(4213, ${organizationId})`);
+        // Serialize initial employee-master migrations with create-only CSV imports
+        // under one tenant lock; worker/pay/audit records roll back together.
+        // Direct employee creation still needs approved production cutover control.
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(4212, ${organizationId})`);
         // Recheck authoritative state using this same transaction/connection
         // (important when PG_POOL_MAX=1). No nested pool read is allowed.
         const lateState = await tx.execute(sql`

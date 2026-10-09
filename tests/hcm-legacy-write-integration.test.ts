@@ -23,3 +23,13 @@ test("create-only CSV must not rewrite existing salary or identity", () => {
   assert.ok(code.includes("IMPORT_DUPLICATE_AFTER_PREFLIGHT"));
   assert.ok(!code.includes("await db.update(employees).set"));
 });
+
+
+test("CSV and initial employee-master imports serialize on one tenant lock", () => {
+  const csv = readFileSync("src/app/api/employees/import/route.ts", "utf8");
+  const migration = readFileSync("src/app/api/migrations/route.ts", "utf8");
+  const lock = "pg_advisory_xact_lock(4212, ${organizationId})";
+  assert.ok(csv.includes(lock));
+  assert.ok(migration.includes(lock));
+  assert.ok(!migration.includes("pg_advisory_xact_lock(4213,"));
+});
