@@ -25,7 +25,8 @@ test("self-assessment mutations are protected, bounded and locked after completi
 });
 
 test("employee self-service exposes performance without taking over the final rating", () => {
-  assert.ok(portal.includes('["performance", "Performance"]'));
+  assert.ok(portal.includes('performance: { label: "Performance"'));
+  assert.ok(portal.includes('ESS_MORE_TABS: SelfTab[] = ["documents", "performance", "profile"]'));
   assert.ok(portal.includes("<HcmSelfPerformance />"));
   assert.ok(selfPanel.includes("the final rating remains a separate manager decision"));
   assert.ok(selfPanel.includes('fetch("/api/self/performance"'));
