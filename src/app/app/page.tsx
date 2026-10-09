@@ -59,5 +59,5 @@ export default async function WorkspacePage() {
   if (companyDenied) redirect("/login?ssoRequired=1");
 
   const data = await getDashboardData(companyOrganizationId);
-  return <LinawWorkspace initialData={data} />;
+  return <LinawWorkspace initialData={data} isSelfServeCustomer={Boolean(signup)} />;
 }
