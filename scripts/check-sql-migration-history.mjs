@@ -16,6 +16,7 @@ export function analyzeMigrationChanges(baseFiles, changes) {
   const maxNumber = Math.max(0, ...[...byPrefix.keys()].map(Number));
   const legacyDuplicatePrefixes = [...byPrefix].filter(([, files]) => files.length > 1).map(([n]) => n);
   const newPrefixes = new Set();
+  const newNumbers = [];
   const errors = [];
   for (const { status, path } of changes.filter(item => SQL.test(item.path))) {
     if (status !== "A") {
@@ -29,8 +30,20 @@ export function analyzeMigrationChanges(baseFiles, changes) {
     }
     if (Number(match[1]) <= maxNumber || newPrefixes.has(match[1]) || byPrefix.has(match[1])) {
       errors.push("New migration number conflicts with existing history: " + path);
+    } else {
+      newNumbers.push({ number: Number(match[1]), path });
     }
     newPrefixes.add(match[1]);
+  }
+  // New migrations cannot skip predecessors even when their number is unique.
+  newNumbers.sort((a, b) => a.number - b.number);
+  for (let index = 0; index < newNumbers.length; index += 1) {
+    const expected = maxNumber + index + 1;
+    if (newNumbers[index].number !== expected) {
+      errors.push("Missing predecessor: expected drizzle/" + String(expected).padStart(4, "0")
+        + "_*.sql before " + newNumbers[index].path
+        + "; merge numbered migrations consecutively.");
+    }
   }
   return { maxNumber, legacyDuplicatePrefixes, errors,
     changedSql: changes.filter(item => SQL.test(item.path)).length };
