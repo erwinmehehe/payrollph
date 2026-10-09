@@ -15,3 +15,22 @@ COMMENT ON COLUMN "separation_records"."approved_by_user_id"
   IS 'Different, independent company-wide final-pay checker';
 COMMENT ON COLUMN "separation_records"."released_by_user_id"
   IS 'Third distinct company-wide financial releaser after recorded payout evidence';
+
+-- The database rejects same-user pay preparation and checking even if a
+-- second mutation path bypasses application-level validation.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'separation_review_identity_separation_check'
+      AND conrelid = 'separation_records'::regclass
+  ) THEN
+    ALTER TABLE "separation_records"
+      ADD CONSTRAINT "separation_review_identity_separation_check"
+        CHECK ("prepared_by_user_id" IS NULL
+          OR "approved_by_user_id" IS NULL
+          OR "prepared_by_user_id" <> "approved_by_user_id");
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS "separation_records_org_status_idx"
+  ON "separation_records"("organization_id", "status", "id");

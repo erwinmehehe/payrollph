@@ -2867,7 +2867,13 @@ export const separationRecords = pgTable("separation_records", {
   approvedByUserId: integer("approved_by_user_id").references(() => users.id, { onDelete: "set null" }),
   releasedByUserId: integer("released_by_user_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("separation_records_org_status_idx").on(table.organizationId, table.status, table.id),
+  check("separation_review_identity_separation_check", sql`
+    ${table.preparedByUserId} is null or ${table.approvedByUserId} is null
+    or ${table.preparedByUserId} <> ${table.approvedByUserId}
+  `),
+]);
 
 export const biometricDevices = pgTable("biometric_devices", {
   id: serial("id").primaryKey(),

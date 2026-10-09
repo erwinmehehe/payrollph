@@ -46,6 +46,18 @@ test("final-pay approval identity survives in SQL, and recalculation revokes a p
       approvedAt: new Date(),
     }).where(eq(separationRecords.id, packageRow.id)).returning();
     assert.equal(approved.approvedByUserId, actors[1].id);
+    // Drizzle wraps PostgreSQL check violations; inspect the driver cause,
+    // not an unstable wrapper error string.
+    await assert.rejects(
+      () => db.update(separationRecords).set({
+        approvedByUserId: actors[0].id,
+      }).where(eq(separationRecords.id, packageRow.id)),
+      (error: unknown) => {
+        const wrapped = error as { cause?: { code?: string; constraint?: string } };
+        return wrapped.cause?.code === "23514"
+          && wrapped.cause.constraint === "separation_review_identity_separation_check";
+      },
+    );
 
     const [recomputed] = await db.update(separationRecords).set({
       status: "draft", preparedByUserId: actors[2].id,
@@ -152,4 +164,22 @@ test("SQL 0102 and runtime schema agree on stable actor columns; historical base
     assert.ok(compatibility.includes(column));
     assert.ok(!oldSeparationTable.includes(column));
   }
+});
+
+test("final pay blocks invalid Gregorian dates, premature separation, and post-commit notification false failure", async () => {
+  const source = readFileSync("src/app/api/separation/route.ts", "utf8");
+  assert.ok(source.includes("validSeparationDate(noticeDate)"));
+  assert.ok(source.includes("validSeparationDate(lastDay)"));
+  assert.ok(source.includes("date.toISOString().slice(0, 10) === value"));
+  assert.ok(source.includes("String(fresh.lastDay) > todayPh()"));
+  assert.ok(source.includes("pg_advisory_xact_lock(4106"));
+  assert.ok(source.includes("Final-pay approval or computation changed during recomputation"));
+  assert.ok(source.includes('action: "Separation intent submitted to HCM business process"'));
+  assert.ok(source.includes("businessProcessInstanceId: instance.id"));
+  assert.ok(source.includes("postReleaseWarnings.push("));
+  assert.ok(source.includes("postReleaseWarnings,"));
+  const migration = readFileSync("drizzle/0102_final_pay_maker_checker.sql", "utf8");
+  const schema = readFileSync("src/db/schema.ts", "utf8");
+  assert.ok(migration.includes("separation_review_identity_separation_check"));
+  assert.ok(schema.includes("separation_review_identity_separation_check"));
 });

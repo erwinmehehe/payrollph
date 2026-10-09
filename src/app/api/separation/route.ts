@@ -43,7 +43,14 @@ import { freezeSeparationIntent, separationEvidenceFromDefinition, separationInt
 
 export const dynamic = "force-dynamic";
 
-const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+export function validSeparationDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+function todayPh() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+}
 const money = (value: number) => (Math.round((value + Number.EPSILON) * 100) / 100).toFixed(2);
 
 function nonNegative(value: unknown, label: string) {
@@ -308,7 +315,7 @@ export async function POST(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
-  if (!Number.isInteger(employeeId) || !datePattern.test(noticeDate) || !datePattern.test(lastDay)) {
+  if (!Number.isInteger(employeeId) || !validSeparationDate(noticeDate) || !validSeparationDate(lastDay)) {
     return Response.json({ error: "employeeId, noticeDate and lastDay are required." }, { status: 400 });
   }
   if (employmentTermDecisionId !== null && !Number.isInteger(employmentTermDecisionId)) {
@@ -601,25 +608,25 @@ export async function POST(request: Request) {
           initiatedByName: user.name,
           sourceEvidence: { ...freezeSeparationIntent(separationIntent) },
         });
-        return { instance, submitted: true };
-      });
-      separationProcess = review.instance;
-      if (review.submitted) {
-        await recordAuditEvent({
+        // The HCM termination request and actor audit must commit together.
+        // An audit storage failure rolls back the pending termination intent.
+        await tx.insert(auditEvents).values({
           organizationId,
           actor: user.name,
           action: "Separation intent submitted to HCM business process",
           resource: `Employee #${employeeId}`,
           metadata: {
             employeeId,
-            businessProcessInstanceId: separationProcess.id,
+            businessProcessInstanceId: instance.id,
             noticeDate,
             lastDay,
             separationType,
             intentFingerprint,
           },
         });
-      }
+        return { instance, submitted: true };
+      });
+      separationProcess = review.instance;
       if (separationProcess.status !== "approved") {
         return Response.json({
           approvalRequired: true,
@@ -635,10 +642,24 @@ export async function POST(request: Request) {
     }
 
     const created = await db.transaction(async (tx) => {
+      // Both initial packages and recomputations share the employee lifecycle
+      // lock; old approvals cannot be silently overwritten during review.
+      await tx.execute(sql`select pg_advisory_xact_lock(4106, ${employeeId})`);
+      if (!newSeparation && existingOpen && existingOpen.status !== "released") {
+        await tx.execute(sql`select id from separation_records where id = ${existingOpen.id} and organization_id = ${organizationId} for update`);
+        const [freshPackage] = await tx.select().from(separationRecords).where(and(
+          eq(separationRecords.id, existingOpen.id),
+          eq(separationRecords.organizationId, organizationId),
+        )).limit(1);
+        if (!freshPackage || freshPackage.status !== existingOpen.status
+          || JSON.stringify(freshPackage.computationSnapshot) !== JSON.stringify(existingOpen.computationSnapshot)
+          || freshPackage.approvedByUserId !== existingOpen.approvedByUserId) {
+          throw new Error("Final-pay approval or computation changed during recomputation. Refresh and reconcile.");
+        }
+      }
       if (newSeparation) {
         // Serialize initiation and claim the approved intent before any employee
         // status or final-pay source record may be changed.
-        await tx.execute(sql`select pg_advisory_xact_lock(4106, ${employeeId})`);
         const [liveEmployee] = await tx.select({
           status: employees.status,
           orgUnitId: employees.orgUnitId,
@@ -1219,6 +1240,9 @@ export async function PATCH(request: Request) {
       if (!fresh || fresh.status !== "approved") {
         throw new Error("Final-pay release state changed. Refresh and try again.");
       }
+      if (String(fresh.lastDay) > todayPh()) {
+        throw new Error("The approved employee last day has not yet occurred. Do not mark the worker Separated or release final pay early.");
+      }
       if (fresh.preparedByUserId == null || fresh.approvedByUserId == null) {
         throw new Error("FINAL_PAY_THREE_ACTOR_EVIDENCE_MISSING: reprepare and independently approve this legacy final pay before release.");
       }
@@ -1457,19 +1481,29 @@ export async function PATCH(request: Request) {
       return updated;
     });
 
-    const automation = await runLifecycleAutomations({
-      organizationId: sep.organizationId,
-      employeeId: sep.employeeId,
-      trigger: "employee.separated",
-      eventKey: "separation-release:" + sep.id,
-      context: {
-        orgUnitId: employee.orgUnitId,
-        employmentType: employee.employmentType,
-        title: employee.title,
-      },
-    });
+    // Money, loan and employee status were already committed. Delivery errors
+    // cannot turn an actual financial release into a misleading HTTP 500.
+    const postReleaseWarnings: string[] = [];
+    let automation: Awaited<ReturnType<typeof runLifecycleAutomations>> | null = null;
+    try {
+      automation = await runLifecycleAutomations({
+        organizationId: sep.organizationId,
+        employeeId: sep.employeeId,
+        trigger: "employee.separated",
+        eventKey: "separation-release:" + sep.id,
+        context: {
+          orgUnitId: employee.orgUnitId,
+          employmentType: employee.employmentType,
+          title: employee.title,
+        },
+      });
+    } catch {
+      postReleaseWarnings.push("Financial release committed, but lifecycle automation delivery needs reconciliation.");
+    }
 
-    const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
+    let fieldChangeAutomation: Awaited<ReturnType<typeof runEmployeeFieldChangeAutomations>> | null = null;
+    try {
+      fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
       organizationId: sep.organizationId,
       employeeId: sep.employeeId,
       eventKey: "separation-release:" + sep.id + ":field-change",
@@ -1484,11 +1518,15 @@ export async function PATCH(request: Request) {
         },
       ],
     });
+    } catch {
+      postReleaseWarnings.push("Financial release committed, but the employee field-change notification needs reconciliation.");
+    }
 
     return Response.json({
       ...released,
       automation,
       fieldChangeAutomation,
+      postReleaseWarnings,
       offboarding2316: {
         status: "available",
         href: `/api/separation/${released.id}/2316`,

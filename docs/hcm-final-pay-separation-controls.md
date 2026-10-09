@@ -110,3 +110,31 @@ separation lock. A concurrent non-cooperating salary/loan change could race
 with final-pay release. A truly certified real-money rollout still needs
 source-row locking/tenant-wide serialization and bank-settlement evidence.
 This draft intentionally does not claim those controls already exist.
+
+## Additional consolidated hardening (supersedes overlapping draft #646)
+
+- The canonical release remains **three distinct actors** and manual release
+  is **disabled by default**. Do not downgrade either policy to two-person
+  approval or accept a request flag in place of real independent evidence.
+- Invalid calendar dates such as February 30 are rejected, not merely
+  matched against a YYYY-MM-DD regular expression.
+- The HCM termination-intent submission is now atomically audited with its
+  pending business-process instance; failed audit storage rolls back intent.
+- Existing final-pay recomputations share the employee lifecycle lock and
+  row-lock the prior package, rechecking status, reviewer and snapshot before
+  invalidating previous approvals.
+- The release transaction blocks changing the employee to Separated before
+  the Philippine calendar date of the approved last day.
+- A SQL CHECK constraint prevents preparer and checker being the same user,
+  including via another application write path. PostgreSQL integration tests
+  require the exact 23514 constraint violation.
+- After financial commit, automation/field-change delivery failures are
+  returned as warning messages instead of telling the user that the
+  successful money-bearing operation failed.
+- The former overlapping PR #646 used a different `0102` SQL filename.
+  Do **not** merge both. #644 and its
+  `drizzle/0102_final_pay_maker_checker.sql` are canonical.
+- **SQL ordering release gate:** the new main-branch SQL guard requires
+  migration 0100 from #626, then 0101 from #642, before this PR's 0102.
+  They all remain independent human/DBA-reviewed release candidates.
+  Passing CI on a branch based on older main does not override this gate.

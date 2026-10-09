@@ -329,7 +329,14 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
       setNotice(data.error ?? `Could not ${action} Final Pay.`);
       return;
     }
-    setNotice(action === "approve" ? "Final Pay package approved." : "Final Pay marked released and employee marked separated.");
+    const warnings = Array.isArray(data.postReleaseWarnings)
+      ? data.postReleaseWarnings.filter((note: unknown): note is string => typeof note === "string")
+      : [];
+    setNotice(action === "approve"
+      ? "Independent Final Pay approval recorded."
+      : warnings.length
+        ? `Final Pay released and employee marked separated. Follow-up: ${warnings.join(" ")}`
+        : "Final Pay marked released and employee marked separated.");
     if (action === "release") setReleaseReference("");
     setSelectedRecord(null);
     reload();
