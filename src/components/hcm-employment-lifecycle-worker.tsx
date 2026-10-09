@@ -81,6 +81,7 @@ export function HcmEmploymentLifecycleWorker({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [decisionWarning, setDecisionWarning] = useState("");
   const [showTermForm, setShowTermForm] = useState(false);
   const [showDecisionForm, setShowDecisionForm] = useState(false);
 
@@ -166,6 +167,7 @@ export function HcmEmploymentLifecycleWorker({
   async function mutate(url: string, method: "POST" | "PATCH", body: Record<string, unknown>) {
     setBusy(true);
     setError("");
+    setDecisionWarning("");
     try {
       const response = await fetch(url, {
         method,
@@ -174,6 +176,12 @@ export function HcmEmploymentLifecycleWorker({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Could not update employment lifecycle.");
+      if (typeof payload.warning === "string") {
+        // A 202 response means the approval/retry committed but activation
+        // requires reconciliation, not a failed financial/HR decision.
+        setDecisionWarning(payload.warning
+          + (typeof payload.applicationError === "string" ? ` Details: ${payload.applicationError}` : ""));
+      }
       await load();
       await onChanged?.();
       return payload;
@@ -264,6 +272,7 @@ export function HcmEmploymentLifecycleWorker({
       </div>
 
       {error && <div className="notice notice-amber" style={{ marginBottom: 12 }}><AlertTriangle size={15} /><span>{error}</span></div>}
+      {decisionWarning && <div className="notice notice-amber" style={{ marginBottom: 12 }}><AlertTriangle size={15} /><span>{decisionWarning}</span></div>}
 
       {activeTerm ? (
         <div className={activeLifecycle && ["due", "overdue"].includes(activeLifecycle.state) ? "notice notice-amber" : "notice notice-blue"} style={{ marginBottom: 12 }}>
