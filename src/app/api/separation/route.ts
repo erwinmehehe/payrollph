@@ -40,10 +40,16 @@ import { runLifecycleAutomations } from "@/lib/automation";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
 import { freezeSeparationIntent, separationEvidenceFromDefinition, separationIntentFingerprint, type HcmSeparationIntent } from "@/lib/hcm-separation-business-process";
+import {
+  canAttestSeparationClearance,
+  independentFinalPayApproval,
+  independentFinalPayRelease,
+  parseSeparationClearance,
+  validSeparationDate,
+} from "@/lib/separation-review-controls";
 
 export const dynamic = "force-dynamic";
 
-const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const money = (value: number) => (Math.round((value + Number.EPSILON) * 100) / 100).toFixed(2);
 
 function nonNegative(value: unknown, label: string) {
@@ -306,7 +312,7 @@ export async function POST(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
-  if (!Number.isInteger(employeeId) || !datePattern.test(noticeDate) || !datePattern.test(lastDay)) {
+  if (!Number.isInteger(employeeId) || !validSeparationDate(noticeDate) || !validSeparationDate(lastDay)) {
     return Response.json({ error: "employeeId, noticeDate and lastDay are required." }, { status: 400 });
   }
   if (employmentTermDecisionId !== null && !Number.isInteger(employmentTermDecisionId)) {
@@ -947,22 +953,83 @@ export async function PATCH(request: Request) {
   }
 
   if (action === "clearance") {
-    if (sep.status === "released") return Response.json({ error: "Released final pay is immutable." }, { status: 409 });
-    const itCleared = body.itCleared !== undefined ? Boolean(body.itCleared) : sep.itCleared;
-    const adminCleared = body.adminCleared !== undefined ? Boolean(body.adminCleared) : sep.adminCleared;
-    const financeCleared = body.financeCleared !== undefined ? Boolean(body.financeCleared) : sep.financeCleared;
-    const hrCleared = body.hrCleared !== undefined ? Boolean(body.hrCleared) : sep.hrCleared;
-    const allCleared = itCleared && adminCleared && financeCleared && hrCleared;
-
-    const [updated] = await db.update(separationRecords).set({
-      itCleared,
-      adminCleared,
-      financeCleared,
-      hrCleared,
-      clearanceStatus: allCleared ? "cleared" : "in_progress",
-    }).where(eq(separationRecords.id, id)).returning();
-
-    return Response.json(updated);
+    const decision = parseSeparationClearance(body);
+    if (!decision) {
+      return Response.json({
+        code: "SEPARATION_CLEARANCE_INPUT_INVALID",
+        error: "Update exactly one clearance field using a true/false boolean and an 8-200 character evidence reference.",
+      }, { status: 400 });
+    }
+    if (!canAttestSeparationClearance(access.role, decision.field)) {
+      return Response.json({
+        code: "SEPARATION_CLEARANCE_ROLE_REQUIRED",
+        error: "That department clearance requires an authorized HR, Finance or company administrator.",
+      }, { status: 403 });
+    }
+    if (["itCleared", "adminCleared", "financeCleared"].includes(decision.field) && !access.companyWide) {
+      return Response.json({
+        code: "SEPARATION_CLEARANCE_COMPANY_SCOPE_REQUIRED",
+        error: "IT, Admin and Finance clearance requires a company-wide authorized administrator.",
+      }, { status: 403 });
+    }
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+    const rateDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id, action: "separation-department-clearance", resourceId: id,
+      limit: 12, windowMs: 15 * 60_000,
+    });
+    if (rateDenied) return rateDenied;
+    try {
+      const updated = await db.transaction(async tx => {
+        // One-row lock prevents two departments from overwriting each
+        // other's independent clearance decisions.
+        await tx.execute(sql`select id from separation_records where id = ${id} and organization_id = ${sep.organizationId} for update`);
+        const [fresh] = await tx.select().from(separationRecords).where(and(
+          eq(separationRecords.id, id), eq(separationRecords.organizationId, sep.organizationId),
+        )).limit(1);
+        if (!fresh || fresh.status !== "draft") {
+          throw new Error("SEPARATION_CLEARANCE_LOCKED");
+        }
+        const flags = {
+          itCleared: fresh.itCleared,
+          adminCleared: fresh.adminCleared,
+          financeCleared: fresh.financeCleared,
+          hrCleared: fresh.hrCleared,
+        };
+        const previous = flags[decision.field];
+        if (previous === decision.value) return fresh;
+        flags[decision.field] = decision.value;
+        const [changed] = await tx.update(separationRecords).set({
+          ...flags,
+          clearanceStatus: Object.values(flags).every(Boolean) ? "cleared" : "in_progress",
+        }).where(and(
+          eq(separationRecords.id, id),
+          eq(separationRecords.organizationId, sep.organizationId),
+          eq(separationRecords.status, "draft"),
+        )).returning();
+        if (!changed) throw new Error("SEPARATION_CLEARANCE_LOCKED");
+        await tx.insert(auditEvents).values({
+          organizationId: sep.organizationId, actor: user.name,
+          action: "Separation departmental clearance decision",
+          resource: `Separation #${id}`,
+          metadata: {
+            employeeId: sep.employeeId, actorUserId: user.id,
+            field: decision.field, previousValue: previous,
+            newValue: decision.value, evidenceReference: decision.evidenceReference,
+          },
+        });
+        return changed;
+      });
+      return Response.json(updated);
+    } catch (error) {
+      if (error instanceof Error && error.message === "SEPARATION_CLEARANCE_LOCKED") {
+        return Response.json({
+          code: "SEPARATION_CLEARANCE_LOCKED",
+          error: "Clearances may be changed only while final pay is Draft. Recompute before any further approval decision.",
+        }, { status: 409 });
+      }
+      throw error;
+    }
   }
 
   if (action === "issue_coe") {
