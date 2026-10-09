@@ -109,8 +109,8 @@ export async function POST(request: Request) {
   if (action === "reject" && reviewNote.length < 8) {
     return Response.json({ error: "Explain why this ID request cannot be approved (8 or more characters)." }, { status: 422 });
   }
-  if (action === "approve" && body.verifiedAgainstDocument !== true) {
-    return Response.json({ error: "Confirm that the ID was verified against a trusted employee document." }, { status: 422 });
+  if (action === "approve" && body.verifiedAgainstRecord !== true) {
+    return Response.json({ error: "Confirm that the number was checked against a trusted HR or official agency record." }, { status: 422 });
   }
 
   const result = await db.transaction(async (tx) => {
@@ -143,7 +143,7 @@ export async function POST(request: Request) {
       const first = Buffer.from(verified.value, "utf8");
       const second = Buffer.from(original, "utf8");
       if (first.length !== second.length || !timingSafeEqual(first, second)) {
-        return { error: "The entered ID does not match the submitted request. Check the trusted document.", status: 422 };
+        return { error: "The entered ID does not match the submitted request. Check the trusted record.", status: 422 };
       }
 
       // Only approved values can affect the authoritative employee record.
@@ -182,7 +182,7 @@ export async function POST(request: Request) {
     actor: ctx.user.name,
     action: action === "approve" ? "Employee identifier verified and applied" : "Employee identifier request rejected",
     resource: result.employeeNo,
-    metadata: { requestId, employeeId: result.employeeId, kind: result.kind, decision: result.status, verifiedAgainstDocument: action === "approve" },
+    metadata: { requestId, employeeId: result.employeeId, kind: result.kind, decision: result.status, verifiedAgainstRecord: action === "approve" },
   });
   return Response.json({ ok: true, status: result.status }, { headers: PRIVATE_HEADERS });
 }
