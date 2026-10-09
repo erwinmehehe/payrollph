@@ -38,12 +38,12 @@ export function checkSchedulerResponse(httpStatus, payload) {
 export async function main(env = process.env, fetcher = fetch) {
   const target = validateStagingTarget(env.PAYROLL_STAGING_URL, env.PAYROLL_STAGING_EXPECTED_HOST,
     env.PAYROLL_PRODUCTION_HOST ?? "");
-  if (!env.PAYROLL_STAGING_WORKER_TOKEN || env.PAYROLL_STAGING_WORKER_TOKEN.length < 20) {
-    throw new Error("A protected staging worker token must be configured.");
+  if (!env.PAYROLL_STAGING_MONITOR_TOKEN || env.PAYROLL_STAGING_MONITOR_TOKEN.length < 32) {
+    throw new Error("A dedicated read-only staging monitor token of at least 32 characters must be configured.");
   }
   const response = await fetcher(target, {
     method: "GET",
-    headers: { "x-worker-token": env.PAYROLL_STAGING_WORKER_TOKEN, "accept": "application/json" },
+    headers: { "x-scheduler-monitor-token": env.PAYROLL_STAGING_MONITOR_TOKEN, "accept": "application/json" },
     redirect: "error",
     cache: "no-store",
     signal: AbortSignal.timeout(10000),

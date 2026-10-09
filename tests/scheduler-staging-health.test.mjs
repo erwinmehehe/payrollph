@@ -36,7 +36,7 @@ test("read-only GET uses bounded request, explicit host and does not trigger wor
   let path = null;
   let secret = null;
   const fakeFetch=async(url,request)=>{
-    path=url.pathname;method=request.method;secret=request.headers["x-worker-token"];
+    path=url.pathname;method=request.method;secret=request.headers["x-scheduler-monitor-token"];
     return {status:200,headers:{get:()=> "application/json"},json:async()=>healthy};
   };
   try {
@@ -44,12 +44,13 @@ test("read-only GET uses bounded request, explicit host and does not trigger wor
       PAYROLL_STAGING_URL:"https://staging.example.test/",
       PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
       PAYROLL_PRODUCTION_HOST:"prod.example.test",
-      PAYROLL_STAGING_WORKER_TOKEN:"synthetic-stage-token-is-long",
+      PAYROLL_STAGING_MONITOR_TOKEN:"synthetic-stage-monitor-token-is-over-32-characters",
     },fakeFetch);
     assert.equal(verdict.ok,true);
     assert.equal(method,"GET");
     assert.equal(path,"/api/jobs/status");
-    assert.equal(secret,"synthetic-stage-token-is-long");
+    assert.equal(secret,"synthetic-stage-monitor-token-is-over-32-characters");
+    assert.notEqual(secret, undefined);
   }finally{process.exitCode=0}
 });
 test("missing staging secret fails closed before networking", async()=>{
@@ -57,7 +58,7 @@ test("missing staging secret fails closed before networking", async()=>{
     PAYROLL_STAGING_URL:"https://staging.example.test/",
     PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
     PAYROLL_PRODUCTION_HOST:"prod.example.test",
-  },async()=>{throw new Error("should not connect")}),/staging worker token/);
+  },async()=>{throw new Error("should not connect")}),/staging monitor token/);
 });
 
 
