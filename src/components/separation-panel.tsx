@@ -327,7 +327,14 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
       setNotice(data.error ?? `Could not ${action} Final Pay.`);
       return;
     }
-    setNotice(action === "approve" ? "Final Pay package approved." : "Final Pay marked released and employee marked separated.");
+    const warnings = Array.isArray(data.postReleaseWarnings)
+      ? data.postReleaseWarnings.filter((note: unknown): note is string => typeof note === "string")
+      : [];
+    setNotice(action === "approve"
+      ? "Independent Final Pay checker approval recorded."
+      : warnings.length
+        ? `Final Pay released and employee marked separated. Follow up: ${warnings.join(" ")}`
+        : "Final Pay marked released and employee marked separated.");
     if (action === "release") setReleaseReference("");
     setSelectedRecord(null);
     reload();
@@ -601,6 +608,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                     placeholder="Bank / payout reference"
                     aria-label="Final pay payout reference"
                   />
+                  <small>Only after confirming real payment externally. A reference alone is not bank verification. A different preparer must have obtained independent approval.</small>
                   <button className="primary-button" disabled={releaseReference.trim().length < 8} onClick={() => transitionFinalPay(selectedRecord.id, "release")}>
                     Mark Final Pay Released
                   </button>
