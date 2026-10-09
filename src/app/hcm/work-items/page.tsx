@@ -9,7 +9,7 @@ function localInput(date:string|null) { if (!date) return ""; const d = new Date
 function iso(value:string) { return value ? new Date(value).toISOString() : null; }
 
 export default function HcmWorkQueue() {
-  const [organizationId,setOrganizationId] = useState("");
+  const [organizationId,setOrganizationId] = useState(() => typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("organizationId") ?? "" : "");
   const [filter,setFilter] = useState("open");
   const [items,setItems] = useState<Item[]>([]);
   const [owners,setOwners] = useState<Owner[]>([]);
