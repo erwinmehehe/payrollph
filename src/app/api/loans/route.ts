@@ -1,10 +1,17 @@
-import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import {
+  enforceSameOriginMutation,
+  enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
+} from "@/lib/security-request";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employeeLoans, employees, loanPayments } from "@/db/schema";
+import { auditEvents, employeeLoans, employees, loanPayments } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
-import { recordAuditEvent } from "@/lib/audit";
+import { assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import {
+  nextLoanState, phpCents, pesoString,
+  validManualRepayment, validateLoanRegistration,
+} from "@/lib/loan-ledger-guards";
 
 export const dynamic = "force-dynamic";
 
@@ -69,154 +76,300 @@ export async function GET(request: Request) {
   });
 }
 
+class LoanLedgerConflict extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public status = 409,
+  ) {
+    super(message);
+  }
+}
+
+function manilaDate() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+}
+
 export async function POST(request: Request) {
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
-
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-
-  const body = await request.json().catch(() => ({}));
+  const incoming: unknown = await request.json().catch(() => null);
+  if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
+    return Response.json({ error: "Expected a valid employee-loan JSON object." }, { status: 400 });
+  }
+  const body = incoming as Record<string, unknown>;
   const organizationId = Number(body.organizationId);
   const employeeId = Number(body.employeeId);
-  const loanType = String(body.loanType ?? "SSS Salary Loan").trim();
-  const referenceNo = String(body.referenceNo ?? "").trim();
-  const principal = Number(body.principal);
-  const monthlyAmortization = Number(body.monthlyAmortization);
-  const cutoffDeduction = Number(body.cutoffDeduction ?? (monthlyAmortization / 2));
-  const startDate = String(body.startDate ?? new Date().toISOString().slice(0, 10));
-  const endDate = String(body.endDate ?? "");
-  const notes = String(body.notes ?? "");
-
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0
+    || !Number.isSafeInteger(employeeId) || employeeId <= 0) {
+    return Response.json({ error: "Valid organization and employee are required." }, { status: 400 });
+  }
   const denied = await assertOrganizationRole(
-    user.id,
-    organizationId,
-    PEOPLE_PAYROLL_ROLES,
-    "Only People or payroll administrators can manage employee loans.",
+    user.id, organizationId, PAYROLL_OPERATOR_ROLES,
+    "Only company-wide payroll/finance operators may register loans that can deduct from wages.",
   );
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
-  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
-
-  if (!employeeId || !referenceNo || !Number.isFinite(principal) || principal <= 0 || !Number.isFinite(monthlyAmortization) || monthlyAmortization <= 0) {
-    return Response.json({ error: "Employee, reference number, positive principal, and monthly amortization are required." }, { status: 400 });
+  if (!access?.companyWide) {
+    return Response.json({
+      code: "LOAN_FINANCE_COMPANY_SCOPE_REQUIRED",
+      error: "Registering a payroll-deducted loan requires company-wide finance/payroll authority.",
+    }, { status: 403 });
   }
-
-  const [employee] = await db.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId))).limit(1);
-  if (!employee) {
-    return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
-  }
-  const scope = assertScope(access, employee.orgUnitId);
-  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
-
-  const [loan] = await db.insert(employeeLoans).values({
-    organizationId,
-    employeeId,
-    loanType,
-    referenceNo,
-    principal: principal.toFixed(2),
-    monthlyAmortization: monthlyAmortization.toFixed(2),
-    cutoffDeduction: cutoffDeduction.toFixed(2),
-    remainingBalance: principal.toFixed(2),
-    totalPaid: "0.00",
-    status: "active",
-    startDate,
-    endDate: endDate || null,
-    notes,
-  }).returning();
-
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: "Employee loan registered",
-    resource: `${employee.firstName} ${employee.lastName} · ${loanType} (${referenceNo})`,
-    metadata: { loanId: loan.id, principal, cutoffDeduction },
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id, action: "loan-deduction-registration",
+    resourceId: employeeId, limit: 5, windowMs: 15 * 60_000,
   });
+  if (rateDenied) return rateDenied;
 
-  return Response.json(loan, { status: 201 });
+  const parsed = validateLoanRegistration(body);
+  if (!parsed.ok) return Response.json({ code: parsed.code, error: parsed.error }, { status: 400 });
+  const reg = parsed.value;
+
+  try {
+    const loan = await db.transaction(async tx => {
+      // Serialize registrations by employer to prevent two simultaneous
+      // requests from creating the same payroll-deducted loan reference.
+      await tx.execute(sql`select pg_advisory_xact_lock(4532, ${organizationId})`);
+      // Lock the worker before checking lifecycle state. A concurrent
+      // separation cannot make an inactive worker eligible for a new loan.
+      await tx.execute(sql`
+        select id from employees
+         where id = ${employeeId} and organization_id = ${organizationId}
+         for update
+      `);
+      const [worker] = await tx.select().from(employees)
+        .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId))).limit(1);
+      if (!worker) throw new LoanLedgerConflict("LOAN_WORKER_NOT_FOUND", "Worker does not belong to this employer.", 404);
+      if (!["Active", "On leave"].includes(worker.status)) {
+        throw new LoanLedgerConflict("LOAN_WORKER_NOT_ELIGIBLE",
+          "A separating or separated worker cannot be enrolled in a new automatic payroll deduction. Review final-pay and existing debt separately.");
+      }
+
+      const [sameReference] = await tx.select({ id: employeeLoans.id }).from(employeeLoans)
+        .where(and(
+          eq(employeeLoans.organizationId, organizationId),
+          eq(employeeLoans.employeeId, employeeId),
+          eq(employeeLoans.loanType, reg.loanType),
+          sql`lower(${employeeLoans.referenceNo}) = lower(${reg.referenceNo})`,
+        )).limit(1);
+      if (sameReference) {
+        throw new LoanLedgerConflict("LOAN_REFERENCE_ALREADY_REGISTERED",
+          "This employee already has a loan of this type with that reference. Reconcile it rather than activating duplicate payroll deductions.");
+      }
+
+      const [created] = await tx.insert(employeeLoans).values({
+        organizationId,
+        employeeId,
+        loanType: reg.loanType,
+        referenceNo: reg.referenceNo,
+        principal: pesoString(reg.principalCents),
+        monthlyAmortization: pesoString(reg.monthlyCents),
+        cutoffDeduction: pesoString(reg.cutoffCents),
+        remainingBalance: pesoString(reg.principalCents),
+        totalPaid: "0.00",
+        status: "active",
+        startDate: reg.startDate,
+        endDate: reg.endDate,
+        notes: reg.notes || null,
+      }).returning();
+
+      await tx.insert(auditEvents).values({
+        organizationId, actor: user.name,
+        action: "Employee loan registered with payroll deduction authority",
+        resource: `Loan #${created.id} / ${worker.employeeNo}`.slice(0, 160),
+        metadata: {
+          loanId: created.id, employeeId, actorUserId: user.id,
+          loanType: reg.loanType, referenceNo: reg.referenceNo,
+          authorizationEvidenceReference: reg.authorizationEvidenceReference,
+          principal: created.principal,
+          monthlyAmortization: created.monthlyAmortization,
+          cutoffDeduction: created.cutoffDeduction,
+          startDate: reg.startDate, endDate: reg.endDate,
+          requiresIndependentEvidenceVerification: true,
+        },
+      });
+      return created;
+    });
+    return Response.json(loan, { status: 201 });
+  } catch (error) {
+    if (error instanceof LoanLedgerConflict) {
+      return Response.json({ code: error.code, error: error.message }, { status: error.status });
+    }
+    throw error;
+  }
 }
 
 export async function PATCH(request: Request) {
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
-
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-
-  const body = await request.json().catch(() => ({}));
+  const incoming: unknown = await request.json().catch(() => null);
+  if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) {
+    return Response.json({ error: "Expected a valid loan action JSON object." }, { status: 400 });
+  }
+  const body = incoming as Record<string, unknown>;
   const id = Number(body.id);
-  const action = String(body.action ?? "update"); // "record_payment", "pause", "resume", "close"
-  const manualAmount = Number(body.amount ?? 0);
-  const paymentRef = String(body.reference ?? "Manual Payment");
-
-  if (!Number.isInteger(id)) return Response.json({ error: "id is required." }, { status: 400 });
+  const action = body.action;
+  if (!Number.isSafeInteger(id) || id <= 0
+    || !["record_payment", "pause", "resume", "close"].includes(String(action))) {
+    return Response.json({ error: "Valid loan id and record_payment, pause, resume or close action are required." }, { status: 400 });
+  }
 
   const [loan] = await db.select().from(employeeLoans).where(eq(employeeLoans.id, id)).limit(1);
   if (!loan) return Response.json({ error: "Loan not found." }, { status: 404 });
 
   const denied = await assertOrganizationRole(
-    user.id,
-    loan.organizationId,
-    PEOPLE_PAYROLL_ROLES,
-    "Only People or payroll administrators can manage employee loans.",
+    user.id, loan.organizationId, PAYROLL_OPERATOR_ROLES,
+    "Only authorized finance/payroll staff can change loan payment or deduction state.",
   );
   if (denied) return denied;
   const access = await getAccess(user.id, loan.organizationId);
-  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
-  const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees)
-    .where(and(eq(employees.id, loan.employeeId), eq(employees.organizationId, loan.organizationId)))
-    .limit(1);
-  if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
-  const scope = assertScope(access, employee.orgUnitId);
-  if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+  if (!access?.companyWide) {
+    return Response.json({
+      code: "LOAN_FINANCE_COMPANY_SCOPE_REQUIRED",
+      error: "Changing a wage deduction or recording repayments requires company-wide payroll/finance authority.",
+    }, { status: 403 });
+  }
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id, action: `loan-finance-${String(action)}`,
+    resourceId: id, limit: 8, windowMs: 15 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
 
-  if (action === "record_payment") {
-    if (!Number.isFinite(manualAmount) || manualAmount <= 0) {
-      return Response.json({ error: "A positive payment amount is required." }, { status: 400 });
-    }
+  // The reference is an independently issued receipt or bank transaction ID.
+  // We never silently invent "Manual Payment" evidence for a financial write.
+  const payment = action === "record_payment"
+    ? validManualRepayment(body.amount, body.reference)
+    : null;
+  if (payment && !payment.ok) {
+    return Response.json({
+      code: "LOAN_MANUAL_REPAYMENT_INVALID",
+      error: payment.error,
+    }, { status: 400 });
+  }
 
-    const remaining = Number(loan.remainingBalance);
-    if (manualAmount > remaining + 0.01) {
-      return Response.json({ error: "Payment cannot exceed the remaining loan balance." }, { status: 422 });
-    }
-    const newBal = Math.max(0, remaining - manualAmount);
-    const newPaid = Number(loan.totalPaid) + manualAmount;
-    const newStatus = newBal <= 0 ? "paid_off" : loan.status;
+  try {
+    const updated = await db.transaction(async tx => {
+      await tx.execute(sql`
+        select id from employee_loans
+         where id = ${id} and organization_id = ${loan.organizationId}
+         for update
+      `);
+      const [fresh] = await tx.select().from(employeeLoans)
+        .where(and(eq(employeeLoans.id, id), eq(employeeLoans.organizationId, loan.organizationId))).limit(1);
+      if (!fresh) throw new LoanLedgerConflict("LOAN_NO_LONGER_EXISTS", "The loan was removed while being reviewed.", 404);
+      const remainingCents = phpCents(fresh.remainingBalance);
+      const paidCents = phpCents(fresh.totalPaid);
+      if (remainingCents == null || paidCents == null) {
+        throw new LoanLedgerConflict("LOAN_LEDGER_INVALID",
+          "Loan amount precision is invalid. Stop any deductions and reconcile the ledger before proceeding.");
+      }
 
-    await db.insert(loanPayments).values({
-      loanId: loan.id,
-      amount: manualAmount.toFixed(2),
-      paymentDate: new Date().toISOString().slice(0, 10),
-      reference: paymentRef,
+      if (action === "record_payment" && payment?.ok) {
+        if (remainingCents === 0 || fresh.status === "paid_off") {
+          throw new LoanLedgerConflict("LOAN_ALREADY_PAID",
+            "The loan has no outstanding balance. A second repayment cannot be posted.");
+        }
+        if (payment.amountCents > remainingCents) {
+          throw new LoanLedgerConflict("LOAN_PAYMENT_EXCEEDS_BALANCE",
+            "The repayment exceeds the remaining loan balance. Verify the payment or use a separate refund/reconciliation case.", 422);
+        }
+
+        const [priorReference] = await tx.select({ id: loanPayments.id }).from(loanPayments)
+          .where(and(eq(loanPayments.loanId, id),
+            sql`lower(${loanPayments.reference}) = lower(${payment.reference})`)).limit(1);
+        if (priorReference) {
+          throw new LoanLedgerConflict("LOAN_REPAYMENT_REFERENCE_DUPLICATE",
+            "This receipt/bank reference has already been recorded for this loan. Do not double-credit the same payment.");
+        }
+
+        const newBalance = remainingCents - payment.amountCents;
+        const newPaid = paidCents + payment.amountCents;
+        const [receipt] = await tx.insert(loanPayments).values({
+          loanId: id,
+          amount: pesoString(payment.amountCents),
+          paymentDate: manilaDate(),
+          reference: payment.reference,
+        }).returning({ id: loanPayments.id });
+        const [changed] = await tx.update(employeeLoans).set({
+          remainingBalance: pesoString(newBalance),
+          totalPaid: pesoString(newPaid),
+          status: newBalance === 0 ? "paid_off" : fresh.status,
+        }).where(and(
+          eq(employeeLoans.id, id),
+          eq(employeeLoans.organizationId, loan.organizationId),
+          eq(employeeLoans.remainingBalance, fresh.remainingBalance),
+          eq(employeeLoans.status, fresh.status),
+        )).returning();
+        if (!changed) {
+          throw new LoanLedgerConflict("LOAN_REPAYMENT_STALE",
+            "The loan balance changed before this payment could be recorded. Refresh and reconcile.");
+        }
+        await tx.insert(auditEvents).values({
+          organizationId: loan.organizationId, actor: user.name,
+          action: "External employee loan repayment verified and recorded",
+          resource: `Loan #${id}`,
+          metadata: {
+            actorUserId: user.id, loanId: id, employeeId: fresh.employeeId,
+            paymentId: receipt.id, amount: pesoString(payment.amountCents),
+            oldBalance: fresh.remainingBalance, newBalance: changed.remainingBalance,
+            paymentReference: payment.reference,
+            evidenceIsOperatorAttestedNotBankVerified: true,
+          },
+        });
+        return changed;
+      }
+
+      if (!["pause", "resume", "close"].includes(String(action))) {
+        throw new LoanLedgerConflict("LOAN_ACTION_INVALID", "Unsupported loan action.", 400);
+      }
+      const [worker] = await tx.select({ status: employees.status }).from(employees)
+        .where(and(eq(employees.id, fresh.employeeId), eq(employees.organizationId, loan.organizationId))).limit(1);
+      if (!worker) throw new LoanLedgerConflict("LOAN_WORKER_NOT_FOUND", "Worker no longer belongs to this employer.", 404);
+      const next = nextLoanState(
+        action as "pause" | "resume" | "close",
+        fresh.status, remainingCents, worker.status,
+      );
+      if (!next.ok) throw new LoanLedgerConflict(next.code, next.error);
+
+      const [changed] = await tx.update(employeeLoans).set({ status: next.next })
+        .where(and(
+          eq(employeeLoans.id, id),
+          eq(employeeLoans.organizationId, loan.organizationId),
+          eq(employeeLoans.status, fresh.status),
+          eq(employeeLoans.remainingBalance, fresh.remainingBalance),
+        )).returning();
+      if (!changed) throw new LoanLedgerConflict("LOAN_STATE_STALE", "Loan status changed. Refresh and try again.");
+      await tx.insert(auditEvents).values({
+        organizationId: loan.organizationId, actor: user.name,
+        action: "Loan payroll-deduction state changed",
+        resource: `Loan #${id}`,
+        metadata: {
+          actorUserId: user.id, loanId: id,
+          employeeId: fresh.employeeId,
+          action, previousStatus: fresh.status,
+          nextStatus: changed.status,
+          remainingBalance: fresh.remainingBalance,
+        },
+      });
+      return changed;
     });
-
-    const [updated] = await db.update(employeeLoans).set({
-      remainingBalance: newBal.toFixed(2),
-      totalPaid: newPaid.toFixed(2),
-      status: newStatus,
-    }).where(eq(employeeLoans.id, loan.id)).returning();
-
-    await recordAuditEvent({
-      organizationId: loan.organizationId,
-      actor: user.name,
-      action: "Manual loan payment recorded",
-      resource: `${loan.loanType} #${loan.referenceNo}`,
-      metadata: { amount: manualAmount, newBalance: newBal },
-    });
-
     return Response.json(updated);
+  } catch (error) {
+    if (error instanceof LoanLedgerConflict) {
+      return Response.json({ code: error.code, error: error.message }, { status: error.status });
+    }
+    throw error;
   }
-
-  if (action === "pause" || action === "resume") {
-    const status = action === "pause" ? "paused" : "active";
-    const [updated] = await db.update(employeeLoans).set({ status }).where(eq(employeeLoans.id, loan.id)).returning();
-    return Response.json(updated);
-  }
-
-  if (action === "close") {
-    const [updated] = await db.update(employeeLoans).set({ status: "paid_off" }).where(eq(employeeLoans.id, loan.id)).returning();
-    return Response.json(updated);
-  }
-
-  return Response.json({ error: "Unknown loan action." }, { status: 400 });
 }
