@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { enforceSameOriginMutation } from "@/lib/security-request";
 import { pool } from "@/db";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, PEOPLE_ADMIN_ROLES, getAccess } from "@/lib/access";
@@ -44,6 +45,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const originDenied = enforceSameOriginMutation(request);
+  if (originDenied) return originDenied;
   let input: Record<string, unknown>;
   try { input = await request.json(); } catch { return Response.json({ error: "Valid JSON required." }, { status: 400 }); }
   const organizationId = Number(input.organizationId), id = Number(input.id);
