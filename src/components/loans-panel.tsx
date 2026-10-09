@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Banknote, Check, DollarSign, Pause, Play, Plus, ReceiptText, ShieldCheck, X } from "lucide-react";
 import { GovernmentLoanRemittancePanel } from "@/components/government-loan-remittance-panel";
+import { SUPPORTED_PAYROLL_LOAN_TYPES } from "@/lib/payroll-loan-approval";
 
 type Loan = {
   id: number;
@@ -30,15 +31,7 @@ type Loan = {
 const peso = (value: string | number) =>
   `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const LOAN_TYPES = [
-  "SSS Salary Loan",
-  "SSS Calamity Loan",
-  "Pag-IBIG Multi-Purpose Loan (MPL)",
-  "Pag-IBIG Calamity Loan",
-  "Company Emergency Loan",
-  "Educational Assistance Loan",
-  "Appliance / Gadget Loan",
-];
+const LOAN_TYPES = SUPPORTED_PAYROLL_LOAN_TYPES;
 
 export function LoansPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (m: string) => void }) {
   const [loans, setLoans] = useState<Loan[]>([]);
