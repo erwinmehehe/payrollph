@@ -178,6 +178,48 @@ test("invalid Gregorian punch work dates are rejected without payroll premium gu
   assert.deepEqual(payableTimeEvidenceFlagsForPayroll(leapDay, 60), []);
 });
 
+test("partial or malformed actual break timestamps block payroll even in one daytime rate bucket", () => {
+  const malformedBreaks = [
+    { breakStart: "2026-10-05T04:00:00.000Z", breakEnd: null },
+    { breakStart: null, breakEnd: "2026-10-05T05:00:00.000Z" },
+    { breakStart: "not-a-timestamp", breakEnd: "2026-10-05T05:00:00.000Z" },
+    { breakStart: "", breakEnd: null },
+    { breakStart: "2026-10-05T04:00:00.000Z", breakEnd: "2026-10-05T09:00:00.000Z" },
+    { breakStart: "2026-10-05T05:00:00.000Z", breakEnd: "2026-10-05T04:00:00.000Z" },
+  ];
+  for (const [index, evidence] of malformedBreaks.entries()) {
+    const segmented = segmentPayableTime({
+      punch: {
+        id: 995 + index, workDate: "2026-10-05",
+        timeIn: "2026-10-05T00:00:00.000Z",
+        timeOut: "2026-10-05T08:00:00.000Z",
+        ...evidence,
+      },
+      shift: { start: "08:00", end: "16:00", breakMinutes: 60 },
+    });
+    assert.equal(segmented.allocationComplete, false, `case ${index}`);
+    const flags = payableTimeEvidenceFlagsForPayroll(segmented, 420);
+    assert.ok(flags.some(flag => flag.startsWith("WFM_PREMIUM_ALLOCATION_UNVERIFIED:")), `case ${index}`);
+    assert.ok(payrollFromFlags(flags).summary.blocking > 0, `case ${index}`);
+  }
+});
+
+test("valid located daytime break remains payable and does not block", () => {
+  const segmented = segmentPayableTime({
+    punch: {
+      id: 1002, workDate: "2026-10-05",
+      timeIn: "2026-10-05T00:00:00.000Z",
+      timeOut: "2026-10-05T08:00:00.000Z",
+      breakStart: "2026-10-05T04:00:00.000Z",
+      breakEnd: "2026-10-05T05:00:00.000Z",
+    },
+    shift: { start: "08:00", end: "16:00", breakMinutes: 60 },
+  });
+  assert.equal(segmented.allocationComplete, true);
+  assert.equal(segmented.segments.reduce((sum, segment) => sum + segment.minutes, 0), 420);
+  assert.deepEqual(payableTimeEvidenceFlagsForPayroll(segmented, 420), []);
+});
+
 test("unlocated break confined to one premium bucket stays reviewable", () => {
   const segmented = segmentPayableTime({
     punch: {

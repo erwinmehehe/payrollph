@@ -280,10 +280,15 @@ export function segmentPayableTime(input: {
   }
   const breakStart = asInstant(input.punch.breakStart);
   const breakEnd = asInstant(input.punch.breakEnd);
+  // Distinguish absent break evidence from an explicitly supplied but
+  // unparsable timestamp. An invalid string must not become "no break".
+  const hasBreakTimestampEvidence =
+    (input.punch.breakStart !== null && input.punch.breakStart !== undefined)
+    || (input.punch.breakEnd !== null && input.punch.breakEnd !== undefined);
   let locatedBreak: { start: Date; end: Date } | null = null;
   let allocationComplete = true;
 
-  if (breakStart || breakEnd) {
+  if (hasBreakTimestampEvidence) {
     if (
       !breakStart
       || !breakEnd
@@ -293,7 +298,7 @@ export function segmentPayableTime(input: {
     ) {
       allocationComplete = false;
       flags.push(
-        "Break timestamps are incomplete or invalid; premium allocation was not inferred.",
+        `${WFM_PREMIUM_ALLOCATION_UNVERIFIED}: Break timestamps are incomplete, malformed, or outside the punch; reconcile the break before payroll approval.`,
       );
     } else {
       locatedBreak = { start: breakStart, end: breakEnd };
