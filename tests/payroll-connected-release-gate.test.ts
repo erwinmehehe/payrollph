@@ -97,6 +97,27 @@ test("WFM corrections, blocker events, and latest timesheet state block payroll 
   assert.ok(result.findings.some((f) => f.code === "WFM_LATEST_TIMESHEET_NOT_APPROVED" && f.sourceId === 11));
 });
 
+test("employer block-mode timesheet policy requires coverage of every payroll employee", () => {
+  const required = evaluatePayrollConnectedRelease({
+    ...input(),
+    timesheetApprovalRequired: true,
+    timesheets: [{
+      id: 9, employeeId: 1, periodStart: "2026-10-01", periodEnd: "2026-10-15",
+      version: 1, status: "approved",
+    }],
+  });
+  assert.equal(required.ready, false);
+  assert.equal(required.blockingCount, 1);
+  assert.ok(required.findings.some((f) => f.code === "WFM_TIMESHEET_MISSING" && f.employeeId === 2));
+
+  // An employer with advisory-mode timesheets continues to use its own
+  // configured WFM gate and is not falsely blocked for missing submissions.
+  const advisory = evaluatePayrollConnectedRelease({
+    ...input(), timesheetApprovalRequired: false,
+  });
+  assert.equal(advisory.ready, true);
+});
+
 test("HCM proposed salary changes are review-only; scheduled or late-applied pay changes must block", () => {
   const result = evaluatePayrollConnectedRelease({
     ...input(),
@@ -146,6 +167,7 @@ test("flag is default OFF and final release, checker and review submission conta
   assert.ok(server.includes("companyId"));
   assert.ok(server.includes("inArray(workerEffectiveChanges.employeeId, employeeIds)"));
   assert.ok(server.includes("eq(workforceTimesheets.periodEnd, end)"));
+  assert.ok(server.includes('timesheetPolicy.enforcementMode === "block"'));
   assert.ok(server.includes("gte(employeePayRevisions.createdAt") === false
     && server.includes("gt(employeePayRevisions.createdAt, since)"));
   assert.ok(checklist.includes('key: "connected"'));
