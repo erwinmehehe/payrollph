@@ -1,7 +1,7 @@
 export type HcmGovernanceCounters = {
   employees: number;
   activeWorkers: number;
-  missingStartDates: number;
+  futureStartDates: number;
   missingRestDays: number;
   missingPayProfiles: number;
   unsupportedWageRegions: number;
@@ -84,11 +84,11 @@ const CHECKS: Array<{
     nextAction: "Reconcile approved position history and offboarding handoff without manually overwriting an effective-dated assignment.",
   },
   {
-    field: "missingStartDates",
-    code: "EMPLOYMENT_START_DATE_MISSING",
+    field: "futureStartDates",
+    code: "FUTURE_EMPLOYMENT_START_DATE",
     severity: "review",
-    title: "Current workers without recorded employment start dates",
-    nextAction: "Confirm original HR contract/appointment and preserve seniority-sensitive records in a reviewed migration.",
+    title: "Current workers whose start date is after today's Philippine calendar date",
+    nextAction: "Review the start-date contract and employment activation before payroll; future-dated hires should not already be marked Active.",
   },
   {
     field: "missingPayProfiles",
