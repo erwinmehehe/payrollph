@@ -1647,6 +1647,10 @@ export function CheckoutModal({ organizationId, plan, onClose, onUpgraded }: { o
       });
       const data = await response.json();
       if (!response.ok) {
+        if (data.code === "USE_RECURRING_BILLING" && data.redirectTo === "/billing/manage") {
+          window.location.assign("/billing/manage");
+          return;
+        }
         setMessage(data.error ?? "Checkout is unavailable.");
         return;
       }
