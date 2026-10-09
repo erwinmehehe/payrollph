@@ -21,9 +21,13 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
-  const employeeId = Number(url.searchParams.get("employeeId") ?? 0);
+  const requestedEmployeeId = url.searchParams.get("employeeId");
+  const employeeId = requestedEmployeeId == null ? 0 : Number(requestedEmployeeId);
 
-  if (!Number.isInteger(organizationId)) return Response.json({ error: "organizationId is required." }, { status: 400 });
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0
+    || (requestedEmployeeId != null && (!Number.isSafeInteger(employeeId) || employeeId <= 0))) {
+    return Response.json({ error: "Valid organizationId and optional positive employeeId are required." }, { status: 400 });
+  }
   const denied = await assertOrganizationRole(
     user.id,
     organizationId,
@@ -43,7 +47,10 @@ export async function GET(request: Request) {
     employee: employees,
   })
     .from(employeeLoans)
-    .innerJoin(employees, eq(employeeLoans.employeeId, employees.id))
+    .innerJoin(employees, and(
+      eq(employeeLoans.employeeId, employees.id),
+      eq(employeeLoans.organizationId, employees.organizationId),
+    ))
     .where(access.companyWide ? filter : and(filter, eq(employees.orgUnitId, access.orgUnitId!)))
     .orderBy(desc(employeeLoans.id));
 
