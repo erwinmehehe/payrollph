@@ -302,37 +302,71 @@ export async function PATCH(request: Request) {
   // Core 3.2: handoff state is authoritative evidence from the Separation workflow.
   // It can no longer be advanced manually from the term-decision endpoint.
   if (action === "cancel") {
-    if (!["pending_approval", "scheduled", "failed"].includes(decision.status)) {
-      return Response.json({ error: "Only pending, scheduled, or failed decisions can be cancelled." }, { status: 409 });
+    try {
+      const cancelled = await db.transaction(async (tx) => {
+        // The scheduler and cancellation must serialize on the decision row.
+        await tx.execute(sql`select id from hcm_employment_term_decisions
+          where id = ${id} and organization_id = ${organizationId} for update`);
+        const [fresh] = await tx.select().from(hcmEmploymentTermDecisions).where(and(
+          eq(hcmEmploymentTermDecisions.id, id),
+          eq(hcmEmploymentTermDecisions.organizationId, organizationId),
+        )).limit(1);
+        if (!fresh) throw new Error("TERM_DECISION_NOT_FOUND");
+        const blocker = cancellationBlocker(fresh);
+        if (blocker) throw new Error(blocker);
+
+        const [updated] = await tx.update(hcmEmploymentTermDecisions).set({
+          status: "cancelled",
+          cancelledByUserId: user.id,
+          cancelledBy: user.name,
+          cancelledAt: new Date(),
+          updatedAt: new Date(),
+        }).where(and(
+          eq(hcmEmploymentTermDecisions.id, id),
+          eq(hcmEmploymentTermDecisions.organizationId, organizationId),
+          inArray(hcmEmploymentTermDecisions.status, [...HCM_TERM_DECISION_CANCELLABLE_STATES]),
+          eq(hcmEmploymentTermDecisions.separationHandoffStatus, "none"),
+          isNull(hcmEmploymentTermDecisions.separationRecordId),
+          isNull(hcmEmploymentTermDecisions.successorTermId),
+        )).returning();
+        if (!updated) throw new Error("TERM_DECISION_SOURCE_STALE");
+
+        await tx.insert(hcmEmploymentDecisionEvents).values({
+          organizationId, decisionId: updated.id, employeeId: updated.employeeId,
+          eventType: "cancelled", actorUserId: user.id, actorName: user.name.slice(0, 120),
+          metadata: {
+            previousStatus: fresh.status,
+            approvedByUserId: fresh.approvedByUserId,
+            sourceTermId: fresh.employmentTermId,
+          },
+          createdAt: updated.cancelledAt ?? new Date(),
+        });
+        await tx.insert(auditEvents).values({
+          organizationId, actor: user.name,
+          action: "HCM employment-term decision cancelled",
+          resource: `Employee #${updated.employeeId}`,
+          metadata: {
+            employmentTermDecisionId: id, previousStatus: fresh.status,
+            actorUserId: user.id, sourceTermId: fresh.employmentTermId,
+          },
+        });
+        return updated;
+      });
+      return Response.json({ decision: cancelled });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      const explanations: Record<string, string> = {
+        TERM_DECISION_NOT_FOUND: "Employment-term decision was removed before cancellation.",
+        TERM_DECISION_NOT_CANCELLABLE: "Only pending, scheduled or failed decisions without applied changes may be cancelled.",
+        TERM_DECISION_SEPARATION_HANDOFF_STARTED: "A non-renewal Separation handoff has started; manage it in the Separation workflow, not here.",
+        TERM_DECISION_SUCCESSOR_ALREADY_PREPARED: "Successor terms were already prepared. Reconcile the employment-term activation before attempting cancellation.",
+        TERM_DECISION_SOURCE_STALE: "Employment-term decision changed during cancellation. Refresh and review its evidence.",
+      };
+      if (explanations[code]) {
+        return Response.json({ code, error: explanations[code] }, { status: 409 });
+      }
+      throw error;
     }
-    const [cancelled] = await db.update(hcmEmploymentTermDecisions).set({
-      status: "cancelled",
-      cancelledByUserId: user.id,
-      cancelledBy: user.name,
-      cancelledAt: new Date(),
-      updatedAt: new Date(),
-    }).where(and(
-      eq(hcmEmploymentTermDecisions.id, id),
-      eq(hcmEmploymentTermDecisions.organizationId, organizationId),
-    )).returning();
-    await recordEmploymentDecisionEvidenceEvent({
-      organizationId,
-      decisionId: cancelled.id,
-      employeeId: cancelled.employeeId,
-      eventType: "cancelled",
-      actor: user.name,
-      actorUserId: user.id,
-      metadata: { previousStatus: decision.status },
-      createdAt: cancelled.cancelledAt ?? new Date(),
-    });
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "HCM employment-term decision cancelled",
-      resource: `Employee #${decision.employeeId}`,
-      metadata: { employmentTermDecisionId: id, previousStatus: decision.status },
-    });
-    return Response.json({ decision: cancelled });
   }
 
   if (action === "retry") {
