@@ -75,6 +75,7 @@ export async function GET(request: Request) {
   }
   return Response.json({
     currentUserId: user.id,
+    loanActivationEnabled: process.env.PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED === "true",
     reviewerEligible: access.companyWide && PAYROLL_TAX_APPROVER_ROLES.includes(access.role as "owner" | "admin" | "checker"),
     companyWide: access.companyWide,
     loans: rows.map(({ loan, employee }) => ({
@@ -243,6 +244,17 @@ export async function PATCH(request: Request) {
     resourceId: id, limit: 8, windowMs: 15 * 60_000,
   });
   if (rateDenied) return rateDenied;
+
+  // These decisions can withhold earned wages. Deployment alone must not
+  // make a new automatic-deduction path money-bearing. Pending requests,
+  // audit, rejection, emergency pause and external repayment remain usable.
+  if (["approve", "resume"].includes(action)
+    && process.env.PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED !== "true") {
+    return deniedBusinessAction(
+      "Loan deduction activation is locked until the independent payroll, legal, security and controlled-pilot release gates have approved it.",
+      "LOAN_DEDUCTION_ACTIVATION_NOT_CERTIFIED",
+    );
+  }
 
   const reviewerRef = approverAction && action !== "reject"
     ? loanApprovalReference(body.reviewEvidenceReference) : null;
