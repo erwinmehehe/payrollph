@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, employees, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforcePlanningScenarios, workforcePlans } from "@/db/schema";
+import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, employees, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, separationRecords, workforceTimesheets, workforcePlanningScenarios, workforcePlans } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
@@ -16,7 +16,7 @@ import { assertMembership, assertOrganizationUnitAccess } from "@/lib/access";
 import { buildPayrollAssurance } from "@/lib/payroll-assurance-server";
 import { isPublicDemoIdentity } from "@/lib/demo-security";
 import { resumeAutomationExecutionFromApproval, runAutomationEventSafely } from "@/lib/automation";
-import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
+import { checkEmployeeLeaveEligibility } from "@/lib/hcm-leave-employment";
 import { advanceApprovalChainAfterDecisionTx } from "@/lib/approval-chains";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
 import {
@@ -330,6 +330,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const onBehalf = decision.roleMatched ? null : actor.toLowerCase() !== task.approver.toLowerCase() ? task.approver : null;
 
   let updated;
+  let leaveStaleTimesheetIds: number[] = [];
   let workforcePlanDecision: { scenarioId: number; status: "approved" | "rejected" } | null = null;
   let chain: Awaited<ReturnType<typeof advanceApprovalChainAfterDecisionTx>> = {
     isChain: false,
@@ -398,6 +399,88 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
       if (!updatedTask) {
         throw new Error("APPROVAL_TASK_CONFLICT");
+      }
+
+      // The linked leave decision is an authoritative payroll and WFM source.
+      // Commit leave status, stale overlapping timesheets and approval audit
+      // inside the SAME transaction as the approval task. Revisions use the
+      // leave row lock too, so no reviewed interval revision can race approval.
+      await tx.execute(sql`select id from leave_requests
+        where organization_id = ${task.organizationId} and approval_task_id = ${taskId}
+        for update`);
+      const linkedLeaves = await tx.select().from(leaveRequests).where(and(
+        eq(leaveRequests.organizationId, task.organizationId),
+        eq(leaveRequests.approvalTaskId, taskId),
+      )).limit(2);
+      if (linkedLeaves.length > 1) throw new Error("LEAVE_APPROVAL_SOURCE_AMBIGUOUS");
+      const leaveForDecision = linkedLeaves[0] ?? null;
+      let staleLeaveTimesheetIds: number[] = [];
+      if (leaveForDecision) {
+        if (leaveForDecision.status !== "Pending") throw new Error("LEAVE_APPROVAL_STALE");
+        if (status === "Approved") {
+          await tx.execute(sql`select id from employees where id = ${leaveForDecision.employeeId}
+            and organization_id = ${task.organizationId} for share`);
+          const [worker] = await tx.select().from(employees).where(and(
+            eq(employees.id, leaveForDecision.employeeId),
+            eq(employees.organizationId, task.organizationId),
+          )).limit(1);
+          if (!worker) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
+          const [currentSeparation] = worker.status === "Separating"
+            ? await tx.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
+              .where(and(
+                eq(separationRecords.organizationId, task.organizationId),
+                eq(separationRecords.employeeId, worker.id),
+                inArray(separationRecords.status, ["draft", "approved"]),
+              )).orderBy(desc(separationRecords.id)).limit(1)
+            : [];
+          const eligible = checkEmployeeLeaveEligibility({
+            employeeStatus: worker.status,
+            employmentStartDate: String(worker.startDate),
+            leaveStartDate: String(leaveForDecision.startDate),
+            leaveEndDate: String(leaveForDecision.endDate),
+            separationLastDay: currentSeparation?.lastDay ?? null,
+          });
+          if (eligible) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
+        }
+        const [decidedLeave] = await tx.update(leaveRequests).set({
+          status, decidedBy: actor,
+        }).where(and(
+          eq(leaveRequests.id, leaveForDecision.id),
+          eq(leaveRequests.organizationId, task.organizationId),
+          eq(leaveRequests.status, "Pending"),
+        )).returning();
+        if (!decidedLeave) throw new Error("LEAVE_APPROVAL_STALE");
+        if (status === "Approved") {
+          const stale = await tx.update(workforceTimesheets).set({
+            status: "stale", updatedAt: new Date(),
+          }).where(and(
+            eq(workforceTimesheets.organizationId, task.organizationId),
+            eq(workforceTimesheets.employeeId, decidedLeave.employeeId),
+            lte(workforceTimesheets.periodStart, String(decidedLeave.endDate)),
+            gte(workforceTimesheets.periodEnd, String(decidedLeave.startDate)),
+            inArray(workforceTimesheets.status, ["submitted", "approved"]),
+          )).returning({ id: workforceTimesheets.id });
+          staleLeaveTimesheetIds = stale.map(row => row.id);
+        }
+        const [currentSet] = await tx.select().from(leaveRequestIntervalSets).where(and(
+          eq(leaveRequestIntervalSets.organizationId, task.organizationId),
+          eq(leaveRequestIntervalSets.leaveRequestId, decidedLeave.id),
+          eq(leaveRequestIntervalSets.status, "current"),
+        )).limit(1);
+        await tx.insert(auditEvents).values({
+          organizationId: task.organizationId,
+          actor,
+          action: status === "Approved" ? "Leave independently approved" : "Leave declined",
+          resource: `leave #${decidedLeave.id}`,
+          metadata: {
+            leaveId: decidedLeave.id,
+            approvalTaskId: taskId,
+            deciderUserId: sessionUser.id,
+            intervalSetId: currentSet?.id ?? null,
+            intervalRevision: currentSet?.revision ?? null,
+            staleTimesheetIds: staleLeaveTimesheetIds,
+          },
+        });
       }
 
       const chainResult = await advanceApprovalChainAfterDecisionTx(tx, {
@@ -510,9 +593,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         },
       });
 
-      return { updatedTask, chainResult, hcmResult, sourceDecision };
+      return { updatedTask, chainResult, hcmResult, sourceDecision, staleLeaveTimesheetIds };
     });
     updated = decisionResult.updatedTask;
+    leaveStaleTimesheetIds = decisionResult.staleLeaveTimesheetIds;
     chain = decisionResult.chainResult;
     hcmBusinessProcess = decisionResult.hcmResult;
     workforcePlanDecision = decisionResult.sourceDecision;
@@ -520,6 +604,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (error instanceof Error && (
       error.message === "PAYROLL_APPROVAL_CONFLICT" ||
       error.message === "APPROVAL_TASK_CONFLICT" ||
+      error.message === "LEAVE_APPROVAL_STALE" ||
+      error.message === "LEAVE_APPROVAL_SOURCE_AMBIGUOUS" ||
+      error.message === "LEAVE_EMPLOYMENT_NOT_ELIGIBLE" ||
       error.message === "WORKFORCE_PLAN_APPROVAL_CONFLICT" ||
       error.message === "APPROVAL_DYNAMIC_GROUP_NOT_ELIGIBLE" ||
       error.message.startsWith("Business process ") ||
@@ -600,21 +687,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     : [];
   const intervalRevision = linkedIntervalSet?.revision ?? null;
   const automation = [];
-  let leaveStaleTimesheetIds: number[] = [];
-  if (linkedLeave) {
-    await db.update(leaveRequests).set({
-      status,
-      decidedBy: actor,
-    }).where(eq(leaveRequests.id, linkedLeave.id));
-    if (status === "Approved") {
-      const staleTimesheets = await markTimesheetsStaleForEmployeeRange({
-        organizationId: task.organizationId,
-        employeeId: linkedLeave.employeeId,
-        startDate: String(linkedLeave.startDate),
-        endDate: String(linkedLeave.endDate),
-      });
-      leaveStaleTimesheetIds = staleTimesheets.map((row) => row.id);
-
+  if (linkedLeave && status === "Approved") {
+      // Source status, timesheet invalidation and audit already committed in
+      // the approval-task transaction. Remaining operations only dispatch
+      // post-commit notifications and cannot rewrite the decision.
       automation.push(...await runAutomationEventSafely({
         organizationId: task.organizationId,
         employeeId: linkedLeave.employeeId,
@@ -640,7 +716,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           data: { leaveId: linkedLeave.id, employeeId: linkedLeave.employeeId, leaveType: linkedLeave.leaveType, days: linkedLeave.days },
         });
       }
-    }
   }
 
   if (payrollRunId && status === "Approved") {
