@@ -13,7 +13,7 @@ test("HCM aggregate read is strictly organization-scoped and does not reveal wor
     { name: `Governance Beta ${unique}`, legalName: `Governance Beta ${unique}`, plan: "Core" },
   ]).returning();
   try {
-    const [alphaEmployee] = await db.insert(employees).values({
+    await db.insert(employees).values({
       organizationId: alpha.id,
       employeeNo: "ONLY-ALPHA",
       firstName: "One",
@@ -26,7 +26,7 @@ test("HCM aggregate read is strictly organization-scoped and does not reveal wor
       startDate: "2099-01-01",
     }).returning();
 
-    await db.insert(employees).values({
+    const [betaEmployee] = await db.insert(employees).values({
       organizationId: beta.id,
       employeeNo: "ONLY-BETA",
       firstName: "Two",
@@ -37,7 +37,7 @@ test("HCM aggregate read is strictly organization-scoped and does not reveal wor
       basicRate: "23000.00",
       region: "UNSUPPORTED-REGION",
       startDate: "2026-01-01",
-    });
+    }).returning();
     await db.insert(hcmBusinessProcessDefinitions).values({
       organizationId: beta.id,
       code: "private-hire-review",
@@ -49,15 +49,12 @@ test("HCM aggregate read is strictly organization-scoped and does not reveal wor
     });
     await db.insert(separationRecords).values({
       organizationId: beta.id,
-      employeeId: alphaEmployee.id,
+      employeeId: betaEmployee.id,
       separationType: "resignation",
       noticeDate: "2026-01-01",
       lastDay: "2026-02-01",
       status: "released",
-    }).then(
-      () => { throw new Error("Cross-tenant separation was unexpectedly accepted."); },
-      () => undefined,
-    );
+    });
     // Intentionally only READ the tenant's aggregates; no migration, action
     // or PII-containing row should be returned from the service.
     const a = await loadHcmGovernanceReadiness(alpha.id);
@@ -66,6 +63,9 @@ test("HCM aggregate read is strictly organization-scoped and does not reveal wor
     assert.equal(b.summary.employeeCount, 1);
     assert.equal(a.findings.find(x => x.code === "UNKNOWN_WAGE_REGION"), undefined);
     assert.equal(b.findings.find(x => x.code === "UNKNOWN_WAGE_REGION")?.affected, 1);
+    assert.equal(a.findings.find(x => x.code === "FINAL_PAY_REFERENCE_MISSING"), undefined);
+    assert.equal(b.findings.find(x => x.code === "FINAL_PAY_REFERENCE_MISSING")?.affected, 1);
+    assert.equal(b.findings.find(x => x.code === "FINAL_PAY_EMPLOYEE_STATUS_MISMATCH")?.affected, 1);
     assert.equal(a.findings.find(x => x.code === "FUTURE_EMPLOYMENT_START_DATE")?.affected, 1);
     assert.equal(a.processes.find(x => x.processType === "hire")?.configuredDefinitions, 0);
     assert.equal(b.processes.find(x => x.processType === "hire")?.configuredDefinitions, 1);
