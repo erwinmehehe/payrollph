@@ -210,3 +210,14 @@ test("late-source query coverage retains backdated revisions but excludes settle
   assert.ok(route.includes("gte(employeePayRevisions.createdAt, run.createdAt)"));
   assert.ok(route.includes("createdAfterRunCreated: appliedAfterRunCreation(revision.createdAt)"));
 });
+
+
+test("payroll impact action buttons require the current workspace role's allowed pages", () => {
+  const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
+  const payroll = readFileSync("src/components/workspace/payroll-run.tsx", "utf8");
+  const panel = readFileSync("src/components/workspace/payroll-connected-impact-panel.tsx", "utf8");
+  assert.ok(workspace.includes("availablePages={availablePages}"));
+  assert.ok(payroll.includes("allowedPages={availablePages}"));
+  assert.ok(panel.includes("allowedPages.includes(finding.action)"));
+  assert.ok(panel.includes("Ask a permitted HR, workforce or finance reviewer"));
+});
