@@ -88,7 +88,14 @@ test("PostgreSQL persists distinct financial actors and rejects identical prepar
     assert.equal(sep.approvedByUserId, null);
     await assert.rejects(() => db.update(separationRecords)
       .set({ status: "approved", approvedByUserId: maker.id })
-      .where(eq(separationRecords.id, sep.id)), /check|violat|review_identity/i);
+      .where(eq(separationRecords.id, sep.id)), (error: unknown) => {
+        // Drizzle wraps the PostgreSQL check-constraint error in a generic
+        // Failed query exception. Inspect the actual driver cause, not a
+        // human-readable wrapper message that can change between versions.
+        const wrapped = error as { cause?: { code?: string; constraint?: string } };
+        return wrapped.cause?.code === "23514"
+          && wrapped.cause.constraint === "separation_review_identity_separation_check";
+      });
     const [approved] = await db.update(separationRecords)
       .set({ status: "approved", approvedByUserId: checker.id })
       .where(eq(separationRecords.id, sep.id))
