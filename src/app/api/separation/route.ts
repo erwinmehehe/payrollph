@@ -1358,27 +1358,28 @@ export async function PATCH(request: Request) {
         });
       }
 
+      await tx.insert(auditEvents).values({
+        organizationId: sep.organizationId,
+        actor: user.name,
+        action: "Final pay released",
+        resource: `Separation #${sep.id}`,
+        metadata: {
+          employeeId: sep.employeeId,
+          releasedAt: updated.releasedAt,
+          finalPayDueDate: fresh.finalPayDueDate,
+          netFinalPay: Number(fresh.netFinalPay),
+          loanDeductions: Number(fresh.loanDeductions),
+          deferredLoanBalance: Number(
+            (fresh.computationSnapshot as Record<string, unknown> | null)?.deferredLoanBalance ?? 0,
+          ),
+          releaseReference: releaseReference.slice(0, 160),
+          offboarding2316Available: true,
+        },
+      });
       return updated;
     });
 
-    await recordAuditEvent({
-      organizationId: sep.organizationId,
-      actor: user.name,
-      action: "Final pay released",
-      resource: `Separation #${sep.id}`,
-      metadata: {
-        employeeId: sep.employeeId,
-        releasedAt: released.releasedAt,
-        finalPayDueDate: sep.finalPayDueDate,
-        netFinalPay: Number(sep.netFinalPay),
-        loanDeductions: Number(sep.loanDeductions),
-        deferredLoanBalance: Number(
-          (sep.computationSnapshot as Record<string, unknown> | null)?.deferredLoanBalance ?? 0,
-        ),
-        releaseReference: releaseReference.slice(0, 160),
-        offboarding2316Available: true,
-      },
-    });
+
 
     const automation = await runLifecycleAutomations({
       organizationId: sep.organizationId,
