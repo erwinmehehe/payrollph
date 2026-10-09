@@ -189,6 +189,10 @@ export function buildPeopleOperationsItems(input: PeopleOpsInput): PeopleOpsItem
     const employee = employeeMap.get(row.employeeId);
     const definition = EMPLOYMENT_ACTION[row.action];
     if (!employee || !definition || row.action === "none") continue;
+    // One Separation follow-up per worker: the authoritative Separation row
+    // handles an already-started handoff, rather than duplicate lifecycle work.
+    if ((row.action === "continue_separation" || row.action === "start_separation")
+      && separations.has(row.employeeId)) continue;
     const priority: PeopleOpsPriority =
       row.state === "action_required" ? "review"
         : row.state === "unconfigured" ? "source_check" : "follow_up";
