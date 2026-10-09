@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { pool } from "@/db";
 import { getSessionUser } from "@/lib/auth";
-import { assertOrganizationRole, PEOPLE_ADMIN_ROLES } from "@/lib/access";
+import { assertOrganizationRole, PEOPLE_ADMIN_ROLES, getAccess } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +14,8 @@ async function authorize(organizationId: number) {
   if (!user) return { error: Response.json({ error: "Sign in required." }, { status: 401 }) };
   const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES);
   if (denied) return { error: denied };
+  const access = await getAccess(user.id, organizationId);
+  if (!access?.companyWide) return { error: Response.json({ error: "Company-wide HR access required for operational case queue." }, { status: 403 }) };
   return { user };
 }
 
@@ -37,7 +39,8 @@ export async function GET(request: NextRequest) {
       AND ($2::text IS NULL OR ($2 = 'overdue' AND c.status <> 'resolved' AND c.sla_due_at < now()) OR c.status = $2)
     ORDER BY (c.status <> 'resolved' AND c.sla_due_at < now()) DESC, c.sla_due_at ASC NULLS LAST, c.created_at DESC
     LIMIT 200`, [organizationId, status]);
-  return Response.json({ items: result.rows });
+  const owners = await pool.query("SELECT u.id, u.name FROM user_organizations uo JOIN users u ON u.id = uo.user_id WHERE uo.organization_id=$1 AND uo.active=true AND u.active=true AND uo.role IN ('owner','admin','bookkeeper','hr') ORDER BY u.name LIMIT 200", [organizationId]);
+  return Response.json({ items: result.rows, owners: owners.rows });
 }
 
 export async function PATCH(request: NextRequest) {
