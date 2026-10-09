@@ -37,8 +37,9 @@ server flag on.
   that day returns 409 rather than silently splitting the valid/invalid
   period, inventing an exit date or altering final pay.
 - **Conflicting lifecycle state:** An apparently Active/On leave worker
-  with an overlapping draft/approved/released separation is flagged for
-  HR reconciliation rather than presumed employed without review.
+  with an overlapping draft/approved/released separation, or a Separating
+  worker whose final-pay record was already Released, is flagged for HR
+  reconciliation rather than presumed employed without review.
 - **Rehire:** A documented later employment `startDate` excludes old
   separation records whose last day predates the new hire. Previously
   terminated workers do not automatically inherit old exit caps once
