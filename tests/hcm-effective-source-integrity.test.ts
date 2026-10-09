@@ -153,6 +153,9 @@ test("request, approval, decline, cancellation and retry decisions each audit in
     assert.ok(route.includes(`action: "${action}"`), action);
   }
   assert.ok(route.includes("startHcmBusinessProcessTx(tx"));
+  assert.ok(route.includes("requireSensitiveActionMfa(user)"));
+  assert.ok(route.includes('action: "hcm-effective-change-request"'));
+  assert.ok(route.includes('action: "hcm-effective-change-decision"'));
   assert.ok(route.includes("tx.insert(auditEvents)"));
   assert.ok(!route.includes("recordAuditEvent"));
   assert.ok(route.includes("HCM_RETRY_APPROVAL_EVIDENCE_MISSING"));
