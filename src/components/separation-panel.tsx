@@ -588,17 +588,29 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             <div style={{ display: "flex", gap: 8 }}>
               <button className="secondary-button" onClick={() => setShowCoeModal(true)}><FileText size={15} className="i-teal" /> View COE Draft</button>
               {selectedRecord.status === "draft" && (
-                <button className="primary-button" onClick={() => transitionFinalPay(selectedRecord.id, "approve")}>Approve Final Pay</button>
+                <button
+                  className="primary-button"
+                  disabled={selectedRecord.preparedByUserId == null || selectedRecord.preparedByUserId === currentUserId}
+                  title="A different authenticated approver must review the recorded final-pay preparer."
+                  onClick={() => transitionFinalPay(selectedRecord.id, "approve")}
+                >Approve Final Pay</button>
               )}
               {selectedRecord.status === "approved" && (
                 <div style={{ display: "grid", gap: 8, minWidth: 240 }}>
+                  <small>Record a verified external payout reference. This marks final pay released in the HR ledger; it does not initiate a bank transfer. Preparer, checker and releaser must be distinct accounts.</small>
                   <input
                     value={releaseReference}
                     onChange={(event) => setReleaseReference(event.target.value)}
                     placeholder="Bank / payout reference"
                     aria-label="Final pay payout reference"
                   />
-                  <button className="primary-button" disabled={!releaseReference.trim()} onClick={() => transitionFinalPay(selectedRecord.id, "release")}>
+                  <button className="primary-button" disabled={
+                    releaseReference.trim().length < 8
+                    || selectedRecord.preparedByUserId == null
+                    || selectedRecord.approvedByUserId == null
+                    || selectedRecord.preparedByUserId === currentUserId
+                    || selectedRecord.approvedByUserId === currentUserId
+                  } onClick={() => transitionFinalPay(selectedRecord.id, "release")}>
                     Mark Final Pay Released
                   </button>
                 </div>
@@ -642,9 +654,20 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                 <span>Authorized Signatory</span>
               </div>
             </div>
+            <label style={{ display: "block", marginTop: 14 }}>
+              Certificate delivery / issuance evidence reference
+              <input
+                value={coeEvidenceReference}
+                maxLength={200}
+                placeholder="Verified employee receipt, dispatch or request record"
+                onChange={event => setCoeEvidenceReference(event.target.value)}
+              />
+            </label>
+            <p style={{ fontSize: 11 }}>Viewing or generating this draft does not prove that a certificate was actually issued.</p>
             <div className="modal-actions">
               <button className="secondary-button" onClick={() => setShowCoeModal(false)}>Close</button>
-              <button className="primary-button" onClick={() => void issueCoe(selectedRecord.id)}>Mark COE Issued</button>
+              <button className="primary-button" disabled={coeEvidenceReference.trim().length < 8 || selectedRecord.coeIssued}
+                onClick={() => void issueCoe(selectedRecord.id)}>{selectedRecord.coeIssued ? "Already recorded issued" : "Attest COE actually issued"}</button>
             </div>
           </section>
         </div>
@@ -668,6 +691,30 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             </select>
           </label>
         </div>
+        <div style={{ padding: "0 16px 12px", display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <label style={{ flex: "1 1 230px" }}>
+            Clearance evidence / sign-off reference
+            <input
+              value={clearanceEvidenceReference}
+              maxLength={200}
+              placeholder="IT / Admin / Finance / HR sign-off record"
+              onChange={event => setClearanceEvidenceReference(event.target.value)}
+            />
+          </label>
+          <label style={{ flex: "2 1 300px" }}>
+            Clearance decision rationale
+            <input
+              value={clearanceReason}
+              maxLength={500}
+              placeholder="What was checked, or why a previous clearance is withdrawn?"
+              onChange={event => setClearanceReason(event.target.value)}
+            />
+          </label>
+          <p style={{ flexBasis: "100%", margin: "0", fontSize: 11 }}>
+            Clearances require an authorized departmental role, recent MFA and recorded evidence.
+            Only draft packages may change; finance/payroll approval requires all four reviews.
+          </p>
+        </div>
         <div className="data-table-wrap">
           <table className="data-table">
             <thead>
@@ -690,16 +737,16 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                   <td>{sep.lastDay}</td>
                   <td>
                     <div style={{ display: "flex", gap: 4 }}>
-                      <button className={`secondary-button ${sep.itCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} onClick={() => updateClearance(sep.id, "it", !sep.itCleared)}>
+                      <button className={`secondary-button ${sep.itCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} disabled={sep.status !== "draft" || clearanceEvidenceReference.trim().length < 8 || clearanceReason.trim().length < 12} onClick={() => updateClearance(sep.id, "it", !sep.itCleared)}>
                         IT {sep.itCleared ? "✓" : "-"}
                       </button>
-                      <button className={`secondary-button ${sep.adminCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} onClick={() => updateClearance(sep.id, "admin", !sep.adminCleared)}>
+                      <button className={`secondary-button ${sep.adminCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} disabled={sep.status !== "draft" || clearanceEvidenceReference.trim().length < 8 || clearanceReason.trim().length < 12} onClick={() => updateClearance(sep.id, "admin", !sep.adminCleared)}>
                         ADM {sep.adminCleared ? "✓" : "-"}
                       </button>
-                      <button className={`secondary-button ${sep.financeCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} onClick={() => updateClearance(sep.id, "finance", !sep.financeCleared)}>
+                      <button className={`secondary-button ${sep.financeCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} disabled={sep.status !== "draft" || clearanceEvidenceReference.trim().length < 8 || clearanceReason.trim().length < 12} onClick={() => updateClearance(sep.id, "finance", !sep.financeCleared)}>
                         FIN {sep.financeCleared ? "✓" : "-"}
                       </button>
-                      <button className={`secondary-button ${sep.hrCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} onClick={() => updateClearance(sep.id, "hr", !sep.hrCleared)}>
+                      <button className={`secondary-button ${sep.hrCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} disabled={sep.status !== "draft" || clearanceEvidenceReference.trim().length < 8 || clearanceReason.trim().length < 12} onClick={() => updateClearance(sep.id, "hr", !sep.hrCleared)}>
                         HR {sep.hrCleared ? "✓" : "-"}
                       </button>
                     </div>
