@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 type EmployeeOption = {
   id: number; employeeNo: string; firstName: string; lastName: string; status: string;
@@ -65,26 +65,37 @@ export function PayrollOverpaymentPreviewPanel({ organizationId }: { organizatio
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const response = await fetch(
-        "/api/payroll-overpayment-preview?organizationId=" + organizationId,
-        { cache: "no-store" },
-      );
-      if (!response.ok) return;
-      const result = await response.json() as OptionsResponse;
-      setOptions(result);
-      setAvailable(true);
-    } catch {
-      // Do not show a restricted payroll review panel on disconnected,
-      // unauthorized or disabled workspaces.
-      setAvailable(false);
-    }
-  }, [organizationId]);
-
   useEffect(() => {
-    void load();
-  }, [load]);
+    // Switching employers must immediately hide the previous tenant's payroll
+    // selection and computed financial preview, even when its prior fetch is
+    // slow and completes after the user changes workspaces.
+    let cancelled = false;
+    const controller = new AbortController();
+    setAvailable(false);
+    setOptions(null);
+    setPreview(null);
+    setValues(INITIAL);
+    setError("");
+    void (async () => {
+      try {
+        const response = await fetch(
+          "/api/payroll-overpayment-preview?organizationId=" + organizationId,
+          { cache: "no-store", signal: controller.signal },
+        );
+        if (!response.ok || cancelled) return;
+        const result = await response.json() as OptionsResponse;
+        if (cancelled) return;
+        setOptions(result);
+        setAvailable(true);
+      } catch {
+        // Disabled, unauthorized or disconnected tenants receive no panel.
+      }
+    })();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [organizationId]);
 
   const update = (field: keyof FormValues, value: string) => {
     setValues(previous => ({ ...previous, [field]: value }));
