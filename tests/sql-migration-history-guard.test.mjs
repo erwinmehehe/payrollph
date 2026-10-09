@@ -56,7 +56,7 @@ test("a loan 0103 requires predecessors and cannot shadow compensation 0100", ()
   const nextLoan = "drizzle/0103_independent_employee_loan_deductions.sql";
   const missing = analyzeMigrationChanges(base, [{ status: "A", path: nextLoan }]);
   assert.equal(missing.errors.length, 1);
-  assert.match(missing.errors[0], /expected drizzle\\/0100_/);
+  assert.match(missing.errors[0], /expected drizzle\/0100_/);
   const ordered = analyzeMigrationChanges(base, [
     { status: "A", path: nextLoan },
     { status: "A", path: "drizzle/0102_final_pay_maker_checker.sql" },
