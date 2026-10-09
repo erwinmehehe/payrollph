@@ -16,17 +16,22 @@ meaningful employment change.
 
 ## Implemented controls
 
-- **Approval source comparison:** The original source snapshot is compared
-  against authoritative current employee, primary assignment and position
-  data, including org unit, legal employer, title, employee status, position
-  ID, supervisory org, manager, cost center and employment type. Missing
-  source fields and older untraceable snapshots fail closed.
-- **Two-stage concurrency protection:** Application checks the frozen source
-  under the existing worker advisory lock before any mutation, requires the
-  original primary assignment still to be open before closing it, and
-  compares employee field values in its final SQL UPDATE. Changes from
-  nonparticipating direct writers cannot silently overwrite reviewed state.
-  Full cross-route locking remains a broader HCM #610 follow-up.
+- **Frozen source and destination comparison:** The originally reviewed
+  worker/primary assignment/current position are compared with authoritative
+  live org unit, legal employer, title, status, manager, cost center, job and
+  assignment. The *approved destination vacancy* must also retain its
+  originally reviewed employer, manager, organization and job fields; only
+  ordinary vacancy approval → reservation status is permitted to change.
+  Missing source/destination evidence and legacy untraceable snapshots fail
+  closed.
+- **Two-stage concurrency protection:** Application locks both relevant
+  positions in stable ID order, then checks frozen source/destination evidence
+  under the existing worker advisory lock before mutation. The original
+  primary assignment must still be open before closing it, and the employee
+  UPDATE compares live org/employer/title/type/status with reviewed values.
+  Changes from nonparticipating direct writers cannot silently overwrite
+  reviewed state. Full cross-route locking remains a broader HCM #610
+  follow-up.
 - **All-or-nothing financial/HR audit:** The worker, position assignment,
   employment event, status `applied`, and actor audit row commit inside the
   *same* PostgreSQL transaction. An audit storage failure rolls back the
