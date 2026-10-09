@@ -211,12 +211,22 @@ test("payroll run lifecycle cannot cross organization-unit boundaries", () => {
 
 
 test("employee money and final-pay workflows enforce organization-unit scope", () => {
+  // Financial loan writes are more restrictive than ordinary People-unit
+  // mutations. They demand company-wide payroll membership, MFA and an
+  // employer-qualified employee-to-loan join for every read. A literal
+  // assertScope() call would not provide these stronger guarantees.
+  const loans = read("src/app/api/loans/route.ts");
+  assert.ok(loans.includes("getAccess("));
+  assert.ok(loans.includes("!access?.companyWide"));
+  assert.ok(loans.includes("PAYROLL_OPERATOR_ROLES"));
+  assert.ok(loans.includes("requireSensitiveActionMfa(user)"));
+  assert.ok(loans.includes("eq(employeeLoans.organizationId, employees.organizationId)"));
+
   for (const path of [
-    "src/app/api/loans/route.ts",
     "src/app/api/earned-wage/route.ts",
     "src/app/api/de-minimis/route.ts",
     "src/app/api/separation/route.ts",
-  "src/app/api/separation/[id]/2316/route.ts",
+    "src/app/api/separation/[id]/2316/route.ts",
   ]) {
     const source = read(path);
     assert.ok(source.includes("getAccess("), `${path} must resolve organization-unit access`);
