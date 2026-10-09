@@ -606,25 +606,25 @@ export async function POST(request: Request) {
           initiatedByName: user.name,
           sourceEvidence: { ...freezeSeparationIntent(separationIntent) },
         });
-        return { instance, submitted: true };
-      });
-      separationProcess = review.instance;
-      if (review.submitted) {
-        await recordAuditEvent({
+        // A separation intent cannot become pending or approved without the
+        // corresponding actor's immutable HR decision trail.
+        await tx.insert(auditEvents).values({
           organizationId,
           actor: user.name,
           action: "Separation intent submitted to HCM business process",
           resource: `Employee #${employeeId}`,
           metadata: {
             employeeId,
-            businessProcessInstanceId: separationProcess.id,
+            businessProcessInstanceId: instance.id,
             noticeDate,
             lastDay,
             separationType,
             intentFingerprint,
           },
         });
-      }
+        return { instance, submitted: true };
+      });
+      separationProcess = review.instance;
       if (separationProcess.status !== "approved") {
         return Response.json({
           approvalRequired: true,
