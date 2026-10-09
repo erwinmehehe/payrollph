@@ -24,6 +24,9 @@ test("worker and forced /api/jobs/tick share the default-off scheduler entrypoin
   assert.ok(scheduler.includes('reason: "scheduler-disabled"'));
   assert.ok(worker.includes("await tickScheduler()"));
   assert.ok(tickRoute.includes("await tickScheduler(true)"));
+  assert.ok(tickRoute.includes('result.reason === "scheduler-disabled"'));
+  assert.match(tickRoute.slice(tickRoute.indexOf('result.reason === "scheduler-disabled"')),
+    /status:\s*503/);
   assert.ok(!tickRoute.includes("runScheduledCompensationGovernance("));
 });
 

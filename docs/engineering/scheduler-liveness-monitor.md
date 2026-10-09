@@ -39,3 +39,8 @@ The final `delivery-drain` completion timestamp and JSON receipt are now written
 A valid separate monitor token can still authenticate `GET /api/jobs/status`, but while central scheduling is disabled it returns a non-cacheable HTTP **503** with `state: scheduler-disabled` even if a prior successful receipt is recent. Health must never be reported from stale state after this switch is turned off. Other worker payroll queue processing is **not** disabled by this flag; leave `WORKER_ENABLED=false` where payroll job execution has not separately been accepted.
 
 Only turn on `CENTRAL_SCHEDULER_ENABLED` in an isolated synthetic-data staging deployment after authorized review of the worker and job list. Verify the exact deployed SHA, read-only monitor token isolation, two-worker lease takeover, downstream idempotency, restart behavior and alerting. Production activation still needs independent security/DBA/privacy, statutory payroll and employer-specific evidence in #637, #630, #112 and #579. Repository CI alone does not approve the flag.
+
+
+#### Forced cron response while disabled
+
+Authenticated `POST /api/jobs/tick` returns HTTP **503**, not 200, when `CENTRAL_SCHEDULER_ENABLED` is missing or not exactly `true`. The response identifies `scheduler: disabled` and `result.reason: scheduler-disabled`; no lease is acquired and no scheduled jobs run. This prevents monitoring systems from mistaking a skipped scheduled tick for a successful execution. Competing-worker skips and short-interval skips remain separate non-error cases.
