@@ -17,21 +17,21 @@ export function FirstPayrollReadinessCard({
   const percent = Math.round((readiness.completed / readiness.total) * 100);
 
   return (
-    <section className="first-payroll-card" aria-label="Ready for first payroll">
+    <section className="first-payroll-card" aria-label="First payroll setup readiness">
       <div className="first-payroll-head">
         <div>
           <div className="first-payroll-kicker"><ShieldCheck size={14} /> FIRST PAYROLL</div>
-          <h2>{readiness.ready ? "Ready for first payroll." : "Finish setup before money moves."}</h2>
+          <h2>{readiness.ready ? "Workspace setup complete." : "Complete first-payroll setup."}</h2>
           <p>
             {readiness.ready
-              ? "The roster, payout details, and maker-checker roles are in place."
-              : `${readiness.completed} of ${readiness.total} launch checks are complete.`}
+              ? "Roster, payout details and assigned payroll/checker roles are configured. Payroll calculation and release still require separate checks."
+              : `${readiness.completed} of ${readiness.total} workspace setup checks are complete. These do not certify payroll.`}
           </p>
         </div>
 
-        <div className="first-payroll-progress" aria-label={`${percent}% ready`}>
+        <div className="first-payroll-progress" aria-label={`${percent}% setup complete`}>
           <strong>{readiness.completed}/{readiness.total}</strong>
-          <span>ready</span>
+          <span>setup</span>
         </div>
       </div>
 
@@ -64,9 +64,9 @@ export function FirstPayrollReadinessCard({
           <span>
             {readiness.ready
               ? readiness.firstPayrollStarted
-                ? "Your first payroll run has already started."
-                : "All first-payroll setup checks are green."
-              : "Payroll stays blocked until every active employee has payout details."}
+                ? "Your first payroll run has started. Review calculations, exceptions and approval status in Payroll."
+                : "Setup checks are green. Review employee pay inputs, attendance and statutory deductions before calculating."
+              : "Finish the five setup checks before starting a payroll calculation."}
           </span>
         </div>
         {readiness.ready && (
@@ -77,6 +77,17 @@ export function FirstPayrollReadinessCard({
             {readiness.firstPayrollStarted ? "Open payroll" : "Start first payroll"} <ArrowRight size={15} />
           </button>
         )}
+      </div>
+
+      <div className="notice notice-blue" style={{ marginTop: 12, fontSize: 12 }}>
+        <CircleAlert size={15} />
+        <span>
+          <strong>Readiness stages:</strong> Configure workspace ({readiness.ready ? "complete" : "incomplete"});
+          calculate payroll (requires period-specific HR input checks);
+          release payroll (requires calculation, statutory and independent checker approval);
+          independently certify (requires signed real-employer reconciliation evidence).
+          A completed setup checklist does not certify payroll or authorize payment.
+        </span>
       </div>
     </section>
   );
