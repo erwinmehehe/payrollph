@@ -4,7 +4,7 @@
 
 ## What it checks
 
-The release rule uses the actual payroll register and **last successfully completed payroll job**, not the date the run was first opened.
+The release rule uses the actual payroll register and a successfully completed payroll job. **Freshness is measured from when that job was queued**, not from its completion time: this conservatively flags changes made during payroll chunk processing. It does not rely on the date the run was first opened.
 
 - Calculated employee IDs must exactly match live, eligible company-wide employees (Active, start date on or before cutoff end). Missing or duplicate employees block release.
 - HRIS worker changes due in the cutoff must be applied. Applied changes **after the latest completed calculation** block release.
@@ -49,8 +49,8 @@ No money-moving operation, salary change, payout destination approval or databas
 | Clean company-wide payroll with completed job | Connected release gate passes; **not legal/regulatory certification** |
 | No completed job, incomplete employee count/chunks | Block |
 | New hire after calculation / separated employee no longer eligible | Block roster mismatch |
-| Applied HR/pay change before final calculation | Not stale merely because run was opened earlier |
-| HR/pay, WFM or HCM change after final calculation | Block pending recalculation and checker signoff |
+| Applied HR/pay change before the job was queued | Not stale merely because run was opened earlier |
+| HR/pay, WFM or HCM change after calculation was queued, including mid-job | Block pending recalculation and checker signoff |
 | Correction pending, attendance blocker event open | Block |
 | Attendance warning event open | Review item, existing WFM policy still authoritative |
 | Stale later timesheet after earlier approved timesheet | Block |
