@@ -19,6 +19,7 @@ import { managedPayrollReleaseRequirement } from "@/lib/managed-payroll";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
+import { connectedPayrollReleaseGateEnabled, safePayrollConnectedReleaseReadiness } from "@/lib/payroll-connected-release-gate-server";
 
 const RELEASABLE = ["Ready for release"];
 
@@ -189,6 +190,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return Response.json({ error: "Payroll is no longer ready for release. Refresh and review its current status." }, { status: 409 });
   }
 
+  // Revalidate upstream evidence after the atomic Ready -> Releasing claim,
+  // not only when the release screen rendered. A failing check restores the
+  // claim without touching financial settlement. Source writers still need
+  // coordinated locking before this can be treated as race-free certification.
+  let connectedReleaseEvidence: { version: string; blockingCount: number; reviewCount: number } | null = null;
+  if (connectedPayrollReleaseGateEnabled()) {
+    const connected = await safePayrollConnectedReleaseReadiness(runId);
+    if (!connected.ready) {
+      await db.update(payrollRuns)
+        .set({ status: "Ready for release" })
+        .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "Releasing")));
+      return Response.json({
+        code: "PAYROLL_CONNECTED_SOURCE_INTEGRITY_BLOCK",
+        error: "HRIS, WFM or HCM input evidence is no longer safe to release. Review upstream changes and recalculate when needed.",
+        blockingCount: connected.blockingCount,
+        findings: connected.findings.filter((finding) => finding.severity === "blocker").slice(0, 15),
+      }, { status: 409 });
+    }
+    connectedReleaseEvidence = {
+      version: connected.version,
+      blockingCount: connected.blockingCount,
+      reviewCount: connected.reviewCount,
+    };
+  }
+
   let settlement;
   let updated;
   try {
@@ -205,6 +231,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         assurance: assuranceResult?.assurance.summary ?? null,
         approvalTaskId: payrollApproval.id,
         approvedBy: payrollApproval.decidedBy ?? payrollApproval.approver,
+        connectedSourceGate: connectedReleaseEvidence,
       },
     });
     settlement = released.settlement;
