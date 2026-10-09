@@ -37,13 +37,14 @@ export default function HcmWorkQueue() {
   useEffect(() => { void refresh(); },[refresh]);
 
   function edit(item:Item) {
-    setSelected(item); setTeam(item.ownerTeam); setOwnerId(item.ownerUserId?.toString() ?? "");
+    setSelected(item); setTeam(teams.includes(item.ownerTeam) ? item.ownerTeam : teams[0]); setOwnerId(item.ownerUserId?.toString() ?? "");
     setDue(localInput(item.dueAt)); setEscalate(localInput(item.escalateAt)); setError("");
   }
   async function save() {
     if (!selected) return;
     setSaving(true); setError("");
     try {
+      if (escalate && (!due || new Date(escalate).getTime() < new Date(due).getTime())) throw new Error("Escalation must be at or after the SLA deadline.");
       const response=await fetch("/api/hcm/work-items",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         organizationId:Number(organizationId),id:selected.id,ownerTeam:team,ownerUserId:ownerId?Number(ownerId):null,dueAt:iso(due),escalateAt:iso(escalate)
       })});
@@ -82,6 +83,7 @@ export default function HcmWorkQueue() {
     </table>{items.length===0&&<p className="p-8 text-center text-slate-500">No work items found for this filter.</p>}</div>
     {selected&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><section role="dialog" aria-modal="true" aria-labelledby="work-item-edit-title" className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
       <h2 id="work-item-edit-title" className="text-xl font-bold">Assign #{selected.id}</h2><p className="mb-4 text-slate-600">{selected.title}</p>
+      {error&&<p role="alert" className="mb-3 rounded border border-rose-300 p-2 text-rose-700">{error}</p>}
       <div className="grid gap-3">
         <label className="grid gap-1 text-sm font-semibold">HR team<select className="rounded border p-2" value={team} onChange={e=>setTeam(e.target.value)}>{teams.map(t=><option key={t}>{t}</option>)}</select></label>
         <label className="grid gap-1 text-sm font-semibold">Accountable owner<select className="rounded border p-2" value={ownerId} onChange={e=>setOwnerId(e.target.value)}><option value="">Unassigned</option>{owners.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></label>
