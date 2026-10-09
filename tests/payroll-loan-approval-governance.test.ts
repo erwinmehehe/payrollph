@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "../src/db";
-import { employeeLoans, employees, organizations, users } from "../src/db/schema";
+import { auditEvents, employeeLoans, employees, loanPayments, organizations, users } from "../src/db/schema";
 import {
   activeLoanPayrollConflict, approvedPayrollLoanType, externalLoanPaymentReference,
   independentLoanReviewer, loanApprovalReference, moneyFromCents, parseLoanCents, validLoanDate,
@@ -196,4 +196,64 @@ test("loan issuance and manual receipts reject unsupported deductions and duplic
   assert.ok(route.includes("eq(loanPayments.loanId, id)"));
   assert.ok(route.includes("lower(${loanPayments.reference}) = lower(${paymentRef})"));
   assert.ok(route.includes('status: "pending_approval"'));
+});
+
+test("a failed audit write atomically rolls back an external loan repayment", async () => {
+  const suffix = randomUUID().slice(0, 8);
+  const [org] = await db.insert(organizations).values({
+    name: `Loan rollback ${suffix}`, legalName: `Loan rollback ${suffix}`, plan: "Core",
+  }).returning();
+  const [maker, reviewer] = await db.insert(users).values([
+    { email: `loan-source-maker-${suffix}@example.invalid`, name: "Loan Maker", passwordHash: "test-only" },
+    { email: `loan-source-reviewer-${suffix}@example.invalid`, name: "Loan Reviewer", passwordHash: "test-only" },
+  ]).returning();
+  try {
+    const [employee] = await db.insert(employees).values({
+      organizationId: org.id, employeeNo: `LOAN-ROLLBACK-${suffix}`,
+      firstName: "Ada", lastName: "Reyes", title: "Clerk",
+      avatarInitials: "AR", basicRate: "21000.00", startDate: "2026-01-01",
+    }).returning();
+    const [requested] = await db.insert(employeeLoans).values({
+      organizationId: org.id, employeeId: employee.id, loanType: "SSS Salary Loan",
+      referenceNo: `LOAN-${suffix}`, principal: "12000.00",
+      monthlyAmortization: "1000.00", cutoffDeduction: "500.00",
+      remainingBalance: "12000.00", totalPaid: "0.00",
+      startDate: "2026-01-01",
+      requestedByUserId: maker.id,
+      deductionAuthorizationReference: `AUTH-${suffix}-2026`,
+    }).returning();
+    await db.update(employeeLoans).set({
+      status: "active", reviewedByUserId: reviewer.id,
+      reviewedAt: new Date(), reviewEvidenceReference: `REVIEW-${suffix}-2026`,
+    }).where(eq(employeeLoans.id, requested.id));
+
+    await assert.rejects(() => db.transaction(async tx => {
+      await tx.execute(sql`select id from employee_loans where id = ${requested.id} for update`);
+      await tx.insert(loanPayments).values({
+        loanId: requested.id, amount: "500.00",
+        paymentDate: "2026-10-09", reference: "FAILED-AUDIT-RECEIPT",
+      });
+      await tx.update(employeeLoans).set({
+        remainingBalance: "11500.00", totalPaid: "500.00",
+      }).where(eq(employeeLoans.id, requested.id));
+      // Deliberately violate NOT NULL actor: audit and finance must commit together.
+      await tx.execute(sql`
+        insert into audit_events (organization_id, actor, action, resource)
+        values (${org.id}, NULL, 'Loan rollback QA', 'QA')
+      `);
+    }));
+    const [fresh] = await db.select().from(employeeLoans).where(eq(employeeLoans.id, requested.id));
+    assert.equal(fresh.remainingBalance, "12000.00");
+    assert.equal(fresh.totalPaid, "0.00");
+    const receipts = await db.select().from(loanPayments)
+      .where(and(eq(loanPayments.loanId, requested.id), eq(loanPayments.reference, "FAILED-AUDIT-RECEIPT")));
+    assert.equal(receipts.length, 0);
+    const audits = await db.select().from(auditEvents)
+      .where(and(eq(auditEvents.organizationId, org.id), eq(auditEvents.action, "Loan rollback QA")));
+    assert.equal(audits.length, 0);
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+    await db.delete(users).where(eq(users.id, maker.id));
+    await db.delete(users).where(eq(users.id, reviewer.id));
+  }
 });
