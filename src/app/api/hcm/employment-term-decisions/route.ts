@@ -370,36 +370,79 @@ export async function PATCH(request: Request) {
   }
 
   if (action === "retry") {
-    if (decision.status !== "failed" || !decision.approvedByUserId) {
-      return Response.json({ error: "Only previously approved failed decisions can be retried." }, { status: 409 });
-    }
-    const [scheduled] = await db.update(hcmEmploymentTermDecisions).set({
-      status: "scheduled",
-      failure: null,
-      updatedAt: new Date(),
-    }).where(and(
-      eq(hcmEmploymentTermDecisions.id, id),
-      eq(hcmEmploymentTermDecisions.status, "failed"),
-    )).returning();
-    if (!scheduled) return Response.json({ error: "Decision changed before retry." }, { status: 409 });
-    await recordEmploymentDecisionEvidenceEvent({
-      organizationId,
-      decisionId: scheduled.id,
-      employeeId: scheduled.employeeId,
-      eventType: "retried",
-      actor: user.name,
-      actorUserId: user.id,
-      metadata: { previousStatus: "failed", effectiveDate: String(scheduled.effectiveDate) },
-    });
-    if (String(scheduled.effectiveDate) <= philippineBusinessDate()) {
-      try {
-        const applied = await applyEmploymentTermDecision({ decisionId: id, actor: user.name, actorUserId: user.id });
-        return Response.json({ decision: applied.decision, applied: true });
-      } catch (error) {
-        return Response.json({ error: error instanceof Error ? error.message : "Decision application failed." }, { status: 409 });
+    try {
+      const scheduled = await db.transaction(async (tx) => {
+        await tx.execute(sql`select id from hcm_employment_term_decisions
+          where id = ${id} and organization_id = ${organizationId} for update`);
+        const [fresh] = await tx.select().from(hcmEmploymentTermDecisions).where(and(
+          eq(hcmEmploymentTermDecisions.id, id),
+          eq(hcmEmploymentTermDecisions.organizationId, organizationId),
+        )).limit(1);
+        if (!fresh) throw new Error("TERM_DECISION_NOT_FOUND");
+        const blocker = retryBlocker(fresh);
+        if (blocker) throw new Error(blocker);
+
+        const [updated] = await tx.update(hcmEmploymentTermDecisions).set({
+          status: "scheduled",
+          failure: null,
+          updatedAt: new Date(),
+        }).where(and(
+          eq(hcmEmploymentTermDecisions.id, id),
+          eq(hcmEmploymentTermDecisions.organizationId, organizationId),
+          eq(hcmEmploymentTermDecisions.status, "failed"),
+          isNull(hcmEmploymentTermDecisions.successorTermId),
+          eq(hcmEmploymentTermDecisions.separationHandoffStatus, "none"),
+          isNull(hcmEmploymentTermDecisions.separationRecordId),
+        )).returning();
+        if (!updated) throw new Error("TERM_DECISION_SOURCE_STALE");
+
+        await tx.insert(hcmEmploymentDecisionEvents).values({
+          organizationId, decisionId: updated.id, employeeId: updated.employeeId,
+          eventType: "retried", actorUserId: user.id, actorName: user.name.slice(0, 120),
+          metadata: {
+            previousStatus: fresh.status,
+            effectiveDate: String(updated.effectiveDate),
+            evidenceSnapshotSha256: fresh.evidenceSnapshotSha256,
+          },
+        });
+        await tx.insert(auditEvents).values({
+          organizationId, actor: user.name,
+          action: "HCM employment-term decision retry scheduled",
+          resource: `Employee #${updated.employeeId}`,
+          metadata: {
+            employmentTermDecisionId: updated.id, actorUserId: user.id,
+            previousStatus: fresh.status, evidenceSnapshotSha256: fresh.evidenceSnapshotSha256,
+          },
+        });
+        return updated;
+      });
+      if (String(scheduled.effectiveDate) <= philippineBusinessDate()) {
+        try {
+          const applied = await applyEmploymentTermDecision({
+            decisionId: id, actor: user.name, actorUserId: user.id,
+          });
+          return Response.json({ decision: applied.decision, applied: true });
+        } catch (error) {
+          return Response.json({
+            error: error instanceof Error ? error.message : "Decision application failed.",
+            retryRecorded: true,
+          }, { status: 409 });
+        }
       }
+      return Response.json({ decision: scheduled, applied: false });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      const explanations: Record<string, string> = {
+        TERM_DECISION_NOT_FOUND: "Employment-term decision is no longer available.",
+        TERM_DECISION_RETRY_REQUIRES_APPROVAL: "Only a previously approved failed decision may be retried.",
+        TERM_DECISION_RETRY_UNSEALED: "This legacy failed decision has no sealed approval evidence. Reconcile it through a fresh reviewed decision.",
+        TERM_DECISION_SEPARATION_HANDOFF_STARTED: "A non-renewal Separation handoff has begun. Do not retry the term decision independently.",
+        TERM_DECISION_SUCCESSOR_ALREADY_PREPARED: "A successor term was already prepared; reconcile its activation before retrying.",
+        TERM_DECISION_SOURCE_STALE: "Employment-term decision changed during retry. Refresh the evidence.",
+      };
+      if (explanations[code]) return Response.json({ code, error: explanations[code] }, { status: 409 });
+      throw error;
     }
-    return Response.json({ decision: scheduled, applied: false });
   }
 
   const now = new Date();
