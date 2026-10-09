@@ -50,7 +50,8 @@ export function activeLoanPayrollConflict<T extends LoanPayrollConflictInput>(
 
 export function loanApprovalReference(value: unknown): string | null {
   const reference = typeof value === "string" ? value.trim() : "";
-  return reference.length >= 8 && reference.length <= 200 ? reference : null;
+  return reference.length >= 8 && reference.length <= 200
+    && !/[\r\n\u0000-\u001f]/.test(reference) ? reference : null;
 }
 
 /** Only employer-supported loan products can enter the wage-deduction review path. */
@@ -80,6 +81,7 @@ export function externalLoanPaymentReference(value: unknown): string | null {
   const reference = typeof value === "string" ? value.trim() : "";
   if (reference.length < 8 || reference.length > 120
     || /[\r\n\u0000-\u001f]/.test(reference)
+    || /\\[nr]/i.test(reference)
     || /^(?:manual payment|direct employee remittance|test payment|testing payment|not applicable|n\/a)$/i.test(reference)) {
     return null;
   }
