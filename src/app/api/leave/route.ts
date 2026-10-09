@@ -1,13 +1,15 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
+  auditEvents,
   employees,
   leavePolicies,
   leaveRequestIntervals,
   leaveRequestIntervalSets,
   leaveRequests,
+  separationRecords,
   userOrganizations,
   users,
 } from "@/db/schema";
@@ -24,12 +26,17 @@ import {
 } from "@/lib/workforce-absence-intervals";
 import { loadResolvedEmployeeSchedule } from "@/lib/workforce-schedule-evidence-server";
 import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
+import {
+  checkEmployeeLeaveEligibility,
+  leaveDateWindow,
+  MAX_PRECISE_LEAVE_INTERVALS,
+  validLeaveDate,
+} from "@/lib/hcm-leave-employment";
 
 export const dynamic = "force-dynamic";
 
 const LEAVE_ADMIN_ROLES = ["owner", "admin", "bookkeeper", "hr", "manager"] as const;
 const LEAVE_APPROVER_ROLES = ["manager", "hr", "owner", "admin", "bookkeeper"] as const;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function calendarDates(startDate: string, endDate: string) {
   const start = new Date(`${startDate}T00:00:00Z`);
@@ -48,6 +55,22 @@ async function validatePreciseTiming(input: {
   endDate: string;
   intervals: PreciseLeaveInterval[];
 }) {
+  const window = leaveDateWindow(input.startDate, input.endDate);
+  if (!window.ok) return { ok: false as const, errors: [window.message], intervals: [] as PreciseLeaveInterval[] };
+  if (input.intervals.length === 0 || input.intervals.length > MAX_PRECISE_LEAVE_INTERVALS) {
+    return {
+      ok: false as const,
+      errors: [`Leave timing requires 1-${MAX_PRECISE_LEAVE_INTERVALS} intervals.`],
+      intervals: [] as PreciseLeaveInterval[],
+    };
+  }
+  if (input.intervals.some((interval) => !validLeaveDate(interval.workDate))) {
+    return {
+      ok: false as const,
+      errors: ["Each leave interval needs a real YYYY-MM-DD work date."],
+      intervals: [] as PreciseLeaveInterval[],
+    };
+  }
   const initial = validateLeaveIntervals(input.intervals);
   if (!initial.ok) return { ok: false as const, errors: initial.errors, intervals: [] as PreciseLeaveInterval[] };
 
@@ -211,6 +234,24 @@ export async function POST(request: Request) {
         error: "Approved/rejected leave timing is immutable. Withdraw and submit a new governed request instead.",
       }, { status: 409 });
     }
+    const [pendingSeparation] = employee.status === "Separating"
+      ? await db.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
+          .where(and(
+            eq(separationRecords.organizationId, organizationId),
+            eq(separationRecords.employeeId, employee.id),
+            inArray(separationRecords.status, ["draft", "approved"]),
+          )).orderBy(desc(separationRecords.id)).limit(1)
+      : [];
+    const eligibility = checkEmployeeLeaveEligibility({
+      employeeStatus: employee.status,
+      employmentStartDate: String(employee.startDate),
+      leaveStartDate: String(leave.startDate),
+      leaveEndDate: String(leave.endDate),
+      separationLastDay: pendingSeparation?.lastDay ?? null,
+    });
+    if (eligibility) {
+      return Response.json({ code: eligibility.code, error: eligibility.message }, { status: 409 });
+    }
 
     const precise = await validatePreciseTiming({
       organizationId,
@@ -286,16 +327,13 @@ export async function POST(request: Request) {
   const days = Number(body.days);
   const reason = String(body.reason ?? "").trim();
 
-  if (
-    !leaveType ||
-    !ISO_DATE.test(startDate) ||
-    !ISO_DATE.test(endDate) ||
-    endDate < startDate ||
-    !Number.isFinite(days) ||
-    days <= 0
-  ) {
+  const dateWindow = leaveDateWindow(startDate, endDate);
+  if (!leaveType || !dateWindow.ok || !Number.isFinite(days) || days <= 0
+    || (dateWindow.ok && days > dateWindow.calendarDays)) {
     return Response.json({
-      error: "organizationId, leaveType, valid start/end dates and positive days are required.",
+      code: !dateWindow.ok ? dateWindow.code : "LEAVE_REQUEST_INVALID",
+      error: !dateWindow.ok ? dateWindow.message
+        : "A leave request needs a leave type and positive leave days no greater than its calendar date range.",
     }, { status: 400 });
   }
 
@@ -322,6 +360,24 @@ export async function POST(request: Request) {
     employee.orgUnitId !== access.orgUnitId
   ) {
     return Response.json({ error: "Managers can submit leave only for employees in their assigned unit." }, { status: 403 });
+  }
+  const [pendingSeparation] = employee.status === "Separating"
+    ? await db.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
+        .where(and(
+          eq(separationRecords.organizationId, organizationId),
+          eq(separationRecords.employeeId, employee.id),
+          inArray(separationRecords.status, ["draft", "approved"]),
+        )).orderBy(desc(separationRecords.id)).limit(1)
+    : [];
+  const eligibility = checkEmployeeLeaveEligibility({
+    employeeStatus: employee.status,
+    employmentStartDate: String(employee.startDate),
+    leaveStartDate: startDate,
+    leaveEndDate: endDate,
+    separationLastDay: pendingSeparation?.lastDay ?? null,
+  });
+  if (eligibility) {
+    return Response.json({ code: eligibility.code, error: eligibility.message }, { status: 409 });
   }
 
   const policies = await db.select().from(leavePolicies)
@@ -424,21 +480,24 @@ export async function POST(request: Request) {
       timezone: interval.timezone,
       source: "request",
     })));
+    await tx.insert(auditEvents).values({
+      organizationId,
+      actor: user.name,
+      action: "Leave request submitted",
+      resource: `${employee.firstName} ${employee.lastName} · ${leaveType}`.slice(0, 160),
+      metadata: {
+        leaveId: row.id,
+        taskId: task.id,
+        requesterUserId: user.id,
+        approverUserId: approver.id,
+        intervalSetId: intervalSet.id,
+        intervalRevision: intervalSet.revision,
+        workerStatusAtSubmission: employee.status,
+        employmentStartDate: employee.startDate,
+        separationLastDay: pendingSeparation?.lastDay ?? null,
+      },
+    });
     return { task, row, intervalSet };
-  });
-
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: "Leave request submitted",
-    resource: `${employee.firstName} ${employee.lastName} · ${leaveType}`,
-    metadata: {
-      leaveId: created.row.id,
-      taskId: created.task.id,
-      approverUserId: approver.id,
-      intervalSetId: created.intervalSet.id,
-      intervalRevision: created.intervalSet.revision,
-    },
   });
 
   const automation = await runAutomationEventSafely({
