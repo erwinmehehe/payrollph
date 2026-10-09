@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { LinawWorkspace } from "@/components/linaw-workspace";
 import { SelfServicePortal } from "@/components/self-service-portal";
@@ -59,5 +60,11 @@ export default async function WorkspacePage() {
   if (companyDenied) redirect("/login?ssoRequired=1");
 
   const data = await getDashboardData(companyOrganizationId);
-  return <LinawWorkspace initialData={data} isSelfServeCustomer={Boolean(signup)} />;
+  return <>
+    <div className="mx-auto flex max-w-7xl justify-end px-5 pt-3">
+      <Link href="/hcm/command-center" className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>
+    </div>
+    <LinawWorkspace initialData={data} isSelfServeCustomer={Boolean(signup)} />
+  </>;
 }
+

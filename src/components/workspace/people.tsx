@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { ImportPanel } from "@/components/import-panel";
+import { EmployeeIdentifierReviewPanel } from "@/components/employee-identifier-review-panel";
 import { HcmCapabilitiesPanel } from "@/components/hcm-capabilities-panel";
 import { HcmBusinessProcessAdmin } from "@/components/hcm-business-process-admin";
 import { HcmBusinessProcessInbox } from "@/components/hcm-business-process-inbox";
@@ -444,6 +445,13 @@ export function PeopleView({
             and are outside your current access.
           </span>
         </div>
+      )}
+
+      {canManage && (
+        <details className="panel-disclosure">
+          <summary>Government ID verification <span>Review employee-submitted statutory and credential numbers</span></summary>
+          <EmployeeIdentifierReviewPanel organizationId={data.selectedOrganization.id} onRefresh={onRefresh} />
+        </details>
       )}
 
       {(canManage || canManageLifecycle || canViewLifecycleNotifications) && <details className="panel-disclosure"><summary>Employee administration <span>Import, lifecycle policies and notifications</span></summary>

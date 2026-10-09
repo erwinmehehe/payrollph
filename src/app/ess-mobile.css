@@ -1,0 +1,168 @@
+/* ESS mobile-first polish. Scoped so payroll/admin workspaces are unaffected. */
+.employee-more-scrim,.employee-more-panel{display:none}
+.app-shell.employee-workspace-shell .employee-side-nav .nav-item[aria-current="page"]{font-weight:700}
+.app-shell.employee-workspace-shell .employee-self-service :is(button,a,input,select,textarea):focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
+.app-shell.employee-workspace-shell .employee-section-heading p{font-size:13px;line-height:1.55}
+.app-shell.employee-workspace-shell .employee-list-card-head h3{font-size:15px}
+.app-shell.employee-workspace-shell .employee-pay-row-main > div:first-child strong,
+.app-shell.employee-workspace-shell .employee-attendance-row > div:first-child strong,
+.app-shell.employee-workspace-shell .employee-leave-row > div strong{font-size:13px}
+.app-shell.employee-workspace-shell .employee-pay-row-main > div:first-child span,
+.app-shell.employee-workspace-shell .employee-attendance-row > div:first-child span,
+.app-shell.employee-workspace-shell .employee-leave-row > div span{font-size:12px;line-height:1.45}
+.app-shell.employee-workspace-shell .employee-pay-row-amount strong{font-size:14px}
+.app-shell.employee-workspace-shell .employee-status-pill{font-size:11px;line-height:1.35}
+.app-shell.employee-workspace-shell .employee-self-service .employee-pay-row-main > *{min-width:0}
+.app-shell.employee-workspace-shell .employee-self-service .employee-pay-row-main strong{overflow-wrap:anywhere}
+.app-shell.employee-workspace-shell .employee-self-service :is(.employee-leave-form,.employee-edit-fields,.employee-link-form) label{font-size:13px}
+.app-shell.employee-workspace-shell .employee-self-service :is(.employee-leave-form,.employee-edit-fields) :is(input,select,textarea){min-height:44px;font-size:16px}
+.app-shell.employee-workspace-shell .employee-self-service .employee-leave-form small{font-size:12px}
+.app-shell.employee-workspace-shell .employee-self-service .employee-clock-button{min-height:44px;padding-inline:14px;font-size:13px}
+.app-shell.employee-workspace-shell .employee-self-service .employee-pay-row-detail > div strong{font-size:12px;overflow-wrap:anywhere}
+@media(max-width:768px){
+  .app-shell.employee-workspace-shell .employee-self-service.content-area{padding:18px 14px calc(112px + env(safe-area-inset-bottom,0px));overflow-x:clip}
+  .app-shell.employee-workspace-shell .employee-mobile-nav{height:calc(70px + env(safe-area-inset-bottom,0px));min-height:70px;grid-template-columns:repeat(5,minmax(0,1fr));padding:5px 8px calc(5px + env(safe-area-inset-bottom,0px));overflow:visible}
+  .app-shell.employee-workspace-shell .employee-mobile-nav button{min-width:0;min-height:56px;gap:4px;font-size:10px;font-weight:650;white-space:nowrap}
+  .app-shell.employee-workspace-shell .employee-mobile-nav .employee-tab-icon{width:28px;height:28px}
+  .app-shell.employee-workspace-shell .employee-workspace-topbar{min-height:64px;height:auto;gap:8px;padding:10px 14px}
+  .app-shell.employee-workspace-shell .employee-topbar-greeting{min-width:0}
+  .app-shell.employee-workspace-shell .employee-topbar-greeting strong{font-size:14px}
+  .app-shell.employee-workspace-shell .employee-topbar-greeting span{display:block;max-width:min(42vw,210px);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .app-shell.employee-workspace-shell .employee-shell-top-actions{gap:8px}
+  .app-shell.employee-workspace-shell .employee-shell-signout{display:none}
+  .app-shell.employee-workspace-shell .employee-shell-profile{min-width:44px;min-height:44px;justify-content:center}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-clock-button{min-width:44px;min-height:44px;padding:0 12px}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-clock-button span{display:inline;font-size:12px}
+  .app-shell.employee-workspace-shell .employee-section-heading{gap:12px}
+  .app-shell.employee-workspace-shell .employee-section-heading h2{font-size:24px}
+  .app-shell.employee-workspace-shell .employee-section-heading p{font-size:13px}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-list-card-head{padding:13px 14px;flex-wrap:wrap}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-list-card-head .secondary-button{min-height:44px}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-attendance-row{grid-template-columns:minmax(0,1fr) auto;row-gap:8px;padding:14px}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-attendance-row > .secondary-button{grid-column:1/-1;width:100%;min-height:44px;justify-content:center}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-attendance-times{grid-column:1;grid-row:auto;flex-wrap:wrap;font-size:12px}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-attendance-row > .employee-status-pill{grid-column:2;grid-row:1;justify-self:end}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-pay-row-main{grid-template-columns:minmax(0,1fr) auto 18px;gap:8px;padding:14px}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-pay-row-detail{grid-template-columns:repeat(2,minmax(0,1fr));padding:12px 14px}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-pay-row-detail > a{grid-column:1/-1;min-height:44px;justify-content:center}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-pay-row-amount strong{font-size:13px}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-leave-row{padding:14px;gap:8px}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-form-two{grid-template-columns:1fr}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-modal-actions button{min-height:44px}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-leave-modal{width:min(100%,520px);max-height:calc(100dvh - 32px);overflow-y:auto;padding:20px}
+  .app-shell.employee-workspace-shell .employee-self-service .employee-leave-form :is(input,textarea,select){min-width:0}
+  .employee-more-scrim{display:block;position:fixed;inset:0;z-index:73;width:100%;height:100%;border:0;border-radius:0;background:rgba(15,23,42,.42)}
+  .employee-more-panel{display:block;position:fixed;z-index:74;left:12px;right:12px;bottom:calc(78px + env(safe-area-inset-bottom,0px));max-width:460px;margin:0 auto;padding:16px;border:1px solid #e2e8f0;border-radius:18px;background:#fff;box-shadow:0 22px 65px rgba(15,23,42,.22)}
+  .employee-more-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;color:#10213d;font-size:16px}
+  .employee-more-header button{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;color:#475569}
+  .employee-more-links{display:grid;gap:4px}
+  .employee-more-links button,.employee-more-signout{display:flex;align-items:center;gap:12px;width:100%;min-height:50px;padding:11px 12px;border-radius:12px;color:#243451;font-size:14px;font-weight:600;text-align:left}
+  .employee-more-links button:focus-visible,.employee-more-header button:focus-visible,.employee-more-signout:focus-visible{outline:3px solid #60a5fa;outline-offset:2px}
+  .employee-more-links button:hover,.employee-more-links button[aria-current="page"]{background:#eff6ff;color:#1d4ed8}
+  .employee-more-links button span{flex:1}
+  .employee-more-links button svg:last-child{color:#94a3b8}
+  .employee-more-signout{margin-top:10px;border-top:1px solid #e2e8f0;border-radius:0;color:#b42318}
+}
+@media(max-width:390px){
+ .app-shell.employee-workspace-shell .employee-topbar-greeting span{max-width:115px}
+ .app-shell.employee-workspace-shell .employee-self-service .employee-clock-button span{display:none}
+ .app-shell.employee-workspace-shell .employee-self-service .employee-pay-row-main{grid-template-columns:minmax(0,1fr) auto 16px}
+ .app-shell.employee-workspace-shell .employee-mobile-nav button{font-size:10px}
+ .app-shell.employee-workspace-shell .employee-pay-row-detail{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){
+ .app-shell.employee-workspace-shell .employee-self-service *, .app-shell.employee-workspace-shell .employee-mobile-nav *{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+
+
+/* ESS Profile — same Linaw light-blue workspace language, usable at 320px. */
+.app-shell.employee-workspace-shell .employee-app-avatar{overflow:hidden}
+.app-shell.employee-workspace-shell .employee-app-avatar img{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover}
+.app-shell.employee-workspace-shell .ess-profile-extensions{display:grid;gap:16px;min-width:0}
+.app-shell.employee-workspace-shell .ess-profile-card{padding:20px;border-radius:14px}
+.app-shell.employee-workspace-shell .ess-profile-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px}
+.app-shell.employee-workspace-shell .ess-profile-card-heading h3{display:flex;align-items:center;gap:10px;margin:0;color:#10213d;font-size:18px;line-height:1.35}
+.app-shell.employee-workspace-shell .ess-profile-card-heading h3 svg{flex:none;color:#0866ed}
+.app-shell.employee-workspace-shell .ess-profile-card-heading p{margin:7px 0 0;color:#64748b;font-size:13px;line-height:1.55}
+.app-shell.employee-workspace-shell .ess-photo-layout{display:flex;align-items:center;gap:20px}
+.app-shell.employee-workspace-shell .ess-profile-picture{display:grid;place-items:center;flex:none;width:92px;height:92px;overflow:hidden;border-radius:50%;border:3px solid #e2e8f0;background:#e7f1ff;color:#075ee3;font-size:30px;font-weight:700}
+.app-shell.employee-workspace-shell .ess-profile-picture img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.app-shell.employee-workspace-shell .ess-photo-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.app-shell.employee-workspace-shell .ess-photo-actions small{display:block;flex-basis:100%;font-size:12px;color:#64748b}
+.app-shell.employee-workspace-shell .ess-photo-actions button,.app-shell.employee-workspace-shell .ess-id-form button,.app-shell.employee-workspace-shell .ess-password-form button{min-height:44px}
+.app-shell.employee-workspace-shell .ess-id-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.app-shell.employee-workspace-shell .ess-id-tile{display:flex;flex-direction:column;min-width:0;gap:6px;padding:14px;border:1px solid #e2e8f0;border-radius:12px;background:#fbfdff}
+.app-shell.employee-workspace-shell .ess-id-tile>span{font-size:12px;color:#526582;font-weight:600}
+.app-shell.employee-workspace-shell .ess-id-tile>strong{color:#10213d;font-size:17px;letter-spacing:.01em;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.app-shell.employee-workspace-shell .ess-id-edit{align-self:flex-start;margin-top:auto;min-height:42px;padding:8px 0;color:#075ee3;font-size:12px;font-weight:700;text-align:left}
+.app-shell.employee-workspace-shell .ess-pending{display:flex;align-items:center;gap:5px;margin-top:auto;color:#a16207;font-size:11px}
+.app-shell.employee-workspace-shell .ess-id-form{display:grid;gap:12px;margin-top:16px;padding:16px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff}
+.app-shell.employee-workspace-shell .ess-id-form label,.app-shell.employee-workspace-shell .ess-password-form label{display:grid;gap:7px;min-width:0;color:#344762;font-size:13px;font-weight:600}
+.app-shell.employee-workspace-shell .ess-id-form input,.app-shell.employee-workspace-shell .ess-password-form input{width:100%;min-width:0;min-height:48px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;color:#10213d;font-size:16px}
+.app-shell.employee-workspace-shell .ess-id-form p{margin:0;font-size:12px;color:#526582;line-height:1.5}
+.app-shell.employee-workspace-shell .ess-inline-actions{display:flex;flex-wrap:wrap;gap:8px}
+.app-shell.employee-workspace-shell .ess-requests-history{margin-top:15px;border-top:1px solid #e2e8f0;padding-top:14px}
+.app-shell.employee-workspace-shell .ess-requests-history summary{cursor:pointer;color:#1d4ed8;font-size:13px;font-weight:700;min-height:36px}
+.app-shell.employee-workspace-shell .ess-request-row{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid #eef2f7;padding:12px 0}
+.app-shell.employee-workspace-shell .ess-request-row>div{display:grid;gap:4px}
+.app-shell.employee-workspace-shell .ess-request-row strong{font-size:13px}
+.app-shell.employee-workspace-shell .ess-request-row small{color:#64748b;font-size:12px}
+.app-shell.employee-workspace-shell .ess-request-row p{flex-basis:100%;margin:0;color:#b45309;font-size:12px}
+.app-shell.employee-workspace-shell .ess-privacy-note{display:flex;gap:10px;align-items:flex-start;margin:16px 0 0;color:#64748b;font-size:12px;line-height:1.5}
+.app-shell.employee-workspace-shell .ess-privacy-note svg{flex:none;color:#0866ed}
+.app-shell.employee-workspace-shell .ess-details-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0}
+.app-shell.employee-workspace-shell .ess-details-grid>div{padding:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;min-width:0}
+.app-shell.employee-workspace-shell .ess-details-grid dt{font-size:12px;color:#64748b}
+.app-shell.employee-workspace-shell .ess-details-grid dd{margin:5px 0 0;font-size:14px;font-weight:650;color:#10213d;overflow-wrap:anywhere}
+.app-shell.employee-workspace-shell .ess-password-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.app-shell.employee-workspace-shell .ess-password-form>p{grid-column:1/-1;margin:0}
+.app-shell.employee-workspace-shell .ess-password-form>button{grid-column:1/-1;justify-self:start}
+.app-shell.employee-workspace-shell .ess-password-help{font-size:12px;color:#64748b;line-height:1.4}
+.app-shell.employee-workspace-shell .ess-message{display:flex;align-items:center;gap:6px;margin:12px 0 0;padding:11px 13px;border-radius:9px;font-size:12px;line-height:1.45}
+.app-shell.employee-workspace-shell .ess-message.good{background:#ecfdf5;color:#047857}
+.app-shell.employee-workspace-shell .ess-message.error{background:#fef2f2;color:#b42318}
+.ess-hr-review{display:grid;gap:14px;padding:15px 0}
+.ess-hr-review-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.ess-hr-review-heading h3{display:flex;align-items:center;gap:8px;font-size:18px;color:#10213d;margin:4px 0}
+.ess-hr-review-heading p{font-size:13px;color:#64748b;line-height:1.5;margin:0}
+.ess-hr-review .secondary-button,.ess-hr-review .primary-button{min-height:44px}
+.ess-hr-request{display:grid;gap:12px;border:1px solid #e2e8f0;background:#fff;border-radius:12px;padding:16px;min-width:0}
+.ess-hr-request-row{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px}
+.ess-hr-request-row>div{display:grid;gap:5px}
+.ess-hr-request-row strong{font-size:15px}
+.ess-hr-request-row small{font-size:12px;color:#64748b}
+.ess-hr-identifier-masks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ess-hr-identifier-masks>div{display:grid;gap:5px;padding:12px;background:#f8fafc;border-radius:10px}
+.ess-hr-identifier-masks span{font-size:11px;color:#64748b}
+.ess-hr-identifier-masks strong{font-size:15px;color:#1e293b}
+.ess-hr-review-form{display:grid;gap:12px;margin-top:6px;padding:14px;border:1px solid #bfdbfe;border-radius:10px;background:#eff6ff}
+.ess-hr-review-form>p{display:flex;gap:8px;margin:0;align-items:flex-start;font-size:12px;line-height:1.5}
+.ess-hr-review-form label:not(.ess-hr-verify-check){display:grid;gap:5px;font-size:13px;font-weight:600}
+.ess-hr-review-form input:not([type=checkbox]),.ess-hr-review-form textarea{width:100%;min-width:0;min-height:46px;padding:10px 12px;background:#fff;border:1px solid #cbd5e1;border-radius:9px;font-size:16px}
+.ess-hr-verify-check{display:flex;align-items:flex-start;gap:8px;font-size:13px}
+.ess-hr-verify-check input{width:18px;height:18px;flex:none}
+.ess-hr-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ess-hr-empty{font-size:13px;color:#64748b;padding:14px}
+@media(max-width:900px){
+ .app-shell.employee-workspace-shell .ess-id-grid,.app-shell.employee-workspace-shell .ess-details-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .app-shell.employee-workspace-shell .ess-password-form{grid-template-columns:1fr}
+}
+@media(max-width:620px){
+ .app-shell.employee-workspace-shell .ess-profile-card{padding:16px}
+ .app-shell.employee-workspace-shell .ess-photo-layout{align-items:flex-start;gap:14px}
+ .app-shell.employee-workspace-shell .ess-photo-actions{flex:1}
+ .app-shell.employee-workspace-shell .ess-photo-actions button{width:100%;justify-content:center}
+ .app-shell.employee-workspace-shell .ess-profile-picture{width:76px;height:76px}
+ .app-shell.employee-workspace-shell .ess-id-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .app-shell.employee-workspace-shell .ess-id-tile{padding:12px}
+ .app-shell.employee-workspace-shell .ess-id-tile>strong{font-size:15px}
+ .app-shell.employee-workspace-shell .ess-id-form .ess-inline-actions>button{flex:1;min-width:130px}
+ .app-shell.employee-workspace-shell .ess-details-grid{grid-template-columns:1fr 1fr}
+ .app-shell.employee-workspace-shell .ess-password-form button{width:100%;justify-content:center}
+ .ess-hr-review-heading{flex-direction:column}
+}
+@media(max-width:360px){
+ .app-shell.employee-workspace-shell .ess-id-grid,.app-shell.employee-workspace-shell .ess-details-grid{grid-template-columns:1fr}
+ .app-shell.employee-workspace-shell .ess-photo-layout{flex-direction:column}
+ .app-shell.employee-workspace-shell .ess-profile-card-heading{flex-direction:column}
+}

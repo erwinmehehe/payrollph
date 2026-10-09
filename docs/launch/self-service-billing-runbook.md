@@ -44,8 +44,8 @@ On the Xendit merchant dashboard, enable Subscriptions and recurring-compatible 
 
 ## DB/schema & deployment order
 
-- Review conflicts with the pending ESS PR #682 before any merges: both branches add migrations and extend Drizzle's schema includes. Renumber migrations on the integration branch so SQL history is contiguous and not duplicated.
-- Use reviewed migration `drizzle/0100_saas_selfserve_recurring_billing.sql` on the intended staging database. Compare with generated Drizzle diff. Backup, apply, verify indexes/constraints and rollbacks, then deploy. **Do not apply this migration on a production database from an unreviewed PR.**
+- **Dependency order:** review/merge #667 (0100–0103), then #673 (0104), then #682 (0105), then this billing integration (0106). The ESS and billing Drizzle schema lists and app navigation are merged on this branch; no duplicate migration prefix remains.
+- Use reviewed migration `drizzle/0106_saas_selfserve_recurring_billing.sql` on the intended staging database. Compare with generated Drizzle diff. Backup, apply, verify indexes/constraints and rollbacks, then deploy. **Do not apply this migration on a production database from an unreviewed PR.**
 - Run full CI and browser tests. Test organization isolation (two customers), zero-data dashboard, plan/seat quote, employee imports and limits, paid checkout, failed checkout, retry, duplicate webhook, missed webhook, cancellation and expiry.
 - Confirm configuration on **the correct Vercel project/team**; current connected Vercel account has not identified a PayrollPH deployment, so there is no authorized target for automatic deployment.
 - Use a staged production build and post-deployment tests before traffic cutover. Keep a rollback strategy for app code *and separately* for stateful migrations.
