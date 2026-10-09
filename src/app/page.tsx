@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Payroll Software Philippines | Payroll System PH | Linaw",
-  description: "Philippine payroll software for attendance, statutory deductions, TRAIN withholding, approvals, payslips, reporting, audit trails and payroll release.",
+  description: "Philippine payroll software connects HRIS, WFM and HCM. Manage employee records, attendance, statutory calculations, approvals and audit trails.",
   alternates: { canonical: "/" },
 };
 
@@ -21,7 +21,7 @@ const softwareSchema = {
       "@id": absolutePublicUrl("/#organization"),
       url: absolutePublicUrl("/"),
       name: "Linaw",
-      description: "Philippine payroll software for controlled, traceable payroll operations.",
+      description: "Philippine payroll, HRIS, workforce management and HCM workflows, connected through governed employee data.",
       areaServed: { "@type": "Country", name: "Philippines" },
     },
     {
@@ -29,7 +29,7 @@ const softwareSchema = {
       "@id": absolutePublicUrl("/#website"),
       url: absolutePublicUrl("/"),
       name: "Linaw",
-      description: "Philippine payroll software for controlled, traceable payroll operations.",
+      description: "Philippine payroll, HRIS, workforce management and HCM workflows, connected through governed employee data.",
       inLanguage: "en-PH",
       publisher: { "@id": absolutePublicUrl("/#organization") },
     },
@@ -39,17 +39,19 @@ const softwareSchema = {
       url: absolutePublicUrl("/"),
       name: "Linaw",
       applicationCategory: "BusinessApplication",
-      applicationSubCategory: "Payroll Software",
+      applicationSubCategory: "Payroll, HRIS, WFM and HCM Software",
       operatingSystem: "Web",
       provider: { "@id": absolutePublicUrl("/#organization") },
       description:
-        "Philippine payroll software with statutory calculations, role-based approvals, employee payslips, attendance workflows and controlled payroll outputs.",
+        "Philippine payroll and people operations software connecting employee records, attendance, statutory calculations, workforce schedules and governed HCM workflows.",
       areaServed: { "@type": "Country", name: "Philippines" },
       featureList: [
         "Philippine payroll calculations",
         "Role-based payroll approvals",
         "Employee payslips",
         "Attendance and workforce scheduling",
+        "Employee lifecycle and HRIS workflows",
+        "Performance management and workforce planning",
         "Accounting exports",
         "Draft government payroll worksheets",
       ],
