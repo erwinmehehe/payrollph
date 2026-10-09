@@ -28,8 +28,19 @@ async function cutoffConflict(
   organizationId: number,
   orgUnitId: number | null,
   effectiveDate: string,
-  executor: Pick<typeof db, "select">,
+  executor: Pick<typeof db, "select" | "execute">,
 ) {
+  // Lock the applicable cutoff rows through the same transaction used for
+  // the correction write. Payroll enqueue/process/release must update these
+  // rows; they cannot move from Draft until our posting commits or aborts.
+  await executor.execute(sql`
+    SELECT id FROM payroll_runs
+    WHERE organization_id = ${organizationId}
+      AND period_start <= ${effectiveDate}
+      AND period_end >= ${effectiveDate}
+      AND (scope_org_unit_id IS NULL OR scope_org_unit_id = ${orgUnitId})
+    ORDER BY id FOR UPDATE
+  `);
   const runs = await executor.select().from(payrollRuns).where(and(
     eq(payrollRuns.organizationId, organizationId),
     lte(payrollRuns.periodStart, effectiveDate),
@@ -160,7 +171,7 @@ export async function POST(request: Request) {
       if (!freshWorker || !["Active", "On leave"].includes(freshWorker.status)) {
         throw new Error("UNDERPAYMENT_WORKER_UNAVAILABLE");
       }
-      if (await cutoffConflict(organizationId, freshWorker.orgUnitId, effectiveDate, tx as unknown as Pick<typeof db, "select">)) {
+      if (await cutoffConflict(organizationId, freshWorker.orgUnitId, effectiveDate, tx as unknown as Pick<typeof db, "select" | "execute">)) {
         throw new Error("UNDERPAYMENT_TARGET_NOT_DRAFT");
       }
       const [row] = await tx.insert(payrollUnderpaymentRequests).values({
@@ -261,7 +272,7 @@ export async function PATCH(request: Request) {
         if (String(pending.effectiveDate) < todayPh() || String(pending.effectiveDate) <= String(run.periodEnd)) {
           throw new Error("UNDERPAYMENT_DATE_EXPIRED");
         }
-        if (await cutoffConflict(organizationId, worker.orgUnitId, String(pending.effectiveDate), tx as unknown as Pick<typeof db, "select">)) {
+        if (await cutoffConflict(organizationId, worker.orgUnitId, String(pending.effectiveDate), tx as unknown as Pick<typeof db, "select" | "execute">)) {
           throw new Error("UNDERPAYMENT_TARGET_NOT_DRAFT");
         }
         // Uses the existing taxable supplementary earning and one-time
