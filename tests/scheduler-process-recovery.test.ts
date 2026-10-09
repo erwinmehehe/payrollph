@@ -135,6 +135,8 @@ test("two separate OS processes serialize a lease; crash, takeover and stale com
       .set({lastRunAt: new Date(Date.now() - 16 * 60_000)})
       .where(eq(schedulerState.jobName, leaseName));
 
+    assert.equal((await perform("refresh", oldOwner)).ok, false,
+      "a crashed/stalled process cannot revive its expired lease before takeover");
     const replacement = await perform("acquire", recoveredOwner);
     assert.equal(replacement.ok, true,
       "one new worker must be able to recover a genuinely expired lease");
