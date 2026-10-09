@@ -122,7 +122,9 @@ test("API implements company-wide MFA, independent maker-checker and atomic payr
   assert.ok(route.includes("tx.insert(auditEvents)"));
   assert.ok(route.includes("tx.insert(supplementaryEarnings)"));
   assert.ok(route.includes('earningType: "other_taxable"'));
-  assert.ok(route.includes("payrollSourceFingerprint(entry) !== pending.sourceEntryHash"));
+  assert.ok(route.includes("payrollSourceFingerprint(entries[0]) !== pending.sourceEntryHash"));
+  assert.ok(route.includes("sourceEntries.length !== 1"));
+  assert.ok(route.includes("entries.length !== 1"));
   assert.ok(earnings.includes("REVIEWED_UNDERPAYMENT_IMMUTABLE"));
   assert.ok(earnings.includes("payrollUnderpaymentRequests.postedEarningId"));
   assert.ok(panel.includes("Submit for independent review"));
