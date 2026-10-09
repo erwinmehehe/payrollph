@@ -120,7 +120,7 @@ test("same-version timesheet tie uses higher source record and never silently cl
 test("connected-impact API reads only cutoff-matching timesheets, with feature flag and existing payroll RBAC", () => {
   const source = readFileSync("src/app/api/payroll-runs/[id]/connected-impact/route.ts", "utf8");
   assert.ok(source.includes("PAYROLL_CONNECTED_IMPACT_ENABLED"));
-  assert.ok(source.includes("PAYROLL_VIEW_ROLES"));
+  assert.ok(source.includes("PAYROLL_OPERATOR_ROLES"));
   assert.ok(source.includes("eq(workforceTimesheets.periodStart, run.periodStart)"));
   assert.ok(source.includes("eq(workforceTimesheets.periodEnd, run.periodEnd)"));
   assert.ok(source.includes("timesheets: timesheets.slice(0, ROW_CAP)"));
@@ -220,4 +220,13 @@ test("payroll impact action buttons require the current workspace role's allowed
   assert.ok(payroll.includes("allowedPages={availablePages}"));
   assert.ok(panel.includes("allowedPages.includes(finding.action)"));
   assert.ok(panel.includes("Ask a permitted HR, workforce or finance reviewer"));
+});
+
+
+test("cross-module pay and HCM evidence is visible only to permitted payroll operators", () => {
+  const route = readFileSync("src/app/api/payroll-runs/[id]/connected-impact/route.ts", "utf8");
+  const payroll = readFileSync("src/components/workspace/payroll-run.tsx", "utf8");
+  assert.ok(route.includes("PAYROLL_OPERATOR_ROLES"));
+  assert.ok(route.includes("assertOrganizationUnitAccess"));
+  assert.ok(payroll.includes('["owner", "admin", "bookkeeper", "payroll"].includes'));
 });
