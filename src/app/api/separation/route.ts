@@ -838,9 +838,9 @@ export async function POST(request: Request) {
         action: existingOpen && existingOpen.status !== "released"
           ? "Separation final pay recomputed"
           : "Separation final pay computed",
-        resource: `${sources.employee.firstName} ${sources.employee.lastName} (Final Pay: ₱${result.netFinalPay.toFixed(2)})`,
+        resource: `${sources.employee.firstName} ${sources.employee.lastName} (Final Pay: ₱${result.netFinalPay.toFixed(2)})`.slice(0, 160),
         metadata: {
-          separationId: created.id,
+          separationId: record.id,
           businessProcessInstanceId: separationProcess?.id ?? null,
           lastDay,
           finalPayDueDate: dueDate,
