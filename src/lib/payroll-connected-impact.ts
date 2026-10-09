@@ -43,6 +43,9 @@ export type AppliedPayRevision = {
   id: number;
   employeeId: number;
   effectiveDate: string;
+  // Existence of a matching, applied and explicitly approved proposal is
+  // source-link evidence only. It does not independently certify the pay.
+  compensationProposalId?: number | null;
 };
 
 export type ConnectedImpactFinding = {
@@ -199,10 +202,14 @@ export function buildPayrollConnectedImpact(input: ConnectedImpactInput): Connec
   for (const row of input.payRevisions ?? []) {
     if (!validDate(row.effectiveDate) || row.effectiveDate < input.periodStart || row.effectiveDate > input.periodEnd) continue;
     add(findings, {
-      area: "HCM", severity: "review", code: "HCM_PAY_REVISION_DURING_CUTOFF",
+      area: "HCM", severity: "review",
+      code: row.compensationProposalId != null ? "HCM_LINKED_PAY_REVISION" : "HCM_PAY_REVISION_SOURCE_REVIEW",
       employeeId: row.employeeId, sourceId: row.id, date: row.effectiveDate,
-      status: "recorded", title: "Pay revision effective within cutoff",
-      detail: "An effective-dated pay revision exists inside the cutoff. Confirm payroll used the correct rate for each applicable work date and the approved source evidence.",
+      status: row.compensationProposalId != null ? "proposal-linked" : "recorded",
+      title: row.compensationProposalId != null ? "Approved proposal-linked pay revision" : "Pay revision source requires review",
+      detail: row.compensationProposalId != null
+        ? "This rate change is linked to an applied compensation proposal and effective date. Confirm the independent approval, accurate rate segmentation and payroll snapshot before release."
+        : "A pay revision inside this cutoff has no matching applied and approved compensation proposal in the available evidence. Confirm the authorized HR/payroll source and effective-date calculation; legacy authorized revisions may be valid.",
       action: "Compensation",
     });
   }
