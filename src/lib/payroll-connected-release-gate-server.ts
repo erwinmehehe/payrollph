@@ -239,7 +239,7 @@ export async function buildPayrollConnectedReleaseReadiness(runId: number): Prom
   return evaluatePayrollConnectedRelease({
     periodStart: earliest,
     periodEnd: end,
-    calculatedAt: since,
+    calculationStartedAt: since,
     calculatedEmployeeIds: entries.map((entry) => entry.employeeId),
     expectedEmployeeIds: eligibleEmployees.map((employee) => employee.id),
     workerChanges: workerChanges.slice(0, MAX_SOURCE_ROWS),
