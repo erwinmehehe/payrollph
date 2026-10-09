@@ -51,6 +51,7 @@ import {
 export const dynamic = "force-dynamic";
 
 const money = (value: number) => (Math.round((value + Number.EPSILON) * 100) / 100).toFixed(2);
+const todayPh = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
 
 function nonNegative(value: unknown, label: string) {
   const number = Number(value ?? 0);
@@ -1145,16 +1146,45 @@ export async function PATCH(request: Request) {
       return Response.json({ error: "Final pay must be approved before release." }, { status: 409 });
     }
     const releaseReference = String(body.releaseReference ?? "").trim();
-    if (!releaseReference) {
+    if (releaseReference.length < 8 || releaseReference.length > 160) {
       return Response.json({
-        error: "Enter a payout or bank reference before marking Final Pay released.",
+        error: "Enter an 8-160 character verified payout or bank reference before marking Final Pay released.",
       }, { status: 422 });
+    }
+    const separationOfDuties = independentFinalPayRelease(
+      sep.preparedByUserId, sep.approvedByUserId, user.id,
+    );
+    if (separationOfDuties) {
+      return Response.json({
+        code: separationOfDuties,
+        error: "An independent preparer and reviewer are required, and the preparer cannot release their own final pay. Recompute and independently approve legacy packages.",
+      }, { status: 409 });
     }
 
     const released = await db.transaction(async (tx) => {
-      const [fresh] = await tx.select().from(separationRecords).where(eq(separationRecords.id, id)).limit(1);
+      await tx.execute(sql`select id from separation_records where id = ${id} and organization_id = ${sep.organizationId} for update`);
+      const [fresh] = await tx.select().from(separationRecords).where(and(
+        eq(separationRecords.id, id), eq(separationRecords.organizationId, sep.organizationId),
+      )).limit(1);
       if (!fresh || fresh.status !== "approved") {
         throw new Error("Final-pay release state changed. Refresh and try again.");
+      }
+      if (JSON.stringify(fresh.computationSnapshot) !== JSON.stringify(sep.computationSnapshot)
+        || ![fresh.itCleared, fresh.adminCleared, fresh.financeCleared, fresh.hrCleared].every(Boolean)) {
+        throw new Error("Final-pay approval or clearance changed before release. Refresh and obtain a new review.");
+      }
+      const reviewerProblem = independentFinalPayRelease(
+        fresh.preparedByUserId, fresh.approvedByUserId, user.id,
+      );
+      if (reviewerProblem) throw new Error(reviewerProblem);
+      if (String(fresh.lastDay) > todayPh()) {
+        throw new Error("The employee last day has not occurred. Do not mark them separated or released early.");
+      }
+      const [liveEmployee] = await tx.select({ status: employees.status }).from(employees).where(and(
+        eq(employees.id, fresh.employeeId), eq(employees.organizationId, fresh.organizationId),
+      )).limit(1);
+      if (!liveEmployee || liveEmployee.status !== "Separating") {
+        throw new Error("Worker lifecycle changed before final pay release. Recompute before making more money-bearing changes.");
       }
 
       const [linkedTermDecision] = await tx.select().from(hcmEmploymentTermDecisions).where(and(
@@ -1243,6 +1273,7 @@ export async function PATCH(request: Request) {
       const [updated] = await tx.update(separationRecords).set({
         status: "released",
         releasedAt: new Date(),
+        releasedByUserId: user.id,
         releaseReference: releaseReference.slice(0, 160),
       }).where(and(
         eq(separationRecords.id, id),
@@ -1250,10 +1281,12 @@ export async function PATCH(request: Request) {
       )).returning();
       if (!updated) throw new Error("Final-pay release state changed.");
 
-      await tx.update(employees).set({ status: "Separated" }).where(and(
+      const [separatedWorker] = await tx.update(employees).set({ status: "Separated" }).where(and(
         eq(employees.id, fresh.employeeId),
         eq(employees.organizationId, fresh.organizationId),
-      ));
+        eq(employees.status, "Separating"),
+      )).returning({ id: employees.id });
+      if (!separatedWorker) throw new Error("Employee changed status while final pay was releasing.");
 
       if (activeAssignment) {
         await tx.update(positionAssignments).set({
