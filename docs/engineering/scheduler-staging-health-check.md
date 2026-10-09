@@ -15,3 +15,8 @@ A normal repo unit test validates URL allowlisting, pass/fail evidence parsing a
 ### Replay-resistant health evidence
 
 The offline checker verifies the absolute `lastSuccessfulRunAt` timestamp against its own current clock as well as the server-reported `secondsSinceSuccess`. A stale cached response that claims a recent tick, an expired timestamp, or a timestamp beyond a small clock-skew window fails closed. The verifier cannot establish staging worker topology or control a scheduler; operations reviewers must still witness the actual deployment in #637.
+
+
+### Job summary output
+
+A GitHub Advanced Security review identified a network-to-file information-flow risk in the first staging checker version. The workflow now writes only fixed, reviewed PASS/FAIL text to the GitHub job summary. It never persists the upstream status code, headers, JSON payload, configured hostname or credentials. A regression test exercises this with a synthetic unexpected HTTP response; no network connection is made.

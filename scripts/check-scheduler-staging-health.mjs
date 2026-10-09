@@ -62,18 +62,13 @@ export async function main(env = process.env, fetcher = fetch, now = new Date())
     payload = await response.json();
   }
   const verdict = checkSchedulerResponse(response.status, payload, now);
-  const text = [
-    "## Payroll staging scheduler — read-only verification",
-    "",
-    "Observed HTTP status: " + response.status,
-    "Outcome: " + (verdict.ok ? "PASS (observed health only)" : "FAIL"),
-    "Reason: " + (verdict.ok ? "recent completed scheduler tick" : verdict.reason),
-    "",
-    "This check does not execute jobs, verify a two-worker race, authorize payroll",
-    "or establish production deployment, bank or employer reconciliation approval.",
-  ].join("\n") + "\n";
-  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, text);
-  process.stdout.write(text);
+  // Persist only fixed, reviewed text. Never write upstream HTTP codes,
+  // headers or parsed JSON (even if the response is from an allowlisted host).
+  const fixedSummary = verdict.ok
+    ? "## Payroll staging scheduler — read-only verification\n\nOutcome: PASS (recent scheduler health observed)\n\nThis is not approval for production payroll or worker activation.\n"
+    : "## Payroll staging scheduler — read-only verification\n\nOutcome: FAIL (staging health could not be verified)\n\nDo not activate production payroll jobs. Review protected staging diagnostics.\n";
+  if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, fixedSummary);
+  process.stdout.write(fixedSummary);
   if (!verdict.ok) process.exitCode = 1;
   return verdict;
 }

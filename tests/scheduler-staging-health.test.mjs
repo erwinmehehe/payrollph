@@ -80,3 +80,34 @@ test("secret-bearing staging workflow cannot be dispatched from an unreviewed PR
   assert.ok(workflow.includes("persist-credentials: false"));
   assert.ok(!workflow.includes("pull_request_target:"));
 });
+
+
+test("GitHub job summary never persists network response data", async () => {
+  const { mkdtempSync, readFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const folder = mkdtempSync(join(tmpdir(), "payroll-staging-summary-"));
+  const summary = join(folder, "summary.txt");
+  const env = {
+    PAYROLL_STAGING_URL:"https://staging.example.test/",
+    PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
+    PAYROLL_PRODUCTION_HOST:"prod.example.test",
+    PAYROLL_STAGING_MONITOR_TOKEN:"synthetic-stage-monitor-token-is-over-32-characters",
+    GITHUB_STEP_SUMMARY:summary,
+  };
+  try {
+    await main(env, async () => ({
+      status: 599,
+      headers: {get:()=>"text/plain"},
+      json: async ()=>({secret:"UNTRUSTED_CANARY"}),
+    }), proofTime);
+    const text = readFileSync(summary, "utf8");
+    assert.ok(text.includes("Outcome: FAIL"));
+    assert.ok(!text.includes("599") && !text.includes("UNTRUSTED_CANARY"));
+    assert.ok(!text.includes("Observed HTTP status"));
+    assert.ok(!text.includes("PAYROLL_STAGING_MONITOR_TOKEN"));
+  } finally {
+    process.exitCode=0;
+    rmSync(folder, {recursive:true,force:true});
+  }
+});
