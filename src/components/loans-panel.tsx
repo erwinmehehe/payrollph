@@ -44,7 +44,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
   const [loans, setLoans] = useState<Loan[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [summary, setSummary] = useState({ totalActiveLoans: 0, totalPendingApproval: 0, totalOutstanding: 0, totalPaidOff: 0 });
-  const [viewer, setViewer] = useState({ currentUserId: 0, reviewerEligible: false, companyWide: false });
+  const [viewer, setViewer] = useState({ currentUserId: 0, reviewerEligible: false, companyWide: false, loanActivationEnabled: false });
   const [loaded, setLoaded] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
@@ -86,6 +86,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
           currentUserId: data.currentUserId ?? 0,
           reviewerEligible: data.reviewerEligible === true,
           companyWide: data.companyWide === true,
+          loanActivationEnabled: data.loanActivationEnabled === true,
         });
         setSummary(data.summary ?? { totalActiveLoans: 0, totalPendingApproval: 0, totalOutstanding: 0, totalPaidOff: 0 });
       }
@@ -223,6 +224,12 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
         </article>
       </div>
 
+      {!viewer.loanActivationEnabled && (
+        <div className="notice notice-amber" style={{ marginBottom: 14 }}>
+          <span><strong>Deduction activation disabled.</strong> Loan requests, evidence review, rejection and emergency pauses remain available. No new approval or resumption can withhold wages until the controlled-pilot release gate is enabled.</span>
+        </div>
+      )}
+
       {summary.totalPendingApproval > 0 && (
         <div className="notice notice-amber" style={{ marginBottom: 14 }}>
           <span><strong>{summary.totalPendingApproval} loan(s) awaiting independent review.</strong> Unapproved schedules are excluded from payroll.</span>
@@ -319,7 +326,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
             <div className="run-actions">
               {viewer.reviewerEligible && viewer.currentUserId !== selectedLoan.requestedByUserId ? (
                 <>
-                  <button className="primary-button" onClick={() => void changeLoanStatus(selectedLoan.id, "approve")}>Approve &amp; Activate</button>
+                  <button className="primary-button" disabled={!viewer.loanActivationEnabled} onClick={() => void changeLoanStatus(selectedLoan.id, "approve")}>Approve &amp; Activate</button>
                   <button className="secondary-button" onClick={() => void changeLoanStatus(selectedLoan.id, "reject")}>Reject Request</button>
                 </>
               ) : <small>Independent payroll checker action required. The requester cannot approve their own loan.</small>}
@@ -345,7 +352,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
                 )}
                 {selectedLoan.status === "paused" && viewer.reviewerEligible
                   && viewer.currentUserId !== selectedLoan.requestedByUserId && (
-                    <button className="secondary-button" onClick={() => void changeLoanStatus(selectedLoan.id, "resume")}>Independently Reapprove / Resume</button>
+                    <button className="secondary-button" disabled={!viewer.loanActivationEnabled} onClick={() => void changeLoanStatus(selectedLoan.id, "resume")}>Independently Reapprove / Resume</button>
                   )}
               </div>
               <small>Only confirmed external repayments belong here. Payroll-calculated deductions and bank remittances are tracked separately. Evidence reference alone is not independent bank verification.</small>
