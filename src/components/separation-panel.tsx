@@ -71,6 +71,9 @@ type SeparationRecord = {
   approvedAt?: string | null;
   releasedAt?: string | null;
   releaseReference?: string | null;
+  preparedByUserId?: number | null;
+  approvedByUserId?: number | null;
+  releasedByUserId?: number | null;
 };
 
 const peso = (value: string | number) =>
@@ -89,6 +92,10 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   const [selectedRecord, setSelectedRecord] = useState<SeparationRecord | null>(null);
   const [showCoeModal, setShowCoeModal] = useState(false);
   const [releaseReference, setReleaseReference] = useState("");
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [clearanceEvidenceReference, setClearanceEvidenceReference] = useState("");
+  const [clearanceReason, setClearanceReason] = useState("");
+  const [coeEvidenceReference, setCoeEvidenceReference] = useState("");
 
   const [form, setForm] = useState({
     employeeId: "",
@@ -130,6 +137,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         if (!alive) return;
         const records = (data.separations ?? []) as SeparationRecord[];
         setSeparations(records);
+        setCurrentUserId(Number.isInteger(data.currentUserId) ? data.currentUserId : null);
         const ids = records.filter((row) => row.status === "draft").map((row) => row.id);
         const query = new URLSearchParams({
           organizationId: String(organizationId),
@@ -235,7 +243,13 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   }
 
   async function updateClearance(id: number, dept: "it" | "admin" | "finance" | "hr", value: boolean) {
-    const payload: any = { id, action: "clearance" };
+    const payload: Record<string, unknown> = {
+      id,
+      action: "clearance",
+      previousValue: !value,
+      clearanceEvidenceReference: clearanceEvidenceReference.trim(),
+      clearanceReason: clearanceReason.trim(),
+    };
     if (dept === "it") payload.itCleared = value;
     if (dept === "admin") payload.adminCleared = value;
     if (dept === "finance") payload.financeCleared = value;
@@ -246,10 +260,14 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (res.ok) {
-      setNotice(`${dept.toUpperCase()} clearance updated.`);
+    const responseBody = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setNotice(responseBody.error ?? "Clearance could not be updated.");
       reload();
+      return;
     }
+    setNotice(`${dept.toUpperCase()} clearance recorded with audit evidence.`);
+    reload();
   }
 
   async function requestSeparationReadinessReview(id: number) {
@@ -284,14 +302,15 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     const res = await fetch("/api/separation", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, action: "issue_coe" }),
+      body: JSON.stringify({ id, action: "issue_coe", coeEvidenceReference: coeEvidenceReference.trim() }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setNotice(data.error ?? "Could not mark the COE as issued.");
       return;
     }
-    setNotice("COE marked issued in the separation record.");
+    setNotice("COE marked issued with its delivery evidence reference.");
+    setCoeEvidenceReference("");
     setShowCoeModal(false);
     setSelectedRecord(null);
     reload();
