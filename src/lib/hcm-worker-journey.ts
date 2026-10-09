@@ -50,6 +50,7 @@ export type HcmWorkerJourney = {
 
 export type WorkerJourneyInput = {
   employeeStatus: string;
+  asOfDate: string; // Philippine business date, YYYY-MM-DD
   recruitment: null | {
     applicantId: number;
     stage: string;
@@ -57,6 +58,7 @@ export type WorkerJourneyInput = {
     requisitionPositionId: number | null;
   };
   currentPositionId: number | null;
+  currentPositionEffectiveFrom: string | null;
   lastPositionAssignmentId: number | null;
   onboarding: Array<{ done: boolean }>;
   offboarding: Array<{ done: boolean }>;
@@ -100,7 +102,12 @@ export function buildHcmWorkerJourney(input: WorkerJourneyInput): HcmWorkerJourn
       { source: "job_applicants", id: input.recruitment.applicantId }));
   }
 
-  if (input.currentPositionId != null) {
+  if (input.currentPositionId != null && input.currentPositionEffectiveFrom
+    && input.currentPositionEffectiveFrom > input.asOfDate) {
+    stages.push(stage("position", "Position and organization", "Planning", "in_progress",
+      `Position #${input.currentPositionId} is scheduled effective ${input.currentPositionEffectiveFrom}; it is not yet a current incumbent assignment.`,
+      { source: "positions", id: input.currentPositionId }));
+  } else if (input.currentPositionId != null) {
     stages.push(stage("position", "Position and organization", "Planning", "recorded",
       `Current authoritative position #${input.currentPositionId} is assigned.`,
       { source: "positions", id: input.currentPositionId }));
