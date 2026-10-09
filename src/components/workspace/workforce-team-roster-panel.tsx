@@ -1,13 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, RefreshCcw, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight, Download, RefreshCcw, ShieldCheck } from "lucide-react";
 import {
+  buildTeamRosterPageCsv,
+  filterTeamRosterRows,
   rosterDateOffset,
+  summarizeTeamRosterByDate,
   type TeamRosterDay,
   type TeamRosterEmployee,
   type TeamRosterRow,
   type TeamRosterSummary,
+  type TeamRosterFocus,
 } from "@/lib/workforce-team-roster";
 import type { Notify } from "./types";
 import { EmptyState, Spinner, Status } from "./ui";
@@ -33,7 +37,7 @@ type TeamRosterResponse = {
   worksites: Array<{ id: number; code: string; name: string; active: boolean }>;
 };
 
-type DayEditor = { employee: TeamRosterEmployee; day: TeamRosterDay };
+type DayEditor = { employee: TeamRosterEmployee; day: TeamRosterDay; organizationId: number };
 
 function todayInManila() {
   return new Date(Date.now() + 8 * 60 * 60_000).toISOString().slice(0, 10);
@@ -81,6 +85,8 @@ export function WorkforceTeamRosterPanel({
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
+  const [focus, setFocus] = useState<TeamRosterFocus>("all");
+  const pendingRequest = useRef<AbortController | null>(null);
   const [payload, setPayload] = useState<TeamRosterResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -92,7 +98,20 @@ export function WorkforceTeamRosterPanel({
   const [editorError, setEditorError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const visibleRows = useMemo(() => payload
+    ? filterTeamRosterRows(payload.rows, payload.weekDates, focus) : [], [payload, focus]);
+  const dailyDigest = useMemo(() => payload
+    ? summarizeTeamRosterByDate(payload.rows, payload.weekDates) : [], [payload]);
+  const attentionCount = useMemo(() => payload
+    ? filterTeamRosterRows(payload.rows, payload.weekDates, "attention").length : 0, [payload]);
+
+  useEffect(() => () => { pendingRequest.current?.abort(); }, []);
+  useEffect(() => { setEditor(null); }, [organizationId]);
+
   const load = useCallback(async () => {
+    pendingRequest.current?.abort();
+    const controller = new AbortController();
+    pendingRequest.current = controller;
     setLoading(true);
     setLoadError("");
     setPayload(null);
@@ -105,18 +124,24 @@ export function WorkforceTeamRosterPanel({
       });
       const response = await fetch("/api/workforce/team-roster?" + params.toString(), {
         cache: "no-store",
+        signal: controller.signal,
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(body.error ?? "Could not load the team roster.");
       }
+      if (controller.signal.aborted) return;
       setPayload(body as TeamRosterResponse);
     } catch (error) {
+      if (controller.signal.aborted) return;
       const message = error instanceof Error ? error.message : "Could not load the team roster.";
       setLoadError(message);
       notify(message, "err");
     } finally {
-      setLoading(false);
+      if (pendingRequest.current === controller) {
+        pendingRequest.current = null;
+        setLoading(false);
+      }
     }
   }, [organizationId, startDate, page, appliedSearch, notify]);
 
@@ -139,7 +164,7 @@ export function WorkforceTeamRosterPanel({
 
   function openDay(employee: TeamRosterEmployee, day: TeamRosterDay) {
     if (!canManage || day.date <= todayInManila() || day.source === "override" || day.segments.length > 1) return;
-    setEditor({ employee, day });
+    setEditor({ employee, day, organizationId });
     setShiftChoice("");
     setWorksiteChoice("");
     setReason("");
@@ -148,7 +173,8 @@ export function WorkforceTeamRosterPanel({
   }
 
   async function saveOverride() {
-    if (!editor || !canManage || !acknowledged || !reason.trim() || !shiftChoice || saving) return;
+    if (!editor || !canManage || editor.organizationId !== organizationId || editor.day.date <= todayInManila()
+      || !acknowledged || !reason.trim() || !shiftChoice || saving) return;
     setSaving(true);
     setEditorError("");
     const rest = shiftChoice === "REST";
@@ -164,7 +190,8 @@ export function WorkforceTeamRosterPanel({
           kind: rest ? "rest_day" : "shift",
           isRestDay: rest,
           segments: rest ? [] : [{ shiftDefinitionId: Number(shiftChoice) }],
-          worksiteId: worksiteChoice ? Number(worksiteChoice) : null,
+          // Keep effective site unless manager explicitly selects another.
+          worksiteId: worksiteChoice ? Number(worksiteChoice) : editor.day.worksiteId,
           reason: reason.trim(),
         }),
       });
@@ -210,6 +237,7 @@ export function WorkforceTeamRosterPanel({
           <label>
             Week beginning
             <input type="date" value={startDate} onChange={(event) => {
+              if (!event.target.value) return;
               setStartDate(event.target.value);
               setPage(1);
               setEditor(null);
@@ -252,7 +280,7 @@ export function WorkforceTeamRosterPanel({
               <div className="metric"><div className="metric-label">Employees on this page</div><strong>{payload.summary.employees}</strong></div>
               <div className="metric"><div className="metric-label">Scheduled employee-days</div><strong>{payload.summary.scheduledDays}</strong></div>
               <div className="metric"><div className="metric-label">Unassigned employee-days</div><strong>{payload.summary.unassignedDays}</strong></div>
-              <div className="metric"><div className="metric-label">Roster rows to review</div><strong>{payload.summary.rowsNeedingReview}</strong></div>
+              <div className="metric"><div className="metric-label">Employees needing roster attention</div><strong>{attentionCount}</strong></div>
             </div>
             <div className="data-table-wrap slim-scroll" style={{ overflowX: "auto" }}>
               <table className="data-table" aria-label="Team schedule by employee and date">
@@ -263,7 +291,7 @@ export function WorkforceTeamRosterPanel({
                   </tr>
                 </thead>
                 <tbody>
-                  {payload.rows.map((row) => (
+                  {visibleRows.map((row) => (
                     <tr key={row.employee.id}>
                       <th scope="row" style={{ textAlign: "left", minWidth: 175 }}>
                         <strong>{row.employee.name}</strong>
@@ -332,7 +360,7 @@ export function WorkforceTeamRosterPanel({
             <div>
               <div className="card-kicker">Governed schedule change</div>
               <h2>{editor.employee.name} · {showDate(editor.day.date)}</h2>
-              <p>Current: {dayLabel(editor.day)}. Saving creates an approved day-level override and preserves audit evidence.</p>
+              <p>Current: {dayLabel(editor.day)}. Worksite: {payload?.worksites.find((site) => site.id === editor.day.worksiteId)?.name ?? "Unspecified"}. Saving creates an approved day-level override and preserves audit evidence.</p>
             </div>
             <button type="button" className="secondary-button" disabled={saving} onClick={() => setEditor(null)}>Cancel</button>
           </div>
@@ -352,7 +380,7 @@ export function WorkforceTeamRosterPanel({
             <label>
               Worksite (optional)
               <select value={worksiteChoice} onChange={(event) => setWorksiteChoice(event.target.value)}>
-                <option value="">Keep default worksite</option>
+                <option value="">Keep effective scheduled worksite</option>
                 {(payload?.worksites ?? []).filter((site) => site.active).map((site) => (
                   <option key={site.id} value={String(site.id)}>{site.code} · {site.name}</option>
                 ))}
