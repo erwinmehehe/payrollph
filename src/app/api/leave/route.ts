@@ -1,17 +1,19 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
+  auditEvents,
   employees,
   leavePolicies,
   leaveRequestIntervals,
   leaveRequestIntervalSets,
   leaveRequests,
+  separationRecords,
   userOrganizations,
   users,
+  workforceTimesheets,
 } from "@/db/schema";
-import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, getAccess, roleAllowed } from "@/lib/access";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
@@ -23,13 +25,17 @@ import {
   type PreciseLeaveInterval,
 } from "@/lib/workforce-absence-intervals";
 import { loadResolvedEmployeeSchedule } from "@/lib/workforce-schedule-evidence-server";
-import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
+import {
+  checkEmployeeLeaveEligibility,
+  leaveDateWindow,
+  MAX_PRECISE_LEAVE_INTERVALS,
+  validLeaveDate,
+} from "@/lib/hcm-leave-employment";
 
 export const dynamic = "force-dynamic";
 
 const LEAVE_ADMIN_ROLES = ["owner", "admin", "bookkeeper", "hr", "manager"] as const;
 const LEAVE_APPROVER_ROLES = ["manager", "hr", "owner", "admin", "bookkeeper"] as const;
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function calendarDates(startDate: string, endDate: string) {
   const start = new Date(`${startDate}T00:00:00Z`);
@@ -48,6 +54,23 @@ async function validatePreciseTiming(input: {
   endDate: string;
   intervals: PreciseLeaveInterval[];
 }) {
+  const window = leaveDateWindow(input.startDate, input.endDate);
+  if (!window.ok) return { ok: false as const, errors: [window.message], intervals: [] as PreciseLeaveInterval[] };
+  if (input.intervals.length === 0 || input.intervals.length > MAX_PRECISE_LEAVE_INTERVALS) {
+    return {
+      ok: false as const,
+      errors: [`Leave timing requires 1-${MAX_PRECISE_LEAVE_INTERVALS} intervals.`],
+      intervals: [] as PreciseLeaveInterval[],
+    };
+  }
+  if (input.intervals.some((interval) =>
+    !interval || typeof interval.workDate !== "string" || !validLeaveDate(interval.workDate))) {
+    return {
+      ok: false as const,
+      errors: ["Each leave interval needs a real YYYY-MM-DD work date."],
+      intervals: [] as PreciseLeaveInterval[],
+    };
+  }
   const initial = validateLeaveIntervals(input.intervals);
   if (!initial.ok) return { ok: false as const, errors: initial.errors, intervals: [] as PreciseLeaveInterval[] };
 
@@ -211,6 +234,24 @@ export async function POST(request: Request) {
         error: "Approved/rejected leave timing is immutable. Withdraw and submit a new governed request instead.",
       }, { status: 409 });
     }
+    const [pendingSeparation] = employee.status === "Separating"
+      ? await db.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
+          .where(and(
+            eq(separationRecords.organizationId, organizationId),
+            eq(separationRecords.employeeId, employee.id),
+            inArray(separationRecords.status, ["draft", "approved"]),
+          )).orderBy(desc(separationRecords.id)).limit(1)
+      : [];
+    const eligibility = checkEmployeeLeaveEligibility({
+      employeeStatus: employee.status,
+      employmentStartDate: String(employee.startDate),
+      leaveStartDate: String(leave.startDate),
+      leaveEndDate: String(leave.endDate),
+      separationLastDay: pendingSeparation?.lastDay ?? null,
+    });
+    if (eligibility) {
+      return Response.json({ code: eligibility.code, error: eligibility.message }, { status: 409 });
+    }
 
     const precise = await validatePreciseTiming({
       organizationId,
@@ -221,62 +262,118 @@ export async function POST(request: Request) {
     });
     if (!precise.ok) return Response.json({ error: "Leave timing is invalid.", errors: precise.errors }, { status: 400 });
 
-    const existingSets = await db.select().from(leaveRequestIntervalSets).where(and(
-      eq(leaveRequestIntervalSets.organizationId, organizationId),
-      eq(leaveRequestIntervalSets.leaveRequestId, leave.id),
-    )).orderBy(desc(leaveRequestIntervalSets.revision));
-    const nextRevision = Number(existingSets[0]?.revision ?? 0) + 1;
+    try {
+      const revised = await db.transaction(async (tx) => {
+        // Serialize all revisions with approval decisions on this leave row.
+        await tx.execute(sql`select id from leave_requests
+          where id = ${leave.id} and organization_id = ${organizationId} for update`);
+        await tx.execute(sql`select id from employees
+          where id = ${employee.id} and organization_id = ${organizationId} for share`);
+        const [[freshLeave], [freshEmployee]] = await Promise.all([
+          tx.select().from(leaveRequests).where(and(
+            eq(leaveRequests.id, leave.id),
+            eq(leaveRequests.organizationId, organizationId),
+          )).limit(1),
+          tx.select().from(employees).where(and(
+            eq(employees.id, employee.id),
+            eq(employees.organizationId, organizationId),
+          )).limit(1),
+        ]);
+        if (!freshLeave || freshLeave.status !== "Pending" || !freshEmployee
+            || String(freshLeave.startDate) !== String(leave.startDate)
+            || String(freshLeave.endDate) !== String(leave.endDate)) {
+          throw new Error("LEAVE_REVISION_STALE");
+        }
+        const [liveSeparation] = freshEmployee.status === "Separating"
+          ? await tx.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
+            .where(and(
+              eq(separationRecords.organizationId, organizationId),
+              eq(separationRecords.employeeId, employee.id),
+              inArray(separationRecords.status, ["draft", "approved"]),
+            )).orderBy(desc(separationRecords.id)).limit(1)
+          : [];
+        const currentEligibility = checkEmployeeLeaveEligibility({
+          employeeStatus: freshEmployee.status,
+          employmentStartDate: String(freshEmployee.startDate),
+          leaveStartDate: String(freshLeave.startDate),
+          leaveEndDate: String(freshLeave.endDate),
+          separationLastDay: liveSeparation?.lastDay ?? null,
+        });
+        if (currentEligibility) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
 
-    const intervalSet = await db.transaction(async (tx) => {
-      await tx.update(leaveRequestIntervalSets).set({
-        status: "superseded",
-        supersededAt: new Date(),
-      }).where(and(
-        eq(leaveRequestIntervalSets.organizationId, organizationId),
-        eq(leaveRequestIntervalSets.leaveRequestId, leave.id),
-        eq(leaveRequestIntervalSets.status, "current"),
-      ));
-      const [created] = await tx.insert(leaveRequestIntervalSets).values({
-        organizationId,
-        leaveRequestId: leave.id,
-        revision: nextRevision,
-        status: "current",
-        createdByUserId: user.id,
-        createdByName: user.name,
-      }).returning();
-      await tx.insert(leaveRequestIntervals).values(precise.intervals.map((interval) => ({
-        organizationId,
-        intervalSetId: created.id,
-        workDate: interval.workDate,
-        kind: interval.kind,
-        startLocalTime: interval.kind === "timed" ? interval.startLocalTime ?? null : null,
-        endLocalTime: interval.kind === "timed" ? interval.endLocalTime ?? null : null,
-        endsNextDay: interval.kind === "timed" ? Boolean(interval.endsNextDay) : false,
-        timezone: interval.timezone,
-        source: "revision",
-      })));
-      return created;
-    });
-
-    const stale = await markTimesheetsStaleForEmployeeRange({
-      organizationId,
-      employeeId: leave.employeeId,
-      startDate: String(leave.startDate),
-      endDate: String(leave.endDate),
-    });
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Leave timing revised",
-      resource: `leave #${leave.id}`,
-      metadata: {
-        leaveId: leave.id,
-        nextRevision,
-        intervalSetId: intervalSet.id,
-        staleTimesheetIds: stale.map((row) => row.id),
-      },
-    });
-    return Response.json({ leave, intervalSet, intervals: precise.intervals, staleTimesheetIds: stale.map((row) => row.id) });
+        const [latestSet] = await tx.select().from(leaveRequestIntervalSets).where(and(
+          eq(leaveRequestIntervalSets.organizationId, organizationId),
+          eq(leaveRequestIntervalSets.leaveRequestId, leave.id),
+        )).orderBy(desc(leaveRequestIntervalSets.revision)).limit(1);
+        const nextRevision = Number(latestSet?.revision ?? 0) + 1;
+        await tx.update(leaveRequestIntervalSets).set({
+          status: "superseded",
+          supersededAt: new Date(),
+        }).where(and(
+          eq(leaveRequestIntervalSets.organizationId, organizationId),
+          eq(leaveRequestIntervalSets.leaveRequestId, leave.id),
+          eq(leaveRequestIntervalSets.status, "current"),
+        ));
+        const [intervalSet] = await tx.insert(leaveRequestIntervalSets).values({
+          organizationId,
+          leaveRequestId: leave.id,
+          revision: nextRevision,
+          status: "current",
+          createdByUserId: user.id,
+          createdByName: user.name,
+        }).returning();
+        await tx.insert(leaveRequestIntervals).values(precise.intervals.map((interval) => ({
+          organizationId,
+          intervalSetId: intervalSet.id,
+          workDate: interval.workDate,
+          kind: interval.kind,
+          startLocalTime: interval.kind === "timed" ? interval.startLocalTime ?? null : null,
+          endLocalTime: interval.kind === "timed" ? interval.endLocalTime ?? null : null,
+          endsNextDay: interval.kind === "timed" ? Boolean(interval.endsNextDay) : false,
+          timezone: interval.timezone,
+          source: "revision",
+        })));
+        const stale = await tx.update(workforceTimesheets).set({
+          status: "stale", updatedAt: new Date(),
+        }).where(and(
+          eq(workforceTimesheets.organizationId, organizationId),
+          eq(workforceTimesheets.employeeId, leave.employeeId),
+          lte(workforceTimesheets.periodStart, String(freshLeave.endDate)),
+          gte(workforceTimesheets.periodEnd, String(freshLeave.startDate)),
+          inArray(workforceTimesheets.status, ["submitted", "approved"]),
+        )).returning({ id: workforceTimesheets.id });
+        const staleTimesheetIds = stale.map((row) => row.id);
+        await tx.insert(auditEvents).values({
+          organizationId,
+          actor: user.name,
+          action: "Leave timing revised",
+          resource: `leave #${leave.id}`,
+          metadata: {
+            leaveId: leave.id,
+            actorUserId: user.id,
+            nextRevision,
+            intervalSetId: intervalSet.id,
+            staleTimesheetIds,
+          },
+        });
+        return { intervalSet, staleTimesheetIds };
+      });
+      return Response.json({
+        leave,
+        intervalSet: revised.intervalSet,
+        intervals: precise.intervals,
+        staleTimesheetIds: revised.staleTimesheetIds,
+      });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "LEAVE_REVISION_STALE" || code === "LEAVE_EMPLOYMENT_NOT_ELIGIBLE") {
+        return Response.json({
+          code,
+          error: "The leave request or worker employment changed during revision. Refresh and obtain a new review.",
+        }, { status: 409 });
+      }
+      throw error;
+    }
   }
 
   let employeeId = Number(body.employeeId);
@@ -286,16 +383,13 @@ export async function POST(request: Request) {
   const days = Number(body.days);
   const reason = String(body.reason ?? "").trim();
 
-  if (
-    !leaveType ||
-    !ISO_DATE.test(startDate) ||
-    !ISO_DATE.test(endDate) ||
-    endDate < startDate ||
-    !Number.isFinite(days) ||
-    days <= 0
-  ) {
+  const dateWindow = leaveDateWindow(startDate, endDate);
+  if (!leaveType || !dateWindow.ok || !Number.isFinite(days) || days <= 0
+    || (dateWindow.ok && days > dateWindow.calendarDays)) {
     return Response.json({
-      error: "organizationId, leaveType, valid start/end dates and positive days are required.",
+      code: !dateWindow.ok ? dateWindow.code : "LEAVE_REQUEST_INVALID",
+      error: !dateWindow.ok ? dateWindow.message
+        : "A leave request needs a leave type and positive leave days no greater than its calendar date range.",
     }, { status: 400 });
   }
 
@@ -322,6 +416,24 @@ export async function POST(request: Request) {
     employee.orgUnitId !== access.orgUnitId
   ) {
     return Response.json({ error: "Managers can submit leave only for employees in their assigned unit." }, { status: 403 });
+  }
+  const [pendingSeparation] = employee.status === "Separating"
+    ? await db.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
+        .where(and(
+          eq(separationRecords.organizationId, organizationId),
+          eq(separationRecords.employeeId, employee.id),
+          inArray(separationRecords.status, ["draft", "approved"]),
+        )).orderBy(desc(separationRecords.id)).limit(1)
+    : [];
+  const eligibility = checkEmployeeLeaveEligibility({
+    employeeStatus: employee.status,
+    employmentStartDate: String(employee.startDate),
+    leaveStartDate: startDate,
+    leaveEndDate: endDate,
+    separationLastDay: pendingSeparation?.lastDay ?? null,
+  });
+  if (eligibility) {
+    return Response.json({ code: eligibility.code, error: eligibility.message }, { status: 409 });
   }
 
   const policies = await db.select().from(leavePolicies)
@@ -384,6 +496,32 @@ export async function POST(request: Request) {
   }
 
   const created = await db.transaction(async (tx) => {
+    // Employment can change after form validation while schedules are loaded.
+    // Hold a shared employee lock and recheck before any approval/leave writes.
+    await tx.execute(sql`select id from employees
+      where id = ${employeeId} and organization_id = ${organizationId} for share`);
+    const [freshWorker] = await tx.select().from(employees).where(and(
+      eq(employees.id, employeeId),
+      eq(employees.organizationId, organizationId),
+    )).limit(1);
+    if (!freshWorker) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
+    const [currentSeparation] = freshWorker.status === "Separating"
+      ? await tx.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
+        .where(and(
+          eq(separationRecords.organizationId, organizationId),
+          eq(separationRecords.employeeId, employeeId),
+          inArray(separationRecords.status, ["draft", "approved"]),
+        )).orderBy(desc(separationRecords.id)).limit(1)
+      : [];
+    const liveEligibility = checkEmployeeLeaveEligibility({
+      employeeStatus: freshWorker.status,
+      employmentStartDate: String(freshWorker.startDate),
+      leaveStartDate: startDate,
+      leaveEndDate: endDate,
+      separationLastDay: currentSeparation?.lastDay ?? null,
+    });
+    if (liveEligibility) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
+
     const [task] = await tx.insert(approvalTasks).values({
       organizationId,
       title: "Approve leave request",
@@ -424,22 +562,34 @@ export async function POST(request: Request) {
       timezone: interval.timezone,
       source: "request",
     })));
+    await tx.insert(auditEvents).values({
+      organizationId,
+      actor: user.name,
+      action: "Leave request submitted",
+      resource: `${employee.firstName} ${employee.lastName} · ${leaveType}`.slice(0, 160),
+      metadata: {
+        leaveId: row.id,
+        taskId: task.id,
+        requesterUserId: user.id,
+        approverUserId: approver.id,
+        intervalSetId: intervalSet.id,
+        intervalRevision: intervalSet.revision,
+        workerStatusAtSubmission: freshWorker.status,
+        employmentStartDate: freshWorker.startDate,
+        separationLastDay: currentSeparation?.lastDay ?? null,
+      },
+    });
     return { task, row, intervalSet };
+  }).catch((error) => {
+    if (error instanceof Error && error.message === "LEAVE_EMPLOYMENT_NOT_ELIGIBLE") return null;
+    throw error;
   });
-
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: "Leave request submitted",
-    resource: `${employee.firstName} ${employee.lastName} · ${leaveType}`,
-    metadata: {
-      leaveId: created.row.id,
-      taskId: created.task.id,
-      approverUserId: approver.id,
-      intervalSetId: created.intervalSet.id,
-      intervalRevision: created.intervalSet.revision,
-    },
-  });
+  if (!created) {
+    return Response.json({
+      code: "LEAVE_EMPLOYMENT_NOT_ELIGIBLE",
+      error: "The worker's hire, separation or employment state changed before the leave could be saved. Refresh HR data and submit a new request.",
+    }, { status: 409 });
+  }
 
   const automation = await runAutomationEventSafely({
     organizationId,
