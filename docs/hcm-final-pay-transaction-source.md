@@ -68,11 +68,11 @@ accept old incomplete source evidence.
 
 ## Dependency and merge order
 
-The stacked PR targets **#644**, not main. No additional migration is
-introduced. #644 must not be merged independently of required SQL migration
-ordering: `0100` (#626), `0101` (#642), then `0102` (#644), with the
-actual main-branch guard from #645 applied and staging DBA evidence reviewed.
-Avoid merging/reapplying closed overlapping #646.
+This branch now targets **main** and is the **consolidated candidate for #644 + #647**. Git ancestry confirms the complete three-person final-pay maker/checker workflow from #644 precedes the serializable source-consistency follow-up. There is no need to merge #644 separately.
+
+No additional migration is introduced beyond the existing `0102_final_pay_maker_checker.sql` inherited from #644. Resolve migration order `0100` (compensation #626), `0101` (underpayment #642), then `0102` (this combined final-pay candidate) against the actual main-branch migration guard before any merge. Loan PR #649 currently *also* proposes `0100`; do not merge it without a DBA-reviewed collision resolution. Avoid reapplying earlier superseded source drafts.
+
+Re-targeting the PR and passing CI are not independent payroll/legal, DBA, privacy, staging, bank or release approvals. Keep the candidate in draft with `FINAL_PAY_MANUAL_RELEASE_ENABLED` OFF until those gates are signed.
 
 **Production state: unchanged. No payroll transfers, schema deployment or
 real-worker data mutations were performed by this patch.**
