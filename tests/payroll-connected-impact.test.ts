@@ -85,3 +85,43 @@ test("default-off connected payroll impact avoids a 404 console error and has no
   assert.ok(panel.includes("if (response.status === 204)"));
   assert.ok(panel.includes("setEnabled(false)"));
 });
+
+
+test("latest approved timesheet version takes precedence over superseded submitted evidence", () => {
+  const report = buildPayrollConnectedImpact({
+    ...cutoff,
+    timesheets: [
+      { id: 1, employeeId: 12, periodStart: cutoff.periodStart, periodEnd: cutoff.periodEnd, version: 1, status: "submitted" },
+      { id: 2, employeeId: 12, periodStart: cutoff.periodStart, periodEnd: cutoff.periodEnd, version: 2, status: "approved" },
+      { id: 3, employeeId: 13, periodStart: cutoff.periodStart, periodEnd: cutoff.periodEnd, version: 1, status: "approved" },
+      { id: 4, employeeId: 13, periodStart: cutoff.periodStart, periodEnd: cutoff.periodEnd, version: 2, status: "stale" },
+      { id: 5, employeeId: 14, periodStart: "2026-09-16", periodEnd: "2026-09-30", version: 1, status: "submitted" },
+    ],
+  });
+  assert.equal(report.summary.WFM, 1);
+  assert.equal(report.attention, 1);
+  assert.equal(report.total, 1);
+  assert.equal(report.findings[0].sourceId, 4);
+  assert.equal(report.findings[0].code, "WFM_TIMESHEET_NOT_APPROVED");
+});
+
+test("same-version timesheet tie uses higher source record and never silently clears a stale revision", () => {
+  const report = buildPayrollConnectedImpact({
+    ...cutoff,
+    timesheets: [
+      { id: 41, employeeId: 15, periodStart: cutoff.periodStart, periodEnd: cutoff.periodEnd, version: 3, status: "approved" },
+      { id: 42, employeeId: 15, periodStart: cutoff.periodStart, periodEnd: cutoff.periodEnd, version: 3, status: "stale" },
+    ],
+  });
+  assert.equal(report.attention, 1);
+  assert.equal(report.findings[0].sourceId, 42);
+});
+
+test("connected-impact API reads only cutoff-matching timesheets, with feature flag and existing payroll RBAC", () => {
+  const source = readFileSync("src/app/api/payroll-runs/[id]/connected-impact/route.ts", "utf8");
+  assert.ok(source.includes("PAYROLL_CONNECTED_IMPACT_ENABLED"));
+  assert.ok(source.includes("PAYROLL_VIEW_ROLES"));
+  assert.ok(source.includes("eq(workforceTimesheets.periodStart, run.periodStart)"));
+  assert.ok(source.includes("eq(workforceTimesheets.periodEnd, run.periodEnd)"));
+  assert.ok(source.includes("timesheets: timesheets.slice(0, ROW_CAP)"));
+});
