@@ -14,6 +14,13 @@ default-OFF gate and `0102` migration remain owned by #644.
 - Within each transaction, fresh source data is fetched and compared with the
   exact persisted calculation fingerprint before any irreversible state,
   loan balance, position vacancy or final-pay review is written.
+- The initial calculation intentionally sets the employee status to
+  `Separating` *after* computing from the original Active/On-leave worker
+  state. The transaction verifies the **before** source, while its stored
+  fingerprint anticipates the authorized **after** state. Without this
+  correction, the independent checker rejects a legitimate newly initiated
+  separation as falsely stale. A worker already marked `Separated` remains
+  blocked rather than normalized into approval.
 - The final-pay release uses the **transaction-read employee loans**, not
   a copy read earlier in a separate pooled connection.
 - Relevant source evidence now includes employee status, basic rate, MWE tax
