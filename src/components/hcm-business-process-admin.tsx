@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Plus, RefreshCw, Save, Settings2, Trash2 } from "lucide-react";
+import { HcmGovernanceReadinessPanel } from "@/components/hcm-governance-readiness-panel";
 
 type Step = {
   type: "approval" | "review" | "to_do";
@@ -184,6 +185,8 @@ export function HcmBusinessProcessAdmin({ organizationId }: { organizationId: nu
       </div>
 
       {error && <div className="notice notice-amber" style={{ margin: "0 16px 12px" }}><span>{error}</span></div>}
+
+      <HcmGovernanceReadinessPanel organizationId={organizationId} />
 
       <div className="card-body">
         <div className="module-grid two" style={{ margin: 0 }}>
