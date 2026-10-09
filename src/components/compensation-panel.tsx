@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PayrollOverpaymentWorkbench } from "@/components/payroll-overpayment-workbench";
 import {
   BadgeDollarSign,
   CalendarDays,
@@ -727,6 +728,8 @@ export function CompensationPanel({
           </table>
         </div>
       </article>
+
+      <PayrollOverpaymentWorkbench organizationId={organizationId} setNotice={setNotice} />
 
       <article className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
