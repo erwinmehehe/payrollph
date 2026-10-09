@@ -118,6 +118,22 @@ test("unpriced worked attendance fails closed even when upstream segment flags a
   }, 0), [], "no independent worked-time minutes means there is no premium amount to allocate");
 });
 
+test("explicit premium blocker cannot be suppressed by a wrongly completed segmentation", () => {
+  const traceFlags = payableTimeEvidenceFlagsForPayroll({
+    segments: [{
+      punchId: 992, sourceWorkDate: "2026-10-05", calendarDate: "2026-10-05",
+      start: "2026-10-05T00:00:00.000Z", end: "2026-10-05T01:00:00.000Z",
+      minutes: 60, overtime: false, night: false,
+    }],
+    attendanceCalendarDates: ["2026-10-05"],
+    allocationComplete: true,
+    flags: ["WFM_PREMIUM_ALLOCATION_UNVERIFIED: manual correction is mandatory"],
+  }, 60);
+  assert.equal(traceFlags.length, 1);
+  assert.match(traceFlags[0], /^WFM_PREMIUM_ALLOCATION_UNVERIFIED:/);
+  assert.ok(payrollFromFlags(traceFlags).summary.blocking > 0);
+});
+
 test("unlocated break confined to one premium bucket stays reviewable", () => {
   const segmented = segmentPayableTime({
     punch: {
