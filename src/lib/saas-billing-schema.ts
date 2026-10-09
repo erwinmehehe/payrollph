@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { boolean, index, integer, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
 import { organizations, subscriptions, users } from "../db/schema";
 
@@ -30,7 +31,7 @@ export const saasBillingCheckouts = pgTable("saas_billing_checkouts", {
 }, (table) => [
   index("saas_billing_checkouts_org_idx").on(table.organizationId, table.createdAt),
   uniqueIndex("saas_billing_one_open_checkout").on(table.organizationId)
-    .where((sql) => sql`${table.status} in ('creating','awaiting_payment','review_required')`),
+    .where(sql`${table.status} in ('creating','awaiting_payment','review_required')`),
 ]);
 
 export const saasBillingState = pgTable("saas_billing_state", {
