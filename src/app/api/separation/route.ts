@@ -1501,7 +1501,10 @@ export async function PATCH(request: Request) {
         return Response.json(FINAL_PAY_CONCURRENT_SOURCE_CONFLICT, { status: 409 });
       }
       const message = error instanceof Error ? error.message : "";
-      if (/^FINAL_PAY_|changed|recompute|review|last day|not yet occurred|release state/i.test(message)) {
+      // Prefix-coded conflicts and free-text stale-source errors are distinct
+      // match classes; do not mix anchored and unanchored regex alternatives.
+      if (message.startsWith("FINAL_PAY_")
+        || /(?:changed|recompute|review|last day|not yet occurred|release state)/i.test(message)) {
         return Response.json({
           code: "FINAL_PAY_RELEASE_STALE",
           error: "The final-pay source, approvals, or worker lifecycle changed during release. No money-bearing changes were committed. Refresh and reconcile the package.",
