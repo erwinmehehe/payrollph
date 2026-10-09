@@ -98,6 +98,9 @@ test("database defaults new loans to non-deducting pending status and enforces s
     await assert.rejects(() => db.update(employeeLoans).set({
       status: "active", reviewedByUserId: maker.id,
     }).where(eq(employeeLoans.id, requested.id)));
+    await assert.rejects(() => db.update(employeeLoans).set({
+      status: "active", reviewedByUserId: checker.id, reviewedAt: new Date(),
+    }).where(eq(employeeLoans.id, requested.id)), "Reviewed source reference is mandatory");
     const [unchanged] = await db.select().from(employeeLoans).where(eq(employeeLoans.id, requested.id));
     assert.equal(unchanged.status, "pending_approval");
     assert.equal(unchanged.remainingBalance, "12000.00");

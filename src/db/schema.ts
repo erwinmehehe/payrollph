@@ -2703,7 +2703,10 @@ export const employeeLoans = pgTable("employee_loans", {
     ${table.requestedByUserId} is null
     or ${table.status} not in ('active', 'paused', 'paid_off')
     or (${table.reviewedByUserId} is not null
-      and ${table.requestedByUserId} <> ${table.reviewedByUserId})
+      and ${table.requestedByUserId} <> ${table.reviewedByUserId}
+      and ${table.reviewedAt} is not null
+      and ${table.reviewEvidenceReference} is not null
+      and length(trim(${table.reviewEvidenceReference})) >= 8)
   `),
 ]);
 

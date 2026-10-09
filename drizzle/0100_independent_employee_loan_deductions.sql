@@ -26,6 +26,9 @@ BEGIN
         OR (
           "reviewed_by_user_id" IS NOT NULL
           AND "requested_by_user_id" <> "reviewed_by_user_id"
+          AND "reviewed_at" IS NOT NULL
+          AND "review_evidence_reference" IS NOT NULL
+          AND length(trim("review_evidence_reference")) >= 8
         )
       );
   END IF;
