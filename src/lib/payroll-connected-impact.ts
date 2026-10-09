@@ -1,0 +1,197 @@
+/**
+ * Payroll-first, read-only reconciliation of upstream HRIS/WFM/HCM evidence.
+ * This module MUST NOT change a payroll run, pay profile, bank destination,
+ * attendance event, compensation decision, or approval.
+ *
+ * The server owns tenant, legal-entity and org-unit scoping. Findings are
+ * advisory until separately reviewed financial-release gates are integrated.
+ */
+export type ConnectedImpactArea = "HRIS" | "WFM" | "HCM";
+export type ConnectedImpactSeverity = "attention" | "review";
+export type ConnectedImpactAction = "People" | "Time & attendance" | "Compensation";
+
+export type DatedImpactSource = {
+  id: number;
+  employeeId: number;
+  status: string;
+  effectiveDate: string;
+};
+export type PayoutImpactSource = {
+  id: number;
+  employeeId: number;
+  status: string;
+  appliedAt?: string | Date | null;
+};
+export type WorkImpactSource = {
+  id: number;
+  employeeId: number;
+  status: string;
+  workDate: string;
+  severity?: string | null;
+  appliedAt?: string | Date | null;
+};
+export type AppliedPayRevision = {
+  id: number;
+  employeeId: number;
+  effectiveDate: string;
+};
+
+export type ConnectedImpactFinding = {
+  area: ConnectedImpactArea;
+  severity: ConnectedImpactSeverity;
+  code: string;
+  employeeId: number;
+  sourceId: number;
+  date: string | null;
+  status: string;
+  title: string;
+  detail: string;
+  action: ConnectedImpactAction;
+};
+
+export type ConnectedImpactInput = {
+  periodStart: string;
+  periodEnd: string;
+  employmentChanges?: DatedImpactSource[];
+  payoutChanges?: PayoutImpactSource[];
+  attendanceCorrections?: WorkImpactSource[];
+  attendanceExceptions?: WorkImpactSource[];
+  compensationProposals?: DatedImpactSource[];
+  payRevisions?: AppliedPayRevision[];
+  truncatedSources?: string[];
+};
+
+export type ConnectedImpactReport = {
+  periodStart: string;
+  periodEnd: string;
+  summary: { HRIS: number; WFM: number; HCM: number };
+  total: number;
+  attention: number;
+  review: number;
+  incomplete: boolean;
+  truncatedSources: string[];
+  findings: ConnectedImpactFinding[];
+  advisoryOnly: true;
+};
+
+const TERMINAL = new Set(["applied", "cancelled", "canceled", "rejected", "declined", "voided", "superseded"]);
+const MAX_VISIBLE = 60;
+
+function status(value: string): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+function validDate(value: string): boolean {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(value + "T00:00:00.000Z");
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+function stillOpen(value: string): boolean {
+  return !TERMINAL.has(status(value));
+}
+function add(items: ConnectedImpactFinding[], value: ConnectedImpactFinding) {
+  if (!Number.isSafeInteger(value.employeeId) || value.employeeId <= 0
+    || !Number.isSafeInteger(value.sourceId) || value.sourceId <= 0) return;
+  items.push(value);
+}
+
+/**
+ * Makes a scoped, non-financial review of a specific cutoff.
+ * Amounts, TINs, bank coordinates and internal payloads are deliberately
+ * absent. A zero-count result is NOT a payroll-release authorization.
+ */
+export function buildPayrollConnectedImpact(input: ConnectedImpactInput): ConnectedImpactReport {
+  if (!validDate(input.periodStart) || !validDate(input.periodEnd) || input.periodStart > input.periodEnd) {
+    throw new Error("A valid payroll cutoff is required.");
+  }
+  const findings: ConnectedImpactFinding[] = [];
+
+  for (const row of input.employmentChanges ?? []) {
+    if (!stillOpen(row.status) || !validDate(row.effectiveDate) || row.effectiveDate > input.periodEnd) continue;
+    add(findings, {
+      area: "HRIS", severity: "attention", code: "HRIS_CHANGE_NOT_APPLIED",
+      employeeId: row.employeeId, sourceId: row.id, date: row.effectiveDate,
+      status: status(row.status), title: "Employment change still open",
+      detail: "A pending, scheduled or failed employment change is effective on or before this cutoff. Review the authorized worker record before relying on its payroll inputs.",
+      action: "People",
+    });
+  }
+
+  for (const row of input.payoutChanges ?? []) {
+    if (!stillOpen(row.status) || row.appliedAt) continue;
+    add(findings, {
+      area: "HRIS", severity: "attention", code: "HRIS_PAYOUT_REVIEW",
+      employeeId: row.employeeId, sourceId: row.id, date: null,
+      status: status(row.status), title: "Payout destination review outstanding",
+      detail: "A requested payout change has not been confirmed as applied. Follow the existing independently governed payout workflow before any bank export or transfer.",
+      action: "People",
+    });
+  }
+
+  for (const row of input.attendanceCorrections ?? []) {
+    if (!validDate(row.workDate) || row.workDate < input.periodStart || row.workDate > input.periodEnd
+      || !stillOpen(row.status) || row.appliedAt) continue;
+    add(findings, {
+      area: "WFM", severity: "attention", code: "WFM_CORRECTION_NOT_APPLIED",
+      employeeId: row.employeeId, sourceId: row.id, date: row.workDate,
+      status: status(row.status), title: "Attendance correction awaits resolution",
+      detail: "An attendance correction within this cutoff is not yet applied. Verify independent approval and the resulting timesheet/payroll snapshot.",
+      action: "Time & attendance",
+    });
+  }
+
+  for (const row of input.attendanceExceptions ?? []) {
+    if (!validDate(row.workDate) || row.workDate < input.periodStart || row.workDate > input.periodEnd
+      || status(row.status) !== "open") continue;
+    add(findings, {
+      area: "WFM", severity: status(row.severity ?? "") === "info" ? "review" : "attention",
+      code: "WFM_ATTENDANCE_EXCEPTION",
+      employeeId: row.employeeId, sourceId: row.id, date: row.workDate,
+      status: status(row.status), title: "Attendance exception remains open",
+      detail: "An attendance exception for this cutoff has not been resolved. Check the source time evidence and payroll premium/exception trace.",
+      action: "Time & attendance",
+    });
+  }
+
+  for (const row of input.compensationProposals ?? []) {
+    if (!stillOpen(row.status) || !validDate(row.effectiveDate) || row.effectiveDate > input.periodEnd) continue;
+    add(findings, {
+      area: "HCM", severity: "attention", code: "HCM_COMP_NOT_APPLIED",
+      employeeId: row.employeeId, sourceId: row.id, date: row.effectiveDate,
+      status: status(row.status), title: "Compensation decision not applied",
+      detail: "A compensation proposal with an effective date on or before this cutoff is not finalized. Follow the existing finance/owner approval and effective-dated pay revision flow; do not edit salary directly.",
+      action: "Compensation",
+    });
+  }
+
+  for (const row of input.payRevisions ?? []) {
+    if (!validDate(row.effectiveDate) || row.effectiveDate < input.periodStart || row.effectiveDate > input.periodEnd) continue;
+    add(findings, {
+      area: "HCM", severity: "review", code: "HCM_PAY_REVISION_DURING_CUTOFF",
+      employeeId: row.employeeId, sourceId: row.id, date: row.effectiveDate,
+      status: "recorded", title: "Pay revision effective within cutoff",
+      detail: "An effective-dated pay revision exists inside the cutoff. Confirm payroll used the correct rate for each applicable work date and the approved source evidence.",
+      action: "Compensation",
+    });
+  }
+
+  const rank = (v: ConnectedImpactFinding) => v.severity === "attention" ? 0 : 1;
+  const areaRank = (v: ConnectedImpactFinding) => v.area === "HRIS" ? 0 : v.area === "WFM" ? 1 : 2;
+  findings.sort((a, b) => rank(a) - rank(b) || areaRank(a) - areaRank(b)
+    || (a.date ?? "").localeCompare(b.date ?? "") || a.employeeId - b.employeeId || a.sourceId - b.sourceId);
+
+  const summary = { HRIS: 0, WFM: 0, HCM: 0 };
+  for (const finding of findings) summary[finding.area] += 1;
+  const truncatedSources = [...new Set(input.truncatedSources ?? [])];
+  return {
+    periodStart: input.periodStart,
+    periodEnd: input.periodEnd,
+    summary,
+    total: findings.length,
+    attention: findings.filter((finding) => finding.severity === "attention").length,
+    review: findings.filter((finding) => finding.severity === "review").length,
+    incomplete: truncatedSources.length > 0,
+    truncatedSources,
+    findings: findings.slice(0, MAX_VISIBLE),
+    advisoryOnly: true,
+  };
+}
