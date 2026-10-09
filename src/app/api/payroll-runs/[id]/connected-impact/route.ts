@@ -151,7 +151,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const proposal = approvalByRevision.get(revision.id);
     return {
       ...revision,
-      compensationProposalId: proposal?.employeeId === revision.employeeId
+      compensationProposalId: proposal
+        && proposal.employeeId === revision.employeeId
         && proposal.effectiveDate === revision.effectiveDate ? proposal.id : null,
     };
   });
