@@ -92,6 +92,8 @@ test("separation API requires independent maker, checker and releaser before mon
   assert.ok(route.includes("fresh.approvedByUserId === user.id"));
   assert.ok(route.includes("fresh.preparedByUserId === fresh.approvedByUserId"));
   assert.ok(route.includes("FINAL_PAY_THREE_ACTOR_REQUIRED"));
+  assert.ok(route.includes('process.env.FINAL_PAY_MANUAL_RELEASE_ENABLED !== "true"'));
+  assert.ok(route.includes('"FINAL_PAY_MANUAL_RELEASE_NOT_CERTIFIED"'));
   assert.ok(route.includes("releasedByUserId: user.id"));
   assert.ok(route.includes('action: "Final pay independently approved"'));
   assert.ok(route.includes('action: "Final pay released with independently separated approvers"'));
