@@ -32,6 +32,8 @@ import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automat
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
+import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
+import { getEntitlements, seatUsage } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -124,6 +126,11 @@ export async function POST(request: Request) {
     "Only People administrators can create employee records.",
   );
   if (denied) return denied;
+  const subscriptionDenied = await requireSaasPaidWrites(organizationId);
+  if (subscriptionDenied) return subscriptionDenied;
+  const entitlements = await getEntitlements(organizationId);
+  const seats = await seatUsage(organizationId, entitlements.seatLimit);
+  if (seats.atLimit) return Response.json({ error: "Employee seat limit reached. Contact billing to update your subscription.", code: "SEAT_LIMIT_REACHED", used: seats.used, limit: seats.limit }, { status: 402 });
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   const employeeOrgUnitId = access.companyWide ? null : access.orgUnitId;
@@ -320,6 +327,8 @@ export async function PATCH(request: Request) {
     "Only People administrators can update government identity records.",
   );
   if (denied) return denied;
+  const subscriptionDenied = await requireSaasPaidWrites(organizationId);
+  if (subscriptionDenied) return subscriptionDenied;
 
   const [employee] = await db.select().from(employees)
     .where(and(
