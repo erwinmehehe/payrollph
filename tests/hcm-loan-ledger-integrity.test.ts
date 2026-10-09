@@ -146,6 +146,8 @@ test("loan money mutations have company-wide payroll, MFA, atomic audit and row-
   const route = readFileSync("src/app/api/loans/route.ts", "utf8");
   const panel = readFileSync("src/components/loans-panel.tsx", "utf8");
   assert.ok(route.includes("PAYROLL_OPERATOR_ROLES"));
+  assert.ok(route.includes("eq(employeeLoans.organizationId, employees.organizationId)"));
+  assert.ok(route.includes("requestedEmployeeId != null"));
   assert.ok(route.includes("!access?.companyWide"));
   assert.ok(route.includes("requireSensitiveActionMfa(user)"));
   assert.ok(route.includes("enforceSensitiveActionRateLimit(request"));
