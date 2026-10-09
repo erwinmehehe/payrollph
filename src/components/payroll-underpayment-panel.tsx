@@ -13,6 +13,7 @@ type RequestRow = {
   postedEarning: { status: string; payrollRunId: number | null } | null;
 };
 type CorrectionPayload = {
+  postingEnabled: boolean;
   currentUserId: number;
   employees: Worker[];
   releasedRuns: ReleasedRun[];
@@ -136,6 +137,11 @@ export function PayrollUnderpaymentPanel({
           not processed here. Do not enter raw bank details or IDs in references.
         </span>
       </div>
+      {!data.postingEnabled && (
+        <div className="notice notice-amber" style={{ margin: "12px 16px" }}>
+          <span><strong>Posting disabled.</strong> Requests and rejection reviews remain available, but approval cannot post money until independent payroll/tax validation and controlled-pilot sign-off enable this feature.</span>
+        </div>
+      )}
       <form onSubmit={submit} style={{ padding: "0 16px 12px" }}>
         <div className="setting-form">
           <label>Employee
@@ -210,7 +216,7 @@ export function PayrollUnderpaymentPanel({
                     onChange={event => setTaxVerificationReference(event.target.value)} />
                 </label>
                 <div className="run-actions">
-                  <button type="button" className="primary-button" disabled={busy || reviewReason.trim().length < 20 || taxVerificationReference.trim().length < 8}
+                  <button type="button" className="primary-button" disabled={busy || !data.postingEnabled || reviewReason.trim().length < 20 || taxVerificationReference.trim().length < 8}
                     onClick={() => void review("approve")}>Approve &amp; post once</button>
                   <button type="button" className="secondary-button" disabled={busy || reviewReason.trim().length < 20}
                     onClick={() => void review("reject")}>Reject without posting</button>
