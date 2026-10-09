@@ -87,3 +87,18 @@ export function finalPaySourceFingerprint(sources: FinalPayFingerprintInputs) {
       })),
   };
 }
+
+/**
+ * Initiation computes payroll from the worker's pre-transition source state,
+ * then commits status = Separating in the same operation. Frozen evidence for
+ * subsequent Finance approval must describe that authorized post-transition
+ * status, not the now-obsolete Active/On leave status.
+ *
+ * This never turns an unrelated status into permission: the caller still
+ * checks the pre-transition source under its transaction lock.
+ */
+export function expectedFinalPaySourceAfterInitiation(
+  source: ReturnType<typeof finalPaySourceFingerprint>,
+) {
+  return { ...source, employeeStatus: "Separating" as const };
+}
