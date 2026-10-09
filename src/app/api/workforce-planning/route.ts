@@ -613,6 +613,14 @@ export async function POST(request: Request) {
     const rowOrResponse = await db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(4102, ${positionId})`);
 
+      const governedAssignment = await tx.execute(directPositionAssignmentGovernanceQuery(organizationId));
+      if (governedAssignment.rows[0]?.blocked !== false) {
+        throw new WorkforcePlanningConflict(
+          HCM_GOVERNED_POSITION_ASSIGNMENT_REQUIRED.error,
+          { code: HCM_GOVERNED_POSITION_ASSIGNMENT_REQUIRED.code },
+        );
+      }
+
       const [freshPosition] = await tx.select({ status: positions.status })
         .from(positions)
         .where(and(
@@ -718,6 +726,23 @@ export async function POST(request: Request) {
         actorName: user.name,
       });
 
+      // The position, worker profile, employment event and actor audit must
+      // succeed together. An audit outage rolls back the assignment.
+      await tx.insert(auditEvents).values({
+        organizationId,
+        actor: user.name,
+        action: "Employee assigned to position",
+        resource: position.code.slice(0, 160),
+        metadata: {
+          positionId,
+          employeeId,
+          assignmentId: assignment.id,
+          effectiveFrom,
+          requisitionId: null,
+          source: "manual-legacy-ungoverned",
+          governanceRecheckedUnderLock: true,
+        },
+      });
       return assignment;
     }).catch((error: unknown) => {
       if (error instanceof WorkforcePlanningConflict) {
@@ -726,22 +751,7 @@ export async function POST(request: Request) {
       throw error;
     });
     if (rowOrResponse instanceof Response) return rowOrResponse;
-    const row = rowOrResponse;
-
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Employee assigned to position",
-      resource: position.code,
-      metadata: {
-        positionId,
-        employeeId,
-        assignmentId: row.id,
-        effectiveFrom,
-        requisitionId: null,
-      },
-    });
-    return Response.json(row, { status: 201 });
+    return Response.json(rowOrResponse, { status: 201 });
   }
 
   return Response.json({ error: "entityType must be job_family, job_level, job_grade, org_unit, profile, plan, position, or assignment." }, { status: 400 });
