@@ -139,6 +139,7 @@ test("a failure delivering field-change automation is a post-commit warning, nev
   assert.ok(appliedIndex > -1 && postCommit > appliedIndex);
   assert.ok(fieldTry > postCommit && warning > fieldTry);
   assert.ok(source.includes("return {\n    ...result,\n    hcmObligations"));
+  assert.ok(source.includes("postApplyWarnings: result.skipped ? undefined : result.postApplyWarnings"));
 });
 
 test("request, approval, decline, cancellation and retry decisions each audit inside SQL transaction", () => {
