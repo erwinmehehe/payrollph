@@ -52,3 +52,36 @@ export function loanApprovalReference(value: unknown): string | null {
   const reference = typeof value === "string" ? value.trim() : "";
   return reference.length >= 8 && reference.length <= 200 ? reference : null;
 }
+
+/** Only employer-supported loan products can enter the wage-deduction review path. */
+export const SUPPORTED_PAYROLL_LOAN_TYPES = [
+  "SSS Salary Loan",
+  "SSS Calamity Loan",
+  "Pag-IBIG Multi-Purpose Loan (MPL)",
+  "Pag-IBIG Calamity Loan",
+  "Company Emergency Loan",
+  "Educational Assistance Loan",
+  "Appliance / Gadget Loan",
+] as const;
+
+export function approvedPayrollLoanType(value: unknown): boolean {
+  return typeof value === "string"
+    && SUPPORTED_PAYROLL_LOAN_TYPES.some((name) => name === value);
+}
+
+/** Legacy rows may predate registration validation. Never pass malformed deductions into net pay. */
+export function validPayrollLoanSchedule(loan: { cutoffDeduction: number; remainingBalance: number }): boolean {
+  return parseLoanCents(loan.cutoffDeduction, 9_999_999_999) !== null
+    && parseLoanCents(loan.remainingBalance) !== null;
+}
+
+/** A manually attested repayment must cite an external receipt, not placeholder text. */
+export function externalLoanPaymentReference(value: unknown): string | null {
+  const reference = typeof value === "string" ? value.trim() : "";
+  if (reference.length < 8 || reference.length > 120
+    || /[\r\n\u0000-\u001f]/.test(reference)
+    || /^(?:manual payment|direct employee remittance|test payment|testing payment|not applicable|n\/a)$/i.test(reference)) {
+    return null;
+  }
+  return reference;
+}
