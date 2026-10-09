@@ -60,6 +60,8 @@ jobs:
           if-no-files-found: warn
       - run: npx tsc --noEmit
       - run: npx tsx --test tests/*.test.ts
+      - name: Test offline scheduler staging evidence validator (synthetic only)
+        run: node --test tests/scheduler-staging-evidence.test.mjs
       - name: Run statutory golden payroll certification
         run: npm run payroll:golden
       - name: Upload golden payroll certification evidence
