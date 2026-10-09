@@ -411,7 +411,9 @@ export function PayrollRunView({
         }
       />
 
-      <PayrollConnectedImpactPanel runId={run.id} onPage={onPage} allowedPages={availablePages} />
+      {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
+        <PayrollConnectedImpactPanel runId={run.id} onPage={onPage} allowedPages={availablePages} />
+      )}
 
       {!payrollOfficerMode && !ownerMode && (
         <PayrollHandoff
