@@ -71,7 +71,7 @@ export function EmployeeIdentifierReviewPanel({ organizationId, onRefresh }: {
           requestId: id,
           action,
           verifiedValue: action === "approve" ? verifiedValue : undefined,
-          verifiedAgainstDocument: action === "approve" ? verified : undefined,
+          verifiedAgainstRecord: action === "approve" ? verified : undefined,
           reviewNote: note,
         }),
       });
@@ -119,16 +119,16 @@ export function EmployeeIdentifierReviewPanel({ organizationId, onRefresh }: {
           </div>
           {selected === row.id ? (
             <div className="ess-hr-review-form">
-              <p><ShieldCheck size={17} /> Verify against a trusted document, then type the full number from that document. For privacy, the employee's submitted full number is never displayed in this review list.</p>
+              <p><ShieldCheck size={17} /> Verify the number using a trusted HR or agency record. Enter the number for comparison; no ID card or photo is requested.</p>
               <label>Full verified {ESS_IDENTIFIER_FIELDS[row.kind].label}
                 <input type="password" value={verifiedValue} autoComplete="off" onChange={(event) => setVerifiedValue(event.target.value)} placeholder={ESS_IDENTIFIER_FIELDS[row.kind].hint} />
               </label>
               <label className="ess-hr-verify-check">
                 <input type="checkbox" checked={verified} onChange={(event) => setVerified(event.target.checked)} />
-                <span>I independently checked this ID against an appropriate employee document.</span>
+                <span>I checked this number against an appropriate HR or agency record.</span>
               </label>
               <label>Review note (required when rejecting)
-                <textarea rows={2} value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} placeholder="Explain any missing or mismatched evidence. Do not include ID numbers." />
+                <textarea rows={2} value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} placeholder="Explain any mismatch without including ID numbers." />
               </label>
               <div className="ess-hr-actions">
                 <button type="button" className="secondary-button" disabled={saving} onClick={closeReview}>Cancel</button>
