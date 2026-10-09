@@ -120,7 +120,8 @@ export function HcmPeopleOperationsInbox({
   const dueTiles: Array<{ label: string; count: number; window: PeopleOpsDueWindow; note: string }> = data ? [
     { label: "PAST SOURCE DATE", count: data.attention.overdue, window: "overdue", note: "Review source status before action" },
     { label: "DUE TODAY", count: data.attention.dueToday, window: "today", note: "Based on Philippine business date" },
-    { label: "NEXT 7 DAYS", count: data.attention.dueNext7, window: "next7", note: "Upcoming after today" },
+    { label: "TODAY + NEXT 7", count: data.attention.dueToday + data.attention.dueNext7, window: "next7", note: "Within 7 calendar days" },
+    { label: "TODAY + NEXT 30", count: data.attention.dueToday + data.attention.dueNext7 + data.attention.dueNext30, window: "next30", note: "Within 30 calendar days" },
     { label: "NO SOURCE DATE", count: data.attention.undated, window: "unscheduled", note: "Not an SLA breach" },
   ] : [];
 
@@ -181,7 +182,7 @@ export function HcmPeopleOperationsInbox({
             <h3 style={{ fontSize: 15, marginBottom: 3 }}>HR daily triage</h3>
             <p style={{ color: "var(--muted)", fontSize: 12, marginBottom: 10 }}>
               Source milestones only — these are not assigned SLAs, legal compliance findings, or automatic approvals.
-              Next 7 days excludes today; use the filter to view today and the next 7 days together.
+              Combined 7/30-day cards include today and overlap by design; they are filters, not additive counts.
             </p>
             <div className="stats-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", marginBottom: 12 }}>
               {dueTiles.map((tile) => (
