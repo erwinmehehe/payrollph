@@ -9,7 +9,7 @@ The release rule uses the actual payroll register and a successfully completed p
 - Calculated employee IDs must exactly match live, eligible company-wide employees (Active, start date on or before cutoff end). Missing or duplicate employees block release.
 - HRIS worker changes due in the cutoff must be applied. Applied changes **after the latest completed calculation** block release.
 - Payout destination changes pending review, approved without application evidence, or applied after calculation block release. No bank details, source records or PII are exposed in gate messages.
-- WFM attendance corrections pending or applied after calculation block release; open attendance exceptions marked \`blocker\` block, informational/warning exceptions remain flagged for review; the **latest** timesheet version must be approved when submitted.
+- WFM attendance corrections pending or applied after calculation block release; open attendance exceptions marked `blocker` block, informational/warning exceptions remain flagged for review; the **latest** timesheet version must be approved when submitted. For employers whose timesheet policy is **active and block-mode**, every calculated employee must have an approved timesheet.
 - HCM scheduled/approved/failed compensation proposals effective by cutoff end block until applied; proposals merely proposed or pending approval are review items, **not payable salaries**. Pay and rest-day revisions recorded after calculation and effective by cutoff end block.
 - A missing/invalid payroll job completion timestamp or query cap overflow blocks release. Source queries are **tenant-filtered and payroll-population-filtered**.
 - Historical org-unit- or legal-entity-scoped payroll runs are intentionally not supported by this release gate and **fail closed** if the tenant is enabled. Do not use current org-unit assignments as a substitute for historical assignment evidence.
@@ -19,10 +19,10 @@ The release rule uses the actual payroll register and a successfully completed p
 
 When the policy is enabled for an explicitly allowlisted tenant, the source check is evaluated:
 
-1. In the existing payroll release checklist (\`connected\` blocking item).
+1. In the existing payroll release checklist (`connected` blocking item).
 2. Before the payroll operator submits the run to an independent checker.
 3. Before the independent checker approves the run.
-4. After the atomic \`Ready for release → Releasing\` claim and before calling settlement. On failure, restore \`Ready for release\`; no settlement or payout is performed.
+4. After the atomic `Ready for release → Releasing` claim and before calling settlement. On failure, restore `Ready for release`; no settlement or payout is performed.
 
 The default-off code path leaves the release checklist and existing workflow semantics unchanged.
 
@@ -30,9 +30,9 @@ The default-off code path leaves the release checklist and existing workflow sem
 
 Both are required:
 
-- \`PAYROLL_CONNECTED_IMPACT_ENABLED=true\`
-- \`PAYROLL_CONNECTED_RELEASE_GATE_ENABLED=true\` **and**
-  \`PAYROLL_CONNECTED_RELEASE_GATE_ORGANIZATION_IDS=<staging tenant id>\`
+- `PAYROLL_CONNECTED_IMPACT_ENABLED=true`
+- `PAYROLL_CONNECTED_RELEASE_GATE_ENABLED=true` **and**
+  `PAYROLL_CONNECTED_RELEASE_GATE_ORGANIZATION_IDS=<staging tenant id>`
 
 The allowlist accepts positive numeric organization IDs separated by commas, with **no wildcard or global all-tenants activation**. An absent/empty list means no tenant activates the release gate. Start with exactly one synthetic staging employer. Enabling the release gate while connected impact inspection is off must block release for the allowlisted tenant, not silently bypass source validation.
 
@@ -54,6 +54,8 @@ No money-moving operation, salary change, payout destination approval or databas
 | Correction pending, attendance blocker event open | Block |
 | Attendance warning event open | Review item, existing WFM policy still authoritative |
 | Stale later timesheet after earlier approved timesheet | Block |
+| Block-mode employer with a missing timesheet | Block missing coverage |
+| Advisory-mode employer with no timesheets | No additional missing-coverage block; existing policy remains authoritative |
 | Unapproved compensation proposal | Review-only; no proposed raise applied |
 | Approved salary change effective this cutoff but unapplied | Block |
 | Retroactive salary/rest-day revision recorded after calculation | Block |
