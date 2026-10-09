@@ -59,3 +59,13 @@ test("missing staging secret fails closed before networking", async()=>{
     PAYROLL_PRODUCTION_HOST:"prod.example.test",
   },async()=>{throw new Error("should not connect")}),/staging worker token/);
 });
+
+
+test("secret-bearing staging workflow cannot be dispatched from an unreviewed PR branch", async () => {
+  const { readFileSync } = await import("node:fs");
+  const workflow = readFileSync(".github/workflows/scheduler-staging-health.yml", "utf8");
+  assert.ok(workflow.includes("if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'"));
+  assert.ok(workflow.includes("environment: payroll-staging"));
+  assert.ok(workflow.includes("persist-credentials: false"));
+  assert.ok(!workflow.includes("pull_request_target:"));
+});
