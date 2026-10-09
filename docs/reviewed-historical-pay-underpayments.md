@@ -36,9 +36,12 @@ salary revisions and original government filings stay unchanged.
   Those require distinct, legally reviewed workflows.
 - **Posting is not payment.** The adjustment must be calculated, independently
   checked, explicitly released and settled via the standard payroll workflow.
-- Only an empty **Draft** payroll cutoff may receive a correction. A run
-  already processed, released, queued or otherwise progressed must be left
-  untouched; request a new correction for a later cutoff.
+- Only an empty **Draft** payroll cutoff may receive a correction. The
+  request/approval transaction row-locks existing applicable payroll runs and
+  fails if one has already progressed; other payroll jobs cannot update those
+  rows until the correction commits. A run already processed, released, queued
+  or otherwise progressed must be left untouched; request a new correction
+  for a later cutoff. Concurrent *new* run creation still needs staging tests.
 - The review reference is **evidence metadata**, not proof that a CPA, tax
   specialist or employer has actually signed off. The reviewer must compare
   documented wage and statutory treatment outside this automated approval
