@@ -496,6 +496,32 @@ export async function POST(request: Request) {
   }
 
   const created = await db.transaction(async (tx) => {
+    // Employment can change after form validation while schedules are loaded.
+    // Hold a shared employee lock and recheck before any approval/leave writes.
+    await tx.execute(sql`select id from employees
+      where id = ${employeeId} and organization_id = ${organizationId} for share`);
+    const [freshWorker] = await tx.select().from(employees).where(and(
+      eq(employees.id, employeeId),
+      eq(employees.organizationId, organizationId),
+    )).limit(1);
+    if (!freshWorker) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
+    const [currentSeparation] = freshWorker.status === "Separating"
+      ? await tx.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
+        .where(and(
+          eq(separationRecords.organizationId, organizationId),
+          eq(separationRecords.employeeId, employeeId),
+          inArray(separationRecords.status, ["draft", "approved"]),
+        )).orderBy(desc(separationRecords.id)).limit(1)
+      : [];
+    const liveEligibility = checkEmployeeLeaveEligibility({
+      employeeStatus: freshWorker.status,
+      employmentStartDate: String(freshWorker.startDate),
+      leaveStartDate: startDate,
+      leaveEndDate: endDate,
+      separationLastDay: currentSeparation?.lastDay ?? null,
+    });
+    if (liveEligibility) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
+
     const [task] = await tx.insert(approvalTasks).values({
       organizationId,
       title: "Approve leave request",
@@ -548,13 +574,22 @@ export async function POST(request: Request) {
         approverUserId: approver.id,
         intervalSetId: intervalSet.id,
         intervalRevision: intervalSet.revision,
-        workerStatusAtSubmission: employee.status,
-        employmentStartDate: employee.startDate,
-        separationLastDay: pendingSeparation?.lastDay ?? null,
+        workerStatusAtSubmission: freshWorker.status,
+        employmentStartDate: freshWorker.startDate,
+        separationLastDay: currentSeparation?.lastDay ?? null,
       },
     });
     return { task, row, intervalSet };
+  }).catch((error) => {
+    if (error instanceof Error && error.message === "LEAVE_EMPLOYMENT_NOT_ELIGIBLE") return null;
+    throw error;
   });
+  if (!created) {
+    return Response.json({
+      code: "LEAVE_EMPLOYMENT_NOT_ELIGIBLE",
+      error: "The worker's hire, separation or employment state changed before the leave could be saved. Refresh HR data and submit a new request.",
+    }, { status: 409 });
+  }
 
   const automation = await runAutomationEventSafely({
     organizationId,
