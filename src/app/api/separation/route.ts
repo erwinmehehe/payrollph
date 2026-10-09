@@ -911,6 +911,20 @@ export async function PATCH(request: Request) {
   if (action === "approve" || action === "release") {
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return mfaDenied;
+    const limitDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id,
+      action: `separation-final-pay-${action}`,
+      resourceId: id,
+      limit: 5,
+      windowMs: 15 * 60_000,
+    });
+    if (limitDenied) return limitDenied;
+    if (!access.companyWide) {
+      return Response.json({
+        code: "FINAL_PAY_COMPANY_WIDE_REQUIRED",
+        error: "Final-pay approval or release requires company-wide financial authority.",
+      }, { status: 403 });
+    }
   }
 
   if (action === "approve") {
@@ -987,20 +1001,73 @@ export async function PATCH(request: Request) {
       if (sep.status !== "draft") {
         return Response.json({ error: "Only a draft final-pay package can be approved." }, { status: 409 });
       }
-      const [updated] = await db.update(separationRecords).set({
-        status: "approved",
-        approvedAt: new Date(),
-      }).where(and(eq(separationRecords.id, id), eq(separationRecords.status, "draft"))).returning();
-      if (!updated) return Response.json({ error: "Final-pay approval state changed. Refresh and try again." }, { status: 409 });
-
-      await recordAuditEvent({
-        organizationId: sep.organizationId,
-        actor: user.name,
-        action: "Final pay approved",
-        resource: `Separation #${sep.id}`,
-        metadata: { employeeId: sep.employeeId, netFinalPay: Number(sep.netFinalPay) },
-      });
-      return Response.json(updated);
+      try {
+        const updated = await db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT id FROM separation_records
+            WHERE id = ${id} AND organization_id = ${sep.organizationId} FOR UPDATE`);
+          const [fresh] = await tx.select().from(separationRecords).where(and(
+            eq(separationRecords.id, id),
+            eq(separationRecords.organizationId, sep.organizationId),
+          )).limit(1);
+          if (!fresh || fresh.status !== "draft") {
+            throw new Error("FINAL_PAY_APPROVAL_CHANGED");
+          }
+          // Stable actor IDs, never display names. Historical packages with
+          // unknown preparers require a fresh evidence-backed recomputation.
+          if (fresh.preparedByUserId == null) {
+            throw new Error("FINAL_PAY_MAKER_EVIDENCE_MISSING");
+          }
+          if (fresh.preparedByUserId === user.id) {
+            throw new Error("FINAL_PAY_MAKER_CHECKER_REQUIRED");
+          }
+          if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
+            throw new Error("FINAL_PAY_CLEARANCE_STALE");
+          }
+          const frozen = (fresh.computationSnapshot ?? {}) as Record<string, unknown>;
+          if (!sameSnapshot(frozen.sourceFingerprint, currentFingerprint)) {
+            throw new Error("FINAL_PAY_SOURCE_CHANGED");
+          }
+          const [approved] = await tx.update(separationRecords).set({
+            status: "approved",
+            approvedAt: new Date(),
+            approvedByUserId: user.id,
+          }).where(and(
+            eq(separationRecords.id, id),
+            eq(separationRecords.organizationId, sep.organizationId),
+            eq(separationRecords.status, "draft"),
+          )).returning();
+          if (!approved) throw new Error("FINAL_PAY_APPROVAL_CHANGED");
+          await tx.insert(auditEvents).values({
+            organizationId: sep.organizationId,
+            actor: user.name,
+            action: "Final pay independently approved",
+            resource: `Separation #${sep.id}`,
+            metadata: {
+              employeeId: sep.employeeId,
+              netFinalPay: Number(fresh.netFinalPay),
+              preparerUserId: fresh.preparedByUserId,
+              approverUserId: user.id,
+              sourceFingerprint: frozen.sourceFingerprint,
+              clearanceConfirmedUnderLock: true,
+            },
+          });
+          return approved;
+        });
+        return Response.json(updated);
+      } catch (error) {
+        const code = error instanceof Error ? error.message : "";
+        if (code.startsWith("FINAL_PAY_")) {
+          return Response.json({
+            code,
+            error: code === "FINAL_PAY_MAKER_EVIDENCE_MISSING"
+              ? "This legacy final-pay draft has no stable preparer identity. Recompute against verified source records before independent approval."
+              : code === "FINAL_PAY_MAKER_CHECKER_REQUIRED"
+                ? "The employee final-pay preparer cannot approve their own computation."
+                : "The final-pay package, clearance or supporting payroll evidence changed. Refresh, reconcile and reapprove.",
+          }, { status: 409 });
+        }
+        throw error;
+      }
     }
 
     if (sep.status !== "approved") {
