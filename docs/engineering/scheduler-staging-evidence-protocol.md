@@ -20,7 +20,7 @@ The script does **not** verify the authenticity of claimed GitHub run results, t
 
 ## Rejected evidence
 
-The validator rejects any unexpected field, malformed or duplicated GitHub Actions link, remote/non-staging environment, missing or mismatching SHA, missing/off-order observation, failed run, incorrect HTTP/state combination, malformed or out-of-order UTC timestamps, observations spanning over 24 hours, non-regular file, oversized JSON, and symlink to an external evidence file. It prints only fixed result codes; it never logs manifest contents.
+The validator rejects any unexpected field, malformed or duplicated GitHub Actions link, remote/non-staging environment, missing or mismatching SHA, mismatched staging/preview environment across phases, future timestamp, missing/off-order observation, failed run, incorrect HTTP/state combination, malformed or out-of-order UTC timestamps, observations spanning over 24 hours, non-regular file, oversized JSON, and symlink to an external evidence file. It prints only fixed result codes; it never logs manifest contents.
 
 ## Local test
 

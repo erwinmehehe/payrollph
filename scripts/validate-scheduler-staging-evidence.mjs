@@ -61,6 +61,7 @@ export function validateEvidence(evidence) {
   const runIds = new Set();
   let lastTimestamp = -Infinity;
   let firstTimestamp = 0;
+  let deploymentEnvironment = null;
   for (let i = 0; i < PHASES.length; i++) {
     const item = evidence.observations[i];
     if (!hasOnlyKeys(item, WITNESS_KEYS)) reject('INVALID_OBSERVATION_SCHEMA');
@@ -70,6 +71,10 @@ export function validateEvidence(evidence) {
     }
     if (!['preview', 'staging'].includes(item.deploymentEnvironment)) {
       reject('PRODUCTION_OR_UNKNOWN_DEPLOYMENT');
+    }
+    if (deploymentEnvironment === null) deploymentEnvironment = item.deploymentEnvironment;
+    else if (item.deploymentEnvironment !== deploymentEnvironment) {
+      reject('INCONSISTENT_DEPLOYMENT_ENVIRONMENT');
     }
     if (item.runConclusion !== 'success') reject('UNSUCCESSFUL_OBSERVATION_RUN');
 
@@ -81,6 +86,7 @@ export function validateEvidence(evidence) {
     runIds.add(runMatch[1]);
 
     const t = parseUtcTimestamp(item.observedAt);
+    if (t > Date.now() + 5 * 60 * 1000) reject('FUTURE_OBSERVATION_TIMESTAMP');
     if (t <= lastTimestamp) reject('NON_CHRONOLOGICAL_OBSERVATIONS');
     if (i === 0) firstTimestamp = t;
     lastTimestamp = t;

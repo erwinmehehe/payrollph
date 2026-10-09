@@ -48,6 +48,14 @@ test('requires one exact nonproduction deployed SHA for all phases', () => {
   const production = good(); production.observations[0].deploymentEnvironment='production';
   errorCode(production,'PRODUCTION_OR_UNKNOWN_DEPLOYMENT');
 });
+test('requires a single consistent deployment environment for all three phases', () => {
+  const mixed = good(); mixed.observations[1].deploymentEnvironment = 'staging';
+  errorCode(mixed, 'INCONSISTENT_DEPLOYMENT_ENVIRONMENT');
+});
+test('refuses observation timestamps more than five minutes in the future', () => {
+  const future = good(); future.observations[2].observedAt = new Date(Date.now() + 3600000).toISOString();
+  errorCode(future, 'FUTURE_OBSERVATION_TIMESTAMP');
+});
 test('does not accept healthy-looking disabled results or unhealthy enabled results', () => {
   const fakeOff = good(); fakeOff.observations[2].httpStatus=200;
   errorCode(fakeOff,'DISABLED_PHASE_NOT_VERIFIED');
@@ -68,7 +76,8 @@ test('rejects untrusted run URL origins, query parameters and userinfo', () => {
 test('time order and 24-hour single-rehearsal window are enforced', () => {
   const back = good(); back.observations[1].observedAt=stamp(0);
   errorCode(back,'NON_CHRONOLOGICAL_OBSERVATIONS');
-  const tooLong = good(); tooLong.observations[2].observedAt='2026-10-11T03:00:00.000Z';
+  const tooLong = good(); tooLong.observations[0].observedAt='2026-10-07T01:00:00.000Z';
+  tooLong.observations[1].observedAt='2026-10-08T02:00:00.000Z';
   errorCode(tooLong,'REHEARSAL_EXCEEDS_24_HOURS');
   const malformed = good(); malformed.observations[0].observedAt='2026-10-09';
   errorCode(malformed,'INVALID_OBSERVATION_TIMESTAMP');
