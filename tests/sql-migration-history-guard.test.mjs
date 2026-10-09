@@ -29,3 +29,25 @@ test("NUL-separated git diff name-status decoder rejects unknown formats",()=>{
   ]);
   assert.throws(()=>parseDiff("A\0"),/Unexpected git diff encoding/);
 });
+
+test("next migration number must be contiguous with main and cannot jump ahead", () => {
+  const later = analyzeMigrationChanges(base, [{status:"A",path:"drizzle/0101_reviewed_payroll_underpayments.sql"}]);
+  assert.equal(later.errors.length,1);
+  assert.match(later.errors[0],/expected drizzle\/0100_/);
+  const finalPay = analyzeMigrationChanges(base,[{status:"A",path:"drizzle/0102_final_pay_maker_checker.sql"}]);
+  assert.match(finalPay.errors[0],/expected drizzle\/0100_/);
+});
+test("ordered consecutive migrations in one PR pass even if git diff order varies",()=>{
+  for(const changes of [
+    [{status:"A",path:"drizzle/0100_salary.sql"},{status:"A",path:"drizzle/0101_correction.sql"}],
+    [{status:"A",path:"drizzle/0101_correction.sql"},{status:"A",path:"drizzle/0100_salary.sql"}],
+  ])assert.deepEqual(analyzeMigrationChanges(base,changes).errors,[]);
+});
+test("gaps inside one branch are blocked until all preceding SQL is present",()=>{
+  const r=analyzeMigrationChanges(base,[
+    {status:"A",path:"drizzle/0100_salary.sql"},
+    {status:"A",path:"drizzle/0102_final_pay.sql"},
+  ]);
+  assert.equal(r.errors.length,1);
+  assert.match(r.errors[0],/expected drizzle\/0101_/);
+});
