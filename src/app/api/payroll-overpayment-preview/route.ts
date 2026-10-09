@@ -1,7 +1,8 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, payrollEntries, payrollRuns } from "@/db/schema";
+import { employees, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { loadReleasedOverpaymentEvidence } from "@/lib/payroll-overpayment-preview-server";
 import {
   assertOrganizationRole, getAccess, PAYROLL_TAX_APPROVER_ROLES,
 } from "@/lib/access";
@@ -109,56 +110,21 @@ export async function POST(request: Request) {
   });
   if (rateDenied) return rateDenied;
 
-  const [[run], [worker], entries] = await Promise.all([
-    db.select({
-      id: payrollRuns.id, organizationId: payrollRuns.organizationId,
-      periodLabel: payrollRuns.periodLabel, periodStart: payrollRuns.periodStart,
-      periodEnd: payrollRuns.periodEnd, status: payrollRuns.status,
-      scopeOrgUnitId: payrollRuns.scopeOrgUnitId,
-      legalEntityId: payrollRuns.legalEntityId,
-    }).from(payrollRuns).where(and(
-      eq(payrollRuns.id, payrollRunId),
-      eq(payrollRuns.organizationId, organizationId),
-      eq(payrollRuns.status, "Released"),
-    )).limit(1),
-    db.select({
-      id: employees.id, organizationId: employees.organizationId,
-      orgUnitId: employees.orgUnitId, legalEntityId: employees.legalEntityId,
-      employeeNo: employees.employeeNo,
-      firstName: employees.firstName, lastName: employees.lastName,
-    }).from(employees).where(and(
-      eq(employees.id, employeeId), eq(employees.organizationId, organizationId),
-    )).limit(1),
-    db.select({
-      id: payrollEntries.id,
-      payrollRunId: payrollEntries.payrollRunId,
-      employeeId: payrollEntries.employeeId,
-      grossPay: payrollEntries.grossPay,
-      deductions: payrollEntries.deductions,
-      netPay: payrollEntries.netPay,
-      status: payrollEntries.status,
-      lineItems: payrollEntries.lineItems,
-      trace: payrollEntries.trace,
-    }).from(payrollEntries).where(and(
-      eq(payrollEntries.payrollRunId, payrollRunId),
-      eq(payrollEntries.employeeId, employeeId),
-    )).limit(2),
-  ]);
-  if (!run || !worker
-    || (run.scopeOrgUnitId != null && worker.orgUnitId !== run.scopeOrgUnitId)) {
-    return Response.json({
-      code: "OVERPAYMENT_SOURCE_NOT_FOUND",
-      error: "No eligible Released payroll evidence exists for this employee in this company.",
-    }, { status: 404 });
+  const sourceEvidence = await loadReleasedOverpaymentEvidence(
+    organizationId, employeeId, payrollRunId,
+  );
+  if (!sourceEvidence.ok) {
+    return sourceEvidence.reason === "SOURCE_NOT_FOUND"
+      ? Response.json({
+        code: "OVERPAYMENT_SOURCE_NOT_FOUND",
+        error: "No eligible Released payroll evidence exists for this employee in this company.",
+      }, { status: 404 })
+      : Response.json({
+        code: "OVERPAYMENT_SOURCE_ENTRY_COUNT",
+        error: "The Released run must contain exactly one payroll entry for the selected employee. Reconcile missing or duplicate records before previewing any variance.",
+      }, { status: 409 });
   }
-  if (entries.length !== 1) {
-    return Response.json({
-      code: "OVERPAYMENT_SOURCE_ENTRY_COUNT",
-      error: "The Released run must contain exactly one payroll entry for the selected employee. Reconcile missing or duplicate records before previewing any variance.",
-    }, { status: 409 });
-  }
-
-  const entry = entries[0];
+  const { run, worker, entry } = sourceEvidence;
   const arithmetic = compareReleasedPayrollWithVerifiedAmounts({
     grossPay: entry.grossPay,
     deductions: entry.deductions,
