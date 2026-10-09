@@ -128,6 +128,7 @@ test("review route is default-off, tenant-scoped, MFA-protected and cannot mutat
   assert.ok(source.includes("eq(payrollRuns.organizationId, organizationId)"));
   assert.ok(source.includes("eq(employees.organizationId, organizationId)"));
   assert.ok(route.includes("fingerprintReleasedPayrollEntry("));
+  assert.ok(route.includes('"Cache-Control": "private, no-store, max-age=0"'));
   assert.ok(route.includes("reviewOnly: true"));
   assert.ok(route.includes("saved: false"));
   for (const forbidden of [
