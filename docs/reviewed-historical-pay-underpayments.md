@@ -4,6 +4,22 @@ This is a **narrow, high-control workflow**, not a generic retroactive salary
 editor, loan recovery, negative payroll clawback, income-tax amendment, or
 government remittance correction.
 
+## Default-off production safety gate
+
+The app deliberately defaults to **request-and-review-only**. It will not
+approve a money-bearing underpayment unless the deployment operator explicitly
+configures `PAYROLL_UNDERPAYMENT_POSTING_ENABLED=true` after independent
+Philippine payroll/tax review, staging reconciliation, data-migration QA,
+privacy/security approval, and a controlled-pilot release decision.
+
+- When the flag is unset/false: staff may submit pending source-evidence
+  requests and checkers may reject incorrect claims, but approval **cannot
+  create or settle a supplementary earning**.
+- No API body parameter, client-side role or checkbox can override the gate.
+- The UI displays this state and disables its Approve & post control.
+- Flag enablement alone is **not proof of statutory correctness**; compliance
+  evidence and release permissions must still be checked on real test cases.
+
 ## What it does
 
 An authorized company-wide payroll maker can submit an **unpaid positive
