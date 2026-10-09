@@ -7,6 +7,8 @@ on:
   pull_request:
     branches:
       - main
+      # Financial integration uses the reviewed HCM SQL release-train base.
+      - integration/hcm-sql-0100-0103-release-train-20261009
     paths:
       - "src/app/api/employees/route.ts"
       - "src/app/api/invitations/**"
