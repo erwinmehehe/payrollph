@@ -78,7 +78,38 @@ export async function loadHcmGovernanceReadiness(organizationId: number) {
         (SELECT count(*)::int FROM hcm_business_process_instances bp
           WHERE bp.organization_id = ${organizationId}
             AND bp.status = 'in_progress'
-        ) AS "inProgressBusinessProcesses"
+        ) AS "inProgressBusinessProcesses",
+        (SELECT count(*)::int FROM hcm_business_process_instance_steps step
+          JOIN hcm_business_process_instances bp
+            ON bp.id = step.instance_id AND bp.organization_id = step.organization_id
+          WHERE step.organization_id = ${organizationId}
+            AND bp.status = 'in_progress' AND step.status = 'pending'
+        ) AS "pendingHcmSteps",
+        (SELECT count(*)::int FROM hcm_business_process_instance_steps step
+          JOIN hcm_business_process_instances bp
+            ON bp.id = step.instance_id AND bp.organization_id = step.organization_id
+          WHERE step.organization_id = ${organizationId}
+            AND bp.status = 'in_progress' AND step.status = 'pending'
+            AND step.due_at IS NOT NULL AND step.due_at < now()
+        ) AS "overdueHcmSteps",
+        (SELECT count(*)::int FROM hcm_business_process_instance_steps step
+          JOIN hcm_business_process_instances bp
+            ON bp.id = step.instance_id AND bp.organization_id = step.organization_id
+          LEFT JOIN approval_tasks task ON task.id = step.approval_task_id
+          WHERE step.organization_id = ${organizationId}
+            AND bp.status = 'in_progress' AND step.status = 'pending'
+            AND step.step_type = 'approval'
+            AND (step.approval_task_id IS NULL OR task.id IS NULL
+              OR task.organization_id <> step.organization_id OR task.status <> 'Pending')
+        ) AS "pendingHcmApprovalTaskMismatch",
+        (SELECT count(*)::int FROM hcm_business_process_instances bp
+          WHERE bp.organization_id = ${organizationId} AND bp.status = 'in_progress'
+            AND NOT EXISTS (
+              SELECT 1 FROM hcm_business_process_instance_steps step
+              WHERE step.instance_id = bp.id AND step.organization_id = bp.organization_id
+                AND step.step_index = bp.current_step_index AND step.status = 'pending'
+            )
+        ) AS "hcmProcessesWithoutPendingCurrentStep"
     `),
   ]);
   const row = aggregates.rows[0] as Record<string, unknown> | undefined;
@@ -88,7 +119,8 @@ export async function loadHcmGovernanceReadiness(organizationId: number) {
     "missingPayProfiles", "unsupportedWageRegions", "duplicateEmployeeNumbers",
     "approvedSeparationsWithoutClearance", "releasedSeparationsWithoutReference",
     "releasedSeparationsWorkerNotSeparated", "separatedWorkersWithOpenAssignments",
-    "inProgressBusinessProcesses",
+    "inProgressBusinessProcesses", "pendingHcmSteps", "overdueHcmSteps",
+    "pendingHcmApprovalTaskMismatch", "hcmProcessesWithoutPendingCurrentStep",
   ];
   const counters = {} as HcmGovernanceCounters;
   for (const key of fields) {

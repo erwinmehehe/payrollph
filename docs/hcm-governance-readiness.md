@@ -118,3 +118,45 @@ default-off T2 HCM governance-readiness feature. It must pass exact-head
 CI/CodeQL/build, maintainer review, and verify the existing two-sided
 feature gates before merging. No privacy or payroll clearance is implied
 for the separate financial and migration PRs.
+
+
+## HCM approval-workflow integrity (read-only follow-on)
+
+The existing **default-OFF** company-wide governance dashboard also checks
+whether current HCM business-process approvals need operational attention.
+It reuses the **same GET endpoint and same two environment feature gates**;
+there is no new API, migration, employee identity exposure or financial action.
+
+Four additional tenant-scoped aggregate counters are computed with SELECTs:
+
+- **Pending HCM steps** — workflow steps marked pending in in-progress HCM
+  processes, including review/to-do steps. The count is not distinct workers.
+- **Overdue pending steps** — the subset with a recorded `due_at` earlier
+  than the database clock. This is a *follow-up cue*, not a legal deadline or
+  automatic employee/payroll compliance violation.
+- **Approval-task linkage mismatch** — pending *approval* steps whose task is
+  missing, belongs to a different organization, or is not currently Pending.
+  An operator must reconcile the frozen HCM process/approval task; the report
+  cannot recreate, approve or restart steps.
+- **In-progress processes with no pending current step** — the process points
+  to a step that is not currently pending or is missing entirely. Such a case
+  may be in a transition or need reviewed recovery; the counter cannot
+  determine why.
+
+The dashboard displays pending/overdue work-item totals and adds individual
+high/review-priority *aggregate categories* to the existing fixed-text
+review checklist. The checklist still never includes employee, payroll,
+government-ID, bank, assignee, approval task, source key or org-unit IDs.
+
+This is intentionally diagnostic, not a queue editor: no bulk approvals,
+reminders, escalation emails, workflow resume, automatic cancellation,
+or status writes are performed. Count overlap is possible, and a clean
+result does not certify that every worker transaction used a governed BP.
+
+Before enabling the already existing HCM-readiness flags in any production
+environment, verify on a staging clone with two employers: one with an
+overdue/missing approval task, one with a valid linked pending approval, and
+one stalled step. Confirm correct tenant isolation, role/scope denial,
+no-store headers, zero employee-level identifiers and no mutation. Independent
+HR operations review is required for any actual case recovery. Existing
+money-bearing HCM/Payroll PRs remain separately gated.

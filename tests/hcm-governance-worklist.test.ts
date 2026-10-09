@@ -38,6 +38,25 @@ test("sorts high-priority exception groups before follow-up and labels aggregate
   assert.match(text, /not payroll, statutory, bank or employer certification/i);
 });
 
+test("workflow integrity worklist uses fixed, anonymous recovery instructions", () => {
+  const worklist = buildHcmGovernanceWorklist(report({
+    findings: [
+      { code: "HCM_OVERDUE_WORK_ITEMS", severity: "review", affected: 7 },
+      { code: "HCM_APPROVAL_TASK_MISMATCH", severity: "high", affected: 2 },
+      { code: "HCM_PROCESS_NO_ACTIVE_STEP", severity: "high", affected: 1 },
+    ],
+  }));
+  assert.equal(worklist.highCount, 2);
+  assert.deepEqual(worklist.tasks.map(item => item.key), [
+    "finding:HCM_APPROVAL_TASK_MISMATCH",
+    "finding:HCM_PROCESS_NO_ACTIVE_STEP",
+    "finding:HCM_OVERDUE_WORK_ITEMS",
+  ]);
+  assert.match(worklist.tasks[0].direction, /never direct approval bypasses/);
+  assert.match(formatHcmGovernanceWorklist(worklist), /People Operations \+ Platform/);
+  assert.doesNotMatch(formatHcmGovernanceWorklist(worklist), /worker name|employee ID number/i);
+});
+
 test("only explicitly absent or scoped policies become coverage-verification tasks, not compliance findings", () => {
   const worklist = buildHcmGovernanceWorklist(report({
     processes: [

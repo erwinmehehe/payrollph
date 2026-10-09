@@ -31,6 +31,21 @@ export type HcmWorklistTask = {
 const FINDING_REVIEW: Record<string, {
   title: string; owner: string; direction: string;
 }> = {
+  HCM_APPROVAL_TASK_MISMATCH: {
+    title: "Reconcile pending approval-task links",
+    owner: "People + Security",
+    direction: "Confirm pending HCM approval steps map to current open tasks; use independently reviewed workflow recovery, never direct approval bypasses.",
+  },
+  HCM_PROCESS_NO_ACTIVE_STEP: {
+    title: "Review HCM workflows with no active step",
+    owner: "People Operations + Platform",
+    direction: "Check process state and approval activation evidence before an authorized, audited resume. Do not infer approval from inactivity.",
+  },
+  HCM_OVERDUE_WORK_ITEMS: {
+    title: "Follow up on overdue HCM decisions",
+    owner: "People Operations",
+    direction: "Verify source due dates and assigned reviewer against the approved workflow; do not auto-approve, cancel, or send employee data externally.",
+  },
   UNKNOWN_WAGE_REGION: {
     title: "Verify wage-region codes",
     owner: "Payroll + People",

@@ -21,6 +21,10 @@ const empty: HcmGovernanceCounters = {
   releasedSeparationsWorkerNotSeparated: 0,
   separatedWorkersWithOpenAssignments: 0,
   inProgressBusinessProcesses: 0,
+  pendingHcmSteps: 0,
+  overdueHcmSteps: 0,
+  pendingHcmApprovalTaskMismatch: 0,
+  hcmProcessesWithoutPendingCurrentStep: 0,
 };
 
 function evaluate(
@@ -63,6 +67,25 @@ test("different types of exception remain actionable without revealing employee 
   assert.equal(JSON.stringify(result).includes("employeeNo"), false);
   assert.equal(JSON.stringify(result).includes("bankAccount"), false);
   assert.equal(JSON.stringify(result).includes("netPay"), false);
+});
+
+test("stalled, overdue and broken approval links generate review guidance without exposing work items", () => {
+  const result = evaluate({
+    inProgressBusinessProcesses: 4,
+    pendingHcmSteps: 3,
+    overdueHcmSteps: 2,
+    pendingHcmApprovalTaskMismatch: 1,
+    hcmProcessesWithoutPendingCurrentStep: 1,
+  });
+  assert.equal(result.summary.pendingHcmSteps, 3);
+  assert.equal(result.summary.overdueHcmSteps, 2);
+  assert.equal(result.findings.find(row => row.code === "HCM_APPROVAL_TASK_MISMATCH")?.severity, "high");
+  assert.equal(result.findings.find(row => row.code === "HCM_PROCESS_NO_ACTIVE_STEP")?.affected, 1);
+  assert.equal(result.findings.find(row => row.code === "HCM_OVERDUE_WORK_ITEMS")?.severity, "review");
+  assert.equal(result.summary.highPriorityCategories, 2);
+  assert.equal(result.summary.reviewCategories, 1);
+  assert.match(result.limitations.join(" "), /diagnostic leads/);
+  assert.doesNotMatch(JSON.stringify(result), /employeeId|approverEmail|bankAccount|sourceKey/);
 });
 
 test("current policy count respects scope, active flag and inclusive Manila dates", () => {
@@ -110,6 +133,11 @@ test("readiness is GET only, company-wide, no-store and does not update HR or pa
   assert.ok(api.includes('code: "HCM_GOVERNANCE_READINESS_DISABLED"'));
   assert.ok(api.includes("loadHcmGovernanceReadiness(organizationId)"));
   assert.ok(loader.includes("hcm_business_process_instances"));
+  assert.ok(loader.includes("hcm_business_process_instance_steps"));
+  assert.ok(loader.includes("approval_tasks task"));
+  assert.ok(loader.includes("task.organization_id <> step.organization_id"));
+  assert.ok(loader.includes("step.due_at < now()"));
+  assert.ok(loader.includes("step.step_index = bp.current_step_index"));
   assert.ok(loader.includes("WHERE e.organization_id = ${organizationId}"));
   assert.ok(loader.includes("FROM separation_records sr"));
   assert.ok(loader.includes("FROM position_assignments pa"));
