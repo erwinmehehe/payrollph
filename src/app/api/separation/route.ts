@@ -268,6 +268,7 @@ export async function GET(request: Request) {
     .orderBy(desc(separationRecords.id));
 
   return Response.json({
+    currentUserId: user.id,
     separations: records.map(({ sep, employee }) => ({
       ...sep,
       employeeName: `${employee.firstName} ${employee.lastName}`,
