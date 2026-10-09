@@ -2,7 +2,7 @@
 
 PR #632 now runs central scheduler work from the dedicated worker and serializes scheduler starts with a database-backed owner lease. This status endpoint is read-only and does not run tasks.
 
-GET /api/jobs/status requires the authorized x-worker-token header, using the same worker secret as /api/jobs/tick. Never disclose worker tokens in URLs, public monitors, logs or GitHub comments. Configure a trusted synthetic/production operations monitor to call it over HTTPS and alert on HTTP 503.
+GET /api/jobs/status requires the dedicated `x-scheduler-monitor-token` header (set through `SCHEDULER_MONITOR_TOKEN`, at least 32 bytes). This credential MUST be different from `WORKER_TOKEN` and cannot invoke POST /api/jobs/tick. There is no fallback to worker/TOTP master secrets; missing, short or reused monitor credentials fail closed with HTTP 503. Store the monitor token separately in the deployment secret manager and protected `payroll-staging` GitHub Environment, and never disclose it in URLs, public monitors, logs or GitHub comments. Configure an authorized HTTPS monitor to alert on HTTP 503.
 
 The response includes only last completed delivery-drain timestamp, seconds since completion and sanitized lease status; it does not include organization data or the lease owner token. No successful tick within ten minutes is an overdue signal. Latest failed lease operation is also unhealthy. A 503 may indicate no worker, a stopped worker, a configuration problem or downstream errors, not necessarily payroll corruption.
 

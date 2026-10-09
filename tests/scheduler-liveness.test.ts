@@ -25,10 +25,12 @@ test("future timestamps and invalid timeout never report a healthy scheduler",()
   assert.equal(evaluateSchedulerLiveness({now,lastSuccessfulRunAt:new Date("2026-10-09T05:01:00.000Z")}).state,"invalid-clock");
   assert.equal(evaluateSchedulerLiveness({now,lastSuccessfulRunAt:success,overdueAfterMs:0}).state,"invalid-clock");
 });
-test("monitor route requires worker token and never triggers scheduler side effects",()=>{
+test("monitor route requires a distinct read-only monitor token and never triggers scheduler work",()=>{
   const route=readFileSync("src/app/api/jobs/status/route.ts","utf8");
-  assert.ok(route.includes('operationalSecret("worker")'));
-  assert.ok(route.includes('constantTimeSecretEqual(request.headers.get("x-worker-token"), expected)'));
+  assert.ok(route.includes("process.env.SCHEDULER_MONITOR_TOKEN?.trim()"));
+  assert.ok(route.includes('constantTimeSecretEqual(expected, operationalSecret("worker"))'));
+  assert.ok(route.includes('constantTimeSecretEqual(request.headers.get("x-scheduler-monitor-token"), expected)'));
+  assert.ok(!route.includes('request.headers.get("x-worker-token")'));
   assert.ok(route.includes('status: state.ok ? 200 : 503'));
   assert.ok(!route.includes("tickScheduler("));
 });

@@ -9,16 +9,25 @@ export const dynamic = "force-dynamic";
 
 /**
  * Read-only operations endpoint. This is NOT an anonymous liveness probe.
- * An uptime monitor with an approved worker secret can alert on HTTP 503.
+ * A least-privileged, separately configured monitor credential can alert on HTTP 503.
  * The endpoint never starts scheduler work or leaks tenant/task payloads.
  */
 export async function GET(request: Request) {
-  const expected = operationalSecret("worker");
-  if (!expected) {
-    return Response.json({ error: "Worker authentication is not configured." }, { status: 503 });
+  // Read-only credentials MUST NOT grant POST /api/jobs/tick permission.
+  // Never fall back to the worker token or an authentication master key.
+  const expected = process.env.SCHEDULER_MONITOR_TOKEN?.trim();
+  if (!expected || Buffer.byteLength(expected, "utf8") < 32) {
+    return Response.json({ error: "A dedicated scheduler monitor token is required." }, { status: 503 });
   }
-  if (!constantTimeSecretEqual(request.headers.get("x-worker-token"), expected)) {
-    return Response.json({ error: "Authorized worker monitor token required." }, { status: 401 });
+  try {
+    if (constantTimeSecretEqual(expected, operationalSecret("worker"))) {
+      return Response.json({ error: "The monitor and worker credentials must be distinct." }, { status: 503 });
+    }
+  } catch {
+    return Response.json({ error: "Worker credential configuration could not be verified." }, { status: 503 });
+  }
+  if (!constantTimeSecretEqual(request.headers.get("x-scheduler-monitor-token"), expected)) {
+    return Response.json({ error: "Authorized scheduler monitor token required." }, { status: 401 });
   }
   try {
     const rows = await db.select({
