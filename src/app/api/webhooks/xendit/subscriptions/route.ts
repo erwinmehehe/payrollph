@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { invoices, subscriptions } from "@/db/schema";
 import { saasBillingCheckouts, saasBillingEvents, saasBillingState } from "@/lib/saas-billing-schema";
 import { nextBillingMonth } from "@/lib/saas-pricing";
+import { checkoutHostnameAllowed } from "@/lib/saas-launch-config";
 import { constantTimeSecretEqual } from "@/lib/security-secret";
 import { recordAuditEvent } from "@/lib/audit";
 
@@ -19,7 +20,7 @@ type WebhookData = {
   id?: unknown; plan_id?: unknown; recurring_plan_id?: unknown;
   reference_id?: unknown; amount?: unknown; currency?: unknown;
   scheduled_timestamp?: unknown; status?: unknown;
-  payment_session_id?: unknown;
+  payment_session_id?: unknown; attempt_details?: unknown;
 };
 type WebhookPayload = {
   event?: unknown; business_id?: unknown; data?: WebhookData;
@@ -105,11 +106,12 @@ export async function POST(request: Request) {
         providerPlanId: planId,
         lastPaidCycleId: cycleId,
         paidThrough,
+        recoveryUrl: null,
         cancelAtPeriodEnd: state?.cancelAtPeriodEnd ?? false,
         updatedAt: now,
       }).onConflictDoUpdate({
         target: saasBillingState.organizationId,
-        set: { providerPlanId: planId, lastPaidCycleId: cycleId, paidThrough, updatedAt: now },
+        set: { providerPlanId: planId, lastPaidCycleId: cycleId, paidThrough, recoveryUrl: null, updatedAt: now },
       });
       await tx.update(subscriptions).set({
         status: state?.cancelAtPeriodEnd ? "cancel_at_period_end" : "active",
@@ -136,6 +138,17 @@ export async function POST(request: Request) {
       return { handled: true, status: "paid" } as const;
     }
     if (event === "recurring.cycle.failed" || event === "recurring.cycle.retrying") {
+      const recoveryLink = Array.isArray(data.attempt_details)
+        ? data.attempt_details.map((attempt) => {
+          if (!attempt || typeof attempt !== "object") return "";
+          const candidate = (attempt as { payment_session?: { payment_link_url?: unknown } }).payment_session?.payment_link_url;
+          return typeof candidate === "string" ? candidate : "";
+        }).find((url) => url.length <= 2500 && checkoutHostnameAllowed(url)) ?? null
+        : null;
+      if (recoveryLink && state) {
+        await tx.update(saasBillingState).set({ recoveryUrl: recoveryLink, updatedAt: new Date() })
+          .where(eq(saasBillingState.organizationId, attempt.organizationId));
+      }
       if (sub.status === "active" && !state?.cancelAtPeriodEnd) {
         await tx.update(subscriptions).set({ status: "past_due" }).where(eq(subscriptions.id, sub.id));
       }
