@@ -215,6 +215,23 @@ export function WorkforceTeamRosterPanel({
     }
   }
 
+  function downloadPageCsv() {
+    if (!payload || payload.rows.length === 0 || loading) return;
+    try {
+      const csv = buildTeamRosterPageCsv(payload.rows, payload.weekDates);
+      const url = URL.createObjectURL(new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "linaw-roster-" + payload.startDate + "-page-" + payload.page + ".csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      notify("Could not export the current roster page.", "err");
+    }
+  }
+
   return (
     <section style={{ marginTop: 16 }} aria-label="Weekly team roster" data-wfm-team-roster>
       <article className="card">
@@ -282,6 +299,36 @@ export function WorkforceTeamRosterPanel({
               <div className="metric"><div className="metric-label">Unassigned employee-days</div><strong>{payload.summary.unassignedDays}</strong></div>
               <div className="metric"><div className="metric-label">Employees needing roster attention</div><strong>{attentionCount}</strong></div>
             </div>
+            <div className="run-actions" style={{ padding: "0 18px 16px", flexWrap: "wrap", alignItems: "center" }}>
+              <label>
+                Focus this page
+                <select value={focus} onChange={(event) => setFocus(event.target.value as TeamRosterFocus)}
+                  aria-label="Roster focus filter">
+                  <option value="all">All employees</option>
+                  <option value="attention">Needs schedule attention</option>
+                  <option value="overnight">Overnight shifts</option>
+                </select>
+              </label>
+              <span className="id" role="status">{visibleRows.length} of {payload.rows.length} employees visible on page {payload.page}</span>
+              <button className="secondary-button" type="button" onClick={downloadPageCsv}
+                disabled={!payload.rows.length} title="Exports exactly this loaded page, not the entire company">
+                <Download size={15} /> Download page CSV
+              </button>
+            </div>
+            <div aria-label="Daily scheduled staffing on this page"
+              style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))", gap: 10, padding: "0 18px 12px" }}>
+              {dailyDigest.map((day) => (
+                <div className="metric" key={day.date}>
+                  <div className="metric-label">{showDate(day.date)}</div>
+                  <strong>{day.scheduledEmployees} scheduled</strong>
+                  <div className="id">{day.restEmployees} rest · {day.unassignedEmployees} unassigned</div>
+                  <div className="id">{day.overnightSegments} overnight · {day.needsReviewEmployees} to review</div>
+                </div>
+              ))}
+            </div>
+            <p className="id" style={{ padding: "0 18px 12px" }}>
+              Counts and CSV cover the current authorized page only. Scheduled headcount is not the same as required staffing coverage; use the Coverage tab to assess gaps.
+            </p>
             <div className="data-table-wrap slim-scroll" style={{ overflowX: "auto" }}>
               <table className="data-table" aria-label="Team schedule by employee and date">
                 <thead>
@@ -339,6 +386,11 @@ export function WorkforceTeamRosterPanel({
             {payload.rows.length === 0 && (
               <EmptyState icon={<CalendarDays size={20} />} title="No employees in this roster">
                 Try a different employee search or select another page.
+              </EmptyState>
+            )}
+            {payload.rows.length > 0 && visibleRows.length === 0 && (
+              <EmptyState icon={<CalendarDays size={20} />} title="No matches on this page">
+                Change the focus filter or move to another page. Filters only affect the current authorized page.
               </EmptyState>
             )}
             <div className="run-actions" style={{ padding: 18, justifyContent: "space-between", alignItems: "center" }}>
