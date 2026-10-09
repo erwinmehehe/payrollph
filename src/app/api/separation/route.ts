@@ -653,6 +653,16 @@ export async function POST(request: Request) {
       // Both initial packages and recomputations share the employee lifecycle
       // lock; old approvals cannot be silently overwritten during review.
       await tx.execute(sql`select pg_advisory_xact_lock(4106, ${employeeId})`);
+      // Rebuild all financial source evidence using this transaction's own
+      // repeatable snapshot. An update since the initial form read makes the
+      // source/approval evidence stale and aborts without changing the worker.
+      const transactionSources = await loadFinalPaySources(
+        { organizationId, employeeId, lastDay },
+        { executor: tx as unknown as Pick<typeof db, "select">, skipSchemaSetup: true },
+      );
+      if (!sameSnapshot(sourceFingerprint, fingerprint(transactionSources))) {
+        throw new Error("FINAL_PAY_SOURCE_CHANGED: a payroll, pay-profile, imported-history or loan record changed before final-pay computation.");
+      }
       if (!newSeparation && existingOpen && existingOpen.status !== "released") {
         await tx.execute(sql`select id from separation_records where id = ${existingOpen.id} and organization_id = ${organizationId} for update`);
         const [freshPackage] = await tx.select().from(separationRecords).where(and(
@@ -1183,7 +1193,13 @@ export async function PATCH(request: Request) {
             throw new Error("FINAL_PAY_CLEARANCE_STALE");
           }
           const frozen = (fresh.computationSnapshot ?? {}) as Record<string, unknown>;
-          if (!sameSnapshot(frozen.sourceFingerprint, currentFingerprint)) {
+          const transactionSources = await loadFinalPaySources(
+            { organizationId: fresh.organizationId, employeeId: fresh.employeeId, lastDay: String(fresh.lastDay) },
+            { executor: tx as unknown as Pick<typeof db, "select">, skipSchemaSetup: true },
+          );
+          const transactionFingerprint = fingerprint(transactionSources);
+          if (!sameSnapshot(frozen.sourceFingerprint, transactionFingerprint)
+            || !sameSnapshot(currentFingerprint, transactionFingerprint)) {
             throw new Error("FINAL_PAY_SOURCE_CHANGED");
           }
           const [approved] = await tx.update(separationRecords).set({
@@ -1277,8 +1293,14 @@ export async function PATCH(request: Request) {
       }
 
       const freshSnapshot = (fresh.computationSnapshot ?? {}) as Record<string, unknown>;
-      if (!sameSnapshot(freshSnapshot.sourceFingerprint, currentFingerprint)) {
-        throw new Error("Final-pay source data changed before release. Recompute the package.");
+      const transactionSources = await loadFinalPaySources(
+        { organizationId: fresh.organizationId, employeeId: fresh.employeeId, lastDay: String(fresh.lastDay) },
+        { executor: tx as unknown as Pick<typeof db, "select">, skipSchemaSetup: true },
+      );
+      const transactionFingerprint = fingerprint(transactionSources);
+      if (!sameSnapshot(freshSnapshot.sourceFingerprint, transactionFingerprint)
+        || !sameSnapshot(currentFingerprint, transactionFingerprint)) {
+        throw new Error("FINAL_PAY_SOURCE_CHANGED: source payroll, imported history, pay profile, or outstanding loans changed during release.");
       }
 
       // Separation cannot overwrite a worker who was concurrently rehired,
@@ -1323,7 +1345,7 @@ export async function PATCH(request: Request) {
       const deductOutstandingLoans = Boolean(freshSnapshot.deductOutstandingLoans);
       if (deductOutstandingLoans) {
         let collectible = Number(fresh.loanDeductions);
-        const orderedLoans = [...sources.loans].sort((a, b) => {
+        const orderedLoans = [...transactionSources.loans].sort((a, b) => {
           const aGovernment = /SSS|Pag-IBIG|HDMF/i.test(a.loanType) ? 0 : 1;
           const bGovernment = /SSS|Pag-IBIG|HDMF/i.test(b.loanType) ? 0 : 1;
           return aGovernment - bGovernment || a.id - b.id;
