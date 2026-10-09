@@ -10,7 +10,7 @@ An authorized People administrator opens an employee in **People** and sees seve
 | Milestone | Authoritative source | What counts as recorded |
 | --- | --- | --- |
 | Recruitment and hire | Applicant linked by `hired_employee_id` to a same-tenant requisition | The linked applicant's current stage is `hired` |
-| Position and organization | Same-tenant primary `position_assignments` + `positions` already read by worker profile | Current position exists; for an exited worker an actual position-assignment history can be shown |
+| Position and organization | Same-tenant primary `position_assignments` + `positions` already read by worker profile | Primary position is effective on the Philippine business date; future-dated assignments are in progress, and exited workers can show effective historical assignments |
 | Onboarding | Same-tenant `provisioning_tasks`, `kind=onboarding` | At least one task exists and all are marked done |
 | Performance | Same-tenant latest `performance_reviews` | Latest review has status `completed` (no scores in journey) |
 | Compensation decisions | Same-tenant latest `compensation_proposals` | Only `applied` is a recorded pay-decision milestone; the module remains the authority |
