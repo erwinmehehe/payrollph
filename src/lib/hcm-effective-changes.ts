@@ -657,6 +657,9 @@ export async function runScheduledWorkerEffectiveChanges({
         id: row.id,
         status: result.skipped ? "skipped" : "applied",
         reason: result.skipped ? result.reason : undefined,
+        // Do not bury failures from post-commit HR/notification hooks.
+        // Workers must not retry the source move, only reconcile delivery.
+        postApplyWarnings: result.skipped ? undefined : result.postApplyWarnings,
       });
     } catch (error) {
       results.push({
