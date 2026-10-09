@@ -1,5 +1,5 @@
 import { index, integer, pgTable, serial, text, timestamp, uniqueIndex, varchar } from "drizzle-orm/pg-core";
-import { employees, organizations, users } from "@/db/schema";
+import { employees, organizations, users } from "../db/schema";
 
 /** Photos are separate from employee directory records to avoid bulk-reading portraits. */
 export const essEmployeePhotos = pgTable("ess_employee_photos", {
