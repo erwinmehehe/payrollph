@@ -155,6 +155,12 @@ test("PostgreSQL prevents double-open term decisions, and transaction failure ro
       .where(eq(auditEvents.organizationId, organization.id));
     assert.equal(auditRows.length, 0);
   } finally {
+    // Decision -> source term uses a RESTRICT FK. Delete the dependent
+    // decision explicitly rather than relying on unspecified cascade order.
+    await db.delete(hcmEmploymentTermDecisions)
+      .where(eq(hcmEmploymentTermDecisions.organizationId, organization.id));
+    await db.delete(hcmEmploymentTerms)
+      .where(eq(hcmEmploymentTerms.organizationId, organization.id));
     await db.delete(organizations).where(eq(organizations.id, organization.id));
     await db.delete(users).where(eq(users.id, user.id));
   }
