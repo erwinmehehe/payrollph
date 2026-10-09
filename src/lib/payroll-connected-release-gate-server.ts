@@ -22,8 +22,16 @@ import {
 
 const MAX_SOURCE_ROWS = 500;
 
-export function connectedPayrollReleaseGateEnabled() {
-  return process.env.PAYROLL_CONNECTED_RELEASE_GATE_ENABLED === "true";
+/**
+ * Opt-in must be BOTH explicit and tenant-scoped. No wildcard/all-tenants
+ * switch: enabling a feature flag must not suddenly stop every employer's pay.
+ */
+export function connectedPayrollReleaseGateEnabled(organizationId: number) {
+  if (process.env.PAYROLL_CONNECTED_RELEASE_GATE_ENABLED !== "true"
+    || !Number.isSafeInteger(organizationId) || organizationId <= 0) return false;
+  const ids = (process.env.PAYROLL_CONNECTED_RELEASE_GATE_ORGANIZATION_IDS ?? "")
+    .split(",").map((value) => value.trim()).filter(Boolean);
+  return ids.includes(String(organizationId));
 }
 
 function blocked(code: string, detail: string): ConnectedReleaseResult {
@@ -46,16 +54,16 @@ function blocked(code: string, detail: string): ConnectedReleaseResult {
  * independently approved immutable source manifest and writer coordination.
  */
 export async function buildPayrollConnectedReleaseReadiness(runId: number): Promise<ConnectedReleaseResult> {
-  if (!connectedPayrollReleaseGateEnabled()) {
-    return blocked("CONNECTED_RELEASE_GATE_DISABLED", "This gate was not enabled.");
+  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
+  if (!run) return blocked("PAYROLL_RUN_NOT_FOUND", "The payroll run does not exist.");
+  if (!connectedPayrollReleaseGateEnabled(run.organizationId)) {
+    return blocked("CONNECTED_RELEASE_GATE_DISABLED",
+      "Connected release enforcement is not enabled for this employer.");
   }
   if (process.env.PAYROLL_CONNECTED_IMPACT_ENABLED !== "true") {
     return blocked("CONNECTED_IMPACT_CONFIG_REQUIRED",
       "Connected impact source inspection must be enabled and reviewed before release enforcement.");
   }
-
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
-  if (!run) return blocked("PAYROLL_RUN_NOT_FOUND", "The payroll run does not exist.");
   if (run.scopeOrgUnitId != null || run.legalEntityId != null) {
     return blocked("PAYROLL_RELEASE_HISTORICAL_SCOPE_UNVERIFIED",
       "Scoped payroll requires independently tested historical employee/position assignment reconstruction.");
