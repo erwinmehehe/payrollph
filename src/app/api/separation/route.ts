@@ -62,27 +62,36 @@ async function loadFinalPaySources(input: {
   organizationId: number;
   employeeId: number;
   lastDay: string;
-}) {
-  await Promise.all([
-    ensureEmployeePayProfiles(input.organizationId),
-    ensureMigrationSchema(),
-    ensureSeparationSchema(),
-  ]);
+}, options: {
+  executor?: Pick<typeof db, "select">;
+  skipSchemaSetup?: boolean;
+} = {}) {
+  // Schema DDL/bootstrap must complete outside the financial transaction.
+  // Inside a serializable transaction use the transaction-bound reader for
+  // every component of the source ledger, never a separate pooled query.
+  if (!options.skipSchemaSetup) {
+    await Promise.all([
+      ensureEmployeePayProfiles(input.organizationId),
+      ensureMigrationSchema(),
+      ensureSeparationSchema(),
+    ]);
+  }
+  const reader = options.executor ?? db;
 
   const taxYear = Number(input.lastDay.slice(0, 4));
-  const [employee] = await db.select().from(employees).where(and(
+  const [employee] = await reader.select().from(employees).where(and(
     eq(employees.id, input.employeeId),
     eq(employees.organizationId, input.organizationId),
   )).limit(1);
   if (!employee) throw new Error("Employee not found in this organization.");
 
-  const [payProfile] = await db.select().from(employeePayProfiles).where(and(
+  const [payProfile] = await reader.select().from(employeePayProfiles).where(and(
     eq(employeePayProfiles.employeeId, input.employeeId),
     eq(employeePayProfiles.organizationId, input.organizationId),
   )).limit(1);
   if (!payProfile) throw new Error("Employee pay profile is missing. Configure it before computing final pay.");
 
-  const released = await db.select({
+  const released = await reader.select({
     runId: payrollRuns.id,
     entryId: payrollEntries.id,
     periodStart: payrollRuns.periodStart,
@@ -102,7 +111,7 @@ async function loadFinalPaySources(input: {
       lte(payrollRuns.periodEnd, input.lastDay),
     ));
 
-  const crossing = await db.select({ id: payrollRuns.id, periodLabel: payrollRuns.periodLabel })
+  const crossing = await reader.select({ id: payrollRuns.id, periodLabel: payrollRuns.periodLabel })
     .from(payrollEntries)
     .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
     .where(and(
@@ -120,14 +129,14 @@ async function loadFinalPaySources(input: {
     );
   }
 
-  const historical = await db.select().from(historicalPayrollEntries).where(and(
+  const historical = await reader.select().from(historicalPayrollEntries).where(and(
     eq(historicalPayrollEntries.organizationId, input.organizationId),
     eq(historicalPayrollEntries.employeeId, input.employeeId),
     sql`extract(year from ${historicalPayrollEntries.payDate}) = ${taxYear}`,
     lte(historicalPayrollEntries.payDate, input.lastDay),
   ));
 
-  const loans = await db.select().from(employeeLoans).where(and(
+  const loans = await reader.select().from(employeeLoans).where(and(
     eq(employeeLoans.organizationId, input.organizationId),
     eq(employeeLoans.employeeId, input.employeeId),
     eq(employeeLoans.status, "active"),
