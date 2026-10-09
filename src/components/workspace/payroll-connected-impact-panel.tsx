@@ -8,9 +8,11 @@ type ViewData = ConnectedImpactReport & { runId: number; runStatus: string };
 export function PayrollConnectedImpactPanel({
   runId,
   onPage,
+  allowedPages,
 }: {
   runId: number;
   onPage: (page: string) => void;
+  allowedPages: readonly string[];
 }) {
   const [report, setReport] = useState<ViewData | null>(null);
   const [error, setError] = useState("");
@@ -90,9 +92,13 @@ export function PayrollConnectedImpactPanel({
                     </small>
                     <p>{finding.detail}</p>
                   </div>
-                  <button className="secondary-button" onClick={() => onPage(finding.action)}>
-                    Open {finding.action}
-                  </button>
+                  {allowedPages.includes(finding.action) ? (
+                    <button className="secondary-button" onClick={() => onPage(finding.action)}>
+                      Open {finding.action}
+                    </button>
+                  ) : (
+                    <small>Ask a permitted HR, workforce or finance reviewer to resolve this item.</small>
+                  )}
                 </div>
               ))}
             </div>
