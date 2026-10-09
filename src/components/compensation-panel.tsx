@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PayrollUnderpaymentPanel } from "@/components/payroll-underpayment-panel";
 import {
   BadgeDollarSign,
   CalendarDays,
@@ -727,6 +728,8 @@ export function CompensationPanel({
           </table>
         </div>
       </article>
+
+      <PayrollUnderpaymentPanel organizationId={organizationId} setNotice={setNotice} />
 
       <article className="card" style={{ marginTop: 16 }}>
         <div className="card-header">
