@@ -176,7 +176,12 @@ export async function POST(request: Request) {
     };
   });
 
-  if ("error" in result) return Response.json({ error: result.error }, { status: result.status });
+  if ("error" in result) {
+    // This transaction returns an error union alongside a string decision status.
+    // Narrow the HTTP status explicitly instead of relying on unsafe inference.
+    const errorStatus = typeof result.status === "number" ? result.status : 500;
+    return Response.json({ error: result.error }, { status: errorStatus });
+  }
   await recordAuditEvent({
     organizationId,
     actor: ctx.user.name,
