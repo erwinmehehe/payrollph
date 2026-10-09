@@ -14,7 +14,6 @@ const EVENTS = new Set([
   "recurring.cycle.created", "recurring.cycle.retrying",
   "recurring.cycle.succeeded", "recurring.cycle.failed",
   "recurring.cycle.force_attempt_failed",
-  "payment_session.completed",
 ]);
 type WebhookData = {
   id?: unknown; plan_id?: unknown; recurring_plan_id?: unknown;
@@ -40,7 +39,9 @@ export async function POST(request: Request) {
   }
   const raw = await request.text();
   if (raw.length > 100_000) return Response.json({ error: "Payload too large." }, { status: 413 });
-  const payload = JSON.parse(raw || "{}") as WebhookPayload;
+  let payload: WebhookPayload;
+  try { payload = JSON.parse(raw || "{}") as WebhookPayload; }
+  catch { return Response.json({ error: "Invalid webhook JSON." }, { status: 400 }); }
   if (payload.business_id !== expectedBusinessId) {
     return Response.json({ error: "Incorrect billing merchant." }, { status: 403 });
   }
