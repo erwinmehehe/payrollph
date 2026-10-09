@@ -111,6 +111,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     db.select({
       id: compensationProposals.id, employeeId: compensationProposals.employeeId,
       status: compensationProposals.status, effectiveDate: compensationCycles.effectiveDate,
+      approvedByUserId: compensationProposals.approvedByUserId,
+      approvedAt: compensationProposals.approvedAt, appliedAt: compensationProposals.appliedAt,
+      appliedPayRevisionId: compensationProposals.appliedPayRevisionId,
     }).from(compensationProposals).innerJoin(
       compensationCycles, eq(compensationProposals.cycleId, compensationCycles.id),
     ).where(and(
@@ -130,6 +133,21 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       lte(employeePayRevisions.effectiveDate, run.periodEnd),
     )).limit(ROW_CAP + 1),
   ]);
+
+  const approvalByRevision = new Map<number, typeof proposals[number]>();
+  for (const proposal of proposals) {
+    if (proposal.status !== "applied" || !proposal.approvedByUserId
+      || !proposal.approvedAt || !proposal.appliedAt || !proposal.appliedPayRevisionId) continue;
+    approvalByRevision.set(proposal.appliedPayRevisionId, proposal);
+  }
+  const linkedRevisions = revisions.map((revision) => {
+    const proposal = approvalByRevision.get(revision.id);
+    return {
+      ...revision,
+      compensationProposalId: proposal?.employeeId === revision.employeeId
+        && proposal.effectiveDate === revision.effectiveDate ? proposal.id : null,
+    };
+  });
 
   const sources = {
     employmentChanges: employment,
@@ -152,7 +170,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     attendanceExceptions: exceptions.slice(0, ROW_CAP),
     timesheets: timesheets.slice(0, ROW_CAP),
     compensationProposals: proposals.slice(0, ROW_CAP),
-    payRevisions: revisions.slice(0, ROW_CAP),
+    payRevisions: linkedRevisions.slice(0, ROW_CAP),
     truncatedSources,
   });
 
