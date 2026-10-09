@@ -1,4 +1,4 @@
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, notInArray, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   attendanceCorrectionRequests,
@@ -74,12 +74,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     }).from(workerEffectiveChanges).where(and(
       eq(workerEffectiveChanges.organizationId, organizationId),
       lte(workerEffectiveChanges.effectiveDate, run.periodEnd),
+      notInArray(workerEffectiveChanges.status, ["applied", "cancelled", "canceled", "rejected", "declined", "voided", "superseded"]),
     )).limit(ROW_CAP + 1),
     db.select({
       id: employeePayoutChangeRequests.id, employeeId: employeePayoutChangeRequests.employeeId,
       status: employeePayoutChangeRequests.status, appliedAt: employeePayoutChangeRequests.appliedAt,
-    }).from(employeePayoutChangeRequests).where(eq(
-      employeePayoutChangeRequests.organizationId, organizationId,
+    }).from(employeePayoutChangeRequests).where(and(
+      eq(employeePayoutChangeRequests.organizationId, organizationId),
+      inArray(employeePayoutChangeRequests.status, ["pending", "approved", "applied"]),
     )).limit(ROW_CAP + 1),
     db.select({
       id: attendanceCorrectionRequests.id, employeeId: attendanceCorrectionRequests.employeeId,
@@ -96,6 +98,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       severity: attendanceExceptionEvents.severity,
     }).from(attendanceExceptionEvents).where(and(
       eq(attendanceExceptionEvents.organizationId, organizationId),
+      eq(attendanceExceptionEvents.status, "open"),
       gte(attendanceExceptionEvents.workDate, run.periodStart),
       lte(attendanceExceptionEvents.workDate, run.periodEnd),
     )).limit(ROW_CAP + 1),
@@ -120,6 +123,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       eq(compensationProposals.organizationId, organizationId),
       eq(compensationCycles.organizationId, organizationId),
       lte(compensationCycles.effectiveDate, run.periodEnd),
+      or(
+        gte(compensationCycles.effectiveDate, run.periodStart),
+        notInArray(compensationProposals.status, ["applied", "cancelled", "canceled", "declined", "rejected", "voided", "superseded"]),
+      ),
     )).limit(ROW_CAP + 1),
     db.select({
       id: employeePayRevisions.id, employeeId: employeePayRevisions.employeeId,
