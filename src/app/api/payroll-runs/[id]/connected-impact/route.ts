@@ -32,8 +32,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   if (process.env.PAYROLL_CONNECTED_IMPACT_ENABLED !== "true") {
-    return Response.json({ code: "PAYROLL_CONNECTED_IMPACT_DISABLED" }, {
-      status: 404, headers: { "Cache-Control": "private, no-store" },
+    // An intentionally disabled optional panel is not a missing route. Avoid
+    // browser-console 404 errors while exposing neither evidence nor data.
+    return new Response(null, {
+      status: 204, headers: { "Cache-Control": "private, no-store" },
     });
   }
 
