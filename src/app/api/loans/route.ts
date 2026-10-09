@@ -3,8 +3,9 @@ import { db } from "@/db";
 import { auditEvents, employeeLoans, employees, loanPayments, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import {
-  assertOrganizationRole, assertScope, getAccess,
+  assertOrganizationRole, getAccess,
   PAYROLL_OPERATOR_ROLES, PAYROLL_TAX_APPROVER_ROLES,
+  PAYROLL_VIEW_ROLES, PEOPLE_ADMIN_ROLES,
 } from "@/lib/access";
 import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit,
@@ -17,7 +18,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const LOAN_VIEW_ROLES = ["owner", "admin", "bookkeeper", "hr", "payroll", "checker"] as const;
 const DECISION_ACTIONS = new Set(["approve", "reject", "resume"]);
 const ACTIONS = new Set(["approve", "reject", "record_payment", "pause", "resume", "close"]);
 const MAX_AMORTIZATION_CENTS = 9_999_999_999;
@@ -45,8 +45,14 @@ export async function GET(request: Request) {
   if (!isPositiveId(organizationId) || (employeeId !== 0 && !isPositiveId(employeeId))) {
     return Response.json({ error: "A valid organizationId and optional employeeId are required." }, { status: 400 });
   }
+  // Preserve custom permission-set checks: payroll viewers and HR People
+  // administrators use their existing mapped RBAC gates, not an unrecognized
+  // merged role list that would silently skip roleGateAllowed.
+  const viewer = await getAccess(user.id, organizationId);
+  if (!viewer) return Response.json({ error: "No workspace membership." }, { status: 403 });
   const denied = await assertOrganizationRole(
-    user.id, organizationId, LOAN_VIEW_ROLES, "Payroll, People and independent loan checkers only.",
+    user.id, organizationId, viewer.role === "hr" ? PEOPLE_ADMIN_ROLES : PAYROLL_VIEW_ROLES,
+    "Payroll, People administrators and independent loan checkers only.",
   );
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
