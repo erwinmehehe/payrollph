@@ -83,6 +83,7 @@ export async function GET(request: Request) {
     currentUserId: user.id,
     loanActivationEnabled: process.env.PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED === "true",
     reviewerEligible: access.companyWide && PAYROLL_TAX_APPROVER_ROLES.includes(access.role as "owner" | "admin" | "checker"),
+    operatorEligible: access.companyWide && PAYROLL_OPERATOR_ROLES.includes(access.role as "owner" | "admin" | "bookkeeper" | "payroll"),
     companyWide: access.companyWide,
     loans: rows.map(({ loan, employee }) => ({
       ...loan,
@@ -363,7 +364,7 @@ export async function PATCH(request: Request) {
         if (!["active", "paused"].includes(fresh.status)) throw new Error("LOAN_PAYMENT_STATUS_INVALID");
         const remaining = parseLoanCents(fresh.remainingBalance);
         if (!remaining || !paymentCents || paymentCents > remaining) throw new Error("LOAN_PAYMENT_EXCEEDS_BALANCE");
-        const oldPaid = fresh.totalPaid === "0.00" ? 0 : parseLoanCents(fresh.totalPaid);
+        const oldPaid = Number(fresh.totalPaid) === 0 ? 0 : parseLoanCents(fresh.totalPaid);
         if (oldPaid == null) throw new Error("LOAN_CORRUPT_LEDGER_BALANCE");
         const nextPaid = oldPaid + paymentCents;
         if (!Number.isSafeInteger(nextPaid) || nextPaid > 999_999_999_999) {
