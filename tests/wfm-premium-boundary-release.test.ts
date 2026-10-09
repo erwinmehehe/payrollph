@@ -134,6 +134,50 @@ test("explicit premium blocker cannot be suppressed by a wrongly completed segme
   assert.ok(payrollFromFlags(traceFlags).summary.blocking > 0);
 });
 
+test("invalid worked-minute totals cannot be silently priced as zero", () => {
+  for (const invalid of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1, 0.5]) {
+    const evidence = payableTimeEvidenceFlagsForPayroll({
+      segments: [],
+      attendanceCalendarDates: [],
+      allocationComplete: true,
+      flags: [],
+    }, invalid);
+    assert.equal(evidence.length, 1, `invalid derived worked time: ${String(invalid)}`);
+    assert.match(evidence[0], /^WFM_PREMIUM_ALLOCATION_UNVERIFIED:/);
+    assert.ok(payrollFromFlags(evidence).summary.blocking > 0);
+  }
+});
+
+test("invalid Gregorian punch work dates are rejected without payroll premium guesses", () => {
+  for (const workDate of ["2026-02-30", "2026-13-01", "2026-00-09", "2026-2-09", "not-a-date"]) {
+    const segmentation = segmentPayableTime({
+      punch: {
+        id: 993,
+        workDate,
+        timeIn: "2026-10-05T01:00:00.000Z",
+        timeOut: "2026-10-05T03:00:00.000Z",
+      },
+      shift: { start: "08:00", end: "17:00", breakMinutes: 0 },
+    });
+    assert.equal(segmentation.allocationComplete, false, workDate);
+    assert.deepEqual(segmentation.segments, []);
+    assert.match(segmentation.flags.join(" "), /real YYYY-MM-DD work date/);
+    const evidence = payableTimeEvidenceFlagsForPayroll(segmentation, 120);
+    assert.ok(payrollFromFlags(evidence).summary.blocking > 0);
+  }
+  const leapDay = segmentPayableTime({
+    punch: {
+      id: 994, workDate: "2024-02-29",
+      timeIn: "2024-02-29T01:00:00.000Z",
+      timeOut: "2024-02-29T02:00:00.000Z",
+    },
+    shift: { start: "08:00", end: "17:00", breakMinutes: 0 },
+  });
+  assert.equal(leapDay.allocationComplete, true);
+  assert.equal(leapDay.segments.reduce((sum, segment) => sum + segment.minutes, 0), 60);
+  assert.deepEqual(payableTimeEvidenceFlagsForPayroll(leapDay, 60), []);
+});
+
 test("unlocated break confined to one premium bucket stays reviewable", () => {
   const segmented = segmentPayableTime({
     punch: {
