@@ -5,6 +5,21 @@ This adds a deliberately **non-mutating** HCM control summary to the
 database schema, requires **no SQL migration**, and does not enable any
 money-bearing salary, payroll or separation workflow.
 
+## Deployment gate (default OFF)
+
+To prevent unreviewed auto-deployment of a new production HCM query/UI when
+`main` is merged, **both** of the following environment settings must be
+explicitly enabled in the chosen staging or approved production environment:
+
+- Server: `HCM_GOVERNANCE_READINESS_ENABLED=true`
+- Next.js client build: `NEXT_PUBLIC_HCM_GOVERNANCE_READINESS_ENABLED=true`
+
+The UI stays hidden without the client build-time flag. The backend returns
+`404 HCM_GOVERNANCE_READINESS_DISABLED` without running its database report
+unless the server flag is set. An API caller cannot override either flag.
+Enable these only after a staged two-employer privacy and response check.
+A new Next.js build is needed after changing a `NEXT_PUBLIC_` build flag.
+
 ## What administrators can inspect
 
 A company-wide People administrator can refresh tenant-scoped aggregate
