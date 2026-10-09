@@ -160,7 +160,7 @@ export async function POST(request: Request) {
       if (!freshWorker || !["Active", "On leave"].includes(freshWorker.status)) {
         throw new Error("UNDERPAYMENT_WORKER_UNAVAILABLE");
       }
-      if (await cutoffConflict(organizationId, freshWorker.orgUnitId, effectiveDate, tx as typeof db)) {
+      if (await cutoffConflict(organizationId, freshWorker.orgUnitId, effectiveDate, tx as unknown as Pick<typeof db, "select">)) {
         throw new Error("UNDERPAYMENT_TARGET_NOT_DRAFT");
       }
       const [row] = await tx.insert(payrollUnderpaymentRequests).values({
@@ -261,7 +261,7 @@ export async function PATCH(request: Request) {
         if (String(pending.effectiveDate) < todayPh() || String(pending.effectiveDate) <= String(run.periodEnd)) {
           throw new Error("UNDERPAYMENT_DATE_EXPIRED");
         }
-        if (await cutoffConflict(organizationId, worker.orgUnitId, String(pending.effectiveDate), tx as typeof db)) {
+        if (await cutoffConflict(organizationId, worker.orgUnitId, String(pending.effectiveDate), tx as unknown as Pick<typeof db, "select">)) {
           throw new Error("UNDERPAYMENT_TARGET_NOT_DRAFT");
         }
         // Uses the existing taxable supplementary earning and one-time
