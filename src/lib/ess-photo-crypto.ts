@@ -1,10 +1,12 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto";
 import { parseBankEncryptionKey } from "@/lib/bank-account-crypto";
 
+type PhotoCryptoEnvironment = Readonly<Record<string, string | undefined>>;
+
 const PREFIX = "enc:essphoto:v1:";
 const PURPOSE = "linaw:employee-profile-photo:v1";
 
-function deriveKey(previous = false, env: NodeJS.ProcessEnv = process.env) {
+function deriveKey(previous = false, env: PhotoCryptoEnvironment = process.env) {
   const names = previous
     ? ["PII_ENCRYPTION_KEY_PREVIOUS", "BANK_DATA_ENCRYPTION_KEY_PREVIOUS", "TOTP_ENCRYPTION_KEY_PREVIOUS"]
     : ["PII_ENCRYPTION_KEY", "BANK_DATA_ENCRYPTION_KEY", "TOTP_ENCRYPTION_KEY"];
@@ -20,7 +22,7 @@ function deriveKey(previous = false, env: NodeJS.ProcessEnv = process.env) {
 }
 
 /** Always fail closed: portraits must never be stored as plain base64. */
-export function encryptProfilePhoto(bytes: Uint8Array, env: NodeJS.ProcessEnv = process.env) {
+export function encryptProfilePhoto(bytes: Uint8Array, env: PhotoCryptoEnvironment = process.env) {
   const key = deriveKey(false, env);
   if (!key) throw new Error("Secure profile photo encryption is not configured.");
   const iv = randomBytes(12);
@@ -30,7 +32,7 @@ export function encryptProfilePhoto(bytes: Uint8Array, env: NodeJS.ProcessEnv = 
   return PREFIX + [iv, tag, data].map((part) => part.toString("base64url")).join(":");
 }
 
-export function decryptProfilePhoto(sealed: string, env: NodeJS.ProcessEnv = process.env) {
+export function decryptProfilePhoto(sealed: string, env: PhotoCryptoEnvironment = process.env) {
   if (!sealed.startsWith(PREFIX)) throw new Error("Stored profile photo is not encrypted.");
   const parts = sealed.slice(PREFIX.length).split(":");
   if (parts.length !== 3) throw new Error("Stored profile photo is malformed.");
@@ -38,8 +40,9 @@ export function decryptProfilePhoto(sealed: string, env: NodeJS.ProcessEnv = pro
   if (iv.length !== 12 || tag.length !== 16 || cipherBytes.length === 0) {
     throw new Error("Stored profile photo has invalid encryption metadata.");
   }
-  const keys = [deriveKey(false, env), deriveKey(true, env)].filter((value): value is Buffer => value !== null);
+  const keys = [deriveKey(false, env), deriveKey(true, env)];
   for (const key of keys) {
+    if (!key) continue;
     try {
       const decipher = createDecipheriv("aes-256-gcm", key, iv);
       decipher.setAuthTag(tag);
