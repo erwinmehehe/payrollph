@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { eq } from "drizzle-orm";
+import { db } from "../src/db";
+import { employees, organizations } from "../src/db/schema";
 import { finalPaySourceFingerprint, type FinalPayFingerprintInputs } from "../src/lib/final-pay-source-fingerprint";
 import {
   FINAL_PAY_CONCURRENT_SOURCE_CONFLICT,
@@ -112,6 +116,50 @@ test("retryable PostgreSQL serialization/deadlock errors are detected through ne
   circular.cause = circular;
   assert.equal(isRetryableFinalPayConflict(circular), false);
   assert.equal(FINAL_PAY_CONCURRENT_SOURCE_CONFLICT.code, "FINAL_PAY_CONCURRENT_SOURCE_CONFLICT");
+});
+
+
+test("synthetic PostgreSQL SERIALIZABLE read/write conflict rolls back an obsolete employee status transition", async () => {
+  const [org] = await db.insert(organizations).values({
+    name: "Final-pay source concurrency QA",
+    legalName: "Final-pay source concurrency QA",
+    plan: "Core",
+  }).returning();
+  try {
+    const [worker] = await db.insert(employees).values({
+      organizationId: org.id,
+      employeeNo: `FP-SOURCE-${randomUUID().slice(0, 8)}`,
+      firstName: "Ledger", lastName: "Tester", title: "Staff",
+      avatarInitials: "LT", basicRate: "30000.00",
+      startDate: "2025-01-01", status: "Separating",
+    }).returning();
+    let caught: unknown = null;
+    try {
+      await db.transaction(async tx => {
+        const [initial] = await tx.select().from(employees)
+          .where(eq(employees.id, worker.id)).limit(1);
+        assert.equal(initial.status, "Separating");
+
+        // A different pooled connection commits a new pay source AFTER
+        // this transaction's serializable snapshot is created.
+        await db.update(employees).set({ basicRate: "30001.00" })
+          .where(eq(employees.id, worker.id));
+
+        // Updating the stale tuple must fail, not silently mark separated
+        // based on an obsolete payroll input snapshot.
+        await tx.update(employees).set({ status: "Separated" })
+          .where(eq(employees.id, worker.id));
+      }, { isolationLevel: "serializable" });
+    } catch (error) {
+      caught = error;
+    }
+    assert.ok(isRetryableFinalPayConflict(caught), "Expected PostgreSQL 40001 on stale serializable source write.");
+    const [fresh] = await db.select().from(employees).where(eq(employees.id, worker.id));
+    assert.equal(fresh.status, "Separating", "Failed money decision must not commit worker status.");
+    assert.equal(fresh.basicRate, "30001.00", "Independent source writer's committed value is preserved.");
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
 });
 
 test("all three source-money decisions read from their own transaction and never retry themselves", () => {
