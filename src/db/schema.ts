@@ -2856,6 +2856,12 @@ export const separationRecords = pgTable("separation_records", {
   finalPayDueDate: date("final_pay_due_date"),
   computationSnapshot: jsonb("computation_snapshot").notNull().default({}),
   status: varchar("status", { length: 32 }).notNull().default("draft"), // "draft", "approved", "released"
+  // Immutable reviewer identity for payroll-level maker/checker separation.
+  // Existing legacy approvals remain nullable and cannot be released without
+  // an independently recomputed/approved package.
+  preparedByUserId: integer("prepared_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  approvedByUserId: integer("approved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  releasedByUserId: integer("released_by_user_id").references(() => users.id, { onDelete: "set null" }),
   coeIssued: boolean("coe_issued").notNull().default(false),
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   releasedAt: timestamp("released_at", { withTimezone: true }),
