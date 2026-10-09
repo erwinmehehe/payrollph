@@ -43,7 +43,10 @@ async function readPhoto(head = false) {
   }).from(essEmployeePhotos)
     .where(and(eq(essEmployeePhotos.employeeId, context.employee.id), eq(essEmployeePhotos.organizationId, context.employee.organizationId)))
     .limit(1);
-  if (!photo) return new Response(null, { status: 404, headers: PRIVATE_HEADERS });
+  // HEAD is an optional existence probe: 204 avoids an expected 404
+  // browser-console error when the employee has never uploaded a photo.
+  // GET remains a true 404 so missing file requests are never faked as images.
+  if (!photo) return new Response(null, { status: head ? 204 : 404, headers: PRIVATE_HEADERS });
   const headers = { ...PRIVATE_HEADERS, "Content-Type": photo.mimeType };
   if (head) return new Response(null, { headers, status: 200 });
   try {

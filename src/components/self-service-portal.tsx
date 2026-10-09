@@ -305,7 +305,8 @@ export function SelfServicePortal() {
   useEffect(() => {
     let live = true;
     void fetch("/api/self/photo", { method: "HEAD", cache: "no-store" }).then((res) => {
-      if (live) setPhotoAvailable(res.ok);
+      // A 204 means no profile photo; only a real 200 confirms an image.
+      if (live) setPhotoAvailable(res.status === 200);
     }).catch(() => {
       if (live) setPhotoAvailable(false);
     });
