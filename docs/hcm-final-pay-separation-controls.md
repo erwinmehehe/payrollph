@@ -4,6 +4,20 @@ This draft is a **high-impact authorization change** to the existing separation
 module. It does not itself initiate or verify bank transfers, certify DOLE
 compliance, calculate a new tax rule, or authorize production disbursement.
 
+## Default-off money release gate
+
+Manual final-pay release is **disabled by default**: the backend requires
+`FINAL_PAY_MANUAL_RELEASE_ENABLED=true` before allowing an approved package
+to be marked released. The UI displays the gate and disables the button
+while off. Draft preparation, departmental clearance, independent financial
+approval and COE issuance remain separately available.
+
+Enable this only after independent finance and bank payout verification,
+employer confirmation, controlled-pilot reconciliation and release signoff.
+An environment flag and a manually entered bank reference are **not** proof
+that a transfer occurred; an external settlement receipt/reconciliation is
+still required. No request parameter can bypass the feature gate.
+
 ## Three distinct authenticated actors
 
 1. **Preparer (maker):** HR/payroll prepares the Separation package. The
