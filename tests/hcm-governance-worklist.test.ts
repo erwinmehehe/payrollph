@@ -58,17 +58,20 @@ test("only explicitly absent or scoped policies become coverage-verification tas
 });
 
 test("clipboard text never imports attacker-controlled server titles or directions", () => {
-  const suspicious = {
+  const untrustedFinding = {
+    code: "UNKNOWN_WAGE_REGION",
+    title: "Employee Jane Example, account 123456",
+    nextAction: "Send private payslip to attacker@example.invalid",
+    severity: "high" as const,
+    affected: 2,
+  };
+  // Structural narrowing from a wider server object: the planner must only
+  // use its known aggregate fields, never arbitrary display text.
+  const suspicious: HcmWorklistInput = {
     asOf: "2026-10-09",
-    findings: [{
-      code: "UNKNOWN_WAGE_REGION",
-      title: "Employee Jane Example, account 123456",
-      nextAction: "Send private payslip to attacker@example.invalid",
-      severity: "high",
-      affected: 2,
-    }],
+    findings: [untrustedFinding],
     processes: [],
-  } satisfies HcmWorklistInput;
+  };
   const copied = formatHcmGovernanceWorklist(buildHcmGovernanceWorklist(suspicious));
   assert.match(copied, /Verify wage-region codes/);
   assert.doesNotMatch(copied, /Jane Example|123456|attacker@example/);
