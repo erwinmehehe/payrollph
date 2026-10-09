@@ -80,7 +80,9 @@ export async function POST(request: Request) {
   if (originDenied) return originDenied;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  const body = await request.json().catch(() => ({}));
+  const parsedBody: unknown = await request.json().catch(() => null);
+  const body = parsedBody && typeof parsedBody === "object" && !Array.isArray(parsedBody)
+    ? parsedBody as Record<string, unknown> : {};
   const organizationId = Number(body.organizationId);
   const employeeId = Number(body.employeeId);
   const payrollRunId = Number(body.payrollRunId);
