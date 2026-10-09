@@ -67,7 +67,7 @@ export async function buildPayrollReleaseChecklist(runId: number, options: { ack
 
   // Default OFF: existing release behavior is byte-for-byte equivalent.
   // Enabling the flag adds an independent, non-acknowledgeable blocker.
-  if (connectedPayrollReleaseGateEnabled()) {
+  if (connectedPayrollReleaseGateEnabled(run.organizationId)) {
     const upstream = await safePayrollConnectedReleaseReadiness(runId);
     items.push({
       key: "connected",
