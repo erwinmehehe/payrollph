@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Calculator, Check, ShieldCheck } from "lucide-react";
 import { getPublicPricingPlans } from "@/lib/pricing-catalog";
+import { publicSelfServeReady } from "@/lib/saas-launch-config";
 import { SiteFooter, SiteNav } from "@/components/marketing/site-chrome";
 import { StructuredData } from "@/components/marketing/structured-data";
 
@@ -74,6 +75,7 @@ export const metadata: Metadata = {
 
 export default async function PricingPage() {
   const plans = await getPublicPricingPlans();
+  const selfServeOpen = publicSelfServeReady();
 
   return (
     <div className="min-h-screen bg-white text-[#0B0D1A]">
@@ -112,8 +114,8 @@ export default async function PricingPage() {
                 per-employee amount, included modules and the operating model each plan is designed to support.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
-                <Link href="/trial" className="rounded-full bg-[#0877ff] px-6 py-3.5 text-[14px] font-semibold text-white">
-                  Request trial access
+                <Link href={selfServeOpen ? "/signup?plan=Core" : "/trial"} className="rounded-full bg-[#0877ff] px-6 py-3.5 text-[14px] font-semibold text-white">
+                  {selfServeOpen ? "Choose a plan & subscribe" : "Request trial access"}
                 </Link>
                 <Link
                   href="/demo"
@@ -199,6 +201,12 @@ export default async function PricingPage() {
                     ) : null}
 
                     <p className="mt-5 text-[12px] leading-relaxed text-[#6B718C]">{positioning.note}</p>
+                    {selfServeOpen && plan.name !== "Solo" && (
+                      <Link href={"/signup?plan=" + encodeURIComponent(plan.name)}
+                        className="mt-4 inline-flex min-h-[46px] items-center justify-center gap-2 rounded-full bg-[#0877ff] px-4 text-sm font-semibold text-white">
+                        Subscribe to {plan.name} <ArrowRight size={16} />
+                      </Link>
+                    )}
                     <p className="mt-auto pt-5 text-[10px] font-medium uppercase tracking-[0.1em] text-[#A0A5B8]">
                       Catalog version {plan.version}
                     </p>
