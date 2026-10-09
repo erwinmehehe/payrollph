@@ -118,6 +118,7 @@ test("API implements company-wide MFA, independent maker-checker and atomic payr
   assert.ok(route.includes("UNDERPAYMENT_SELF_REVIEW"));
   assert.ok(route.includes("FOR UPDATE") || route.includes("for update"));
   assert.ok(route.includes("db.transaction(async tx"));
+  assert.ok(route.includes("ORDER BY id FOR UPDATE")); // target cutoff lock
   assert.ok(route.includes("tx.insert(auditEvents)"));
   assert.ok(route.includes("tx.insert(supplementaryEarnings)"));
   assert.ok(route.includes('earningType: "other_taxable"'));
