@@ -136,17 +136,26 @@ export async function POST(request: Request) {
   });
   if (rateDenied) return rateDenied;
 
-  const [[worker], [sourceRun], [sourceEntry]] = await Promise.all([
+  const [[worker], [sourceRun], sourceEntries] = await Promise.all([
     db.select().from(employees).where(and(eq(employees.organizationId, organizationId),
       eq(employees.id, employeeId))).limit(1),
     db.select().from(payrollRuns).where(and(eq(payrollRuns.organizationId, organizationId),
       eq(payrollRuns.id, sourcePayrollRunId))).limit(1),
     db.select().from(payrollEntries).where(and(eq(payrollEntries.payrollRunId, sourcePayrollRunId),
-      eq(payrollEntries.employeeId, employeeId))).limit(1),
+      eq(payrollEntries.employeeId, employeeId))).limit(2),
   ]);
-  if (!worker || !sourceRun || !sourceEntry) {
-    return Response.json({ error: "Worker and original payroll entry must belong to the selected company's source register." }, { status: 404 });
+  if (!worker || !sourceRun) {
+    return Response.json({ error: "The worker or original payroll run does not belong to this company." }, { status: 404 });
   }
+  // Never choose the first arbitrary row if a broken source run contains
+  // duplicate employee payroll entries. Reconcile source first.
+  if (sourceEntries.length !== 1) {
+    return Response.json({
+      code: "UNDERPAYMENT_SOURCE_ENTRY_COUNT",
+      error: "The original Released register must have exactly one entry for the worker before it can support a correction.",
+    }, { status: 409 });
+  }
+  const sourceEntry = sourceEntries[0];
   if (sourceRun.status !== "Released" || !["Active", "On leave"].includes(worker.status)) {
     return Response.json({ error: "Source must be Released and the worker must be eligible for the next payroll." }, { status: 409 });
   }
@@ -156,16 +165,18 @@ export async function POST(request: Request) {
   try {
     const created = await db.transaction(async tx => {
       await tx.execute(sql`select pg_advisory_xact_lock(4251, ${employeeId})`);
-      const [[freshRun], [freshEntry], [freshWorker]] = await Promise.all([
+      const [[freshRun], freshEntries, [freshWorker]] = await Promise.all([
         tx.select().from(payrollRuns).where(and(eq(payrollRuns.id, sourcePayrollRunId),
           eq(payrollRuns.organizationId, organizationId))).limit(1),
-        tx.select().from(payrollEntries).where(and(eq(payrollEntries.id, sourceEntry.id),
-          eq(payrollEntries.payrollRunId, sourcePayrollRunId), eq(payrollEntries.employeeId, employeeId))).limit(1),
+        tx.select().from(payrollEntries).where(and(
+          eq(payrollEntries.payrollRunId, sourcePayrollRunId), eq(payrollEntries.employeeId, employeeId),
+        )).limit(2),
         tx.select().from(employees).where(and(eq(employees.id, employeeId),
           eq(employees.organizationId, organizationId))).limit(1),
       ]);
-      if (freshRun?.status !== "Released" || !freshEntry
-        || payrollSourceFingerprint(freshEntry) !== payrollSourceFingerprint(sourceEntry)) {
+      if (freshRun?.status !== "Released" || freshEntries.length !== 1
+        || freshEntries[0].id !== sourceEntry.id
+        || payrollSourceFingerprint(freshEntries[0]) !== payrollSourceFingerprint(sourceEntry)) {
         throw new Error("UNDERPAYMENT_SOURCE_CHANGED");
       }
       if (!freshWorker || !["Active", "On leave"].includes(freshWorker.status)) {
@@ -252,16 +263,19 @@ export async function PATCH(request: Request) {
       if (pending.status !== "pending_review") throw new Error("UNDERPAYMENT_ALREADY_DECIDED");
       if (pending.requestedByUserId === user.id) throw new Error("UNDERPAYMENT_SELF_REVIEW");
 
-      const [[run], [entry], [worker]] = await Promise.all([
+      const [[run], entries, [worker]] = await Promise.all([
         tx.select().from(payrollRuns).where(and(eq(payrollRuns.id, pending.sourcePayrollRunId),
           eq(payrollRuns.organizationId, organizationId))).limit(1),
-        tx.select().from(payrollEntries).where(and(eq(payrollEntries.id, pending.sourcePayrollEntryId),
+        tx.select().from(payrollEntries).where(and(
           eq(payrollEntries.payrollRunId, pending.sourcePayrollRunId),
-          eq(payrollEntries.employeeId, pending.employeeId))).limit(1),
+          eq(payrollEntries.employeeId, pending.employeeId),
+        )).limit(2),
         tx.select().from(employees).where(and(eq(employees.id, pending.employeeId),
           eq(employees.organizationId, organizationId))).limit(1),
       ]);
-      if (run?.status !== "Released" || !entry || payrollSourceFingerprint(entry) !== pending.sourceEntryHash) {
+      if (run?.status !== "Released" || entries.length !== 1
+        || entries[0].id !== pending.sourcePayrollEntryId
+        || payrollSourceFingerprint(entries[0]) !== pending.sourceEntryHash) {
         throw new Error("UNDERPAYMENT_SOURCE_CHANGED");
       }
       if (!worker) throw new Error("UNDERPAYMENT_WORKER_UNAVAILABLE");
