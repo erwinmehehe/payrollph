@@ -3,11 +3,11 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { evaluatePayrollConnectedRelease } from "../src/lib/payroll-connected-release-gate";
 
-const calculatedAt = "2026-10-16T08:00:00.000Z";
+const calculationStartedAt = "2026-10-16T08:00:00.000Z";
 const input = () => ({
   periodStart: "2026-10-01",
   periodEnd: "2026-10-15",
-  calculatedAt,
+  calculationStartedAt,
   calculatedEmployeeIds: [1, 2],
   expectedEmployeeIds: [1, 2],
 });
@@ -35,7 +35,7 @@ test("missing/extra/duplicated employees and missing calculation receipt fail cl
   const duplicate = evaluatePayrollConnectedRelease({ ...input(), calculatedEmployeeIds: [1, 1, 2] });
   assert.equal(duplicate.ready, false);
   assert.ok(duplicate.findings.some((f) => f.code === "PAYROLL_POPULATION_INVALID"));
-  const noTimestamp = evaluatePayrollConnectedRelease({ ...input(), calculatedAt: null });
+  const noTimestamp = evaluatePayrollConnectedRelease({ ...input(), calculationStartedAt: null });
   assert.equal(noTimestamp.ready, false);
   assert.ok(noTimestamp.findings.some((f) => f.code === "PAYROLL_CALCULATION_TIME_MISSING"));
 });
