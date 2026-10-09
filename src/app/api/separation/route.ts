@@ -908,9 +908,12 @@ export async function POST(request: Request) {
       businessProcess: separationProcess ? { id: separationProcess.id, status: "applied" } : null,
     }, { status: 201 });
   } catch (error) {
+    if (isRetryableFinalPayConflict(error)) {
+      return Response.json(FINAL_PAY_CONCURRENT_SOURCE_CONFLICT, { status: 409 });
+    }
     return Response.json({
       error: error instanceof Error ? error.message : "Could not compute final pay.",
-    }, { status: error instanceof Error && /changed|already exists|approval|different active separation/i.test(error.message) ? 409 : 422 });
+    }, { status: error instanceof Error && /changed|already exists|approval|different active separation|FINAL_PAY_SOURCE_CHANGED/i.test(error.message) ? 409 : 422 });
   }
 }
 
@@ -1234,6 +1237,9 @@ export async function PATCH(request: Request) {
         }, { isolationLevel: "serializable" });
         return Response.json(updated);
       } catch (error) {
+        if (isRetryableFinalPayConflict(error)) {
+          return Response.json(FINAL_PAY_CONCURRENT_SOURCE_CONFLICT, { status: 409 });
+        }
         const code = error instanceof Error ? error.message : "";
         if (code.startsWith("FINAL_PAY_")) {
           return Response.json({
@@ -1259,7 +1265,9 @@ export async function PATCH(request: Request) {
       }, { status: 422 });
     }
 
-    const released = await db.transaction(async (tx) => {
+    let released: typeof separationRecords.$inferSelect;
+    try {
+      released = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT id FROM separation_records WHERE id = ${id}
         AND organization_id = ${sep.organizationId} FOR UPDATE`);
       const [fresh] = await tx.select().from(separationRecords).where(and(
@@ -1513,7 +1521,20 @@ export async function PATCH(request: Request) {
         },
       });
       return updated;
-    }, { isolationLevel: "serializable" });
+      }, { isolationLevel: "serializable" });
+    } catch (error) {
+      if (isRetryableFinalPayConflict(error)) {
+        return Response.json(FINAL_PAY_CONCURRENT_SOURCE_CONFLICT, { status: 409 });
+      }
+      const message = error instanceof Error ? error.message : "";
+      if (/^FINAL_PAY_|changed|recompute|review|last day|not yet occurred|release state/i.test(message)) {
+        return Response.json({
+          code: "FINAL_PAY_RELEASE_STALE",
+          error: "The final-pay source, approvals, or worker lifecycle changed during release. No money-bearing changes were committed. Refresh and reconcile the package.",
+        }, { status: 409 });
+      }
+      throw error;
+    }
 
     // Money, loan and employee status were already committed. Delivery errors
     // cannot turn an actual financial release into a misleading HTTP 500.
