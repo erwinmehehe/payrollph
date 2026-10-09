@@ -18,7 +18,7 @@ This PR is **stacked on the reviewed SQL 0100-0103 train (PR #667)**. The HCM ow
 - `PATCH /api/hcm/work-items` body: `{ "organizationId": 123, "id": 456, "ownerTeam": "HR Operations", "ownerUserId": 21, "dueAt": "2026-10-15T09:00:00+08:00", "escalateAt": "2026-10-15T10:00:00+08:00" }`.
 - `POST /api/hcm/work-items/escalate`: scheduled sweep, at most 100 cases each invocation, with `remainingMayExist` hint.
 
-Only existing, open/acknowledged cases are eligible for ownership updates. Owners must be active in the same organization and have an HR-authorized role. Deadlines accept ISO 8601 timestamp values; pass Manila offsets explicitly. Escalations run only once per SLA schedule; rescheduling resets escalation state and generates an audit event. Closing cases remains governed by the existing case workflow.
+Only existing, open/acknowledged cases are eligible for ownership updates. Owners must be active in the same organization and have an HR-authorized role. Deadlines require a real Gregorian ISO 8601 timestamp with an explicit UTC offset or Z (for example, `2026-10-15T09:00:00+08:00`). Timezone-less or invalid dates receive HTTP 400 rather than silently scheduling an incorrect SLA; pass explicit `null` to clear a deadline. The HR editor converts its local datetime input to UTC before submission. Escalations run only once per SLA schedule; rescheduling resets escalation state and generates an audit event. Closing cases remains governed by the existing case workflow.
 
 ## Follow-ups before rollout
 - The work queue dashboard is available at `/hcm/work-items`; add navigation from the existing workspace shell and surface event history in the UI.

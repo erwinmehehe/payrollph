@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { parseHcmSlaInstant } from "../src/lib/hcm-work-item-date";
 
 const read=(p:string)=>readFileSync(p,"utf8");
 test("HCM queue and event endpoints use authenticated company-wide People access",()=>{
@@ -49,4 +50,18 @@ test("canonical sequential migration fields exist in Drizzle schema",()=>{
     assert.ok(migration.includes(column));
     assert.ok(schema.includes(field+":"));
   }
+});
+
+test("SLA deadlines require real dates, valid timezone offsets, or an explicit clear", () => {
+  for (const invalid of [
+    "", "1", "2026-02-30T09:00:00+08:00", "2026-13-01T09:00:00+08:00",
+    "2026-10-15T09:00:00", "2026-10-15", "2026-10-15T09:00:00+15:00",
+    "2026-10-15T09:00:00+14:01", "2026-10-15T24:00:00+08:00",
+    "2026-10-15T09:60:00+08:00", "2026-10-15T09:00:00+08:90", 123, undefined,
+  ]) assert.equal(parseHcmSlaInstant(invalid), undefined, String(invalid));
+  assert.equal(parseHcmSlaInstant(null), null);
+  assert.equal(parseHcmSlaInstant("2026-10-15T09:00:00+08:00")?.toISOString(), "2026-10-15T01:00:00.000Z");
+  assert.equal(parseHcmSlaInstant("2024-02-29T23:59:59Z")?.toISOString(), "2024-02-29T23:59:59.000Z");
+  assert.equal(parseHcmSlaInstant("2026-10-15T01:00Z")?.toISOString(), "2026-10-15T01:00:00.000Z");
+  assert.equal(parseHcmSlaInstant("2026-10-15T09:00:00+14:00")?.toISOString(), "2026-10-14T19:00:00.000Z");
 });

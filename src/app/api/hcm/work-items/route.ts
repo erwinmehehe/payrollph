@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { parseHcmSlaInstant } from "@/lib/hcm-work-item-date";
 import { pool } from "@/db";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, PEOPLE_ADMIN_ROLES, getAccess } from "@/lib/access";
@@ -59,9 +60,9 @@ export async function PATCH(request: NextRequest) {
   const escalateAt = input.escalateAt;
   if (ownerTeam !== undefined && (typeof ownerTeam !== "string" || !TEAMS.has(ownerTeam))) return Response.json({ error: "Invalid accountable team." }, { status: 400 });
   if (ownerUserId !== undefined && ownerUserId !== null && !validId(ownerUserId)) return Response.json({ error: "Invalid owner." }, { status: 400 });
-  const parseDate = (v: unknown) => v === null ? null : typeof v === "string" && v.trim() && Number.isFinite(Date.parse(v)) ? new Date(v) : undefined;
-  const due = dueAt === undefined ? undefined : parseDate(dueAt);
-  const escalation = escalateAt === undefined ? undefined : parseDate(escalateAt);
+  // Reject impossible calendar dates, missing timezone and non-ISO timestamp inputs.
+  const due = dueAt === undefined ? undefined : parseHcmSlaInstant(dueAt);
+  const escalation = escalateAt === undefined ? undefined : parseHcmSlaInstant(escalateAt);
   if ((dueAt !== undefined && due === undefined) || (escalateAt !== undefined && escalation === undefined)) return Response.json({ error: "Invalid ISO deadline." }, { status: 400 });
   const client = await pool.connect();
   try {
