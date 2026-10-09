@@ -63,8 +63,9 @@ test("loan governance test and runbook refer to the integrated migration", () =>
   const runbook = readFileSync("docs/payroll-employee-loan-maker-checker.md", "utf8");
   assert.ok(testSource.includes('readFileSync("drizzle/0103_independent_employee_loan_deductions.sql"'),
     "active regression test must load the canonical 0103 SQL file");
-  assert.match(runbook, /The additive migration is\\s+`drizzle\\/0103_independent_employee_loan_deductions\\.sql`/,
-    "runbook must name the actual staged SQL filename");
+  const activeMigrationParagraph = runbook.split("The additive migration is")[1]?.split("It changes the")[0] ?? "";
+  assert.ok(activeMigrationParagraph.includes("`drizzle/0103_independent_employee_loan_deductions.sql`"),
+    "runbook must name the active staged SQL filename");
   // The runbook may legitimately cite the retired 0100 loan basename in its
   // historical explanation. Do not mistake prose for a live migration path.
 });
