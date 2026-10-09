@@ -1,6 +1,6 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { employees } from "@/db/schema";
+import { employees, separationRecords } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertScope, getAccess } from "@/lib/access";
 import { enforceSameOriginMutation } from "@/lib/security-request";
@@ -10,6 +10,12 @@ import {
   type PreciseLeaveInterval,
 } from "@/lib/workforce-absence-intervals";
 import { loadResolvedEmployeeSchedule } from "@/lib/workforce-schedule-evidence-server";
+import {
+  checkEmployeeLeaveEligibility,
+  leaveDateWindow,
+  MAX_PRECISE_LEAVE_INTERVALS,
+  validLeaveDate,
+} from "@/lib/hcm-leave-employment";
 
 export const dynamic = "force-dynamic";
 
@@ -49,12 +55,42 @@ export async function POST(request: Request) {
   const scope = assertScope(access, employee.orgUnitId);
   if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
 
+  // The preview must obey the same bounded Gregorian/employment checks as
+  // submission. Never fan out thousands of schedule lookups on bad input.
+  if (intervals.length > MAX_PRECISE_LEAVE_INTERVALS
+    || intervals.some(interval => !validLeaveDate(interval.workDate))) {
+    return Response.json({
+      code: "LEAVE_PREVIEW_INVALID_INTERVALS",
+      error: "Leave preview requires genuine work dates and no more than 1,500 intervals.",
+    }, { status: 400 });
+  }
+  const dates = [...new Set(intervals.map((interval) => interval.workDate))].sort();
+  const window = leaveDateWindow(dates[0], dates[dates.length - 1]);
+  if (!window.ok) {
+    return Response.json({ code: window.code, error: window.message }, { status: 400 });
+  }
+  const [pendingSeparation] = employee.status === "Separating"
+    ? await db.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
+      .where(and(
+        eq(separationRecords.organizationId, organizationId),
+        eq(separationRecords.employeeId, employee.id),
+        inArray(separationRecords.status, ["draft", "approved"]),
+      )).orderBy(desc(separationRecords.id)).limit(1)
+    : [];
+  const eligibility = checkEmployeeLeaveEligibility({
+    employeeStatus: employee.status,
+    employmentStartDate: String(employee.startDate),
+    leaveStartDate: dates[0],
+    leaveEndDate: dates[dates.length - 1],
+    separationLastDay: pendingSeparation?.lastDay ?? null,
+  });
+  if (eligibility) {
+    return Response.json({ code: eligibility.code, error: eligibility.message }, { status: 409 });
+  }
   const validation = validateLeaveIntervals(intervals);
   if (!validation.ok) {
     return Response.json({ error: "Leave timing is invalid.", errors: validation.errors }, { status: 400 });
   }
-
-  const dates = [...new Set(intervals.map((interval) => interval.workDate))].sort();
   const previews = [];
   for (const workDate of dates) {
     const evidence = await loadResolvedEmployeeSchedule({ organizationId, employeeId, workDate });
