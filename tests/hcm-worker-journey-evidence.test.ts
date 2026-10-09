@@ -11,8 +11,10 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 const worker: WorkerJourneyInput = {
   employeeStatus: "Active",
+  asOfDate: "2026-10-09",
   recruitment: null,
   currentPositionId: null,
+  currentPositionEffectiveFrom: null,
   lastPositionAssignmentId: null,
   onboarding: [],
   offboarding: [],
@@ -51,6 +53,7 @@ test("a connected hire can show completed source milestones but never claims ban
     ...worker,
     recruitment: { applicantId: 9, stage: "hired", requisitionId: 4, requisitionPositionId: 3 },
     currentPositionId: 3,
+    currentPositionEffectiveFrom: "2026-09-01",
     onboarding: [{ done: true }, { done: true }],
     latestPerformance: { id: 13, status: "completed" },
     compensationVisible: true,
@@ -83,6 +86,22 @@ test("role gates always override accidental financial evidence in supplied input
   assert.equal(comp.evidence, null);
   assert.equal(pay.evidence, null);
   assert.ok(!pay.detail.includes("88"));
+});
+
+test("future-dated assignment is not recorded as a current incumbent position", () => {
+  const future = find({
+    ...worker,
+    currentPositionId: 44,
+    currentPositionEffectiveFrom: "2026-11-01",
+  }, "position");
+  assert.equal(future.state, "in_progress");
+  assert.match(future.detail, /not yet a current incumbent/);
+  const current = find({
+    ...worker,
+    currentPositionId: 44,
+    currentPositionEffectiveFrom: "2026-10-09",
+  }, "position");
+  assert.equal(current.state, "recorded");
 });
 
 test("a linked applicant that is not hired cannot be treated as proof of hire", () => {
