@@ -52,7 +52,14 @@ export async function tickScheduler(force = false) {
 
   let completed = false;
   try {
-    const result = await runScheduledJobs(force);
+    const result = await runScheduledJobs(force, async () => {
+      // A heartbeat only marks lease loss; it cannot stop an in-flight job.
+      // Reconfirm ownership before starting each financial/HR side effect.
+      if (leaseLost || !(await refreshSchedulerLease(ownerToken))) {
+        leaseLost = true;
+        throw new Error("Central scheduler lease lost before scheduled side effect; review partial work.");
+      }
+    });
     if (leaseLost) {
       throw new Error("Central scheduler lease renewal failed. Review completed jobs before retrying.");
     }
@@ -65,7 +72,10 @@ export async function tickScheduler(force = false) {
   }
 }
 
-async function runScheduledJobs(force = false) {
+async function runScheduledJobs(
+  force: boolean,
+  assertLeaseOwnership: () => Promise<void>,
+) {
   const now = new Date();
   const [row] = await db.select().from(schedulerState).where(eq(schedulerState.jobName, "delivery-drain")).limit(1);
 
@@ -73,6 +83,7 @@ async function runScheduledJobs(force = false) {
     return { skipped: true as const, reason: "interval", lastRunAt: row.lastRunAt };
   }
 
+  await assertLeaseOwnership();
   const webhookResults = await drainWebhookRetries(25);
   const mailResults = await drainOutboxRetries(25);
   const mailRetried = mailResults.filter((item) => item.retried);
@@ -85,13 +96,16 @@ async function runScheduledJobs(force = false) {
     !retentionState?.lastRunAt
     || now.getTime() - retentionState.lastRunAt.getTime() >= 24 * 60 * 60 * 1000;
   const retention = retentionDue ? await purgeExpiredOperationalData(now.getTime()) : null;
+  await assertLeaseOwnership();
   const statutoryRemittanceActions = await runScheduledStatutoryRemittanceSync({
     actor: "System scheduler",
   });
   const contributionCaseEscalations = await runScheduledContributionCaseEscalations({
     actor: "System scheduler",
   });
+  await assertLeaseOwnership();
   const automationResumes = await resumeDueAutomationExecutions(now, 25);
+  await assertLeaseOwnership();
   const automationTemporalEvents = await runScheduledAutomationTemporalEvents({ now });
 
   const [hcmDocumentState] = await db.select().from(schedulerState)
@@ -104,24 +118,28 @@ async function runScheduledJobs(force = false) {
     ? await runScheduledHcmDocumentExpiry({ actor: "System scheduler", now })
     : null;
 
+  await assertLeaseOwnership();
   const hcmEffectiveChanges = await runScheduledWorkerEffectiveChanges({
     actor: "System scheduler",
     now,
     limit: 50,
   });
 
+  await assertLeaseOwnership();
   const hcmEmploymentTerms = await runScheduledEmploymentTerms({
     actor: "System scheduler",
     now,
     limit: 100,
   });
 
+  await assertLeaseOwnership();
   const hcmEmploymentTermDecisions = await runScheduledEmploymentTermDecisions({
     actor: "System scheduler",
     now,
     limit: 100,
   });
 
+  await assertLeaseOwnership();
   const hcmCompensation = await runScheduledCompensationGovernance({
     actor: "System scheduler",
     now,

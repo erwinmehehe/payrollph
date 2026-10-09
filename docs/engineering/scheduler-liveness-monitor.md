@@ -7,3 +7,8 @@ GET /api/jobs/status requires the authorized x-worker-token header, using the sa
 The response includes only last completed delivery-drain timestamp, seconds since completion and sanitized lease status; it does not include organization data or the lease owner token. No successful tick within ten minutes is an overdue signal. Latest failed lease operation is also unhealthy. A 503 may indicate no worker, a stopped worker, a configuration problem or downstream errors, not necessarily payroll corruption.
 
 Verify one active dedicated worker, worker service restart/exit reporting and /api/jobs/tick call coverage in the actual target runtime. A serverless Vercel web deployment does not itself prove that a persistent worker or external authenticated cron is operating. Isolated two-worker and restart tests, compensation idempotency, live environment and statutory payroll reviews remain separate release gates.
+
+
+### Stale-owner safety improvement (2026-10-09)
+
+In addition to the 30-second heartbeat, the central scheduler revalidates its fenced database lease before the start of the key statutory, automation, effective-dated HR and compensation job groups. A lease that has been stolen, expired or can no longer be refreshed stops **new** guarded work, rather than only raising an error after the entire scheduler cycle. Concurrent worker acquisition is now covered by a parallel PostgreSQL test. This is a **best-effort pre-work fencing gate**, not transaction-level fencing: already-running side effects cannot be canceled, and the downstream financial handlers still require their own idempotency/unique constraints. The independent two-worker staging/restart and live monitoring acceptance in #637 remains open.

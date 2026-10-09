@@ -39,3 +39,35 @@ test("a scheduler lease serializes workers and fences stale owners", async () =>
     await db.execute(sql`DELETE FROM scheduler_state WHERE job_name = ${jobName}`);
   }
 });
+
+
+test("simultaneous competing scheduler starts admit exactly one owner", async () => {
+  const jobName = `scheduler-parallel-${randomUUID().slice(0, 18)}`;
+  const tokens = Array.from({ length: 12 }, () => randomUUID());
+  try {
+    const acquired = await Promise.all(tokens.map((token) => acquireSchedulerLease(token, jobName)));
+    assert.equal(acquired.filter(Boolean).length, 1, "competing workers must share a database-enforced single owner");
+    const winner = tokens[acquired.indexOf(true)];
+    assert.equal(await refreshSchedulerLease(winner, jobName), true);
+    assert.equal(await releaseSchedulerLease(winner, "completed", jobName), true);
+    const next = await Promise.all(tokens.map((token) => acquireSchedulerLease(token, jobName)));
+    assert.equal(next.filter(Boolean).length, 1, "a completed lease can have one new owner, never several");
+  } finally {
+    for (const token of tokens) await releaseSchedulerLease(token, "failed", jobName);
+    await db.execute(sql`DELETE FROM scheduler_state WHERE job_name = ${jobName}`);
+  }
+});
+
+test("the central scheduler revalidates lease ownership before financial transitions", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("src/lib/scheduler.ts", "utf8");
+  assert.ok(source.includes("leaseLost || !(await refreshSchedulerLease(ownerToken))"));
+  for (const method of [
+    "runScheduledWorkerEffectiveChanges",
+    "runScheduledEmploymentTerms",
+    "runScheduledEmploymentTermDecisions",
+    "runScheduledCompensationGovernance",
+  ]) {
+    assert.match(source, new RegExp("await assertLeaseOwnership\\(\\);\\s+const \\w+ = await " + method + "\\("));
+  }
+});
