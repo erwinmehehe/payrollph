@@ -117,6 +117,10 @@ test("readiness is GET only, company-wide, no-store and does not update HR or pa
   assert.ok(!loader.includes("db.insert("));
   assert.ok(!loader.includes("db.delete("));
   assert.ok(ui.includes("No employee identities"));
+  assert.ok(ui.includes("requestGeneration.current"));
+  assert.ok(ui.includes("if (requestId !== requestGeneration.current) return"));
+  assert.ok(ui.includes("loadedOrganizationId === organizationId ? storedReport : null"));
+
   assert.ok(ui.includes("not certification") || ui.includes("not certification."));
   assert.ok(admin.includes('process.env.NEXT_PUBLIC_HCM_GOVERNANCE_READINESS_ENABLED === "true"'));
   assert.ok(admin.includes("<HcmGovernanceReadinessPanel organizationId={organizationId} />"));
