@@ -28,6 +28,17 @@ export function phpCents(input: unknown, limit = MAX_LOAN_PRINCIPAL_CENTS): numb
   return Number.isSafeInteger(cents) && cents >= 0 && cents <= limit ? cents : null;
 }
 
+/**
+ * Fails closed for legacy (pre-validation) schedules as well as newly
+ * registered loans. Never pass negative, zero, NaN, infinite or overprecision
+ * cutoff requests into the gross-to-net payroll engine.
+ */
+export function validPayrollLoanSchedule(loan: { cutoffDeduction: number; remainingBalance: number }): boolean {
+  const cutoff = phpCents(loan.cutoffDeduction, MAX_PAYMENT_CENTS);
+  const remaining = phpCents(loan.remainingBalance, MAX_LOAN_PRINCIPAL_CENTS);
+  return cutoff != null && cutoff > 0 && remaining != null && remaining > 0;
+}
+
 export function pesoString(cents: number): string {
   if (!Number.isSafeInteger(cents) || cents < 0) throw new Error("Invalid positive centavo amount.");
   return (cents / 100).toFixed(2);
