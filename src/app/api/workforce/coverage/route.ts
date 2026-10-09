@@ -33,6 +33,7 @@ import {
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { recoveryProposalConflict, recoveryShiftInterval } from "@/lib/workforce-recovery-draft";
 import { getSessionUser } from "@/lib/auth";
 import {
   enforceSameOriginMutation,
@@ -1416,7 +1417,7 @@ export async function POST(request: Request) {
         employeeId: Number(value.employeeId),
       };
     });
-    if (assignments.some((row) => !Number.isInteger(row.requirementId) || !Number.isInteger(row.employeeId))) {
+    if (assignments.some((row) => !Number.isSafeInteger(row.requirementId) || row.requirementId <= 0 || !Number.isSafeInteger(row.employeeId) || row.employeeId <= 0)) {
       return Response.json({ error: "Each recovery assignment requires a valid requirementId and employeeId." }, { status: 400 });
     }
 
@@ -1447,6 +1448,50 @@ export async function POST(request: Request) {
 
     const employeeById = new Map(employeeRows.map((row) => [row.id, row]));
     const requirementById = new Map(requirementRows.map((row) => [row.id, row]));
+
+    // Treat the browser draft as untrusted. Validate the entire proposal
+    // against authoritative shifts before creating even pending claims.
+    const shiftIds = [...new Set(requirementRows.map((row) => row.shiftDefinitionId))];
+    const sourceShifts = await db.select({
+      id: shiftDefinitions.id,
+      startTime: shiftDefinitions.startTime,
+      endTime: shiftDefinitions.endTime,
+      spansMidnight: shiftDefinitions.spansMidnight,
+    }).from(shiftDefinitions).where(and(
+      eq(shiftDefinitions.organizationId, organizationId),
+      inArray(shiftDefinitions.id, shiftIds),
+    ));
+    const shiftById = new Map(sourceShifts.map((row) => [row.id, row]));
+    if (shiftById.size !== shiftIds.length) {
+      return Response.json({ error: "Recovery plan contains a missing shift definition." }, { status: 409 });
+    }
+    const conflict = recoveryProposalConflict(assignments.map((row) => {
+      const requirement = requirementById.get(row.requirementId)!;
+      const shift = shiftById.get(requirement.shiftDefinitionId)!;
+      return {
+        employeeId: row.employeeId,
+        requirementId: row.requirementId,
+        workDate: String(requirement.workDate),
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        spansMidnight: shift.spansMidnight,
+      };
+    }));
+    if (conflict) {
+      return Response.json({
+        code: conflict.code,
+        error: "Recovery draft double-books a worker or contains an invalid shift. Rebuild the draft.",
+      }, { status: 409 });
+    }
+    for (const requirement of requirementRows) {
+      const planned = assignments.filter((row) => row.requirementId === requirement.id).length;
+      if (planned > requirement.requiredHeadcount) {
+        return Response.json({
+          code: "RECOVERY_PLAN_CAPACITY_EXCEEDED",
+          error: "Proposed claims exceed the source staffing requirement. Recheck live demand.",
+        }, { status: 409 });
+      }
+    }
 
     for (const proposal of assignments) {
       const requirement = requirementById.get(proposal.requirementId)!;
@@ -1525,14 +1570,40 @@ export async function POST(request: Request) {
         return Response.json({ error: `${employee.employeeNo} is now unavailable for the proposed shift.` }, { status: 409 });
       }
 
-      const current = await resolveEmployeeScheduleWindow({
+      // Include adjacent days because a published overnight shift may
+      // overlap a proposed early shift on the following calendar date.
+      const workDate = String(requirement.workDate);
+      const existingWindow = await resolveEmployeeScheduleWindow({
         organizationId,
         employeeId: employee.id,
-        startDate: String(requirement.workDate),
-        endDate: String(requirement.workDate),
+        startDate: addDays(workDate, -1),
+        endDate: addDays(workDate, 1),
       });
-      if (current[0] && !current[0].isRestDay && current[0].segments.length > 0) {
-        return Response.json({ error: `${employee.employeeNo} already has scheduled work on ${requirement.workDate}.` }, { status: 409 });
+      const candidateShift = shiftById.get(requirement.shiftDefinitionId)!;
+      const proposed = recoveryShiftInterval({
+        workDate, startTime: candidateShift.startTime,
+        endTime: candidateShift.endTime, spansMidnight: candidateShift.spansMidnight,
+      });
+      if (!proposed) {
+        return Response.json({ error: "Recovery shift timing is invalid." }, { status: 409 });
+      }
+      for (const day of existingWindow) {
+        if (day.isRestDay) continue;
+        if (day.date === workDate && day.segments.length > 0) {
+          return Response.json({ error: `${employee.employeeNo} already has scheduled work on ${workDate}.` }, { status: 409 });
+        }
+        for (const segment of day.segments) {
+          const existing = recoveryShiftInterval({
+            workDate: day.date, startTime: segment.startTime,
+            endTime: segment.endTime, spansMidnight: segment.spansMidnight,
+          });
+          if (!existing || proposed.start < existing.end && existing.start < proposed.end) {
+            return Response.json({
+              code: "RECOVERY_EXISTING_SCHEDULE_OVERLAP",
+              error: `${employee.employeeNo} has a conflicting nearby roster shift; review the existing schedule first.`,
+            }, { status: 409 });
+          }
+        }
       }
     }
 

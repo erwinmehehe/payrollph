@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarClock, CircleAlert, Plus, RefreshCcw, ShieldCheck, UsersRound } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
-import { simulateBestFitCoverage } from "@/lib/workforce-coverage";
+import { paidShiftMinutes } from "@/lib/workforce-labor-variance";
+import { planSmartRecoveryDraft, type RecoveryMode } from "@/lib/workforce-recovery-draft";
 
 type Shift = {
   id: number;
@@ -12,6 +13,8 @@ type Shift = {
   name: string;
   startTime: string;
   endTime: string;
+  breakMinutes: number;
+  spansMidnight: boolean;
 };
 
 type Worksite = {
@@ -309,6 +312,7 @@ export function WorkforceCoveragePanel({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [simulateHighRisk, setSimulateHighRisk] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState<RecoveryMode>("coverage");
   const [dynamicGroupCode, setDynamicGroupCode] = useState("");
   const [reviewChains, setReviewChains] = useState<HandoffChain[]>([]);
   const [reviewChainCode, setReviewChainCode] = useState("");
@@ -556,22 +560,39 @@ export function WorkforceCoveragePanel({
   );
   const siteExclusions = (payload?.coverage ?? []).reduce((sum, row) => sum + row.siteIneligibleHeadcount, 0);
   const labor = payload?.laborVariance;
-  const simulation = useMemo(() => simulateBestFitCoverage({
+  const simulation = useMemo(() => planSmartRecoveryDraft({
+    mode: recoveryMode,
     allowHighWorkloadRisk: simulateHighRisk,
     requirements: (payload?.coverage ?? [])
       .filter((row) => row.gap > 0)
-      .map((row) => ({
-        requirementId: row.requirementId,
-        workDate: row.workDate,
-        gap: row.gap,
-        candidates: (proactiveByRequirement.get(row.requirementId)?.recommendations ?? []).map((candidate) => ({
-          employeeId: candidate.employeeId,
-          employeeName: candidate.employeeName,
-          score: candidate.score,
-          workloadRisk: candidate.workloadRisk,
-        })),
-      })),
-  }), [payload?.coverage, proactiveByRequirement, simulateHighRisk]);
+      .map((row) => {
+        const shift = (payload?.shifts ?? []).find((item) => item.id === row.shiftDefinitionId);
+        let paidMinutes = 0;
+        if (shift) {
+          try {
+            paidMinutes = paidShiftMinutes(shift);
+          } catch {
+            // Invalid shift evidence cannot produce a draft assignment.
+          }
+        }
+        return {
+          requirementId: row.requirementId,
+          workDate: row.workDate,
+          gap: row.gap,
+          startTime: shift?.startTime ?? "",
+          endTime: shift?.endTime ?? "",
+          spansMidnight: shift?.spansMidnight,
+          paidMinutes,
+          candidates: (proactiveByRequirement.get(row.requirementId)?.recommendations ?? []).map((candidate) => ({
+            employeeId: candidate.employeeId,
+            employeeName: candidate.employeeName,
+            score: candidate.score,
+            workloadRisk: candidate.workloadRisk,
+            scheduledMinutesInWindow: candidate.scheduledMinutesInWindow,
+          })),
+        };
+      }),
+  }), [payload?.coverage, payload?.shifts, proactiveByRequirement, recoveryMode, simulateHighRisk]);
 
   return (
     <article className="card" style={{ marginTop: 16 }} data-wfm-coverage>
@@ -736,11 +757,18 @@ export function WorkforceCoveragePanel({
         <article className="card" style={{ margin: 0 }}>
           <div className="card-header">
             <div>
-              <div className="card-kicker">What-if roster simulation</div>
-              <h3>Test recovery before changing the roster.</h3>
-              <p>Simulate filling current coverage gaps with the best governed candidates. This preview never writes schedule changes.</p>
+              <div className="card-kicker">Smart recovery draft · review-first automation</div>
+              <h3>Cover scarce roles first. Avoid double-booking employees.</h3>
+              <p>Draft from eligible candidates and staffing demand. Compare coverage priority with balanced planned hours. Suggestions never change schedules or payroll automatically.</p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                Draft priority
+                <select aria-label="Recovery draft strategy" value={recoveryMode} onChange={(event) => setRecoveryMode(event.target.value as RecoveryMode)}>
+                  <option value="coverage">Maximize coverage</option>
+                  <option value="balanced">Balance planned hours</option>
+                </select>
+              </label>
               <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <input type="checkbox" checked={simulateHighRisk} onChange={(event) => setSimulateHighRisk(event.target.checked)} />
                 Include high workload risk
@@ -756,22 +784,24 @@ export function WorkforceCoveragePanel({
             <Metric label="Current uncovered" value={String(simulation.baselineGap)} hint="recorded staffing gap" icon={<CircleAlert size={16} />} tone={simulation.baselineGap ? "amber" : "mint"} />
             <Metric label="Projected uncovered" value={String(simulation.projectedGap)} hint="after best-fit simulation" icon={<UsersRound size={16} />} tone={simulation.projectedGap ? "amber" : "mint"} />
             <Metric label="Requirements recovered" value={String(simulation.requirementsRecovered)} hint="fully covered in scenario" icon={<UsersRound size={16} />} tone="blue" />
-            <Metric label="Still at risk" value={String(simulation.requirementsStillAtRisk)} hint={simulation.avoidedHighRiskCandidates + " high-risk candidate(s) avoided"} icon={<CircleAlert size={16} />} tone={simulation.requirementsStillAtRisk ? "amber" : "mint"} />
+            <Metric label="Still at risk" value={String(simulation.requirementsStillAtRisk)} hint={simulation.avoidedHighRiskCandidates + " high-risk candidate(s) excluded"} icon={<CircleAlert size={16} />} tone={simulation.requirementsStillAtRisk ? "amber" : "mint"} />
+            <Metric label="Conflicts avoided" value={String(simulation.avoidedConflictingAssignments)} hint="duplicate day or overnight overlap" icon={<ShieldCheck size={16} />} tone="blue" />
           </section>
           <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
             <span>
-              <strong>Governed handoff.</strong> Staging creates pending open-shift claims only. It does not change the roster.
+              <strong>Review-first automation.</strong> Drafts avoid proposed double bookings and overnight overlaps; staging creates pending claims only, not a published roster.
               Each approval rechecks the live staffing gap, job profile, skills/credentials, worksite eligibility, leave,
               availability, current schedule, and blocking schedule guardrails before an override can be created.
             </span>
           </div>
+          {simulation.limitedToFiftyClaims && <div className="notice notice-amber" style={{ margin: "0 18px 18px" }}>Draft is capped at 50 claims. Re-plan remaining gaps after review.</div>}
           {simulation.fills.length > 0 ? (
             <div className="policy-lines" style={{ padding: "0 18px 18px" }}>
               {simulation.fills.slice(0, 12).map((fill) => (
                 <span key={fill.requirementId + "-" + fill.employeeId}>
                   <b>{fill.workDate} · Requirement #{fill.requirementId}</b>
                   <small style={{ display: "block", color: "var(--muted)" }}>
-                    {fill.employeeName} · score {fill.score} · {fill.workloadRisk} workload risk
+                    {fill.employeeName} · score {fill.score} · {fill.workloadRisk} workload risk · projected {(fill.projectedWindowMinutes / 60).toFixed(1)}h
                   </small>
                 </span>
               ))}
