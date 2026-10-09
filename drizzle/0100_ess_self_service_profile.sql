@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS ess_employee_photos (
   organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   mime_type varchar(24) NOT NULL CHECK (mime_type IN ('image/jpeg','image/png')),
   byte_size integer NOT NULL CHECK (byte_size > 0 AND byte_size <= 524288),
-  photo_base64 text NOT NULL,
+  sealed_photo text NOT NULL,
   content_sha256 varchar(64) NOT NULL,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
