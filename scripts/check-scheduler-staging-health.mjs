@@ -27,6 +27,21 @@ export function checkStagingDeployment(httpStatus, payload, expectedSha) {
   return {ok:true};
 }
 
+export function validateExpectedSchedulerState(mode) {
+  if (mode !== "enabled" && mode !== "disabled") {
+    throw new Error("Expected scheduler state must be explicitly enabled or disabled.");
+  }
+  return mode;
+}
+
+// 503 is a PASS only during a deliberate, read-only disabled-state rehearsal.
+export function checkDisabledSchedulerResponse(status, payload) {
+  return status === 503 && payload && typeof payload === "object" &&
+    !Array.isArray(payload) && payload.ok === false && payload.state === "scheduler-disabled"
+    ? {ok:true,state:"disabled-as-expected"}
+    : {ok:false,reason:"expected-disabled-state-not-observed"};
+}
+
 export function checkSchedulerResponse(httpStatus, payload, now = new Date()) {
   if (httpStatus !== 200 || !payload || typeof payload !== "object" || Array.isArray(payload)) {
     return { ok: false, reason: "missing-or-unhealthy-scheduler" };
@@ -62,6 +77,7 @@ export async function main(env = process.env, fetcher = fetch, now = new Date())
   if (!env.PAYROLL_STAGING_MONITOR_TOKEN || env.PAYROLL_STAGING_MONITOR_TOKEN.length < 32) {
     throw new Error("A dedicated read-only staging monitor token of at least 32 characters must be configured.");
   }
+  const expectedState = validateExpectedSchedulerState(env.PAYROLL_STAGING_EXPECTED_SCHEDULER_STATE);
   const expectedSha = env.PAYROLL_STAGING_EXPECTED_COMMIT_SHA;
   if (typeof expectedSha !== "string" || !/^[0-9a-f]{40}$/i.test(expectedSha)) {
     throw new Error("An exact 40-character staging deployment SHA must be pinned before monitoring.");
@@ -93,19 +109,25 @@ export async function main(env = process.env, fetcher = fetch, now = new Date())
       cache: "no-store",
       signal: AbortSignal.timeout(10000),
     });
-    if (response.status === 200 && response.headers.get("content-type")?.includes("application/json")) {
-      // Do not log the raw response or headers: they may contain operational metadata.
+    if ((response.status === 200 || response.status === 503) &&
+        response.headers.get("content-type")?.includes("application/json")) {
+      // 503 JSON is expected for an intentionally disabled scheduler.
+      // Never copy the response or headers into logs or job summaries.
       payload = await response.json();
     }
   }
   const verdict = deployment.ok
-    ? checkSchedulerResponse(response.status, payload, now)
+    ? expectedState === "disabled"
+      ? checkDisabledSchedulerResponse(response.status, payload)
+      : checkSchedulerResponse(response.status, payload, now)
     : {ok:false,reason:"staging-deployment-not-verified"};
   // Persist only fixed, reviewed text. Never write upstream HTTP codes,
   // headers or parsed JSON (even if the response is from an allowlisted host).
-  const fixedSummary = verdict.ok
-    ? "## Payroll staging scheduler — read-only verification\n\nOutcome: PASS (recent scheduler health observed)\n\nThis is not approval for production payroll or worker activation.\n"
-    : "## Payroll staging scheduler — read-only verification\n\nOutcome: FAIL (staging health could not be verified)\n\nDo not activate production payroll jobs. Review protected staging diagnostics.\n";
+  const fixedSummary = !verdict.ok
+    ? "## Payroll staging scheduler — read-only verification\n\nOutcome: FAIL (expected staging scheduler state not observed)\n\nDo not activate production payroll jobs. Review protected staging diagnostics.\n"
+    : expectedState === "disabled"
+      ? "## Payroll staging scheduler — read-only verification\n\nOutcome: PASS (scheduler disabled as expected)\n\nThis is not approval to activate production payroll.\n"
+      : "## Payroll staging scheduler — read-only verification\n\nOutcome: PASS (recent scheduler health observed)\n\nThis is not approval for production payroll or worker activation.\n";
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, fixedSummary);
   process.stdout.write(fixedSummary);
   if (!verdict.ok) process.exitCode = 1;

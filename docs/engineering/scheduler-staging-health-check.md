@@ -25,3 +25,16 @@ A GitHub Advanced Security review identified a network-to-file information-flow 
 ### Preflight deployment pinning
 
 Before supplying the monitor token, the script now calls the existing, **public read-only** `GET /api/readiness/deployment` endpoint with no credential. It requires an exact SHA match to `PAYROLL_STAGING_EXPECTED_COMMIT_SHA` and a nonproduction `preview` or `staging` runtime. It refuses to request the authenticated health endpoint at all when the SHA is missing/mismatched, the deployment identifies itself as `production`, or the preflight is unavailable. An authorized operator must set the expected SHA to the exact inspected staged build after each update; do not derive it from an arbitrary PR number or assume that a CI green head has been deployed. This is evidence of deployed source identity, not proof that the separately hosted dedicated worker is alive.
+
+
+## Manual scheduler activation / kill-switch staging evidence (OFF → ON → OFF)
+
+The protected `workflow_dispatch` job now requires `expected_scheduler_state` to be selected as exactly **disabled** or **enabled**. The workflow remains read-only: it **never** invokes `POST /api/jobs/tick`, starts a worker, changes scheduler flags or accesses real employee data. Both modes first verify the expected deployed backend SHA by an unauthenticated GET to `/api/readiness/deployment`; the monitor-only token is sent to the allowlisted staging `GET /api/jobs/status` only after that check passes.
+
+For a genuinely isolated synthetic-data staging tenant and an independently approved rehearsal, the authorized operator should:
+
+- Set `CENTRAL_SCHEDULER_ENABLED=false` on the staging runtime and dispatch **disabled**. The job passes only if the authenticated status GET returns HTTP **503** with JSON `{ "ok": false, "state": "scheduler-disabled" }`. This is **evidence of the expected OFF state**, never evidence the scheduler is healthy.
+- Independently authorize and configure `CENTRAL_SCHEDULER_ENABLED=true` on the isolated staging runtime and run a separately controlled worker/cron. Dispatch **enabled**. The job passes only if the endpoint returns HTTP **200**, a recent completed central scheduler tick, and a consistent valid lease state.
+- Turn `CENTRAL_SCHEDULER_ENABLED=false` again without clearing prior successful receipt records. Dispatch **disabled**. The job must once again observe HTTP 503 and `scheduler-disabled` even when a recent success receipt still exists.
+
+Retain all **three actual GitHub Actions run IDs**, deployed build SHA, operator identity, observed timestamps and the independently witnessed worker restart / alert evidence in the private operations register. The job summary contains **fixed reviewed PASS/FAIL text only**, never upstream response bodies, headers, tokens, hostnames or payroll information. Selecting the wrong expected state fails the job. A series of three observations is **not** a substitute for actual two-worker topology, notification delivery, restarts, downstream idempotency, payroll reconciliation or independent review under #637. Do not enable this scheduler on real employees just to complete an acceptance exercise.

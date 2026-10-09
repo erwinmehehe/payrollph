@@ -7,6 +7,14 @@ on:
       - "tests/scheduler-staging-health.test.mjs"
       - ".github/workflows/scheduler-staging-health.yml"
   workflow_dispatch:
+    inputs:
+      expected_scheduler_state:
+        description: "Read-only expectation: no scheduler job execution"
+        type: choice
+        required: true
+        options:
+          - disabled
+          - enabled
 
 permissions:
   contents: read
@@ -43,6 +51,7 @@ jobs:
           PAYROLL_STAGING_URL: ${{ vars.PAYROLL_STAGING_URL }}
           PAYROLL_STAGING_EXPECTED_HOST: ${{ vars.PAYROLL_STAGING_EXPECTED_HOST }}
           PAYROLL_STAGING_EXPECTED_COMMIT_SHA: ${{ vars.PAYROLL_STAGING_EXPECTED_COMMIT_SHA }}
+          PAYROLL_STAGING_EXPECTED_SCHEDULER_STATE: ${{ inputs.expected_scheduler_state }}
           PAYROLL_PRODUCTION_HOST: ${{ vars.PAYROLL_PRODUCTION_HOST }}
           PAYROLL_STAGING_MONITOR_TOKEN: ${{ secrets.PAYROLL_STAGING_MONITOR_TOKEN }}
         run: node scripts/check-scheduler-staging-health.mjs
