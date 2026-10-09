@@ -13,7 +13,7 @@ import {
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
-import { effectiveHcmSourceDrift } from "@/lib/hcm-effective-source-integrity";
+import { effectiveHcmSourceDrift, effectiveHcmTargetDrift } from "@/lib/hcm-effective-source-integrity";
 import { applyWorkerEffectiveChange, philippineBusinessDate } from "@/lib/hcm-effective-changes";
 import {
   cancelHcmBusinessProcessForSourceTx,
@@ -688,6 +688,22 @@ export async function PATCH(request: Request) {
       field: sourceDrift.field,
       error: sourceDrift.message,
       nextAction: "Cancel the stale change and request a fresh independent HCM approval.",
+    }, { status: 409 });
+  }
+
+  const targetPositionForRetry = change.targetPositionId
+    ? (await db.select().from(positions).where(and(
+        eq(positions.id, change.targetPositionId),
+        eq(positions.organizationId, change.organizationId),
+      )).limit(1))[0] ?? null
+    : null;
+  const targetDrift = effectiveHcmTargetDrift(change.toSnapshot, targetPositionForRetry);
+  if (targetDrift) {
+    return Response.json({
+      code: targetDrift.code,
+      field: targetDrift.field,
+      error: targetDrift.message,
+      nextAction: "Cancel the stale change and obtain a new approved destination/position.",
     }, { status: 409 });
   }
 
