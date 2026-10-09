@@ -55,8 +55,10 @@ salary revisions and original government filings stay unchanged.
 ## Rollout and high-stakes verification
 
 1. Apply `drizzle/0101_reviewed_payroll_underpayments.sql` to a staging clone
-   with full backup/migration rehearsal; new databases include it in
-   `drizzle/baseline.sql`. No production migration should run automatically.
+   with full backup/migration rehearsal. The historical `drizzle/baseline.sql`
+   must remain immutable; for a fresh DB, `db:push` creates the current full
+   schema, or apply the historical baseline followed by the new additive
+   migration. No production migration should run automatically.
 2. Run exact-head CI with PostgreSQL 16, the full TypeScript/Node/build checks,
    revenue/tax/payroll goldens, dependency security checks and backup rehearsal.
 3. Test maker/checker separation with two separate accounts, independent MFA,
