@@ -52,6 +52,19 @@ DBA-signed inventory of the actual installed production schema.
 - [ ] Separate privacy/DPO, payroll-domain, labor/legal, security and employer
       approval before any employee data or live financial operation.
 
+## Separate payroll-math protection — PR #668
+
+The strict Payout/Payroll Isolation CI policy detected that the earlier
+combined candidate included both a payout/banking test and changes to the
+protected gross-to-net `src/lib/payroll-engine.ts`. **Do not weaken that
+policy.** The legacy loan numeric fail-closed calculation has been isolated
+in **draft #668**, which retains its own pure validation helper and independent
+tests. This financial-governance candidate carries the approval workflow and
+helper but **does not include the new payroll engine call-site**. Its loan
+activation stays default OFF, and the combined financial/payout release
+must remain **NO-GO** until #668 is independently reviewed, landed on main,
+and re-verified against the fully synchronized #666 head.
+
 ## Activation and production prohibition
 
 Keep `PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED=false` and all other
