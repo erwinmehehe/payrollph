@@ -40,6 +40,7 @@ export const saasBillingState = pgTable("saas_billing_state", {
   providerPlanId: varchar("provider_plan_id", { length: 180 }),
   lastPaidCycleId: varchar("last_paid_cycle_id", { length: 180 }),
   paidThrough: timestamp("paid_through", { withTimezone: true }),
+  recoveryUrl: text("recovery_url"),
   cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
