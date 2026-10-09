@@ -38,3 +38,18 @@ A valid JSON manifest is **not** authenticated by the script. GitHub run IDs, re
 ## Open release gates
 
 The full gate in issue #637 remains OPEN until actual isolated staged worker/cron operation, independent two-worker failover and restart observation, task idempotency, watchdog alerting and real employer payroll evidence where required. Compensation, database, security, bank, privacy and payroll-specific approvals (#630, #112 and #579) remain independent and cannot be replaced with a structured file or synthetic CI check.
+
+
+## Optional operator-only verification of real GitHub Actions run provenance
+
+Once **actual** independent OFF / ON / OFF staging observations have been recorded privately, an authorized operator may verify the referenced GitHub runs using a **fine-grained Actions:read-only** token supplied in their credential manager as `GH_TOKEN`. Do not pass the token as a CLI argument or store it in a repository, GitHub PR workflow, job artifact, evidence manifest, or support ticket.
+
+Run this from the repository root with Node.js 22 or later:
+
+`node scripts/verify-scheduler-github-runs.mjs /private/path/staging-observations.json`
+
+The verifier first applies the strict offline manifest checks, then makes bounded, nonredirecting, read-only GitHub REST GET requests to the repository's workflow-run, workflow, job and **review-history** endpoints. It requires three distinct successful manually dispatched runs on protected `main`, the correct workflow identity/revision, a successful read-only staging-monitor job, and GitHub's record of an `approved` `payroll-staging` environment review **from a reviewer different from the dispatching actor**. It rejects missing or rejected staging reviews, malformed/oversized responses, reruns, wrong branches, mismatched job SHAs and inaccessible GitHub approval records.
+
+This is **historical GitHub approval evidence**, not independent review of the application code, proof of current environment protection, confirmation of a selected OFF/ON input if GitHub omits that field, correct deployed backend SHA, real multi-worker behavior or authority to pay employees. Reviewers must independently inspect run pages, current environment protections, the actual staging worker, approval identities, compensation idempotency and all open payroll release gates in #637, #630, #112 and #579.
+
+The existing `Scheduler Staging Evidence Validator (Offline)` PR/push workflow now executes both test suites with **mocked** GitHub responses only. It has read-only repository permissions, pinned actions, **no GH_TOKEN**, no contact with staging and no manual dispatch; real operator evidence remains outside the repository.
