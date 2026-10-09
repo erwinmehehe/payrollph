@@ -39,7 +39,9 @@ test("leave interval revisions preserve old evidence and stale timesheets", () =
   const route = read("src/app/api/leave/route.ts");
   assert.ok(route.includes('action === "revise_intervals"'));
   assert.ok(route.includes('status: "superseded"'));
-  assert.ok(route.includes("markTimesheetsStaleForEmployeeRange"));
+  assert.ok(route.includes("tx.update(workforceTimesheets)"));
+  assert.ok(route.includes("for update"));
+  assert.ok(route.includes("tx.insert(auditEvents)"));
   assert.ok(route.includes("nextRevision"));
 });
 

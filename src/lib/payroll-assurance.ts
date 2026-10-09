@@ -272,7 +272,7 @@ export function evaluatePayrollAssurance(
     // legally payable night, holiday, rest-day or overtime premium bucket.
     // Do not allow a checker to approve guessed premium allocation.
     const ambiguousPremium = flags.find((flag) =>
-      /premium allocation requires review|premium allocation was not inferred|calendar-boundary pricing was not applied|verify split\/shift attendance before release/i.test(flag)
+      /WFM_PREMIUM_ALLOCATION_UNVERIFIED|premium allocation requires review|premium allocation was not inferred|calendar-boundary pricing was not applied|verify split\/shift attendance before release/i.test(flag)
     );
     if (ambiguousPremium) {
       findings.push({
