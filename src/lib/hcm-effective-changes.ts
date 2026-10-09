@@ -12,7 +12,7 @@ import {
   workerEffectiveChanges,
   workerEmploymentEvents,
 } from "@/db/schema";
-import { effectiveHcmSourceDrift } from "@/lib/hcm-effective-source-integrity";
+import { effectiveHcmSourceDrift, effectiveHcmTargetDrift } from "@/lib/hcm-effective-source-integrity";
 import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automation";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
@@ -100,6 +100,22 @@ export async function applyWorkerEffectiveChange(
         isNull(positionAssignments.effectiveUntil),
       )).limit(1);
 
+      // Lock both reviewed positions in a deterministic order before
+      // reading them. This blocks conflicting position-master edits until
+      // the worker/assignment/audit transaction completes.
+      const lockedPositionIds = [...new Set([
+        currentAssignment?.positionId,
+        change.targetPositionId,
+      ].filter((id): id is number => typeof id === "number"))].sort((a, b) => a - b);
+      if (lockedPositionIds.length > 0) {
+        await tx.execute(sql`
+          SELECT id FROM positions
+          WHERE organization_id = ${change.organizationId}
+            AND id IN (${sql.join(lockedPositionIds.map(id => sql`${id}`), sql`, `)})
+          ORDER BY id FOR UPDATE
+        `);
+      }
+
       const currentPosition = currentAssignment
         ? (await tx.select().from(positions).where(and(
             eq(positions.id, currentAssignment.positionId),
@@ -130,6 +146,11 @@ export async function applyWorkerEffectiveChange(
             eq(positions.organizationId, change.organizationId),
           )).limit(1))[0] ?? null
         : null;
+
+      const targetDrift = effectiveHcmTargetDrift(change.toSnapshot, targetPosition);
+      if (targetDrift) {
+        throw new Error(`${targetDrift.code}: ${targetDrift.message}`);
+      }
 
       if (change.targetPositionId && !targetPosition) {
         throw new Error("The scheduled target position no longer exists.");
