@@ -13,6 +13,17 @@ import {
   payrollSourceFingerprint, validCalendarDate,
 } from "../src/lib/payroll-underpayment";
 
+/** Drizzle wraps node-postgres constraint errors; inspect the SQLSTATE from cause. */
+function pgCode(error: unknown): string | undefined {
+  let current: unknown = error;
+  for (let i = 0; i < 5 && current && typeof current === "object"; i += 1) {
+    const node = current as { code?: unknown; cause?: unknown };
+    if (typeof node.code === "string" && /^23\\d{3}$/.test(node.code)) return node.code;
+    current = node.cause;
+  }
+  return undefined;
+}
+
 test("underpayments accept exact positive centavos, never floats, negatives or out-of-range amounts", () => {
   for (const [value, cents] of [
     ["0.01", 1], ["0.10", 10], ["1200.00", 120000],
@@ -94,10 +105,10 @@ test("database enforces at most one pending or posted claim per source worker/ru
     const [pending] = await db.insert(payrollUnderpaymentRequests).values(input).returning();
     assert.equal(pending.postedEarningId, null);
     assert.equal(pending.reviewedByUserId, null);
-    await assert.rejects(() => db.insert(payrollUnderpaymentRequests).values(input), /unique|duplicate/i);
+    await assert.rejects(() => db.insert(payrollUnderpaymentRequests).values(input), (err) => pgCode(err) === "23505");
     await assert.rejects(() => db.update(payrollUnderpaymentRequests).set({
       status: "posted",
-    }).where(eq(payrollUnderpaymentRequests.id, pending.id)), /check|violat/i);
+    }).where(eq(payrollUnderpaymentRequests.id, pending.id)), (err) => pgCode(err) === "23514");
     await db.update(payrollUnderpaymentRequests).set({
       status: "rejected", reviewedByUserId: checker.id, reviewedBy: checker.name, reviewedAt: new Date(),
     }).where(eq(payrollUnderpaymentRequests.id, pending.id));
@@ -105,7 +116,7 @@ test("database enforces at most one pending or posted claim per source worker/ru
     assert.ok(newPending.id > pending.id);
     await assert.rejects(() => db.insert(payrollUnderpaymentRequests).values({
       ...input, amount: "-100.00",
-    }), /check|violat/i);
+    }), (err) => pgCode(err) === "23514");
   } finally {
     await db.delete(payrollUnderpaymentRequests).where(eq(payrollUnderpaymentRequests.organizationId, org.id));
     await db.delete(organizations).where(eq(organizations.id, org.id));
