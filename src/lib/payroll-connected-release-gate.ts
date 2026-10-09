@@ -77,6 +77,8 @@ export type ConnectedReleaseInput = {
   calculationStartedAt: Date | string | null;
   calculatedEmployeeIds: number[];
   expectedEmployeeIds: number[];
+  /** True only if the employer's existing timesheet policy enforces approval. */
+  timesheetApprovalRequired?: boolean;
   workerChanges?: DatedWorkerChange[];
   payoutChanges?: PayoutChange[];
   attendanceCorrections?: AttendanceCorrection[];
@@ -229,6 +231,14 @@ export function evaluatePayrollConnectedRelease(input: ConnectedReleaseInput): C
   for (const row of timesheetByEmployee.values()) {
     if (lower(row.status) !== "approved") add("WFM_LATEST_TIMESHEET_NOT_APPROVED",
       "WFM", "blocker", "The latest timesheet is not approved for this cutoff.", row.employeeId, row.id);
+  }
+  if (input.timesheetApprovalRequired) {
+    for (const employeeId of enrolled) {
+      if (!timesheetByEmployee.has(employeeId)) {
+        add("WFM_TIMESHEET_MISSING", "WFM", "blocker",
+          "The employer's active block-mode timesheet policy requires an approved timesheet for every payroll employee.", employeeId);
+      }
+    }
   }
 
   for (const row of input.compensationProposals ?? []) {
