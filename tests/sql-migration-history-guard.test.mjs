@@ -51,3 +51,20 @@ test("gaps inside one branch are blocked until all preceding SQL is present",()=
   assert.equal(r.errors.length,1);
   assert.match(r.errors[0],/expected drizzle\/0101_/);
 });
+
+test("a loan 0103 requires predecessors and cannot shadow compensation 0100", () => {
+  const nextLoan = "drizzle/0103_independent_employee_loan_deductions.sql";
+  const missing = analyzeMigrationChanges(base, [{ status: "A", path: nextLoan }]);
+  assert.equal(missing.errors.length, 1);
+  assert.match(missing.errors[0], /expected drizzle\/0100_/);
+  const ordered = analyzeMigrationChanges(base, [
+    { status: "A", path: nextLoan },
+    { status: "A", path: "drizzle/0102_final_pay_maker_checker.sql" },
+    { status: "A", path: "drizzle/0100_compensation_automation_intents.sql" },
+    { status: "A", path: "drizzle/0101_reviewed_payroll_underpayments.sql" },
+  ]);
+  assert.deepEqual(ordered.errors, []);
+  const preapproved = [...base, "drizzle/0100_compensation_automation_intents.sql",
+    "drizzle/0101_reviewed_payroll_underpayments.sql", "drizzle/0102_final_pay_maker_checker.sql"];
+  assert.deepEqual(analyzeMigrationChanges(preapproved, [{status:"A", path: nextLoan}]).errors, []);
+});

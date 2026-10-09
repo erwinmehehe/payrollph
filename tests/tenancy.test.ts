@@ -212,7 +212,6 @@ test("payroll run lifecycle cannot cross organization-unit boundaries", () => {
 
 test("employee money and final-pay workflows enforce organization-unit scope", () => {
   for (const path of [
-    "src/app/api/loans/route.ts",
     "src/app/api/earned-wage/route.ts",
     "src/app/api/de-minimis/route.ts",
     "src/app/api/separation/route.ts",
@@ -222,6 +221,16 @@ test("employee money and final-pay workflows enforce organization-unit scope", (
     assert.ok(source.includes("getAccess("), `${path} must resolve organization-unit access`);
     assert.ok(source.includes("assertScope"), `${path} must reject out-of-unit employee mutations`);
   }
+
+  // The loan endpoint intentionally requires company-wide payroll authority
+  // for every money-bearing mutation rather than permitting unit-scoped edits.
+  // Reading remains tenant-isolated and, where permitted, unit-filtered.
+  const loans = read("src/app/api/loans/route.ts");
+  assert.ok(loans.includes("getAccess("), "loan actions must resolve membership");
+  assert.ok(loans.includes("!access?.companyWide"), "loan mutations must deny scoped users");
+  assert.ok(loans.includes("eq(employeeLoans.organizationId, organizationId)"), "loan reads must stay in tenant");
+  assert.ok(loans.includes("eq(employeeLoans.organizationId, loan.organizationId)"), "loan decisions must use resource's tenant");
+  assert.ok(loans.includes("eq(employees.orgUnitId, access.orgUnitId!)"), "scoped reads must filter the worker's unit");
 
   const separation = read("src/app/api/separation/route.ts");
   assert.ok(separation.includes("requireSensitiveActionMfa"));

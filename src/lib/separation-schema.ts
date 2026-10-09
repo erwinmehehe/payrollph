@@ -22,6 +22,9 @@ export function ensureSeparationSchema() {
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS approved_at timestamptz');
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS released_at timestamptz');
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS release_reference varchar(160)');
+      await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS prepared_by_user_id integer REFERENCES users(id) ON DELETE SET NULL');
+      await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS approved_by_user_id integer REFERENCES users(id) ON DELETE SET NULL');
+      await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS released_by_user_id integer REFERENCES users(id) ON DELETE SET NULL');
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");

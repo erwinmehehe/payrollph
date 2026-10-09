@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, isNull, like, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   employeeLoans,
   employeePayProfiles,
   employees,
@@ -28,21 +29,35 @@ import {
   PAYROLL_RELEASE_ROLES,
   PEOPLE_PAYROLL_ROLES,
 } from "@/lib/access";
-import { recordAuditEvent } from "@/lib/audit";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
 import { computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "@/lib/final-pay";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
-import { requireSensitiveActionMfa } from "@/lib/security-request";
+import { enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { runLifecycleAutomations } from "@/lib/automation";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
 import { freezeSeparationIntent, separationEvidenceFromDefinition, separationIntentFingerprint, type HcmSeparationIntent } from "@/lib/hcm-separation-business-process";
+import {
+  FINAL_PAY_CONCURRENT_SOURCE_CONFLICT,
+  isRetryableFinalPayConflict,
+} from "@/lib/final-pay-transaction-guard";
+import {
+  expectedFinalPaySourceAfterInitiation,
+  finalPaySourceFingerprint as fingerprint,
+} from "@/lib/final-pay-source-fingerprint";
 
 export const dynamic = "force-dynamic";
 
-const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+function validSeparationDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+function todayPh() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
+}
 const money = (value: number) => (Math.round((value + Number.EPSILON) * 100) / 100).toFixed(2);
 
 function nonNegative(value: unknown, label: string) {
@@ -55,27 +70,36 @@ async function loadFinalPaySources(input: {
   organizationId: number;
   employeeId: number;
   lastDay: string;
-}) {
-  await Promise.all([
-    ensureEmployeePayProfiles(input.organizationId),
-    ensureMigrationSchema(),
-    ensureSeparationSchema(),
-  ]);
+}, options: {
+  executor?: Pick<typeof db, "select">;
+  skipSchemaSetup?: boolean;
+} = {}) {
+  // Schema DDL/bootstrap must complete outside the financial transaction.
+  // Inside a serializable transaction use the transaction-bound reader for
+  // every component of the source ledger, never a separate pooled query.
+  if (!options.skipSchemaSetup) {
+    await Promise.all([
+      ensureEmployeePayProfiles(input.organizationId),
+      ensureMigrationSchema(),
+      ensureSeparationSchema(),
+    ]);
+  }
+  const reader = options.executor ?? db;
 
   const taxYear = Number(input.lastDay.slice(0, 4));
-  const [employee] = await db.select().from(employees).where(and(
+  const [employee] = await reader.select().from(employees).where(and(
     eq(employees.id, input.employeeId),
     eq(employees.organizationId, input.organizationId),
   )).limit(1);
   if (!employee) throw new Error("Employee not found in this organization.");
 
-  const [payProfile] = await db.select().from(employeePayProfiles).where(and(
+  const [payProfile] = await reader.select().from(employeePayProfiles).where(and(
     eq(employeePayProfiles.employeeId, input.employeeId),
     eq(employeePayProfiles.organizationId, input.organizationId),
   )).limit(1);
   if (!payProfile) throw new Error("Employee pay profile is missing. Configure it before computing final pay.");
 
-  const released = await db.select({
+  const released = await reader.select({
     runId: payrollRuns.id,
     entryId: payrollEntries.id,
     periodStart: payrollRuns.periodStart,
@@ -95,7 +119,7 @@ async function loadFinalPaySources(input: {
       lte(payrollRuns.periodEnd, input.lastDay),
     ));
 
-  const crossing = await db.select({ id: payrollRuns.id, periodLabel: payrollRuns.periodLabel })
+  const crossing = await reader.select({ id: payrollRuns.id, periodLabel: payrollRuns.periodLabel })
     .from(payrollEntries)
     .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
     .where(and(
@@ -113,14 +137,14 @@ async function loadFinalPaySources(input: {
     );
   }
 
-  const historical = await db.select().from(historicalPayrollEntries).where(and(
+  const historical = await reader.select().from(historicalPayrollEntries).where(and(
     eq(historicalPayrollEntries.organizationId, input.organizationId),
     eq(historicalPayrollEntries.employeeId, input.employeeId),
     sql`extract(year from ${historicalPayrollEntries.payDate}) = ${taxYear}`,
     lte(historicalPayrollEntries.payDate, input.lastDay),
   ));
 
-  const loans = await db.select().from(employeeLoans).where(and(
+  const loans = await reader.select().from(employeeLoans).where(and(
     eq(employeeLoans.organizationId, input.organizationId),
     eq(employeeLoans.employeeId, input.employeeId),
     eq(employeeLoans.status, "active"),
@@ -195,41 +219,6 @@ async function loadFinalPaySources(input: {
   };
 }
 
-function fingerprint(sources: Awaited<ReturnType<typeof loadFinalPaySources>>) {
-  return {
-    employeeStatus: sources.employee.status,
-    employeeBasicRate: Number(sources.employee.basicRate),
-    payProfile: {
-      payBasis: sources.payProfile.payBasis,
-      rateAmount: Number(sources.payProfile.rateAmount),
-      standardWorkDaysPerMonth: Number(sources.payProfile.standardWorkDaysPerMonth),
-      standardHoursPerDay: Number(sources.payProfile.standardHoursPerDay),
-      updatedAt: sources.payProfile.updatedAt?.toISOString?.() ?? String(sources.payProfile.updatedAt),
-    },
-    released: sources.released.map((row) => ({
-      runId: row.runId,
-      entryId: row.entryId,
-      grossPay: Number(row.grossPay),
-      periodEnd: String(row.periodEnd),
-      lineItems: row.lineItems,
-      trace: row.trace,
-    })),
-    historical: sources.historical.map((row) => ({
-      id: row.id,
-      grossPay: Number(row.grossPay),
-      basicSalary: row.basicSalary == null ? null : Number(row.basicSalary),
-      thirteenthMonth: Number(row.thirteenthMonth),
-      taxWithheld: Number(row.taxWithheld),
-      payDate: String(row.payDate),
-    })),
-    loans: sources.loans.map((loan) => ({
-      id: loan.id,
-      remainingBalance: Number(loan.remainingBalance),
-      status: loan.status,
-    })),
-  };
-}
-
 function sameSnapshot(left: unknown, right: unknown) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
@@ -267,6 +256,8 @@ export async function GET(request: Request) {
     .orderBy(desc(separationRecords.id));
 
   return Response.json({
+    currentUserId: user.id,
+    manualReleaseEnabled: process.env.FINAL_PAY_MANUAL_RELEASE_ENABLED === "true",
     separations: records.map(({ sep, employee }) => ({
       ...sep,
       employeeName: `${employee.firstName} ${employee.lastName}`,
@@ -305,7 +296,7 @@ export async function POST(request: Request) {
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
-  if (!Number.isInteger(employeeId) || !datePattern.test(noticeDate) || !datePattern.test(lastDay)) {
+  if (!Number.isInteger(employeeId) || !validSeparationDate(noticeDate) || !validSeparationDate(lastDay)) {
     return Response.json({ error: "employeeId, noticeDate and lastDay are required." }, { status: 400 });
   }
   if (employmentTermDecisionId !== null && !Number.isInteger(employmentTermDecisionId)) {
@@ -488,7 +479,12 @@ export async function POST(request: Request) {
     });
 
     const dueDate = finalPayDueDate(lastDay);
-    const sourceFingerprint = fingerprint(sources);
+    const sourceFingerprintBeforeSeparation = fingerprint(sources);
+    // The computed package is applied together with the intentional status
+    // transition to Separating. Store that AFTER-state as the next checker
+    // approval fingerprint, but recheck the original BEFORE-state in this
+    // creation transaction to detect concurrent external changes.
+    const sourceFingerprint = expectedFinalPaySourceAfterInitiation(sourceFingerprintBeforeSeparation);
     const computationSnapshot = {
       rule: "13th month = total basic salary earned in calendar year / 12, less 13th month already paid",
       taxRuleVersion: "PH-2026.03",
@@ -598,25 +594,25 @@ export async function POST(request: Request) {
           initiatedByName: user.name,
           sourceEvidence: { ...freezeSeparationIntent(separationIntent) },
         });
-        return { instance, submitted: true };
-      });
-      separationProcess = review.instance;
-      if (review.submitted) {
-        await recordAuditEvent({
+        // The HCM termination request and actor audit must commit together.
+        // An audit storage failure rolls back the pending termination intent.
+        await tx.insert(auditEvents).values({
           organizationId,
           actor: user.name,
           action: "Separation intent submitted to HCM business process",
           resource: `Employee #${employeeId}`,
           metadata: {
             employeeId,
-            businessProcessInstanceId: separationProcess.id,
+            businessProcessInstanceId: instance.id,
             noticeDate,
             lastDay,
             separationType,
             intentFingerprint,
           },
         });
-      }
+        return { instance, submitted: true };
+      });
+      separationProcess = review.instance;
       if (separationProcess.status !== "approved") {
         return Response.json({
           approvalRequired: true,
@@ -632,10 +628,34 @@ export async function POST(request: Request) {
     }
 
     const created = await db.transaction(async (tx) => {
+      // Both initial packages and recomputations share the employee lifecycle
+      // lock; old approvals cannot be silently overwritten during review.
+      await tx.execute(sql`select pg_advisory_xact_lock(4106, ${employeeId})`);
+      // Rebuild all financial source evidence using this transaction's own
+      // repeatable snapshot. An update since the initial form read makes the
+      // source/approval evidence stale and aborts without changing the worker.
+      const transactionSources = await loadFinalPaySources(
+        { organizationId, employeeId, lastDay },
+        { executor: tx as unknown as Pick<typeof db, "select">, skipSchemaSetup: true },
+      );
+      if (!sameSnapshot(sourceFingerprintBeforeSeparation, fingerprint(transactionSources))) {
+        throw new Error("FINAL_PAY_SOURCE_CHANGED: a payroll, pay-profile, imported-history or loan record changed before final-pay computation.");
+      }
+      if (!newSeparation && existingOpen && existingOpen.status !== "released") {
+        await tx.execute(sql`select id from separation_records where id = ${existingOpen.id} and organization_id = ${organizationId} for update`);
+        const [freshPackage] = await tx.select().from(separationRecords).where(and(
+          eq(separationRecords.id, existingOpen.id),
+          eq(separationRecords.organizationId, organizationId),
+        )).limit(1);
+        if (!freshPackage || freshPackage.status !== existingOpen.status
+          || JSON.stringify(freshPackage.computationSnapshot) !== JSON.stringify(existingOpen.computationSnapshot)
+          || freshPackage.approvedByUserId !== existingOpen.approvedByUserId) {
+          throw new Error("Final-pay approval or computation changed during recomputation. Refresh and reconcile.");
+        }
+      }
       if (newSeparation) {
         // Serialize initiation and claim the approved intent before any employee
         // status or final-pay source record may be changed.
-        await tx.execute(sql`select pg_advisory_xact_lock(4106, ${employeeId})`);
         const [liveEmployee] = await tx.select({
           status: employees.status,
           orgUnitId: employees.orgUnitId,
@@ -698,6 +718,10 @@ export async function POST(request: Request) {
         status: "draft",
         approvedAt: null,
         releasedAt: null,
+        releaseReference: null,
+        preparedByUserId: user.id,
+        approvedByUserId: null,
+        releasedByUserId: null,
       } as const;
 
       let record: typeof separationRecords.$inferSelect;
@@ -814,43 +838,43 @@ export async function POST(request: Request) {
           )).returning({ id: hcmBusinessProcessInstances.id });
         if (!claimed) throw new Error("Separation approval changed before it could be applied.");
       }
+      await tx.insert(auditEvents).values({
+        organizationId,
+        actor: user.name,
+        action: existingOpen && existingOpen.status !== "released"
+            ? "Separation final pay recomputed"
+            : "Separation final pay computed",
+          resource: `${sources.employee.firstName} ${sources.employee.lastName} (Final Pay: PHP ${result.netFinalPay.toFixed(2)})`.slice(0, 160),
+          metadata: {
+            separationId: record.id,
+            preparedByUserId: user.id,
+            businessProcessInstanceId: separationProcess?.id ?? null,
+            lastDay,
+            finalPayDueDate: dueDate,
+            basicSalaryEarnedYtd: result.basicSalaryEarnedYtd,
+            thirteenthEntitlement: result.thirteenthEntitlement,
+            thirteenthAlreadyPaid: result.thirteenthPaidYtd,
+            thirteenthDue: result.thirteenthDue,
+            unpaidBasicSalary,
+            leaveMonetizationPay,
+            leaveTaxReviewed,
+            leaveMonetizationTaxExempt,
+            separationPay,
+            retirementPay,
+            separationPayTaxExempt,
+            retirementPayTaxExempt,
+            otherBenefits,
+            finalStatutoryDeductions,
+            finalStatutoryReviewed,
+            taxAdjustment: result.taxAdjustment,
+            requestedLoanDeductions: result.requestedLoanDeductions,
+            loanDeductions: result.loanDeductions,
+            deferredLoanBalance: result.deferredLoanBalance,
+            netFinalPay: result.netFinalPay,
+          },
+        });
       return record;
-    });
-
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: existingOpen && existingOpen.status !== "released"
-        ? "Separation final pay recomputed"
-        : "Separation final pay computed",
-      resource: `${sources.employee.firstName} ${sources.employee.lastName} (Final Pay: ₱${result.netFinalPay.toFixed(2)})`,
-      metadata: {
-        separationId: created.id,
-        businessProcessInstanceId: separationProcess?.id ?? null,
-        lastDay,
-        finalPayDueDate: dueDate,
-        basicSalaryEarnedYtd: result.basicSalaryEarnedYtd,
-        thirteenthEntitlement: result.thirteenthEntitlement,
-        thirteenthAlreadyPaid: result.thirteenthPaidYtd,
-        thirteenthDue: result.thirteenthDue,
-        unpaidBasicSalary,
-        leaveMonetizationPay,
-        leaveTaxReviewed,
-        leaveMonetizationTaxExempt,
-        separationPay,
-        retirementPay,
-        separationPayTaxExempt,
-        retirementPayTaxExempt,
-        otherBenefits,
-        finalStatutoryDeductions,
-        finalStatutoryReviewed,
-        taxAdjustment: result.taxAdjustment,
-        requestedLoanDeductions: result.requestedLoanDeductions,
-        loanDeductions: result.loanDeductions,
-        deferredLoanBalance: result.deferredLoanBalance,
-        netFinalPay: result.netFinalPay,
-      },
-    });
+    }, { isolationLevel: "serializable" });
 
     return Response.json({
       ...created,
@@ -858,9 +882,12 @@ export async function POST(request: Request) {
       businessProcess: separationProcess ? { id: separationProcess.id, status: "applied" } : null,
     }, { status: 201 });
   } catch (error) {
+    if (isRetryableFinalPayConflict(error)) {
+      return Response.json(FINAL_PAY_CONCURRENT_SOURCE_CONFLICT, { status: 409 });
+    }
     return Response.json({
       error: error instanceof Error ? error.message : "Could not compute final pay.",
-    }, { status: error instanceof Error && /changed|already exists|approval|different active separation/i.test(error.message) ? 409 : 422 });
+    }, { status: error instanceof Error && /changed|already exists|approval|different active separation|FINAL_PAY_SOURCE_CHANGED/i.test(error.message) ? 409 : 422 });
   }
 }
 
@@ -906,6 +933,20 @@ export async function PATCH(request: Request) {
   if (action === "approve" || action === "release") {
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return mfaDenied;
+    const limitDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id,
+      action: `separation-final-pay-${action}`,
+      resourceId: id,
+      limit: 5,
+      windowMs: 15 * 60_000,
+    });
+    if (limitDenied) return limitDenied;
+    if (!access.companyWide) {
+      return Response.json({
+        code: "FINAL_PAY_COMPANY_WIDE_REQUIRED",
+        error: "Final-pay approval or release requires company-wide financial authority.",
+      }, { status: 403 });
+    }
   }
 
   if (action === "approve") {
@@ -918,6 +959,14 @@ export async function PATCH(request: Request) {
     if (approvalDenied) return approvalDenied;
   }
   if (action === "release") {
+    // Opt-in only after staged bank reconciliation and independent payroll
+    // signoff. A manually typed bank reference is not settlement proof.
+    if (process.env.FINAL_PAY_MANUAL_RELEASE_ENABLED !== "true") {
+      return Response.json({
+        code: "FINAL_PAY_MANUAL_RELEASE_NOT_CERTIFIED",
+        error: "Manual final-pay release is disabled until independently verified payout procedures, finance controls and the controlled payroll pilot are approved.",
+      }, { status: 409 });
+    }
     const releaseDenied = await assertOrganizationRole(
       user.id,
       sep.organizationId,
@@ -928,33 +977,153 @@ export async function PATCH(request: Request) {
   }
 
   if (action === "clearance") {
-    if (sep.status === "released") return Response.json({ error: "Released final pay is immutable." }, { status: 409 });
-    const itCleared = body.itCleared !== undefined ? Boolean(body.itCleared) : sep.itCleared;
-    const adminCleared = body.adminCleared !== undefined ? Boolean(body.adminCleared) : sep.adminCleared;
-    const financeCleared = body.financeCleared !== undefined ? Boolean(body.financeCleared) : sep.financeCleared;
-    const hrCleared = body.hrCleared !== undefined ? Boolean(body.hrCleared) : sep.hrCleared;
-    const allCleared = itCleared && adminCleared && financeCleared && hrCleared;
-
-    const [updated] = await db.update(separationRecords).set({
-      itCleared,
-      adminCleared,
-      financeCleared,
-      hrCleared,
-      clearanceStatus: allCleared ? "cleared" : "in_progress",
-    }).where(eq(separationRecords.id, id)).returning();
-
-    return Response.json(updated);
+    // A clearance is separate from final-pay approval; it must be a real,
+    // individually evidenced assertion by its authorized department.
+    const fields = ["itCleared", "adminCleared", "financeCleared", "hrCleared"] as const;
+    const changed = fields.filter(field => Object.prototype.hasOwnProperty.call(body, field));
+    if (changed.length !== 1) {
+      return Response.json({
+        error: "Submit exactly one IT, Admin, Finance or HR clearance change per request.",
+        code: "SEPARATION_CLEARANCE_ONE_DISCIPLINE",
+      }, { status: 400 });
+    }
+    const field = changed[0];
+    const requested = body[field];
+    const previous = body.previousValue;
+    const evidenceReference = String(body.clearanceEvidenceReference ?? "").trim();
+    const clearanceReason = String(body.clearanceReason ?? "").trim();
+    if (typeof requested !== "boolean" || typeof previous !== "boolean"
+      || evidenceReference.length < 8 || evidenceReference.length > 200
+      || clearanceReason.length < 12 || clearanceReason.length > 500) {
+      return Response.json({
+        error: "A boolean expected previous value, one boolean clearance change, 8-200 character evidence reference and 12-500 character reason are required.",
+      }, { status: 400 });
+    }
+    const authorizedRoles: Record<typeof field, readonly string[]> = {
+      itCleared: ["owner", "admin"],
+      adminCleared: ["owner", "admin"],
+      financeCleared: ["owner", "admin", "bookkeeper"],
+      hrCleared: ["owner", "admin", "hr"],
+    };
+    if (!authorizedRoles[field].includes(access.role)
+      || (field !== "hrCleared" && !access.companyWide)) {
+      return Response.json({
+        code: "SEPARATION_CLEARANCE_ROLE_REQUIRED",
+        error: "This department's clearance requires its authorized HR, finance or company administration role.",
+      }, { status: 403 });
+    }
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+    const limitDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id, action: "separation-clearance-update",
+      resourceId: `${id}:${field}`, limit: 10, windowMs: 15 * 60_000,
+    });
+    if (limitDenied) return limitDenied;
+    try {
+      const updated = await db.transaction(async tx => {
+        await tx.execute(sql`SELECT id FROM separation_records WHERE id = ${id}
+          AND organization_id = ${sep.organizationId} FOR UPDATE`);
+        const [fresh] = await tx.select().from(separationRecords).where(and(
+          eq(separationRecords.id, id), eq(separationRecords.organizationId, sep.organizationId),
+        )).limit(1);
+        if (!fresh || fresh.status !== "draft") {
+          throw new Error("SEPARATION_CLEARANCE_LOCKED");
+        }
+        if (fresh[field] !== previous) {
+          throw new Error("SEPARATION_CLEARANCE_STALE");
+        }
+        if (requested === previous) return fresh;
+        const next = {
+          itCleared: field === "itCleared" ? requested : fresh.itCleared,
+          adminCleared: field === "adminCleared" ? requested : fresh.adminCleared,
+          financeCleared: field === "financeCleared" ? requested : fresh.financeCleared,
+          hrCleared: field === "hrCleared" ? requested : fresh.hrCleared,
+        };
+        const [row] = await tx.update(separationRecords).set({
+          ...next,
+          clearanceStatus: Object.values(next).every(Boolean) ? "cleared" : "in_progress",
+        }).where(and(
+          eq(separationRecords.id, id),
+          eq(separationRecords.organizationId, sep.organizationId),
+          eq(separationRecords.status, "draft"),
+        )).returning();
+        if (!row) throw new Error("SEPARATION_CLEARANCE_STALE");
+        await tx.insert(auditEvents).values({
+          organizationId: sep.organizationId,
+          actor: user.name,
+          action: "Separation department clearance changed",
+          resource: `Separation #${id}`,
+          metadata: {
+            employeeId: sep.employeeId,
+            clearance: field,
+            previous, newValue: requested,
+            evidenceReference, clearanceReason,
+            actorUserId: user.id,
+            approvedFinalPayReset: false,
+          },
+        });
+        return row;
+      });
+      return Response.json(updated);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "SEPARATION_CLEARANCE_LOCKED" || code === "SEPARATION_CLEARANCE_STALE") {
+        return Response.json({
+          code,
+          error: code === "SEPARATION_CLEARANCE_LOCKED"
+            ? "Only Draft separation clearances can change. An approved or released final-pay package must first use a separately governed revision."
+            : "The clearance changed while it was being reviewed. Reload and verify before retrying.",
+        }, { status: 409 });
+      }
+      throw error;
+    }
   }
 
   if (action === "issue_coe") {
-    const [updated] = await db.update(separationRecords).set({ coeIssued: true })
-      .where(eq(separationRecords.id, id)).returning();
-    await recordAuditEvent({
-      organizationId: sep.organizationId,
-      actor: user.name,
-      action: "Certificate of Employment issued",
-      resource: `Separation #${sep.id}`,
-      metadata: { employeeId: sep.employeeId },
+    if (!["owner", "admin", "hr"].includes(access.role)) {
+      return Response.json({
+        error: "Only authorized HR or company administration can attest that a Certificate of Employment was issued.",
+        code: "COE_HR_AUTHORITY_REQUIRED",
+      }, { status: 403 });
+    }
+    const coeEvidenceReference = String(body.coeEvidenceReference ?? "").trim();
+    if (coeEvidenceReference.length < 8 || coeEvidenceReference.length > 200) {
+      return Response.json({
+        error: "Enter an 8-200 character evidence/delivery reference for a Certificate of Employment actually issued, not merely generated as a draft.",
+      }, { status: 422 });
+    }
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+    const limitDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id, action: "separation-certificate-issue",
+      resourceId: id, limit: 8, windowMs: 15 * 60_000,
+    });
+    if (limitDenied) return limitDenied;
+    const updated = await db.transaction(async tx => {
+      await tx.execute(sql`SELECT id FROM separation_records WHERE id = ${id}
+        AND organization_id = ${sep.organizationId} FOR UPDATE`);
+      const [fresh] = await tx.select().from(separationRecords).where(and(
+        eq(separationRecords.id, id), eq(separationRecords.organizationId, sep.organizationId),
+      )).limit(1);
+      if (!fresh) throw new Error("The separation record no longer exists.");
+      if (fresh.coeIssued) return fresh;
+      const [row] = await tx.update(separationRecords).set({ coeIssued: true })
+        .where(and(eq(separationRecords.id, id), eq(separationRecords.organizationId, sep.organizationId)))
+        .returning();
+      if (!row) throw new Error("Separation record changed before COE issuance.");
+      await tx.insert(auditEvents).values({
+        organizationId: sep.organizationId,
+        actor: user.name,
+        action: "Certificate of Employment independently attested as issued",
+        resource: `Separation #${sep.id}`,
+        metadata: {
+          employeeId: sep.employeeId,
+          actorUserId: user.id,
+          coeEvidenceReference,
+          certificateDraftIsNotDeliveryProof: true,
+        },
+      });
+      return row;
     });
     return Response.json(updated);
   }
@@ -982,36 +1151,118 @@ export async function PATCH(request: Request) {
       if (sep.status !== "draft") {
         return Response.json({ error: "Only a draft final-pay package can be approved." }, { status: 409 });
       }
-      const [updated] = await db.update(separationRecords).set({
-        status: "approved",
-        approvedAt: new Date(),
-      }).where(and(eq(separationRecords.id, id), eq(separationRecords.status, "draft"))).returning();
-      if (!updated) return Response.json({ error: "Final-pay approval state changed. Refresh and try again." }, { status: 409 });
-
-      await recordAuditEvent({
-        organizationId: sep.organizationId,
-        actor: user.name,
-        action: "Final pay approved",
-        resource: `Separation #${sep.id}`,
-        metadata: { employeeId: sep.employeeId, netFinalPay: Number(sep.netFinalPay) },
-      });
-      return Response.json(updated);
+      try {
+        const updated = await db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT id FROM separation_records
+            WHERE id = ${id} AND organization_id = ${sep.organizationId} FOR UPDATE`);
+          const [fresh] = await tx.select().from(separationRecords).where(and(
+            eq(separationRecords.id, id),
+            eq(separationRecords.organizationId, sep.organizationId),
+          )).limit(1);
+          if (!fresh || fresh.status !== "draft") {
+            throw new Error("FINAL_PAY_APPROVAL_CHANGED");
+          }
+          // Stable actor IDs, never display names. Historical packages with
+          // unknown preparers require a fresh evidence-backed recomputation.
+          if (fresh.preparedByUserId == null) {
+            throw new Error("FINAL_PAY_MAKER_EVIDENCE_MISSING");
+          }
+          if (fresh.preparedByUserId === user.id) {
+            throw new Error("FINAL_PAY_MAKER_CHECKER_REQUIRED");
+          }
+          if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
+            throw new Error("FINAL_PAY_CLEARANCE_STALE");
+          }
+          const frozen = (fresh.computationSnapshot ?? {}) as Record<string, unknown>;
+          const transactionSources = await loadFinalPaySources(
+            { organizationId: fresh.organizationId, employeeId: fresh.employeeId, lastDay: String(fresh.lastDay) },
+            { executor: tx as unknown as Pick<typeof db, "select">, skipSchemaSetup: true },
+          );
+          const transactionFingerprint = fingerprint(transactionSources);
+          if (!sameSnapshot(frozen.sourceFingerprint, transactionFingerprint)
+            || !sameSnapshot(currentFingerprint, transactionFingerprint)) {
+            throw new Error("FINAL_PAY_SOURCE_CHANGED");
+          }
+          const [approved] = await tx.update(separationRecords).set({
+            status: "approved",
+            approvedAt: new Date(),
+            approvedByUserId: user.id,
+          }).where(and(
+            eq(separationRecords.id, id),
+            eq(separationRecords.organizationId, sep.organizationId),
+            eq(separationRecords.status, "draft"),
+          )).returning();
+          if (!approved) throw new Error("FINAL_PAY_APPROVAL_CHANGED");
+          await tx.insert(auditEvents).values({
+            organizationId: sep.organizationId,
+            actor: user.name,
+            action: "Final pay independently approved",
+            resource: `Separation #${sep.id}`,
+            metadata: {
+              employeeId: sep.employeeId,
+              netFinalPay: Number(fresh.netFinalPay),
+              preparerUserId: fresh.preparedByUserId,
+              approverUserId: user.id,
+              sourceFingerprint: frozen.sourceFingerprint,
+              clearanceConfirmedUnderLock: true,
+            },
+          });
+          return approved;
+        }, { isolationLevel: "serializable" });
+        return Response.json(updated);
+      } catch (error) {
+        if (isRetryableFinalPayConflict(error)) {
+          return Response.json(FINAL_PAY_CONCURRENT_SOURCE_CONFLICT, { status: 409 });
+        }
+        const code = error instanceof Error ? error.message : "";
+        if (code.startsWith("FINAL_PAY_")) {
+          return Response.json({
+            code,
+            error: code === "FINAL_PAY_MAKER_EVIDENCE_MISSING"
+              ? "This legacy final-pay draft has no stable preparer identity. Recompute against verified source records before independent approval."
+              : code === "FINAL_PAY_MAKER_CHECKER_REQUIRED"
+                ? "The employee final-pay preparer cannot approve their own computation."
+                : "The final-pay package, clearance or supporting payroll evidence changed. Refresh, reconcile and reapprove.",
+          }, { status: 409 });
+        }
+        throw error;
+      }
     }
 
     if (sep.status !== "approved") {
       return Response.json({ error: "Final pay must be approved before release." }, { status: 409 });
     }
     const releaseReference = String(body.releaseReference ?? "").trim();
-    if (!releaseReference) {
+    if (releaseReference.length < 8 || releaseReference.length > 160) {
       return Response.json({
-        error: "Enter a payout or bank reference before marking Final Pay released.",
+        error: "Enter a verified external payout or bank evidence reference (8-160 characters). A text reference is an operator attestation, not electronic payment proof.",
       }, { status: 422 });
     }
 
-    const released = await db.transaction(async (tx) => {
-      const [fresh] = await tx.select().from(separationRecords).where(eq(separationRecords.id, id)).limit(1);
+    let released: typeof separationRecords.$inferSelect;
+    try {
+      released = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT id FROM separation_records WHERE id = ${id}
+        AND organization_id = ${sep.organizationId} FOR UPDATE`);
+      const [fresh] = await tx.select().from(separationRecords).where(and(
+        eq(separationRecords.id, id), eq(separationRecords.organizationId, sep.organizationId),
+      )).limit(1);
       if (!fresh || fresh.status !== "approved") {
         throw new Error("Final-pay release state changed. Refresh and try again.");
+      }
+      if (String(fresh.lastDay) > todayPh()) {
+        throw new Error("The approved employee last day has not yet occurred. Do not mark the worker Separated or release final pay early.");
+      }
+      if (fresh.preparedByUserId == null || fresh.approvedByUserId == null) {
+        throw new Error("FINAL_PAY_THREE_ACTOR_EVIDENCE_MISSING: reprepare and independently approve this legacy final pay before release.");
+      }
+      if (fresh.preparedByUserId === user.id
+        || fresh.approvedByUserId === user.id
+        || fresh.preparedByUserId === fresh.approvedByUserId) {
+        throw new Error("FINAL_PAY_THREE_ACTOR_REQUIRED: preparer, checker, and releaser must be three distinct accounts.");
+      }
+      if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
+        throw new Error("Final-pay operational clearances changed after approval. Refresh and reapprove.");
       }
 
       const [linkedTermDecision] = await tx.select().from(hcmEmploymentTermDecisions).where(and(
@@ -1028,8 +1279,32 @@ export async function PATCH(request: Request) {
       }
 
       const freshSnapshot = (fresh.computationSnapshot ?? {}) as Record<string, unknown>;
-      if (!sameSnapshot(freshSnapshot.sourceFingerprint, currentFingerprint)) {
-        throw new Error("Final-pay source data changed before release. Recompute the package.");
+      const transactionSources = await loadFinalPaySources(
+        { organizationId: fresh.organizationId, employeeId: fresh.employeeId, lastDay: String(fresh.lastDay) },
+        { executor: tx as unknown as Pick<typeof db, "select">, skipSchemaSetup: true },
+      );
+      const transactionFingerprint = fingerprint(transactionSources);
+      if (!sameSnapshot(freshSnapshot.sourceFingerprint, transactionFingerprint)
+        || !sameSnapshot(currentFingerprint, transactionFingerprint)) {
+        throw new Error("FINAL_PAY_SOURCE_CHANGED: source payroll, imported history, pay profile, or outstanding loans changed during release.");
+      }
+
+      // Separation cannot overwrite a worker who was concurrently rehired,
+      // reactivated or moved out of Separating state.
+      const [freshWorker] = await tx.select({
+        id: employees.id,
+        status: employees.status,
+        orgUnitId: employees.orgUnitId,
+        legalEntityId: employees.legalEntityId,
+      }).from(employees).where(and(
+        eq(employees.id, fresh.employeeId),
+        eq(employees.organizationId, fresh.organizationId),
+      )).limit(1);
+      if (!freshWorker || freshWorker.status !== "Separating"
+        || freshWorker.status !== employee.status
+        || freshWorker.orgUnitId !== employee.orgUnitId
+        || freshWorker.legalEntityId !== employee.legalEntityId) {
+        throw new Error("FINAL_PAY_WORKER_STATE_CHANGED: the worker or legal employer changed before release.");
       }
 
       const [activeAssignment] = await tx.select().from(positionAssignments).where(and(
@@ -1049,11 +1324,14 @@ export async function PATCH(request: Request) {
       if (activeAssignment && String(activeAssignment.effectiveFrom) > String(fresh.lastDay)) {
         throw new Error("The active position assignment begins after the employee last day. Correct the HCM assignment before releasing final pay.");
       }
+      if (activeAssignment && (!activePosition || activePosition.status !== "filled")) {
+        throw new Error("FINAL_PAY_POSITION_STATE_CHANGED: worker occupancy and the active filled position no longer agree.");
+      }
 
       const deductOutstandingLoans = Boolean(freshSnapshot.deductOutstandingLoans);
       if (deductOutstandingLoans) {
         let collectible = Number(fresh.loanDeductions);
-        const orderedLoans = [...sources.loans].sort((a, b) => {
+        const orderedLoans = [...transactionSources.loans].sort((a, b) => {
           const aGovernment = /SSS|Pag-IBIG|HDMF/i.test(a.loanType) ? 0 : 1;
           const bGovernment = /SSS|Pag-IBIG|HDMF/i.test(b.loanType) ? 0 : 1;
           return aGovernment - bGovernment || a.id - b.id;
@@ -1101,31 +1379,41 @@ export async function PATCH(request: Request) {
         status: "released",
         releasedAt: new Date(),
         releaseReference: releaseReference.slice(0, 160),
+        releasedByUserId: user.id,
       }).where(and(
         eq(separationRecords.id, id),
         eq(separationRecords.status, "approved"),
       )).returning();
       if (!updated) throw new Error("Final-pay release state changed.");
 
-      await tx.update(employees).set({ status: "Separated" }).where(and(
+      const [separatedWorker] = await tx.update(employees).set({ status: "Separated" }).where(and(
         eq(employees.id, fresh.employeeId),
         eq(employees.organizationId, fresh.organizationId),
-      ));
+        eq(employees.status, "Separating"),
+      )).returning({ id: employees.id });
+      if (!separatedWorker) throw new Error("FINAL_PAY_WORKER_STATE_CHANGED: worker status changed during release.");
 
       if (activeAssignment) {
-        await tx.update(positionAssignments).set({
+        const [closedAssignment] = await tx.update(positionAssignments).set({
           effectiveUntil: fresh.lastDay,
         }).where(and(
           eq(positionAssignments.id, activeAssignment.id),
+          eq(positionAssignments.organizationId, fresh.organizationId),
           isNull(positionAssignments.effectiveUntil),
-        ));
+        )).returning({ id: positionAssignments.id });
+        if (!closedAssignment) throw new Error("FINAL_PAY_POSITION_STATE_CHANGED: the worker's active assignment changed.");
       }
 
       if (activePosition) {
-        await tx.update(positions).set({
+        const [vacantPosition] = await tx.update(positions).set({
           status: "open",
           updatedAt: new Date(),
-        }).where(eq(positions.id, activePosition.id));
+        }).where(and(
+          eq(positions.id, activePosition.id),
+          eq(positions.organizationId, fresh.organizationId),
+          eq(positions.status, "filled"),
+        )).returning({ id: positions.id });
+        if (!vacantPosition) throw new Error("FINAL_PAY_POSITION_STATE_CHANGED: position status changed before it could be reopened.");
       }
 
       await tx.insert(workerEmploymentEvents).values({
@@ -1182,41 +1470,72 @@ export async function PATCH(request: Request) {
         });
       }
 
+      // Release is not committed unless immutable payout evidence and
+      // all linked employee, loan, position, and final-pay audit writes succeed.
+      await tx.insert(auditEvents).values({
+        organizationId: sep.organizationId,
+        actor: user.name,
+        action: "Final pay released with independently separated approvers",
+        resource: `Separation #${sep.id}`,
+        metadata: {
+          employeeId: sep.employeeId,
+          preparedByUserId: fresh.preparedByUserId,
+          approvedByUserId: fresh.approvedByUserId,
+          releasedByUserId: user.id,
+          releasedAt: updated.releasedAt?.toISOString(),
+          finalPayDueDate: fresh.finalPayDueDate,
+          netFinalPay: Number(fresh.netFinalPay),
+          loanDeductions: Number(fresh.loanDeductions),
+          deferredLoanBalance: Number(
+            (fresh.computationSnapshot as Record<string, unknown> | null)?.deferredLoanBalance ?? 0,
+          ),
+          releaseReference,
+          bankSettlementVerifiedByPlatform: false,
+          offboarding2316Available: true,
+        },
+      });
       return updated;
-    });
+      }, { isolationLevel: "serializable" });
+    } catch (error) {
+      if (isRetryableFinalPayConflict(error)) {
+        return Response.json(FINAL_PAY_CONCURRENT_SOURCE_CONFLICT, { status: 409 });
+      }
+      const message = error instanceof Error ? error.message : "";
+      // Prefix-coded conflicts and free-text stale-source errors are distinct
+      // match classes; do not mix anchored and unanchored regex alternatives.
+      if (message.startsWith("FINAL_PAY_")
+        || /(?:changed|recompute|review|last day|not yet occurred|release state)/i.test(message)) {
+        return Response.json({
+          code: "FINAL_PAY_RELEASE_STALE",
+          error: "The final-pay source, approvals, or worker lifecycle changed during release. No money-bearing changes were committed. Refresh and reconcile the package.",
+        }, { status: 409 });
+      }
+      throw error;
+    }
 
-    await recordAuditEvent({
-      organizationId: sep.organizationId,
-      actor: user.name,
-      action: "Final pay released",
-      resource: `Separation #${sep.id}`,
-      metadata: {
+    // Money, loan and employee status were already committed. Delivery errors
+    // cannot turn an actual financial release into a misleading HTTP 500.
+    const postReleaseWarnings: string[] = [];
+    let automation: Awaited<ReturnType<typeof runLifecycleAutomations>> | null = null;
+    try {
+      automation = await runLifecycleAutomations({
+        organizationId: sep.organizationId,
         employeeId: sep.employeeId,
-        releasedAt: released.releasedAt,
-        finalPayDueDate: sep.finalPayDueDate,
-        netFinalPay: Number(sep.netFinalPay),
-        loanDeductions: Number(sep.loanDeductions),
-        deferredLoanBalance: Number(
-          (sep.computationSnapshot as Record<string, unknown> | null)?.deferredLoanBalance ?? 0,
-        ),
-        releaseReference: releaseReference.slice(0, 160),
-        offboarding2316Available: true,
-      },
-    });
+        trigger: "employee.separated",
+        eventKey: "separation-release:" + sep.id,
+        context: {
+          orgUnitId: employee.orgUnitId,
+          employmentType: employee.employmentType,
+          title: employee.title,
+        },
+      });
+    } catch {
+      postReleaseWarnings.push("Financial release committed, but lifecycle automation delivery needs reconciliation.");
+    }
 
-    const automation = await runLifecycleAutomations({
-      organizationId: sep.organizationId,
-      employeeId: sep.employeeId,
-      trigger: "employee.separated",
-      eventKey: "separation-release:" + sep.id,
-      context: {
-        orgUnitId: employee.orgUnitId,
-        employmentType: employee.employmentType,
-        title: employee.title,
-      },
-    });
-
-    const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
+    let fieldChangeAutomation: Awaited<ReturnType<typeof runEmployeeFieldChangeAutomations>> | null = null;
+    try {
+      fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
       organizationId: sep.organizationId,
       employeeId: sep.employeeId,
       eventKey: "separation-release:" + sep.id + ":field-change",
@@ -1231,11 +1550,15 @@ export async function PATCH(request: Request) {
         },
       ],
     });
+    } catch {
+      postReleaseWarnings.push("Financial release committed, but the employee field-change notification needs reconciliation.");
+    }
 
     return Response.json({
       ...released,
       automation,
       fieldChangeAutomation,
+      postReleaseWarnings,
       offboarding2316: {
         status: "available",
         href: `/api/separation/${released.id}/2316`,
