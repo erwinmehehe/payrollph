@@ -68,7 +68,12 @@ export async function tickScheduler(force = false) {
   } finally {
     active = false;
     clearInterval(heartbeat);
-    await releaseSchedulerLease(ownerToken, completed ? "completed" : "failed");
+    const released = await releaseSchedulerLease(ownerToken, completed ? "completed" : "failed");
+    if (completed && !released) {
+      // If ownership changed while the last task completed, the former
+      // worker must never acknowledge the run as safely finished.
+      throw new Error("Central scheduler completed work but no longer owned the lease at release.");
+    }
   }
 }
 
@@ -319,10 +324,13 @@ async function runScheduledJobs(
   };
 
   await assertLeaseOwnership();
+  // Liveness reports must represent *completed* work, not when a potentially
+  // long-running scheduler cycle began.
+  const completedAt = new Date();
   if (row) {
-    await db.update(schedulerState).set({ lastRunAt: now, lastResult: payload }).where(eq(schedulerState.id, row.id));
+    await db.update(schedulerState).set({ lastRunAt: completedAt, lastResult: payload }).where(eq(schedulerState.id, row.id));
   } else {
-    await db.insert(schedulerState).values({ jobName: "delivery-drain", lastRunAt: now, lastResult: payload });
+    await db.insert(schedulerState).values({ jobName: "delivery-drain", lastRunAt: completedAt, lastResult: payload });
   }
 
   return { skipped: false as const, ...payload };

@@ -21,3 +21,7 @@ A recent `delivery-drain` row alone is not proof of a functioning leased central
 ### Full-cycle lease-loss fencing
 
 Every separate delivery drain (webhooks, email, marketing), retention/erasure, statutory sync, automation continuation, effective HR/compensation transition, notification, performance reminder, and evidence-sealing group now revalidates lease ownership before starting new work. Scheduled completion-state writes are also gated. This limits, but does not eliminate, races: a job already executing when a lease expires cannot be cancelled by these checks. Financial handlers must retain their own atomic idempotency and independent witnessed two-worker/restart validation under #637. A process that loses its lease must stop before starting further work, and its old owner must not overwrite the replacement owner's lease.
+
+### Completion acknowledgements
+
+A scheduler that loses the lease between its last action and final lease release now fails its completion acknowledgement rather than reporting success from a former owner. The `delivery-drain` last-success timestamp is recorded at the end of the work, so staging monitoring measures the age of a **completed** scheduler cycle instead of its start. These controls do not roll back already committed task side effects and do not certify retry idempotency; independent two-worker production-like staging is still required.

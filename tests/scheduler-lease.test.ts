@@ -107,3 +107,14 @@ test("lease ownership is checked before every separately invoked high-impact sch
   }
   assert.match(source, /await assertLeaseOwnership\(\);\s+if \(row\) \{\s+await db\.update\(schedulerState\)/);
 });
+
+test("a stale scheduler cannot falsely acknowledge success after losing the lease", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync("src/lib/scheduler.ts", "utf8");
+  assert.ok(source.includes('const released = await releaseSchedulerLease(ownerToken, completed ? "completed" : "failed")'));
+  assert.ok(source.includes("if (completed && !released)"));
+  assert.ok(source.includes("Central scheduler completed work but no longer owned the lease"));
+  assert.ok(source.includes("const completedAt = new Date();"));
+  assert.ok(source.includes("lastRunAt: completedAt"));
+  assert.ok(!source.includes("lastRunAt: now, lastResult: payload"));
+});
