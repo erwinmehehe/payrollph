@@ -245,16 +245,27 @@ export function buildPayrollConnectedImpact(input: ConnectedImpactInput): Connec
   }
 
   for (const row of input.payRevisions ?? []) {
-    if (!validDate(row.effectiveDate) || row.effectiveDate < input.periodStart || row.effectiveDate > input.periodEnd) continue;
+    if (!validDate(row.effectiveDate) || row.effectiveDate > input.periodEnd) continue;
+    const withinCutoff = row.effectiveDate >= input.periodStart;
+    const changedAfterRun = row.createdAfterRunCreated === true;
+    // A newly introduced backdated revision may alter payroll for the entire
+    // cutoff even when its legal effective date precedes the cutoff start.
+    if (!withinCutoff && !changedAfterRun) continue;
     add(findings, {
-      area: "HCM", severity: "review",
-      code: row.compensationProposalId != null ? "HCM_LINKED_PAY_REVISION" : "HCM_PAY_REVISION_SOURCE_REVIEW",
+      area: "HCM", severity: changedAfterRun ? "attention" : "review",
+      code: changedAfterRun
+        ? "HCM_LATE_EFFECTIVE_PAY_REVISION"
+        : row.compensationProposalId != null ? "HCM_LINKED_PAY_REVISION" : "HCM_PAY_REVISION_SOURCE_REVIEW",
       employeeId: row.employeeId, sourceId: row.id, date: row.effectiveDate,
-      status: row.compensationProposalId != null ? "proposal-linked" : "recorded",
-      title: row.compensationProposalId != null ? "Approved proposal-linked pay revision" : "Pay revision source requires review",
-      detail: row.compensationProposalId != null
-        ? "This rate change is linked to an applied compensation proposal and effective date. Confirm the independent approval, accurate rate segmentation and payroll snapshot before release."
-        : "A pay revision inside this cutoff has no matching applied and approved compensation proposal in the available evidence. Confirm the authorized HR/payroll source and effective-date calculation; legacy authorized revisions may be valid.",
+      status: changedAfterRun ? "changed-after-run-created" : row.compensationProposalId != null ? "proposal-linked" : "recorded",
+      title: changedAfterRun
+        ? "Effective-dated pay revision recorded after payroll was opened"
+        : row.compensationProposalId != null ? "Approved proposal-linked pay revision" : "Pay revision source requires review",
+      detail: changedAfterRun
+        ? "A new salary/pay-rate revision effective on or before this cutoff end was recorded after the payroll run was created. Verify the authorized source, retroactive impact, recalculation and a fresh checker approval; never rewrite released payroll."
+        : row.compensationProposalId != null
+          ? "This rate change is linked to an applied compensation proposal and effective date. Confirm the independent approval, accurate rate segmentation and payroll snapshot before release."
+          : "A pay revision inside this cutoff has no matching applied and approved compensation proposal in the available evidence. Confirm the authorized HR/payroll source and effective-date calculation; legacy authorized revisions may be valid.",
       action: "Compensation",
     });
   }
