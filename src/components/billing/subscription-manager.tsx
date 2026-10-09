@@ -13,6 +13,7 @@ type BillingPayload = {
     currency: string;
     billingCycle: string;
     paidThrough: string | null;
+    recoveryUrl?: string | null;
     cancelAtPeriodEnd: boolean;
     activeAccess: boolean;
     provider: string | null;
@@ -138,7 +139,19 @@ export function SubscriptionManager({ organizationId, companyName }: { organizat
                 </button>
               </div>
             )}
-            {sub.status === "past_due" && <p className="mt-5 rounded-xl bg-amber-50 p-4 text-[13px] text-amber-800">A renewal payment has not completed. The payment provider handles scheduled retries. Contact support if you need help changing your recurring payment method.</p>}
+            {sub.status === "past_due" && (
+              <div className="mt-5 rounded-xl bg-amber-50 p-4 text-[13px] text-amber-800">
+                <p>A renewal payment has not completed. Your prepaid access continues through its paid-through date.</p>
+                {sub.recoveryUrl && (() => {
+                  try {
+                    const url = new URL(sub.recoveryUrl);
+                    if (url.protocol !== "https:" || !["xendit.co", "xen.to"].some((host) => url.hostname === host || url.hostname.endsWith("." + host))) return null;
+                    return <a className="mt-3 inline-flex min-h-[44px] items-center gap-2 rounded-full bg-amber-800 px-4 font-semibold text-white" href={sub.recoveryUrl} rel="noreferrer">Retry payment securely <ArrowRight size={16} /></a>;
+                  } catch { return null; }
+                })()}
+                {!sub.recoveryUrl && <p className="mt-2">The payment provider handles scheduled retries. Contact billing support to update your payment method.</p>}
+              </div>
+            )}
             {sub.cancelAtPeriodEnd && <p className="mt-5 rounded-xl bg-green-50 p-4 text-[13px] text-green-800">Future automatic charges have been stopped. Your historical payroll information remains stored according to the retention policy.</p>}
             {canCancel && (
               <div className="mt-6 border-t border-[#E2E4F0] pt-5">
