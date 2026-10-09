@@ -82,3 +82,39 @@ No edit buttons, backfill scripts, auto-repair action, bank integration,
 API exposure of individual flagged employees, financial correction, or
 new SQL migration is part of this change. Findings point HR/payroll to a
 documented, independently governed correction workflow.
+
+
+## Aggregate remediation worklist (UI-only follow-on)
+
+When both existing governance-readiness feature flags are explicitly enabled,
+the same company-wide People-admin screen now derives a **suggested HR review
+worklist** from the existing aggregate response. There is **no new API,
+database query, SQL migration, payroll mutation, or employee record access**.
+
+- High-priority categories are shown first, with per-category aggregate
+  matches and prewritten guidance for the responsible HR/payroll function.
+- Absent, inactive, and partially scoped HCM process policies are shown as
+  **coverage verification tasks**, not automatic violations.
+- A copy button writes an **anonymous text checklist** to the browser
+  clipboard only when the administrator explicitly clicks it. No employer
+  name, employee ID, payslip, salary amount, bank data, token, or external
+  network call is included.
+- Findings are looked up against fixed application guidance. Arbitrary
+  server-provided display text is not copied into the checklist.
+- The panel shows six items initially, with an option to see the rest.
+  Changing employers resets the display, and the underlying panel already
+  prevents showing previous-tenant responses.
+- No task is assigned, resolved, stored, signed off, or reported as complete.
+  Suggested reviewer roles are **not** actual assignees.
+
+**Do not sum exception counts as unique affected employees.** A worker can
+trigger several indicators, and the duplicate identifier metric counts
+duplicate *groups*, not distinct employees. Zero findings still do not
+certify policy completeness, statutory treatment, payroll, final-pay
+settlement, external bank/agency acceptance, or production release.
+
+This is a **T1 client-side presentation enhancement** within a still
+default-off T2 HCM governance-readiness feature. It must pass exact-head
+CI/CodeQL/build, maintainer review, and verify the existing two-sided
+feature gates before merging. No privacy or payroll clearance is implied
+for the separate financial and migration PRs.
