@@ -23,6 +23,14 @@ export async function GET(request: Request) {
       error: "HCM governance inspection requires company-wide People administration.",
     }, { status: 403 });
   }
+  // The default-OFF release gate protects auto-deploying production main:
+  // building/merging this read-only feature alone does not query live HCM.
+  if (process.env.HCM_GOVERNANCE_READINESS_ENABLED !== "true") {
+    return Response.json({
+      code: "HCM_GOVERNANCE_READINESS_DISABLED",
+      error: "The governance dashboard is not enabled in this environment.",
+    }, { status: 404, headers: { "Cache-Control": "private, no-store" } });
+  }
   return Response.json(await loadHcmGovernanceReadiness(organizationId), {
     headers: { "Cache-Control": "private, no-store, max-age=0" },
   });
