@@ -8,6 +8,8 @@ import { paidShiftMinutes } from "@/lib/workforce-labor-variance";
 import { planSmartRecoveryDraft, type RecoveryMode } from "@/lib/workforce-recovery-draft";
 import { buildWfmManagerActionQueue, phWorkDateAt } from "@/lib/workforce-manager-actions";
 import { WorkforceLiveFloor } from "./workforce-live-floor";
+import { WorkforcePlanningPreviewPanel } from "./workforce-planning-preview-panel";
+import { previewWorkforceRecovery } from "@/lib/workforce-planning-preview";
 
 type Shift = {
   id: number;
@@ -561,8 +563,7 @@ export function WorkforceCoveragePanel({
   );
   const siteExclusions = (payload?.coverage ?? []).reduce((sum, row) => sum + row.siteIneligibleHeadcount, 0);
   const labor = payload?.laborVariance;
-  const simulation = useMemo(() => planSmartRecoveryDraft({
-    mode: recoveryMode,
+  const draftInputs = useMemo(() => ({
     allowHighWorkloadRisk: simulateHighRisk,
     // Draft-only company planning guidance; configurable governed policy is the source of truth.
     maxProjectedMinutesInWindow: 96 * 60,
@@ -597,7 +598,26 @@ export function WorkforceCoveragePanel({
           })),
         };
       }),
-  }), [payload?.coverage, payload?.shifts, proactiveByRequirement, recoveryMode, simulateHighRisk]);
+  }), [payload?.coverage, payload?.shifts, proactiveByRequirement, simulateHighRisk]);
+
+  const simulation = useMemo(() => planSmartRecoveryDraft({
+    ...draftInputs, mode: recoveryMode,
+  }), [draftInputs, recoveryMode]);
+  const alternativeSimulation = useMemo(() => planSmartRecoveryDraft({
+    ...draftInputs, mode: recoveryMode === "coverage" ? "balanced" : "coverage",
+  }), [draftInputs, recoveryMode]);
+  const activePlanningPreview = useMemo(() => previewWorkforceRecovery({
+    draft: simulation,
+    coverage: payload?.coverage ?? [],
+    shifts: payload?.shifts ?? [],
+    labor: payload?.laborVariance ?? null,
+  }), [simulation, payload?.coverage, payload?.shifts, payload?.laborVariance]);
+  const alternativePlanningPreview = useMemo(() => previewWorkforceRecovery({
+    draft: alternativeSimulation,
+    coverage: payload?.coverage ?? [],
+    shifts: payload?.shifts ?? [],
+    labor: payload?.laborVariance ?? null,
+  }), [alternativeSimulation, payload?.coverage, payload?.shifts, payload?.laborVariance]);
 
   const managerActions = useMemo(() => buildWfmManagerActionQueue({
     today: phWorkDateAt(),
@@ -878,6 +898,19 @@ export function WorkforceCoveragePanel({
           )}
         </article>
       </section>
+
+      {payload && (
+        <WorkforcePlanningPreviewPanel
+          selected={activePlanningPreview}
+          alternative={alternativePlanningPreview}
+          selectedDraft={simulation}
+          alternativeDraft={alternativeSimulation}
+          recommendations={payload.proactiveSuggestions}
+          worksites={payload.worksites}
+          shifts={payload.shifts}
+          readiness={payload.rosterReadiness}
+        />
+      )}
 
       {labor && (
         <section id="wfm-labor-variance" style={{ padding: "0 18px 18px" }} data-wfm-labor-variance>
