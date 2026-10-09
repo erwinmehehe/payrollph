@@ -1,0 +1,57 @@
+name: Payroll Scheduler Staging Health (Manual)
+
+on:
+  pull_request:
+    paths:
+      - "scripts/check-scheduler-staging-health.mjs"
+      - "tests/scheduler-staging-health.test.mjs"
+      - ".github/workflows/scheduler-staging-health.yml"
+  workflow_dispatch:
+    inputs:
+      expected_scheduler_state:
+        description: "Read-only expectation: no scheduler job execution"
+        type: choice
+        required: true
+        options:
+          - disabled
+          - enabled
+
+permissions:
+  contents: read
+
+jobs:
+  verifier-unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Test staging health guard (offline)
+        run: node --test tests/scheduler-staging-health.test.mjs
+
+  read-only-staging-check:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: verifier-unit-tests
+    runs-on: ubuntu-latest
+    environment: payroll-staging
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Test staging verifier (no external access)
+        run: node --test tests/scheduler-staging-health.test.mjs
+      - name: Verify protected staging scheduler liveness
+        env:
+          PAYROLL_STAGING_URL: ${{ vars.PAYROLL_STAGING_URL }}
+          PAYROLL_STAGING_EXPECTED_HOST: ${{ vars.PAYROLL_STAGING_EXPECTED_HOST }}
+          PAYROLL_STAGING_EXPECTED_COMMIT_SHA: ${{ vars.PAYROLL_STAGING_EXPECTED_COMMIT_SHA }}
+          PAYROLL_STAGING_EXPECTED_SCHEDULER_STATE: ${{ inputs.expected_scheduler_state }}
+          PAYROLL_PRODUCTION_HOST: ${{ vars.PAYROLL_PRODUCTION_HOST }}
+          PAYROLL_STAGING_MONITOR_TOKEN: ${{ secrets.PAYROLL_STAGING_MONITOR_TOKEN }}
+        run: node scripts/check-scheduler-staging-health.mjs
