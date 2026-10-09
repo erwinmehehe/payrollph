@@ -28,12 +28,14 @@ export function PayrollConnectedImpactPanel({
       cache: "no-store",
       signal: controller.signal,
     }).then(async (response) => {
-      const body = await response.json();
       if (controller.signal.aborted) return;
-      if (response.status === 404 && body.code === "PAYROLL_CONNECTED_IMPACT_DISABLED") {
+      if (response.status === 204) {
+        // Default-OFF is normal. Never trigger a browser-console 404 or try
+        // to parse the body of a no-content response.
         setEnabled(false);
         return;
       }
+      const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || "Connected payroll review is unavailable.");
       setReport(body as ViewData);
     }).catch((cause) => {
