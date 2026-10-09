@@ -39,8 +39,9 @@ meaningful employment change.
 - **Request/decision auditing:** New requests, business-process initiation,
   approval with reserved vacancy, decline, cancellation with position
   restoration, and retry state each write the actor decision inside their
-  respective database transactions. A durable HCM approval must not exist
-  without its corresponding auditor evidence.
+  respective database transactions. These sensitive requests and decisions
+  require fresh MFA and distributed throttling. A durable HCM approval must
+  not exist without its corresponding auditor evidence.
 - **Safe retry:** A failed change can be retried only with known, distinct
   requester and approver IDs, an approved linked HCM business process, an
   unchanged original worker/position/assignment snapshot and the same
