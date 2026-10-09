@@ -34,7 +34,7 @@ job/position or payout-destination change workflows.
    decrypted by authorized staff, and *no plaintext government IDs* remain.
 4. The initial employee-master migration writes employee, pay-profile, batch
    and audit records in one rollback-capable database transaction and uses a
-   transaction-scoped importer lock. **Remaining gap:** competing live hire,
+   transaction-scoped importer lock shared with the create-only CSV path. Direct standalone employee creation remains outside this lock. **Remaining gap:** competing live hire,
    payroll and position change routes do not yet share this lock, so an
    independently approved cutover/maintenance window is still necessary.
 5. No real payroll runs, banks, government filings or production migrations
