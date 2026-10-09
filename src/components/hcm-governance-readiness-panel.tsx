@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw, ShieldAlert } from "lucide-react";
+import { HcmGovernanceWorklistPanel } from "@/components/hcm-governance-worklist-panel";
 
 type HcmGovernanceReport = {
   asOf: string;
@@ -166,6 +167,7 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
               </tbody>
             </table>
           </div>
+          <HcmGovernanceWorklistPanel key={organizationId} report={report} />
           <small style={{ display: "block", marginTop: 9, color: "var(--muted)" }}>
             Policy-state counts do not prove complete employee/supervisory-unit coverage. This endpoint never mutates employee or payroll records.
           </small>
