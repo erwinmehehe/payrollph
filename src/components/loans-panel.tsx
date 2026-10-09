@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Banknote, Check, DollarSign, Pause, Play, Plus, ReceiptText, ShieldCheck, X } from "lucide-react";
 import { GovernmentLoanRemittancePanel } from "@/components/government-loan-remittance-panel";
+import { SUPPORTED_LOAN_TYPES } from "@/lib/loan-ledger-guards";
 
 type Loan = {
   id: number;
@@ -26,16 +27,6 @@ type Loan = {
 const peso = (value: string | number) =>
   `₱${Number(value).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const LOAN_TYPES = [
-  "SSS Salary Loan",
-  "SSS Calamity Loan",
-  "Pag-IBIG Multi-Purpose Loan (MPL)",
-  "Pag-IBIG Calamity Loan",
-  "Company Emergency Loan",
-  "Educational Assistance Loan",
-  "Appliance / Gadget Loan",
-];
-
 export function LoansPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (m: string) => void }) {
   const [loans, setLoans] = useState<Loan[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
@@ -44,11 +35,14 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [manualPayAmount, setManualPayAmount] = useState("");
+  const [manualPaymentReference, setManualPaymentReference] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const [form, setForm] = useState({
     employeeId: "",
     loanType: "SSS Salary Loan",
     referenceNo: "",
+    authorizationEvidenceReference: "",
     principal: "",
     monthlyAmortization: "",
     cutoffDeduction: "",
@@ -90,6 +84,9 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
 
   async function createLoan(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    try {
     const res = await fetch("/api/loans", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -97,9 +94,9 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
         ...form,
         organizationId,
         employeeId: Number(form.employeeId),
-        principal: Number(form.principal),
-        monthlyAmortization: Number(form.monthlyAmortization),
-        cutoffDeduction: form.cutoffDeduction ? Number(form.cutoffDeduction) : undefined,
+        principal: form.principal,
+        monthlyAmortization: form.monthlyAmortization,
+        cutoffDeduction: form.cutoffDeduction || undefined,
       }),
     });
     const data = await res.json();
@@ -107,12 +104,13 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
       setNotice(data.error ?? "Failed to register loan.");
       return;
     }
-    setNotice("Loan registered. Cut-off deductions will automatically deduct during payroll calculation.");
+    setNotice("Loan registered with a traceable authorization reference. Deductions begin only in applicable payroll cutoffs; verify the evidence before releasing payroll.");
     setShowAddForm(false);
     setForm({
       employeeId: "",
       loanType: "SSS Salary Loan",
       referenceNo: "",
+      authorizationEvidenceReference: "",
       principal: "",
       monthlyAmortization: "",
       cutoffDeduction: "",
@@ -121,27 +119,41 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
       notes: "",
     });
     reload();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Loan registration failed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function recordManualPayment(loanId: number) {
-    if (!manualPayAmount || Number(manualPayAmount) <= 0) {
-      setNotice("Enter a valid payment amount.");
+    if (busy) return;
+    if (!manualPayAmount || Number(manualPayAmount) <= 0 || manualPaymentReference.trim().length < 8) {
+      setNotice("Provide an exact positive amount and a unique 8-character-or-longer receipt or bank transaction reference.");
       return;
     }
+    setBusy(true);
+    try {
     const res = await fetch("/api/loans", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: loanId, action: "record_payment", amount: Number(manualPayAmount), reference: "Direct Employee Remittance" }),
+      body: JSON.stringify({ id: loanId, action: "record_payment", amount: manualPayAmount, reference: manualPaymentReference.trim() }),
     });
     const data = await res.json();
     if (!res.ok) {
       setNotice(data.error ?? "Failed to record payment.");
       return;
     }
-    setNotice(`Payment of ${peso(manualPayAmount)} credited. Balance updated.`);
+    setNotice(`External repayment of ${peso(manualPayAmount)} attested and ledger updated. Verify the bank/cash receipt independently.`);
     setManualPayAmount("");
+    setManualPaymentReference("");
     setSelectedLoan(null);
     reload();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Repayment could not be recorded.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function toggleLoanStatus(loanId: number, currentStatus: string) {
@@ -151,10 +163,13 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: loanId, action }),
     });
-    if (res.ok) {
-      setNotice(action === "pause" ? "Loan deductions paused." : "Loan deductions resumed.");
-      reload();
+    const result = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setNotice(result.error ?? "Could not change loan deduction status.");
+      return;
     }
+    setNotice(action === "pause" ? "Loan deductions paused with an audit record." : "Loan deductions resumed with an audit record.");
+    reload();
   }
 
   return (
@@ -162,7 +177,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Employee Loan Ledger &amp; Amortization</h2>
-          <p className="heading-copy">Manage SSS, Pag-IBIG, and company loan schedules with automated payroll cut-off deductions.</p>
+          <p className="heading-copy">Manage documented SSS, Pag-IBIG, and company loan schedules. New enrollments and balance changes require company-wide payroll authority, MFA, and auditable evidence. Payroll overpayment clawbacks are not loans and must use a separate reviewed workflow.</p>
         </div>
         <button className="primary-button" onClick={() => setShowAddForm(!showAddForm)}>
           {showAddForm ? <X size={15} /> : <Plus size={15} className="i-green" />} {showAddForm ? "Cancel" : "Register Loan"}
@@ -205,11 +220,14 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
               </label>
               <label>Loan Type
                 <select value={form.loanType} onChange={(e) => setForm({ ...form, loanType: e.target.value })}>
-                  {LOAN_TYPES.map((lt) => <option key={lt} value={lt}>{lt}</option>)}
+                  {SUPPORTED_LOAN_TYPES.map((lt) => <option key={lt} value={lt}>{lt}</option>)}
                 </select>
               </label>
               <label>Reference / SSS PN / Pag-IBIG App No.
                 <input required placeholder="e.g. SSS-SL-2026-0091" value={form.referenceNo} onChange={(e) => setForm({ ...form, referenceNo: e.target.value })} />
+              </label>
+              <label>Deduction authorization evidence reference
+                <input required minLength={8} maxLength={200} placeholder="Signed loan authorization or government notice record ID" value={form.authorizationEvidenceReference} onChange={(e) => setForm({ ...form, authorizationEvidenceReference: e.target.value })} />
               </label>
               <label>Principal Amount
                 <input required type="number" min="1000" step="0.01" placeholder="25000.00" value={form.principal} onChange={(e) => setForm({ ...form, principal: e.target.value })} />
@@ -235,7 +253,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
             </div>
             <div className="run-actions">
               <button type="button" className="secondary-button" onClick={() => setShowAddForm(false)}>Cancel</button>
-              <button className="primary-button">Register Loan &amp; Activate Deduction</button>
+              <button className="primary-button" disabled={busy}>{busy ? "Registering..." : "Register Loan & Activate Documented Deduction"}</button>
             </div>
           </form>
         </article>
@@ -255,7 +273,10 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
             <label className="input-label" style={{ margin: 0 }}>Payment Amount
               <input type="number" min="1" step="0.01" placeholder="e.g. 520.83" value={manualPayAmount} onChange={(e) => setManualPayAmount(e.target.value)} />
             </label>
-            <button className="primary-button" onClick={() => recordManualPayment(selectedLoan.id)}>Record Direct Remittance</button>
+            <label className="input-label" style={{ margin: 0 }}>Unique bank/cash receipt reference
+              <input required minLength={8} maxLength={120} placeholder="Bank transfer or signed receipt ID" value={manualPaymentReference} onChange={(e) => setManualPaymentReference(e.target.value)} />
+            </label>
+            <button className="primary-button" disabled={busy || manualPaymentReference.trim().length < 8} onClick={() => recordManualPayment(selectedLoan.id)}>Record Verified External Remittance</button>
             <button className="secondary-button" onClick={() => toggleLoanStatus(selectedLoan.id, selectedLoan.status)}>
               {selectedLoan.status === "active" ? "Pause Deductions" : "Resume Deductions"}
             </button>
@@ -293,7 +314,7 @@ export function LoansPanel({ organizationId, setNotice }: { organizationId: numb
                   <td><strong>{peso(loan.remainingBalance)}</strong></td>
                   <td><span className={`status status-${loan.status === "active" ? "tested" : loan.status === "paid_off" ? "verified" : "needs-review"}`}>{loan.status}</span></td>
                   <td>
-                    <button className="secondary-button" style={{ height: 28, fontSize: 11, padding: "0 8px" }} onClick={() => { setSelectedLoan(loan); setManualPayAmount(loan.cutoffDeduction); }}>
+                    <button className="secondary-button" style={{ height: 28, fontSize: 11, padding: "0 8px" }} onClick={() => { setSelectedLoan(loan); setManualPayAmount(loan.cutoffDeduction); setManualPaymentReference(""); }}>
                       Manage
                     </button>
                   </td>
