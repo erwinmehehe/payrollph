@@ -14,6 +14,19 @@ export function validateStagingTarget(baseUrl, expectedHost, productionHost = ""
   return new URL("/api/jobs/status", url);
 }
 
+export function checkStagingDeployment(httpStatus, payload, expectedSha) {
+  if (httpStatus !== 200 || !payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {ok:false,reason:"staging-deployment-unavailable"};
+  }
+  // The public read-only deployment metadata must match the exact approved
+  // staging build. A production environment must never receive a monitor key.
+  if (payload.deploymentSha !== expectedSha ||
+      !["preview", "staging"].includes(payload.deploymentEnvironment)) {
+    return {ok:false,reason:"staging-deployment-revision-or-environment-mismatch"};
+  }
+  return {ok:true};
+}
+
 export function checkSchedulerResponse(httpStatus, payload, now = new Date()) {
   if (httpStatus !== 200 || !payload || typeof payload !== "object" || Array.isArray(payload)) {
     return { ok: false, reason: "missing-or-unhealthy-scheduler" };
@@ -49,19 +62,45 @@ export async function main(env = process.env, fetcher = fetch, now = new Date())
   if (!env.PAYROLL_STAGING_MONITOR_TOKEN || env.PAYROLL_STAGING_MONITOR_TOKEN.length < 32) {
     throw new Error("A dedicated read-only staging monitor token of at least 32 characters must be configured.");
   }
-  const response = await fetcher(target, {
+  const expectedSha = env.PAYROLL_STAGING_EXPECTED_COMMIT_SHA;
+  if (typeof expectedSha !== "string" || !/^[0-9a-f]{40}$/i.test(expectedSha)) {
+    throw new Error("An exact 40-character staging deployment SHA must be pinned before monitoring.");
+  }
+
+  // First confirm the exact deployed build WITHOUT sending the monitor token.
+  const deploymentResponse = await fetcher(new URL("/api/readiness/deployment", target), {
     method: "GET",
-    headers: { "x-scheduler-monitor-token": env.PAYROLL_STAGING_MONITOR_TOKEN, "accept": "application/json" },
+    headers: { "accept": "application/json" },
     redirect: "error",
     cache: "no-store",
     signal: AbortSignal.timeout(10000),
   });
-  let payload = null;
-  if (response.status === 200 && response.headers.get("content-type")?.includes("application/json")) {
-    // Do not log the raw response or headers: they may contain operational metadata.
-    payload = await response.json();
+  let deploymentPayload = null;
+  if (deploymentResponse.status === 200 &&
+      deploymentResponse.headers.get("content-type")?.includes("application/json")) {
+    deploymentPayload = await deploymentResponse.json();
   }
-  const verdict = checkSchedulerResponse(response.status, payload, now);
+  const deployment = checkStagingDeployment(deploymentResponse.status, deploymentPayload, expectedSha);
+
+  // Never transmit the privileged monitoring credential to an unverified build.
+  let response = null;
+  let payload = null;
+  if (deployment.ok) {
+    response = await fetcher(target, {
+      method: "GET",
+      headers: { "x-scheduler-monitor-token": env.PAYROLL_STAGING_MONITOR_TOKEN, "accept": "application/json" },
+      redirect: "error",
+      cache: "no-store",
+      signal: AbortSignal.timeout(10000),
+    });
+    if (response.status === 200 && response.headers.get("content-type")?.includes("application/json")) {
+      // Do not log the raw response or headers: they may contain operational metadata.
+      payload = await response.json();
+    }
+  }
+  const verdict = deployment.ok
+    ? checkSchedulerResponse(response.status, payload, now)
+    : {ok:false,reason:"staging-deployment-not-verified"};
   // Persist only fixed, reviewed text. Never write upstream HTTP codes,
   // headers or parsed JSON (even if the response is from an allowlisted host).
   const fixedSummary = verdict.ok

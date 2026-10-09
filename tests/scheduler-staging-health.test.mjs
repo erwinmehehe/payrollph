@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateStagingTarget, checkSchedulerResponse, main } from "../scripts/check-scheduler-staging-health.mjs";
+import { validateStagingTarget, checkStagingDeployment, checkSchedulerResponse, main } from "../scripts/check-scheduler-staging-health.mjs";
 
 const proofTime = new Date("2026-10-09T00:01:30.000Z");
+const approvedSha = "a".repeat(40);
+const healthyDeployment = {deploymentSha: approvedSha, deploymentEnvironment:"preview"};
 const healthy = {
   ok: true, state: "healthy",
   lastSuccessfulRunAt: "2026-10-09T00:00:00.000Z",
@@ -42,12 +44,11 @@ test("rejects cached or inconsistent healthy-looking scheduler evidence", () => 
 });
 
 test("read-only GET uses bounded request, explicit host and does not trigger work", async () => {
-  let method = null;
-  let path = null;
-  let secret = null;
+  const requests = [];
   const fakeFetch=async(url,request)=>{
-    path=url.pathname;method=request.method;secret=request.headers["x-scheduler-monitor-token"];
-    return {status:200,headers:{get:()=> "application/json"},json:async()=>healthy};
+    requests.push({path:url.pathname,method:request.method,secret:request.headers["x-scheduler-monitor-token"]});
+    return {status:200,headers:{get:()=> "application/json"},
+      json:async()=>url.pathname === "/api/readiness/deployment" ? healthyDeployment : healthy};
   };
   try {
     const verdict=await main({
@@ -55,12 +56,13 @@ test("read-only GET uses bounded request, explicit host and does not trigger wor
       PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
       PAYROLL_PRODUCTION_HOST:"prod.example.test",
       PAYROLL_STAGING_MONITOR_TOKEN:"synthetic-stage-monitor-token-is-over-32-characters",
+      PAYROLL_STAGING_EXPECTED_COMMIT_SHA:approvedSha,
     },fakeFetch,proofTime);
     assert.equal(verdict.ok,true);
-    assert.equal(method,"GET");
-    assert.equal(path,"/api/jobs/status");
-    assert.equal(secret,"synthetic-stage-monitor-token-is-over-32-characters");
-    assert.notEqual(secret, undefined);
+    assert.deepEqual(requests.map(x=>x.path),["/api/readiness/deployment","/api/jobs/status"]);
+    assert.ok(requests.every(x=>x.method==="GET"));
+    assert.equal(requests[0].secret,undefined,"deployment metadata must be checked without credentials");
+    assert.equal(requests[1].secret,"synthetic-stage-monitor-token-is-over-32-characters");
   }finally{process.exitCode=0}
 });
 test("missing staging secret fails closed before networking", async()=>{
@@ -68,6 +70,7 @@ test("missing staging secret fails closed before networking", async()=>{
     PAYROLL_STAGING_URL:"https://staging.example.test/",
     PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
     PAYROLL_PRODUCTION_HOST:"prod.example.test",
+    PAYROLL_STAGING_EXPECTED_COMMIT_SHA:approvedSha,
   },async()=>{throw new Error("should not connect")}),/staging monitor token/);
 });
 
@@ -93,14 +96,14 @@ test("GitHub job summary never persists network response data", async () => {
     PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
     PAYROLL_PRODUCTION_HOST:"prod.example.test",
     PAYROLL_STAGING_MONITOR_TOKEN:"synthetic-stage-monitor-token-is-over-32-characters",
+    PAYROLL_STAGING_EXPECTED_COMMIT_SHA:approvedSha,
     GITHUB_STEP_SUMMARY:summary,
   };
   try {
-    await main(env, async () => ({
-      status: 599,
-      headers: {get:()=>"text/plain"},
-      json: async ()=>({secret:"UNTRUSTED_CANARY"}),
-    }), proofTime);
+    await main(env, async(url) => url.pathname === "/api/readiness/deployment"
+      ? {status:200,headers:{get:()=>"application/json"},json:async()=>healthyDeployment}
+      : {status:599,headers:{get:()=>"text/plain"},json:async()=>({secret:"UNTRUSTED_CANARY"})},
+    proofTime);
     const text = readFileSync(summary, "utf8");
     assert.ok(text.includes("Outcome: FAIL"));
     assert.ok(!text.includes("599") && !text.includes("UNTRUSTED_CANARY"));
@@ -110,4 +113,32 @@ test("GitHub job summary never persists network response data", async () => {
     process.exitCode=0;
     rmSync(folder, {recursive:true,force:true});
   }
+});
+
+
+test("staging deployment revision or production environment mismatch blocks secret-bearing request", async () => {
+  for (const deployment of [
+    {...healthyDeployment,deploymentSha:"b".repeat(40)},
+    {...healthyDeployment,deploymentEnvironment:"production"},
+    {...healthyDeployment,deploymentSha:null},
+  ]) {
+    const requests=[];
+    try {
+      const result=await main({
+        PAYROLL_STAGING_URL:"https://staging.example.test/",
+        PAYROLL_STAGING_EXPECTED_HOST:"staging.example.test",
+        PAYROLL_PRODUCTION_HOST:"prod.example.test",
+        PAYROLL_STAGING_MONITOR_TOKEN:"synthetic-stage-monitor-token-is-over-32-characters",
+        PAYROLL_STAGING_EXPECTED_COMMIT_SHA:approvedSha,
+      },async(url,options)=>{
+        requests.push({path:url.pathname,secret:options.headers["x-scheduler-monitor-token"]});
+        return {status:200,headers:{get:()=>"application/json"},json:async()=>deployment};
+      },proofTime);
+      assert.equal(result.ok,false);
+      assert.deepEqual(requests.map(x=>x.path),["/api/readiness/deployment"]);
+      assert.equal(requests[0].secret,undefined);
+    } finally {process.exitCode=0;}
+  }
+  assert.equal(checkStagingDeployment(200,healthyDeployment,approvedSha).ok,true);
+  assert.equal(checkStagingDeployment(200,{...healthyDeployment,deploymentEnvironment:"production"},approvedSha).ok,false);
 });
