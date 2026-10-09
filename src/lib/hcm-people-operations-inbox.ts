@@ -274,7 +274,7 @@ export function buildPeopleOperationsItems(input: PeopleOpsInput): PeopleOpsItem
       .filter((row) => row.status === "assigned" && !row.returnedOn).length;
     const openExitTasks = offboarding.filter((row) => !row.done).length;
     const incompleteClearance = separation
-      ? separation.clearanceStatus !== "completed"
+      ? separation.clearanceStatus !== "cleared"
         || !separation.itCleared || !separation.adminCleared
         || !separation.financeCleared || !separation.hrCleared
       : false;
