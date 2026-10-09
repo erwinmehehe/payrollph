@@ -73,3 +73,15 @@ test("no mutation or automatic financial authorization occurs", () => {
   assert.equal(report.findings.length, 2);
   assert.equal(report.advisoryOnly, true);
 });
+
+import { readFileSync } from "node:fs";
+
+test("default-off connected payroll impact avoids a 404 console error and has no response body", () => {
+  const endpoint = readFileSync("src/app/api/payroll-runs/[id]/connected-impact/route.ts", "utf8");
+  const panel = readFileSync("src/components/workspace/payroll-connected-impact-panel.tsx", "utf8");
+  assert.ok(endpoint.includes("process.env.PAYROLL_CONNECTED_IMPACT_ENABLED !== \"true\""));
+  assert.ok(endpoint.includes("return new Response(null, {"));
+  assert.ok(endpoint.includes("status: 204"));
+  assert.ok(panel.includes("if (response.status === 204)"));
+  assert.ok(panel.includes("setEnabled(false)"));
+});
