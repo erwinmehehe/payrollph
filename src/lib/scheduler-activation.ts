@@ -8,7 +8,7 @@
  * This is an operational kill switch, not proof of external approval.
  */
 export function isCentralSchedulerEnabled(
-  env: Readonly<{ CENTRAL_SCHEDULER_ENABLED?: string }> = process.env,
+  env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
   return env.CENTRAL_SCHEDULER_ENABLED === "true";
 }
