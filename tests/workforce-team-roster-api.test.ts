@@ -50,6 +50,8 @@ test("the team tab is real, and day changes use the existing guarded mutation", 
   assert.ok(panel.includes('fetch("/api/workforce/schedules"'));
   assert.ok(panel.includes('action: "create_override"'));
   assert.ok(panel.includes('day.source === "override"'));
+  assert.ok(panel.includes('day.date > todayInManila()'));
+  assert.ok(panel.includes('day.segments.length > 1'));
   assert.ok(panel.includes("acknowledged"));
   assert.ok(!panel.includes("localStorage"));
 });
