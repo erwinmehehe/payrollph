@@ -167,6 +167,6 @@ test("linked compensation source selection requires matching approved/apply evid
   const route = readFileSync("src/app/api/payroll-runs/[id]/connected-impact/route.ts", "utf8");
   assert.ok(route.includes("proposal.status !== \"applied\""));
   assert.ok(route.includes("!proposal.approvedAt || !proposal.appliedAt"));
-  assert.ok(route.includes("proposal?.employeeId === revision.employeeId"));
+  assert.ok(route.includes("proposal.employeeId === revision.employeeId"));
   assert.ok(route.includes("proposal.effectiveDate === revision.effectiveDate"));
 });
