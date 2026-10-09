@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 type Item = { id:number; title:string; detail:string; caseType:string; status:string; ownerTeam:string; ownerUserId:number|null; ownerName:string|null; dueAt:string|null; escalateAt:string|null; escalationLevel:number; overdue:boolean };
 type Owner = { id:number; name:string };
+type History = { id:number; eventType:string; actorName:string|null; createdAt:string };
 const teams = ["HR Operations","Payroll","Timekeeping","Compliance","Employee Relations","Benefits","People Operations"];
 function localInput(date:string|null) { if (!date) return ""; const d = new Date(date); return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16); }
 function iso(value:string) { return value ? new Date(value).toISOString() : null; }
@@ -21,6 +22,7 @@ export default function HcmWorkQueue() {
   const [error,setError] = useState("");
   const [saving,setSaving] = useState(false);
   const [loading,setLoading] = useState(false);
+  const [history,setHistory] = useState<History[]>([]);
 
   const refresh = useCallback(async () => {
     if (!Number.isSafeInteger(Number(organizationId)) || Number(organizationId) < 1) return;
@@ -39,6 +41,10 @@ export default function HcmWorkQueue() {
   function edit(item:Item) {
     setSelected(item); setTeam(teams.includes(item.ownerTeam) ? item.ownerTeam : teams[0]); setOwnerId(item.ownerUserId?.toString() ?? "");
     setDue(localInput(item.dueAt)); setEscalate(localInput(item.escalateAt)); setError("");
+    setHistory([]);
+    void fetch(`/api/hcm/work-items/events?organizationId=${encodeURIComponent(organizationId)}&caseId=${item.id}`, {cache:"no-store"})
+      .then(async response => { const data=await response.json(); if(!response.ok) throw new Error(data.error??"Cannot load history"); return data; })
+      .then(data=>setHistory(data.events)).catch(()=>setHistory([]));
   }
   async function save() {
     if (!selected) return;
@@ -89,6 +95,9 @@ export default function HcmWorkQueue() {
         <label className="grid gap-1 text-sm font-semibold">Accountable owner<select className="rounded border p-2" value={ownerId} onChange={e=>setOwnerId(e.target.value)}><option value="">Unassigned</option>{owners.map(o=><option key={o.id} value={o.id}>{o.name}</option>)}</select></label>
         <label className="grid gap-1 text-sm font-semibold">SLA deadline (local time)<input className="rounded border p-2" type="datetime-local" value={due} onChange={e=>setDue(e.target.value)}/></label>
         <label className="grid gap-1 text-sm font-semibold">Escalate after (local time)<input className="rounded border p-2" type="datetime-local" value={escalate} onChange={e=>setEscalate(e.target.value)}/></label>
+      </div>
+      <div className="mt-4 max-h-40 overflow-y-auto border-t pt-3"><h3 className="text-sm font-bold">Ownership and SLA history</h3>
+        {history.length===0?<p className="mt-2 text-xs text-slate-500">No history recorded or available.</p>:<ul className="mt-2 space-y-2 text-xs">{history.map(event=><li key={event.id} className="flex justify-between gap-2"><span>{event.eventType.replaceAll("_"," ")} · {event.actorName??"Scheduler"}</span><time>{new Date(event.createdAt).toLocaleString("en-PH",{timeZone:"Asia/Manila"})}</time></li>)}</ul>}
       </div><div className="mt-5 flex justify-end gap-2"><button className="rounded border px-4 py-2" onClick={()=>{setSelected(null);setError("");}}>Cancel</button><button disabled={saving} className="rounded bg-emerald-800 px-4 py-2 text-white disabled:opacity-50" onClick={()=>void save()}>{saving?"Saving...":"Save changes"}</button></div>
     </section></div>}
   </main>;
