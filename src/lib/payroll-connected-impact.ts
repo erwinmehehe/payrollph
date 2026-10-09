@@ -130,7 +130,13 @@ export function buildPayrollConnectedImpact(input: ConnectedImpactInput): Connec
   }
 
   for (const row of input.payoutChanges ?? []) {
-    if (!stillOpen(row.status) || row.appliedAt) continue;
+    const decision = status(row.status);
+    // A decision without an applied timestamp (or a pending request with an
+    // applied timestamp) is inconsistent evidence and must remain visible.
+    const dismissed = ["cancelled", "canceled", "rejected", "declined", "voided", "superseded"].includes(decision)
+      && !row.appliedAt;
+    const applied = ["approved", "applied"].includes(decision) && !!row.appliedAt;
+    if (dismissed || applied) continue;
     add(findings, {
       area: "HRIS", severity: "attention", code: "HRIS_PAYOUT_REVIEW",
       employeeId: row.employeeId, sourceId: row.id, date: null,
@@ -141,8 +147,12 @@ export function buildPayrollConnectedImpact(input: ConnectedImpactInput): Connec
   }
 
   for (const row of input.attendanceCorrections ?? []) {
-    if (!validDate(row.workDate) || row.workDate < input.periodStart || row.workDate > input.periodEnd
-      || !stillOpen(row.status) || row.appliedAt) continue;
+    if (!validDate(row.workDate) || row.workDate < input.periodStart || row.workDate > input.periodEnd) continue;
+    const decision = status(row.status);
+    const dismissed = ["rejected", "cancelled", "canceled", "voided", "superseded"].includes(decision)
+      && !row.appliedAt;
+    const applied = ["approved", "applied"].includes(decision) && !!row.appliedAt;
+    if (dismissed || applied) continue;
     add(findings, {
       area: "WFM", severity: "attention", code: "WFM_CORRECTION_NOT_APPLIED",
       employeeId: row.employeeId, sourceId: row.id, date: row.workDate,
