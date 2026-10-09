@@ -204,14 +204,14 @@ type Payload = {
 
 type SelfTab = "home" | "pay" | "time" | "leave" | "documents" | "performance" | "profile";
 
-const ESS_TAB_CONFIG: Record<SelfTab, { label: string; icon: LucideIcon }> = {
+const ESS_TAB_CONFIG: Record<SelfTab, { label: string; mobileLabel?: string; icon: LucideIcon }> = {
   home: { label: "Home", icon: House },
-  pay: { label: "Payslips", icon: WalletCards },
-  time: { label: "Attendance", icon: Clock },
+  pay: { label: "Pay", mobileLabel: "Payslips", icon: WalletCards },
+  time: { label: "Time", mobileLabel: "Attendance", icon: Clock },
   leave: { label: "Leave", icon: CalendarDays },
   documents: { label: "Documents", icon: FileText },
   performance: { label: "Performance", icon: BadgeCheck },
-  profile: { label: "My info", icon: UserRound },
+  profile: { label: "Profile", mobileLabel: "My info", icon: UserRound },
 };
 
 const ESS_PRIMARY_TABS: SelfTab[] = ["home", "pay", "time", "leave"];
@@ -592,7 +592,7 @@ export function SelfServicePortal() {
 
           <nav className="employee-tabs employee-mobile-nav" aria-label="Employee pages">
             {ESS_PRIMARY_TABS.map((value) => {
-              const { icon: Icon, label } = ESS_TAB_CONFIG[value];
+              const { icon: Icon, label, mobileLabel } = ESS_TAB_CONFIG[value];
               return (
                 <button
                   key={value}
@@ -602,7 +602,7 @@ export function SelfServicePortal() {
                   onClick={() => navigateTo(value)}
                 >
                   <span className="employee-tab-icon"><Icon size={20} aria-hidden="true" /></span>
-                  <span>{label}</span>
+                  <span>{mobileLabel ?? label}</span>
                 </button>
               );
             })}
@@ -631,7 +631,7 @@ export function SelfServicePortal() {
                 </div>
                 <div className="employee-more-links">
                   {ESS_MORE_TABS.map((value, index) => {
-                    const { icon: Icon, label } = ESS_TAB_CONFIG[value];
+                    const { icon: Icon, label, mobileLabel } = ESS_TAB_CONFIG[value];
                     return (
                       <button
                         key={value}
@@ -641,7 +641,7 @@ export function SelfServicePortal() {
                         onClick={() => navigateTo(value)}
                       >
                         <Icon size={20} aria-hidden="true" />
-                        <span>{label}</span>
+                        <span>{mobileLabel ?? label}</span>
                         <ChevronRight size={18} aria-hidden="true" />
                       </button>
                     );
