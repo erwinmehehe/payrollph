@@ -819,43 +819,44 @@ export async function POST(request: Request) {
           )).returning({ id: hcmBusinessProcessInstances.id });
         if (!claimed) throw new Error("Separation approval changed before it could be applied.");
       }
+        await tx.insert(auditEvents).values({
+          organizationId,
+          actor: user.name,
+          action: existingOpen && existingOpen.status !== "released"
+            ? "Separation final pay recomputed"
+            : "Separation final pay computed",
+          resource: `${sources.employee.firstName} ${sources.employee.lastName} (Final Pay: PHP ${result.netFinalPay.toFixed(2)})`.slice(0, 160),
+          metadata: {
+            separationId: created.id,
+            businessProcessInstanceId: separationProcess?.id ?? null,
+            lastDay,
+            finalPayDueDate: dueDate,
+            basicSalaryEarnedYtd: result.basicSalaryEarnedYtd,
+            thirteenthEntitlement: result.thirteenthEntitlement,
+            thirteenthAlreadyPaid: result.thirteenthPaidYtd,
+            thirteenthDue: result.thirteenthDue,
+            unpaidBasicSalary,
+            leaveMonetizationPay,
+            leaveTaxReviewed,
+            leaveMonetizationTaxExempt,
+            separationPay,
+            retirementPay,
+            separationPayTaxExempt,
+            retirementPayTaxExempt,
+            otherBenefits,
+            finalStatutoryDeductions,
+            finalStatutoryReviewed,
+            taxAdjustment: result.taxAdjustment,
+            requestedLoanDeductions: result.requestedLoanDeductions,
+            loanDeductions: result.loanDeductions,
+            deferredLoanBalance: result.deferredLoanBalance,
+            netFinalPay: result.netFinalPay,
+          },
+        });
       return record;
     });
 
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: existingOpen && existingOpen.status !== "released"
-        ? "Separation final pay recomputed"
-        : "Separation final pay computed",
-      resource: `${sources.employee.firstName} ${sources.employee.lastName} (Final Pay: ₱${result.netFinalPay.toFixed(2)})`,
-      metadata: {
-        separationId: created.id,
-        businessProcessInstanceId: separationProcess?.id ?? null,
-        lastDay,
-        finalPayDueDate: dueDate,
-        basicSalaryEarnedYtd: result.basicSalaryEarnedYtd,
-        thirteenthEntitlement: result.thirteenthEntitlement,
-        thirteenthAlreadyPaid: result.thirteenthPaidYtd,
-        thirteenthDue: result.thirteenthDue,
-        unpaidBasicSalary,
-        leaveMonetizationPay,
-        leaveTaxReviewed,
-        leaveMonetizationTaxExempt,
-        separationPay,
-        retirementPay,
-        separationPayTaxExempt,
-        retirementPayTaxExempt,
-        otherBenefits,
-        finalStatutoryDeductions,
-        finalStatutoryReviewed,
-        taxAdjustment: result.taxAdjustment,
-        requestedLoanDeductions: result.requestedLoanDeductions,
-        loanDeductions: result.loanDeductions,
-        deferredLoanBalance: result.deferredLoanBalance,
-        netFinalPay: result.netFinalPay,
-      },
-    });
+
 
     return Response.json({
       ...created,
