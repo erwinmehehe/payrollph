@@ -94,6 +94,7 @@ test("invalid query aggregates cannot silently become zero or ready status", () 
 
 test("readiness is GET only, company-wide, no-store and does not update HR or payroll", () => {
   const api = readFileSync("src/app/api/hcm/governance-readiness/route.ts", "utf8");
+  const loader = readFileSync("src/lib/hcm-governance-readiness-server.ts", "utf8");
   const ui = readFileSync("src/components/hcm-governance-readiness-panel.tsx", "utf8");
   const admin = readFileSync("src/components/hcm-business-process-admin.tsx", "utf8");
   assert.ok(api.includes("export async function GET("));
@@ -105,11 +106,14 @@ test("readiness is GET only, company-wide, no-store and does not update HR or pa
   assert.ok(api.includes("PEOPLE_ADMIN_ROLES"));
   assert.ok(api.includes("!access?.companyWide"));
   assert.ok(api.includes('Cache-Control": "private, no-store'));
-  assert.ok(api.includes("hcm_business_process_instances"));
-  assert.ok(api.includes("WHERE e.organization_id = ${organizationId}"));
-  assert.ok(!api.includes("db.update("));
-  assert.ok(!api.includes("db.insert("));
-  assert.ok(!api.includes("db.delete("));
+  assert.ok(api.includes("loadHcmGovernanceReadiness(organizationId)"));
+  assert.ok(loader.includes("hcm_business_process_instances"));
+  assert.ok(loader.includes("WHERE e.organization_id = ${organizationId}"));
+  assert.ok(loader.includes("FROM separation_records sr"));
+  assert.ok(loader.includes("FROM position_assignments pa"));
+  assert.ok(!loader.includes("db.update("));
+  assert.ok(!loader.includes("db.insert("));
+  assert.ok(!loader.includes("db.delete("));
   assert.ok(ui.includes("No employee identities"));
   assert.ok(ui.includes("not certification") || ui.includes("not certification."));
   assert.ok(admin.includes("<HcmGovernanceReadinessPanel organizationId={organizationId} />"));
