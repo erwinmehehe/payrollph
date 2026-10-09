@@ -39,6 +39,9 @@ export async function refreshSchedulerLease(
      WHERE job_name = ${jobName}
        AND last_result->>'status' = 'running'
        AND last_result->>'ownerToken' = ${ownerToken}
+       -- An expired owner must not revive its own abandoned lease.
+       -- Require a new acquire/takeover even when nobody has claimed it yet.
+       AND last_run_at >= NOW() - (${LEASE_TIMEOUT_MINUTES} * INTERVAL '1 minute')
     RETURNING id
   `);
   return result.rows.length === 1;
