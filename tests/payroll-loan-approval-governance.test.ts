@@ -131,6 +131,9 @@ test("new loan request cannot bypass authorization and approval UI does not prom
   assert.ok(route.includes("!access?.companyWide"));
   assert.ok(route.includes("pg_advisory_xact_lock(4304"));
   assert.ok(route.includes("activeLoanPayrollConflict(cutoffRows"));
+  assert.ok(route.includes('process.env.PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED !== "true"'));
+  assert.ok(route.includes('"LOAN_DEDUCTION_ACTIVATION_NOT_CERTIFIED"'));
+  assert.ok(ui.includes("Deduction activation disabled."));
   assert.ok(route.includes("FOR UPDATE"));
   assert.ok(ui.includes("Submit for Review — No Deduction Yet"));
   assert.ok(ui.includes("Approve &amp; Activate"));
