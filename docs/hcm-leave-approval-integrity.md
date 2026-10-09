@@ -41,8 +41,13 @@ employment day.
   existing approval-task transaction. On approval recheck worker employment
   eligibility against a shared-lock employee snapshot. Commit leave status,
   overlapping timesheet staleness and an actor + interval-revision audit
-  with the approval task. A missing, multiply linked or already decided
-  leave blocks the whole decision transaction. Post-commit automation and
+  with the approval task. The reviewer must differ from the original
+  requester's stable user ID captured in precise-leave revision 1; a
+  display-name delegation cannot bypass this maker/checker check.
+  Legacy leave with no source requester identity cannot be newly approved
+  and must be resubmitted through the governed process. A missing, multiply
+  linked or already decided leave blocks the whole decision transaction.
+  Post-commit automation and
   webhook calls cannot rewrite the approved decision.
 - Generic payroll approval and other HCM business-process decision paths
   remain unchanged by these leave-specific transaction branches.
