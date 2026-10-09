@@ -71,6 +71,12 @@ test("separating employees can finish authorized work up to but not past actual 
   });
   assert.equal(missing.ok, false);
   if (!missing.ok) assert.equal(missing.code, "HCM_SEPARATION_END_DATE_UNVERIFIED");
+  const staleReleasedExit = evaluateHcmWorkPeriod({
+    employee, startDate: "2026-06-01", endDate: "2026-06-15",
+    separation: { status: "released", lastDay: "2026-06-30" },
+  });
+  assert.equal(staleReleasedExit.ok, false);
+  if (!staleReleasedExit.ok) assert.equal(staleReleasedExit.code, "HCM_WORKER_EXIT_STATE_CONFLICT");
 });
 
 test("separated, terminated and inactive workers cannot create new wages via standard WFM routes", () => {
