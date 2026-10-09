@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw, ShieldAlert } from "lucide-react";
 
 type HcmGovernanceReport = {
@@ -37,12 +37,15 @@ function policyLabel(state: string) {
 }
 
 export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId: number }) {
-  const [report, setReport] = useState<HcmGovernanceReport | null>(null);
+  const [storedReport, setReport] = useState<HcmGovernanceReport | null>(null);
+  const [loadedOrganizationId, setLoadedOrganizationId] = useState<number | null>(null);
+  const requestGeneration = useRef(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [checked, setChecked] = useState(false);
 
   const refresh = useCallback(async () => {
+    const requestId = ++requestGeneration.current;
     setBusy(true);
     setError("");
     try {
@@ -51,6 +54,9 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
         { cache: "no-store" },
       );
       const payload = await response.json().catch(() => ({}));
+      // Never display an old employer's results after the active workspace
+      // changes or a more recent refresh has been requested.
+      if (requestId !== requestGeneration.current) return;
       if (!response.ok) {
         if (response.status === 403) {
           setError("Company-wide People administrator access is required for this aggregate readiness report.");
@@ -61,18 +67,28 @@ export function HcmGovernanceReadinessPanel({ organizationId }: { organizationId
         return;
       }
       setReport(payload as HcmGovernanceReport);
+      setLoadedOrganizationId(organizationId);
     } catch (caught) {
+      if (requestId !== requestGeneration.current) return;
       setReport(null);
       setError(caught instanceof Error ? caught.message : "HCM readiness is unavailable.");
     } finally {
-      setChecked(true);
-      setBusy(false);
+      if (requestId === requestGeneration.current) {
+        setChecked(true);
+        setBusy(false);
+      }
     }
   }, [organizationId]);
 
   useEffect(() => {
+    setChecked(false);
     void refresh();
+    return () => { requestGeneration.current += 1; };
   }, [refresh]);
+
+  // Render only the report associated with this exact tenant, even during
+  // the render before a React effect has run on an organization switch.
+  const report = loadedOrganizationId === organizationId ? storedReport : null;
 
   return (
     <section style={{ padding: "12px 16px 4px" }} aria-label="Read-only HCM governance readiness">
