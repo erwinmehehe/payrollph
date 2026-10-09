@@ -39,6 +39,10 @@ import { runLifecycleAutomations } from "@/lib/automation";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
 import { freezeSeparationIntent, separationEvidenceFromDefinition, separationIntentFingerprint, type HcmSeparationIntent } from "@/lib/hcm-separation-business-process";
+import {
+  FINAL_PAY_CONCURRENT_SOURCE_CONFLICT,
+  isRetryableFinalPayConflict,
+} from "@/lib/final-pay-transaction-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -896,7 +900,7 @@ export async function POST(request: Request) {
           },
         });
       return record;
-    });
+    }, { isolationLevel: "serializable" });
 
     return Response.json({
       ...created,
@@ -1227,7 +1231,7 @@ export async function PATCH(request: Request) {
             },
           });
           return approved;
-        });
+        }, { isolationLevel: "serializable" });
         return Response.json(updated);
       } catch (error) {
         const code = error instanceof Error ? error.message : "";
@@ -1509,7 +1513,7 @@ export async function PATCH(request: Request) {
         },
       });
       return updated;
-    });
+    }, { isolationLevel: "serializable" });
 
     // Money, loan and employee status were already committed. Delivery errors
     // cannot turn an actual financial release into a misleading HTTP 500.
