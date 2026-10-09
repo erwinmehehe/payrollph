@@ -389,6 +389,12 @@ export async function approveEmploymentDecisionWithEvidence(input: {
       );
     }
 
+    // Lock current worker and source terms before reading the approval
+    // snapshot; activation must not replace the terms in this interval.
+    await tx.execute(sql`select id from employees
+      where id = ${decision.employeeId} and organization_id = ${input.organizationId} for update`);
+    await tx.execute(sql`select id from hcm_employment_terms
+      where id = ${decision.employmentTermId} and organization_id = ${input.organizationId} for update`);
     const [term] = await tx.select().from(hcmEmploymentTerms).where(and(
       eq(hcmEmploymentTerms.id, decision.employmentTermId),
       eq(hcmEmploymentTerms.organizationId, decision.organizationId),
@@ -397,8 +403,6 @@ export async function approveEmploymentDecisionWithEvidence(input: {
     if (!term || term.status !== "active") {
       throw new DecisionEvidenceApprovalError("The original active employment terms changed; create a new review against current terms.");
     }
-    await tx.execute(sql`select id from employees
-      where id = ${decision.employeeId} and organization_id = ${input.organizationId} for update`);
     const [worker] = await tx.select({
       id: employees.id, status: employees.status,
     }).from(employees).where(and(
