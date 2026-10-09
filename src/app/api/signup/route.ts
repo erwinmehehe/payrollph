@@ -106,6 +106,7 @@ export async function POST(request: Request) {
     }
     throw error;
   }
+  if (!created) return Response.json({ error: "Could not initialize registration." }, { status: 503 });
   const verificationUrl = origin + "/verify-signup?token=" + token;
   const sent = await queueMessage({
     organizationId: created.organizationId,
