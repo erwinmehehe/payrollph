@@ -98,7 +98,7 @@ export function SubscriptionManager({ organizationId, companyName }: { organizat
 
   const sub = data?.subscription;
   const canStart = sub?.status === "pending_payment";
-  const canCancel = sub?.provider === "xendit" && sub.status === "active" && !sub.cancelAtPeriodEnd;
+  const canCancel = sub?.provider === "xendit" && ["active", "past_due"].includes(sub.status) && !sub.cancelAtPeriodEnd;
 
   return (
     <div className="mx-auto max-w-[920px] space-y-6">
