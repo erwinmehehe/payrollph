@@ -1,6 +1,6 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, separationRecords } from "@/db/schema";
+import { employees } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertScope, getAccess } from "@/lib/access";
 import { enforceSameOriginMutation } from "@/lib/security-request";
@@ -10,6 +10,7 @@ import {
   type PreciseLeaveInterval,
 } from "@/lib/workforce-absence-intervals";
 import { loadResolvedEmployeeSchedule } from "@/lib/workforce-schedule-evidence-server";
+import { loadCurrentHcmSeparation } from "@/lib/hcm-work-period-guard";
 import {
   checkEmployeeLeaveEligibility,
   leaveDateWindow,
@@ -70,20 +71,17 @@ export async function POST(request: Request) {
   if (!window.ok) {
     return Response.json({ code: window.code, error: window.message }, { status: 400 });
   }
-  const [pendingSeparation] = employee.status === "Separating"
-    ? await db.select({ lastDay: separationRecords.lastDay }).from(separationRecords)
-      .where(and(
-        eq(separationRecords.organizationId, organizationId),
-        eq(separationRecords.employeeId, employee.id),
-        inArray(separationRecords.status, ["draft", "approved"]),
-      )).orderBy(desc(separationRecords.id)).limit(1)
-    : [];
+  const pendingSeparation = await loadCurrentHcmSeparation({
+      employeeId: employee.id, organizationId: organizationId,
+      status: employee.status, startDate: String(employee.startDate),
+    });
   const eligibility = checkEmployeeLeaveEligibility({
     employeeStatus: employee.status,
     employmentStartDate: String(employee.startDate),
     leaveStartDate: dates[0],
     leaveEndDate: dates[dates.length - 1],
     separationLastDay: pendingSeparation?.lastDay ?? null,
+    separationStatus: pendingSeparation?.status ?? null,
   });
   if (eligibility) {
     return Response.json({ code: eligibility.code, error: eligibility.message }, { status: 409 });

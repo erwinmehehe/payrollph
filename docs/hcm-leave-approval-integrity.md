@@ -21,6 +21,11 @@ employment day.
 - New leave days must be positive and may not exceed the calendar-date range.
 - Active and On leave workers can request ordinary leave starting on/after
   the recorded employment start date.
+- Active or On leave workers with an overlapping draft/approved/released
+  separation record are blocked until HR reconciles the stale lifecycle state.
+  An old exit before an independently recorded rehire is excluded.
+- A Separating worker with a Released final-pay separation cannot approve
+  new ordinary leave; earned-pay corrections require separate review.
 - Separating workers require an actual, non-released separation record with a
   valid last day; ordinary leave must end no later than that day.
 - Separated/Terminated or unknown-status workers cannot create, preview or

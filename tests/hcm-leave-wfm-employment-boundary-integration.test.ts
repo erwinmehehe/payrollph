@@ -56,3 +56,34 @@ test("a separated worker cannot use ordinary leave or new WFM authorization", ()
   assert.equal(work.ok, false);
   if (!work.ok) assert.equal(work.code, "HCM_WORKER_NOT_ACTIVE");
 });
+
+test("new leave and WFM reject conflicting Active/On leave separation evidence", () => {
+  for (const status of ["Active", "On leave"]) {
+    const leave = checkEmployeeLeaveEligibility({
+      employeeStatus: status, employmentStartDate: hireDate,
+      leaveStartDate: "2026-09-20", leaveEndDate: "2026-09-21",
+      separationStatus: "approved", separationLastDay: lastDay,
+    });
+    const work = evaluateHcmWorkPeriod({
+      employee: { employeeId, organizationId, status, startDate: hireDate },
+      startDate: "2026-09-20", endDate: "2026-09-21",
+      separation: { status: "approved", lastDay },
+    });
+    assert.equal(leave?.code, "LEAVE_EMPLOYMENT_STATE_CONFLICT");
+    assert.equal(work.ok, false);
+    if (!work.ok) assert.equal(work.code, "HCM_WORKER_EXIT_STATE_CONFLICT");
+  }
+});
+
+test("rehired worker preserves ordinary leave and authorized work after an older exit", () => {
+  const start = "2026-10-01";
+  assert.equal(checkEmployeeLeaveEligibility({
+    employeeStatus: "Active", employmentStartDate: start,
+    leaveStartDate: "2026-10-03", leaveEndDate: "2026-10-03",
+    separationStatus: null, separationLastDay: null,
+  }), null);
+  assert.deepEqual(evaluateHcmWorkPeriod({
+    employee: { employeeId, organizationId, status: "Active", startDate: start },
+    startDate: "2026-10-03", endDate: "2026-10-03", separation: null,
+  }), { ok: true });
+});

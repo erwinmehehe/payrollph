@@ -55,6 +55,7 @@ export function checkEmployeeLeaveEligibility(input: {
   leaveStartDate: string;
   leaveEndDate: string;
   separationLastDay?: string | null;
+  separationStatus?: string | null;
 }): LeaveEligibilityFinding | null {
   const window = leaveDateWindow(input.leaveStartDate, input.leaveEndDate);
   if (!window.ok) return { code: window.code, message: window.message };
@@ -85,7 +86,30 @@ export function checkEmployeeLeaveEligibility(input: {
       message: "This employee is not currently eligible for an ordinary leave request. Review the HR lifecycle status.",
     };
   }
+  // Use the same current separation record as the WFM employment gate.
+  // Previously, an Active worker with an overlapping exit could still
+  // receive ordinary leave approval despite an unresolved HR lifecycle.
+  const separationStatus = (input.separationStatus ?? "").trim().toLowerCase();
+  if ((status === "active" || status === "on leave")
+      && ["draft", "approved", "released"].includes(separationStatus)) {
+    return {
+      code: "LEAVE_EMPLOYMENT_STATE_CONFLICT",
+      message: "The employee has a current separation record inconsistent with Active/On leave status. Reconcile the HR record before ordinary leave approval.",
+    };
+  }
   if (status === "separating") {
+    if (separationStatus === "released") {
+      return {
+        code: "LEAVE_FINAL_PAY_ALREADY_RELEASED",
+        message: "The final-pay separation has been released. Use a separately reviewed HR/payroll correction instead of a new ordinary leave decision.",
+      };
+    }
+    if (separationStatus && !["draft", "approved"].includes(separationStatus)) {
+      return {
+        code: "LEAVE_SEPARATION_END_UNVERIFIED",
+        message: "The separating employee's lifecycle record needs HR verification before ordinary leave approval.",
+      };
+    }
     if (!input.separationLastDay || !validLeaveDate(input.separationLastDay)) {
       return {
         code: "LEAVE_SEPARATION_END_UNVERIFIED",
