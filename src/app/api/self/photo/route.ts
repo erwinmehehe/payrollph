@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees } from "@/db/schema";
 import { essEmployeePhotos } from "@/lib/ess-profile-schema";
+import { decryptProfilePhoto, encryptProfilePhoto } from "@/lib/ess-photo-crypto";
 import { assertMembership } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
@@ -38,13 +39,18 @@ async function readPhoto(head = false) {
   if (!context.ok) return context.denied;
   const [photo] = await db.select({
     mimeType: essEmployeePhotos.mimeType,
-    photoBase64: essEmployeePhotos.photoBase64,
+    sealedPhoto: essEmployeePhotos.sealedPhoto,
   }).from(essEmployeePhotos)
     .where(and(eq(essEmployeePhotos.employeeId, context.employee.id), eq(essEmployeePhotos.organizationId, context.employee.organizationId)))
     .limit(1);
   if (!photo) return new Response(null, { status: 404, headers: PRIVATE_HEADERS });
   const headers = { ...PRIVATE_HEADERS, "Content-Type": photo.mimeType };
-  return new Response(head ? null : Buffer.from(photo.photoBase64, "base64"), { headers, status: 200 });
+  if (head) return new Response(null, { headers, status: 200 });
+  try {
+    return new Response(new Uint8Array(decryptProfilePhoto(photo.sealedPhoto)), { headers, status: 200 });
+  } catch {
+    return Response.json({ error: "Stored profile photo is temporarily unavailable." }, { status: 503, headers: PRIVATE_HEADERS });
+  }
 }
 
 export async function GET() {
@@ -88,12 +94,19 @@ export async function POST(request: Request) {
     return Response.json({ error: "Photo could not be verified by the security scanner. No image was saved." }, { status: 503 });
   }
 
+  let sealedPhoto: string;
+  try {
+    sealedPhoto = encryptProfilePhoto(bytes);
+  } catch {
+    return Response.json({ error: "Secure profile photo encryption is not configured." }, { status: 503 });
+  }
+
   await db.insert(essEmployeePhotos).values({
     employeeId: context.employee.id,
     organizationId: context.employee.organizationId,
     mimeType: verified.mime,
     byteSize: bytes.length,
-    photoBase64: Buffer.from(bytes).toString("base64"),
+    sealedPhoto,
     contentSha256: createHash("sha256").update(bytes).digest("hex"),
     updatedAt: new Date(),
   }).onConflictDoUpdate({
@@ -101,7 +114,7 @@ export async function POST(request: Request) {
     set: {
       mimeType: verified.mime,
       byteSize: bytes.length,
-      photoBase64: Buffer.from(bytes).toString("base64"),
+      sealedPhoto,
       contentSha256: createHash("sha256").update(bytes).digest("hex"),
       updatedAt: new Date(),
     },
