@@ -179,7 +179,13 @@ export async function GET(request: Request) {
           endDate: String(leave.endDate), days: Number(leave.days),
         }).kind === "full_day" ? "full" : "partial_or_uncertain";
       const key = leave.employeeId + "|" + date;
-      if (kind === "full" || !leaveByKey.has(key)) leaveByKey.set(key, kind);
+      if (leaveByKey.has(key)) {
+        // Multiple separately approved leave sources on the same day require
+        // review rather than silently treating either as authoritative.
+        leaveByKey.set(key, "partial_or_uncertain");
+      } else {
+        leaveByKey.set(key, kind);
+      }
     }
   }
   const rows: FloorRow[] = [];
@@ -233,7 +239,7 @@ export async function GET(request: Request) {
             now: generatedAt, employee: {
               id: employee.id, employeeNo: employee.employeeNo,
               name: employee.firstName + " " + employee.lastName,
-              status: conflictingExit ? "Employment review" : employee.status,
+              status: conflictingExit || String(employee.startDate) > date ? "Employment review" : employee.status,
             }, workDate: date, worksiteId: day.worksiteId, segment,
             punches: punchesByKey.get(employee.id + "|" + date) ?? [],
             leave: leaveByKey.get(employee.id + "|" + date) ?? "none",
@@ -247,7 +253,7 @@ export async function GET(request: Request) {
   rows.sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.employeeId - b.employeeId);
   return Response.json({
     generatedAt: generatedAt.toISOString(), timezone: "Asia/Manila", workDate, page, pageSize,
-    totalEmployees: visible.length, hasMore: page * pageSize < totalEmployees,
+    totalEmployees, hasMore: page * pageSize < totalEmployees,
     unresolvedSchedules, rows, summary: summarizeFloor(rows), advisory: true,
     scope: access.companyWide ? "company" : "organization_unit",
   }, { headers: { "Cache-Control": "private, no-store" } });
