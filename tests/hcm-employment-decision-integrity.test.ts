@@ -90,6 +90,12 @@ test("approval seals evidence and actor audit in one transaction and application
   assert.ok(apply.includes("where id = ${input.decisionId} for update"));
   assert.ok(apply.includes("successorTermId: successor.id"));
   assert.ok(apply.includes("isNull(hcmEmploymentTermDecisions.successorTermId)"));
+  const route = readFileSync("src/app/api/hcm/employment-term-decisions/route.ts", "utf8");
+  const ui = readFileSync("src/components/hcm-employment-lifecycle-worker.tsx", "utf8");
+  assert.ok(route.includes("retryRecorded: true"));
+  assert.ok(route.includes("approved: true"));
+  assert.ok(route.includes("status: 202"));
+  assert.ok(ui.includes("setDecisionWarning(payload.warning"));
 });
 
 test("PostgreSQL prevents double-open term decisions, and transaction failure rolls back both decision and audit", async () => {
