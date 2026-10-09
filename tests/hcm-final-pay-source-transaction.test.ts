@@ -5,7 +5,11 @@ import test from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import { employees, organizations } from "../src/db/schema";
-import { finalPaySourceFingerprint, type FinalPayFingerprintInputs } from "../src/lib/final-pay-source-fingerprint";
+import {
+  expectedFinalPaySourceAfterInitiation,
+  finalPaySourceFingerprint,
+  type FinalPayFingerprintInputs,
+} from "../src/lib/final-pay-source-fingerprint";
 import {
   FINAL_PAY_CONCURRENT_SOURCE_CONFLICT,
   isRetryableFinalPayConflict,
@@ -76,6 +80,26 @@ test("final-pay fingerprint is deterministically sorted without modifying source
   assert.deepEqual(source.released.map(row => row.entryId), releasedOrder);
   assert.deepEqual(source.historical.map(row => row.id), historicOrder);
   assert.deepEqual(source.loans.map(row => row.id), loanOrder);
+});
+
+test("new separation freezes its authorized after-status without accepting a changed pre-transition source", () => {
+  const original = fixture();
+  original.employee.status = "Active";
+  const beforeStatus = finalPaySourceFingerprint(original);
+  const expected = expectedFinalPaySourceAfterInitiation(beforeStatus);
+  assert.equal(beforeStatus.employeeStatus, "Active");
+  assert.equal(expected.employeeStatus, "Separating");
+  assert.deepEqual({ ...expected, employeeStatus: "Active" }, beforeStatus);
+  const workerNowSeparating = fixture();
+  workerNowSeparating.employee.status = "Separating";
+  assert.deepEqual(finalPaySourceFingerprint(workerNowSeparating), expected,
+    "Independent approval should recognize only the authorized initiation change.");
+  const wronglySeparated = fixture();
+  wronglySeparated.employee.status = "Separated";
+  assert.notDeepEqual(finalPaySourceFingerprint(wronglySeparated), expected);
+  const amendedPay = fixture();
+  amendedPay.employee.basicRate = "30001.00";
+  assert.notDeepEqual(finalPaySourceFingerprint(amendedPay), expected);
 });
 
 test("frozen final-pay evidence detects source changes to MWE, statutory YTD, bank-relevant loan and payroll inputs", () => {
@@ -176,5 +200,7 @@ test("all three source-money decisions read from their own transaction and never
   assert.ok(api.includes("FINAL_PAY_CONCURRENT_SOURCE_CONFLICT"));
   assert.ok(api.includes("skipSchemaSetup: true"));
   assert.ok(api.includes('finalPaySourceFingerprint as fingerprint'));
+  assert.ok(api.includes("expectedFinalPaySourceAfterInitiation(sourceFingerprintBeforeSeparation)"));
+  assert.ok(api.includes("sameSnapshot(sourceFingerprintBeforeSeparation, fingerprint(transactionSources))"));
   assert.ok(api.includes('process.env.FINAL_PAY_MANUAL_RELEASE_ENABLED !== "true"'));
 });
