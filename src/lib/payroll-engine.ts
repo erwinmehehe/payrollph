@@ -41,6 +41,7 @@ import {
   yearEndAdjustments,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { validPayrollLoanSchedule } from "@/lib/loan-ledger-guards";
 import {
   computeCutoffStatutoryDeduction,
   computePagIbig,
@@ -3078,11 +3079,26 @@ function calculateEmployeePay(input: {
   // cannot fit in available net pay is carried forward instead of disappearing
   // behind a max(0, net) clamp.
   const requestedLoanLines = (input.loans ?? [])
-    .map((loan) => ({
-      ...loan,
-      requestedDeduction: Math.min(Number(loan.cutoffDeduction), Number(loan.remainingBalance)),
-      governmentPriority: /sss|pag-?ibig|hdmf|calamity/i.test(loan.loanType) ? 0 : 1,
-    }))
+    .flatMap((loan) => {
+      // Existing databases may contain schedules created before the loan
+      // API enforced positive centavos. Never let a negative cutoff become
+      // an accidental credit to net wages or a malformed amount be settled.
+      if (!validPayrollLoanSchedule(loan)) {
+        flags.push(
+          `Loan #${loan.id} (${loan.loanType}) has an invalid deduction or balance. No loan deduction applied; pause and reconcile the schedule before payroll release.`,
+        );
+        return [] as Array<{
+          id: number; loanType: string; referenceNo: string;
+          cutoffDeduction: number; remainingBalance: number;
+          requestedDeduction: number; governmentPriority: number;
+        }>;
+      }
+      return [{
+        ...loan,
+        requestedDeduction: Math.min(loan.cutoffDeduction, loan.remainingBalance),
+        governmentPriority: /sss|pag-?ibig|hdmf|calamity/i.test(loan.loanType) ? 0 : 1,
+      }];
+    })
     .sort((a, b) => a.governmentPriority - b.governmentPriority || a.id - b.id);
 
   const gross = Math.max(
