@@ -38,7 +38,7 @@ function mock({mutateRun, mutateWorkflow, mutateJobs, mutateApprovals, status = 
       if (mutateWorkflow) body=mutateWorkflow(body,id);
     } else if (url.endsWith('/approvals')) {
       body=[{state:'approved',environments:[{name:'payroll-staging'}],
-        user:{login:'independent-ops-reviewer'}}];
+        user:{login:'independent-ops-reviewer',type:'User'}}];
       if (mutateApprovals) body=mutateApprovals(body,id);
     } else if (url.endsWith('/jobs?per_page=10')) {
       body={total_count:2,jobs:[
@@ -189,11 +189,11 @@ test('rejects declared oversized Content-Length before reading response body', a
 test('requires documented independent payroll-staging environment approval for every run', async()=>{
   const badSamples=[
     [],
-    [{state:'approved',environments:[{name:'production'}],user:{login:'independent-ops-reviewer'}}],
-    [{state:'rejected',environments:[{name:'payroll-staging'}],user:{login:'independent-ops-reviewer'}}],
-    [{state:'approved',environments:[{name:'payroll-staging'}],user:{login:'stage-operator'}}],
+    [{state:'approved',environments:[{name:'production'}],user:{login:'independent-ops-reviewer',type:'User'}}],
+    [{state:'rejected',environments:[{name:'payroll-staging'}],user:{login:'independent-ops-reviewer',type:'User'}}],
+    [{state:'approved',environments:[{name:'payroll-staging'}],user:{login:'stage-operator',type:'User'}}],
     [{state:'approved',environments:[{name:'payroll-staging'}],user:null}],
-    [{state:'approved',environments:[],user:{login:'independent-ops-reviewer'}}],
+    [{state:'approved',environments:[],user:{login:'independent-ops-reviewer',type:'User'}}],
   ];
   for(const approvals of badSamples) {
     const {fetcher}=mock({mutateApprovals:()=>approvals});
@@ -202,10 +202,24 @@ test('requires documented independent payroll-staging environment approval for e
   }
 });
 
+test('requires a human User rather than a bot or a type-less reviewer', async()=>{
+  for (const user of [
+    {login:'independent-ops-reviewer',type:'Bot'},
+    {login:'independent-ops-reviewer'},
+    {login:'stage-operator',type:'User'},
+  ]) {
+    const {fetcher}=mock({mutateApprovals:()=>[
+      {state:'approved',environments:[{name:'payroll-staging'}],user},
+    ]});
+    await expectCode(verifyRunProvenance(good(),{token:TOKEN,fetcher}),
+      'GITHUB_INDEPENDENT_STAGE_REVIEW_NOT_PROVEN');
+  }
+});
+
 test('an approval for payroll-staging cannot be overridden by a rejection',async()=>{
   const {fetcher}=mock({mutateApprovals:()=>[
-    {state:'approved',environments:[{name:'payroll-staging'}],user:{login:'independent-reviewer'}},
-    {state:'rejected',environments:[{name:'payroll-staging'}],user:{login:'another-reviewer'}},
+    {state:'approved',environments:[{name:'payroll-staging'}],user:{login:'independent-reviewer',type:'User'}},
+    {state:'rejected',environments:[{name:'payroll-staging'}],user:{login:'another-reviewer',type:'User'}},
   ]});
   await expectCode(verifyRunProvenance(good(),{token:TOKEN,fetcher}),
     'GITHUB_INDEPENDENT_STAGE_REVIEW_NOT_PROVEN');
