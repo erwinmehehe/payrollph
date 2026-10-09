@@ -125,6 +125,29 @@ const RAW_AUTOMATION_WORKFLOW_TEMPLATES = [
     ],
   },
   {
+    id: "workforce-clock-in-pending-manager-review",
+    version: 1,
+    category: "Workforce",
+    name: "Follow up on an unconfirmed scheduled clock-in",
+    description: "After a configured grace period, create a manager follow-up for a scheduled shift with no verified clock-in. This is a review prompt, not an absence or pay decision.",
+    trigger: "attendance.clock_in_pending",
+    conditions: { version: 1, all: [], any: [] },
+    actions: [
+      {
+        type: "create_task",
+        title: "Verify scheduled worker check-in",
+        owner: "Workforce Ops",
+        kind: "automation",
+      },
+      {
+        type: "send_email",
+        recipient: "manager",
+        subject: "Scheduled check-in needs review",
+        body: "A scheduled shift has no confirmed clock-in after the configured grace period. Please check attendance sync, approved leave and any pending correction before contacting the worker. This notice does not establish absence or change payroll.",
+      },
+    ],
+  },
+  {
     id: "compliance-contribution-discrepancy",
     version: 1,
     category: "Compliance",

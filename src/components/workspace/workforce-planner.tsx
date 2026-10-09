@@ -18,6 +18,7 @@ import type {
   ScheduleGuardrailPolicy,
 } from "@/lib/workforce-schedule-guardrails";
 import type { DashboardData, Notify } from "./types";
+import { buildRotationTemplateDraft } from "@/lib/workforce-rotation-template";
 import { EmptyState, ErrorState, Metric, PageHeading, Spinner, Status } from "./ui";
 import { WorkforceOvertimePanel } from "./workforce-overtime-panel";
 import { WorkforceScheduleSwapPanel } from "./workforce-schedule-swap-panel";
@@ -316,6 +317,23 @@ export function WorkforcePlanner({
     if (ok) setAssignmentPatternId("");
   }
 
+  function useExistingPatternAsTemplate(pattern: PatternRow) {
+    if (!catalog) return;
+    const result = buildRotationTemplateDraft({
+      pattern, patterns: catalog.patterns, days: catalog.patternDays,
+      segments: catalog.patternSegments,
+      shiftIds: catalog.shifts.map(shift => shift.id),
+    });
+    if (!result.ok) {
+      notify(result.error, "err");
+      return;
+    }
+    setPatternCode(result.code);
+    setPatternName(result.name);
+    setPatternChoices(result.choices);
+    notify("Rotation loaded for review. It has not been saved or assigned.");
+  }
+
   async function assignPattern() {
     if (!employeeId || !assignmentPatternId || !assignmentStart) {
       notify("Employee, rotation and effective start date are required.", "err");
@@ -594,6 +612,11 @@ export function WorkforcePlanner({
                 <span key={pattern.id}>
                   <b>{pattern.code} · {pattern.name}</b>
                   <small style={{ display: "block", color: "var(--muted)" }}>{pattern.cycleDays}-day cycle</small>
+                  <button type="button" className="secondary-button"
+                    onClick={() => useExistingPatternAsTemplate(pattern)} disabled={saving !== null}
+                    aria-label={`Use ${pattern.name} as a new rotation template`}>
+                    Use as template
+                  </button>
                 </span>
               ))}
             </div>
