@@ -1193,7 +1193,9 @@ export async function PATCH(request: Request) {
       }, { status: 409 });
     }
 
-    const released = await db.transaction(async (tx) => {
+    let released: typeof separationRecords.$inferSelect;
+    try {
+      released = await db.transaction(async (tx) => {
       await tx.execute(sql`select id from separation_records where id = ${id} and organization_id = ${sep.organizationId} for update`);
       const [fresh] = await tx.select().from(separationRecords).where(and(
         eq(separationRecords.id, id), eq(separationRecords.organizationId, sep.organizationId),
@@ -1409,11 +1411,22 @@ export async function PATCH(request: Request) {
         },
       });
       return updated;
-    });
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Final pay could not be released.";
+      // Stale actor/employee/clearance evidence is a business conflict. A
+      // database write failure is different: surface it as a true error and
+      // never claim the transaction committed.
+      if (/changed|recompute|last day|independent|preparer|review|FINAL_PAY_|awaiting release|separated early/i.test(message)) {
+        return Response.json({ code: "FINAL_PAY_RELEASE_STALE", error: message }, { status: 409 });
+      }
+      throw error;
+    }
 
-
-
-    const automation = await runLifecycleAutomations({
+    const postReleaseWarnings: string[] = [];
+    let automation: Awaited<ReturnType<typeof runLifecycleAutomations>> | null = null;
+    try {
+      automation = await runLifecycleAutomations({
       organizationId: sep.organizationId,
       employeeId: sep.employeeId,
       trigger: "employee.separated",
@@ -1424,8 +1437,13 @@ export async function PATCH(request: Request) {
         title: employee.title,
       },
     });
+    } catch {
+      postReleaseWarnings.push("Final pay was released and audited, but lifecycle automation dispatch failed. Reconcile the durable event separately.");
+    }
 
-    const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
+    let fieldChangeAutomation: Awaited<ReturnType<typeof runEmployeeFieldChangeAutomations>> | null = null;
+    try {
+      fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
       organizationId: sep.organizationId,
       employeeId: sep.employeeId,
       eventKey: "separation-release:" + sep.id + ":field-change",
@@ -1440,11 +1458,15 @@ export async function PATCH(request: Request) {
         },
       ],
     });
+    } catch {
+      postReleaseWarnings.push("Final pay was released and audited, but employee field-change automation dispatch failed.");
+    }
 
     return Response.json({
       ...released,
       automation,
       fieldChangeAutomation,
+      postReleaseWarnings,
       offboarding2316: {
         status: "available",
         href: `/api/separation/${released.id}/2316`,
