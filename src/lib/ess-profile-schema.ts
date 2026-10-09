@@ -7,7 +7,7 @@ export const essEmployeePhotos = pgTable("ess_employee_photos", {
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   mimeType: varchar("mime_type", { length: 24 }).notNull(),
   byteSize: integer("byte_size").notNull(),
-  photoBase64: text("photo_base64").notNull(),
+  sealedPhoto: text("sealed_photo").notNull(),
   contentSha256: varchar("content_sha256", { length: 64 }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [index("ess_employee_photos_org_idx").on(table.organizationId)]);
