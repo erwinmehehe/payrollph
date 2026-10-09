@@ -34,7 +34,7 @@ import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-event
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
 import {
-  employeeHasReleasedPayroll,
+  employeeHasPayrollRegisterEntry,
   legacyPayoutChangeBlockReason,
   payoutHistoryUnderLockQuery,
   REVIEWED_PAYOUT_DESTINATION_REQUIRED,
@@ -585,10 +585,10 @@ export async function PATCH(request: Request) {
     }
 
     if (!treasuryPolicy?.enabled) {
-      const hasReleasedPayroll = await employeeHasReleasedPayroll(organizationId, employeeId);
+      const hasPayrollRegisterEntry = await employeeHasPayrollRegisterEntry(organizationId, employeeId);
       const legacyDecision = legacyPayoutChangeBlockReason({
         treasuryEnabled: false,
-        hasReleasedPayroll,
+        hasPayrollRegisterEntry,
         companyWide: access?.companyWide ?? false,
         role: access?.role ?? "",
       });
@@ -706,7 +706,7 @@ export async function PATCH(request: Request) {
         throw new Error("PAYOUT_DESTINATION_STALE");
       }
       const lockedHistory = await tx.execute(payoutHistoryUnderLockQuery(organizationId, employeeId));
-      if (lockedHistory.rows.some(row => row.status === "Released")) {
+      if (lockedHistory.rows.length > 0) {
         throw new Error("PAYOUT_DESTINATION_REVIEW_REQUIRED");
       }
       const treasuryNow = await tx.execute(sql`
@@ -932,7 +932,7 @@ export async function PATCH(request: Request) {
           newBankCode: updated.bankCode,
           mobileChanged: employee.mobile !== updated.mobile,
           route: "legacy-pre-first-payment",
-          releasedPayrollRecheckedUnderLock: true,
+          existingPayrollRegisterRecheckedUnderLock: true,
         },
       }).returning({ id: auditEvents.id });
       if (!payoutAudit) throw new Error("Initial payout destination audit did not persist.");
@@ -953,7 +953,7 @@ export async function PATCH(request: Request) {
   if (!result || payoutWriteConflict) {
     return Response.json({
       code: "PAYOUT_DESTINATION_REVIEW_REQUIRED",
-      error: "Payroll, treasury settings or payout coordinates changed while reviewing this request. Reload the employee and use independent approval for already-paid workers.",
+      error: "Payroll register, treasury settings or payout coordinates changed while reviewing this request. Reload the employee and use independent approval for a worker already in payroll.",
     }, { status: 409 });
   }
   const updated = result.updated;
