@@ -76,8 +76,14 @@ claiming they meet the new independent-review standard. A legacy paused loan
 with missing preparer ID cannot be resumed through this new route without an
 independently approved migration/correction procedure.
 
-Migration history in `drizzle/baseline.sql` stays untouched. Apply migration 0103 to an isolated staging clone **only after** independently reviewed sequential migrations 0100 (compensation #626), 0101 (underpayment #642), and 0102 (final pay #647) are staged or applied in the approved order, verified with the real applied-migration checksum journal, and authorized by the DBA. Never skip predecessors. This PR's 0103 alone is intentionally blocked by the repository's contiguous-migration guard while main ends at 0099. Once all prerequisites are merged and verified, inspect payroll for already
-active loan duplicates, and run a two-person employer pilot before rollout.
+Migration history in `drizzle/baseline.sql` stays untouched.
+Apply migration `0103` to an isolated staging clone **only after**:
+
+- DBA-reviewed compensation `0100` (#626), underpayment `0101` (#642), and final-pay `0102` (#647) are verified in order.
+- Actual applied-migration checksums and target database identity are recorded in the controlled migration journal.
+- Backup/restore, schema compatibility, employer payroll, and security/privacy approvals are independently witnessed.
+
+With `main` still at `0099`, the contiguous-migration guard intentionally rejects `0103` on its own. Do not waive the guard or deploy loan code that expects unavailable columns. After prerequisites are verified, inspect historical active loan balances for duplicates and complete a two-person employer staging pilot before rollout.
 
 ## Known limits
 
