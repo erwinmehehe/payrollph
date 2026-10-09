@@ -269,6 +269,7 @@ export async function GET(request: Request) {
 
   return Response.json({
     currentUserId: user.id,
+    manualReleaseEnabled: process.env.FINAL_PAY_MANUAL_RELEASE_ENABLED === "true",
     separations: records.map(({ sep, employee }) => ({
       ...sep,
       employeeName: `${employee.firstName} ${employee.lastName}`,
@@ -938,6 +939,14 @@ export async function PATCH(request: Request) {
     if (approvalDenied) return approvalDenied;
   }
   if (action === "release") {
+    // Opt-in only after staged bank reconciliation and independent payroll
+    // signoff. A manually typed bank reference is not settlement proof.
+    if (process.env.FINAL_PAY_MANUAL_RELEASE_ENABLED !== "true") {
+      return Response.json({
+        code: "FINAL_PAY_MANUAL_RELEASE_NOT_CERTIFIED",
+        error: "Manual final-pay release is disabled until independently verified payout procedures, finance controls and the controlled payroll pilot are approved.",
+      }, { status: 409 });
+    }
     const releaseDenied = await assertOrganizationRole(
       user.id,
       sep.organizationId,
