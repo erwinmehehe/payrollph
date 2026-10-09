@@ -6,6 +6,7 @@ import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
 import { paidShiftMinutes } from "@/lib/workforce-labor-variance";
 import { planSmartRecoveryDraft, type RecoveryMode } from "@/lib/workforce-recovery-draft";
+import { buildWfmManagerActionQueue, phWorkDateAt } from "@/lib/workforce-manager-actions";
 
 type Shift = {
   id: number;
@@ -594,6 +595,21 @@ export function WorkforceCoveragePanel({
       }),
   }), [payload?.coverage, payload?.shifts, proactiveByRequirement, recoveryMode, simulateHighRisk]);
 
+  const managerActions = useMemo(() => buildWfmManagerActionQueue({
+    today: phWorkDateAt(),
+    coverage: payload?.coverage ?? [],
+    openShifts: payload?.openShifts ?? [],
+    claims: payload?.claims ?? [],
+    blockingGuardrailIssues: payload?.guardrailReadiness?.blockingIssueCount ?? 0,
+    attendanceExceptionCount: payload?.laborVariance?.summary.attendanceExceptionCount ?? 0,
+    evidenceWarnings: payload?.rosterReadiness?.signals ?? [],
+  }), [
+    payload?.coverage, payload?.openShifts, payload?.claims,
+    payload?.guardrailReadiness?.blockingIssueCount,
+    payload?.laborVariance?.summary.attendanceExceptionCount,
+    payload?.rosterReadiness?.signals,
+  ]);
+
   return (
     <article className="card" style={{ marginTop: 16 }} data-wfm-coverage>
       <div className="card-header">
@@ -660,8 +676,50 @@ export function WorkforceCoveragePanel({
         <Metric label="Pending claims" value={String(pendingClaims)} hint="manager decision needed" icon={<UsersRound size={16} />} tone={pendingClaims ? "amber" : "slate"} />
       </section>
 
+      {payload && (
+        <section style={{ padding: "0 18px 18px" }} data-wfm-manager-queue>
+          <article className="card" style={{ margin: 0 }}>
+            <div className="card-header">
+              <div>
+                <div className="card-kicker">Manager action queue · automatic prioritization</div>
+                <h3>What needs attention before the next shift?</h3>
+                <p>One read-only queue for coverage, pending claims, policy blockers, attendance and missing staffing evidence. Every action still goes through the existing manager workflow.</p>
+              </div>
+              <Status value={managerActions.critical > 0 ? "Urgent" : managerActions.high > 0 ? "Attention" : "Clear"} />
+            </div>
+            <section className="stats-grid" style={{ padding: "0 18px 18px" }}>
+              <Metric label="Actions" value={String(managerActions.total)} hint="current visible scope" icon={<UsersRound size={16} />} tone="slate" />
+              <Metric label="Urgent" value={String(managerActions.critical)} hint="coverage or blocking controls" icon={<CircleAlert size={16} />} tone={managerActions.critical ? "amber" : "mint"} />
+              <Metric label="Work dates approaching" value={String(managerActions.dueWithinTwoDays)} hint="today through two days ahead" icon={<CalendarClock size={16} />} tone="blue" />
+            </section>
+            {managerActions.actions.length > 0 ? (
+              <div className="policy-lines" style={{ padding: "0 18px 18px" }}>
+                {managerActions.actions.slice(0, 10).map((item) => (
+                  <span key={item.id} style={{ display: "block" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <Status value={item.priority} />
+                      <b>{item.title}</b>
+                      {item.workDate && <small>{item.workDate}</small>}
+                    </div>
+                    <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>{item.detail}</small>
+                    <a href={item.destination} className="id" style={{ display: "inline-block", marginTop: 6 }}>Open the relevant review workflow →</a>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>No active action signals in the selected coverage window.</div>
+            )}
+            {managerActions.total > 10 && (
+              <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
+                Showing the ten highest-priority actions from {managerActions.total}; adjust the coverage window to review remaining shifts.
+              </div>
+            )}
+          </article>
+        </section>
+      )}
+
       {payload?.rosterReadiness && (
-        <section style={{ padding: "0 18px 18px" }} data-wfm-roster-readiness>
+        <section id="wfm-roster-readiness" style={{ padding: "0 18px 18px" }} data-wfm-roster-readiness>
           <article className="card" style={{ margin: 0 }}>
             <div className="card-header">
               <div>
@@ -753,7 +811,7 @@ export function WorkforceCoveragePanel({
         <label>Window end<input value={endDate} readOnly /></label>
       </div>
 
-      <section style={{ padding: "0 18px 18px" }} data-wfm-what-if>
+      <section id="wfm-smart-recovery" style={{ padding: "0 18px 18px" }} data-wfm-what-if>
         <article className="card" style={{ margin: 0 }}>
           <div className="card-header">
             <div>
@@ -815,7 +873,7 @@ export function WorkforceCoveragePanel({
       </section>
 
       {labor && (
-        <section style={{ padding: "0 18px 18px" }} data-wfm-labor-variance>
+        <section id="wfm-labor-variance" style={{ padding: "0 18px 18px" }} data-wfm-labor-variance>
           <div className="card-header" style={{ paddingLeft: 0, paddingRight: 0 }}>
             <div>
               <div className="card-kicker">Required → scheduled → actual</div>
@@ -1037,7 +1095,7 @@ export function WorkforceCoveragePanel({
 
       {(payload?.openShifts.length ?? 0) > 0 && (
         <div style={{ padding: 18 }}>
-          <div className="card-kicker" style={{ marginBottom: 8 }}>Open shifts and claims</div>
+          <div id="wfm-claims" className="card-kicker" style={{ marginBottom: 8 }}>Open shifts and claims</div>
           <div className="notice notice-slate" style={{ margin: "0 0 12px" }}>
             <span>
               <strong>Coverage recommendations are advisory.</strong> Pending claims are ranked using preferred availability,

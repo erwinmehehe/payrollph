@@ -23,6 +23,10 @@ The server never trusts suggestions from the browser. Before opening a transacti
 
 This does not eliminate concurrent-staging races. Pending claims, manager decisions and policy authorization must remain independently reviewed at approval time.
 
+## Read-only manager operations queue
+
+The WFM coverage page now also prioritizes existing **scoped** coverage gaps, pending open-shift claims, configured schedule guardrail blockers, attendance exceptions and incomplete role/qualification/absence/site evidence. Managers see a stable priority list and links to the appropriate existing review UI. Urgency uses **Asia/Manila business dates**, not the browser's local timezone. Past coverage gaps direct managers to reconcile historical evidence, not create silent backdated shifts. It has no write endpoint, no webhook, no autonomous scheduler, and no payroll permissions escalation. It currently uses the existing coverage API snapshot, not new live-push or predictive ML.
+
 ## Synthetic test cases and operator acceptance
 
 - Scarce qualified employee preserved instead of consumed by a flexible requirement.

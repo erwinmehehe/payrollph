@@ -37,3 +37,15 @@ test("preview, staging, and source management preserve separate roles", () => {
   assert.match(route, /approvedLeaveConflictForShift/);
   assert.match(route, /await recordAuditEvent\(/);
 });
+
+test("manager queue stays read-only and links to existing scoped WFM workflows", () => {
+  const page = readFileSync("src/components/workspace/workforce-coverage-panel.tsx", "utf8");
+  assert.match(page, /buildWfmManagerActionQueue\(/);
+  assert.match(page, /data-wfm-manager-queue/);
+  for (const id of ["wfm-smart-recovery", "wfm-roster-readiness", "wfm-claims", "wfm-labor-variance"]) {
+    assert.ok(page.includes('id="' + id + '"'), id);
+  }
+  assert.match(page, /Open the relevant review workflow/);
+  const engine = readFileSync("src/lib/workforce-manager-actions.ts", "utf8");
+  assert.doesNotMatch(engine, /db\.insert|db\.update|db\.delete|fetch\(/);
+});

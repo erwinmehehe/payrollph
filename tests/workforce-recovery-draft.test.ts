@@ -2,17 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   planSmartRecoveryDraft, recoveryProposalConflict, recoveryShiftInterval,
-  type RecoveryDemand,
+  type RecoveryCandidate, type RecoveryDemand,
 } from "../src/lib/workforce-recovery-draft";
 
-const candidate = (employeeId: number, score = 90, hours = 10) => ({
+const candidate = (employeeId: number, score = 90, hours = 10): RecoveryCandidate => ({
   employeeId,
   employeeName: "Worker " + employeeId,
   score,
-  workloadRisk: "low" as const,
+  workloadRisk: "low",
   scheduledMinutesInWindow: hours * 60,
 });
-const shift = (requirementId: number, date: string, gap: number, candidates: ReturnType<typeof candidate>[]): RecoveryDemand => ({
+const shift = (requirementId: number, date: string, gap: number, candidates: RecoveryCandidate[]): RecoveryDemand => ({
   requirementId,
   workDate: date,
   gap,
