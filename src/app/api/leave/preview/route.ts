@@ -58,7 +58,8 @@ export async function POST(request: Request) {
   // The preview must obey the same bounded Gregorian/employment checks as
   // submission. Never fan out thousands of schedule lookups on bad input.
   if (intervals.length > MAX_PRECISE_LEAVE_INTERVALS
-    || intervals.some(interval => !validLeaveDate(interval.workDate))) {
+    || intervals.some(interval => !interval
+      || typeof interval.workDate !== "string" || !validLeaveDate(interval.workDate))) {
     return Response.json({
       code: "LEAVE_PREVIEW_INVALID_INTERVALS",
       error: "Leave preview requires genuine work dates and no more than 1,500 intervals.",
