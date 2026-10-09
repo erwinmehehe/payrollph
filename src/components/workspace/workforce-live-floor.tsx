@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Clock3, RefreshCcw, UsersRound } from "lucide-react";
 import type { FloorRow } from "@/lib/workforce-live-floor";
 import { floorNeedsReview } from "@/lib/workforce-live-floor";
@@ -34,6 +34,8 @@ export function WorkforceLiveFloor({ organizationId }: { organizationId: number 
   const [snapshot, setSnapshot] = useState<FloorSnapshot | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [view, setView] = useState<"all" | "review" | "on_shift" | "upcoming" | "leave">("all");
+  const [search, setSearch] = useState("");
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     try {
@@ -61,7 +63,23 @@ export function WorkforceLiveFloor({ organizationId }: { organizationId: number 
     return () => { controller.abort(); clearInterval(interval); };
   }, [load]);
 
-  useEffect(() => { setPage(1); }, [organizationId]);
+  useEffect(() => { setPage(1); setSearch(""); setView("all"); }, [organizationId]);
+
+  const visibleRows = useMemo(() => {
+    const needle = search.trim().toLocaleLowerCase("en-PH");
+    const matches = (snapshot?.rows ?? []).filter(row => {
+      const category = view === "all" ||
+        (view === "review" && floorNeedsReview(row.status)) ||
+        (view === "on_shift" && ["clocked_in", "break_recorded"].includes(row.status)) ||
+        (view === "upcoming" && ["upcoming", "check_in_window"].includes(row.status)) ||
+        (view === "leave" && row.status === "approved_leave");
+      return category && (!needle ||
+        (row.employeeName + " " + row.employeeNo + " " + row.shiftName).toLocaleLowerCase("en-PH").includes(needle));
+    });
+    return matches.sort((a, b) =>
+      Number(floorNeedsReview(b.status)) - Number(floorNeedsReview(a.status)) ||
+      a.startsAt.localeCompare(b.startsAt) || a.employeeId - b.employeeId);
+  }, [snapshot?.rows, view, search]);
 
   return (
     <section className="card" data-wfm-live-floor aria-label="Live workforce floor" style={{ margin: "0 18px 18px" }}>
@@ -85,24 +103,45 @@ export function WorkforceLiveFloor({ organizationId }: { organizationId: number 
           <Metric label="Approved full leave" value={String(snapshot.summary.approvedLeave)} hint="schedule context" icon={<Clock3 size={16} />} tone="slate" />
         </div>
         {snapshot.unresolvedSchedules > 0 && <div role="status" className="notice notice-amber">{snapshot.unresolvedSchedules} worker schedule(s) could not be resolved; do not treat this page as complete.</div>}
-        {snapshot.rows.length ? (
+        <div className="setting-form" style={{ padding: "4px 0 12px", display: "flex", flexWrap: "wrap", alignItems: "end", gap: 12 }}>
+          <label>Show
+            <select aria-label="Filter live floor shift status" value={view} onChange={event => setView(event.target.value as typeof view)}>
+              <option value="all">All shifts on this page</option>
+              <option value="review">Needs manager review</option>
+              <option value="on_shift">Clock-in or break recorded</option>
+              <option value="upcoming">Upcoming / grace window</option>
+              <option value="leave">Approved full-day leave</option>
+            </select>
+          </label>
+          <label>Find worker on this page
+            <input type="search" value={search} onChange={event => setSearch(event.target.value)}
+              placeholder="Name, employee no. or shift" />
+          </label>
+          <span className="id" role="status">{visibleRows.length} of {snapshot.rows.length} shift segment(s) on this page</span>
+        </div>
+        {visibleRows.length ? (
           <div style={{ overflowX: "auto" }}>
             <table className="data-table">
               <thead><tr><th>Worker</th><th>Shift</th><th>Recorded status</th><th>Manager guidance</th></tr></thead>
-              <tbody>{snapshot.rows.map(row => <tr key={row.key}>
+              <tbody>{visibleRows.map(row => <tr key={row.key}>
                 <td><strong>{row.employeeName}</strong><div className="id">{row.employeeNo}</div></td>
                 <td>{row.shiftName}<div className="id">{row.workDate} · {phTime(row.startsAt)}–{phTime(row.endsAt)}</div></td>
-                <td><Status value={floorNeedsReview(row.status) ? "Review" : "Recorded"} /><div className="id">{labels[row.status] ?? row.status}</div></td>
-                <td><small>{row.explanation}</small></td>
+                <td><Status value={floorNeedsReview(row.status) ? "Review" : ["upcoming", "check_in_window"].includes(row.status) ? "Upcoming" : row.status === "approved_leave" ? "Leave" : "Recorded"} /><div className="id">{labels[row.status] ?? row.status}</div></td>
+                <td><small>{row.explanation}</small>{floorNeedsReview(row.status) && (
+                  <div><a className="id" href="#wfm-labor-variance">Open attendance review →</a></div>
+                )}</td>
               </tr>)}</tbody>
             </table>
           </div>
-        ) : <div className="notice notice-slate">No shift segments in this employee page and live window. This does not mean the whole company has no active shifts.</div>}
+        ) : <div className="notice notice-slate">
+          {snapshot.rows.length > 0 ? "No shifts on this page match these filters." :
+            "No shift segments in this employee page and live window. This does not mean the whole company has no active shifts."}
+        </div>}
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", paddingTop: 12 }}>
           <button className="secondary-button" type="button" disabled={page <= 1 || loading} onClick={() => setPage(p => Math.max(1, p - 1))}>Previous workers</button>
           <span className="id">Page {page}</span>
           <button className="secondary-button" type="button" disabled={!snapshot.hasMore || loading} onClick={() => setPage(p => p + 1)}>Next workers</button>
-          <span className="id">Counts apply to this page only; never company-wide totals.</span>
+          <span className="id">Counts and filters apply to this page only, independent of the Coverage Dynamic Group filter.</span>
         </div>
       </>}
     </section>
