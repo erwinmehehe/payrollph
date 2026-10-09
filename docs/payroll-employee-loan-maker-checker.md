@@ -62,7 +62,7 @@ the signed source documents or actual bank disbursement.
 ## Existing loans and employer rollout
 
 The additive migration is
-`drizzle/0103_independent_employee_loan_deductions.sql`. It changes the
+`drizzle/0100_independent_employee_loan_deductions.sql`. It changes the
 default for **future new** loan records to `pending_approval`, stores the
 stable preparer and checker IDs and inserts a DB constraint preventing a
 newly prepared active/paused/paid-off loan from approving itself.
@@ -76,7 +76,7 @@ claiming they meet the new independent-review standard. A legacy paused loan
 with missing preparer ID cannot be resumed through this new route without an
 independently approved migration/correction procedure.
 
-Migration history in `drizzle/baseline.sql` stays untouched. Apply 0103 to
+Migration history in `drizzle/baseline.sql` stays untouched. Apply 0100 to
 staging after verified backup and DBA approval, inspect payroll for already
 active loan duplicates, and run a two-person employer pilot before rollout.
 

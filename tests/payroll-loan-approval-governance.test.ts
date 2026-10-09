@@ -156,7 +156,7 @@ test("verified external payments are never a free-text default or a partial unlo
 });
 
 test("migration and Drizzle schema preserve historical active rows and enforce approval on new requests", () => {
-  const sqlMigration = readFileSync("drizzle/0103_independent_employee_loan_deductions.sql", "utf8");
+  const sqlMigration = readFileSync("drizzle/0100_independent_employee_loan_deductions.sql", "utf8");
   const schema = readFileSync("src/db/schema.ts", "utf8");
   const baseline = readFileSync("drizzle/baseline.sql", "utf8");
   assert.ok(sqlMigration.includes("ALTER COLUMN \"status\" SET DEFAULT 'pending_approval'"));
