@@ -27,3 +27,17 @@ The validator rejects any unexpected field, malformed or duplicated GitHub Actio
 `node --test tests/scheduler-staging-evidence.test.mjs`
 
 The template deliberately contains placeholders and will **not** validate until actual independently witnessed observations are recorded. Do not replace placeholders with invented evidence.
+
+## Optional read-only GitHub run provenance verification
+
+After the structural validator passes, an authorized operator may validate the three claimed run IDs against actual GitHub Actions metadata. The additional script makes only nine HTTPS **GET** requests to fixed `api.github.com/repos/erwinmehehe/payrollph/actions/` endpoints and never contacts staging or the payroll backend.
+
+Use a dedicated short-lived GitHub fine-grained token with **Actions: Read-only** access to PayrollPH, provided via the operator's environment variable `GH_TOKEN` (not CLI flags, manifest JSON, PR comments or logs). Run:
+
+    node scripts/verify-scheduler-github-runs.mjs /private/path/scheduler-evidence.json
+
+This verifies the three claimed runs belong to the expected manually dispatched `Payroll Scheduler Staging Health (Manual)` workflow on `main`, completed successfully in a **single workflow revision**, and contain a successful `read-only-staging-check` job and monitoring step. It also checks that the declared observation timestamps fall within the runs' reported start/end windows. Unknown, skipped, failed, retried or unrelated runs fail closed. The tool prints only fixed status strings, never token, paths or upstream response content.
+
+The script is intentionally **not run against GitHub in PR CI**. Its eight CI regression tests use injected synthetic HTTP responses, not a GitHub credential or production service.
+
+**Still not verified:** GitHub Actions run metadata does not independently prove the selected `expected_scheduler_state` input, protected-environment approval by a particular human, the real staging deployment SHA, whether the worker was enabled/disabled or real two-worker failover and downstream idempotency. The operator and independent security reviewer must inspect the actual run pages and private operations evidence. Both validators passing is a technical aid, **not release approval**. Do not merge the high-risk scheduler or enable real payroll based solely on this output.

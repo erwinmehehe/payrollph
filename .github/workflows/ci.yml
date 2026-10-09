@@ -62,6 +62,8 @@ jobs:
       - run: npx tsx --test tests/*.test.ts
       - name: Test offline scheduler staging evidence validator (synthetic only)
         run: node --test tests/scheduler-staging-evidence.test.mjs
+      - name: Test GitHub run provenance verification (mock API only)
+        run: node --test tests/scheduler-github-run-provenance.test.mjs
       - name: Run statutory golden payroll certification
         run: npm run payroll:golden
       - name: Upload golden payroll certification evidence
