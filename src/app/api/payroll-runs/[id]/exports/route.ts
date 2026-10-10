@@ -206,9 +206,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       "Content-Type": file.contentType,
       "Content-Disposition": `attachment; filename=${file.filename}`,
       "X-Linaw-Dry-Run": kind === "bank" && dryRun ? "true" : "false",
-      "X-Linaw-Government-File-Status": kind === "government" ? "DRAFT-NOT-CERTIFIED" : "not-applicable",
-      "Cache-Control": "private, no-store",
-      "X-Content-Type-Options": "nosniff",
     },
   });
 }

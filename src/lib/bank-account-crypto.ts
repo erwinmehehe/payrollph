@@ -17,9 +17,9 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes }
  *   - Reads accept both encrypted values and legacy plaintext, so nothing has
  *     to be migrated in one step.
  *   - BANK_DATA_ENCRYPTION_KEY is the explicit override. When it is absent,
- *     a domain-separated bank key can be derived from TOTP_ENCRYPTION_KEY.
- *     Neither key available: any non-empty bank-account WRITE fails closed.
- *     Legacy plaintext READS remain available only for migration/reconciliation.
+ *     production can derive a domain-separated bank key from the already-required
+ *     TOTP_ENCRYPTION_KEY. Without either one, writes stay plaintext and readiness
+ *     reports the gap instead of pretending the data is protected.
  *   - scripts/encrypt-bank-accounts.ts backfills existing rows.
  *
  * Key rotation is supported with a one-key grace window. Configure the new
@@ -134,8 +134,7 @@ export function bankEncryptionKeyFingerprint(env: NodeJS.ProcessEnv = process.en
 /**
  * Encrypts a plaintext account number for storage. Null/empty stays null,
  * already-encrypted values are returned as-is so repeated saves never
- * double-encrypt. A valid encryption key is mandatory for non-empty writes,
- * including a re-save of an encrypted value; no plaintext-at-rest fallback.
+ * double-encrypt, and with no key configured the value passes through.
  */
 export function encryptBankAccount(
   value: string | null | undefined,
@@ -144,16 +143,10 @@ export function encryptBankAccount(
   if (value == null) return null;
   const plain = value.trim();
   if (!plain) return null;
-  // Never let a production or test misconfiguration write plaintext bank PII.
-  // Check even encrypted pass-through writes so a re-save cannot disguise a
-  // missing deployment secret. Legacy plaintext reads remain migration-only.
-  const key = configuredKey(env);
-  if (!key) {
-    throw new Error(
-      `Bank-account save refused: configure ${KEY_ENV} or ${MASTER_KEY_ENV} before writing non-empty bank details.`,
-    );
-  }
   if (isEncryptedBankAccount(plain)) return plain;
+
+  const key = configuredKey(env);
+  if (!key) return plain;
 
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);

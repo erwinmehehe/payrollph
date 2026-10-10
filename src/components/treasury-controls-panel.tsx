@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Landmark, RefreshCw, Save, ShieldCheck } from "lucide-react";
+import { Landmark, RefreshCw, Save, ShieldCheck } from "lucide-react";
 
 type Candidate = {
   membershipId: number;
@@ -105,19 +105,6 @@ export function TreasuryControlsPanel({
         <ShieldCheck size={15} className="i-purple" />
         <span>Enabling this control preserves existing payroll checker/release rules. It adds a separate treasury boundary after release; permission sets can still deny payroll.disburse.</span>
       </div>
-
-      {data && !data.policy.enabled && (
-        <div className="notice notice-amber" role="status" data-treasury-separation-off style={{ marginBottom: 14 }}>
-          <AlertTriangle size={16} aria-hidden />
-          <span><strong>Treasury separation is OFF.</strong> A user allowed to release payroll may also have permission to submit or confirm the payout. Role checks still apply, but an independent payout operator is not required by this policy. For employers requiring separate people, assign operators and enable this control.</span>
-        </div>
-      )}
-      {data?.policy.enabled && (
-        <div className="notice notice-slate" role="status" data-treasury-separation-on style={{ marginBottom: 14 }}>
-          <ShieldCheck size={16} aria-hidden />
-          <span><strong>Treasury separation is ON.</strong> Final payout operations must be performed by an assigned operator who did not release that payroll.</span>
-        </div>
-      )}
 
       <label style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
         <input

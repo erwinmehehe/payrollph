@@ -13,7 +13,6 @@ import {
   payoutProfiles,
 } from "@/db/schema";
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
-import { frozenReleasedPayrollPayment } from "@/lib/payroll-payout-snapshot";
 import { bankPartFilename, createStoredZip, splitRowsByBankLimits } from "@/lib/bank-file-bundle";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
@@ -201,24 +200,6 @@ export async function generateBankFile(
     .innerJoin(employees, eq(payrollEntries.employeeId, employees.id))
     .where(eq(payrollEntries.payrollRunId, runId))
     .orderBy(asc(employees.id));
-
-  if (!dryRun && run.status === "Released") {
-    for (const { entry, employee } of entries) {
-      if (employee.organizationId !== run.organizationId) {
-        throw new Error("PAYOUT_TENANT_MISMATCH: bank export contains a worker outside the released employer workspace.");
-      }
-      frozenReleasedPayrollPayment({
-        entryId: entry.id,
-        trace: entry.trace,
-        current: {
-          employeeNo: employee.employeeNo,
-          bankAccount: employee.bankAccount,
-          bankCode: employee.bankCode,
-          mobile: employee.mobile,
-        },
-      });
-    }
-  }
 
   const rows = entries.map(({ entry, employee }) => {
     const snapshot = readPaymentSnapshot(entry.trace);

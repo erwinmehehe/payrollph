@@ -190,9 +190,6 @@ test("PayMongo payroll preflight validates live bank mapping without creating a 
       periodEnd: "2026-09-30",
       payDate: "2026-09-30",
       status: "Released",
-      employeeCount: 1,
-      grossPay: "30000.00",
-      netPay: "25000.00",
     }).returning();
 
     await db.insert(payrollEntries).values({
@@ -201,19 +198,6 @@ test("PayMongo payroll preflight validates live bank mapping without creating a 
       grossPay: "30000",
       deductions: "5000",
       netPay: "25000",
-      trace: {
-        payment: {
-          employeeName: "Juan Dela Cruz",
-          employeeNo: employee.employeeNo,
-          firstName: employee.firstName,
-          middleName: employee.middleName,
-          lastName: employee.lastName,
-          email: employee.email,
-          bankAccount: employee.bankAccount,
-          bankCode: employee.bankCode,
-          mobile: employee.mobile,
-        },
-      },
     });
 
     process.env.PAYMONGO_SECRET_KEY = "sk_test_preflight_only";

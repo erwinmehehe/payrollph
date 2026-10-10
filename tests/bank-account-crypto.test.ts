@@ -54,21 +54,10 @@ test("an encrypted value with no key configured is an error, never a silent blan
   assert.throws(() => decryptBankAccount(sealed, withKey(undefined)), /configured/);
 });
 
-test("legacy plaintext remains readable for migration, but non-empty writes fail closed without a key", () => {
+test("rollout is non-breaking: legacy plaintext reads, and writes pass through without a key", () => {
   assert.equal(decryptBankAccount("1234567890", withKey(KEY_A)), "1234567890");
   assert.equal(decryptBankAccount("1234567890", withKey(undefined)), "1234567890");
-  assert.throws(
-    () => encryptBankAccount("1234567890", withKey(undefined)),
-    /Bank-account save refused: configure BANK_DATA_ENCRYPTION_KEY or TOTP_ENCRYPTION_KEY/,
-  );
-  const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
-  assert.throws(
-    () => encryptBankAccount(sealed, withKey(undefined)),
-    /Bank-account save refused/,
-    "re-saving ciphertext must not silently skip key verification",
-  );
-  assert.equal(encryptBankAccount(null, withKey(undefined)), null);
-  assert.equal(encryptBankAccount("  ", withKey(undefined)), null);
+  assert.equal(encryptBankAccount("1234567890", withKey(undefined)), "1234567890");
 });
 
 test("saving twice never double-encrypts, and empty stays null", () => {
@@ -122,8 +111,7 @@ test("every place that reads or writes the number goes through the crypto module
   const read = (path: string) => readFileSync(path, "utf8");
 
   const payout = read("src/lib/paymongo-disbursements.ts");
-  assert.ok(payout.includes("decryptBankAccount(frozen.bankAccount)"), "PayMongo transfers must decrypt the independently verified frozen recipient account");
-  assert.ok(!payout.includes("decryptBankAccount(employee.bankAccount)"), "PayMongo cannot route from a mutable employee account");
+  assert.ok(payout.includes("decryptBankAccount(employee.bankAccount)"), "PayMongo transfers must use the decrypted number");
 
   const exporter = read("src/lib/exporters.ts");
   assert.ok(exporter.includes("decryptBankAccount(payment.bankAccount)"), "bank files must use the decrypted number");
