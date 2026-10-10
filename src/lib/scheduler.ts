@@ -23,6 +23,7 @@ import { runScheduledPerformanceEvidenceSealing } from "@/lib/hcm-performance-ev
 import { resumeDueAutomationExecutions } from "@/lib/automation";
 import { runScheduledAutomationTemporalEvents } from "@/lib/automation-temporal-events";
 import { sealAuditEvents } from "@/lib/audit-chain";
+import { runScheduledComplianceDeadlineAlerts } from "@/lib/compliance-deadline-alerts";
 
 const MIN_INTERVAL_MS = 30_000;
 
@@ -184,6 +185,33 @@ async function runScheduledJobs(
   }
   await assertLeaseOwnership();
 
+  const [complianceAlertState] = await db.select().from(schedulerState)
+    .where(eq(schedulerState.jobName, "compliance-deadline-alerts"))
+    .limit(1);
+  const complianceAlertsDue =
+    !complianceAlertState?.lastRunAt
+    || now.getTime() - complianceAlertState.lastRunAt.getTime() >= 60 * 60 * 1000;
+  let complianceDeadlineAlerts: Awaited<ReturnType<typeof runScheduledComplianceDeadlineAlerts>> | { error: string } | null = null;
+  if (complianceAlertsDue) {
+    try {
+      complianceDeadlineAlerts = await runScheduledComplianceDeadlineAlerts({ now });
+    } catch {
+      complianceDeadlineAlerts = { error: "Compliance deadline alerts failed; the calendar remains available in the Compliance Center." };
+    }
+    await assertLeaseOwnership();
+    const complianceAlertPayload = { at: now.toISOString(), results: complianceDeadlineAlerts };
+    if (complianceAlertState) {
+      await db.update(schedulerState).set({ lastRunAt: now, lastResult: complianceAlertPayload })
+        .where(eq(schedulerState.id, complianceAlertState.id));
+    } else {
+      await db.insert(schedulerState).values({
+        jobName: "compliance-deadline-alerts",
+        lastRunAt: now,
+        lastResult: complianceAlertPayload,
+      });
+    }
+  }
+
   const [hcmLifecycleNotificationState] = await db.select().from(schedulerState)
     .where(eq(schedulerState.jobName, "hcm-lifecycle-notifications"))
     .limit(1);
@@ -341,6 +369,7 @@ async function runScheduledJobs(
     hcmCompensation,
     compensationAutomationDelivery,
     auditChainSeal,
+    complianceDeadlineAlerts,
     hcmLifecycleNotifications,
     performanceReminders,
     performanceActionReminders,
