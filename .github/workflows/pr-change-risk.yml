@@ -21,6 +21,8 @@ jobs:
           node-version: "22"
       - name: Unit-test risk rules
         run: node --test tests/pr-risk-classification.test.mjs
+      - name: Unit-test PR queue rules
+        run: node --test tests/pr-queue-policy.test.mjs
       - name: Classify changed files against current main merge-base
         env:
           PR_BASE_REF: ${{ github.event.pull_request.base.ref }}

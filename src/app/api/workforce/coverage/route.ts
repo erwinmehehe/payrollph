@@ -33,6 +33,7 @@ import {
   WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { recoveryProposalConflict, recoveryShiftInterval } from "@/lib/workforce-recovery-draft";
 import { getSessionUser } from "@/lib/auth";
 import {
   enforceSameOriginMutation,
@@ -48,6 +49,7 @@ import {
   forecastCoverageRisk,
   buildRosterPublishReadiness,
   type AvailabilityRule,
+  type CoverageCandidateInput,
 } from "@/lib/workforce-coverage";
 import {
   DEFAULT_SCHEDULE_GUARDRAIL_POLICY,
@@ -391,7 +393,7 @@ async function coverageRows(input: {
     db.select().from(scheduleOverrides).where(and(
       eq(scheduleOverrides.organizationId, input.organizationId),
       inArray(scheduleOverrides.employeeId, input.employeeIds),
-      gte(scheduleOverrides.workDate, input.startDate),
+      gte(scheduleOverrides.workDate, addDays(input.startDate, -7)),
       lte(scheduleOverrides.workDate, input.endDate),
     )).orderBy(asc(scheduleOverrides.employeeId), asc(scheduleOverrides.workDate)),
     db.select().from(employeeWorksiteAssignments).where(and(
@@ -442,6 +444,7 @@ async function coverageRows(input: {
 
   const shiftsById = new Map(data.shifts.map((shift) => [shift.id, shift]));
   const dates = datesBetween(input.startDate, input.endDate);
+  const historyDates = datesBetween(addDays(input.startDate, -7), addDays(input.startDate, -1));
   const scheduled = [];
   const scheduledSegments: Array<{
     employeeId: number;
@@ -492,6 +495,49 @@ async function coverageRows(input: {
         effectiveFrom: String(row.effectiveFrom),
         effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
       }));
+
+
+    // These seven days provide a conservative rest-streak history only. Never
+    // count them as work in the selected 14-day coverage/labor totals.
+    const historyResolver = {
+      assignments: employeeAssignments.map(row => ({
+        id: row.id, patternId: row.patternId,
+        effectiveFrom: String(row.effectiveFrom),
+        effectiveUntil: row.effectiveUntil ? String(row.effectiveUntil) : null,
+        anchorDate: String(row.anchorDate),
+        workLocationOrgUnitId: row.workLocationOrgUnitId, worksiteId: row.worksiteId,
+      })),
+      patterns: data.patterns.map(row => ({
+        id: row.id, code: row.code, name: row.name, cycleDays: row.cycleDays,
+      })),
+      patternDays: data.days, patternSegments: data.segments,
+      shifts: data.shifts.map(row => ({
+        id: row.id, code: row.code, name: row.name,
+        startTime: row.startTime, endTime: row.endTime,
+        breakMinutes: row.breakMinutes, spansMidnight: row.spansMidnight,
+      })),
+      overrides: employeeOverrides.map(row => ({
+        id: row.id, workDate: String(row.workDate),
+        kind: row.kind as "shift" | "split_shift" | "rest_day" | "off" | "location",
+        isRestDay: row.isRestDay,
+        segments: Array.isArray(row.segments) ? row.segments as WorkforceScheduleOverrideSegment[] : [],
+        workLocationOrgUnitId: row.workLocationOrgUnitId, worksiteId: row.worksiteId,
+        status: row.status as "pending" | "approved" | "rejected" | "cancelled",
+        reason: row.reason,
+      })),
+    };
+    for (const historicDate of historyDates) {
+      try {
+        const historicDay = resolveDailySchedule({
+          ...historyResolver, date: historicDate,
+          defaultWorksiteId: selectEffectiveWorksiteAssignment(defaultWorksites, historicDate)?.worksiteId ?? null,
+        });
+        schedules.set(employeeId + "|" + historicDate, historicDay);
+      } catch {
+        // Invalid historical patterns never count as proven rest days.
+        // Missing schedule entries remain unknown in the recovery draft.
+      }
+    }
 
     for (const date of dates) {
       const role = resolveEmployeeJobProfileAtDate({
@@ -1054,8 +1100,10 @@ export async function GET(request: Request) {
     const shift = shifts.find((row) => row.id === coverageRow.shiftDefinitionId);
     if (!shift) continue;
 
-    const candidates = [];
+    const candidates: Array<CoverageCandidateInput & { completeStreakEvidence: boolean }> = [];
     for (const employee of visibleEmployees) {
+      if (!["active", "on leave"].includes(employee.status.toLowerCase()) ||
+          String(employee.startDate) > coverageRow.workDate) continue;
       const key = `${employee.id}|${coverageRow.workDate}`;
       const current = coverageData.schedules.get(key);
       if (current && !current.isRestDay && current.segments.length > 0) continue;
@@ -1104,10 +1152,16 @@ export async function GET(request: Request) {
       if (leave.conflict) continue;
 
       let consecutiveWorkingDaysBeforeShift = 0;
+      let completeStreakEvidence = true;
       for (let offset = 1; offset <= 7; offset += 1) {
         const previousDate = addDays(coverageRow.workDate, -offset);
-        const previous = coverageData.schedules.get(`${employee.id}|${previousDate}`);
-        if (!previous || previous.isRestDay || previous.segments.length === 0) break;
+        if (String(employee.startDate) > previousDate) break;
+        const previous = coverageData.schedules.get(employee.id + "|" + previousDate);
+        if (!previous || previous.source === "unassigned") {
+          completeStreakEvidence = false;
+          break;
+        }
+        if (previous.isRestDay || previous.segments.length === 0) break;
         consecutiveWorkingDaysBeforeShift += 1;
       }
 
@@ -1117,6 +1171,7 @@ export async function GET(request: Request) {
         preferred: preferredForShift({ rules, date: coverageRow.workDate, shift }),
         scheduledMinutesInWindow: scheduledMinutesByEmployee.get(employee.id) ?? 0,
         consecutiveWorkingDaysBeforeShift,
+        completeStreakEvidence,
         alreadyWorkingThatDay: false,
       });
     }
@@ -1134,7 +1189,12 @@ export async function GET(request: Request) {
         }),
         candidates,
         maxRecommendations: 5,
-      }).map((candidate, index) => ({ ...candidate, rank: index + 1 })),
+      }).map((candidate, index) => ({
+        ...candidate, rank: index + 1,
+        consecutiveWorkingDaysBeforeShift:
+          candidates.find(source => source.employeeId === candidate.employeeId)?.completeStreakEvidence
+            ? candidate.consecutiveWorkingDaysBeforeShift : null,
+      })),
     });
   }
 
@@ -1416,7 +1476,7 @@ export async function POST(request: Request) {
         employeeId: Number(value.employeeId),
       };
     });
-    if (assignments.some((row) => !Number.isInteger(row.requirementId) || !Number.isInteger(row.employeeId))) {
+    if (assignments.some((row) => !Number.isSafeInteger(row.requirementId) || row.requirementId <= 0 || !Number.isSafeInteger(row.employeeId) || row.employeeId <= 0)) {
       return Response.json({ error: "Each recovery assignment requires a valid requirementId and employeeId." }, { status: 400 });
     }
 
@@ -1447,6 +1507,50 @@ export async function POST(request: Request) {
 
     const employeeById = new Map(employeeRows.map((row) => [row.id, row]));
     const requirementById = new Map(requirementRows.map((row) => [row.id, row]));
+
+    // Treat the browser draft as untrusted. Validate the entire proposal
+    // against authoritative shifts before creating even pending claims.
+    const shiftIds = [...new Set(requirementRows.map((row) => row.shiftDefinitionId))];
+    const sourceShifts = await db.select({
+      id: shiftDefinitions.id,
+      startTime: shiftDefinitions.startTime,
+      endTime: shiftDefinitions.endTime,
+      spansMidnight: shiftDefinitions.spansMidnight,
+    }).from(shiftDefinitions).where(and(
+      eq(shiftDefinitions.organizationId, organizationId),
+      inArray(shiftDefinitions.id, shiftIds),
+    ));
+    const shiftById = new Map(sourceShifts.map((row) => [row.id, row]));
+    if (shiftById.size !== shiftIds.length) {
+      return Response.json({ error: "Recovery plan contains a missing shift definition." }, { status: 409 });
+    }
+    const conflict = recoveryProposalConflict(assignments.map((row) => {
+      const requirement = requirementById.get(row.requirementId)!;
+      const shift = shiftById.get(requirement.shiftDefinitionId)!;
+      return {
+        employeeId: row.employeeId,
+        requirementId: row.requirementId,
+        workDate: String(requirement.workDate),
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        spansMidnight: shift.spansMidnight,
+      };
+    }));
+    if (conflict) {
+      return Response.json({
+        code: conflict.code,
+        error: "Recovery draft double-books a worker or contains an invalid shift. Rebuild the draft.",
+      }, { status: 409 });
+    }
+    for (const requirement of requirementRows) {
+      const planned = assignments.filter((row) => row.requirementId === requirement.id).length;
+      if (planned > requirement.requiredHeadcount) {
+        return Response.json({
+          code: "RECOVERY_PLAN_CAPACITY_EXCEEDED",
+          error: "Proposed claims exceed the source staffing requirement. Recheck live demand.",
+        }, { status: 409 });
+      }
+    }
 
     for (const proposal of assignments) {
       const requirement = requirementById.get(proposal.requirementId)!;
@@ -1525,14 +1629,40 @@ export async function POST(request: Request) {
         return Response.json({ error: `${employee.employeeNo} is now unavailable for the proposed shift.` }, { status: 409 });
       }
 
-      const current = await resolveEmployeeScheduleWindow({
+      // Include adjacent days because a published overnight shift may
+      // overlap a proposed early shift on the following calendar date.
+      const workDate = String(requirement.workDate);
+      const existingWindow = await resolveEmployeeScheduleWindow({
         organizationId,
         employeeId: employee.id,
-        startDate: String(requirement.workDate),
-        endDate: String(requirement.workDate),
+        startDate: addDays(workDate, -1),
+        endDate: addDays(workDate, 1),
       });
-      if (current[0] && !current[0].isRestDay && current[0].segments.length > 0) {
-        return Response.json({ error: `${employee.employeeNo} already has scheduled work on ${requirement.workDate}.` }, { status: 409 });
+      const candidateShift = shiftById.get(requirement.shiftDefinitionId)!;
+      const proposed = recoveryShiftInterval({
+        workDate, startTime: candidateShift.startTime,
+        endTime: candidateShift.endTime, spansMidnight: candidateShift.spansMidnight,
+      });
+      if (!proposed) {
+        return Response.json({ error: "Recovery shift timing is invalid." }, { status: 409 });
+      }
+      for (const day of existingWindow) {
+        if (day.isRestDay) continue;
+        if (day.date === workDate && day.segments.length > 0) {
+          return Response.json({ error: `${employee.employeeNo} already has scheduled work on ${workDate}.` }, { status: 409 });
+        }
+        for (const segment of day.segments) {
+          const existing = recoveryShiftInterval({
+            workDate: day.date, startTime: segment.startTime,
+            endTime: segment.endTime, spansMidnight: segment.spansMidnight,
+          });
+          if (!existing || proposed.start < existing.end && existing.start < proposed.end) {
+            return Response.json({
+              code: "RECOVERY_EXISTING_SCHEDULE_OVERLAP",
+              error: `${employee.employeeNo} has a conflicting nearby roster shift; review the existing schedule first.`,
+            }, { status: 409 });
+          }
+        }
       }
     }
 

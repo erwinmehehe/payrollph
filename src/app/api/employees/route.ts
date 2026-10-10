@@ -33,6 +33,7 @@ import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automat
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
+import { WAGE_ORDERS, wageOrderFor } from "@/lib/wage-orders";
 import { GOVERNED_HIRE_REQUIRED, hasConfiguredHireBusinessProcess } from "@/lib/hcm-direct-entry-policy";
 import {
   compensationGovernanceQuery,
@@ -112,6 +113,19 @@ export async function POST(request: Request) {
   const firstName = String(body.firstName ?? "").trim();
   const middleName = String(body.middleName ?? "").trim();
   const lastName = String(body.lastName ?? "").trim();
+  // Use a canonical NWPC region on new records: an unsupported value would
+  // otherwise surface as an opaque error during the employee's first payroll.
+  // This validates the screening *region*, not the employer's legal wage tier.
+  let wageRegion: string;
+  try {
+    wageRegion = wageOrderFor(String(body.region ?? "NCR")).region;
+  } catch {
+    return Response.json({
+      error: "Select a supported Philippine wage region before creating the employee.",
+      code: "INVALID_WAGE_REGION",
+      supportedRegions: WAGE_ORDERS.map((order) => order.region),
+    }, { status: 422 });
+  }
   const email = String(body.email ?? "").trim().toLowerCase();
   const title = String(body.title ?? "").trim();
   const rateAmount = Number(body.rateAmount ?? body.basicRate);
@@ -205,7 +219,7 @@ export async function POST(request: Request) {
     avatarInitials: `${firstName[0] ?? "?"}${lastName[0] ?? "?"}`.toUpperCase(),
     basicRate: payProfile.monthlyEquivalent.toFixed(2),
     mwe: Boolean(body.mwe),
-    region: String(body.region ?? "NCR"),
+    region: wageRegion,
     restDay: restDayInput || null,
     email: email || null,
     bankAccount: encryptBankAccount(bankAccount),
