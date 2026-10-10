@@ -829,6 +829,12 @@
 .app-shell.clean-shell .clean-employee-home .clean-card {
   padding: 18px;
 }
+.app-shell.clean-shell .clean-employee-home .clean-heading {
+  flex-wrap: wrap;
+}
+.app-shell.clean-shell .clean-employee-home .employee-leave-shortcut {
+  flex-shrink: 0;
+}
 .app-shell.clean-shell .clean-employee-home .clean-heading h1 {
   font-size: 28px;
 }
