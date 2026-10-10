@@ -57,8 +57,22 @@ export default async function WorkspacePage() {
   if (companyDenied) redirect("/login?ssoRequired=1");
 
   const data = await getDashboardData(companyOrganizationId);
+  const access = data.access;
+  const canSeeMyTeam = process.env.NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true" &&
+    !!access && (
+      ["owner", "admin", "hr"].includes(access.role) ||
+      (access.role === "manager" && !access.companyWide)
+    );
   return <>
-    <div className="mx-auto flex max-w-7xl justify-end px-5 pt-3">
+    <div className="mx-auto flex max-w-7xl flex-wrap justify-end gap-3 px-5 pt-3">
+      {canSeeMyTeam && (
+        <Link
+          href={"/hcm/my-team?organizationId=" + data.selectedOrganization.id}
+          className="rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900"
+        >
+          My Team
+        </Link>
+      )}
       <Link href="/hcm/command-center" className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>
     </div>
     <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} />
