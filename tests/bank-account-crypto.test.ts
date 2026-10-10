@@ -265,3 +265,19 @@ test("bank rotation also supports a previous TOTP-derived bank key", () => {
   const rotated = rotateBankAccountEncryption(sealedOld, rotatingEnv)!;
   assert.equal(decryptBankAccount(rotated, withKey(KEY_B)), "1234567890");
 });
+
+test("production backfill checks all recorded bank-account sources before claiming zero plaintext", () => {
+  const script = readFileSync("scripts/encrypt-bank-accounts.ts", "utf8");
+  const workflow = readFileSync(".github/workflows/production-bank-encryption.yml", "utf8");
+  for (const source of [
+    "employees.bankAccount",
+    "payrollEntries.trace",
+    "legalEntities.disbursementAccount",
+    "employeePayoutChangeRequests.proposedBankAccount",
+  ]) {
+    assert.ok(script.includes(source), "backfill must include " + source);
+  }
+  assert.ok(workflow.includes("0 legal entity disbursement account(s) hold plaintext."));
+  assert.ok(workflow.includes("0 payout change request(s) hold plaintext."));
+  assert.equal(workflow.split("Verify live readiness sees encrypted bank data").length - 1, 1);
+});
