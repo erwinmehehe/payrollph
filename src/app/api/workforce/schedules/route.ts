@@ -898,56 +898,59 @@ export async function POST(request: Request) {
     }
 
     try {
-      const [created] = await db.insert(scheduleOverrides).values({
-        organizationId,
-        employeeId,
-        workDate,
-        kind,
-        isRestDay,
-        segments,
-        workLocationOrgUnitId,
-        worksiteId,
-        reason,
-        status: "approved",
-        createdBy: user.name,
-        approvedBy: user.name,
-        approvedAt: new Date(),
-      }).returning();
-
-      const staleTimesheets = await markTimesheetsStaleForEmployeeDate({
-        organizationId,
-        employeeId,
-        workDate,
-      });
-
-      await recordAuditEvent({
-        organizationId,
-        actor: user.name,
-        action: "Employee schedule override created",
-        resource: `${employeeCheck.employee!.employeeNo} · ${workDate}`,
-        metadata: {
-          overrideId: created.id,
-          employeeId,
-          workDate,
-          kind,
-          isRestDay,
-          shiftSegments: segments,
-          workLocationOrgUnitId,
-          worksiteId,
-          reason,
-          staleTimesheetIds: staleTimesheets.map((row) => row.id),
-        },
-      });
-
+      const result = await db.transaction(async (tx) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(6107, ${organizationId})`);
+        const lockedPolicy = await scheduleGuardrailPolicy(organizationId, tx);
+        const lockedWindow = await resolveEmployeeScheduleWindow({
+          organizationId, employeeId,
+          startDate: addDays(workDate, -7),
+          endDate: addDays(workDate, 7),
+          prospectiveOverride: {
+            id: Number.MAX_SAFE_INTEGER, workDate,
+            kind: kind as "shift" | "split_shift" | "rest_day" | "off" | "location",
+            isRestDay, segments, workLocationOrgUnitId, worksiteId,
+            status: "approved", reason,
+          },
+          executor: tx,
+        });
+        const lockedIssues = evaluateScheduleGuardrails({
+          days: lockedWindow, policy: lockedPolicy,
+        });
+        if (scheduleGuardrailBlocksMutation(lockedIssues)) {
+          throw new Error("Concurrent roster changes now breach override guardrails.");
+        }
+        const [created] = await tx.insert(scheduleOverrides).values({
+          organizationId, employeeId, workDate, kind, isRestDay, segments,
+          workLocationOrgUnitId, worksiteId, reason,
+          status: "approved", createdBy: user.name,
+          approvedBy: user.name, approvedAt: new Date(),
+        }).returning();
+        const staleTimesheets = await markTimesheetsStaleForEmployeeDate({
+          organizationId, employeeId, workDate, executor: tx,
+        });
+        await tx.insert(auditEvents).values({
+          organizationId, actor: user.name,
+          action: "Employee schedule override created",
+          resource: `${employeeCheck.employee!.employeeNo} · ${workDate}`,
+          metadata: {
+            overrideId: created.id, employeeId, workDate, kind, isRestDay,
+            shiftSegments: segments, workLocationOrgUnitId, worksiteId, reason,
+            staleTimesheetIds: staleTimesheets.map((row) => row.id),
+          },
+        });
+        return { created, staleTimesheets, lockedIssues, lockedPolicy };
+      }, { isolationLevel: "serializable" });
       return Response.json({
-        override: created,
-        guardrailIssues,
-        guardrailPolicy,
-        staleTimesheetIds: staleTimesheets.map((row) => row.id),
+        override: result.created,
+        guardrailIssues: result.lockedIssues,
+        guardrailPolicy: result.lockedPolicy,
+        staleTimesheetIds: result.staleTimesheets.map((row) => row.id),
       }, { status: 201 });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Schedule override could not be created.";
-      return Response.json({ error: message }, { status: 409 });
+    } catch {
+      return Response.json({
+        error: "The roster changed while the override was being saved. Refresh the schedule and retry.",
+        code: "WFM_OVERRIDE_SOURCE_CHANGED",
+      }, { status: 409 });
     }
   }
 
