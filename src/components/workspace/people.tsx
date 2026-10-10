@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ArrowUpDown,
   Building2,
@@ -441,6 +442,19 @@ export function PeopleView({
           ) : undefined
         }
       />
+
+      {process.env.NEXT_PUBLIC_HCM_ORG_EXPLORER_ENABLED === "true" &&
+        data.access?.companyWide &&
+        ["owner", "admin", "hr"].includes(data.access.role) && (
+          <div style={{ marginBottom: 16 }}>
+            <Link
+              className="secondary-button"
+              href={`/hcm/org-explorer?organizationId=${data.selectedOrganization.id}`}
+            >
+              Open organization chart & position history
+            </Link>
+          </div>
+        )}
 
       {data.access && !data.access.companyWide && (
         <div className="notice notice-amber">
