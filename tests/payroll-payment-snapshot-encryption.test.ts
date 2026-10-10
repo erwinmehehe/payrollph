@@ -14,7 +14,7 @@ test("payroll engine never copies employee bank account bytes directly into paym
 
 test("payment snapshot encryption protects legacy numbers when key is available", () => {
   const key = "d".repeat(64);
-  const env = { BANK_DATA_ENCRYPTION_KEY: key } as NodeJS.ProcessEnv;
+  const env = { NODE_ENV: "test", BANK_DATA_ENCRYPTION_KEY: key } as NodeJS.ProcessEnv;
   const legacy = "123456789012";
   const snapshotAccount = encryptBankAccount(legacy, env);
   assert.ok(isEncryptedBankAccount(snapshotAccount));
