@@ -80,7 +80,7 @@ test("statutory cutoff timing is explicitly configurable at organization level",
 
 test("year-end tax exports require recent MFA and do not persist plaintext TIN certificates", () => {
   const source = read("src/app/api/year-end/route.ts");
-  assert.ok(source.includes('format === "2316" || format === "alphalist"'));
+  assert.ok(source.includes('format === "2316" || format === "2316-print" || format === "alphalist" || format === "preflight"'), "all sensitive annual BIR exports and preflight must require recent MFA");
   assert.ok(source.includes("requireSensitiveActionMfa(user)"));
   assert.ok(source.includes('"Cache-Control": "no-store, private"'));
   assert.ok(source.includes('certificateStorage: "not-persisted"'));
