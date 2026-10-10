@@ -145,6 +145,40 @@ async function main() {
     sealedSnapshots += 1;
   }
   console.log(`Encrypted ${sealedSnapshots} payroll payment snapshot(s).`);
+  // The other two recorded account fields may still contain legacy plaintext.
+  // Compare-and-swap prevents overwriting edits made during the operator run.
+  let legalSealed = 0;
+  for (const row of legalLegacy) {
+    const plain = row.bankAccount?.trim();
+    if (!plain) continue;
+    const sealed = encryptBankAccount(plain);
+    if (!sealed || decryptBankAccount(sealed) !== plain) {
+      throw new Error("Legal-entity account round-trip failed. Stop before continuing.");
+    }
+    const updated = await db.update(legalEntities).set({ disbursementAccount: sealed })
+      .where(and(eq(legalEntities.id, row.id), eq(legalEntities.disbursementAccount, row.bankAccount)))
+      .returning({ id: legalEntities.id });
+    if (updated.length !== 1) throw new Error("Legal-entity account changed during backfill; repeat dry-run.");
+    legalSealed += 1;
+  }
+  console.log(`Encrypted ${legalSealed} legal entity disbursement account(s).`);
+
+  let proposedSealed = 0;
+  for (const row of proposedLegacy) {
+    const plain = row.bankAccount?.trim();
+    if (!plain) continue;
+    const sealed = encryptBankAccount(plain);
+    if (!sealed || decryptBankAccount(sealed) !== plain) {
+      throw new Error("Payout-change account round-trip failed. Stop before continuing.");
+    }
+    const updated = await db.update(employeePayoutChangeRequests).set({ proposedBankAccount: sealed })
+      .where(and(eq(employeePayoutChangeRequests.id, row.id),
+        eq(employeePayoutChangeRequests.proposedBankAccount, row.bankAccount)))
+      .returning({ id: employeePayoutChangeRequests.id });
+    if (updated.length !== 1) throw new Error("Payout-change account changed during backfill; repeat dry-run.");
+    proposedSealed += 1;
+  }
+  console.log(`Encrypted ${proposedSealed} payout change request account(s).`);
 }
 
 main()
