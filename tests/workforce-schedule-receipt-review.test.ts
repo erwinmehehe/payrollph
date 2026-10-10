@@ -11,7 +11,7 @@ import { receiptDates } from "../src/lib/workforce-schedule-receipt";
 const dates = receiptDates("2026-10-10");
 const hash = (letter: string) => letter.repeat(64);
 const projected = dates.map((date, index) => ({
-  date, snapshotHash: index === 2 ? null : hash(String.fromCharCode(97 + index)),
+  date, snapshotHash: index === 2 ? null : hash("abcdef0"[index]),
 }));
 
 test("manager sees only current-content receipts; historical content is changed, never acknowledged", () => {
