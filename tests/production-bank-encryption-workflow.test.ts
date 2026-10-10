@@ -92,6 +92,7 @@ test("readiness requires one valid report, the matching key, and no bank blocker
         NODE_ENV: "test",
         PATH: process.env.PATH,
         PRODUCTION_BASE_URL: "https://synthetic.invalid",
+        PRODUCTION_READINESS_TOKEN: "synthetic-monitor-token-not-a-live-secret",
         MOCK_READINESS: body, MOCK_CURL_STATUS: String(status),
       },
     });
