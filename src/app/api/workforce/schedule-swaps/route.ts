@@ -507,83 +507,95 @@ export async function POST(request: Request) {
 
     try {
       const result = await db.transaction(async (tx) => {
-        const [requesterCreated] = await tx.insert(scheduleOverrides).values({
+        // The final source verification and writes are serialized with the
+        // roster-batch approval path and ordinary one-worker edits.
+        await tx.execute(sql`select pg_advisory_xact_lock(6107, ${organizationId})`);
+        const [liveRequest] = await tx.select().from(scheduleSwapRequests).where(and(
+          eq(scheduleSwapRequests.id, requestId),
+          eq(scheduleSwapRequests.organizationId, organizationId),
+        )).for("update").limit(1);
+        if (!liveRequest || liveRequest.status !== "pending" ||
+          liveRequest.requestedByUserId === user.id) {
+          throw new Error("The pending swap or independent checker is no longer valid.");
+        }
+        const lockedPair = await resolveSchedulesForPair({
           organizationId,
-          employeeId: existing.requesterEmployeeId,
-          workDate: existing.requesterWorkDate,
-          ...requesterOverride,
-          status: "approved",
-          createdBy: user.name,
-          approvedBy: user.name,
-          approvedAt: new Date(),
+          requesterEmployeeId: existing.requesterEmployeeId,
+          counterpartyEmployeeId: existing.counterpartyEmployeeId,
+          requesterWorkDate: String(existing.requesterWorkDate),
+          counterpartyWorkDate: String(existing.counterpartyWorkDate),
+        }, tx);
+        const lockedRequester = scheduleSwapSnapshot(lockedPair.requester);
+        const lockedCounterparty = scheduleSwapSnapshot(lockedPair.counterparty);
+        assertScheduleSwappable(lockedRequester);
+        assertScheduleSwappable(lockedCounterparty);
+        if (!scheduleSwapSnapshotsMatch(storedRequester, lockedRequester) ||
+          !scheduleSwapSnapshotsMatch(storedCounterparty, lockedCounterparty)) {
+          throw new Error("The source roster changed before approval; reject and recreate the swap.");
+        }
+
+        const [requesterCreated] = await tx.insert(scheduleOverrides).values({
+          organizationId, employeeId: existing.requesterEmployeeId,
+          workDate: existing.requesterWorkDate, ...requesterOverride,
+          status: "approved", createdBy: user.name,
+          approvedBy: user.name, approvedAt: new Date(),
         }).returning();
 
         const [counterpartyCreated] = await tx.insert(scheduleOverrides).values({
-          organizationId,
-          employeeId: existing.counterpartyEmployeeId,
-          workDate: existing.counterpartyWorkDate,
-          ...counterpartyOverride,
-          status: "approved",
-          createdBy: user.name,
-          approvedBy: user.name,
-          approvedAt: new Date(),
+          organizationId, employeeId: existing.counterpartyEmployeeId,
+          workDate: existing.counterpartyWorkDate, ...counterpartyOverride,
+          status: "approved", createdBy: user.name,
+          approvedBy: user.name, approvedAt: new Date(),
         }).returning();
 
         const [updated] = await tx.update(scheduleSwapRequests).set({
-          status: "approved",
-          decidedBy: user.name,
-          decidedByUserId: user.id,
-          decidedAt: new Date(),
-          decisionNote,
-          updatedAt: new Date(),
+          status: "approved", decidedBy: user.name, decidedByUserId: user.id,
+          decidedAt: new Date(), decisionNote, updatedAt: new Date(),
         }).where(and(
           eq(scheduleSwapRequests.id, requestId),
           eq(scheduleSwapRequests.status, "pending"),
+          eq(scheduleSwapRequests.organizationId, organizationId),
         )).returning();
+        if (!updated) throw new Error("Schedule swap was already decided.");
 
-        if (!updated) throw new Error("Schedule swap was already decided by another transaction.");
-        return { updated, requesterCreated, counterpartyCreated };
-      });
-
-      const [requesterStaleTimesheets, counterpartyStaleTimesheets] = await Promise.all([
-        markTimesheetsStaleForEmployeeDate({
-          organizationId,
-          employeeId: existing.requesterEmployeeId,
-          workDate: String(existing.requesterWorkDate),
-        }),
-        markTimesheetsStaleForEmployeeDate({
-          organizationId,
-          employeeId: existing.counterpartyEmployeeId,
-          workDate: String(existing.counterpartyWorkDate),
-        }),
-      ]);
-
-      await recordAuditEvent({
-        organizationId,
-        actor: user.name,
-        action: "Workforce schedule swap approved",
-        resource: `Swap #${requestId}`,
-        metadata: {
-          scheduleSwapRequestId: requestId,
-          requesterOverrideId: result.requesterCreated.id,
-          counterpartyOverrideId: result.counterpartyCreated.id,
-          requesterEmployeeId: existing.requesterEmployeeId,
-          counterpartyEmployeeId: existing.counterpartyEmployeeId,
-          requesterWorkDate: existing.requesterWorkDate,
-          counterpartyWorkDate: existing.counterpartyWorkDate,
-          requesterStaleTimesheetIds: requesterStaleTimesheets.map((row) => row.id),
-          counterpartyStaleTimesheetIds: counterpartyStaleTimesheets.map((row) => row.id),
-          decisionNote,
-        },
-      });
+        const [requesterStaleTimesheets, counterpartyStaleTimesheets] = await Promise.all([
+          markTimesheetsStaleForEmployeeDate({
+            organizationId, employeeId: existing.requesterEmployeeId,
+            workDate: String(existing.requesterWorkDate), executor: tx,
+          }),
+          markTimesheetsStaleForEmployeeDate({
+            organizationId, employeeId: existing.counterpartyEmployeeId,
+            workDate: String(existing.counterpartyWorkDate), executor: tx,
+          }),
+        ]);
+        await tx.insert(auditEvents).values({
+          organizationId, actor: user.name,
+          action: "Workforce schedule swap approved",
+          resource: `Swap #${requestId}`,
+          metadata: {
+            scheduleSwapRequestId: requestId,
+            requesterOverrideId: requesterCreated.id,
+            counterpartyOverrideId: counterpartyCreated.id,
+            requesterEmployeeId: existing.requesterEmployeeId,
+            counterpartyEmployeeId: existing.counterpartyEmployeeId,
+            requesterWorkDate: existing.requesterWorkDate,
+            counterpartyWorkDate: existing.counterpartyWorkDate,
+            requesterStaleTimesheetIds: requesterStaleTimesheets.map(row => row.id),
+            counterpartyStaleTimesheetIds: counterpartyStaleTimesheets.map(row => row.id),
+            decisionNote,
+          },
+        });
+        return { updated, requesterCreated, counterpartyCreated,
+          staleTimesheetIds: [
+            ...requesterStaleTimesheets.map(row => row.id),
+            ...counterpartyStaleTimesheets.map(row => row.id),
+          ] };
+      }, { isolationLevel: "serializable" });
 
       return Response.json({
         swap: result.updated,
         overrides: [result.requesterCreated, result.counterpartyCreated],
-        staleTimesheetIds: [
-          ...requesterStaleTimesheets.map((row) => row.id),
-          ...counterpartyStaleTimesheets.map((row) => row.id),
-        ],
+        staleTimesheetIds: result.staleTimesheetIds,
       });
     } catch (error) {
       return Response.json({
