@@ -38,7 +38,7 @@ type TeamRosterResponse = {
   worksites: Array<{ id: number; code: string; name: string; active: boolean }>;
 };
 
-type DayEditor = { employee: TeamRosterEmployee; day: TeamRosterDay; organizationId: number };
+type DayEditor = { employee: TeamRosterEmployee; day: TeamRosterDay; organizationId: number; scopeKey: string };
 
 function todayInManila() {
   return new Date(Date.now() + 8 * 60 * 60_000).toISOString().slice(0, 10);
@@ -174,7 +174,7 @@ export function WorkforceTeamRosterPanel({
 
   function openDay(employee: TeamRosterEmployee, day: TeamRosterDay) {
     if (!canManage || day.date <= todayInManila() || day.source === "override" || day.segments.length > 1) return;
-    setEditor({ employee, day, organizationId });
+    setEditor({ employee, day, organizationId, scopeKey });
     setShiftChoice("");
     setWorksiteChoice("");
     setReason("");
@@ -183,7 +183,7 @@ export function WorkforceTeamRosterPanel({
   }
 
   async function saveOverride() {
-    if (!editor || !canManage || editor.organizationId !== organizationId || editor.day.date <= todayInManila()
+    if (!editor || !canManage || editor.organizationId !== organizationId || editor.scopeKey !== scopeKey || editor.day.date <= todayInManila()
       || !acknowledged || !reason.trim() || !shiftChoice || saving) return;
     setSaving(true);
     setEditorError("");
@@ -416,7 +416,7 @@ export function WorkforceTeamRosterPanel({
         )}
       </article>
 
-      {editor && canManage && editor.organizationId === organizationId && (
+      {editor && canManage && editor.organizationId === organizationId && editor.scopeKey === scopeKey && (
         <article className="card" style={{ marginTop: 16 }} data-wfm-team-roster-editor>
           <div className="card-header">
             <div>
