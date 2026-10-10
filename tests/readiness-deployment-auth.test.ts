@@ -45,3 +45,13 @@ test("malformed readiness secret fails closed without exposing infrastructure", 
     else process.env.READINESS_TOKEN = previous;
   }
 });
+
+test("production smoke workers authenticate the private deployment probe", () => {
+  const { readFileSync } = require("node:fs") as typeof import("node:fs");
+  const script = readFileSync("scripts/live-production-readiness.ts", "utf8");
+  const workflow = readFileSync(".github/workflows/live-rbac-sandbox-smoke.yml", "utf8");
+  assert.ok(script.includes('headers: { "x-readiness-token": token }'));
+  assert.ok(script.includes('PRODUCTION_READINESS_TOKEN is required to verify a private production deployment'));
+  assert.ok(workflow.includes('secrets.PRODUCTION_READINESS_TOKEN'));
+  assert.ok(workflow.includes('-H "x-readiness-token: ${PRODUCTION_READINESS_TOKEN}"'));
+});

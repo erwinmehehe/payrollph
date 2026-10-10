@@ -128,6 +128,10 @@ async function waitForSurface(path: string, expectedText?: RegExp) {
 }
 
 async function waitForExpectedDeployment() {
+  // Deployment provenance is private, even for code-only releases.
+  // The operator must supply the matching live readiness secret.
+  assert.ok(token.length >= 24,
+    "PRODUCTION_READINESS_TOKEN is required to verify a private production deployment.");
   if (!expectedCommitSha) {
     report.deployment = {
       verified: false,
@@ -141,7 +145,9 @@ async function waitForExpectedDeployment() {
 
   for (let attempt = 1; attempt <= 24; attempt++) {
     try {
-      const response = await fetchWithTimeout(`${baseUrl}/api/readiness/deployment`);
+      const response = await fetchWithTimeout(`${baseUrl}/api/readiness/deployment`, {
+        headers: { "x-readiness-token": token },
+      });
       lastStatus = response.status;
       const payload = await response.json().catch(() => ({}));
       lastDeploymentSha = typeof payload.deploymentSha === "string" ? payload.deploymentSha : null;
@@ -338,22 +344,9 @@ async function main() {
     `Unauthenticated detailed readiness must be protected or fail-closed in production, got ${unauthenticated.status}.`,
   );
 
-  // Code-only deploy checks can prove the exact public deployment SHA and
-  // login surfaces without reading protected payroll/bank readiness details.
-  // Pilot/full mode still fails closed without a configured operator token.
-  const result = token.length >= 24
-    ? await verifyDetailedReadiness()
-    : rolloutMode === "code"
-      ? {
-          status: "deployment-verified-only",
-          codeReady: true,
-          pilotReady: false,
-          fullLaunchReady: false,
-          criticalBlockers: ["readiness-token-not-configured"],
-          launchBlockers: [],
-          launchBlockersRemaining: null,
-        }
-      : await verifySanitizedReadiness();
+  // A private deployment verification token is required in every rollout mode.
+  // Source-branch CI remains separate from authenticated production acceptance.
+  const result = await verifyDetailedReadiness();
 
   writeReport();
   console.log(JSON.stringify({ ok: true, rolloutMode, gaApproved: false, externalCertification: "not-assessed-by-live-readiness-probe", ...result }, null, 2));
