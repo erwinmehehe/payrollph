@@ -8,6 +8,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertMembership } from "@/lib/access";
 import { receiptPilotAllowed } from "@/lib/workforce-schedule-receipt";
 import { EmployeeScheduleReceipts } from "@/components/employee-schedule-receipts";
+import { EmployeeScheduleChangeInbox } from "@/components/employee-schedule-change-inbox";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Schedule receipts | Linaw", robots: { index: false, follow: false } };
@@ -24,6 +25,9 @@ export default async function ScheduleReceiptsPage() {
   return <main style={{ maxWidth: 960, margin: "0 auto", padding: 24 }}>
     <Link href="/app">Back to employee workspace</Link>
     <h1>My schedule receipts</h1>
+    {process.env.NEXT_PUBLIC_WFM_SCHEDULE_CHANGE_INBOX_ENABLED === "true" && <EmployeeScheduleChangeInbox
+      key={`inbox:${session.id}:${employee.organizationId}:${employee.id}`}
+      identityScope={`${session.id}:${employee.organizationId}:${employee.id}`} />}
     <EmployeeScheduleReceipts key={`${session.id}:${employee.organizationId}:${employee.id}`} />
   </main>;
 }
