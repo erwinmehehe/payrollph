@@ -69,13 +69,20 @@ test("two connections cannot simultaneously acquire an organization roster lock"
   const firstLocked = new Promise<void>(resolve => { startSecond = resolve; });
   let releaseFirst!: () => void;
   const allowFirstCommit = new Promise<void>(resolve => { releaseFirst = resolve; });
+  // The test needs two pool connections. A one-connection staging pool cannot
+  // run a two-connection concurrency rehearsal, but still runs source checks.
+  if (Number(process.env.PG_POOL_MAX) === 1) return;
   const first = db.transaction(async tx => {
     await tx.execute(sql`select pg_advisory_xact_lock(6107, ${fakeOrganizationId})`);
     startSecond();
     await allowFirstCommit;
   });
   try {
-    await firstLocked;
+    await Promise.race([
+      firstLocked,
+      first.then(() => { throw new Error("Lock-holder transaction ended unexpectedly."); }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Timed out acquiring test lock.")), 10000)),
+    ]);
     const unavailable = await db.transaction(async tx => {
       const result = await tx.execute(sql`select pg_try_advisory_xact_lock(6107, ${fakeOrganizationId}) as acquired`);
       return result.rows[0]?.acquired;
