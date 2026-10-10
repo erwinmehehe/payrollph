@@ -6,6 +6,7 @@ import {
   provisioningTasks, separationRecords,
 } from "@/db/schema";
 import { roleApproverMatchesRole } from "@/lib/delegation";
+import { philippineBusinessDate } from "@/lib/hcm-employment-terms";
 import {
   projectHcmDecisions, projectPeopleFollowUps, projectOperationalCases, hcmHomeSourceTimestamp,
   type HcmHomeFollowUpInput,
@@ -88,6 +89,7 @@ async function loadDecisions(organizationId: number, viewer: Viewer): Promise<Hc
         eq(hcmBusinessProcessInstanceSteps.organizationId, organizationId),
         eq(hcmBusinessProcessInstanceSteps.status, "pending"),
         eq(hcmBusinessProcessInstances.status, "in_progress"),
+        inArray(hcmBusinessProcessInstanceSteps.stepType, ["approval", "review", "to_do"]),
         // Restrict to role or named/delegated assignees BEFORE applying LIMIT.
         or(
           inArray(sql<string>`lower(${hcmBusinessProcessInstanceSteps.assignee})`, namedAssignees),
@@ -129,8 +131,11 @@ async function loadDecisions(organizationId: number, viewer: Viewer): Promise<Hc
  */
 async function loadFollowUps(organizationId: number): Promise<HcmPeopleHomeSlice> {
   const limit = HCM_PEOPLE_HOME_FOLLOWUP_LIMIT;
+  const today = philippineBusinessDate();
   const [onboarding, reviews, separations] = await Promise.all([
-    db.select({ id: provisioningTasks.id, employeeId: employees.id })
+    // The authoritative People Ops source creates one onboarding follow-up per
+    // started worker, not one for every open checklist task.
+    db.select({ id: sql<number>`min(${provisioningTasks.id})`, employeeId: employees.id })
       .from(provisioningTasks)
       .innerJoin(employees, and(
         eq(provisioningTasks.employeeId, employees.id),
@@ -141,8 +146,10 @@ async function loadFollowUps(organizationId: number): Promise<HcmPeopleHomeSlice
         eq(provisioningTasks.kind, "onboarding"),
         eq(provisioningTasks.done, false),
         notInArray(employees.status, ["Separated", "Terminated", "Inactive"]),
+        lte(employees.startDate, today),
       ))
-      .orderBy(provisioningTasks.id).limit(limit + 1),
+      .groupBy(employees.id)
+      .orderBy(sql`min(${provisioningTasks.id})`).limit(limit + 1),
     db.select({ id: performanceReviews.id, employeeId: employees.id })
       .from(performanceReviews)
       .innerJoin(employees, and(
@@ -152,6 +159,15 @@ async function loadFollowUps(organizationId: number): Promise<HcmPeopleHomeSlice
       .where(and(
         eq(performanceReviews.organizationId, organizationId),
         notInArray(performanceReviews.status, ["completed", "cancelled", "canceled", "archived", "rejected"]),
+        notInArray(employees.status, ["Separated", "Terminated", "Inactive"]),
+        lte(employees.startDate, today),
+        // The source uses the latest review for each employee; earlier open
+        // cycles cannot revive a follow-up after a newer completed review.
+        sql<boolean>`${performanceReviews.id} = (
+          SELECT MAX(latest_review.id) FROM performance_reviews latest_review
+          WHERE latest_review.organization_id = ${organizationId}
+            AND latest_review.employee_id = ${performanceReviews.employeeId}
+        )`,
       ))
       .orderBy(performanceReviews.id).limit(limit + 1),
     db.select({
@@ -166,6 +182,14 @@ async function loadFollowUps(organizationId: number): Promise<HcmPeopleHomeSlice
       .where(and(
         eq(separationRecords.organizationId, organizationId),
         ne(separationRecords.status, "released"),
+        // The owning inbox evaluates the latest Separation package only.
+        // Released-package reconciliation categories are not in this bounded
+        // subset, which is explicitly always marked partial.
+        sql<boolean>`${separationRecords.id} = (
+          SELECT MAX(latest_separation.id) FROM separation_records latest_separation
+          WHERE latest_separation.organization_id = ${organizationId}
+            AND latest_separation.employee_id = ${separationRecords.employeeId}
+        )`,
       ))
       .orderBy(separationRecords.id).limit(limit + 1),
   ]);
