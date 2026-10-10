@@ -94,3 +94,16 @@ test("decision SQL filters eligible assignees before the bounded limit", () => {
   assert.ok(server.indexOf("const namedAssignees") < server.indexOf("const candidateRows"));
   assert.ok(!query.includes("canDecide("), "no N+1 decision authorization lookups");
 });
+
+test("bounded follow-ups mirror current worker and latest-source semantics", () => {
+  const server = readFileSync("src/lib/hcm-people-home-server.ts", "utf8");
+  assert.match(server, /const today = philippineBusinessDate\(\)/);
+  assert.match(server, /min\(\$\{provisioningTasks\.id\}\)/);
+  assert.match(server, /\.groupBy\(employees\.id\)/);
+  assert.match(server, /lte\(employees\.startDate, today\)/);
+  assert.match(server, /MAX\(latest_review\.id\)/);
+  assert.match(server, /latest_review\.organization_id = \$\{organizationId\}/);
+  assert.match(server, /MAX\(latest_separation\.id\)/);
+  assert.match(server, /latest_separation\.organization_id = \$\{organizationId\}/);
+  assert.match(server, /partial: true/);
+});
