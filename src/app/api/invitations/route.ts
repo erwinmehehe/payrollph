@@ -10,6 +10,7 @@ import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { canonicalAppOrigin, enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { rateLimitDistributed } from "@/lib/rate-limit";
 import { isInvitableRole } from "@/lib/roles";
+import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,8 @@ export async function POST(request: Request) {
     "Only workspace administrators can invite users.",
   );
   if (deniedInvite) return deniedInvite;
+  const subscriptionDenied = await requireSaasPaidWrites(organizationId);
+  if (subscriptionDenied) return subscriptionDenied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
 

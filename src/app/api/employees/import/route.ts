@@ -10,6 +10,7 @@ import { parseEmployeeCsv } from "@/lib/csv-import";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
+import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,10 @@ export async function POST(request: Request) {
     "Only People administrators can import employee records.",
   );
   if (deniedImport) return deniedImport;
+  if (!dryRun) {
+    const subscriptionDenied = await requireSaasPaidWrites(organizationId);
+    if (subscriptionDenied) return subscriptionDenied;
+  }
   const access = await getAccess(user.id, organizationId);
   if (!access?.companyWide) {
     return Response.json({ error: "Bulk employee import requires company-wide People administrator access." }, { status: 403 });

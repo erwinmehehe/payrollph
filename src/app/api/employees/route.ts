@@ -33,6 +33,8 @@ import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automat
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
+import { requireSaasPaidWrites, isSelfServeOrganization } from "@/lib/saas-workspace-access";
+import { getEntitlements, seatUsage } from "@/lib/billing";
 import { WAGE_ORDERS, wageOrderFor } from "@/lib/wage-orders";
 import { GOVERNED_HIRE_REQUIRED, hasConfiguredHireBusinessProcess } from "@/lib/hcm-direct-entry-policy";
 import {
@@ -151,6 +153,13 @@ export async function POST(request: Request) {
     "Only People administrators can create employee records.",
   );
   if (denied) return denied;
+  const subscriptionDenied = await requireSaasPaidWrites(organizationId);
+  if (subscriptionDenied) return subscriptionDenied;
+  if (await isSelfServeOrganization(organizationId)) {
+    const entitlements = await getEntitlements(organizationId);
+    const seats = await seatUsage(organizationId, entitlements.seatLimit);
+    if (seats.atLimit) return Response.json({ error: "Employee seat limit reached. Contact billing to update your subscription.", code: "SEAT_LIMIT_REACHED", used: seats.used, limit: seats.limit }, { status: 402 });
+  }
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   // A configured Hire business process cannot be bypassed by this older
@@ -352,6 +361,8 @@ export async function PATCH(request: Request) {
     "Only People administrators can update government identity records.",
   );
   if (denied) return denied;
+  const subscriptionDenied = await requireSaasPaidWrites(organizationId);
+  if (subscriptionDenied) return subscriptionDenied;
 
   const [employee] = await db.select().from(employees)
     .where(and(
