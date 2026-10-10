@@ -558,6 +558,17 @@ function YearEndPanel({ organizationId, setNotice }: { organizationId: number; s
     if (response.ok) setSummary(await response.json());
   }
 
+  // Existing settled year-end records must be visible after reopening the page;
+  // re-running annualization is intentionally prohibited once tax was settled.
+  useEffect(() => {
+    let active = true;
+    void fetch(`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}`, { cache: "no-store" })
+      .then(async (response) => response.ok ? await response.json() : null)
+      .then((payload) => { if (active) setSummary(payload); })
+      .catch(() => { if (active) setSummary(null); });
+    return () => { active = false; };
+  }, [organizationId, taxYear]);
+
   async function checkBirPreflight() {
     setCheckingBIR(true);
     setBirPreflight(null);
