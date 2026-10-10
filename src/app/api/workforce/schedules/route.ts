@@ -758,7 +758,7 @@ export async function POST(request: Request) {
           },
         });
         return { created, staleTimesheets, lockedIssues, lockedPolicy };
-      }, { isolationLevel: "serializable" });
+      }, { isolationLevel: "read committed" });
 
       return Response.json({
         assignment: result.created,
@@ -953,7 +953,7 @@ export async function POST(request: Request) {
           },
         });
         return { created, staleTimesheets, lockedIssues, lockedPolicy };
-      }, { isolationLevel: "serializable" });
+      }, { isolationLevel: "read committed" });
       return Response.json({
         override: result.created,
         guardrailIssues: result.lockedIssues,
