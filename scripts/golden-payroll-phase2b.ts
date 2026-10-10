@@ -263,7 +263,7 @@ async function caseMidCutoffHire(expected: Record<string, number>, tolerance: nu
       netPay: Number(entry.netPay),
     };
     for (const [key, value] of Object.entries(expected)) {
-      assertMoney(Number(actual[key as keyof typeof actual]), value, `mid-cutoff hire ${key}`, tolerance);
+      // Mid-cutoff prorating must reconcile at the actual centavo, not a 1-cent tolerance.\n      assertMoney(Number(actual[key as keyof typeof actual]), value, `mid-cutoff hire ${key}`, 0);
     }
     return actual;
   } finally {
