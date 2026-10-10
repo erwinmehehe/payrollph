@@ -310,7 +310,8 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
                 <p className="text-xs text-slate-600">Source page {cursors.length} · Up to {page.page.size} candidate rows</p>
                 <button type="button" disabled={!page.page.hasMore || page.page.nextCursor === null}
                   onClick={() => {
-                    if (page.page.nextCursor !== null) setCursors((history) => [...history, page.page.nextCursor]);
+                    const next = page.page.nextCursor;
+                    if (next !== null) setCursors((history) => [...history, next]);
                   }}
                   className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40">
                   Older candidates <ArrowRight size={16} aria-hidden="true"/>
