@@ -25,7 +25,6 @@ type Props = {
   onNewRun: () => void;
 };
 
-const COMPLETE_INPUT_STATES = ["complete", "present", "ok", "approved"];
 const REVIEW_STATES = ["Pending approval", "Ready for release", "Released"];
 
 export function TaskFirstPayrollHome({ data, run, onTask, onNewRun }: Props) {
@@ -38,7 +37,7 @@ export function TaskFirstPayrollHome({ data, run, onTask, onNewRun }: Props) {
       .filter(
         (punch) =>
           (!run || (punch.workDate >= run.periodStart && punch.workDate <= run.periodEnd)) &&
-          !COMPLETE_INPUT_STATES.includes(punch.status.toLowerCase()),
+          !(punch.timeIn && punch.timeOut),
       )
       .map((punch) => punch.employeeId),
   ).size;
