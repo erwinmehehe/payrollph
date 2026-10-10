@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { ArrowLeft, CalendarDays, ClipboardList, RefreshCw, ShieldCheck } from "lucide-react";
 import type { Worker360Summary } from "@/lib/hcm-worker-360-contract";
 import { validWorker360Date } from "@/lib/hcm-worker-360-projection";
@@ -82,9 +83,9 @@ export function Worker360Client({
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-8">
       <div className="mx-auto max-w-6xl">
-        <a href="/app" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 underline-offset-4 hover:underline">
+        <Link href="/app" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 underline-offset-4 hover:underline">
           <ArrowLeft aria-hidden="true" size={16} /> Return to People workspace
-        </a>
+        </Link>
         <header className="mt-7 flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-emerald-800">Linaw HCM · Read-only</p>
