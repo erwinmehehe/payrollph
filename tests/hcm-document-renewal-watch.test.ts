@@ -20,9 +20,9 @@ test("missing, overdue, submitted and waived are not presented as verified", () 
   assert.equal(classifyDocumentRenewal({ ...base, status: "waived", expiresAt: "2026-01-01" }, "2026-10-10"), "waived");
 });
 test("watch defaults off, no implicit preview or production enablement", () => {
-  assert.equal(documentWatchEnabled({} as NodeJS.ProcessEnv), false);
-  assert.equal(documentWatchEnabled({ HCM_DOCUMENT_RENEWAL_WATCH_ENABLED: "false" } as NodeJS.ProcessEnv), false);
-  assert.equal(documentWatchEnabled({ HCM_DOCUMENT_RENEWAL_WATCH_ENABLED: "true" } as NodeJS.ProcessEnv), true);
+  assert.equal(documentWatchEnabled({ NODE_ENV: "test" } as NodeJS.ProcessEnv), false);
+  assert.equal(documentWatchEnabled({ NODE_ENV: "test", HCM_DOCUMENT_RENEWAL_WATCH_ENABLED: "false" } as NodeJS.ProcessEnv), false);
+  assert.equal(documentWatchEnabled({ NODE_ENV: "test", HCM_DOCUMENT_RENEWAL_WATCH_ENABLED: "true" } as NodeJS.ProcessEnv), true);
 });
 test("route requires authenticated company-wide HR, scopes all joins, limits SQL and is read-only", () => {
   const s = readFileSync("src/app/api/hcm/document-renewal-watch/route.ts", "utf8");
