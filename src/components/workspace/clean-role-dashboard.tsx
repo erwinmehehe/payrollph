@@ -591,7 +591,7 @@ function CheckerHome({
                   : "No payroll available"
             }
             detail="Open the payroll workspace to inspect entries and validation checks."
-            onClick={() => onTask ? onTask({page:"Payroll",runId:run?.id,focus:"exceptions"}) : onPage("Payroll")}
+            onClick={() => onPage("Payroll")}
           />
         ) : (
           <div className="clean-metrics">
