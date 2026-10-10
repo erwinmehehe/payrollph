@@ -86,6 +86,8 @@ export function hcmHomeSourceTimestamp(value: Date | string | null): string | nu
   if (typeof value !== "string") return null;
   const match = /^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.exec(value);
   if (!match || !dateOnly(match[1]) || !Number.isFinite(Date.parse(value))) return null;
+  const zone = value.match(/([+-])(\d{2}):(\d{2})$/);
+  if (zone && (Number(zone[2]) > 14 || (Number(zone[2]) === 14 && Number(zone[3]) !== 0))) return null;
   return value;
 }
 
