@@ -10,7 +10,8 @@ test("date-only, unzoned and impossible source values never become SLA deadlines
   for (const dueAt of [
     "2026-10-10", "2026-10-10T09:00:00", "2026-02-29T09:00:00Z",
     "2026-02-31T09:00:00+08:00", "2026-10-10T24:00:00Z",
-    "2026-10-10T09:60:00Z", "2026-10-10T09:00:60Z", "10/10/2026", "",
+    "2026-10-10T09:60:00Z", "2026-10-10T09:00:60Z",
+    "2026-10-10T09:00:00+14:01", "2026-10-10T09:00:00+23:00", "10/10/2026", "",
   ]) {
     const items = [projectHcmDecisions(11, [{ ...decision, dueAt }])[0],
       projectOperationalCases(11, [{ id: 2, status: "open", dueAt }])[0]];
