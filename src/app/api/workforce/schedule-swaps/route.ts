@@ -649,7 +649,7 @@ export async function POST(request: Request) {
             ...requesterStaleTimesheets.map(row => row.id),
             ...counterpartyStaleTimesheets.map(row => row.id),
           ] };
-      }, { isolationLevel: "serializable" });
+      }, { isolationLevel: "read committed" });
 
       return Response.json({
         swap: result.updated,
