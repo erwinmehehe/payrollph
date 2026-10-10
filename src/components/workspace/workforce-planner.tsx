@@ -18,6 +18,7 @@ import type {
   ScheduleGuardrailPolicy,
 } from "@/lib/workforce-schedule-guardrails";
 import type { DashboardData, Notify } from "./types";
+import { buildRotationTemplateDraft } from "@/lib/workforce-rotation-template";
 import { EmptyState, ErrorState, Metric, PageHeading, Spinner, Status } from "./ui";
 import { WorkforceOvertimePanel } from "./workforce-overtime-panel";
 import { WorkforceScheduleSwapPanel } from "./workforce-schedule-swap-panel";
@@ -26,6 +27,7 @@ import { LaborCostingPanel } from "./labor-costing-panel";
 import { WorkforceWorksitesPanel } from "./workforce-worksites-panel";
 import { WorkforceCoveragePanel } from "./workforce-coverage-panel";
 import { WorkforceTimesheetPanel } from "./workforce-timesheet-panel";
+import { WorkforceTeamRosterPanel } from "./workforce-team-roster-panel";
 
 type ShiftRow = {
   id: number;
@@ -315,6 +317,23 @@ export function WorkforcePlanner({
     if (ok) setAssignmentPatternId("");
   }
 
+  function useExistingPatternAsTemplate(pattern: PatternRow) {
+    if (!catalog) return;
+    const result = buildRotationTemplateDraft({
+      pattern, patterns: catalog.patterns, days: catalog.patternDays,
+      segments: catalog.patternSegments,
+      shiftIds: catalog.shifts.map(shift => shift.id),
+    });
+    if (!result.ok) {
+      notify(result.error, "err");
+      return;
+    }
+    setPatternCode(result.code);
+    setPatternName(result.name);
+    setPatternChoices(result.choices);
+    notify("Rotation loaded for review. It has not been saved or assigned.");
+  }
+
   async function assignPattern() {
     if (!employeeId || !assignmentPatternId || !assignmentStart) {
       notify("Employee, rotation and effective start date are required.", "err");
@@ -386,7 +405,7 @@ export function WorkforcePlanner({
         const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
         tabs[next]?.focus(); tabs[next]?.click();
       }}>
-        {[['roster', 'Roster'], ['coverage', 'Coverage'], ['timesheets', 'Timesheets'], ['overtime', 'Overtime'], ['swaps', 'Schedule swaps'], ['worksites', 'Worksites'], ['costing', 'Labor costing'], ['guardrails', 'Guardrails']].map(([key, label]) => (
+        {[['roster', 'Individual roster'], ['team', 'Team roster'], ['coverage', 'Coverage'], ['timesheets', 'Timesheets'], ['overtime', 'Overtime'], ['swaps', 'Schedule swaps'], ['worksites', 'Worksites'], ['costing', 'Labor costing'], ['guardrails', 'Guardrails']].map(([key, label]) => (
           <button type="button" key={key} id={`wfm-tab-${key}`} role="tab" tabIndex={workspaceTab === key ? 0 : -1} aria-selected={workspaceTab === key} aria-controls={`wfm-panel-${key}`} className={workspaceTab === key ? "active" : ""} onClick={() => setWorkspaceTab(key)}>{label}</button>
         ))}
       </div>
@@ -593,6 +612,11 @@ export function WorkforcePlanner({
                 <span key={pattern.id}>
                   <b>{pattern.code} · {pattern.name}</b>
                   <small style={{ display: "block", color: "var(--muted)" }}>{pattern.cycleDays}-day cycle</small>
+                  <button type="button" className="secondary-button"
+                    onClick={() => useExistingPatternAsTemplate(pattern)} disabled={saving !== null}
+                    aria-label={`Use ${pattern.name} as a new rotation template`}>
+                    Use as template
+                  </button>
                 </span>
               ))}
             </div>
@@ -715,6 +739,7 @@ export function WorkforcePlanner({
         </div>
       )}
       </div>
+      <div role="tabpanel" id="wfm-panel-team" aria-labelledby="wfm-tab-team" hidden={workspaceTab !== 'team'}><WorkforceTeamRosterPanel organizationId={organizationId} canManage={canManage} notify={notify} onScheduleChanged={() => { void loadCatalog(); void loadPreview(); }} /></div>
       <div role="tabpanel" id="wfm-panel-coverage" aria-labelledby="wfm-tab-coverage" hidden={workspaceTab !== 'coverage'}><WorkforceCoveragePanel data={data} notify={notify} canManage={canManage} /></div>
       <div role="tabpanel" id="wfm-panel-timesheets" aria-labelledby="wfm-tab-timesheets" hidden={workspaceTab !== 'timesheets'}><WorkforceTimesheetPanel data={data} notify={notify} canManage={canManage} /></div>
       <div role="tabpanel" id="wfm-panel-overtime" aria-labelledby="wfm-tab-overtime" hidden={workspaceTab !== 'overtime'}><WorkforceOvertimePanel data={data} notify={notify} /></div>

@@ -4,9 +4,8 @@ on:
   pull_request:
     branches:
       - main
-      # Stacked ESS and billing PRs also require browser/security assurance.
-      - feat/hcm-work-item-ownership-sla
-      - ui/ess-mobile-ux
+      # Enforce full payroll release checks on dependent PR #688.
+      - feat/payroll-connected-impact-review-20261009
   workflow_dispatch:
 
 concurrency:

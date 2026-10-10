@@ -1,8 +1,11 @@
 import { encryptBankAccount } from "@/lib/bank-account-crypto";
+import { encryptGovernmentId } from "@/lib/government-id-crypto";
+import { employeeMasterMigrationBlockers } from "@/lib/hcm-migration-safety";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   employeeLoans,
   employeePayProfiles,
   employees,
@@ -50,15 +53,6 @@ function migrationRowKey(kind: MigrationKind, row: unknown) {
   }
   const value = row as MigratedLoan;
   return `loan:${value.employeeNo.trim().toLowerCase()}:${value.referenceNo.trim().toLowerCase()}`;
-}
-
-function today() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
 }
 
 const cents = (value: number) => value.toFixed(2);
@@ -124,6 +118,7 @@ export async function POST(request: Request) {
   let csv = "";
   let fileName = "migration.csv";
   let dryRun = true;
+  let evidenceReference = "";
 
   const contentType = request.headers.get("content-type") ?? "";
   if (contentType.includes("multipart/form-data")) {
@@ -132,6 +127,7 @@ export async function POST(request: Request) {
     source = String(form.get("source") ?? "generic") as MigrationSource;
     kind = String(form.get("kind") ?? "employees") as MigrationKind;
     dryRun = String(form.get("dryRun") ?? "true") !== "false";
+    evidenceReference = String(form.get("evidenceReference") ?? "").trim();
 
     const upload = form.get("file");
     if (!upload || typeof upload === "string") {
@@ -170,6 +166,7 @@ export async function POST(request: Request) {
     csv = typeof body.csv === "string" ? body.csv : "";
     fileName = String(body.fileName ?? "migration.csv").slice(0, 200);
     dryRun = body.dryRun !== false;
+    evidenceReference = String(body.evidenceReference ?? "").trim();
   }
 
   if (!Number.isInteger(organizationId) || !csv.trim()) {
@@ -247,8 +244,16 @@ export async function POST(request: Request) {
         continue;
       }
       seen.add(key);
-      if (employeeByNo.has(key)) updatedCount += 1;
-      else {
+      if (employeeByNo.has(key)) {
+        updatedCount += 1;
+      } else {
+        if (!row.startDate) {
+          rowErrors.push({
+            line: lineByRow.get(row) ?? 0,
+            problems: [`Employee "${row.employeeNo}" has no verified hire/start date. Historical migration cannot replace it with today's date.`],
+          });
+          continue;
+        }
         createdCount += 1;
         newEmployees += 1;
       }
@@ -326,6 +331,9 @@ export async function POST(request: Request) {
     }
   }
 
+  const employeeMigrationBlockers = kind === "employees"
+    ? await employeeMasterMigrationBlockers(organizationId)
+    : [];
   const readyCount = createdCount + updatedCount;
   const attentionCount = Math.max(0, rowErrors.length - duplicateCount);
   const totalRows = parsed.rows.length + parsed.errors.length;
@@ -367,7 +375,224 @@ export async function POST(request: Request) {
       mappings: parsed.mappings,
       unmappedColumns: parsed.unmappedColumns,
       seatUsage: seatInfo,
+      migrationBlockers: employeeMigrationBlockers,
     });
+  }
+
+  // Employee-master migration can rewrite salary, legal identity, status,
+  // banking and employment data. Only the original pre-live HR migration
+  // is authorized here, never a replacement for governed HR/payroll changes.
+  if (kind === "employees") {
+    if (!["owner", "admin"].includes(access.role)) {
+      return Response.json({
+        error: "Only the company owner or administrator may commit an initial employee-master migration.",
+        code: "HCM_MIGRATION_ROLE_REQUIRED",
+      }, { status: 403 });
+    }
+    if (evidenceReference.length < 8 || evidenceReference.length > 200) {
+      return Response.json({
+        error: "Enter an 8-200 character HR migration evidence reference before committing employee data.",
+        code: "HCM_MIGRATION_EVIDENCE_REQUIRED",
+      }, { status: 422 });
+    }
+    if (employeeMigrationBlockers.length) {
+      return Response.json({
+        error: "Employee-master migration is only allowed before payroll and governed HR activity begins.",
+        code: "HCM_MIGRATION_LOCKED",
+        migrationBlockers: employeeMigrationBlockers,
+      }, { status: 409 });
+    }
+  }
+
+  // Validate production PII encryption for the entire batch *before* writing
+  // a batch row or employee, to avoid partial imports when keys are absent.
+  const protectedGovernmentIds = new Map<string, {
+    tin: string | null; tinBranchCode: string | null; sssNo: string | null;
+    philHealthNo: string | null; pagIbigNo: string | null;
+  }>();
+  if (kind === "employees") {
+    try {
+      for (const row of importRows as MigratedEmployee[]) {
+        if (!employeeByNo.has(row.employeeNo.trim().toLowerCase()) && !row.startDate) continue;
+        protectedGovernmentIds.set(row.employeeNo.trim().toLowerCase(), {
+          tin: encryptGovernmentId(row.tin, { required: process.env.NODE_ENV === "production" }),
+          tinBranchCode: encryptGovernmentId(row.tinBranchCode, { required: process.env.NODE_ENV === "production" }),
+          sssNo: encryptGovernmentId(row.sssNo, { required: process.env.NODE_ENV === "production" }),
+          philHealthNo: encryptGovernmentId(row.philHealthNo, { required: process.env.NODE_ENV === "production" }),
+          pagIbigNo: encryptGovernmentId(row.pagIbigNo, { required: process.env.NODE_ENV === "production" }),
+        });
+      }
+    } catch {
+      return Response.json({
+        error: "Government-ID encryption is unavailable. No employee migration rows have been written.",
+        code: "HCM_MIGRATION_PII_ENCRYPTION_UNAVAILABLE",
+      }, { status: 503 });
+    }
+  }
+
+  if (kind === "employees") {
+    try {
+      const committedBatch = await db.transaction(async (tx) => {
+        // Serialize initial employee-master migrations with create-only CSV imports
+        // under one tenant lock; worker/pay/audit records roll back together.
+        // Direct employee creation still needs approved production cutover control.
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(4212, ${organizationId})`);
+        // Recheck authoritative state using this same transaction/connection
+        // (important when PG_POOL_MAX=1). No nested pool read is allowed.
+        const lateState = await tx.execute(sql`
+          SELECT (
+            EXISTS(SELECT 1 FROM hcm_business_process_definitions
+              WHERE organization_id = ${organizationId} AND process_type = 'hire')
+            OR EXISTS(SELECT 1 FROM payroll_runs WHERE organization_id = ${organizationId})
+            OR EXISTS(SELECT 1 FROM historical_payroll_entries WHERE organization_id = ${organizationId})
+            OR EXISTS(SELECT 1 FROM hcm_business_process_instances WHERE organization_id = ${organizationId})
+            OR EXISTS(SELECT 1 FROM worker_effective_changes WHERE organization_id = ${organizationId})
+            OR EXISTS(SELECT 1 FROM position_assignments WHERE organization_id = ${organizationId})
+            OR EXISTS(SELECT 1 FROM employee_pay_revisions WHERE organization_id = ${organizationId})
+            OR EXISTS(SELECT 1 FROM import_batches
+              WHERE organization_id = ${organizationId} AND import_kind = 'employees'
+                AND (created_count > 0 OR updated_count > 0))
+          ) AS blocked
+        `);
+        if (lateState.rows[0]?.blocked === true) throw new Error("HCM_MIGRATION_LOCKED");
+        const currentStaff = await tx.select({ id: employees.id, employeeNo: employees.employeeNo })
+          .from(employees).where(eq(employees.organizationId, organizationId));
+        const expectedIds = new Set(staff.map((worker) => worker.id));
+        if (currentStaff.length !== staff.length || currentStaff.some((worker) => !expectedIds.has(worker.id))) {
+          throw new Error("HCM_MIGRATION_WORKER_STATE_CHANGED");
+        }
+      const [batch] = await tx.insert(importBatches).values({
+        organizationId,
+        fileName,
+        sourceSystem: source,
+        importKind: kind,
+        totalRows,
+        createdCount,
+        updatedCount,
+        errorCount: rowErrors.length,
+        status: rowErrors.length > 0 ? "partial" : "completed",
+        errors: rowErrors.slice(0, 100),
+        createdBy: user.name,
+      }).returning();
+
+
+
+        const rows = importRows as MigratedEmployee[];
+        const seen = new Set<string>();
+        for (const row of rows) {
+          const key = row.employeeNo.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const existing = employeeByNo.get(key);
+          if (!existing && !row.startDate) continue;
+          const encryptedIds = protectedGovernmentIds.get(key);
+          if (!encryptedIds) {
+            throw new Error("Government-ID encryption preflight was incomplete.");
+          }
+          const values = {
+            firstName: row.firstName,
+            middleName: row.middleName,
+            lastName: row.lastName,
+            title: row.title,
+            employmentType: row.employmentType,
+            status: row.status,
+            basicRate: cents(row.monthlyBasic),
+            mwe: row.mwe,
+            region: row.region,
+            email: row.email,
+            mobile: row.mobile,
+            bankAccount: encryptBankAccount(row.bankAccount),
+            bankCode: row.bankCode,
+            ...encryptedIds,
+          };
+          let employeeId: number;
+          if (existing) {
+            await tx.update(employees).set(values).where(and(
+              eq(employees.organizationId, organizationId),
+              eq(employees.id, existing.id),
+            ));
+            employeeId = existing.id;
+          } else {
+            const [createdEmployee] = await tx.insert(employees).values({
+              organizationId,
+              employeeNo: row.employeeNo,
+              ...values,
+              avatarInitials: `${row.firstName[0] ?? "?"}${row.lastName[0] ?? "?"}`.toUpperCase(),
+              startDate: row.startDate!,
+            }).returning({ id: employees.id });
+            employeeId = createdEmployee.id;
+          }
+
+          // Employee migration currently maps a field explicitly named monthly
+          // basic salary. Preserve that source meaning as an explicit monthly pay
+          // profile rather than letting payroll infer behavior from attendance.
+          await tx.insert(employeePayProfiles).values({
+            employeeId,
+            organizationId,
+            payBasis: "monthly",
+            rateAmount: cents(row.monthlyBasic),
+            standardWorkDaysPerMonth: "22.00",
+            standardHoursPerDay: "8.00",
+          }).onConflictDoUpdate({
+            target: employeePayProfiles.employeeId,
+            set: {
+              payBasis: "monthly",
+              rateAmount: cents(row.monthlyBasic),
+              standardWorkDaysPerMonth: "22.00",
+              standardHoursPerDay: "8.00",
+              updatedAt: new Date(),
+            },
+          });
+        }
+
+        await tx.insert(auditEvents).values({
+          organizationId,
+          actor: user.name,
+          action: "Initial employee-master migration completed",
+          resource: fileName,
+          metadata: {
+            batchId: batch.id,
+            source, kind,
+            created: createdCount,
+            updated: updatedCount,
+            errors: rowErrors.length,
+            duplicateCount,
+            mappings: parsed.mappings,
+            unmappedColumns: parsed.unmappedColumns,
+            evidenceReference,
+            migrationSafetyPreflight: "pre-live-only",
+          },
+        });
+        return batch;
+      });
+      return Response.json({
+        batchId: committedBatch.id,
+        dryRun: false, source, kind, fileName,
+        totalRows: committedBatch.totalRows,
+        readyCount, attentionCount, duplicateCount,
+        createdCount, updatedCount,
+        errorCount: rowErrors.length,
+        errors: rowErrors.slice(0, 50),
+        mappings: parsed.mappings,
+        unmappedColumns: parsed.unmappedColumns,
+        seatUsage: seatInfo,
+      });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      if (code === "HCM_MIGRATION_LOCKED") {
+        return Response.json({
+          error: "Payroll or governed HCM activity appeared before migration commit. Revalidate.",
+          code,
+        }, { status: 409 });
+      }
+      if (code === "HCM_MIGRATION_WORKER_STATE_CHANGED") {
+        return Response.json({
+          error: "Employee records changed during preflight. Refresh and reconcile before retrying.",
+          code,
+        }, { status: 409 });
+      }
+      throw error;
+    }
   }
 
   const [batch] = await db.insert(importBatches).values({
@@ -384,74 +609,6 @@ export async function POST(request: Request) {
     createdBy: user.name,
   }).returning();
 
-  if (kind === "employees") {
-    const rows = importRows as MigratedEmployee[];
-    const seen = new Set<string>();
-    for (const row of rows) {
-      const key = row.employeeNo.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const existing = employeeByNo.get(key);
-      const values = {
-        firstName: row.firstName,
-        middleName: row.middleName,
-        lastName: row.lastName,
-        title: row.title,
-        employmentType: row.employmentType,
-        status: row.status,
-        basicRate: cents(row.monthlyBasic),
-        mwe: row.mwe,
-        region: row.region,
-        email: row.email,
-        mobile: row.mobile,
-        bankAccount: encryptBankAccount(row.bankAccount),
-        bankCode: row.bankCode,
-        tin: row.tin,
-        tinBranchCode: row.tinBranchCode,
-        sssNo: row.sssNo,
-        philHealthNo: row.philHealthNo,
-        pagIbigNo: row.pagIbigNo,
-      };
-      let employeeId: number;
-      if (existing) {
-        await db.update(employees).set(values).where(and(
-          eq(employees.organizationId, organizationId),
-          eq(employees.id, existing.id),
-        ));
-        employeeId = existing.id;
-      } else {
-        const [createdEmployee] = await db.insert(employees).values({
-          organizationId,
-          employeeNo: row.employeeNo,
-          ...values,
-          avatarInitials: `${row.firstName[0] ?? "?"}${row.lastName[0] ?? "?"}`.toUpperCase(),
-          startDate: row.startDate ?? today(),
-        }).returning({ id: employees.id });
-        employeeId = createdEmployee.id;
-      }
-
-      // Employee migration currently maps a field explicitly named monthly
-      // basic salary. Preserve that source meaning as an explicit monthly pay
-      // profile rather than letting payroll infer behavior from attendance.
-      await db.insert(employeePayProfiles).values({
-        employeeId,
-        organizationId,
-        payBasis: "monthly",
-        rateAmount: cents(row.monthlyBasic),
-        standardWorkDaysPerMonth: "22.00",
-        standardHoursPerDay: "8.00",
-      }).onConflictDoUpdate({
-        target: employeePayProfiles.employeeId,
-        set: {
-          payBasis: "monthly",
-          rateAmount: cents(row.monthlyBasic),
-          standardWorkDaysPerMonth: "22.00",
-          standardHoursPerDay: "8.00",
-          updatedAt: new Date(),
-        },
-      });
-    }
-  }
 
   if (kind === "payroll_history") {
     const rows = importRows as MigratedPayrollHistory[];
@@ -564,6 +721,8 @@ export async function POST(request: Request) {
       duplicateCount,
       mappings: parsed.mappings,
       unmappedColumns: parsed.unmappedColumns,
+      // Employee-master migrations return earlier from their own atomic path.
+      // This branch contains only historical payroll, leave or loan imports.
     },
   });
 

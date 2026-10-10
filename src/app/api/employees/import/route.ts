@@ -1,9 +1,9 @@
 import { encryptBankAccount } from "@/lib/bank-account-crypto";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employeePayProfiles, employees, importBatches } from "@/db/schema";
-import { recordAuditEvent } from "@/lib/audit";
+import { auditEvents, employeePayProfiles, employees, importBatches } from "@/db/schema";
+import { GOVERNED_HIRE_REQUIRED, hasConfiguredHireBusinessProcess } from "@/lib/hcm-direct-entry-policy";
 import { getSessionUser } from "@/lib/auth";
 import { getEntitlements, requireFeature, seatUsage } from "@/lib/billing";
 import { parseEmployeeCsv } from "@/lib/csv-import";
@@ -52,6 +52,12 @@ export async function POST(request: Request) {
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
 
+  // A configured enterprise Hire business process cannot be bypassed by
+  // uploading a CSV, including a CSV that supplies valid employee numbers.
+  if (await hasConfiguredHireBusinessProcess(organizationId)) {
+    return Response.json(GOVERNED_HIRE_REQUIRED, { status: 409 });
+  }
+
   await ensureMigrationSchema();
   await ensureEmployeePayProfiles(organizationId);
 
@@ -68,19 +74,6 @@ export async function POST(request: Request) {
     }, { status: 422 });
   }
 
-  // Seat limit is enforced before anything is written.
-  const seats = await seatUsage(organizationId, entitlements.seatLimit);
-  if (seats.limit != null && seats.used + parsed.valid.length > seats.limit) {
-    return Response.json({
-      error: `Import would take you to ${seats.used + parsed.valid.length} employees but the ${entitlements.plan} plan allows ${seats.limit} seats.`,
-      plan: entitlements.plan,
-      seatLimit: seats.limit,
-      currentlyUsed: seats.used,
-      rowsRequested: parsed.valid.length,
-      upgradeRequired: true,
-    }, { status: 402 });
-  }
-
   const existing = await db.select({ employeeNo: employees.employeeNo })
     .from(employees)
     .where(eq(employees.organizationId, organizationId));
@@ -89,55 +82,26 @@ export async function POST(request: Request) {
   const seen = new Set<string>();
   const toInsert: typeof employees.$inferInsert[] = [];
   const rowErrors = [...parsed.errors];
-  let updatedCount = 0;
+  let skippedExistingCount = 0;
 
-  for (const row of parsed.valid) {
+  for (const { line, value: row } of parsed.validRows) {
     if (seen.has(row.employeeNo)) {
-      rowErrors.push({ line: 0, problems: [`Duplicate employeeNo "${row.employeeNo}" inside the upload`] });
+      rowErrors.push({ line, problems: [`Duplicate employeeNo "${row.employeeNo}" inside the upload`] });
       continue;
     }
     seen.add(row.employeeNo);
 
+    // Never mutate an existing employee's pay, bank account, title, status,
+    // or MWE classification from a CSV. Existing workers use the appropriate
+    // governed change, payout review or audited correction process.
     if (knownNumbers.has(row.employeeNo)) {
-      // This bulk template is explicitly monthly-basic, so its pay basis is
-      // deterministic. Validation is read-only; writes happen only on import.
-      if (!dryRun) {
-        const [updated] = await db.update(employees).set({
-          firstName: row.firstName,
-          lastName: row.lastName,
-          title: row.title,
-          employmentType: row.employmentType,
-          status: row.status,
-          basicRate: row.monthlyBasic.toFixed(2),
-          mwe: row.mwe,
-          region: row.region,
-          email: row.email,
-          mobile: row.mobile,
-          bankAccount: encryptBankAccount(row.bankAccount),
-          bankCode: row.bankCode,
-        }).where(and(eq(employees.organizationId, organizationId), eq(employees.employeeNo, row.employeeNo)))
-          .returning({ id: employees.id });
-        if (updated) {
-          await db.insert(employeePayProfiles).values({
-            employeeId: updated.id,
-            organizationId,
-            payBasis: "monthly",
-            rateAmount: row.monthlyBasic.toFixed(2),
-            standardWorkDaysPerMonth: "22.00",
-            standardHoursPerDay: "8.00",
-          }).onConflictDoUpdate({
-            target: employeePayProfiles.employeeId,
-            set: {
-              payBasis: "monthly",
-              rateAmount: row.monthlyBasic.toFixed(2),
-              standardWorkDaysPerMonth: "22.00",
-              standardHoursPerDay: "8.00",
-              updatedAt: new Date(),
-            },
-          });
-        }
-      }
-      updatedCount += 1;
+      skippedExistingCount += 1;
+      rowErrors.push({
+        line,
+        problems: [
+          `Employee "${row.employeeNo}" already exists. No fields were changed. Use the governed HCM/payroll/payout workflow for corrections; CSV import creates new employees only.`,
+        ],
+      });
       continue;
     }
 
@@ -157,67 +121,124 @@ export async function POST(request: Request) {
       mobile: row.mobile,
       bankAccount: encryptBankAccount(row.bankAccount),
       bankCode: row.bankCode,
-      startDate: new Date().toISOString().slice(0, 10),
+      startDate: row.startDate,
     });
   }
 
-  let createdCount = 0;
-  if (!dryRun && toInsert.length > 0) {
-    const inserted = await db.insert(employees).values(toInsert).returning({
-      id: employees.id,
-      employeeNo: employees.employeeNo,
-      basicRate: employees.basicRate,
-    });
-    createdCount = inserted.length;
-    if (inserted.length > 0) {
-      await db.insert(employeePayProfiles).values(inserted.map((employee) => ({
-        employeeId: employee.id,
-        organizationId,
-        payBasis: "monthly",
-        rateAmount: employee.basicRate,
-        standardWorkDaysPerMonth: "22.00",
-        standardHoursPerDay: "8.00",
-      })));
-    }
-  }
-
-  const [batch] = await db.insert(importBatches).values({
-    organizationId,
-    fileName,
-    totalRows: parsed.valid.length + parsed.errors.length,
-    createdCount: dryRun ? 0 : createdCount,
-    updatedCount: dryRun ? 0 : updatedCount,
-    errorCount: rowErrors.length,
-    status: rowErrors.length > 0 ? "partial" : "completed",
-    errors: rowErrors.slice(0, 100),
-    createdBy: user.name,
-  }).returning();
-
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: dryRun ? "Employee import validated" : "Employee import completed",
-    resource: fileName,
-    metadata: {
-      batchId: batch.id,
-      created: dryRun ? 0 : createdCount,
-      updated: dryRun ? 0 : updatedCount,
-      errors: rowErrors.length,
+  // Existing employees and duplicate rows do not consume additional seats.
+  const seats = await seatUsage(organizationId, entitlements.seatLimit);
+  if (seats.limit != null && seats.used + toInsert.length > seats.limit) {
+    return Response.json({
+      error: `Import would take you to ${seats.used + toInsert.length} employees but the ${entitlements.plan} plan allows ${seats.limit} seats.`,
       plan: entitlements.plan,
-    },
-  });
+      seatLimit: seats.limit,
+      currentlyUsed: seats.used,
+      rowsRequested: toInsert.length,
+      upgradeRequired: true,
+    }, { status: 402 });
+  }
+
+  if (toInsert.length === 0 && rowErrors.length > 0) {
+    return Response.json({
+      error: "No new employees can be created from this file.",
+      dryRun,
+      newEligibleCount: 0,
+      skippedExistingCount,
+      errorCount: rowErrors.length,
+      errors: rowErrors.slice(0, 25),
+      unmappedColumns: parsed.unmapped,
+    }, { status: 422 });
+  }
+
+  let committed: { batch: typeof importBatches.$inferSelect; createdCount: number };
+  try {
+    committed = await db.transaction(async (tx) => {
+      // Serializes concurrent CSV intake per tenant. Rechecking membership in
+      // this transaction prevents two importer requests from inserting the same
+      // worker after both observed the same preflight snapshot.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(4212, ${organizationId})`);
+      let inserted: Array<{ id: number; employeeNo: string; basicRate: string }> = [];
+      if (!dryRun && toInsert.length) {
+        // Employee numbers are unique only within a tenant. Never reject
+        // another employer's worker merely for sharing an employee number.
+        const collisionForTenant = await tx.select({ employeeNo: employees.employeeNo })
+          .from(employees)
+          .where(eq(employees.organizationId, organizationId));
+        const current = new Set(collisionForTenant.map((row) => row.employeeNo));
+        if (toInsert.some((row) => current.has(row.employeeNo ?? ""))) {
+          throw new Error("IMPORT_DUPLICATE_AFTER_PREFLIGHT");
+        }
+        // Keep the transaction atomic across the worker, pay-profile, batch
+        // summary and audit; no half-created workers if a later write fails.
+        inserted = await tx.insert(employees).values(toInsert).returning({
+          id: employees.id,
+          employeeNo: employees.employeeNo,
+          basicRate: employees.basicRate,
+        });
+        await tx.insert(employeePayProfiles).values(inserted.map((row) => ({
+          employeeId: row.id,
+          organizationId,
+          payBasis: "monthly",
+          rateAmount: row.basicRate,
+          standardWorkDaysPerMonth: "22.00",
+          standardHoursPerDay: "8.00",
+        })));
+      }
+
+      const [batch] = await tx.insert(importBatches).values({
+        organizationId,
+        fileName,
+        totalRows: parsed.valid.length + parsed.errors.length,
+        createdCount: inserted.length,
+        updatedCount: 0,
+        errorCount: rowErrors.length,
+        status: rowErrors.length ? "partial" : "completed",
+        errors: rowErrors.slice(0, 100),
+        createdBy: user.name,
+      }).returning();
+
+      await tx.insert(auditEvents).values({
+        organizationId,
+        actor: user.name,
+        action: dryRun ? "Employee import validated (create-only)" : "Employee import completed (create-only)",
+        resource: fileName,
+        metadata: {
+          batchId: batch.id,
+          importedEmployeeIds: inserted.map((row) => row.id),
+          created: inserted.length,
+          updated: 0,
+          skippedExisting: skippedExistingCount,
+          errors: rowErrors.length,
+          plan: entitlements.plan,
+          dryRun,
+        },
+      });
+
+      return { batch, createdCount: inserted.length };
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "IMPORT_DUPLICATE_AFTER_PREFLIGHT") {
+      return Response.json({
+        error: "Another request created one of these employee numbers during the import. Refresh and validate the CSV again.",
+        code: "EMPLOYEE_IMPORT_CONCURRENT_CONFLICT",
+      }, { status: 409 });
+    }
+    throw error;
+  }
 
   return Response.json({
-    batchId: batch.id,
+    batchId: committed.batch.id,
     dryRun,
     fileName,
-    totalRows: batch.totalRows,
-    createdCount: batch.createdCount,
-    updatedCount: batch.updatedCount,
+    totalRows: committed.batch.totalRows,
+    createdCount: committed.createdCount,
+    updatedCount: 0,
+    newEligibleCount: toInsert.length,
+    skippedExistingCount,
     errorCount: rowErrors.length,
     errors: rowErrors.slice(0, 25),
     unmappedColumns: parsed.unmapped,
-    seatUsage: { used: seats.used + (dryRun ? 0 : createdCount), limit: seats.limit },
+    seatUsage: { used: seats.used + committed.createdCount, limit: seats.limit },
   });
 }
 
@@ -242,8 +263,8 @@ export async function GET(request: Request) {
   return Response.json({ batches: batches.slice(-10).reverse() });
 }
 
-export const TEMPLATE_CSV = `Employee No,First Name,Last Name,Title,Employment Type,Status,Monthly Basic,MWE,Region,Email,Mobile,Bank Account,Bank Code
-EMP-001,Juan,Dela Cruz,Driver,Regular,Active,21500.00,no,NCR,juan@example.com,09171234567,1234567890,BDO
-EMP-002,Maria,Santos,Bookkeeper,Regular,Active,28000.00,no,III,maria@example.com,09181234567,1234567891,BPI
-EMP-003,Pedro,Reyes,Helper,Probationary,Active,6450.00,yes,NCR,,,,
+export const TEMPLATE_CSV = `Employee No,First Name,Last Name,Title,Employment Type,Status,Start Date,Monthly Basic,MWE,Region,Email,Mobile,Bank Account,Bank Code
+EMP-001,Juan,Dela Cruz,Driver,Regular,Active,2026-01-15,21500.00,no,NCR,juan@example.com,09171234567,1234567890,BDO
+EMP-002,Maria,Santos,Bookkeeper,Regular,Active,2026-03-01,28000.00,no,III,maria@example.com,09181234567,1234567891,BPI
+EMP-003,Pedro,Reyes,Helper,Probationary,Active,2026-06-01,22500.00,no,NCR,,,,
 `;

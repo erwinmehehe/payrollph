@@ -57,6 +57,40 @@ test("overlapping scheduled segments are always blocking even when policy is ina
   assert.equal(scheduleGuardrailBlocksMutation(issues), true);
 });
 
+test("nested shifts cannot bypass overlap detection when the immediate previous shift ends early", () => {
+  const issues = evaluateScheduleGuardrails({
+    days: [day("2026-10-01", [
+      { code: "LONG", start: "08:00", end: "20:00" },
+      { code: "SHORT", start: "09:00", end: "10:00" },
+      { code: "NESTED", start: "11:00", end: "12:00" },
+    ])],
+    policy: { ...DEFAULT_SCHEDULE_GUARDRAIL_POLICY, active: false },
+  });
+  assert.equal(issues.filter((issue) => issue.code === "segment_overlap").length, 2);
+  assert.equal(scheduleGuardrailBlocksMutation(issues), true);
+});
+
+test("minimum rest uses the longest occupied interval after nested overlap", () => {
+  const issues = evaluateScheduleGuardrails({
+    days: [
+      day("2026-10-01", [
+        { code: "LONG", start: "08:00", end: "20:00" },
+        { code: "NESTED", start: "09:00", end: "10:00" },
+      ]),
+      day("2026-10-02", [{ code: "NEXT", start: "01:00", end: "09:00" }]),
+    ],
+    policy: {
+      ...DEFAULT_SCHEDULE_GUARDRAIL_POLICY,
+      minimumRestMinutes: 8 * 60,
+      enforcementMode: "block",
+    },
+  });
+  const rest = issues.find((issue) => issue.code === "minimum_rest");
+  assert.ok(rest);
+  assert.equal(rest.actualMinutes, 300);
+  assert.equal(rest.blocking, true);
+});
+
 test("minimum rest policy handles cross-midnight work and stays advisory in advisory mode", () => {
   const policy: ScheduleGuardrailPolicy = {
     ...DEFAULT_SCHEDULE_GUARDRAIL_POLICY,

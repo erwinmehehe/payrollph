@@ -53,10 +53,18 @@ export const WAGE_ORDERS: WageOrder[] = [
 ];
 
 export function wageOrderFor(region: string) {
-  return WAGE_ORDERS.find((row) => row.region === region) ?? WAGE_ORDERS[0];
+  const normalized = region.trim().toUpperCase();
+  const order = WAGE_ORDERS.find((row) => row.region === normalized);
+  if (!order) {
+    throw new Error(`Unknown Philippine wage region "${region}". Select a supported NWPC region instead of assuming NCR.`);
+  }
+  return order;
 }
 
 export function isBelowMinimum(monthlyBasic: number, region: string, daysPerMonth = 22) {
+  if (!Number.isFinite(monthlyBasic) || monthlyBasic < 0 || !Number.isFinite(daysPerMonth) || daysPerMonth <= 0) {
+    throw new Error("Wage screening requires a non-negative monthly rate and positive working days per month.");
+  }
   const order = wageOrderFor(region);
   const impliedDaily = monthlyBasic / daysPerMonth;
   return {

@@ -430,6 +430,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
         {page === "Payroll" && (
           <PayrollRunView
             data={data}
+            availablePages={availablePages}
             busy={busy}
             onNewRun={() => setNewPayrollOpen(true)}
             onProcess={processRun}
