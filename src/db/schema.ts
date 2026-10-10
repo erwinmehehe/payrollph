@@ -2247,6 +2247,28 @@ export const benefitEnrollmentEvents = pgTable("benefit_enrollment_events", {
   index("benefit_enrollment_events_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
 ]);
 
+/**
+ * Durable provider-webhook inbox. An external event is accepted at most once
+ * across serverless workers. The unique key is provider + remote event ID;
+ * both insertion and the audit receipt happen in one DB transaction.
+ */
+export const providerEvents = pgTable(
+  "provider_events",
+  {
+    id: serial("id").primaryKey(),
+    provider: varchar("provider", { length: 32 }).notNull(),
+    eventId: varchar("event_id", { length: 180 }).notNull(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    payrollRunId: integer("payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
+    eventType: varchar("event_type", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("provider_events_provider_event_id_unique").on(table.provider, table.eventId),
+    index("provider_events_organization_run_idx").on(table.organizationId, table.payrollRunId),
+  ],
+);
+
 export const auditEvents = pgTable("audit_events", {
   id: serial("id").primaryKey(),
   // Nullable: auth events (password reset, login) happen outside any

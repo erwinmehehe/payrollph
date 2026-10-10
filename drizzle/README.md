@@ -156,3 +156,7 @@ scheduler and the verifier seal pending rows. Verify a workspace with
 Do not run `db:push` or paste a historical baseline into a production
 employer database without a separate signed, reviewed migration and rollback
 plan. Neither schema compatibility nor CI supplies payroll GA authorization.
+
+## Provider webhook event inbox (0110)
+
+`0110_provider_events_inbox.sql` follows the 0109 tamper-evident audit-chain migration. It creates the `provider_events` table with a unique `(provider,event_id)` index and organization/run foreign keys. Apply via a controlled, journaled staging/production SQL release after verifying 0109 and a backup/rollback plan. It is **not** applied by the source merge. Signed PayMongo webhooks return a retryable 503 if the inbox transaction cannot persist an event, including when the schema is missing. Test concurrent replays before activating live PayMongo payouts.

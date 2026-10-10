@@ -1,7 +1,6 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, payrollRuns } from "@/db/schema";
-import { recordAuditEvent } from "@/lib/audit";
+import { auditEvents, payrollRuns, providerEvents } from "@/db/schema";
 import {
   normalizePaymongoTransferWebhook,
   verifyPaymongoWebhookSignature,
@@ -86,19 +85,22 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, ignored: true, reason: "unknown-payroll-run" });
   }
 
-  const events = await db
-    .select()
-    .from(auditEvents)
-    .where(eq(auditEvents.organizationId, run.organizationId))
-    .orderBy(desc(auditEvents.id));
-
-  const duplicate = events.find((row) => {
-    if (row.action !== "PayMongo transfer webhook received") return false;
-    return metadata(row).eventId === event.eventId;
-  });
-  if (duplicate) {
-    return Response.json({ ok: true, duplicate: true });
+  if (!event.eventId || event.eventId.length > 180) {
+    return Response.json({ error: "Invalid provider event ID." }, { status: 400 });
   }
+
+  // Only fetch payout submission audit receipts for the matching run. These
+  // records are interim evidence until A-2 moves transfers into their own
+  // unique run/employee state ledger.
+  const events = await db.select().from(auditEvents).where(and(
+    eq(auditEvents.organizationId, run.organizationId),
+    inArray(auditEvents.action, [
+      "Payroll payout submitted via PayMongo",
+      "Payroll payout completed via PayMongo",
+      "Payroll payout retry submitted via PayMongo",
+    ]),
+    sql`${auditEvents.metadata} ->> 'runId' = ${String(run.id)}`,
+  )).orderBy(desc(auditEvents.id));
 
   const stored = storedTransferForRun(events, {
     runId: run.id,
@@ -109,31 +111,60 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, ignored: true, reason: "unmatched-payroll-transfer" });
   }
 
-  await recordAuditEvent({
-    organizationId: run.organizationId,
-    actor: "PayMongo webhook",
-    action: "PayMongo transfer webhook received",
-    resource: run.periodLabel,
-    metadata: {
-      runId: run.id,
+  // Insert provider event + audit receipt atomically. A unique(provider,
+  // eventId) index serializes simultaneous deliveries across workers.
+  // A source merge may precede the separately controlled 0110 SQL rollout.
+  // Never acknowledge a signed provider event as delivered if the durable
+  // inbox/audit transaction cannot commit (including missing migration).
+  let recorded: boolean;
+  try {
+    recorded = await db.transaction(async (tx) => {
+    const [accepted] = await tx.insert(providerEvents).values({
+      provider: "paymongo",
       eventId: event.eventId,
+      organizationId: run.organizationId,
+      payrollRunId: run.id,
       eventType: event.eventType,
-      liveMode: event.liveMode,
-      batchId: stored.batchId,
-      transferId: event.transferId,
-      batchTransactionId: event.batchTransactionId,
-      referenceNumber: event.referenceNumber,
-      employeeNo: event.employeeNo,
-      status: event.status,
-      amountCents: event.amountCents,
-      provider: event.provider,
-      providerReferenceNumber: event.providerReferenceNumber,
-      providerError: event.providerError,
-      providerErrorCode: event.providerErrorCode,
-      occurredAt: event.occurredAt,
-      settlementVerified: event.status === "succeeded",
-    },
-  });
+    }).onConflictDoNothing({
+      target: [providerEvents.provider, providerEvents.eventId],
+    }).returning({ id: providerEvents.id });
+    if (!accepted) return false;
 
-  return Response.json({ ok: true, recorded: true });
+    await tx.insert(auditEvents).values({
+      organizationId: run.organizationId,
+      actor: "PayMongo webhook",
+      action: "PayMongo transfer webhook received",
+      resource: run.periodLabel,
+      metadata: {
+        runId: run.id,
+        eventId: event.eventId,
+        eventType: event.eventType,
+        liveMode: event.liveMode,
+        batchId: stored.batchId,
+        transferId: event.transferId,
+        batchTransactionId: event.batchTransactionId,
+        referenceNumber: event.referenceNumber,
+        employeeNo: event.employeeNo,
+        status: event.status,
+        amountCents: event.amountCents,
+        provider: event.provider,
+        providerReferenceNumber: event.providerReferenceNumber,
+        providerError: event.providerError,
+        providerErrorCode: event.providerErrorCode,
+        occurredAt: event.occurredAt,
+        settlementVerified: event.status === "succeeded",
+      },
+    });
+    return true;
+    });
+  } catch {
+    return Response.json(
+      { error: "Provider event inbox is temporarily unavailable; retry delivery." },
+      { status: 503 },
+    );
+  }
+
+  return Response.json(recorded
+    ? { ok: true, recorded: true }
+    : { ok: true, duplicate: true });
 }
