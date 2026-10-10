@@ -91,8 +91,8 @@ export function HcmBpMonitorClient({ organizationId }: { organizationId: number 
           !Array.isArray(payload.items) ||
           payload.items.length > 30 ||
           typeof payload.hasMore !== "boolean" ||
-          (payload.hasMore && (!Number.isSafeInteger(payload.nextCursor) ||
-            (payload.nextCursor ?? 0) <= 0))) {
+          (payload.hasMore && (typeof payload.nextCursor !== "number" ||
+            !Number.isSafeInteger(payload.nextCursor) || payload.nextCursor <= 0))) {
         throw new Error("Monitor response did not match the authorized view.");
       }
       setLoad({ key, status: "ready", data: payload });
