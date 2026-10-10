@@ -128,6 +128,7 @@ export function FilingEvidencePanel({
   const currentVersion = definition?.generatorVersion;
   const copy = definition?.copy;
   const agencyLabel = copy?.agencyLabel ?? agency;
+  const retiredBirAlphalistSource = agency === "BIR" && form === "1604-C";
   const allowedMethods = definition?.submissionMethods?.length
     ? definition.submissionMethods
     : ["file_upload", "manual_entry"] as const;
@@ -251,6 +252,9 @@ export function FilingEvidencePanel({
 
   function evidenceLabel(record: FilingRecord) {
     if (record.status !== "accepted") return null;
+    if (retiredBirAlphalistSource) {
+      return { tone: "amber", text: "Historical BIR Alphalist source evidence only. This does not count as current ADES file-format approval or filing acceptance." };
+    }
     if (currentVersion && record.generatorVersion !== currentVersion) {
       return { tone: "amber", text: "Accepted for an older generator version, so it no longer counts toward current readiness." };
     }
@@ -281,7 +285,9 @@ export function FilingEvidencePanel({
         <div className="notice notice-blue" style={{ margin: 0 }}>
           <Info size={15} className="i-blue" />
           <span>
-            {definition?.evidenceMode === "operational" ? (
+            {retiredBirAlphalistSource ? (
+              <>Legacy per-run Alphalist source records are retained for audit only. Prepare current annual data in Compliance - Year-End Annualization. Official BIR ADES validation and filing acceptance remain separate.</>
+            ) : definition?.evidenceMode === "operational" ? (
               <>
                 An accepted filing with the agency&apos;s own acknowledgement can satisfy the <strong>operational filing</strong> gate.
                 That does not certify the PayrollPH worksheet as an agency upload format.{" "}
@@ -310,16 +316,18 @@ export function FilingEvidencePanel({
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <button
             className="secondary-button"
-            disabled={creating || records === null || !isFinalCutoff}
+            disabled={creating || records === null || !isFinalCutoff || retiredBirAlphalistSource}
             onClick={() => void createRecord()}
           >
             <FileCheck2 size={14} className="i-teal" />
             {creating ? "Creating record…" : `Create ${agency} ${form} record for ${run.periodLabel}`}
           </button>
           <small className="field-help" style={{ margin: 0 }}>
-            {!isFinalCutoff
-              ? "This monthly filing record must be created from the final cutoff of the month."
-              : "Uses this run's data as it is now. Creating it again with unchanged data returns the same record."}
+            {retiredBirAlphalistSource
+              ? "Legacy 1604-C source generation is retired. Open Compliance - Year-End Annualization and run Check BIR source instead."
+              : !isFinalCutoff
+                ? "This monthly filing record must be created from the final cutoff of the month."
+                : "Uses this run's data as it is now. Creating it again with unchanged data returns the same record."}
           </small>
         </div>
 
@@ -348,7 +356,7 @@ export function FilingEvidencePanel({
                 <Status value={record.status === "generated" ? "Pending" : record.status === "accepted" ? "Accepted" : "Rejected"} />
               </div>
 
-              {record.status === "generated" && (
+              {record.status === "generated" && !retiredBirAlphalistSource && (
                 <>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button className="secondary-button" disabled={downloadingId === record.id} onClick={() => void downloadFile(record)}>
@@ -431,6 +439,10 @@ export function FilingEvidencePanel({
                     </div>
                   )}
                 </>
+              )}
+
+              {retiredBirAlphalistSource && record.status === "generated" && (
+                <p className="field-help">Historical per-run source retained. New acceptance cannot be recorded against this obsolete workflow.</p>
               )}
 
               {record.status !== "generated" && (
