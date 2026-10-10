@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
+import { PayrollConnectedImpactPanel } from "./payroll-connected-impact-panel";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { readLineItems, readTrace, type BankTemplate, type DashboardData, type Notify, type PayrollEntry, type PayrollLineItem, type PayrollReleaseReceipt, type PayrollRun, type Task } from "./types";
@@ -74,6 +75,7 @@ export function PayrollRunView({
   onPage,
   onRefresh,
   notify,
+  availablePages = [],
 }: {
   data: DashboardData;
   busy: boolean;
@@ -84,6 +86,7 @@ export function PayrollRunView({
   onPage: (page: string) => void;
   onRefresh: () => Promise<void>;
   notify: Notify;
+  availablePages?: readonly string[];
 }) {
   const [selectedId, setSelectedId] = useState<number | undefined>(data.payrollRuns[0]?.id);
   const [query, setQuery] = useState("");
@@ -407,6 +410,10 @@ export function PayrollRunView({
           </>
         }
       />
+
+      {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
+        <PayrollConnectedImpactPanel runId={run.id} onPage={onPage} allowedPages={availablePages} />
+      )}
 
       {!payrollOfficerMode && !ownerMode && (
         <PayrollHandoff

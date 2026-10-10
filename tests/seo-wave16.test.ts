@@ -45,13 +45,14 @@ test("employee-loan guide claims match the implemented loan workflow", () => {
   assert.ok(loansRoute.includes("paymentCents > remaining"));
   assert.ok(loansRoute.includes('action: "Employee loan deduction submitted for independent review"'));
   assert.ok(loansRoute.includes('status: "pending_approval"'));
+  assert.ok(loansRoute.includes('process.env.PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED !== "true"'));
 
   assert.ok(payrollEngine.includes('eq(employeeLoans.status, "active")'));
   assert.ok(payrollEngine.includes("cutoffDeduction: Number(l.cutoffDeduction)"));
-  // This draft intentionally leaves protected payroll calculation unchanged.
-  // The fail-closed legacy schedule guard is independently tested in PR #668.
-  assert.ok(loansRoute.includes('process.env.PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED !== "true"'));
-  assert.ok(payrollEngine.includes("requestedDeduction: Math.min(Number(loan.cutoffDeduction), Number(loan.remainingBalance))"));
+  // The original unguarded Number coercion was replaced with a fail-closed
+  // legacy-loan validator. Keep public guide claims tied to that actual path.
+  assert.ok(payrollEngine.includes("validPayrollLoanSchedule(loan)"));
+  assert.ok(payrollEngine.includes("requestedDeduction: Math.min(loan.cutoffDeduction, loan.remainingBalance)"));
 });
 
 test("retro-pay guide claims match effective-dated revision and settlement behavior", () => {

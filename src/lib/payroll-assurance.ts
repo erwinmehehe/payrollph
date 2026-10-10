@@ -268,6 +268,21 @@ export function evaluatePayrollAssurance(
       });
     }
 
+    // Unlike a routine reviewable engine warning, an invalid loan schedule
+    // must not be waived with acknowledgeExceptions: gross-to-net excluded a
+    // required deduction and the employer must repair source data, then recalculate.
+    const invalidLoanSchedule = flags.find((flag) => flag.startsWith("PAYROLL_LOAN_SCHEDULE_INVALID:"));
+    if (invalidLoanSchedule) {
+      findings.push({
+        code: "INVALID_PAYROLL_LOAN_SCHEDULE",
+        severity: "high",
+        blocking: true,
+        title: "Employee loan deduction schedule is invalid",
+        detail: `Correct the source loan amounts and recalculate payroll before checker approval or release. ${invalidLoanSchedule}`,
+        employeeId: entry.employeeId,
+      });
+    }
+
     // An unlocated break or ambiguous split-shift boundary can change the
     // legally payable night, holiday, rest-day or overtime premium bucket.
     // Do not allow a checker to approve guessed premium allocation.

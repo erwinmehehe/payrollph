@@ -1,4 +1,4 @@
-import { and, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employees,
@@ -92,6 +92,10 @@ export async function applyEmploymentTermDecision(input: {
   const today = philippineBusinessDate(now);
 
   const prepared = await db.transaction(async (tx) => {
+    // Cancellation, retry and scheduled activation share this decision-row
+    // lock before touching the worker or active terms.
+    await tx.execute(sql`select id from hcm_employment_term_decisions
+      where id = ${input.decisionId} for update`);
     const [decision] = await tx.select().from(hcmEmploymentTermDecisions)
       .where(eq(hcmEmploymentTermDecisions.id, input.decisionId))
       .limit(1);
@@ -238,8 +242,20 @@ export async function applyEmploymentTermDecision(input: {
       approvedBy: decision.approvedBy,
       approvedAt: decision.approvedAt ?? now,
     }).returning();
-
-    return { decision, successorTermId: successor.id, alreadyApplied: false as const };
+    if (!successor) throw new Error("Could not create the reviewed successor employment terms.");
+    // A status=scheduled decision may be between preparing and activating
+    // the successor. Persist its ID *before* leaving this transaction so
+    // cancellation/retry fails closed instead of orphaning an active worker.
+    const [staged] = await tx.update(hcmEmploymentTermDecisions).set({
+      successorTermId: successor.id,
+      updatedAt: now,
+    }).where(and(
+      eq(hcmEmploymentTermDecisions.id, decision.id),
+      eq(hcmEmploymentTermDecisions.status, "scheduled"),
+      isNull(hcmEmploymentTermDecisions.successorTermId),
+    )).returning();
+    if (!staged) throw new Error("Employment-term decision changed before successor could be linked.");
+    return { decision: staged, successorTermId: successor.id, alreadyApplied: false as const };
   });
 
   if (prepared.alreadyApplied) return prepared;

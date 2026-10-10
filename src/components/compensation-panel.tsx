@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PayrollUnderpaymentPanel } from "@/components/payroll-underpayment-panel";
+import { PayrollOverpaymentWorkbench } from "@/components/payroll-overpayment-workbench";
+import { PayrollOverpaymentPreviewPanel } from "@/components/payroll-overpayment-preview-panel";
 import {
   BadgeDollarSign,
   CalendarDays,
@@ -729,6 +731,8 @@ export function CompensationPanel({
         </div>
       </article>
 
+      <PayrollOverpaymentWorkbench organizationId={organizationId} setNotice={setNotice} />
+      <PayrollOverpaymentPreviewPanel organizationId={organizationId} />
       <PayrollUnderpaymentPanel organizationId={organizationId} setNotice={setNotice} />
 
       <article className="card" style={{ marginTop: 16 }}>

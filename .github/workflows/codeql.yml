@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, integration/hcm-sql-0100-0103-release-train-20261009]
+    branches: [main, feat/payroll-connected-impact-review-20261009]
   schedule:
     - cron: "23 4 * * 2"
 

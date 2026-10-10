@@ -66,11 +66,11 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
       - run: npx tsc --noEmit
-      # Integration tests share the disposable Postgres database and include
-      # global scheduler drains. Parallel test files can activate another
-      # fixture before its own checks, producing false safety regressions.
-      # Prefer deterministic financial-integrity evidence over CI speed.
+      # Serialize shared-DB financial tests while preserving scheduler CI isolation.
       - run: npx tsx --test --test-concurrency=1 tests/*.test.ts
+        env:
+          CI: "true"
+          SCHEDULER_REHEARSAL_MODE: isolated-ci-only
       - name: Run statutory golden payroll certification
         run: npm run payroll:golden
       - name: Upload golden payroll certification evidence

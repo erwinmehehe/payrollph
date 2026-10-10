@@ -7,8 +7,8 @@ on:
   pull_request:
     branches:
       - main
-      # Financial integration uses the reviewed HCM SQL release-train base.
-      - integration/hcm-sql-0100-0103-release-train-20261009
+      # Enforce full payroll release checks on dependent PR #688.
+      - feat/payroll-connected-impact-review-20261009
   workflow_dispatch:
 
 concurrency:
