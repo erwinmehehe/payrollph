@@ -71,7 +71,7 @@ test("complete synthetic D1+D2 sample produces H/D1/D2/C1/C2 candidate for exter
   assert.equal(lines[2].split(",").length, 59);
   assert.equal(lines[3].split(",").length, 36);
   assert.equal(lines[4].split(",").length, 45);
-  assert.match(lines[1], /00000005000\\.00/);
+  assert.ok(lines[1].includes("00000005000.00"), "D1 tax amount must be zero-padded to 14 characters");
   assert.match(lines[1], /,000001,/);
   assert.match(lines[2], /,313,/);
 });
