@@ -1,5 +1,5 @@
 import {
-  and, asc, count, eq, gt, ilike, inArray, isNull, lte, gte, or,
+  and, asc, count, eq, gt, ilike, inArray, isNull, lte, gte, or, sql,
 } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, leaveRequests, orgUnits, overtimeRequests } from "@/db/schema";
@@ -74,6 +74,7 @@ export async function loadHcmMyTeam(input: {
       ilike(employees.employeeNo, pattern),
       ilike(employees.firstName, pattern),
       ilike(employees.lastName, pattern),
+      ilike(sql`concat_ws(' ', ${employees.firstName}, ${employees.lastName})`, pattern),
       ilike(employees.title, pattern),
     )!);
   }
