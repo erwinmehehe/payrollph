@@ -123,6 +123,63 @@ async function main() {
   const privilegedBody = await privilegedWithoutMfa.json() as { code?: string };
   assert.equal(privilegedBody.code, "MFA_REQUIRED");
 
+  // Governed Automation Studio drafting: check the actual production HTTP boundary.
+  const automationReadAnonymous = await request(
+    `/api/automation-studio?organizationId=${setupBody.organizationId}`,
+  );
+  assert.equal(automationReadAnonymous.status, 401, "Automation Studio must not disclose workflows anonymously");
+
+  const languageDraftPayload = {
+    organizationId: setupBody.organizationId,
+    action: "draft-from-language",
+    request: "When a new employee is hired, create an onboarding checklist and send them a welcome email.",
+  };
+  const automationWriteAnonymous = await request("/api/automation-studio", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...sameOriginHeaders },
+    body: JSON.stringify(languageDraftPayload),
+  });
+  assert.equal(automationWriteAnonymous.status, 401, "Anonymous users must not generate a workflow");
+
+  const automationCrossSite = await request("/api/automation-studio", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      cookie: sessionCookie,
+      origin: "https://evil.example",
+      "sec-fetch-site": "cross-site",
+    },
+    body: JSON.stringify(languageDraftPayload),
+  });
+  assert.equal(automationCrossSite.status, 403, "Cross-site draft generation must be blocked");
+
+  const automationForeignTenant = await request("/api/automation-studio", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie: sessionCookie, ...sameOriginHeaders },
+    body: JSON.stringify({ ...languageDraftPayload, organizationId: setupBody.organizationId + 9999 }),
+  });
+  assert.equal(automationForeignTenant.status, 403, "A user must not create drafts in another company");
+
+  const languageWithoutMfa = await request("/api/automation-studio", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie: sessionCookie, ...sameOriginHeaders },
+    body: JSON.stringify(languageDraftPayload),
+  });
+  assert.equal(languageWithoutMfa.status, 403, "Drafting requires recent MFA for privileged users");
+  assert.equal((await languageWithoutMfa.json() as { code?: string }).code, "MFA_REQUIRED");
+
+  const forgedSaveWithoutMfa = await request("/api/automation-studio", {
+    method: "POST",
+    headers: { "content-type": "application/json", cookie: sessionCookie, ...sameOriginHeaders },
+    body: JSON.stringify({
+      organizationId: setupBody.organizationId,
+      action: "save-language-draft",
+      draft: { name: "Forged", trigger: "employee.hired", conditions: { version: 1, all: [], any: [] }, actions: [{ type: "create_task", title: "Forged", owner: "People Ops" }] },
+      proposalReceipt: "invalid",
+    }),
+  });
+  assert.equal(forgedSaveWithoutMfa.status, 403, "Signed draft saves must require MFA");
+
   const employeePortalAsOwner = await request("/api/self/payslips", {
     headers: { cookie: sessionCookie },
   });
