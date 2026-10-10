@@ -38,8 +38,14 @@ function round2(value: number) {
 }
 
 function assertMoney(actual: number, expected: number, label: string, tolerance: number) {
+  // Compare integer centavos. Binary floating-point subtraction can turn a
+  // permitted 1-cent difference into 0.0100000000002 and falsely fail CI.
+  const actualCents = Math.round((round2(actual) + Number.EPSILON) * 100);
+  const expectedCents = Math.round((round2(expected) + Number.EPSILON) * 100);
+  const toleranceCents = Math.floor(tolerance * 100 + 1e-8);
   assert.ok(
-    Math.abs(round2(actual) - round2(expected)) <= tolerance,
+    Number.isFinite(actual) && Number.isFinite(expected)
+      && Math.abs(actualCents - expectedCents) <= toleranceCents,
     `${label}: expected ₱${Number(expected).toFixed(2)}, got ₱${Number(actual).toFixed(2)}`,
   );
 }
