@@ -44,6 +44,9 @@ jobs:
         continue-on-error: true
         run: npm audit --include=dev --audit-level=high
       - run: npm run db:push
+      - name: Verify critical payroll tables after schema push
+        run: |
+          node -e 'const { Client } = require("pg"); (async () => { const c = new Client({ connectionString: process.env.DATABASE_URL }); await c.connect(); try { const { rows } = await c.query("select to_regclass($1) as users, to_regclass($2) as employees, to_regclass($3) as payroll_runs", ["public.users", "public.employees", "public.payroll_runs"]); if (!rows[0]?.users || !rows[0]?.employees || !rows[0]?.payroll_runs) throw new Error("Required payroll tables missing after db:push"); } finally { await c.end(); } })().catch((e) => { console.error(e); process.exitCode = 1; })'
       - name: Check compensation outbox PostgreSQL schema compatibility (read-only)
         run: npm run compensation:release:schema:check
       - name: Rehearse compensation outbox migration in rollback-only CI schema
@@ -65,9 +68,11 @@ jobs:
           path: qa-artifacts/dr-rehearsal.json
           retention-days: 14
           if-no-files-found: warn
+      - name: Guard against new oversized source modules
+        run: npm run source:size:check
       - run: npx tsc --noEmit
       # Serialize shared-DB financial tests while preserving scheduler CI isolation.
-      - run: npx tsx --test --test-concurrency=1 tests/*.test.ts
+      - run: npm test
         env:
           CI: "true"
           SCHEDULER_REHEARSAL_MODE: isolated-ci-only

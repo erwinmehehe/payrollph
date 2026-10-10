@@ -143,6 +143,20 @@ rehearses the SQL transactionally in a disposable local schema; the rehearsal
 cannot establish that a real employer's staging schema has been migrated.
 
 See [Compensation staging release gate](../docs/compensation-staging-release-gate.md).
+## Tamper-evident audit trail (0109)
+
+`0109_tamper_evident_audit_chain.sql` installs a trigger and SQL functions,
+which `db:push` does not create. Apply it with `psql -f` (it is idempotent)
+after the schema exists. It rejects UPDATE/DELETE on `audit_events` (except
+cascades from an organization deletion), and `seal_audit_events()` appends
+committed rows to a per-organization SHA-256 chain. Inserts take no locks; the
+scheduler and the verifier seal pending rows. Verify a workspace with
+`GET /api/compliance/audit-chain?organizationId=…`.
+
 Do not run `db:push` or paste a historical baseline into a production
 employer database without a separate signed, reviewed migration and rollback
 plan. Neither schema compatibility nor CI supplies payroll GA authorization.
+
+## Provider webhook event inbox (0110)
+
+`0110_provider_events_inbox.sql` follows the 0109 tamper-evident audit-chain migration. It creates the `provider_events` table with a unique `(provider,event_id)` index and organization/run foreign keys. Apply via a controlled, journaled staging/production SQL release after verifying 0109 and a backup/rollback plan. It is **not** applied by the source merge. Signed PayMongo webhooks return a retryable 503 if the inbox transaction cannot persist an event, including when the schema is missing. Test concurrent replays before activating live PayMongo payouts.

@@ -134,7 +134,8 @@ export function bankEncryptionKeyFingerprint(env: NodeJS.ProcessEnv = process.en
 /**
  * Encrypts a plaintext account number for storage. Null/empty stays null,
  * already-encrypted values are returned as-is so repeated saves never
- * double-encrypt, and with no key configured the value passes through.
+ * double-encrypt. With no key configured the value passes through outside
+ * production, but production refuses to persist a plaintext account number.
  */
 export function encryptBankAccount(
   value: string | null | undefined,
@@ -146,7 +147,14 @@ export function encryptBankAccount(
   if (isEncryptedBankAccount(plain)) return plain;
 
   const key = configuredKey(env);
-  if (!key) return plain;
+  if (!key) {
+    if (env.NODE_ENV === "production") {
+      throw new Error(
+        `${KEY_ENV} (or ${MASTER_KEY_ENV}) is required before bank account numbers can be stored in production.`,
+      );
+    }
+    return plain;
+  }
 
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);

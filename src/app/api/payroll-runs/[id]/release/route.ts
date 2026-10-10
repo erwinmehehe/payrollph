@@ -1,6 +1,7 @@
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { approvalTasks, auditEvents, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { checkerReleaseSeparationError } from "@/lib/treasury-controls";
 import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
@@ -106,6 +107,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       error: "Payroll must be approved by a checker before release.",
       approvalStatus: payrollApproval?.status ?? "Not submitted",
     }, { status: 409 });
+  }
+
+  const checkerEvents = await db.select().from(auditEvents).where(and(
+    eq(auditEvents.organizationId, run.organizationId),
+    inArray(auditEvents.action, ["Approval approved", "Approval approved by delegate"]),
+  ));
+  const separationError = checkerReleaseSeparationError({
+    events: checkerEvents,
+    approvalTaskId: payrollApproval.id,
+    payrollRunId: run.id,
+    userId: user.id,
+    userName: user.name,
+  });
+  if (separationError) {
+    return Response.json({ error: separationError, code: "PAYROLL_CHECKER_RELEASE_SEPARATION" }, { status: 403 });
   }
 
   const approvalSnapshot = await verifyPayrollApprovalSnapshot(run, payrollApproval);
