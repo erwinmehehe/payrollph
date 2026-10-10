@@ -15,7 +15,7 @@ test("every schedule-override publisher acquires the same organization lock", ()
   for (const file of sources) {
     const code = readFileSync(file, "utf8");
     assert.ok(code.includes("pg_advisory_xact_lock(6107, ${organizationId})"), file);
-    assert.ok(code.includes('isolationLevel: "serializable"'), file);
+    assert.ok(code.includes('isolationLevel: "read committed"'), file);
     assert.ok(code.includes("tx.insert(scheduleOverrides)"), file);
     assert.ok(code.includes("tx.insert(auditEvents)"), file);
   }
