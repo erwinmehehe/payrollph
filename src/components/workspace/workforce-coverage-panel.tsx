@@ -8,6 +8,8 @@ import { paidShiftMinutes } from "@/lib/workforce-labor-variance";
 import { planSmartRecoveryDraft, type RecoveryMode } from "@/lib/workforce-recovery-draft";
 import { buildWfmManagerActionQueue, phWorkDateAt } from "@/lib/workforce-manager-actions";
 import { WorkforceLiveFloor } from "./workforce-live-floor";
+import { WorkforcePlanningPreviewPanel } from "./workforce-planning-preview-panel";
+import { previewWorkforceRecovery } from "@/lib/workforce-planning-preview";
 
 type Shift = {
   id: number;
@@ -561,13 +563,18 @@ export function WorkforceCoveragePanel({
   );
   const siteExclusions = (payload?.coverage ?? []).reduce((sum, row) => sum + row.siteIneligibleHeadcount, 0);
   const labor = payload?.laborVariance;
-  const simulation = useMemo(() => planSmartRecoveryDraft({
-    mode: recoveryMode,
+  // Historical coverage remains visible below for reconciliation, but a new
+  // proposal must never stage staffing for an already elapsed PH work date.
+  const planningToday = phWorkDateAt();
+  const futureCoverage = useMemo(() => (payload?.coverage ?? []).filter(
+    (row) => row.workDate >= planningToday,
+  ), [payload?.coverage, planningToday]);
+  const draftInputs = useMemo(() => ({
     allowHighWorkloadRisk: simulateHighRisk,
     // Draft-only company planning guidance; configurable governed policy is the source of truth.
     maxProjectedMinutesInWindow: 96 * 60,
     maxConsecutiveWorkingDays: 6,
-    requirements: (payload?.coverage ?? [])
+    requirements: futureCoverage
       .filter((row) => row.gap > 0)
       .map((row) => {
         const shift = (payload?.shifts ?? []).find((item) => item.id === row.shiftDefinitionId);
@@ -597,11 +604,30 @@ export function WorkforceCoveragePanel({
           })),
         };
       }),
-  }), [payload?.coverage, payload?.shifts, proactiveByRequirement, recoveryMode, simulateHighRisk]);
+  }), [futureCoverage, payload?.shifts, proactiveByRequirement, simulateHighRisk]);
+
+  const simulation = useMemo(() => planSmartRecoveryDraft({
+    ...draftInputs, mode: recoveryMode,
+  }), [draftInputs, recoveryMode]);
+  const alternativeSimulation = useMemo(() => planSmartRecoveryDraft({
+    ...draftInputs, mode: recoveryMode === "coverage" ? "balanced" : "coverage",
+  }), [draftInputs, recoveryMode]);
+  const activePlanningPreview = useMemo(() => previewWorkforceRecovery({
+    draft: simulation,
+    coverage: futureCoverage,
+    shifts: payload?.shifts ?? [],
+    labor: payload?.laborVariance ?? null,
+  }), [simulation, futureCoverage, payload?.shifts, payload?.laborVariance]);
+  const alternativePlanningPreview = useMemo(() => previewWorkforceRecovery({
+    draft: alternativeSimulation,
+    coverage: futureCoverage,
+    shifts: payload?.shifts ?? [],
+    labor: payload?.laborVariance ?? null,
+  }), [alternativeSimulation, futureCoverage, payload?.shifts, payload?.laborVariance]);
 
   const managerActions = useMemo(() => buildWfmManagerActionQueue({
     today: phWorkDateAt(),
-    coverage: payload?.coverage ?? [],
+    coverage: futureCoverage,
     openShifts: payload?.openShifts ?? [],
     claims: payload?.claims ?? [],
     blockingGuardrailIssues: payload?.guardrailReadiness?.blockingIssueCount ?? 0,
@@ -878,6 +904,19 @@ export function WorkforceCoveragePanel({
           )}
         </article>
       </section>
+
+      {payload && (
+        <WorkforcePlanningPreviewPanel
+          selected={activePlanningPreview}
+          alternative={alternativePlanningPreview}
+          selectedDraft={simulation}
+          alternativeDraft={alternativeSimulation}
+          recommendations={payload.proactiveSuggestions}
+          worksites={payload.worksites}
+          shifts={payload.shifts}
+          readiness={payload.rosterReadiness}
+        />
+      )}
 
       {labor && (
         <section id="wfm-labor-variance" style={{ padding: "0 18px 18px" }} data-wfm-labor-variance>
