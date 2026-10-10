@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "../src/db";
+import { organizations } from "../src/db/schema";
 
 const sources = [
   "src/app/api/workforce/roster-batches/route.ts",
@@ -98,4 +99,49 @@ test("two connections cannot simultaneously acquire an organization roster lock"
     return result.rows[0]?.acquired;
   });
   assert.equal(acquired, true, "the advisory lock must be released at transaction end");
+});
+
+test("post-lock roster reads see the prior writer's committed state", async () => {
+  if (Number(process.env.PG_POOL_MAX) === 1) return;
+  const [org] = await db.insert(organizations).values({
+    name: "Synthetic WFM lock freshness", legalName: "Synthetic WFM Lock Corp.",
+    color: "#000000",
+  }).returning();
+  let signalFirstLocked!: () => void;
+  const firstLocked = new Promise<void>(resolve => { signalFirstLocked = resolve; });
+  let releaseFirst!: () => void;
+  const release = new Promise<void>(resolve => { releaseFirst = resolve; });
+  try {
+    const first = db.transaction(async tx => {
+      await tx.execute(sql`select pg_advisory_xact_lock(6107, ${org.id})`);
+      await tx.update(organizations).set({ color: "#123456" })
+        .where(eq(organizations.id, org.id));
+      signalFirstLocked();
+      await release;
+    }, { isolationLevel: "read committed" });
+    try {
+      await Promise.race([
+        firstLocked,
+        first.then(() => { throw new Error("First writer ended before the follower started."); }),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("First lock timed out.")), 10000)),
+      ]);
+      const follower = db.transaction(async tx => {
+        await tx.execute(sql`select pg_advisory_xact_lock(6107, ${org.id})`);
+        const [live] = await tx.select({ color: organizations.color }).from(organizations)
+          .where(eq(organizations.id, org.id)).limit(1);
+        return live?.color;
+      }, { isolationLevel: "read committed" });
+      // Let the follower attempt the lock while the first writer still holds it.
+      await new Promise<void>(resolve => setTimeout(resolve, 30));
+      releaseFirst();
+      await first;
+      assert.equal(await follower, "#123456",
+        "a waiting reader must use a fresh snapshot after acquiring the lock");
+    } finally {
+      releaseFirst();
+      await first;
+    }
+  } finally {
+    await db.delete(organizations).where(eq(organizations.id, org.id));
+  }
 });
