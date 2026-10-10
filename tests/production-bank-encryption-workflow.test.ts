@@ -57,6 +57,7 @@ test("workflow remains manual, production-protected and apply-gated", () => {
   assert.match(workflow, /^    environment: production$/m);
   for (const name of [
     "Encrypt legacy bank data", "Verify zero plaintext bank data remains",
+    "Authenticate every bank envelope with the current key",
     "Verify live readiness sees encrypted bank data",
   ]) {
     assert.ok(workflow.includes(`      - name: ${name}\n        if: \${{ inputs.mode == 'apply' }}`));
@@ -67,6 +68,11 @@ test("dry-run cannot prepare database columns and apply validates the key first"
   assert.ok(workflow.includes("      - name: Prepare bank-account column safely\n        if: ${{ inputs.mode == 'apply' }}"));
   assert.ok(workflow.indexOf("- name: Prove runner key matches live production") <
     workflow.indexOf("- name: Prepare bank-account column safely"));
+  assert.ok(workflow.indexOf("- name: Verify zero plaintext bank data remains") <
+    workflow.indexOf("- name: Authenticate every bank envelope with the current key"));
+  assert.ok(workflow.indexOf("- name: Authenticate every bank envelope with the current key") <
+    workflow.indexOf("- name: Verify live readiness sees encrypted bank data"));
+  assert.ok(workflow.includes("run: npx tsx scripts/verify-bank-account-envelopes.ts"));
 });
 
 test("readiness requires one valid report, the matching key, and no bank blocker", () => {
