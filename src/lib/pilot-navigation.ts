@@ -3,8 +3,8 @@
  */
 export const PILOT_CORE_PAGES = [
   "Overview", "Payroll", "People", "Time & attendance", "Leave",
-  "Approvals", "Exports", "Compliance", "Audit trail", "Settings",
-  "Readiness",
+  "Approvals", "Exports", "Compliance", "Readiness", "Audit trail",
+  "Settings",
 ] as const;
 
 const PILOT_PAGE_SET: ReadonlySet<string> = new Set(PILOT_CORE_PAGES);
