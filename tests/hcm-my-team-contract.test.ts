@@ -97,6 +97,9 @@ test("workspace UI has a gated link and stale employer/page responses cannot sur
   const ui = readFileSync("src/components/hcm-my-team.tsx", "utf8");
   assert.match(app, /NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true"/);
   assert.match(app, /data\.selectedOrganization\.id/);
+  assert.ok(app.includes('access.role === "manager" && !access.companyWide && access.orgUnitId !== null'));
+  const page = readFileSync("src/app/hcm/my-team/page.tsx", "utf8");
+  assert.ok(page.includes("<HcmMyTeamClient key={organizationId} organizationId={organizationId} />"), "employer switch must reset cursors and filters");
   assert.match(ui, /new AbortController\(\)/);
   assert.match(ui, /controller\.abort\(\)/);
   assert.match(ui, /data\.organizationId !== organizationId/);
