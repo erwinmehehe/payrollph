@@ -10,6 +10,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { dashboardDate, dashboardMoney } from "@/lib/dashboard-presentation";
+import { taskFirstUiEnabled } from "@/lib/task-first-ui";
 
 type HomeData = {
   employee: { firstName: string };
@@ -47,6 +48,7 @@ export function EmployeeHomeDashboard({
   onRequestLeave: () => void;
 }) {
   const latest = data.payslips[0];
+  const taskFirst = taskFirstUiEnabled();
   const pending = data.leave.requests.filter(
     (request) => request.status === "Pending",
   ).length;
@@ -144,7 +146,7 @@ export function EmployeeHomeDashboard({
           <strong>{latest ? dashboardMoney(latest.net) : "—"}</strong>
           <small>
             {latest
-              ? `Payslip available · Net pay · Paid ${dashboardDate(latest.payDate)}`
+              ? `Payslip available · Net pay · ${taskFirst ? "Pay date" : "Paid"} ${dashboardDate(latest.payDate)}`
               : "Your released pay will appear here."}
           </small>
         </div>
@@ -194,7 +196,7 @@ export function EmployeeHomeDashboard({
               </span>
               <span>
                 <strong>{slip.period}</strong>
-                <small>Paid {dashboardDate(slip.payDate)}</small>
+                <small>{taskFirst ? "Pay date" : "Paid"} {dashboardDate(slip.payDate)}</small>
               </span>
               <strong>{dashboardMoney(slip.net)}</strong>
               <ArrowRight size={16} />
