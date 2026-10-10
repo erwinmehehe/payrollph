@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { ImportPanel } from "@/components/import-panel";
+import { EmployeeIdentifierReviewPanel } from "@/components/employee-identifier-review-panel";
 import { HcmCapabilitiesPanel } from "@/components/hcm-capabilities-panel";
 import { HcmBusinessProcessAdmin } from "@/components/hcm-business-process-admin";
 import { HcmBusinessProcessInbox } from "@/components/hcm-business-process-inbox";
@@ -24,6 +25,10 @@ import { HcmEmploymentLifecycleActionCenter } from "@/components/hcm-employment-
 import { HcmEmploymentLifecycleWorker } from "@/components/hcm-employment-lifecycle-worker";
 import { HcmLifecycleNotificationInbox } from "@/components/hcm-lifecycle-notification-inbox";
 import { HcmLifecyclePolicyPanel } from "@/components/hcm-lifecycle-policy-panel";
+import { HcmPeopleOperationsInbox } from "@/components/hcm-people-operations-inbox";
+import { HcmWorkerJourneyPanel } from "@/components/hcm-worker-journey-panel";
+import { HcmWorkerJourneyActions } from "@/components/hcm-worker-journey-actions";
+import type { HcmWorkerJourney } from "@/lib/hcm-worker-journey";
 import type { DashboardData, Employee } from "./types";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 import { Avatar, EmptyState, PageHeading, Status, formatDate, formatTimeOnly, money } from "./ui";
@@ -50,6 +55,7 @@ type PayoutDestinationChangeRequest = {
 };
 
 type ConnectedWorkerProfile = {
+  journey: HcmWorkerJourney;
   position: null | {
     id: number;
     code: string;
@@ -444,6 +450,26 @@ export function PeopleView({
             and are outside your current access.
           </span>
         </div>
+      )}
+
+      {canManageLifecycle && (
+        <HcmPeopleOperationsInbox
+          organizationId={data.selectedOrganization.id}
+          onOpenWorker={(employeeId) => {
+            const worker = data.employees.find((employee) => employee.id === employeeId);
+            if (!worker) return false;
+            setPicked(worker);
+            return true;
+          }}
+          onPage={onPage}
+        />
+      )}
+
+      {canManage && (
+        <details className="panel-disclosure">
+          <summary>Government ID verification <span>Review employee-submitted statutory and credential numbers</span></summary>
+          <EmployeeIdentifierReviewPanel organizationId={data.selectedOrganization.id} onRefresh={onRefresh} />
+        </details>
       )}
 
       {(canManage || canManageLifecycle || canViewLifecycleNotifications) && <details className="panel-disclosure"><summary>Employee administration <span>Import, lifecycle policies and notifications</span></summary>
@@ -1314,6 +1340,9 @@ function PersonDrawer({
                   </div>
                 </div>
 
+                <HcmWorkerJourneyPanel journey={connectedProfile.journey} onPage={onPage} />
+                <HcmWorkerJourneyActions journey={connectedProfile.journey} onPage={onPage} />
+
                 <div style={{ marginTop: 14 }}>
                   <div className="card-header" style={{ padding: 0, marginBottom: 8 }}>
                     <div>
@@ -1651,7 +1680,7 @@ function PersonDrawer({
             <div>
               <div className="card-kicker">PAYROLL PROFILE</div>
               <h2 style={{ fontSize: 14 }}>Explicit pay basis</h2>
-              <p>Payroll uses an effective-dated pay history. Mid-cutoff changes preserve the old rate before the effective date and use the new rate after it.</p>
+              <p>Payroll uses an effective-dated pay history. For companies with formal compensation governance, use the Compensation approval workflow; direct pay editing is available only for authorized corrections in legacy workspaces.</p>
             </div>
             {canManage && (
               <button className="secondary-button" onClick={() => setEditingPay((value) => !value)}>
@@ -1686,7 +1715,7 @@ function PersonDrawer({
                 </label>
               </div>
               <div className="modal-note" style={{ margin: "0 16px 10px" }}>
-                Effective-dated changes are applied inside an open cutoff. If a monthly salary change reaches a cutoff that was already released, Linaw creates a one-time retro-pay line for the next payroll instead of rewriting the released register.
+                This edit requires company-wide financial administration and an explicit correction reason. It is disabled when the company uses governed compensation. In legacy workspaces, monthly corrections preserve released payroll and carry applicable retro pay into a later cutoff.
               </div>
               {payError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{payError}</span></div>}
               <div className="run-actions">
@@ -1868,7 +1897,7 @@ function PersonDrawer({
                 </label>
               </div>
               <div className="modal-note" style={{ margin: "0 16px 10px" }}>
-                Leave account number blank to keep the saved destination. New account numbers are encrypted server-side; only a masked value returns to the browser. When enterprise treasury separation is enabled, this creates a maker-checker request and does not change the employee destination until a different assigned treasury operator approves it.
+                Leave account number blank to keep the saved destination; newly supplied numbers are encrypted server-side and returned masked. Once this employee appears in any payroll register (including a calculated Draft), bank/mobile payout changes require enterprise Treasury Controls and a different assigned treasury approver. Without that policy, direct entry is available only before this worker's first payroll calculation to a company-wide owner/admin with MFA. Never bypass an approval by creating a replacement employee.
               </div>
               {payoutError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{payoutError}</span></div>}
               {payoutNotice && <div className="notice notice-slate" style={{ margin: "0 16px 10px" }}><span>{payoutNotice}</span></div>}

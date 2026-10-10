@@ -103,11 +103,11 @@ test("employee profile editing is restricted to non-payroll-sensitive contact fi
 
 test("employee app exposes pay time leave and profile as first-class sections", () => {
   const portal = read("src/components/self-service-portal.tsx");
-  assert.ok(portal.includes('["home", "Home"]'));
-  assert.ok(portal.includes('["pay", "Pay"]'));
-  assert.ok(portal.includes('["time", "Time"]'));
-  assert.ok(portal.includes('["leave", "Leave"]'));
-  assert.ok(portal.includes('["profile", "Profile"]'));
+  for (const [tab, label] of [["home", "Home"], ["pay", "Pay"], ["time", "Time"], ["leave", "Leave"], ["profile", "Profile"]]) {
+    assert.ok(portal.includes(`${tab}: { label: "${label}"`), `missing desktop ${label} navigation`);
+  }
+  assert.ok(portal.includes("ESS_ALL_TABS.map((value) => {"), "desktop navigation must expose all employee sections");
+  assert.ok(portal.includes("ESS_PRIMARY_TABS.map((value) => {"), "mobile navigation must keep the primary employee tabs");
   assert.ok(read("src/components/employee-home-dashboard.tsx").includes("employee-latest-pay"));
   assert.ok(portal.includes("employee-pay-breakdown"));
 });

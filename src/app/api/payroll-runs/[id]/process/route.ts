@@ -8,6 +8,7 @@ import { drainPayrollQueue, enqueuePayrollRun } from "@/lib/payroll-engine";
 import { assertOrganizationRole, assertOrganizationUnitAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { loadTimesheetPayrollGate } from "@/lib/workforce-timesheet-server";
 import { loadAttendanceCutoffGate } from "@/lib/workforce-attendance-lock";
+import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
 
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const originDenied = enforceSameOriginMutation(_request);
@@ -28,6 +29,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     "Only payroll operators can calculate payroll.",
   );
   if (deniedOrg) return deniedOrg;
+  const subscriptionDenied = await requireSaasPaidWrites(run.organizationId);
+  if (subscriptionDenied) return subscriptionDenied;
   const deniedUnit = await assertOrganizationUnitAccess(
     user.id,
     run.organizationId,

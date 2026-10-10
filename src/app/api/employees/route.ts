@@ -7,10 +7,11 @@ import {
   enforceSensitiveActionRateLimit,
   requireSensitiveActionMfa,
 } from "@/lib/security-request";
-import { and, asc, desc, eq, gte, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   assets,
+  auditEvents,
   compensationProposals,
   employeePayProfiles,
   employeePayRevisions,
@@ -32,7 +33,21 @@ import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automat
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
+import { requireSaasPaidWrites, isSelfServeOrganization } from "@/lib/saas-workspace-access";
+import { getEntitlements, seatUsage } from "@/lib/billing";
 import { WAGE_ORDERS, wageOrderFor } from "@/lib/wage-orders";
+import { GOVERNED_HIRE_REQUIRED, hasConfiguredHireBusinessProcess } from "@/lib/hcm-direct-entry-policy";
+import {
+  compensationGovernanceQuery,
+  HCM_GOVERNED_COMPENSATION_REQUIRED,
+  isGovernedCompensationWorkspace,
+} from "@/lib/hcm-direct-pay-governance";
+import {
+  employeeHasPayrollRegisterEntry,
+  legacyPayoutChangeBlockReason,
+  payoutHistoryUnderLockQuery,
+  REVIEWED_PAYOUT_DESTINATION_REQUIRED,
+} from "@/lib/hcm-payout-destination-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -138,8 +153,20 @@ export async function POST(request: Request) {
     "Only People administrators can create employee records.",
   );
   if (denied) return denied;
+  const subscriptionDenied = await requireSaasPaidWrites(organizationId);
+  if (subscriptionDenied) return subscriptionDenied;
+  if (await isSelfServeOrganization(organizationId)) {
+    const entitlements = await getEntitlements(organizationId);
+    const seats = await seatUsage(organizationId, entitlements.seatLimit);
+    if (seats.atLimit) return Response.json({ error: "Employee seat limit reached. Contact billing to update your subscription.", code: "SEAT_LIMIT_REACHED", used: seats.used, limit: seats.limit }, { status: 402 });
+  }
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  // A configured Hire business process cannot be bypassed by this older
+  // standalone employee-creation endpoint.
+  if (await hasConfiguredHireBusinessProcess(organizationId)) {
+    return Response.json(GOVERNED_HIRE_REQUIRED, { status: 409 });
+  }
   const employeeOrgUnitId = access.companyWide ? null : access.orgUnitId;
 
   const requestedLegalEntityId = body.legalEntityId == null || body.legalEntityId === ""
@@ -334,6 +361,8 @@ export async function PATCH(request: Request) {
     "Only People administrators can update government identity records.",
   );
   if (denied) return denied;
+  const subscriptionDenied = await requireSaasPaidWrites(organizationId);
+  if (subscriptionDenied) return subscriptionDenied;
 
   const [employee] = await db.select().from(employees)
     .where(and(
@@ -421,11 +450,38 @@ export async function PATCH(request: Request) {
   ].some((value) => value !== undefined);
 
   let nextPayProfile = null;
+  let latestPayRevisionId: number | null = null;
   let payEffectiveDate: string | null = null;
   let payChangeReason: string | null = null;
   if (wantsPayUpdate) {
+    // A direct correction is not an alternative to company-level financial
+    // governance. Only owner/admin/bookkeeper with company-wide authority
+    // may use this legacy path in an employer without a formal comp cycle/BP.
+    if (!access?.companyWide || !["owner", "admin", "bookkeeper"].includes(access.role)) {
+      return Response.json({
+        error: "Direct pay corrections require company-wide owner, administrator or bookkeeper access.",
+        code: "HCM_DIRECT_PAY_ROLE_REQUIRED",
+      }, { status: 403 });
+    }
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+    const rateDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id,
+      action: "legacy-direct-pay-correction",
+      resourceId: employeeId,
+      limit: 5,
+      windowMs: 15 * 60_000,
+    });
+    if (rateDenied) return rateDenied;
+
+    // Inactive/expired BP definitions and historical compensation cycles are
+    // still evidence of a governed workflow. A text reason is not an override.
+    if (await isGovernedCompensationWorkspace(organizationId)) {
+      return Response.json(HCM_GOVERNED_COMPENSATION_REQUIRED, { status: 409 });
+    }
+
     payEffectiveDate = String(body.payEffectiveDate ?? new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date())).trim();
-    payChangeReason = String(body.payChangeReason ?? "Pay adjustment").trim();
+    payChangeReason = String(body.payChangeReason ?? "").trim();
     const todayPh = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
     if (!/^\d{4}-\d{2}-\d{2}$/.test(payEffectiveDate)) {
       return Response.json({ error: "Pay effective date must use YYYY-MM-DD." }, { status: 400 });
@@ -436,8 +492,8 @@ export async function PATCH(request: Request) {
     if (payEffectiveDate > todayPh) {
       return Response.json({ error: "Future-dated pay changes are not applied early. Use the effective date when it becomes active." }, { status: 400 });
     }
-    if (!payChangeReason) {
-      return Response.json({ error: "A reason is required for an effective-dated pay change." }, { status: 400 });
+    if (payChangeReason.length < 8 || payChangeReason.length > 240) {
+      return Response.json({ error: "Provide an explicit 8-240 character reason for this audited pay correction." }, { status: 400 });
     }
 
     const [latestRevision] = await db.select().from(employeePayRevisions)
@@ -448,6 +504,7 @@ export async function PATCH(request: Request) {
       .orderBy(desc(employeePayRevisions.effectiveDate), desc(employeePayRevisions.id))
       .limit(1);
 
+    latestPayRevisionId = latestRevision?.id ?? null;
     if (latestRevision) {
       const [governedCompensation] = await db.select({
         id: compensationProposals.id,
@@ -555,6 +612,7 @@ export async function PATCH(request: Request) {
       error: "Bank account and bank code must be complete together before payroll payout.",
     }, { status: 422 });
   }
+  let legacyPayoutEdit = false;
   if (wantsPayoutUpdate) {
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return mfaDenied;
@@ -583,10 +641,31 @@ export async function PATCH(request: Request) {
       ].some((field) => body[field] !== undefined);
 
     const treasuryPolicy = await treasuryControlPolicy(organizationId);
-    if (treasuryPolicy?.enabled && hasNonPayoutMutation) {
+    if (hasNonPayoutMutation) {
       return Response.json({
-        error: "When treasury separation is enabled, submit payout destination changes separately from other employee profile edits.",
+        code: "PAYOUT_DESTINATION_SEPARATE_CHANGE_REQUIRED",
+        error: "For an auditable payout destination change, submit bank/mobile details separately from salary, employment, schedule and government identity edits.",
       }, { status: 409 });
+    }
+
+    if (!treasuryPolicy?.enabled) {
+      const hasPayrollRegisterEntry = await employeeHasPayrollRegisterEntry(organizationId, employeeId);
+      const legacyDecision = legacyPayoutChangeBlockReason({
+        treasuryEnabled: false,
+        hasPayrollRegisterEntry,
+        companyWide: access?.companyWide ?? false,
+        role: access?.role ?? "",
+      });
+      if (legacyDecision === "review_required") {
+        return Response.json(REVIEWED_PAYOUT_DESTINATION_REQUIRED, { status: 409 });
+      }
+      if (legacyDecision === "role_required") {
+        return Response.json({
+          code: "PAYOUT_DESTINATION_COMPANY_OWNER_REQUIRED",
+          error: "Initial payout destination entry without Treasury Controls requires company-wide owner or administrator permissions.",
+        }, { status: 403 });
+      }
+      legacyPayoutEdit = true;
     }
 
     const payoutChangeRequest = await createPayoutDestinationChangeRequest({
@@ -668,7 +747,86 @@ export async function PATCH(request: Request) {
     patch.basicRate = nextPayProfile.monthlyEquivalent.toFixed(2);
   }
 
+  let payWriteConflict: string | null = null;
+  let payoutWriteConflict = false;
   const result = await db.transaction(async (tx) => {
+    if (legacyPayoutEdit) {
+      // Protect the legacy pre-first-payment setup against races with another
+      // employee edit, Treasury policy enablement, and already released wages.
+      await tx.execute(sql`
+        SELECT id FROM employees
+        WHERE id = ${employeeId} AND organization_id = ${organizationId}
+        FOR UPDATE
+      `);
+      const [current] = await tx.select({
+        bankAccount: employees.bankAccount,
+        bankCode: employees.bankCode,
+        mobile: employees.mobile,
+      }).from(employees).where(and(
+        eq(employees.id, employeeId),
+        eq(employees.organizationId, organizationId),
+      )).limit(1);
+      if (!current || current.bankAccount !== employee.bankAccount
+        || current.bankCode !== employee.bankCode || current.mobile !== employee.mobile) {
+        throw new Error("PAYOUT_DESTINATION_STALE");
+      }
+      const lockedHistory = await tx.execute(payoutHistoryUnderLockQuery(organizationId, employeeId));
+      if (lockedHistory.rows.length > 0) {
+        throw new Error("PAYOUT_DESTINATION_REVIEW_REQUIRED");
+      }
+      const treasuryNow = await tx.execute(sql`
+        SELECT enabled FROM treasury_control_policies
+        WHERE organization_id = ${organizationId} FOR SHARE
+      `);
+      if (treasuryNow.rows.some(row => row.enabled === true)) {
+        throw new Error("PAYOUT_DESTINATION_POLICY_CHANGED");
+      }
+    }
+
+    if (nextPayProfile) {
+      // This is the same advisory lock used by HCM compensation approval
+      // and effective salary application; a direct edit cannot interleave
+      // with another properly locked revision for this employee.
+      await tx.execute(sql`select pg_advisory_xact_lock(4221, ${employeeId})`);
+
+      // A policy may have been configured between initial verification and
+      // entering the write transaction. Never treat an unexpected result as
+      // authorization to change money.
+      const governance = await tx.execute(compensationGovernanceQuery(organizationId));
+      if (governance.rows[0]?.blocked !== false) {
+        throw new Error("HCM_GOVERNED_COMPENSATION_REQUIRED");
+      }
+
+      const [currentProfile] = await tx.select().from(employeePayProfiles)
+        .where(and(
+          eq(employeePayProfiles.organizationId, organizationId),
+          eq(employeePayProfiles.employeeId, employeeId),
+        ))
+        .limit(1);
+      if (!existingPayProfile || !currentProfile
+        || currentProfile.id !== existingPayProfile.id
+        || currentProfile.updatedAt.getTime() !== existingPayProfile.updatedAt.getTime()
+        || currentProfile.payBasis !== existingPayProfile.payBasis
+        || currentProfile.rateAmount !== existingPayProfile.rateAmount
+        || currentProfile.standardWorkDaysPerMonth !== existingPayProfile.standardWorkDaysPerMonth
+        || currentProfile.standardHoursPerDay !== existingPayProfile.standardHoursPerDay
+      ) {
+        throw new Error("HCM_DIRECT_PAY_STALE");
+      }
+
+      const [freshRevision] = await tx.select({ id: employeePayRevisions.id })
+        .from(employeePayRevisions)
+        .where(and(
+          eq(employeePayRevisions.organizationId, organizationId),
+          eq(employeePayRevisions.employeeId, employeeId),
+        ))
+        .orderBy(desc(employeePayRevisions.effectiveDate), desc(employeePayRevisions.id))
+        .limit(1);
+      if ((freshRevision?.id ?? null) !== latestPayRevisionId) {
+        throw new Error("HCM_DIRECT_PAY_STALE");
+      }
+    }
+
     const [updated] = await tx.update(employees)
       .set(patch)
       .where(and(
@@ -864,8 +1022,97 @@ export async function PATCH(request: Request) {
       }
     }
 
-    return { updated, revisionId, restDayRevisionId, retroAdjustments, retroTotal };
+    // Financial audit must be committed with every pay revision and retro
+    // row. Missing audit storage now rolls back the pay modification.
+    let payAuditId: number | null = null;
+    if (nextPayProfile && payEffectiveDate) {
+      const [payAudit] = await tx.insert(auditEvents).values({
+        organizationId,
+        actor: user.name,
+        action: "Employee payroll profile updated (legacy direct correction)",
+        resource: `${employee.firstName} ${employee.lastName} (${employee.employeeNo})`.slice(0, 160),
+        metadata: {
+          employeeId,
+          fields: [...Object.keys(patch), "payBasis", "rateAmount", "standardWorkDaysPerMonth", "standardHoursPerDay"],
+          previousPayBasis: existingPayProfile?.payBasis,
+          previousRateAmount: existingPayProfile?.rateAmount,
+          newPayBasis: nextPayProfile.payBasis,
+          newRateAmount: nextPayProfile.rateAmount.toFixed(2),
+          payEffectiveDate,
+          payChangeReason,
+          payRevisionId: revisionId,
+          retroAdjustments,
+          retroTotal,
+          route: "legacy-direct-pay-correction",
+          governanceRecheckedUnderLock: true,
+          previousStartDate: nextStartDate ? employee.startDate : undefined,
+          newStartDate: nextStartDate,
+          previousRestDay: changedRestDay ? employee.restDay : undefined,
+          newRestDay: changedRestDay ? nextRestDay : undefined,
+          restDayRevisionId,
+        },
+      }).returning({ id: auditEvents.id });
+      if (!payAudit) throw new Error("Pay audit insert did not return an event.");
+      payAuditId = payAudit.id;
+    }
+    // Keep the actor audit in the same transaction as legacy payout setup:
+    // if audit storage fails, no new bank/mobile coordinates are committed.
+    let payoutAuditId: number | null = null;
+    if (legacyPayoutEdit) {
+      const [payoutAudit] = await tx.insert(auditEvents).values({
+        organizationId,
+        actor: user.name,
+        action: "Employee initial payout destination updated (pre-payroll)",
+        resource: `Employee #${employeeId}`,
+        metadata: {
+          employeeId,
+          actorUserId: user.id,
+          fields: Object.keys(patch),
+          previousMaskedAccount: maskBankAccount(employee.bankAccount),
+          proposedMaskedAccount: maskBankAccount(updated.bankAccount),
+          previousBankCode: employee.bankCode,
+          newBankCode: updated.bankCode,
+          mobileChanged: employee.mobile !== updated.mobile,
+          route: "legacy-pre-first-payment",
+          existingPayrollRegisterRecheckedUnderLock: true,
+        },
+      }).returning({ id: auditEvents.id });
+      if (!payoutAudit) throw new Error("Initial payout destination audit did not persist.");
+      payoutAuditId = payoutAudit.id;
+    }
+    return { updated, revisionId, restDayRevisionId, retroAdjustments, retroTotal, payAuditId, payoutAuditId };
+  }).catch((error) => {
+    if (error instanceof Error && ["HCM_DIRECT_PAY_STALE", "HCM_GOVERNED_COMPENSATION_REQUIRED"].includes(error.message)) {
+      payWriteConflict = error.message;
+      return null;
+    }
+    if (error instanceof Error && [
+      "PAYOUT_DESTINATION_STALE",
+      "PAYOUT_DESTINATION_REVIEW_REQUIRED",
+      "PAYOUT_DESTINATION_POLICY_CHANGED",
+    ].includes(error.message)) {
+      payoutWriteConflict = true;
+      return null;
+    }
+    throw error;
   });
+  if (payoutWriteConflict) {
+    return Response.json({
+      code: "PAYOUT_DESTINATION_REVIEW_REQUIRED",
+      error: "Payroll register, treasury settings or payout coordinates changed during the request. Reload the employee and use independent approval after payroll calculation.",
+    }, { status: 409 });
+  }
+  if (!result) {
+    return Response.json(
+      payWriteConflict === "HCM_GOVERNED_COMPENSATION_REQUIRED"
+        ? HCM_GOVERNED_COMPENSATION_REQUIRED
+        : {
+            code: "HCM_DIRECT_PAY_STALE",
+            error: "The employee pay profile or effective revisions changed during review. Reload the worker before submitting another correction.",
+          },
+      { status: 409 },
+    );
+  }
   const updated = result.updated;
 
   const governmentFields = ["middleName", "tin", "tinBranchCode", "sssNo", "philHealthNo", "pagIbigNo", "nationality"];
@@ -884,7 +1131,11 @@ export async function PATCH(request: Request) {
             ? "Employee employment dates updated"
             : "Employee work schedule updated";
 
-  const audit = await recordAuditEvent({
+  const audit = result.payAuditId
+    ? { id: result.payAuditId }
+    : result.payoutAuditId
+      ? { id: result.payoutAuditId }
+      : await recordAuditEvent({
     organizationId,
     actor: user.name,
     action,

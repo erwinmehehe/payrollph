@@ -62,6 +62,15 @@ export async function GET(request: Request) {
  * is configured, it returns a truthful 503 and writes nothing financial.
  */
 export async function POST(request: Request) {
+  // Do not mix the legacy one-off PayMongo purchase with automatic Xendit
+  // subscriptions: a one-time payment cannot create a monthly mandate.
+  if (process.env.XENDIT_BILLING_ENABLED === "true") {
+    return Response.json({
+      error: "Subscriptions use the recurring billing portal. No charge was created.",
+      code: "USE_RECURRING_BILLING",
+      redirectTo: "/billing/manage",
+    }, { status: 409 });
+  }
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
 

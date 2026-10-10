@@ -134,7 +134,8 @@ test("Documents workspace exposes policy, acknowledgement, missing-doc and renew
 });
 
 test("employee self-service includes Documents and only acknowledges its own assignment", () => {
-  assert.ok(employeePortal.includes('["documents", "Documents"]'));
+  assert.ok(employeePortal.includes('documents: { label: "Documents"'));
+  assert.ok(employeePortal.includes('ESS_MORE_TABS: SelfTab[] = ["documents", "performance", "profile"]'));
   assert.ok(employeePortal.includes("<EmployeeDocumentsPanel"));
   assert.ok(employeePanel.includes("I acknowledge that I have received and read this exact policy version."));
   assert.ok(employeePanel.includes("/api/self/documents"));

@@ -11,6 +11,7 @@ import { CompensationPanel } from "@/components/compensation-panel";
 import { HcmDocumentsPanel } from "@/components/hcm-documents-panel";
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
+import { SaasOnboardingQuickstart } from "@/components/saas-onboarding-quickstart";
 import { DisciplinePanel } from "@/components/discipline-panel";
 import { LoansPanel } from "@/components/loans-panel";
 import { LegalEntitiesPanel } from "@/components/legal-entities-panel";
@@ -58,7 +59,7 @@ import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
 
-export function LinawWorkspace({ initialData }: { initialData: DashboardData }) {
+export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean }) {
   const searchParams = useSearchParams();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
@@ -378,6 +379,15 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
 
         {page === "Overview" && (
           <>
+            {isSelfServeCustomer && data.payrollRuns.length === 0 && (
+              <SaasOnboardingQuickstart
+                companyName={data.selectedOrganization.name}
+                employees={data.employees.length}
+                runs={data.payrollRuns.length}
+                onPage={setPage}
+                onAddEmployee={() => setNewHireOpen(true)}
+              />
+            )}
             {dashboardRole ? (
               <RoleOverviewView
                 data={data}

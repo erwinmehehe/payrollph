@@ -16,6 +16,7 @@ const SENSITIVE_LINK_PURPOSES = new Set([
   "password-reset",
   "invitation",
   "email-change-verification",
+  "signup-email-verification",
 ]);
 
 const MAX_AUTOMATIC_RETRIES = 3;

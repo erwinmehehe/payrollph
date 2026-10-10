@@ -2,6 +2,7 @@ import { count, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, subscriptions } from "@/db/schema";
 import { PLAN_FEATURES, type Entitlements, type PlanId } from "@/lib/billing-matrix";
+import { paidAccessAllowed } from "@/lib/saas-pricing";
 
 export { PLAN_FEATURES, hasFeature, requireFeature } from "@/lib/billing-matrix";
 export type { PlanId, Entitlements } from "@/lib/billing-matrix";
@@ -34,7 +35,9 @@ export async function getEntitlements(organizationId: number): Promise<Entitleme
     status: subscription?.status ?? "none",
     trialing: subscription?.status === "trialing",
     inTrial,
-    active: subscription ? subscription.status === "active" || inTrial : true,
+    active: subscription?.provider === "xendit"
+      ? paidAccessAllowed({ status: subscription.status, paidThrough: subscription.periodEnd })
+      : subscription ? subscription.status === "active" || inTrial : true,
     provider: subscription?.provider ?? null,
   };
 }

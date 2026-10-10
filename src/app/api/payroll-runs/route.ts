@@ -15,6 +15,7 @@ import { statutoryRuleVersionsForDate } from "@/lib/ph-statutory-rule-packs";
 import { nationalHolidayCalendarForDate } from "@/lib/wage-orders";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { createTimesheetExpectationsForPayrollRun } from "@/lib/workforce-timesheet-expectations";
+import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
 
 export const dynamic = "force-dynamic";
 
@@ -183,6 +184,8 @@ export async function POST(request: Request) {
     "Only payroll operators can create payroll runs.",
   );
   if (denied) return denied;
+  const subscriptionDenied = await requireSaasPaidWrites(organizationId);
+  if (subscriptionDenied) return subscriptionDenied;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
 
