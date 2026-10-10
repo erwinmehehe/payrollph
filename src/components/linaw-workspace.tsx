@@ -140,6 +140,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
   useEffect(() => {
     if (!taskFirst) return;
     const restore = () => {
+      if (!new URLSearchParams(window.location.search).has("page")) return;
       const target = readWorkspaceLocation(window.location.search,{
         organizationId:data.selectedOrganization.id,
         pages:availablePages,runIds:data.payrollRuns.map(run=>run.id),
@@ -153,7 +154,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
     restore();
     window.addEventListener("popstate",restore);
     return () => window.removeEventListener("popstate",restore);
-  }, [taskFirst,data.selectedOrganization.id,availablePages,data.payrollRuns,data.employees]);
+  }, [taskFirst,data.selectedOrganization.id,availablePages]);
   usePaletteShortcut(() => setPaletteOpen(true));
 
   useEffect(() => {
