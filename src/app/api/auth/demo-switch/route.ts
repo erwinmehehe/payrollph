@@ -1,6 +1,6 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { cookies } from "next/headers";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, organizations, userOrganizations, users } from "@/db/schema";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/lib/auth";
@@ -171,6 +171,20 @@ export async function POST(request: Request) {
 
   if (!publicDemoAllowed(request)) {
     return Response.json({ error: "Demo accounts are disabled on this deployment." }, { status: 404 });
+  }
+
+  // The public sandbox must never provision fixed demo identities on a
+  // production database that already holds a real employer workspace.
+  if (process.env.NODE_ENV === "production") {
+    try {
+      const [realEmployer] = await db.select({ id: organizations.id }).from(organizations)
+        .where(ne(organizations.name, "Loom & Local")).limit(1);
+      if (realEmployer) {
+        return Response.json({ error: "Demo accounts are disabled on this deployment." }, { status: 404 });
+      }
+    } catch {
+      return Response.json({ error: "Demo environment could not be verified." }, { status: 503 });
+    }
   }
 
   try {
