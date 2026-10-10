@@ -708,50 +708,64 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    const [created] = await db.insert(employeeScheduleAssignments).values({
-      organizationId,
-      employeeId,
-      patternId,
-      effectiveFrom,
-      effectiveUntil,
-      anchorDate,
-      workLocationOrgUnitId,
-      worksiteId,
-      reason,
-      createdBy: user.name,
-    }).returning();
+    try {
+      const result = await db.transaction(async (tx) => {
+        // Serialize ALL roster mutations on this employer with governed bulk
+        // approval, then recheck source evidence before the write.
+        await tx.execute(sql`select pg_advisory_xact_lock(6107, ${organizationId})`);
+        const lockedPolicy = await scheduleGuardrailPolicy(organizationId, tx);
+        const lockedWindow = await resolveEmployeeScheduleWindow({
+          organizationId,
+          employeeId,
+          startDate: addDays(effectiveFrom, -7),
+          endDate: addDays(effectiveFrom, 13),
+          prospectiveAssignment: {
+            id: Number.MAX_SAFE_INTEGER, patternId, effectiveFrom,
+            effectiveUntil, anchorDate, workLocationOrgUnitId, worksiteId,
+          },
+          executor: tx,
+        });
+        const lockedIssues = evaluateScheduleGuardrails({
+          days: lockedWindow, policy: lockedPolicy,
+        });
+        if (scheduleGuardrailBlocksMutation(lockedIssues)) {
+          throw new Error("Concurrent roster changes now breach workforce assignment guardrails.");
+        }
+        const [created] = await tx.insert(employeeScheduleAssignments).values({
+          organizationId, employeeId, patternId, effectiveFrom, effectiveUntil,
+          anchorDate, workLocationOrgUnitId, worksiteId, reason, createdBy: user.name,
+        }).returning();
+        const staleTimesheets = await markTimesheetsStaleForEmployeeRange({
+          organizationId, employeeId, startDate: effectiveFrom,
+          endDate: effectiveUntil, executor: tx,
+        });
+        await tx.insert(auditEvents).values({
+          organizationId,
+          actor: user.name,
+          action: "Employee workforce schedule assigned",
+          resource: `${employeeCheck.employee!.employeeNo} · ${pattern.code}`,
+          metadata: {
+            assignmentId: created.id, employeeId, patternId, effectiveFrom,
+            effectiveUntil, anchorDate, workLocationOrgUnitId, worksiteId,
+            staleTimesheetIds: staleTimesheets.map((row) => row.id),
+          },
+        });
+        return { created, staleTimesheets, lockedIssues, lockedPolicy };
+      }, { isolationLevel: "serializable" });
 
-    const staleTimesheets = await markTimesheetsStaleForEmployeeRange({
-      organizationId,
-      employeeId,
-      startDate: effectiveFrom,
-      endDate: effectiveUntil,
-    });
-
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Employee workforce schedule assigned",
-      resource: `${employeeCheck.employee!.employeeNo} · ${pattern.code}`,
-      metadata: {
-        assignmentId: created.id,
-        employeeId,
-        patternId,
-        effectiveFrom,
-        effectiveUntil,
-        anchorDate,
-        workLocationOrgUnitId,
-        worksiteId,
-        staleTimesheetIds: staleTimesheets.map((row) => row.id),
-      },
-    });
-
-    return Response.json({
-      assignment: created,
-      guardrailIssues,
-      guardrailPolicy,
-      staleTimesheetIds: staleTimesheets.map((row) => row.id),
-    }, { status: 201 });
+      return Response.json({
+        assignment: result.created,
+        guardrailIssues: result.lockedIssues,
+        guardrailPolicy: result.lockedPolicy,
+        staleTimesheetIds: result.staleTimesheets.map((row) => row.id),
+      }, { status: 201 });
+    } catch {
+      // Serialization conflicts, evidence changes and DB errors are all no-commit.
+      return Response.json({
+        error: "The roster changed while this assignment was being saved. Refresh the schedule and retry.",
+        code: "WFM_ASSIGNMENT_SOURCE_CHANGED",
+      }, { status: 409 });
+    }
   }
 
   if (action === "create_override") {
