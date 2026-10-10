@@ -14,6 +14,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
+import type { TaskTarget } from "@/lib/task-first-ui";
 import { DashboardAlertBanner, type DashboardAlertItem } from "./dashboard-alert-banner";
 import { DashboardStatCard } from "./dashboard-stat-card";
 import { RecentPayrollRuns } from "./recent-payroll-runs";
@@ -39,15 +40,17 @@ export function RoleOverviewView({
   role,
   onPage,
   onNewRun,
+  onTask,
 }: {
   data: DashboardData;
   currentRun?: PayrollRun;
   role: WorkspaceDashboardRole;
   onPage: (page: string) => void;
   onNewRun: () => void;
+  onTask?: (target: TaskTarget) => void;
 }) {
   if (role === "owner" || role === "payroll" || role === "checker") {
-    return <CleanRoleDashboard data={data} currentRun={currentRun} role={role} onPage={onPage} onNewRun={onNewRun} />;
+    return <CleanRoleDashboard data={data} currentRun={currentRun} role={role} onPage={onPage} onNewRun={onNewRun} onTask={onTask} />;
   }
   return (
     <RoleOverviewV2
