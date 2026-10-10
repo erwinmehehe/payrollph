@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { validReceiptSource } from "./workforce-schedule-receipt-validation";
+import { receiptOverlappingDates, validReceiptSource } from "./workforce-schedule-receipt-validation";
 
 /** A content receipt, never attendance evidence, contract consent or payroll approval. */
 export const SCHEDULE_RECEIPT_BOUNDARY = "Acknowledging confirms that you have seen this schedule snapshot. It does not record attendance, accept a pay change, or waive any rights. Missing acknowledgment does not mean absence.";
@@ -64,6 +64,56 @@ export function snapshotForReceipt(day: ReceiptSourceDay, site: { id: number; na
     workLocationOrgUnitId: day.workLocationOrgUnitId,
     worksite: day.worksiteId === null ? null : { id: site!.id, name: site!.name }, segments };
 }
+function receiptDateOffset(value: string, offset: number): string {
+  const day = new Date(receiptDate(value) + "T00:00:00Z");
+  day.setUTCDate(day.getUTCDate() + offset);
+  return receiptDate(day.toISOString().slice(0, 10));
+}
+
+/** Include the previous and following source day, never extra employee scope. */
+export function receiptContextDates(requestedDates: readonly string[]): string[] {
+  if (requestedDates.length < 1 || requestedDates.length > 7) {
+    throw new Error("One through seven consecutive work dates are required.");
+  }
+  requestedDates.forEach((value, index) => {
+    receiptDate(value);
+    if (index > 0 && receiptDateOffset(requestedDates[index - 1], 1) !== value) {
+      throw new Error("Consecutive, distinct work dates are required.");
+    }
+  });
+  return [receiptDateOffset(requestedDates[0], -1), ...requestedDates,
+    receiptDateOffset(requestedDates[requestedDates.length - 1], 1)];
+}
+
+/** Project only the requested days after checking their adjacent source dates. */
+export function projectReceiptWindow(
+  sourceDays: readonly ReceiptSourceDay[],
+  requestedDates: readonly string[],
+  sites: readonly { id: number; name: string }[],
+): Array<{ date: string; snapshot: ScheduleReceiptSnapshot | null }> {
+  const context = receiptContextDates(requestedDates).map(date => {
+    const matches = sourceDays.filter(day => day?.date === date);
+    const source = matches.length === 1 ? matches[0] : null;
+    const snapshot = source ? snapshotForReceipt(source,
+      sites.find(site => site.id === source.worksiteId) ?? null) : null;
+    // A real unassigned source record means no recorded interval, not a rest day.
+    // Missing, duplicated or malformed adjacent evidence is NOT the same thing.
+    const knownEmpty = source?.source === "unassigned" && typeof source.isRestDay === "boolean"
+      && Array.isArray(source.segments) && source.segments.length === 0;
+    return { date, snapshot, unknown: snapshot === null && !knownEmpty };
+  });
+  const conflicts = receiptOverlappingDates(context.flatMap(day => day.snapshot
+    ? [{ date: day.date, segments: day.snapshot.segments }] : []));
+  const byDate = new Map(context.map(day => [day.date, day]));
+  return requestedDates.map(date => {
+    const current = byDate.get(date)!;
+    const adjacentUnknown = !current.snapshot?.isRestDay &&
+      [receiptDateOffset(date, -1), receiptDateOffset(date, 1)]
+        .some(neighbor => byDate.get(neighbor)?.unknown !== false);
+    return { date, snapshot: conflicts.has(date) || adjacentUnknown ? null : current.snapshot };
+  });
+}
+
 export function scheduleReceiptHash(organizationId: number, employeeId: number, snapshot: ScheduleReceiptSnapshot): string {
   if (!validReceiptId(organizationId) || !validReceiptId(employeeId)) throw new Error("Invalid receipt scope.");
   return createHash("sha256").update(JSON.stringify(["schedule-receipt/v1", organizationId, employeeId, snapshot])).digest("hex");

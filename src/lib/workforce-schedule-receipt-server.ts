@@ -4,8 +4,8 @@ import { auditEvents, employees, userOrganizations, users, worksites } from "@/d
 import { workforceScheduleReceipts as receipts } from "./workforce-schedule-receipt-schema";
 import { resolveEmployeeScheduleWindow } from "./workforce-schedule-window";
 import { manilaWorkDate } from "./workforce-employee-upcoming-week";
-import { parseScheduleReceipt, receiptDates, receiptState, scheduleReceiptHash, snapshotForReceipt, validReceiptId,
-  SCHEDULE_RECEIPT_BOUNDARY, type ReceiptSourceDay, type ScheduleReceiptDay, type ScheduleReceiptView } from "./workforce-schedule-receipt";
+import { parseScheduleReceipt, receiptDates, receiptState, scheduleReceiptHash, receiptContextDates, projectReceiptWindow, validReceiptId,
+  SCHEDULE_RECEIPT_BOUNDARY, type ScheduleReceiptDay, type ScheduleReceiptView } from "./workforce-schedule-receipt";
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 export type ReceiptIdentity = { organizationId: number; employeeId: number; userId: number };
@@ -26,17 +26,17 @@ async function assertBoundIdentity(tx: Tx, who: ReceiptIdentity) {
   if (!row) throw new ScheduleReceiptError("RECEIPT_ACCESS_REVOKED", "Your active employee access could not be verified.", 403);
 }
 async function projectedDays(tx: Tx, who: ReceiptIdentity, dates: string[]) {
+  // A single POST also needs both neighboring dates; otherwise a previous
+  // overnight shift or next-day start can overlap outside the requested date.
+  const contextDates = receiptContextDates(dates);
   const days = await resolveEmployeeScheduleWindow({ organizationId: who.organizationId, employeeId: who.employeeId,
-    startDate: dates[0], endDate: dates[dates.length - 1], executor: tx });
+    startDate: contextDates[0], endDate: contextDates[contextDates.length - 1], executor: tx });
   const siteIds = [...new Set(days.flatMap(day => day.worksiteId === null ? [] : [day.worksiteId]))];
   const sites = siteIds.length ? await tx.select({ id: worksites.id, name: worksites.name }).from(worksites)
     .where(and(eq(worksites.organizationId, who.organizationId), inArray(worksites.id, siteIds))) : [];
-  return dates.map(date => {
-    const matches = days.filter(day => day.date === date);
-    const source: ReceiptSourceDay | null = matches.length === 1 ? matches[0] : null;
-    const snapshot = source ? snapshotForReceipt(source, sites.find(site => site.id === source.worksiteId) ?? null) : null;
-    return { date, snapshot, snapshotHash: snapshot ? scheduleReceiptHash(who.organizationId, who.employeeId, snapshot) : null };
-  });
+  return projectReceiptWindow(days, dates, sites).map(({ date, snapshot }) => ({
+    date, snapshot, snapshotHash: snapshot ? scheduleReceiptHash(who.organizationId, who.employeeId, snapshot) : null,
+  }));
 }
 function ownReceipt(who: ReceiptIdentity, date: string) {
   return and(eq(receipts.organizationId, who.organizationId), eq(receipts.employeeId, who.employeeId),

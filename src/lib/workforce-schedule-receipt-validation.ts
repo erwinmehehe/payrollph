@@ -54,6 +54,35 @@ export function validReceiptSegments(value: unknown): value is ReceiptSourceDay[
   return true;
 }
 
+/** Reject conflicts across work dates as well as within one split shift. */
+export function receiptOverlappingDates(
+  days: readonly Pick<ReceiptSourceDay, "date" | "segments">[],
+): Set<string> {
+  const intervals: Array<{ date: string; start: number; end: number }> = [];
+  for (const day of days) {
+    if (!date(day.date) || !validReceiptSegments(day.segments)) {
+      throw new Error("Invalid schedule window evidence.");
+    }
+    const base = Date.parse(day.date + "T00:00:00Z") / 1000;
+    for (const segment of day.segments) {
+      intervals.push({ date: day.date, start: base + clock(segment.startTime)!,
+        end: base + clock(segment.endTime)! + (segment.spansMidnight ? 86400 : 0) });
+    }
+  }
+  intervals.sort((a, b) => a.start - b.start || a.end - b.end);
+  const conflicts = new Set<string>();
+  let active: typeof intervals = [];
+  for (const interval of intervals) {
+    active = active.filter(prior => prior.end > interval.start);
+    for (const prior of active) {
+      conflicts.add(prior.date);
+      conflicts.add(interval.date);
+    }
+    active.push(interval);
+  }
+  return conflicts;
+}
+
 export function validReceiptSource(value: unknown): value is ReceiptSourceDay {
   if (!record(value) || !date(value.date) || (value.source !== "pattern" && value.source !== "override")
     || typeof value.isRestDay !== "boolean" || !validReceiptSegments(value.segments)) return false;
@@ -73,6 +102,7 @@ function validSnapshot(value: unknown, workDate: string): value is ScheduleRecei
 export function validScheduleReceiptView(raw: unknown): raw is ScheduleReceiptView {
   if (!record(raw) || !text(raw.boundary) || !Array.isArray(raw.days) || raw.days.length !== 7) return false;
   let previousDate: number | null = null;
+  const windows: Array<Pick<ReceiptSourceDay, "date" | "segments">> = [];
   for (const day of raw.days) {
     if (!record(day) || !date(day.date)) return false;
     const ordinal = Date.parse(day.date + "T00:00:00Z");
@@ -85,8 +115,9 @@ export function validScheduleReceiptView(raw: unknown): raw is ScheduleReceiptVi
     if ((day.state !== "pending" && day.state !== "changed" && day.state !== "acknowledged")
       || !hash(day.snapshotHash) || !validSnapshot(day.snapshot, day.date)) return false;
     if (day.state === "acknowledged" ? !instant(day.acknowledgedAt) : day.acknowledgedAt !== null) return false;
+    windows.push({ date: day.date, segments: day.snapshot.segments });
   }
-  return true;
+  return receiptOverlappingDates(windows).size === 0;
 }
 
 export type ScheduleReceiptConfirmation = {

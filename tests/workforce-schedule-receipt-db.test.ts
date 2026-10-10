@@ -69,6 +69,27 @@ test("schedule receipt service isolates two employers, rejects stale content, an
     await acknowledgeScheduleReceipt(who, { ...request, snapshotHash: changed.days[0].snapshotHash }, today);
     assert.equal((await db.select().from(receipts).where(eq(receipts.organizationId, who.organizationId))).length, 2);
     assert.equal((await db.select().from(scheduleOverrides).where(eq(scheduleOverrides.organizationId, who.organizationId))).length, 1);
+    // Yesterday is outside the seven-day response, but its overnight hours can
+    // invalidate both the first visible day and a one-date acknowledgment POST.
+    const [night] = await db.insert(shiftDefinitions).values({ organizationId: who.organizationId,
+      code: "RECEIPT-NIGHT", name: "Synthetic conflicting night shift", startTime: "22:00", endTime: "12:00",
+      breakMinutes: 60, spansMidnight: true }).returning();
+    const [nightOverride] = await db.insert(scheduleOverrides).values({ organizationId: who.organizationId,
+      employeeId: who.employeeId, workDate: "2030-12-31", kind: "shift", isRestDay: false,
+      segments: [{ shiftDefinitionId: night.id, segmentOrder: 1 }], status: "approved",
+      reason: "Synthetic adjacent-day conflict", createdBy: "Synthetic fixture", approvedBy: "Synthetic checker" }).returning();
+    const conflicting = await readScheduleReceiptView(who, today);
+    assert.equal(conflicting.days.length, 7);
+    assert.equal(conflicting.days[0].state, "unavailable");
+    assert.ok(!conflicting.days.some(day => day.date === "2030-12-31"));
+    await assert.rejects(() => acknowledgeScheduleReceipt(who, { ...request, snapshotHash: changed.days[0].snapshotHash }, today),
+      error => error instanceof ScheduleReceiptError && error.code === "SCHEDULE_UNAVAILABLE");
+    assert.equal((await db.select().from(receipts).where(eq(receipts.organizationId, who.organizationId))).length, 2);
+    assert.equal((await db.select().from(auditEvents).where(and(eq(auditEvents.organizationId, who.organizationId),
+      eq(auditEvents.action, "WFM employee schedule receipt acknowledged")))).length, 2);
+    assert.equal((await readScheduleReceiptView(other, today)).days[0].state, "pending");
+    await db.delete(scheduleOverrides).where(and(eq(scheduleOverrides.organizationId, who.organizationId), eq(scheduleOverrides.id, nightOverride.id)));
+    assert.equal((await readScheduleReceiptView(who, today)).days[0].state, "acknowledged");
     // A malformed live split shift cannot produce a receipt or success audit, even with a formerly valid hash.
     await db.update(scheduleOverrides).set({ segments: [
       { shiftDefinitionId: shifts[0].id, segmentOrder: 1 },
