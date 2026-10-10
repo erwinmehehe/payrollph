@@ -16,6 +16,7 @@ import {
 import { activeTeamRosterPayload, teamRosterScopeKey, type ScopedTeamRosterPayload } from "@/lib/workforce-team-roster-client";
 import type { Notify } from "./types";
 import { EmptyState, Spinner, Status } from "./ui";
+import { WorkforceScheduleReceiptReview } from "./workforce-schedule-receipt-review";
 
 type TeamRosterResponse = {
   weekDates: string[];
@@ -92,6 +93,7 @@ export function WorkforceTeamRosterPanel({
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<{ scopeKey: string; message: string } | null>(null);
   const [editor, setEditor] = useState<DayEditor | null>(null);
+  const [receiptSelection, setReceiptSelection] = useState<{ employee: TeamRosterEmployee; organizationId: number; scopeKey: string } | null>(null);
   const [shiftChoice, setShiftChoice] = useState("REST");
   const [worksiteChoice, setWorksiteChoice] = useState("");
   const [reason, setReason] = useState("");
@@ -112,7 +114,7 @@ export function WorkforceTeamRosterPanel({
     ? filterTeamRosterRows(payload.rows, payload.weekDates, "attention").length : 0, [payload]);
 
   useEffect(() => () => { pendingRequest.current?.abort(); }, []);
-  useEffect(() => { setEditor(null); }, [organizationId]);
+  useEffect(() => { setEditor(null); setReceiptSelection(null); }, [organizationId]);
 
   const load = useCallback(async () => {
     pendingRequest.current?.abort();
@@ -354,6 +356,19 @@ export function WorkforceTeamRosterPanel({
                         <strong>{row.employee.name}</strong>
                         <div className="id">{row.employee.employeeNo}</div>
                         <Status value={row.employee.status} />
+                        {process.env.NEXT_PUBLIC_WFM_SCHEDULE_RECEIPTS_ENABLED === "true" &&
+                          row.employee.status === "Active" && (
+                            <div style={{ marginTop: 8 }}>
+                              <button type="button" className="secondary-button"
+                                aria-label={"Review current schedule acknowledgments for " + row.employee.name}
+                                onClick={() => {
+                                  setEditor(null);
+                                  setReceiptSelection({ employee: row.employee, organizationId, scopeKey });
+                                }}>
+                                Review receipts
+                              </button>
+                            </div>
+                          )}
                       </th>
                       {payload.weekDates.map((date) => {
                         const day = row.days.find((item) => item.date === date);
@@ -415,6 +430,18 @@ export function WorkforceTeamRosterPanel({
           </>
         )}
       </article>
+
+      {process.env.NEXT_PUBLIC_WFM_SCHEDULE_RECEIPTS_ENABLED === "true" &&
+        receiptSelection && receiptSelection.organizationId === organizationId &&
+        receiptSelection.scopeKey === scopeKey &&
+        payload?.rows.some(row => row.employee.id === receiptSelection.employee.id) && (
+          <WorkforceScheduleReceiptReview
+            key={organizationId + ":" + receiptSelection.employee.id + ":" + scopeKey}
+            organizationId={organizationId}
+            employee={receiptSelection.employee}
+            onClose={() => setReceiptSelection(null)}
+          />
+        )}
 
       {editor && canManage && editor.organizationId === organizationId && editor.scopeKey === scopeKey && (
         <article className="card" style={{ marginTop: 16 }} data-wfm-team-roster-editor>
