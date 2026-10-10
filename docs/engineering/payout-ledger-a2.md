@@ -14,6 +14,7 @@ This candidate implements a PostgreSQL-backed, immutable payout **preparation an
 - `prepareInitialPayoutBatch` verifies Released status, organization, exact positive payable entry set, immutable employee references, centavo totals, and absence of prior legacy payout evidence. A `FOR UPDATE` run lock and constraints serialize preparation; inserts and a minimal audit receipt commit together.
 - `claimPreparedPayoutBatch` atomically transitions a Prepared batch and its linked Prepared transfers to Submitting and returns one winner. **It makes no network call.** A crash after this DB commit blocks a blind retry.
 - `markPayoutBatchForReconciliation` moves a claimed ambiguous outcome to `reconciliation_required`. Neither this state nor `succeeded` can be reset to `prepared` by the candidate code.
+- `recordPayoutProviderBatchResponse` validates every accepted remote transfer ID/reference/amount against the frozen claimed batch. It stores the exact provider batch and transfer IDs atomically, but records status as **submitted**, never settled. Wrong counts, amounts or identities roll back, and a late response to an ambiguous outcome requires reconciliation rather than silently changing state.
 
 The service does not store bank account numbers, government IDs, employee names or PayMongo raw responses. The hash does not substitute for validating the frozen recipient destination during final integration.
 
