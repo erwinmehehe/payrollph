@@ -211,6 +211,19 @@ export async function claimPreparedPayoutBatch(input: {
         eq(payoutBatchTransfers.status, "prepared"),
       )).returning({ id: payoutBatchTransfers.id });
     if (updatedLinks.length !== batch.transferCount) throw new Error("PAYOUT_BATCH_ITEMS_ALREADY_CLAIMED");
+    await tx.insert(auditEvents).values({
+      organizationId: input.organizationId,
+      actor: "System",
+      action: "Payroll payout batch claimed (provider call not yet made)",
+      resource: `payroll-run-${batch.payrollRunId}`,
+      metadata: {
+        runId: batch.payrollRunId,
+        payoutBatchId: batch.id,
+        transferCount: batch.transferCount,
+        requestHash: batch.requestHash,
+        moneyMovedByLinaw: false,
+      },
+    });
 
     return {
       batchId: batch.id, organizationId: batch.organizationId,
@@ -256,6 +269,18 @@ export async function markPayoutBatchForReconciliation(input: {
         eq(payoutTransfers.status, "submitting"),
       ));
     }
+    await tx.insert(auditEvents).values({
+      organizationId: input.organizationId,
+      actor: "System",
+      action: "Payroll payout batch requires provider reconciliation",
+      resource: `payout-batch-${input.batchId}`,
+      metadata: {
+        payoutBatchId: input.batchId,
+        transferCount: links.length,
+        moneyMovedByLinaw: null,
+        settlementVerified: false,
+      },
+    });
     return true;
   });
 }
