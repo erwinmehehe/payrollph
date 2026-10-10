@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Layers, X } from "lucide-react";
 import { WAGE_ORDERS } from "@/lib/wage-orders";
 import { taskFirstUiEnabled, uiMoney } from "@/lib/task-first-ui";
@@ -42,11 +42,19 @@ export function NewHireModal({
   });
   const wizard = taskFirstUiEnabled();
   const [step, setStep] = useState(0);
+  const dialogRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!wizard) return;
+    const target = dialogRef.current?.querySelector<HTMLElement>(".tf-hire-step:not([hidden]) input, .tf-hire-step:not([hidden]) select, .tf-hire-review h3");
+    target?.focus();
+  }, [wizard, step]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (wizard && step !== 4) { setError("Complete all onboarding steps before creating the employee."); return; }
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
@@ -77,26 +85,23 @@ export function NewHireModal({
 
   return (
     <div className="modal-backdrop linaw-dialog" role="presentation">
-      <section className="modal large" role="dialog" aria-modal="true" aria-label="Add employee">
+      <section className="modal large" role="dialog" aria-modal="true" aria-labelledby="tf-hire-title" ref={dialogRef} onKeyDown={(event) => { if (event.key === "Escape" && !busy) onClose(); }}>
         <button type="button" className="modal-close" aria-label="Close employee onboarding" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Layers size={22} className="i-teal" /></div>
         <div className="card-kicker">NEW HIRE</div>
-        <h2>{wizard ? ["Employee details","Employment and pay","Optional equipment","Review employee"][step] : "Add employee & start onboarding"}</h2>
-        <p>{wizard ? "Create the employee record in a few clear steps. No equipment details are required." : "Creates the record, generates the provisioning checklist, and optionally assigns equipment immediately."}</p>
-        {wizard && <div className="tf-hire-progress" aria-label={"Step "+(step+1)+" of 4"}>{["Details","Pay and payout","Equipment","Review"].map((name,i)=><span key={name} className={i<=step?"active":""}>{i+1}. {name}</span>)}</div>}
+        <h2 id="tf-hire-title">{wizard ? ["Who’s joining?","Employment and pay","Payout details","Optional equipment","Review and create"][step] : "Add employee & start onboarding"}</h2>
+        <p>{wizard ? "A guided setup for new team members. Review all details before saving." : "Creates the record, generates the provisioning checklist, and optionally assigns equipment immediately."}</p>
+        {wizard && <div className="tf-hire-progress" role="list" aria-label={"Employee onboarding — step "+(step+1)+" of 5"}>{["Details","Pay","Payout","Equipment","Review"].map((name,i)=><span role="listitem" aria-current={i===step?"step":undefined} key={name} className={i<=step?"active":""}>{i+1}. {name}</span>)}</div>}
 
         {error && <div className="notice notice-amber" style={{ margin: "0 0 12px" }}><span>{error}</span></div>}
 
         <form onSubmit={submit}>
-          <div className="tf-hire-steps"><fieldset className="setting-form tf-hire-step" hidden={wizard && step!==0} disabled={wizard && step!==0} aria-label="Employee details">
+          <div className="tf-hire-steps"><fieldset className="setting-form tf-hire-step" hidden={wizard && step!==0} disabled={wizard && step!==0} aria-label="Employee details"><p className="tf-step-intro">Start with the employee’s identity and work contact details. You can add optional fields later.</p>
             <label>First name<input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></label>
             <label>Last name<input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></label>
             <label>Work email<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="for payslip delivery" /></label>
             <label>Job title<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
-          </fieldset><fieldset className="setting-form tf-hire-step" hidden={wizard && step!==1} disabled={wizard && step!==1} aria-label="Employment, pay and payout">
-            <label>Bank / payout code<input value={form.bankCode} onChange={(e) => setForm({ ...form, bankCode: e.target.value.toUpperCase() })} placeholder="BDO / BPI / UB / ..." /></label>
-            <label>Account number<input value={form.bankAccount} onChange={(e) => setForm({ ...form, bankAccount: e.target.value })} placeholder="encrypted after save" autoComplete="off" /></label>
-            <label>Mobile payout number<input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} placeholder="optional" /></label>
+          </fieldset><fieldset className="setting-form tf-hire-step" hidden={wizard && step!==1} disabled={wizard && step!==1} aria-label="Employment and pay"><p className="tf-step-intro">Set the salary basis, regular schedule, start date and work location. These values affect payroll calculations.</p>
             <label>Pay basis
               <select value={form.payBasis} onChange={(e) => setForm({ ...form, payBasis: e.target.value })}>
                 <option value="monthly">Monthly salaried</option>
@@ -135,7 +140,13 @@ export function NewHireModal({
               <input type="checkbox" style={{ width: "auto", height: "auto" }} checked={form.mwe} onChange={(e) => setForm({ ...form, mwe: e.target.checked })} />
               Minimum wage earner
             </label>
-          </fieldset><fieldset className="setting-form tf-hire-step" hidden={wizard && step!==2} disabled={wizard && step!==2} aria-label="Optional equipment">
+          </fieldset><fieldset className="setting-form tf-hire-step" hidden={wizard && step!==2} disabled={wizard && step!==2} aria-label="Payout details">
+            <p className="tf-step-intro">Provide verified bank details now, or leave both fields empty and finish the payout setup before release. Do not enter sample account numbers.</p>
+            <label>Bank / payout code<input value={form.bankCode} onChange={(e) => setForm({ ...form, bankCode: e.target.value.toUpperCase() })} placeholder="BDO / BPI / UB / ..." /></label>
+            <label>Account number<input value={form.bankAccount} onChange={(e) => setForm({ ...form, bankAccount: e.target.value })} placeholder="Enter a verified account number" autoComplete="off" /></label>
+            <label>Mobile payout number<input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} placeholder="optional" /></label>
+          </fieldset><fieldset className="setting-form tf-hire-step" hidden={wizard && step!==3} disabled={wizard && step!==3} aria-label="Optional equipment">
+            <p className="tf-step-intro">Assign equipment if applicable. Leave the equipment name and serial number empty to skip.</p>
             <label>Equipment type
               <select value={form.assetType} onChange={(e) => setForm({ ...form, assetType: e.target.value })}>
                 <option>Laptop</option><option>Desktop</option><option>Phone</option><option>Monitor</option><option>Other</option>
@@ -144,7 +155,7 @@ export function NewHireModal({
             <label>Equipment name<input value={form.assetName} onChange={(e) => setForm({ ...form, assetName: e.target.value })} placeholder="MacBook Air M3 (optional)" /></label>
             <label>Serial number<input value={form.serialNumber} onChange={(e) => setForm({ ...form, serialNumber: e.target.value })} /></label>
           </fieldset>
-          {wizard && step===3 && <section className="tf-hire-review"><h3>Review before creating</h3><dl><div><dt>Employee</dt><dd>{form.firstName} {form.lastName}</dd></div><div><dt>Work email</dt><dd>{form.email || "Not provided"}</dd></div><div><dt>Pay basis</dt><dd>{form.payBasis}</dd></div><div><dt>Pay rate</dt><dd>{form.rateAmount ? uiMoney(form.rateAmount) : "Not set"}</dd></div><div><dt>Start date</dt><dd>{form.startDate}</dd></div><div><dt>Payout details</dt><dd>{form.bankCode && form.bankAccount ? "Provided (not shown)" : "Incomplete — finish before payroll payout"}</dd></div></dl><p>Creating the record does not run payroll or send money. Verify pay and bank information before proceeding.</p></section>}
+          {wizard && step===4 && <section className="tf-hire-review"><h3 tabIndex={-1}>Review before creating</h3><dl><div><dt>Employee</dt><dd>{form.firstName} {form.lastName}</dd></div><div><dt>Work email</dt><dd>{form.email || "Not provided"}</dd></div><div><dt>Pay basis</dt><dd>{form.payBasis}</dd></div><div><dt>Pay rate</dt><dd>{form.rateAmount ? uiMoney(form.rateAmount) : "Not set"}</dd></div><div><dt>Start date</dt><dd>{form.startDate}</dd></div><div><dt>Payout details</dt><dd>{form.bankCode && form.bankAccount ? "Provided (not shown)" : "Incomplete — finish before payroll payout"}</dd></div></dl><p>Creating the record does not run payroll or send money. Verify pay and bank information before proceeding.</p></section>}
           </div>
           {!wizard && <div className="modal-note" style={{ marginTop: 12 }}>
             Bank account and bank code are required together for payout readiness. Only enter verified payout details. Do not use this form to test encryption or payment delivery.
@@ -155,10 +166,10 @@ export function NewHireModal({
           <div className="modal-actions">
             <button type="button" className="secondary-button" onClick={onClose}>Cancel</button>
             {wizard && step>0 && <button type="button" className="secondary-button" disabled={busy} onClick={()=>setStep(x=>x-1)}>Back</button>}
-            {wizard && step<3 ? <button type="button" className="primary-button" disabled={busy} onClick={()=>{
-              const current=document.querySelector<HTMLFieldSetElement>('.tf-hire-step:not([hidden])');
-              if (current && !current.reportValidity()) return;
-              if(step===1 && Boolean(form.bankCode)!==Boolean(form.bankAccount)) {setError("Enter both bank code and account number, or leave both empty until payout setup.");return;}
+            {wizard && step<4 ? <button type="button" className="primary-button" disabled={busy} onClick={()=>{
+              const current=dialogRef.current?.querySelector<HTMLFieldSetElement>('.tf-hire-step:not([hidden])');
+              if (current && !current.reportValidity()) { setError("Check the required fields on this step."); return; }
+              if(step===2 && Boolean(form.bankCode)!==Boolean(form.bankAccount)) {setError("Enter both bank code and account number, or leave both empty until payout setup.");return;}
               setError("");setStep(x=>x+1);
             }}>Continue <ArrowRight size={16}/></button>
             : <button className="primary-button" disabled={busy}>{busy ? "Creating…" : "Create & onboard"} <ArrowRight size={16} /></button>}
