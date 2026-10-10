@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
+import { isCentralSchedulerEnabled } from "@/lib/scheduler-activation";
 import { eq, sql } from "drizzle-orm";
+import { acquireSchedulerLease, refreshSchedulerLease, releaseSchedulerLease, recordSchedulerCompletion } from "@/lib/scheduler-lease";
 import { db } from "@/db";
 import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
@@ -26,6 +29,65 @@ const MIN_INTERVAL_MS = 30_000;
  * Public health probes never execute scheduler work or drain queues.
  */
 export async function tickScheduler(force = false) {
+  // An enabled payroll worker does not authorize automatic HR, salary,
+  // statutory or retention jobs. Require separate, deliberate activation.
+  if (!isCentralSchedulerEnabled()) {
+    return { skipped: true as const, reason: "scheduler-disabled" as const };
+  }
+  const ownerToken = randomUUID();
+  if (!(await acquireSchedulerLease(ownerToken))) {
+    return { skipped: true as const, reason: "another-worker" as const };
+  }
+
+  let active = true;
+  let leaseLost = false;
+  const heartbeat = setInterval(() => {
+    void refreshSchedulerLease(ownerToken).then((renewed) => {
+      if (active && !renewed) {
+        leaseLost = true;
+        console.error("Central scheduler lease was taken by another worker.");
+      }
+    }).catch((error) => {
+      if (active) {
+        leaseLost = true;
+        console.error("Central scheduler lease renewal failed:", error instanceof Error ? error.message : error);
+      }
+    });
+  }, 30_000);
+  heartbeat.unref();
+
+  let completed = false;
+  try {
+    const result = await runScheduledJobs(force, ownerToken, async () => {
+      // A heartbeat only marks lease loss; it cannot stop an in-flight job.
+      // Reconfirm ownership before starting each financial/HR side effect.
+      if (leaseLost || !(await refreshSchedulerLease(ownerToken))) {
+        leaseLost = true;
+        throw new Error("Central scheduler lease lost before scheduled side effect; review partial work.");
+      }
+    });
+    if (leaseLost) {
+      throw new Error("Central scheduler lease renewal failed. Review completed jobs before retrying.");
+    }
+    completed = true;
+    return result;
+  } finally {
+    active = false;
+    clearInterval(heartbeat);
+    const released = await releaseSchedulerLease(ownerToken, completed ? "completed" : "failed");
+    if (completed && !released) {
+      // If ownership changed while the last task completed, the former
+      // worker must never acknowledge the run as safely finished.
+      throw new Error("Central scheduler completed work but no longer owned the lease at release.");
+    }
+  }
+}
+
+async function runScheduledJobs(
+  force: boolean,
+  ownerToken: string,
+  assertLeaseOwnership: () => Promise<void>,
+) {
   const now = new Date();
   const [row] = await db.select().from(schedulerState).where(eq(schedulerState.jobName, "delivery-drain")).limit(1);
 
@@ -33,9 +95,12 @@ export async function tickScheduler(force = false) {
     return { skipped: true as const, reason: "interval", lastRunAt: row.lastRunAt };
   }
 
+  await assertLeaseOwnership();
   const webhookResults = await drainWebhookRetries(25);
+  await assertLeaseOwnership();
   const mailResults = await drainOutboxRetries(25);
   const mailRetried = mailResults.filter((item) => item.retried);
+  await assertLeaseOwnership();
   const marketingLeadResults = await drainMarketingLeadNotifications(25);
 
   const [retentionState] = await db.select().from(schedulerState)
@@ -44,14 +109,19 @@ export async function tickScheduler(force = false) {
   const retentionDue =
     !retentionState?.lastRunAt
     || now.getTime() - retentionState.lastRunAt.getTime() >= 24 * 60 * 60 * 1000;
+  if (retentionDue) await assertLeaseOwnership();
   const retention = retentionDue ? await purgeExpiredOperationalData(now.getTime()) : null;
+  await assertLeaseOwnership();
   const statutoryRemittanceActions = await runScheduledStatutoryRemittanceSync({
     actor: "System scheduler",
   });
+  await assertLeaseOwnership();
   const contributionCaseEscalations = await runScheduledContributionCaseEscalations({
     actor: "System scheduler",
   });
+  await assertLeaseOwnership();
   const automationResumes = await resumeDueAutomationExecutions(now, 25);
+  await assertLeaseOwnership();
   const automationTemporalEvents = await runScheduledAutomationTemporalEvents({ now });
 
   const [hcmDocumentState] = await db.select().from(schedulerState)
@@ -60,28 +130,33 @@ export async function tickScheduler(force = false) {
   const hcmDocumentDue =
     !hcmDocumentState?.lastRunAt
     || now.getTime() - hcmDocumentState.lastRunAt.getTime() >= 6 * 60 * 60 * 1000;
+  if (hcmDocumentDue) await assertLeaseOwnership();
   const hcmDocumentExpiry = hcmDocumentDue
     ? await runScheduledHcmDocumentExpiry({ actor: "System scheduler", now })
     : null;
 
+  await assertLeaseOwnership();
   const hcmEffectiveChanges = await runScheduledWorkerEffectiveChanges({
     actor: "System scheduler",
     now,
     limit: 50,
   });
 
+  await assertLeaseOwnership();
   const hcmEmploymentTerms = await runScheduledEmploymentTerms({
     actor: "System scheduler",
     now,
     limit: 100,
   });
 
+  await assertLeaseOwnership();
   const hcmEmploymentTermDecisions = await runScheduledEmploymentTermDecisions({
     actor: "System scheduler",
     now,
     limit: 100,
   });
 
+  await assertLeaseOwnership();
   const hcmCompensation = await runScheduledCompensationGovernance({
     actor: "System scheduler",
     now,
@@ -94,6 +169,7 @@ export async function tickScheduler(force = false) {
   const hcmLifecycleNotificationsDue =
     !hcmLifecycleNotificationState?.lastRunAt
     || now.getTime() - hcmLifecycleNotificationState.lastRunAt.getTime() >= 60 * 60 * 1000;
+  if (hcmLifecycleNotificationsDue) await assertLeaseOwnership();
   const hcmLifecycleNotifications = hcmLifecycleNotificationsDue
     ? await runScheduledHcmLifecycleNotifications({ actor: "System scheduler", now })
     : null;
@@ -104,14 +180,17 @@ export async function tickScheduler(force = false) {
   const performanceRemindersDue =
     !performanceReminderState?.lastRunAt
     || now.getTime() - performanceReminderState.lastRunAt.getTime() >= 60 * 60 * 1000;
+  if (performanceRemindersDue) await assertLeaseOwnership();
   const performanceReminders = performanceRemindersDue
     ? await runScheduledPerformanceReminders({ actor: "System scheduler", now })
     : null;
+  if (performanceRemindersDue) await assertLeaseOwnership();
   const performanceActionReminders = performanceRemindersDue
     ? await runScheduledPerformanceActionReminders({ actor: "System scheduler", now })
     : null;
 
   if (performanceRemindersDue) {
+    await assertLeaseOwnership();
     const performanceReminderPayload = {
       at: now.toISOString(),
       reviewOrganizations: performanceReminders?.length ?? 0,
@@ -139,11 +218,13 @@ export async function tickScheduler(force = false) {
   const performanceEvidenceDue =
     !performanceEvidenceState?.lastRunAt
     || now.getTime() - performanceEvidenceState.lastRunAt.getTime() >= 6 * 60 * 60 * 1000;
+  if (performanceEvidenceDue) await assertLeaseOwnership();
   const performanceEvidenceSealing = performanceEvidenceDue
     ? await runScheduledPerformanceEvidenceSealing({ actor: "System scheduler", now })
     : null;
 
   if (performanceEvidenceDue) {
+    await assertLeaseOwnership();
     const performanceEvidencePayload = {
       at: now.toISOString(),
       sealedCycles: performanceEvidenceSealing?.length ?? 0,
@@ -164,6 +245,7 @@ export async function tickScheduler(force = false) {
   }
 
   if (hcmLifecycleNotificationsDue) {
+    await assertLeaseOwnership();
     const lifecyclePayload = {
       at: now.toISOString(),
       organizations: hcmLifecycleNotifications?.length ?? 0,
@@ -184,6 +266,7 @@ export async function tickScheduler(force = false) {
   }
 
   if (hcmDocumentDue) {
+    await assertLeaseOwnership();
     const hcmDocumentPayload = {
       at: now.toISOString(),
       processed: hcmDocumentExpiry?.length ?? 0,
@@ -204,6 +287,7 @@ export async function tickScheduler(force = false) {
   }
 
   if (retentionDue) {
+    await assertLeaseOwnership();
     const retentionPayload = { at: now.toISOString(), deleted: retention };
     if (retentionState) {
       await db.update(schedulerState).set({
@@ -246,10 +330,12 @@ export async function tickScheduler(force = false) {
     },
   };
 
-  if (row) {
-    await db.update(schedulerState).set({ lastRunAt: now, lastResult: payload }).where(eq(schedulerState.id, row.id));
-  } else {
-    await db.insert(schedulerState).values({ jobName: "delivery-drain", lastRunAt: now, lastResult: payload });
+  await assertLeaseOwnership();
+  // Final liveness evidence is written under a row lock on the current
+  // lease in the SAME SQL statement. A stale owner cannot race a takeover.
+  const committed = await recordSchedulerCompletion(ownerToken, payload);
+  if (!committed) {
+    throw new Error("Central scheduler lost its lease before completion receipt.");
   }
 
   return { skipped: false as const, ...payload };

@@ -97,11 +97,15 @@ test("production documents fail closed unless malware scanning reports clean", (
   assert.ok(readiness.includes('blocks: documentUploadSafetyReady ? "none" : "launch"'));
 });
 
-test("dedicated worker drains payroll and webhook queues from a persistent process", () => {
+test("dedicated worker runs payroll and the leased central scheduler", () => {
   const worker = readFileSync("scripts/worker.ts", "utf8");
+  const scheduler = readFileSync("src/lib/scheduler.ts", "utf8");
   const pkg = JSON.parse(readFileSync("package.json", "utf8"));
   assert.ok(worker.includes("processNextPayrollJob"));
-  assert.ok(worker.includes("drainWebhookRetries"));
+  assert.ok(worker.includes("await tickScheduler()"));
+  assert.ok(!worker.includes('import { drainWebhookRetries }'));
+  assert.ok(scheduler.includes("acquireSchedulerLease(ownerToken)"));
+  assert.ok(scheduler.includes("refreshSchedulerLease(ownerToken)"));
   assert.equal(pkg.scripts.worker, "tsx scripts/worker.ts");
 });
 
