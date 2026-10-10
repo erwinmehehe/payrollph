@@ -113,7 +113,12 @@ export async function POST(request: Request) {
 
   // Insert provider event + audit receipt atomically. A unique(provider,
   // eventId) index serializes simultaneous deliveries across workers.
-  const recorded = await db.transaction(async (tx) => {
+  // A source merge may precede the separately controlled 0110 SQL rollout.
+  // Never acknowledge a signed provider event as delivered if the durable
+  // inbox/audit transaction cannot commit (including missing migration).
+  let recorded: boolean;
+  try {
+    recorded = await db.transaction(async (tx) => {
     const [accepted] = await tx.insert(providerEvents).values({
       provider: "paymongo",
       eventId: event.eventId,
@@ -151,7 +156,13 @@ export async function POST(request: Request) {
       },
     });
     return true;
-  });
+    });
+  } catch {
+    return Response.json(
+      { error: "Provider event inbox is temporarily unavailable; retry delivery." },
+      { status: 503 },
+    );
+  }
 
   return Response.json(recorded
     ? { ok: true, recorded: true }

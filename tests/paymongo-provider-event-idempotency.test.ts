@@ -58,8 +58,8 @@ test("PayMongo webhook's transaction claims uniqueness after validating transfer
   assert.ok(!source.includes("events.find((row) => {"));
 });
 
-test("pending DBA SQL enforces globally unique provider remote event ids", () => {
-  const sql = readFileSync("docs/sql/pending-provider-events-inbox.sql", "utf8");
+test("0110 migration enforces globally unique provider remote event ids", () => {
+  const sql = readFileSync("drizzle/0110_provider_events_inbox.sql", "utf8");
   assert.match(sql, /CREATE UNIQUE INDEX IF NOT EXISTS "provider_events_provider_event_id_unique"/);
   assert.match(sql, /ON "provider_events" \("provider", "event_id"\)/);
 });

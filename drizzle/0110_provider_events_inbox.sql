@@ -1,6 +1,6 @@
--- A-1 / provider webhook inbox. This SQL is a RELEASE CANDIDATE; a contiguous migration number must be reserved AFTER pending PR #739's
--- 0109 tamper-evident audit migration; DBA must reconcile/apply ordered history.
--- This file is deliberately outside drizzle/ because main currently ends at 0108 and 0109 is reserved by PR #739. Assign the next contiguous number only after that predecessor merges; do NOT apply this candidate without independent DBA review.
+-- A-1: durable PayMongo/provider event inbox. Append after 0109 audit-chain SQL.
+-- Must be applied in the selected staging/production database under the
+-- database release runbook; a GitHub source merge does not run migrations.
 CREATE TABLE IF NOT EXISTS "provider_events" (
   "id" serial PRIMARY KEY,
   "provider" varchar(32) NOT NULL,
