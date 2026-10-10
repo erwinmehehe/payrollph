@@ -13,6 +13,7 @@ import {
   type TeamRosterSummary,
   type TeamRosterFocus,
 } from "@/lib/workforce-team-roster";
+import { activeTeamRosterPayload, teamRosterScopeKey, type ScopedTeamRosterPayload } from "@/lib/workforce-team-roster-client";
 import type { Notify } from "./types";
 import { EmptyState, Spinner, Status } from "./ui";
 
@@ -87,9 +88,9 @@ export function WorkforceTeamRosterPanel({
   const [appliedSearch, setAppliedSearch] = useState("");
   const [focus, setFocus] = useState<TeamRosterFocus>("all");
   const pendingRequest = useRef<AbortController | null>(null);
-  const [payload, setPayload] = useState<TeamRosterResponse | null>(null);
+  const [storedPayload, setStoredPayload] = useState<ScopedTeamRosterPayload<TeamRosterResponse> | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  const [loadError, setLoadError] = useState<{ scopeKey: string; message: string } | null>(null);
   const [editor, setEditor] = useState<DayEditor | null>(null);
   const [shiftChoice, setShiftChoice] = useState("REST");
   const [worksiteChoice, setWorksiteChoice] = useState("");
@@ -97,6 +98,11 @@ export function WorkforceTeamRosterPanel({
   const [acknowledged, setAcknowledged] = useState(false);
   const [editorError, setEditorError] = useState("");
   const [saving, setSaving] = useState(false);
+  // Derive visibility directly from the current props/filters, without waiting
+  // for useEffect to clear a previous tenant's roster or CSV source.
+  const scopeKey = teamRosterScopeKey(organizationId, startDate, page, appliedSearch);
+  const payload = activeTeamRosterPayload(storedPayload, scopeKey);
+  const activeLoadError = loadError?.scopeKey === scopeKey ? loadError.message : "";
 
   const visibleRows = useMemo(() => payload
     ? filterTeamRosterRows(payload.rows, payload.weekDates, focus) : [], [payload, focus]);
@@ -112,9 +118,10 @@ export function WorkforceTeamRosterPanel({
     pendingRequest.current?.abort();
     const controller = new AbortController();
     pendingRequest.current = controller;
+    const requestedScope = teamRosterScopeKey(organizationId, startDate, page, appliedSearch);
     setLoading(true);
-    setLoadError("");
-    setPayload(null);
+    setLoadError(null);
+    setStoredPayload(null);
     try {
       const params = new URLSearchParams({
         organizationId: String(organizationId),
@@ -127,15 +134,18 @@ export function WorkforceTeamRosterPanel({
         signal: controller.signal,
       });
       const body = await response.json().catch(() => ({}));
+      if (controller.signal.aborted || pendingRequest.current !== controller) return;
       if (!response.ok) {
         throw new Error(body.error ?? "Could not load the team roster.");
       }
-      if (controller.signal.aborted) return;
-      setPayload(body as TeamRosterResponse);
+      if (body?.page !== page || body?.startDate !== startDate) {
+        throw new Error("The team roster returned an unexpected week or worker page.");
+      }
+      setStoredPayload({ scopeKey: requestedScope, data: body as TeamRosterResponse });
     } catch (error) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || pendingRequest.current !== controller) return;
       const message = error instanceof Error ? error.message : "Could not load the team roster.";
-      setLoadError(message);
+      setLoadError({ scopeKey: requestedScope, message });
       notify(message, "err");
     } finally {
       if (pendingRequest.current === controller) {
@@ -288,7 +298,7 @@ export function WorkforceTeamRosterPanel({
           )}
         </form>
 
-        {loadError && <div className="notice notice-red" role="alert" style={{ margin: "0 18px 16px" }}>{loadError}</div>}
+        {activeLoadError && <div className="notice notice-red" role="alert" style={{ margin: "0 18px 16px" }}>{activeLoadError}</div>}
         {loading && <div style={{ padding: 18 }}><Spinner label="Loading roster" /></div>}
 
         {payload && (
@@ -406,7 +416,7 @@ export function WorkforceTeamRosterPanel({
         )}
       </article>
 
-      {editor && canManage && (
+      {editor && canManage && editor.organizationId === organizationId && (
         <article className="card" style={{ marginTop: 16 }} data-wfm-team-roster-editor>
           <div className="card-header">
             <div>
