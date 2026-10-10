@@ -206,7 +206,7 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
                         </span>
                         {position.supervisoryOrgUnitId !== null && position.orgUnitId !== position.supervisoryOrgUnitId &&
                           <span className="mt-1 block text-xs text-slate-500">
-                            Administrative unit #{position.orgUnitId ?? "unassigned"} · Supervisory unit #{position.supervisoryOrgUnitId}
+                            Administrative unit: {position.orgUnitId ?? "not verified in active snapshot"} · Supervisory unit #{position.supervisoryOrgUnitId}
                           </span>}
                       </button>
                     </li>
