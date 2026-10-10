@@ -7,7 +7,7 @@ import {
 } from "@/db/schema";
 import { roleApproverMatchesRole } from "@/lib/delegation";
 import {
-  projectHcmDecisions, projectPeopleFollowUps, projectOperationalCases,
+  projectHcmDecisions, projectPeopleFollowUps, projectOperationalCases, hcmHomeSourceTimestamp,
   type HcmHomeFollowUpInput,
   type HcmHomeDecisionInput,
 } from "@/lib/hcm-people-home-projection";
@@ -30,9 +30,7 @@ function delegationBusinessDate(now = new Date()) {
 }
 
 function sourceTimestamp(value: Date | string | null): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+  return hcmHomeSourceTimestamp(value);
 }
 
 /** Bounded source query and one batched delegation lookup, not N+1 canDecide. */

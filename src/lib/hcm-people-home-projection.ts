@@ -66,12 +66,27 @@ function positiveId(value: number): boolean {
   return Number.isSafeInteger(value) && value > 0;
 }
 
-function timestamp(value: string | null): string | null {
-  return value && Number.isFinite(Date.parse(value)) ? value : null;
+/** Preserve only real date-only milestones, without inventing a timezone. */
+function dateOnly(value: string | null): string | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(value + "T00:00:00.000Z");
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value ? value : null;
 }
 
-function dateOnly(value: string | null): string | null {
-  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+/**
+ * SLA evidence must be a real instant with an explicit zone. Date.parse alone
+ * accepts date-only values, local wall times and normalized impossible dates.
+ * Share this boundary with the server so malformed strings cannot become
+ * apparently valid UTC timestamps before projection. Missing means unknown.
+ */
+export function hcmHomeSourceTimestamp(value: Date | string | null): string | null {
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value.toISOString() : null;
+  }
+  if (typeof value !== "string") return null;
+  const match = /^(\d{4}-\d{2}-\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.exec(value);
+  if (!match || !dateOnly(match[1]) || !Number.isFinite(Date.parse(value))) return null;
+  return value;
 }
 
 /** Decisions are already assignee-authorized by the HCM BP source endpoint. */
@@ -85,10 +100,10 @@ export function projectHcmDecisions(tenantId: number, rows: readonly HcmHomeDeci
     workflowType: "HCM business process",
     label: row.stepType === "approval" ? "Approval step" : row.stepType === "review" ? "Review step" : "To-do step",
     status: row.makerBlocked ? "blocked_self_review" : "pending_work",
-    dueAt: timestamp(row.dueAt),
+    dueAt: hcmHomeSourceTimestamp(row.dueAt),
     sourceDate: null,
     actionRoute: "People",
-    incompleteEvidence: false,
+    incompleteEvidence: hcmHomeSourceTimestamp(row.dueAt) === null,
   }));
 }
 
@@ -107,7 +122,7 @@ export function projectPeopleFollowUps(tenantId: number, rows: readonly HcmHomeF
       dueAt: null,
       sourceDate: dateOnly(row.dueDate),
       actionRoute: row.page,
-      incompleteEvidence: row.priority === "source_check",
+      incompleteEvidence: row.priority === "source_check" || dateOnly(row.dueDate) === null,
     }));
 }
 
@@ -123,9 +138,9 @@ export function projectOperationalCases(tenantId: number, rows: readonly HcmHome
       workflowType: "operational_case",
       label: "Operational case #" + row.id,
       status: row.status === "acknowledged" ? "acknowledged_case" : "open_case",
-      dueAt: timestamp(row.dueAt),
+      dueAt: hcmHomeSourceTimestamp(row.dueAt),
       sourceDate: null,
       actionRoute: "WorkQueue",
-      incompleteEvidence: false,
+      incompleteEvidence: hcmHomeSourceTimestamp(row.dueAt) === null,
     }));
 }
