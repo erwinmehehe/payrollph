@@ -41,7 +41,7 @@ import {
   yearEndAdjustments,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
-import { encryptBankAccount } from "@/lib/bank-account-crypto";
+import { sealPayrollPaymentBankAccount } from "@/lib/payroll-snapshot-sealing";
 import { validPayrollLoanSchedule } from "@/lib/payroll-loan-approval";
 import {
   computeCutoffStatutoryDeduction,
@@ -488,6 +488,12 @@ async function processPayrollChunk(input: {
     );
   }
   const chunk = allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
+  // Seal and verify the entire chunk before inserting any payroll entries.
+  // A missing key or unreadable legacy envelope must not leave a partial chunk.
+  const sealedPaymentBankAccounts = new Map<number, string | null>();
+  for (const employee of chunk) {
+    sealedPaymentBankAccounts.set(employee.id, sealPayrollPaymentBankAccount(employee.bankAccount));
+  }
   const chunkIds = chunk.map((employee) => employee.id);
   const payProfileRows = chunkIds.length
     ? await db.select().from(employeePayProfiles).where(inArray(employeePayProfiles.employeeId, chunkIds))
@@ -1594,8 +1600,8 @@ async function processPayrollChunk(input: {
           middleName: employee.middleName,
           lastName: employee.lastName,
           email: employee.email,
-          // Legacy plaintext employee rows must never be copied into the payroll trace.
-          bankAccount: encryptBankAccount(employee.bankAccount),
+          // Use the verified, pre-sealed snapshot from this chunk (never raw employee bytes).
+          bankAccount: sealedPaymentBankAccounts.get(employee.id) ?? null,
           bankCode: employee.bankCode,
           mobile: employee.mobile,
         },

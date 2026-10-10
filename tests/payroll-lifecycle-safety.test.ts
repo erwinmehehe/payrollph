@@ -23,7 +23,7 @@ test("calculation snapshots payout instructions and release rejects stale employ
 
   assert.ok(engine.includes("payment: {"));
   assert.ok(engine.includes("payProfile: {"));
-  assert.ok(engine.includes("bankAccount: encryptBankAccount(employee.bankAccount)"));
+  assert.ok(engine.includes("bankAccount: sealedPaymentBankAccounts.get(employee.id) ?? null"));
   assert.ok(engine.includes("mobile: employee.mobile"));
   assert.ok(settlement.includes("lacks an immutable payment snapshot"));
   assert.ok(settlement.includes('employee.status !== "Active"'));
