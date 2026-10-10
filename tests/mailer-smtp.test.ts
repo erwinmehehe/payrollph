@@ -253,7 +253,8 @@ test("worker, scheduler and release route are wired to durable email recovery", 
   const release = readFileSync("src/app/api/payroll-runs/[id]/release/route.ts", "utf8");
   const outboxRoute = readFileSync("src/app/api/outbox/route.ts", "utf8");
 
-  assert.ok(worker.includes("drainOutboxRetries"));
+  assert.ok(worker.includes("await tickScheduler()"), "dedicated worker must invoke the central scheduler");
+  assert.ok(scheduler.includes("drainOutboxRetries"), "central scheduler must handle email retries");
   assert.ok(worker.includes("mailRetries"));
   assert.ok(scheduler.includes('jobName, "delivery-drain"'));
   assert.ok(scheduler.includes("mailRetries"));
