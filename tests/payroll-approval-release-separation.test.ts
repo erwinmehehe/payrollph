@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import { auditEvents, organizations } from "../src/db/schema";
 import {
@@ -74,10 +75,10 @@ test("release gate checks exact tenant, payroll, task and delegated decider audi
   } finally {
     await db.delete(organizations).where(
       // Foreign-key cascade removes synthetic audit events; one org at a time.
-      (await import("drizzle-orm")).eq(organizations.id, left.id),
+      eq(organizations.id, left.id),
     );
     await db.delete(organizations).where(
-      (await import("drizzle-orm")).eq(organizations.id, right.id),
+      eq(organizations.id, right.id),
     );
   }
 });
