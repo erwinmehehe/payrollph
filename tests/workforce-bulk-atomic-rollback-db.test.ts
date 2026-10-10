@@ -63,7 +63,7 @@ test("duplicate override aborts every batch write, stale timecard and audit", as
       // Conflict with a preexisting single-worker approval. The entire batch
       // must roll back, including the first worker, timecard and audit receipt.
       await tx.insert(scheduleOverrides).values(override(people[1].id));
-    }, { isolationLevel: "serializable" }));
+    }, { isolationLevel: "read committed" }));
 
     const recorded = await db.select().from(scheduleOverrides).where(
       eq(scheduleOverrides.organizationId, org.id),
