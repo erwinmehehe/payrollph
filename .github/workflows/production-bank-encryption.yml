@@ -99,7 +99,9 @@ jobs:
           npx tsx scripts/encrypt-bank-accounts.ts | tee /tmp/bank-encryption-verify.txt
           grep -Eq '0 to encrypt\.$' /tmp/bank-encryption-verify.txt
           grep -Eq '^0 payroll payment snapshot\(s\) also hold a plaintext account number\.$' /tmp/bank-encryption-verify.txt
-          grep -Eq '^0 legal entity disbursement account\(s\) hold plaintext\.
+          grep -Fqx '0 legal entity disbursement account(s) hold plaintext.' /tmp/bank-encryption-verify.txt
+          grep -Fqx '0 payout change request(s) hold plaintext.' /tmp/bank-encryption-verify.txt
+          echo "Legacy employee, payroll snapshot, legal-entity, and payout-change accounts are encrypted."
 
       - name: Verify live readiness sees encrypted bank data
         if: ${{ inputs.mode == 'apply' }}
