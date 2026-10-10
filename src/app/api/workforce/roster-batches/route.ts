@@ -75,7 +75,8 @@ export async function GET(request: Request) {
   return Response.json({ batches: rows.map(row => ({
     id: row.id, workDate: String(row.workDate),
     shiftDefinitionId: row.shiftDefinitionId, reason: row.reason, status: row.status,
-    requestedBy: row.requestedByName, requestedAt: row.requestedAt,
+    requestedBy: row.requestedByName, requestedByUserId: row.requestedByUserId,
+    requestedAt: row.requestedAt,
     decidedBy: row.decidedByName, decidedAt: row.decidedAt,
     decisionNote: row.decisionNote,
     employees: Array.isArray(row.employeeIds)
