@@ -59,12 +59,12 @@ test("legacy plaintext remains readable for migration, but non-empty writes fail
   assert.equal(decryptBankAccount("1234567890", withKey(undefined)), "1234567890");
   assert.throws(
     () => encryptBankAccount("1234567890", withKey(undefined)),
-    /Bank-account save refused: configure BANK_DATA_ENCRYPTION_KEY or TOTP_ENCRYPTION_KEY/,
+    /BANK_DATA_ENCRYPTION_KEY or a valid TOTP_ENCRYPTION_KEY is required/,
   );
   const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
   assert.throws(
     () => encryptBankAccount(sealed, withKey(undefined)),
-    /Bank-account save refused/,
+    /is required to store a bank account/,
     "re-saving ciphertext must not silently skip key verification",
   );
   assert.equal(encryptBankAccount(null, withKey(undefined)), null);
@@ -229,4 +229,32 @@ test("bank rotation also supports a previous TOTP-derived bank key", () => {
   assert.equal(decryptBankAccount(sealedOld, rotatingEnv), "1234567890");
   const rotated = rotateBankAccountEncryption(sealedOld, rotatingEnv)!;
   assert.equal(decryptBankAccount(rotated, withKey(KEY_B)), "1234567890");
+});
+
+test("bank writes fail closed in every environment with no usable current key", () => {
+  for (const nodeEnv of ["production", "development", "test"]) {
+    const env = { NODE_ENV: nodeEnv } as NodeJS.ProcessEnv;
+    assert.throws(() => encryptBankAccount(" 1234567890 ", env), /required to store a bank account/);
+    assert.equal(encryptBankAccount(null, env), null);
+    assert.equal(encryptBankAccount("", env), null);
+    assert.equal(encryptBankAccount("  ", env), null);
+  }
+  // A previous rotation key is for reading old ciphertext, not new writes.
+  const previousOnly = { NODE_ENV: "test", BANK_DATA_ENCRYPTION_KEY_PREVIOUS: KEY_A } as NodeJS.ProcessEnv;
+  assert.throws(() => encryptBankAccount("1234567890", previousOnly), /required to store/);
+  const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
+  assert.throws(() => encryptBankAccount(sealed, withKey(undefined)), /required to store/);
+  assert.throws(() => encryptBankAccount(sealed, previousOnly), /required to store/);
+});
+
+test("an already-encrypted bank value must authenticate before being saved", () => {
+  const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
+  assert.throws(() => encryptBankAccount(sealed, withKey(KEY_B)), /could not be decrypted/);
+  assert.throws(() => encryptBankAccount("enc:v1:notvalid", withKey(KEY_A)), /malformed/);
+  const rotation = {
+    NODE_ENV: "test",
+    BANK_DATA_ENCRYPTION_KEY: KEY_B,
+    BANK_DATA_ENCRYPTION_KEY_PREVIOUS: KEY_A,
+  } as NodeJS.ProcessEnv;
+  assert.equal(encryptBankAccount(sealed, rotation), sealed);
 });

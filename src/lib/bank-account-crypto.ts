@@ -13,14 +13,14 @@ import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes }
  * with a fresh random 96-bit IV per value, so equal account numbers do not
  * produce equal ciphertext, and any tampering fails authentication on read.
  *
- * Rollout is deliberately non-breaking:
- *   - Reads accept both encrypted values and legacy plaintext, so nothing has
- *     to be migrated in one step.
+ * Rollout supports legacy reads, but never legacy plaintext writes:
+ *   - Reads accept legacy plaintext until the audited backfill is complete.
  *   - BANK_DATA_ENCRYPTION_KEY is the explicit override. When it is absent,
- *     a domain-separated bank key can be derived from TOTP_ENCRYPTION_KEY.
- *     Neither key available: any non-empty bank-account WRITE fails closed.
- *     Legacy plaintext READS remain available only for migration/reconciliation.
- *   - scripts/encrypt-bank-accounts.ts backfills existing rows.
+ *     a domain-separated bank key may be derived from TOTP_ENCRYPTION_KEY.
+ *   - Without a valid current key, any non-empty write throws in every environment.
+ *     A missing key must never silently persist an employee account number.
+ *   - scripts/encrypt-bank-accounts.ts backfills pre-existing plaintext rows;
+ *     this write guard does not claim that old data is already encrypted.
  *
  * Key rotation is supported with a one-key grace window. Configure the new
  * BANK_DATA_ENCRYPTION_KEY (or TOTP_ENCRYPTION_KEY), place the old key in
@@ -132,10 +132,10 @@ export function bankEncryptionKeyFingerprint(env: NodeJS.ProcessEnv = process.en
 }
 
 /**
- * Encrypts a plaintext account number for storage. Null/empty stays null,
- * already-encrypted values are returned as-is so repeated saves never
- * double-encrypt. A valid encryption key is mandatory for non-empty writes,
- * including a re-save of an encrypted value; no plaintext-at-rest fallback.
+ * Encrypts a plaintext account number for storage. Null/empty stays null.
+ * A missing key fails CLOSED regardless of NODE_ENV. Existing encrypted values
+ * are kept only after verifying authenticated decryption, so a forged envelope
+ * cannot be persisted on a repeated save.
  */
 export function encryptBankAccount(
   value: string | null | undefined,
@@ -144,16 +144,16 @@ export function encryptBankAccount(
   if (value == null) return null;
   const plain = value.trim();
   if (!plain) return null;
-  // Never let a production or test misconfiguration write plaintext bank PII.
-  // Check even encrypted pass-through writes so a re-save cannot disguise a
-  // missing deployment secret. Legacy plaintext reads remain migration-only.
   const key = configuredKey(env);
   if (!key) {
-    throw new Error(
-      `Bank-account save refused: configure ${KEY_ENV} or ${MASTER_KEY_ENV} before writing non-empty bank details.`,
-    );
+    throw new Error(`${KEY_ENV} or a valid ${MASTER_KEY_ENV} is required to store a bank account.`);
   }
-  if (isEncryptedBankAccount(plain)) return plain;
+  if (isEncryptedBankAccount(plain)) {
+    // Prevent malformed or unreadable envelopes from entering the database.
+    // During key rotation, decryptBankAccount also verifies the previous key.
+    decryptBankAccount(plain, env);
+    return plain;
+  }
 
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
