@@ -78,7 +78,7 @@ async function candidateApprovers(organizationId: number, userId: number, name: 
   // Superset around Manila/UTC boundaries; canDecide checks actual dates.
   const yesterday = new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
   const tomorrow = new Date(now.getTime() + 86_400_000).toISOString().slice(0, 10);
-  const [grants, names] = await Promise.all([
+  const [grants, names, [workerMembership]] = await Promise.all([
     db.select({ fromApprover: approvalDelegations.fromApprover })
       .from(approvalDelegations).where(and(
         eq(approvalDelegations.organizationId, organizationId),
@@ -96,6 +96,12 @@ async function candidateApprovers(organizationId: number, userId: number, name: 
         eq(userOrganizations.active, true),
         sql`lower(trim(${users.name})) = ${normalizedName}`,
       )).limit(2),
+    db.select({ workerEmployeeId: userOrganizations.workerEmployeeId })
+      .from(userOrganizations).where(and(
+        eq(userOrganizations.organizationId, organizationId),
+        eq(userOrganizations.userId, userId),
+        eq(userOrganizations.active, true),
+      )).limit(1),
   ]);
   if (grants.length > MAX_DELEGATIONS) throw new DecisionInboxSourceLimitError();
   const nameUnique = names.length === 1 && names[0].userId === userId;
@@ -106,7 +112,11 @@ async function candidateApprovers(organizationId: number, userId: number, name: 
     ...roles,
     ...grants.map((grant) => grant.fromApprover.trim().toLowerCase()),
   ]);
-  return { nameUnique, candidates: [...candidates].filter(Boolean) };
+  return {
+    nameUnique,
+    selfEmployeeId: workerMembership?.workerEmployeeId ?? null,
+    candidates: [...candidates].filter(Boolean),
+  };
 }
 
 async function loadHcmCandidates(
@@ -239,7 +249,7 @@ export async function loadManagerDecisionPage(input: {
   }
   const now = new Date();
   await requireActiveUnit(organizationId, scope, now);
-  const { nameUnique, candidates } = await candidateApprovers(
+  const { nameUnique, selfEmployeeId, candidates } = await candidateApprovers(
     organizationId, userId, userName, viewerRole, now,
   );
   const observedAt = now.toISOString();
@@ -279,6 +289,10 @@ export async function loadManagerDecisionPage(input: {
   };
   const authorized = await Promise.all(page.map(async (row) => {
     if (row.makerId === userId && row.stepType !== "to_do") return null;
+    // A linked manager-to-worker identity also blocks self-service source
+    // requests from masquerading as independent manager decisions.
+    if (row.source !== "hcm" && selfEmployeeId !== null &&
+        row.employee?.id === selfEmployeeId) return null;
     const assignment = await evaluate(row.assignee);
     if (!assignment) return null;
     const due = projectDueState(row.dueAt, now);
