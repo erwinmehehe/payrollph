@@ -4,11 +4,12 @@ Status: **code repair in review**. These controls DO NOT certify that live payro
 
 ## Bank account writes — mandatory encryption in all environments
 
-- Any non-empty value passed to encryptBankAccount now requires a valid 32-byte BANK_DATA_ENCRYPTION_KEY, or an available valid TOTP_ENCRYPTION_KEY from which the domain-separated bank key can be derived. No environment can silently store new plaintext bank account numbers through this function. Employee writes, payroll payment snapshots, pending payout changes, payout-change application and employer disbursement edits are routed through it.
+- Any non-empty value passed to encryptBankAccount now requires a valid 32-byte BANK_DATA_ENCRYPTION_KEY, or an available valid TOTP_ENCRYPTION_KEY from which the domain-separated bank key can be derived. No environment can silently store new plaintext bank account numbers through this function. Employee writes, pending payout changes, payout-change application and employer disbursement edits are routed through it. **New payroll payment snapshots are patched separately in dependent PR #724 because the payout/payroll isolation policy forbids touching the protected calculation engine in this bank security PR. Merge #723 before #724.**
 - A malformed explicitly supplied dedicated key does not fall back to the master key. A previous rotation key does NOT count as a write key.
 - Existing encrypted envelopes must authenticate before being re-saved. Null/empty values remain null.
 - Legacy plaintext DECRYPTION remains available **only** for staged migration/reading; the fix does not magically encrypt rows already in the database.
 - An encrypted bank value that cannot authenticate under current/previous key is rejected, never silently replaced or passed through for storage.
+- The payroll calculation trace changes are isolated in #724. Until #724 merges, live bank-data backfill and verified current encryption keys are critical to avoid future trace copies from legacy employee rows.
 
 **Operations before opening production to new bank-data writes:**
 1. Provision a valid high-entropy dedicated 32-byte BANK_DATA_ENCRYPTION_KEY in the protected deployment secret manager (or deliberately choose an audited valid TOTP-derived key). Never print it in logs, code, issue comments or reports. Set the same effective key for the approved backfill runner.
