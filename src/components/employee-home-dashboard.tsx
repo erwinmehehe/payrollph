@@ -37,12 +37,14 @@ export function EmployeeHomeDashboard({
   onPay,
   onAttendance,
   onLeave,
+  onRequestLeave,
 }: {
   data: HomeData;
   onPayslip: (id: number) => void;
   onPay: () => void;
   onAttendance: () => void;
   onLeave: () => void;
+  onRequestLeave: () => void;
 }) {
   const latest = data.payslips[0];
   const pending = data.leave.requests.filter(
@@ -53,8 +55,11 @@ export function EmployeeHomeDashboard({
       <div className="clean-heading">
         <div>
           <h1>Good morning, {data.employee.firstName}.</h1>
-          <p>Here’s your payday at a glance.</p>
+          <p>Your pay, leave and attendance at a glance.</p>
         </div>
+        <button type="button" className="clean-button secondary employee-leave-shortcut" onClick={onLeave}>
+          <Leaf size={16} aria-hidden="true" /> My leave
+        </button>
       </div>
       <section className="clean-card clean-employee-next">
         <span className="clean-icon blue">
@@ -77,6 +82,58 @@ export function EmployeeHomeDashboard({
           </small>
         </div>
       </section>
+      <div className="clean-employee-grid">
+        <section className="clean-card">
+          <div className="clean-card-header">
+            <h2>Leave balance</h2>
+            <span className="clean-icon green">
+              <Leaf size={21} />
+            </span>
+          </div>
+          {data.leave.balances.length ? (
+            data.leave.balances.map((balance) => (
+              <div className="clean-leave-balance" key={balance.leaveType}>
+                <strong>
+                  {balance.available.toLocaleString("en-PH", {
+                    maximumFractionDigits: 1,
+                  })}{" "}
+                  days
+                </strong>
+                <span>{balance.leaveType}</span>
+              </div>
+            ))
+          ) : (
+            <p className="clean-muted">No leave policy assigned yet.</p>
+          )}
+          <p className="clean-muted">
+            {pending
+              ? `${pending} requests awaiting approval`
+              : "No pending leave requests"}
+          </p>
+          <button type="button" className="clean-link" onClick={onLeave}>
+            View leave details <ArrowRight size={16} aria-hidden="true" />
+          </button>
+        </section>
+        <section className="clean-card">
+          <div className="clean-card-header">
+            <h2>Attendance</h2>
+            <span className="clean-icon blue">
+              <Clock size={21} />
+            </span>
+          </div>
+          <div className="clean-leave-balance">
+            <strong>{data.attendance.completeCount} complete</strong>
+            <span>Of {data.attendance.recent.length} recent time records</span>
+          </div>
+          <p className="clean-muted">
+            {data.attendance.today?.timeIn
+              ? data.attendance.today.timeOut
+                ? "Today’s shift is complete"
+                : "You’re clocked in"
+              : "Not clocked in today"}
+          </p>
+        </section>
+      </div>
       <section
         className="clean-card clean-employee-payslip employee-latest-pay"
         data-latest-payslip={latest ? "" : undefined}
@@ -109,57 +166,8 @@ export function EmployeeHomeDashboard({
           </div>
         )}
       </section>
-      <div className="clean-employee-grid">
-        <section className="clean-card">
-          <div className="clean-card-header">
-            <h2>Leave balance</h2>
-            <span className="clean-icon green">
-              <Leaf size={21} />
-            </span>
-          </div>
-          {data.leave.balances.length ? (
-            data.leave.balances.map((balance) => (
-              <div className="clean-leave-balance" key={balance.leaveType}>
-                <strong>
-                  {balance.available.toLocaleString("en-PH", {
-                    maximumFractionDigits: 1,
-                  })}{" "}
-                  days
-                </strong>
-                <span>{balance.leaveType}</span>
-              </div>
-            ))
-          ) : (
-            <p className="clean-muted">No leave policy assigned yet.</p>
-          )}
-          <p className="clean-muted">
-            {pending
-              ? `${pending} requests awaiting approval`
-              : "No pending leave requests"}
-          </p>
-        </section>
-        <section className="clean-card">
-          <div className="clean-card-header">
-            <h2>Attendance</h2>
-            <span className="clean-icon blue">
-              <Clock size={21} />
-            </span>
-          </div>
-          <div className="clean-leave-balance">
-            <strong>{data.attendance.completeCount} complete</strong>
-            <span>Of {data.attendance.recent.length} recent time records</span>
-          </div>
-          <p className="clean-muted">
-            {data.attendance.today?.timeIn
-              ? data.attendance.today.timeOut
-                ? "Today’s shift is complete"
-                : "You’re clocked in"
-              : "Not clocked in today"}
-          </p>
-        </section>
-      </div>
       <div className="clean-employee-actions">
-        <button type="button" className="clean-button secondary" onClick={onLeave}>
+        <button type="button" className="clean-button secondary" onClick={onRequestLeave}>
           <Leaf size={17} /> Request leave
         </button>
         <button type="button" className="clean-button secondary" onClick={onAttendance}>

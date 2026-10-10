@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   employeeAvailabilityRules,
   employeePayProfiles,
   employeePayRevisions,
@@ -23,6 +24,7 @@ import {
   staffingRequirements,
   timePunches,
   workforceScheduleGuardrailPolicies,
+  workforceAttendancePeriodLocks,
   worksites,
 } from "@/db/schema";
 import {
@@ -767,8 +769,8 @@ async function coverageRows(input: {
   };
 }
 
-async function loadGuardrailPolicy(organizationId: number) {
-  const [row] = await db.select().from(workforceScheduleGuardrailPolicies)
+async function loadGuardrailPolicy(organizationId: number, executor: Pick<typeof db, "select"> = db) {
+  const [row] = await executor.select().from(workforceScheduleGuardrailPolicies)
     .where(eq(workforceScheduleGuardrailPolicies.organizationId, organizationId))
     .limit(1);
   if (!row) return DEFAULT_SCHEDULE_GUARDRAIL_POLICY;
@@ -2261,89 +2263,133 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    const result = await db.transaction(async (tx) => {
-      await tx.execute(sql`select id from open_shifts where id = ${openShift.id} for update`);
-      const approved = await tx.select({ id: openShiftClaims.id }).from(openShiftClaims).where(and(
-        eq(openShiftClaims.openShiftId, openShift.id),
-        eq(openShiftClaims.status, "approved"),
-      ));
-      if (approved.length >= openShift.slots) {
-        throw new Error("Open shift is already fully claimed.");
-      }
+    try {
+      const result = await db.transaction(async (tx) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(6107, ${organizationId})`);
+        const [currentShift] = await tx.select().from(openShifts).where(and(
+          eq(openShifts.id, openShift.id),
+          eq(openShifts.organizationId, organizationId),
+        )).for("update").limit(1);
+        if (!currentShift || currentShift.status !== "open") {
+          throw new Error("The open shift is no longer available.");
+        }
+        const approved = await tx.select({ id: openShiftClaims.id }).from(openShiftClaims).where(and(
+          eq(openShiftClaims.openShiftId, openShift.id),
+          eq(openShiftClaims.organizationId, organizationId),
+          eq(openShiftClaims.status, "approved"),
+        ));
+        if (approved.length >= currentShift.slots) {
+          throw new Error("Open shift is already fully claimed.");
+        }
+        // Never approve against pre-lock schedule, leave or payroll-cutoff evidence.
+        const date = String(openShift.workDate);
+        const [[leave], [lockedPunch], [cutoff]] = await Promise.all([
+          tx.select({ id: leaveRequests.id }).from(leaveRequests).where(and(
+            eq(leaveRequests.organizationId, organizationId),
+            eq(leaveRequests.employeeId, employee.id),
+            eq(leaveRequests.status, "Approved"),
+            lte(leaveRequests.startDate, date), gte(leaveRequests.endDate, date),
+          )).limit(1),
+          tx.select({ id: timePunches.id }).from(timePunches).where(and(
+            eq(timePunches.organizationId, organizationId),
+            eq(timePunches.employeeId, employee.id),
+            eq(timePunches.workDate, date),
+          )).limit(1),
+          tx.select({ id: workforceAttendancePeriodLocks.id }).from(workforceAttendancePeriodLocks).where(and(
+            eq(workforceAttendancePeriodLocks.organizationId, organizationId),
+            eq(workforceAttendancePeriodLocks.status, "locked"),
+            lte(workforceAttendancePeriodLocks.periodStart, date),
+            gte(workforceAttendancePeriodLocks.periodEnd, date),
+          )).limit(1),
+        ]);
+        if (leave || lockedPunch || cutoff) {
+          throw new Error("Leave, captured time or attendance cutoff changed; use the individual reconciliation flow.");
+        }
+        const latestOverrides = await tx.select({ id: scheduleOverrides.id }).from(scheduleOverrides).where(and(
+          eq(scheduleOverrides.organizationId, organizationId),
+          eq(scheduleOverrides.employeeId, employee.id),
+          eq(scheduleOverrides.workDate, date),
+        )).limit(1);
+        if (latestOverrides.length) throw new Error("A new day override superseded this claim.");
 
-      const [updatedClaim] = await tx.update(openShiftClaims).set({
-        status: "approved",
-        decidedBy: user.name,
-        decidedByUserId: user.id,
-        decidedAt: new Date(),
-        decisionNote,
-        updatedAt: new Date(),
-      }).where(eq(openShiftClaims.id, claimId)).returning();
+        const siteNow = await employeeSiteEligibility({
+          organizationId, employeeId: employee.id,
+          worksiteId: openShift.worksiteId, date,
+          executor: tx,
+        });
+        if (!siteNow.eligible) {
+          throw new Error("Open-shift worksite authorization changed.");
+        }
+        const lockedPolicy = await loadGuardrailPolicy(organizationId, tx);
+        const lockedWindow = await resolveEmployeeScheduleWindow({
+          organizationId, employeeId: employee.id,
+          startDate: addDays(date, -7),
+          endDate: addDays(date, 7),
+          prospectiveOverride, executor: tx,
+        });
+        const lockedIssues = evaluateScheduleGuardrails({
+          days: lockedWindow, policy: lockedPolicy,
+        }).filter(issue => issue.date === date || issue.relatedDate === date);
+        if (scheduleGuardrailBlocksMutation(lockedIssues)) {
+          throw new Error("New source roster changes fail binding guardrails.");
+        }
+        const [updatedClaim] = await tx.update(openShiftClaims).set({
+          status: "approved", decidedBy: user.name, decidedByUserId: user.id,
+          decidedAt: new Date(), decisionNote, updatedAt: new Date(),
+        }).where(and(
+          eq(openShiftClaims.id, claimId),
+          eq(openShiftClaims.organizationId, organizationId),
+          eq(openShiftClaims.status, "pending"),
+        )).returning();
+        if (!updatedClaim) throw new Error("The open-shift claim was already decided.");
 
-      const [override] = await tx.insert(scheduleOverrides).values({
-        organizationId,
-        employeeId: employee.id,
-        workDate: openShift.workDate,
-        kind: "shift",
-        isRestDay: false,
-        segments: prospectiveOverride.segments,
-        workLocationOrgUnitId: null,
-        worksiteId: openShift.worksiteId,
-        reason: prospectiveOverride.reason,
-        status: "approved",
-        createdBy: user.name,
-        approvedBy: user.name,
-        approvedAt: new Date(),
-      }).returning();
-
-      const filled = approved.length + 1 >= openShift.slots;
-      if (filled) {
-        await tx.update(openShifts).set({
-          status: "filled",
-          updatedAt: new Date(),
-        }).where(eq(openShifts.id, openShift.id));
-      }
-
-      return { updatedClaim, override, filled };
-    }).catch((error) => {
-      if (error instanceof Error && error.message === "Open shift is already fully claimed.") {
-        return null;
-      }
-      throw error;
-    });
-
-    if (!result) return Response.json({ error: "Open shift is already fully claimed." }, { status: 409 });
-
-    const staleTimesheets = await markTimesheetsStaleForEmployeeDate({
-      organizationId,
-      employeeId: employee.id,
-      workDate: String(openShift.workDate),
-    });
-
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "WFM open shift claim approved",
-      resource: `${employee.employeeNo} · ${openShift.workDate} · ${shift.code}`,
-      metadata: {
-        claimId,
-        openShiftId: openShift.id,
-        employeeId: employee.id,
-        jobProfileId: openShift.jobProfileId,
-        scheduleOverrideId: result.override.id,
-        filled: result.filled,
-        guardrailIssues,
-        staleTimesheetIds: staleTimesheets.map((row) => row.id),
-      },
-    });
-
-    return Response.json({
-      claim: result.updatedClaim,
-      scheduleOverride: result.override,
-      openShiftFilled: result.filled,
-      guardrailIssues,
-      staleTimesheetIds: staleTimesheets.map((row) => row.id),
-    });
+        const [override] = await tx.insert(scheduleOverrides).values({
+          organizationId, employeeId: employee.id,
+          workDate: openShift.workDate, kind: "shift", isRestDay: false,
+          segments: prospectiveOverride.segments, workLocationOrgUnitId: null,
+          worksiteId: openShift.worksiteId, reason: prospectiveOverride.reason,
+          status: "approved", createdBy: user.name,
+          approvedBy: user.name, approvedAt: new Date(),
+        }).returning();
+        const filled = approved.length + 1 >= currentShift.slots;
+        if (filled) {
+          await tx.update(openShifts).set({
+            status: "filled", updatedAt: new Date(),
+          }).where(and(
+            eq(openShifts.id, openShift.id),
+            eq(openShifts.organizationId, organizationId),
+          ));
+        }
+        const staleTimesheets = await markTimesheetsStaleForEmployeeDate({
+          organizationId, employeeId: employee.id,
+          workDate: date, executor: tx,
+        });
+        await tx.insert(auditEvents).values({
+          organizationId, actor: user.name,
+          action: "WFM open shift claim approved",
+          resource: `${employee.employeeNo} · ${openShift.workDate} · ${shift.code}`,
+          metadata: {
+            claimId, openShiftId: openShift.id, employeeId: employee.id,
+            jobProfileId: openShift.jobProfileId,
+            scheduleOverrideId: override.id, filled,
+            guardrailIssues: lockedIssues,
+            staleTimesheetIds: staleTimesheets.map(row => row.id),
+          },
+        });
+        return { updatedClaim, override, filled, lockedIssues, staleTimesheets };
+      }, { isolationLevel: "read committed" });
+      return Response.json({
+        claim: result.updatedClaim, scheduleOverride: result.override,
+        openShiftFilled: result.filled,
+        guardrailIssues: result.lockedIssues,
+        staleTimesheetIds: result.staleTimesheets.map(row => row.id),
+      });
+    } catch {
+      return Response.json({
+        error: "The shift or workforce evidence changed. Refresh open-shift coverage and retry.",
+        code: "WFM_OPEN_SHIFT_SOURCE_CHANGED",
+      }, { status: 409 });
+    }
   }
 
   return Response.json({

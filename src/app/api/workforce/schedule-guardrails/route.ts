@@ -1,12 +1,11 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { workforceScheduleGuardrailPolicies } from "@/db/schema";
+import { auditEvents, workforceScheduleGuardrailPolicies } from "@/db/schema";
 import {
   assertOrganizationRole,
   getAccess,
   PEOPLE_ADMIN_ROLES,
 } from "@/lib/access";
-import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import {
   enforceSameOriginMutation,
@@ -125,10 +124,6 @@ export async function POST(request: Request) {
     }, { status: 400 });
   }
 
-  const [existing] = await db.select().from(workforceScheduleGuardrailPolicies)
-    .where(eq(workforceScheduleGuardrailPolicies.organizationId, organizationId))
-    .limit(1);
-
   const values = {
     minimumRestMinutes,
     maxConsecutiveWorkingDays,
@@ -138,33 +133,38 @@ export async function POST(request: Request) {
     updatedBy: user.name,
     updatedAt: new Date(),
   };
-
-  const [saved] = existing
-    ? await db.update(workforceScheduleGuardrailPolicies)
-        .set(values)
-        .where(eq(workforceScheduleGuardrailPolicies.id, existing.id))
-        .returning()
-    : await db.insert(workforceScheduleGuardrailPolicies)
-        .values({
-          organizationId,
-          ...values,
-        })
-        .returning();
-
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: "WFM schedule guardrail policy updated",
-    resource: "Workforce scheduling",
-    metadata: {
-      policyId: saved.id,
-      minimumRestMinutes,
-      maxConsecutiveWorkingDays,
-      rollingSevenDayMinutes,
-      enforcementMode,
-      active,
-    },
-  });
+  let saved: typeof workforceScheduleGuardrailPolicies.$inferSelect;
+  try {
+    saved = await db.transaction(async tx => {
+      await tx.execute(sql`select pg_advisory_xact_lock(6107, ${organizationId})`);
+      const [existing] = await tx.select().from(workforceScheduleGuardrailPolicies)
+        .where(eq(workforceScheduleGuardrailPolicies.organizationId, organizationId))
+        .limit(1);
+      const [row] = existing
+        ? await tx.update(workforceScheduleGuardrailPolicies)
+            .set(values)
+            .where(eq(workforceScheduleGuardrailPolicies.id, existing.id))
+            .returning()
+        : await tx.insert(workforceScheduleGuardrailPolicies)
+            .values({ organizationId, ...values })
+            .returning();
+      await tx.insert(auditEvents).values({
+        organizationId, actor: user.name,
+        action: "WFM schedule guardrail policy updated",
+        resource: "Workforce scheduling",
+        metadata: {
+          policyId: row.id, minimumRestMinutes, maxConsecutiveWorkingDays,
+          rollingSevenDayMinutes, enforcementMode, active,
+        },
+      });
+      return row;
+    }, { isolationLevel: "read committed" });
+  } catch {
+    return Response.json({
+      code: "WFM_GUARDRAIL_POLICY_CHANGED",
+      error: "Scheduling policy could not be committed. Refresh and retry.",
+    }, { status: 409 });
+  }
 
   return Response.json({
     policy: normalizePolicy(saved),

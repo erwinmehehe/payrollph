@@ -58,6 +58,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!definition) {
     return Response.json({ error: "This filing form is no longer supported." }, { status: 409 });
   }
+  if (existing.agency === "BIR" && existing.form === "1604-C" && parsed.value.outcome === "accepted") {
+    return Response.json({
+      error: "This historical BIR 1604-C source CSV is not an official DAT and cannot establish current BIR filing acceptance. Use the annual BIR source preflight and retain the official ADES/file-submission acknowledgement separately.",
+    }, { status: 409 });
+  }
   if (!definition.submissionMethods.includes(parsed.value.submissionMethod)) {
     return Response.json({
       error: `${existing.agency} ${existing.form} does not accept "${parsed.value.submissionMethod}" as evidence in PayrollPH.`,

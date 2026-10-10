@@ -488,8 +488,7 @@ async function processPayrollChunk(input: {
     );
   }
   const chunk = allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
-  // Seal and verify the entire chunk before inserting any payroll entries.
-  // A missing key or unreadable legacy envelope must not leave a partial chunk.
+  // Authenticate all account snapshots before writing any payroll entry for this chunk.
   const sealedPaymentBankAccounts = new Map<number, string | null>();
   for (const employee of chunk) {
     sealedPaymentBankAccounts.set(employee.id, sealPayrollPaymentBankAccount(employee.bankAccount));
@@ -1600,7 +1599,7 @@ async function processPayrollChunk(input: {
           middleName: employee.middleName,
           lastName: employee.lastName,
           email: employee.email,
-          // Use the verified, pre-sealed snapshot from this chunk (never raw employee bytes).
+          // The payment snapshot must never copy unsealed legacy plaintext.
           bankAccount: sealedPaymentBankAccounts.get(employee.id) ?? null,
           bankCode: employee.bankCode,
           mobile: employee.mobile,

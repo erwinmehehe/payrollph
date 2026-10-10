@@ -27,7 +27,7 @@ import { allocateLeaveDaysToPeriod } from "../src/lib/leave-payroll";
 import { holidayCalendarFingerprint } from "../src/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026 } from "../src/lib/wage-orders";
 
-// Only synthetic test fixtures use this key; production must supply its own.
+// Isolated synthetic keys; never expose or reuse a key in production.
 const priorTestBankKey = process.env.BANK_DATA_ENCRYPTION_KEY;
 test.before(() => { process.env.BANK_DATA_ENCRYPTION_KEY = "a".repeat(64); });
 test.after(() => {

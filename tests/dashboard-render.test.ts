@@ -62,12 +62,16 @@ test("employee sees only released pay and separate leave balances", () => {
       onPay: noop,
       onAttendance: noop,
       onLeave: noop,
+      onRequestLeave: noop,
     }),
   );
   assert.match(markup, /28,450\.00/);
   assert.match(markup, /10 days/);
   assert.match(markup, /5 days/);
   assert.match(markup, /20 complete/);
+  assert.ok(markup.indexOf("Leave balance") < markup.indexOf("Latest payslip"), "leave must be visible before the payslip");
+  assert.match(markup, /My leave/);
+  assert.match(markup, /View leave details/);
   assert.doesNotMatch(markup, /22 days present|15 days available|3,842,180/);
   assert.ok(
     markup.indexOf("Latest payslip") < markup.indexOf("Recent payslips"),
@@ -87,10 +91,13 @@ test("employee empty state does not claim a payslip or payday is available", () 
       onPay: noop,
       onAttendance: noop,
       onLeave: noop,
+      onRequestLeave: noop,
     }),
   );
   assert.match(markup, /Not scheduled yet/);
   assert.match(markup, /No released payslip yet/);
   assert.match(markup, /No leave policy assigned/);
+  assert.match(markup, /View leave details/);
+  assert.match(markup, /Request leave/);
   assert.doesNotMatch(markup, /View payslip|₱0\.00/);
 });
