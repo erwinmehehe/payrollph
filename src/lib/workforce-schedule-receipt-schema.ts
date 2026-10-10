@@ -17,5 +17,5 @@ export const workforceScheduleReceipts = pgTable("workforce_schedule_receipts", 
   uniqueIndex("wfm_schedule_receipt_content_unique").on(table.organizationId, table.employeeId, table.acknowledgedByUserId, table.workDate, table.snapshotHash),
   index("wfm_schedule_receipt_employee_date_idx").on(table.organizationId, table.employeeId, table.workDate),
   check("wfm_schedule_receipt_hash_check", sql`${table.snapshotHash} ~ '^[a-f0-9]{64}$'`),
-  check("wfm_schedule_receipt_snapshot_check", sql`jsonb_typeof(${table.snapshot}) = 'object' and ${table.snapshot}->>'version' = '1' and ${table.snapshot}->>'date' = ${table.workDate}::text`),
+  check("wfm_schedule_receipt_snapshot_check", sql`coalesce(jsonb_typeof(${table.snapshot}) = 'object' and ${table.snapshot}->>'version' = '1' and ${table.snapshot}->>'date' = ${table.workDate}::text, false)`),
 ]);

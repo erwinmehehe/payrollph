@@ -10,10 +10,10 @@ CREATE TABLE IF NOT EXISTS workforce_schedule_receipts (
   snapshot jsonb NOT NULL,
   acknowledged_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT wfm_schedule_receipt_hash_check CHECK (snapshot_hash ~ '^[a-f0-9]{64}$'),
-  CONSTRAINT wfm_schedule_receipt_snapshot_check CHECK (
+  CONSTRAINT wfm_schedule_receipt_snapshot_check CHECK (coalesce(
     jsonb_typeof(snapshot) = 'object' AND snapshot->>'version' = '1'
-    AND snapshot->>'date' = work_date::text
-  )
+    AND snapshot->>'date' = work_date::text, false
+  ))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS wfm_schedule_receipt_content_unique
   ON workforce_schedule_receipts(organization_id, employee_id, acknowledged_by_user_id, work_date, snapshot_hash);
