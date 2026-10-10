@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { validReceiptSource } from "./workforce-schedule-receipt-validation";
 
 /** A content receipt, never attendance evidence, contract consent or payroll approval. */
 export const SCHEDULE_RECEIPT_BOUNDARY = "Acknowledging confirms that you have seen this schedule snapshot. It does not record attendance, accept a pay change, or waive any rights. Missing acknowledgment does not mean absence.";
@@ -47,37 +48,18 @@ export function receiptDates(today: string): string[] {
     return day.toISOString().slice(0, 10);
   });
 }
-function nullableId(value: number | null): boolean { return value === null || validReceiptId(value); }
-function clock(value: string): number | null {
-  if (!/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value)) return null;
-  const [h, m, s = 0] = value.split(":").map(Number);
-  return h * 3600 + m * 60 + s;
-}
 export function snapshotForReceipt(day: ReceiptSourceDay, site: { id: number; name: string } | null): ScheduleReceiptSnapshot | null {
-  receiptDate(day.date);
-  if (day.source === "unassigned" || !["pattern", "override"].includes(day.source)) return null;
-  if (![day.assignmentId, day.patternId, day.overrideId, day.worksiteId, day.workLocationOrgUnitId].every(nullableId)) return null;
-  if (day.source === "pattern" && (!validReceiptId(day.assignmentId) || !validReceiptId(day.patternId))) return null;
-  if (day.source === "override" && !validReceiptId(day.overrideId)) return null;
-  if (day.worksiteId !== null && (!site || site.id !== day.worksiteId || !site.name.trim())) return null;
-  if (day.isRestDay ? day.segments.length !== 0 : day.segments.length === 0) return null;
-  const orders = new Set<number>();
-  const segments: ReceiptSourceDay["segments"] = [];
-  for (const segment of [...day.segments].sort((a, b) => a.segmentOrder - b.segmentOrder)) {
-    const start = clock(segment.startTime), end = clock(segment.endTime);
-    if (start === null || end === null || !validReceiptId(segment.shiftDefinitionId) ||
-        !validReceiptId(segment.segmentOrder) || orders.has(segment.segmentOrder) ||
-        !segment.shiftCode.trim() || !segment.shiftName.trim() || typeof segment.spansMidnight !== "boolean") return null;
-    const seconds = end + (segment.spansMidnight ? 86400 : 0) - start;
-    if (seconds <= 0 || seconds > 86400 || !Number.isSafeInteger(segment.breakMinutes) ||
-        segment.breakMinutes < 0 || segment.breakMinutes * 60 >= seconds) return null;
-    orders.add(segment.segmentOrder);
-    segments.push({ shiftDefinitionId: segment.shiftDefinitionId, shiftCode: segment.shiftCode,
-      shiftName: segment.shiftName, segmentOrder: segment.segmentOrder,
-      startTime: segment.startTime, endTime: segment.endTime,
-      breakMinutes: segment.breakMinutes, spansMidnight: segment.spansMidnight });
-  }
-  return { version: 1, date: day.date, source: day.source, isRestDay: day.isRestDay,
+  if (!validReceiptSource(day)) return null;
+  if (day.worksiteId !== null && (!site || site.id !== day.worksiteId
+    || typeof site.name !== "string" || !site.name.trim())) return null;
+  // Keep the v1 projection and key ordering unchanged for valid historical hashes.
+  const segments = [...day.segments].sort((a, b) => a.segmentOrder - b.segmentOrder).map(segment => ({
+    shiftDefinitionId: segment.shiftDefinitionId, shiftCode: segment.shiftCode,
+    shiftName: segment.shiftName, segmentOrder: segment.segmentOrder,
+    startTime: segment.startTime, endTime: segment.endTime,
+    breakMinutes: segment.breakMinutes, spansMidnight: segment.spansMidnight,
+  }));
+  return { version: 1, date: day.date, source: day.source as "pattern" | "override", isRestDay: day.isRestDay,
     assignmentId: day.assignmentId, patternId: day.patternId, overrideId: day.overrideId,
     workLocationOrgUnitId: day.workLocationOrgUnitId,
     worksite: day.worksiteId === null ? null : { id: site!.id, name: site!.name }, segments };

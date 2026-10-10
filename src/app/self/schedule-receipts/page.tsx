@@ -24,6 +24,6 @@ export default async function ScheduleReceiptsPage() {
   return <main style={{ maxWidth: 960, margin: "0 auto", padding: 24 }}>
     <Link href="/app">Back to employee workspace</Link>
     <h1>My schedule receipts</h1>
-    <EmployeeScheduleReceipts />
+    <EmployeeScheduleReceipts key={`${session.id}:${employee.organizationId}:${employee.id}`} />
   </main>;
 }

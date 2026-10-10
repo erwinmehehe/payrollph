@@ -69,6 +69,18 @@ test("schedule receipt service isolates two employers, rejects stale content, an
     await acknowledgeScheduleReceipt(who, { ...request, snapshotHash: changed.days[0].snapshotHash }, today);
     assert.equal((await db.select().from(receipts).where(eq(receipts.organizationId, who.organizationId))).length, 2);
     assert.equal((await db.select().from(scheduleOverrides).where(eq(scheduleOverrides.organizationId, who.organizationId))).length, 1);
+    // A malformed live split shift cannot produce a receipt or success audit, even with a formerly valid hash.
+    await db.update(scheduleOverrides).set({ segments: [
+      { shiftDefinitionId: shifts[0].id, segmentOrder: 1 },
+      { shiftDefinitionId: shifts[0].id, segmentOrder: 2 },
+    ] }).where(and(eq(scheduleOverrides.organizationId, who.organizationId),
+      eq(scheduleOverrides.employeeId, who.employeeId), eq(scheduleOverrides.workDate, today)));
+    assert.equal((await readScheduleReceiptView(who, today)).days[0].state, "unavailable");
+    await assert.rejects(() => acknowledgeScheduleReceipt(who, { ...request, snapshotHash: changed.days[0].snapshotHash }, today),
+      error => error instanceof ScheduleReceiptError && error.code === "SCHEDULE_UNAVAILABLE");
+    assert.equal((await db.select().from(receipts).where(eq(receipts.organizationId, who.organizationId))).length, 2);
+    assert.equal((await db.select().from(auditEvents).where(and(eq(auditEvents.organizationId, who.organizationId),
+      eq(auditEvents.action, "WFM employee schedule receipt acknowledged")))).length, 2);
     await db.update(userOrganizations).set({ active: false }).where(and(eq(userOrganizations.organizationId, who.organizationId), eq(userOrganizations.userId, who.userId)));
     await assert.rejects(() => readScheduleReceiptView(who, today), error => error instanceof ScheduleReceiptError && error.status === 403);
   } finally {
