@@ -97,7 +97,26 @@ jobs:
         run: |
           set -euo pipefail
           npx tsx scripts/encrypt-bank-accounts.ts | tee /tmp/bank-encryption-verify.txt
-          grep -Eq '0 to encrypt\.$' /tmp/bank-encryption-verify.txt
+          grep -Eq ', 0 to encrypt\.
+          grep -Eq '^0 payroll payment snapshot\(s\) also hold a plaintext account number\.$' /tmp/bank-encryption-verify.txt
+          grep -Fqx '0 legal entity disbursement account(s) hold plaintext.' /tmp/bank-encryption-verify.txt
+          grep -Fqx '0 payout change request(s) hold plaintext.' /tmp/bank-encryption-verify.txt
+          echo "Legacy employee, payroll snapshot, legal-entity, and payout-change bank accounts are encrypted."
+
+      - name: Verify live readiness sees encrypted bank data
+        if: ${{ inputs.mode == 'apply' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          body=$(curl --fail --silent --show-error --max-time 20 "${PRODUCTION_BASE_URL%/}/api/readiness/pilot-status")
+          if printf '%s' "$body" | jq -e '.criticalBlockers | index("bank-data-encryption") != null' >/dev/null; then
+            echo "Production still reports bank-data-encryption as a critical blocker."
+            printf '%s' "$body" | jq '{status, criticalBlockers, launchBlockers, deploymentSha}'
+            exit 1
+          fi
+          printf '%s' "$body" | jq '{status, criticalBlockers, launchBlockers, deploymentSha}'
+          echo "Production bank-data encryption readiness is green."
+ /tmp/bank-encryption-verify.txt
           grep -Eq '^0 payroll payment snapshot\(s\) also hold a plaintext account number\.$' /tmp/bank-encryption-verify.txt
           grep -Fqx '0 legal entity disbursement account(s) hold plaintext.' /tmp/bank-encryption-verify.txt
           grep -Fqx '0 payout change request(s) hold plaintext.' /tmp/bank-encryption-verify.txt
