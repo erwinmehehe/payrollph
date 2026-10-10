@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db, pool } from "../src/db";
+import { replaceEmployeeBankAccount, replacePayrollSnapshotBankAccount } from "./lib/bank-backfill-writes";
 import { employeePayoutChangeRequests, employees, legalEntities, payrollEntries } from "../src/db/schema";
 import {
   bankEncryptionConfigured,
@@ -29,9 +30,10 @@ import {
  * could see "zero plaintext" on employees while those other tables still
  * retain copies. The release guard compares by decrypted value.
  *
- * Safe to re-run: already-encrypted rows are skipped, and every row is
- * decrypted again after writing and compared to the original before the script
- * moves on, so a bad key cannot silently destroy an account number.
+ * Already-encrypted rows are skipped. Each newly sealed value must pass a
+ * decrypt/compare check BEFORE writing. Each write also compares the original
+ * account to reject stale scan results. Snapshot updates patch only the bank
+ * account field, preserving concurrent changes to unrelated payroll evidence.
  *
  * Usage:
  *   npx tsx scripts/encrypt-bank-accounts.ts            # dry run
@@ -111,7 +113,9 @@ async function main() {
     if (decryptBankAccount(sealed) !== plain) {
       throw new Error(`Round-trip check failed for employee ${row.employeeNo}. Stopped after ${done} row(s).`);
     }
-    await db.update(employees).set({ bankAccount: sealed }).where(eq(employees.id, row.id));
+    await replaceEmployeeBankAccount(pool, {
+      id: row.id, original: row.bankAccount!, encrypted: sealed,
+    });
     done += 1;
   }
 
@@ -138,10 +142,9 @@ async function main() {
     if (!sealed || decryptBankAccount(sealed) !== plain) {
       throw new Error(`Snapshot round-trip failed for payroll entry ${row.id}. Stopped after ${sealedSnapshots} snapshot(s).`);
     }
-    await db
-      .update(payrollEntries)
-      .set({ trace: { ...trace, payment: { ...trace.payment, bankAccount: sealed } } })
-      .where(eq(payrollEntries.id, row.id));
+    await replacePayrollSnapshotBankAccount(pool, {
+      id: row.id, original: trace.payment!.bankAccount!, encrypted: sealed,
+    });
     sealedSnapshots += 1;
   }
   console.log(`Encrypted ${sealedSnapshots} payroll payment snapshot(s).`);

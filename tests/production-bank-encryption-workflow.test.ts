@@ -62,3 +62,52 @@ test("workflow remains manual, production-protected and apply-gated", () => {
     assert.ok(workflow.includes(`      - name: ${name}\n        if: \${{ inputs.mode == 'apply' }}`));
   }
 });
+
+test("dry-run cannot prepare database columns and apply validates the key first", () => {
+  assert.ok(workflow.includes("      - name: Prepare bank-account column safely\n        if: ${{ inputs.mode == 'apply' }}"));
+  assert.ok(workflow.indexOf("- name: Prove runner key matches live production") <
+    workflow.indexOf("- name: Prepare bank-account column safely"));
+});
+
+test("readiness requires one valid report, the matching key, and no bank blocker", () => {
+  const script = scripts.find((value) => value.includes("Production bank-data encryption readiness is green."));
+  assert.ok(script);
+  // Only this literal verification block is replayed. Shell functions replace
+  // BOTH external commands; jq operates on synthetic stdin, never live data.
+  const stub = [
+    'curl() { printf "%s" "$MOCK_READINESS"; return "${MOCK_CURL_STATUS:-0}"; }',
+    'npx() { printf "%s\\n" "synthetic-key-fingerprint"; }',
+  ].join("\n") + "\n";
+  const report = { bankEncryptionFingerprint: "synthetic-key-fingerprint", criticalBlockers: [] };
+  const check = (body: string, status = 0) => {
+    const result = spawnSync("bash", ["-c", stub + script], {
+      encoding: "utf8", timeout: 5000,
+      env: {
+        PATH: process.env.PATH,
+        PRODUCTION_BASE_URL: "https://synthetic.invalid",
+        MOCK_READINESS: body, MOCK_CURL_STATUS: String(status),
+      },
+    });
+    assert.ifError(result.error);
+    return result;
+  };
+  assert.equal(check(JSON.stringify(report)).status, 0);
+  assert.equal(check(JSON.stringify({ ...report, criticalBlockers: ["transactional-email"] })).status, 0,
+    "this is a bank gate, not certification of unrelated launch gates");
+  for (const invalid of [
+    "", "not-json", "null", "[]", "{}",
+    JSON.stringify({ criticalBlockers: [] }),
+    JSON.stringify({ bankEncryptionFingerprint: "synthetic-key-fingerprint" }),
+    JSON.stringify({ ...report, bankEncryptionFingerprint: "different-key" }),
+    JSON.stringify({ ...report, criticalBlockers: null }),
+    JSON.stringify({ ...report, criticalBlockers: "none" }),
+    JSON.stringify({ ...report, criticalBlockers: [null] }),
+    JSON.stringify({ ...report, criticalBlockers: ["bank-data-encryption"] }),
+    JSON.stringify(report) + "\n" + JSON.stringify(report),
+  ]) {
+    const result = check(invalid);
+    assert.notEqual(result.status, 0, "invalid readiness evidence must fail");
+    assert.doesNotMatch(result.stdout, /readiness is green/);
+  }
+  assert.notEqual(check(JSON.stringify(report), 22).status, 0, "HTTP failure must not pass");
+});

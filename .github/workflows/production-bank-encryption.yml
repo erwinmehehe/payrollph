@@ -53,9 +53,6 @@ jobs:
           fi
           echo "Required database and encryption secret material is present."
 
-      - name: Prepare bank-account column safely
-        run: npx tsx scripts/prepare-bank-encryption.ts
-
       - name: Prove runner key matches live production
         id: key_match
         shell: bash
@@ -77,6 +74,10 @@ jobs:
           fi
 
           echo "Live production and this runner use the same bank-encryption key fingerprint."
+
+      - name: Prepare bank-account column safely
+        if: ${{ inputs.mode == 'apply' }}
+        run: npx tsx scripts/prepare-bank-encryption.ts
 
       - name: Dry-run legacy plaintext scan
         shell: bash
@@ -109,9 +110,17 @@ jobs:
         run: |
           set -euo pipefail
           body=$(curl --fail --silent --show-error --max-time 20 "${PRODUCTION_BASE_URL%/}/api/readiness/pilot-status")
-          if printf '%s' "$body" | jq -e '.criticalBlockers | index("bank-data-encryption") != null' >/dev/null; then
-            echo "Production still reports bank-data-encryption as a critical blocker."
-            printf '%s' "$body" | jq '{status, criticalBlockers, launchBlockers, deploymentSha}'
+          local_fp=$(npx tsx -e 'import { bankEncryptionKeyFingerprint } from "./src/lib/bank-account-crypto"; const fp = bankEncryptionKeyFingerprint(); if (!fp) process.exit(2); console.log(fp);')
+          if ! printf '%s' "$body" | jq -se --arg fp "$local_fp" '
+            length == 1 and (.[0] |
+              type == "object" and
+              (.bankEncryptionFingerprint | type == "string" and length > 0) and
+              .bankEncryptionFingerprint == $fp and
+              (.criticalBlockers | type == "array") and
+              (.criticalBlockers | all(type == "string")) and
+              (.criticalBlockers | index("bank-data-encryption") == null))
+          ' >/dev/null; then
+            echo "Production bank-encryption readiness is missing, malformed, blocked or uses a different key."
             exit 1
           fi
           printf '%s' "$body" | jq '{status, criticalBlockers, launchBlockers, deploymentSha}'
