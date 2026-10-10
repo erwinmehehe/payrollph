@@ -144,3 +144,10 @@ test("annual CSV has a real first header row and is never promoted to BIR .DAT",
   assert.ok(workspace.includes('data-bir-annual-preflight'));
   assert.ok(workspace.includes("birPreflight?.canExportSource"));
 });
+
+test("annual source distinguishes pre-settlement and expected final withholding", () => {
+  const route = readFileSync("src/app/api/year-end/route.ts", "utf8");
+  assert.ok(route.includes('"Tax Withheld Before Year-End Settlement"'));
+  assert.ok(route.includes('"Expected Tax Withheld After Settlement"'));
+  assert.ok(route.includes("Number(row.adjustment.taxWithheld) + Number(row.adjustment.adjustment)"));
+});
