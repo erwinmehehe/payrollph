@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     : [];
   const legalEmployer = activeEmployers.length === 1 ? activeEmployers[0] : null;
   const employerTin = digits(legalEmployer?.birTin ?? organization?.birTin);
-  const employerBranch = digits(legalEmployer?.birBranchCode ?? organization?.birBranchCode).padStart(4, "0");
+  const employerBranch = digits(legalEmployer?.birBranchCode ?? organization?.birBranchCode);
   const missingBirIdentity = rows.filter((row) =>
     digits(row.employee.tin, true).length !== 9 ||
     digits(row.employee.tinBranchCode, true).length !== 4
