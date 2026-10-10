@@ -115,7 +115,7 @@ function validDate(value: string, field: string) {
 }
 function formatField(field: string, raw: unknown, rowSchedule: "D1" | "D2") {
   if (MONEY_FIELDS(rowSchedule === "D1" ? BIR_1604C_D1_FIELDS : BIR_1604C_D2_FIELDS).includes(field)) {
-    return amount(raw, field).toFixed(2);
+    return amount(raw, field).toFixed(2).padStart(14, "0");
   }
   if (raw === null || raw === undefined) throw new Error(`Missing 1604-C field ${field}.`);
   const value = String(raw);
@@ -126,11 +126,11 @@ function formatField(field: string, raw: unknown, rowSchedule: "D1" | "D2") {
   }
   if (field === "SEQ_NUM") {
     if (!/^\d{1,6}$/.test(value) || Number(value) < 1) throw new Error("1604-C sequence must be 1-999999.");
-    return value;
+    return value.padStart(6, "0");
   }
   if (field === "FACTOR_USED") {
     if (!/^\d{1,3}$/.test(value) || Number(value) < 1) throw new Error("MWE factor used must be an explicit positive number.");
-    return value;
+    return value.padStart(3, "0");
   }
   if (field === "TIN" || field === "TIN_EMPYR") return digits(value,9,field);
   if (field === "BRANCH_CODE" || field === "BRANCH_CODE_EMPLYR" || field === "REGION_NUM") {
@@ -141,8 +141,14 @@ function formatField(field: string, raw: unknown, rowSchedule: "D1" | "D2") {
       throw new Error(`BIR 1604-C text field ${field} must be nonblank (except middle name), at most 30 characters.`);
     }
   }
-  if (field === "EMPLOYMENT_STATUS" || field === "REASON_SEPARATION" || field === "SUBS_FILING") {
-    if (!/^[0-9]{2}$/.test(value)) throw new Error(`BIR 1604-C code ${field} must be 2 digits from the official LOV.`);
+  // Official RMC 25-2024 Annex A uses alphabetic LOV codes.
+  const allowedCodes: Record<string, readonly string[]> = {
+    EMPLOYMENT_STATUS: ["R", "C", "CP", "S", "P", "AL"],
+    REASON_SEPARATION: ["NA", "T", "TR", "R", "D"],
+    SUBS_FILING: ["Y", "N"],
+  };
+  if (field in allowedCodes && !allowedCodes[field].includes(value)) {
+    throw new Error(`BIR 1604-C ${field} must match the official Annex A alphabetic code list.`);
   }
   return value;
 }
@@ -168,7 +174,7 @@ function controlRow(
   }
   const fixed = [schedule === "D1" ? "C1" : "C2", "1604C", employerTin, employerBranch, returnPeriod];
   return [fixed[0], escapeValue(fixed[1]), escapeValue(fixed[2]), escapeValue(fixed[3]), returnPeriod,
-    ...fields.slice(5).map(field => sums[field].toFixed(2))].join(",");
+    ...fields.slice(5).map(field => sums[field].toFixed(2).padStart(14, "0"))].join(",");
 }
 
 export function buildBir1604cDatCandidate(input: Bir1604CCandidateInput) {
