@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Check, ClipboardCheck, Clock3, Settings2, ShieldCheck, UserCheck, X } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { CheckerVarianceCenter } from "./checker-variance";
@@ -58,6 +59,12 @@ export function ApprovalsView({
     : [];
   const handoffRole = handoffViewerRole(data.access?.role ?? data.user?.role);
   const checkerMode = data.access?.role === "checker";
+  const canSeeManagerDecisionInbox =
+    process.env.NEXT_PUBLIC_HCM_MANAGER_DECISION_INBOX_ENABLED === "true" &&
+    !!data.access && (
+      (["owner", "admin", "hr"].includes(data.access.role)) ||
+      (data.access.role === "manager" && !data.access.companyWide && data.access.orgUnitId !== null)
+    );
 
   async function decide(task: Task, status: "Approved" | "Declined") {
     setPendingId(task.id);
@@ -86,6 +93,23 @@ export function ApprovalsView({
           ) : undefined
         }
       />
+
+      {canSeeManagerDecisionInbox && (
+        <section className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Manager Decision Inbox</p>
+            <p className="mt-1 text-xs text-slate-600">
+              Read-only, source-linked HCM, leave and overtime assignments with current delegation checks.
+            </p>
+          </div>
+          <Link
+            href={"/hcm/manager-decision-inbox?organizationId=" + data.selectedOrganization.id}
+            className="inline-flex min-h-10 items-center rounded-lg bg-emerald-800 px-4 text-sm font-semibold text-white hover:bg-emerald-900"
+          >
+            View my decision inbox
+          </Link>
+        </section>
+      )}
 
       {currentRun && (
         <PayrollHandoff
