@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../src/db";
-import { attendanceExceptionEvents, auditEvents, employees, leaveRequests, payrollRuns, separationRecords, timePunches, userOrganizations, users } from "../src/db/schema";
+import { attendanceExceptionEvents, auditEvents, employees, leaveRequests, payrollEntries, payrollRuns, separationRecords, timePunches, userOrganizations, users } from "../src/db/schema";
 import { hashPassword } from "../src/lib/crypto";
 import { isEncryptedBankAccount } from "../src/lib/bank-account-crypto";
 import { reconcileAttendanceExceptionEvents } from "../src/lib/workforce-attendance-exception-events";
@@ -112,6 +112,37 @@ async function main() {
     created.push({ id: Number(payload.employee.id), employeeNo: String(payload.employee.employeeNo) });
   }
   (report.lifecycle as string[]).push("employees-created-with-payout-details");
+
+  // The zero-leak synthetic CI suite tests a FINAL semi-monthly cutoff.
+  // Therefore it needs an earlier RELEASED cutoff ledger for the same month
+  // to exercise the statutory true-up path. This DB-only fixture is not a
+  // real employer payment, approval, independent review or actual release.
+  const [syntheticPriorCutoff] = await db.insert(payrollRuns).values({
+    organizationId,
+    periodLabel: "Synthetic prior cutoff (1-15 Sep 2026) — CI ONLY",
+    periodStart: "2026-09-01",
+    periodEnd: "2026-09-15",
+    payDate: "2026-09-20",
+    status: "Released",
+    employeeCount: created.length,
+    grossPay: "39000.00",
+    netPay: "39000.00",
+    exceptions: 0,
+    processedChunks: 1,
+    totalChunks: 1,
+  }).returning();
+  await db.insert(payrollEntries).values(created.map((person, index) => ({
+    payrollRunId: syntheticPriorCutoff.id,
+    employeeId: person.id,
+    grossPay: index === 0 ? "21000.00" : "18000.00",
+    deductions: "0.00",
+    netPay: index === 0 ? "21000.00" : "18000.00",
+    status: "Ready",
+    lineItems: [{ code: "BASIC", amount: index === 0 ? "21000.00" : "18000.00" }],
+    trace: { inputs: [] },
+  })));
+  (report.lifecycle as string[]).push("synthetic-released-prior-cutoff-ledger-for-true-up");
+
 
   const stored = await db.select().from(employees).where(eq(employees.organizationId, organizationId));
   assert.equal(stored.length, 2);
