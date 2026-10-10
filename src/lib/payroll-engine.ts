@@ -41,6 +41,7 @@ import {
   yearEndAdjustments,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { sealPayrollPaymentBankAccount } from "@/lib/payroll-snapshot-sealing";
 import { validPayrollLoanSchedule } from "@/lib/payroll-loan-approval";
 import {
   computeCutoffStatutoryDeduction,
@@ -487,6 +488,11 @@ async function processPayrollChunk(input: {
     );
   }
   const chunk = allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
+  // Authenticate all account snapshots before writing any payroll entry for this chunk.
+  const sealedPaymentBankAccounts = new Map<number, string | null>();
+  for (const employee of chunk) {
+    sealedPaymentBankAccounts.set(employee.id, sealPayrollPaymentBankAccount(employee.bankAccount));
+  }
   const chunkIds = chunk.map((employee) => employee.id);
   const payProfileRows = chunkIds.length
     ? await db.select().from(employeePayProfiles).where(inArray(employeePayProfiles.employeeId, chunkIds))
@@ -1593,7 +1599,8 @@ async function processPayrollChunk(input: {
           middleName: employee.middleName,
           lastName: employee.lastName,
           email: employee.email,
-          bankAccount: employee.bankAccount,
+          // The payment snapshot must never copy unsealed legacy plaintext.
+          bankAccount: sealedPaymentBankAccounts.get(employee.id) ?? null,
           bankCode: employee.bankCode,
           mobile: employee.mobile,
         },
