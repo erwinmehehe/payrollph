@@ -1,6 +1,7 @@
 import { assertOrganizationRole, getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { loadComplianceCalendar } from "@/lib/compliance-calendar-server";
+import { buildStatutoryRuleWatch } from "@/lib/statutory-rule-watch";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export async function GET(request: Request) {
       today: calendar.today,
       applicableMonths: [],
       items: [],
+      ruleWatch: buildStatutoryRuleWatch(calendar.today),
       note: "The compliance calendar starts when payroll periods exist.",
     }, { headers: { "Cache-Control": "no-store" } });
   }
@@ -45,6 +47,7 @@ export async function GET(request: Request) {
     today: calendar.today,
     applicableMonths: calendar.applicableMonths,
     items: calendar.items,
+    ruleWatch: buildStatutoryRuleWatch(calendar.today),
     note: "Dates are nominal statutory dates or conservative internal targets. Published agency calendars, filer classification, weekends and holidays can change the final filing/payment date.",
   }, {
     headers: { "Cache-Control": "no-store" },
