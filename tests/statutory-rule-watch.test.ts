@@ -11,7 +11,9 @@ test("every statutory family has coverage today and unrecorded verification is f
     assert.notEqual(item.status, "no-coverage");
     assert.equal(item.status, "verification-unrecorded");
   }
-  assert.equal(items.find((row) => row.family === "wage-orders" && row.currentVersion)?.status, "current");
+  // The current registry remains valid even when a separately scheduled
+  // future wage order also appears in the rule watch.
+  assert.equal(items.find((row) => row.family === "wage-orders" && row.currentVersion === "17 regional orders")?.status, "current");
 });
 
 test("loaded Region VII ROVII-27 is scheduled before effectivity, never falsely overdue afterward", () => {
