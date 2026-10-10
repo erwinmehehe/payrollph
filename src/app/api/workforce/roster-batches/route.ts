@@ -253,7 +253,7 @@ export async function POST(request: Request) {
           minimumRestMinutes: policies[0].minimumRestMinutes,
           maxConsecutiveWorkingDays: policies[0].maxConsecutiveWorkingDays,
           rollingSevenDayMinutes: policies[0].rollingSevenDayMinutes,
-          enforcementMode: policies[0].enforcementMode === "block" as const ? "block" as const : "advisory" as const,
+          enforcementMode: policies[0].enforcementMode === "block" ? "block" as const : "advisory" as const,
           active: policies[0].active,
         } : DEFAULT_SCHEDULE_GUARDRAIL_POLICY;
         const mappedWorksites = worksiteAssignments.map(row => ({
