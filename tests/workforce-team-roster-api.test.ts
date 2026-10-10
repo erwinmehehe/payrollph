@@ -74,8 +74,9 @@ test("manager view cancels obsolete requests and does not silently change histor
   assert.ok(panel.includes("const payload = activeTeamRosterPayload(storedPayload, scopeKey);"));
   assert.ok(panel.includes("const requestedScope = teamRosterScopeKey(organizationId, startDate, page, appliedSearch);"));
   assert.ok(panel.includes("if (body?.page !== page || body?.startDate !== startDate)"));
-  assert.ok(panel.includes("editor.organizationId === organizationId && ("));
+  assert.ok(panel.includes("editor.organizationId === organizationId && editor.scopeKey === scopeKey && ("));
   assert.ok(panel.includes("editor.organizationId !== organizationId"));
+  assert.ok(panel.includes("editor.scopeKey !== scopeKey"));
   assert.ok(panel.includes("editor.day.date <= todayInManila()"));
   assert.ok(panel.includes("worksiteChoice ? Number(worksiteChoice) : editor.day.worksiteId"));
   assert.ok(panel.includes("Keep effective scheduled worksite"));
