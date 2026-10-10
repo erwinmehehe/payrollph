@@ -49,6 +49,28 @@ test("the wrong key and tampering both fail instead of returning garbage", () =>
   assert.throws(() => decryptBankAccount(tampered, withKey(KEY_A)), /could not be decrypted/);
 });
 
+test("encrypted envelopes reject appended segments, invalid Base64URL and wrong IV/tag sizes", () => {
+  const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
+  const parts = sealed.split(":");
+  assert.equal(parts.length, 5);
+  const invalid = [
+    `${sealed}:ignored`,
+    `${sealed}:`,
+    sealed.replace("enc:v1:", "enc:v1::"),
+    parts.slice(0, 4).join(":"),
+    `${parts.slice(0, 4).join(":")}:${parts[4]}!`,
+    `${parts.slice(0, 4).join(":")}:${parts[4]}=`,
+    ["enc", "v1", "AAAA", parts[3], parts[4]].join(":"),
+    ["enc", "v1", parts[2], "AAAA", parts[4]].join(":"),
+  ];
+  for (const value of invalid) {
+    assert.throws(() => decryptBankAccount(value, withKey(KEY_A)), /malformed/,
+      "noncanonical envelope must be rejected, even if an authentic prefix is present");
+    assert.throws(() => encryptBankAccount(value, withKey(KEY_A)), /malformed/,
+      "a malformed envelope must never be persisted unchanged");
+  }
+});
+
 test("an encrypted value with no key configured is an error, never a silent blank", () => {
   const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
   assert.throws(() => decryptBankAccount(sealed, withKey(undefined)), /configured/);
