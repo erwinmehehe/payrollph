@@ -1,0 +1,35 @@
+# P0 security release gates — bank encryption and payroll release segregation
+
+Status: **code repair in review**. These controls DO NOT certify that live payroll is ready.
+
+## Bank account writes — mandatory encryption in all environments
+
+- Any non-empty value passed to encryptBankAccount now requires a valid 32-byte BANK_DATA_ENCRYPTION_KEY, or an available valid TOTP_ENCRYPTION_KEY from which the domain-separated bank key can be derived. No environment can silently store new plaintext bank account numbers through this function.
+- A malformed explicitly supplied dedicated key does not fall back to the master key. A previous rotation key does NOT count as a write key.
+- Existing encrypted envelopes must authenticate before being re-saved. Null/empty values remain null.
+- Legacy plaintext DECRYPTION remains available **only** for staged migration/reading; the fix does not magically encrypt rows already in the database.
+- An encrypted bank value that cannot authenticate under current/previous key is rejected, never silently replaced or passed through for storage.
+
+**Operations before opening production to new bank-data writes:**
+1. Provision a valid high-entropy dedicated 32-byte BANK_DATA_ENCRYPTION_KEY in the protected deployment secret manager (or deliberately choose an audited valid TOTP-derived key). Never print it in logs, code, issue comments or reports. Set the same effective key for the approved backfill runner.
+2. Ensure production and the authorized runner report matching *one-way key fingerprints*, without publishing key material.
+3. Run the documented bank-account compatibility backfill in controlled maintenance conditions, including employee account data and stored payroll payment snapshots. Verify ciphertext format, coverage and zero remaining plaintext with the existing live bank-encryption verification workflow.
+4. Confirm record decryption, PayMongo no-money preflight, masked browser payloads, bank export, and rollback/key-rotation plan in synthetic staging. Ensure any plaintext exports/backups, historical database backups and logs have an explicit disposition.
+5. Record reviewer + operator approval before live key activation. A code merge alone does not provision secrets or fix existing plaintext backups.
+
+## Payroll release segregation — mandatory for every organization
+
+- The authenticated session user attempting release must **not** be the assigned checker, actual decision maker (including a delegate) or the designated managed-payroll client approver for the same run.
+- Managed-payroll client approval must be distinct from actual/assigned checker approval as well.
+- These rules use the existing *transactionally recorded* audit metadata: makerUserId, approverUserId and deciderUserId, filtered to the selected organization, exact approval task and exact payroll run.
+- Display names are not evidence. Missing, duplicated, mismatched, incomplete or legacy-only audit ID evidence blocks release (409) until an independently verified checker review is obtained.
+- Positive evidence with distinct actors allows the normal release process. Conflict returns 403. The check executes **before** the run's atomic Ready-for-release to Releasing transition and settlement.
+- No new SQL migration or policy opt-in is required. This is not a change to payroll calculations or approvals.
+
+**Review scenarios:** same checker/releaser, delegate/releaser, assigned checker/releaser, managed client approver/releaser, legacy no-ID evidence, wrong task, wrong employer, stale approval, duplicate decision log, two-person and three-person organizations, independent release allowed, concurrent retry, MFA enforcement, and financial settlement invariants.
+
+## Explicit launch limitations
+
+- Production live RBAC and encryption checks, tenant staging, treasury/payout integration, bank key provisioning, prior-data backfill, security review, and independent payroll reconciliation remain separate launch gates.
+- No feature switches are changed and no production secret, DB record or payout endpoint is altered by this patch.
+- Release owner approval and live production readiness evidence are required; green CI alone is not launch authorization.
