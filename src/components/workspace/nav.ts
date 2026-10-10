@@ -27,7 +27,7 @@ import {
   UserPlus,
   UsersRound,
   UserX,
-  WalletCards,
+  Wallet,
   Webhook,
   Workflow,
   type LucideIcon,
@@ -60,7 +60,7 @@ export const NAVIGATION: NavGroup[] = [
     label: "Workspace",
     items: [
       { name: "Overview", icon: House, hint: "Payroll status, approvals and cost at a glance", tone: "blue" },
-      { name: "Payroll", icon: WalletCards, hint: "Prepare, approve, release and export a run", tone: "green", badge: "runs" },
+      { name: "Payroll", icon: Wallet, hint: "Prepare, approve, release and export a run", tone: "green", badge: "runs" },
       { name: "People", icon: UsersRound, hint: "Employee directory, import and structure", tone: "purple", badge: "people" },
       { name: "Migration", icon: RefreshCcw, hint: "Switch from another payroll or HRIS with validated imports", tone: "teal" },
       { name: "Time & attendance", icon: Clock3, hint: "Punches, exceptions and derived hours", tone: "cyan" },
