@@ -1,21 +1,19 @@
 -- Tamper-evident audit trail.
 --
--- Every audit_events insert is hash-chained per organization by a database
--- trigger, so rows written directly through drizzle (not only recordAuditEvent)
--- are covered. Each row stores chain_seq, prev_hash and row_hash; altering or
--- removing any chained row breaks verification for every later row.
+-- 1. Append-only: UPDATE and direct DELETE on audit_events are rejected by a
+--    trigger, immediately, for every writer (recordAuditEvent and direct
+--    drizzle inserts alike). Deletes cascading from an organization deletion
+--    are allowed (pg_trigger_depth() > 1).
+-- 2. Hash chain: seal_audit_events() appends committed, unsealed rows to a
+--    per-organization SHA-256 chain (chain_seq, prev_hash, row_hash). Sealing
+--    runs outside application transactions under a try-lock, so audit inserts
+--    never take a lock and can never deadlock or slow payroll writes. Once a
+--    row is sealed, altering or removing it breaks verification for every
+--    later row in that organization's chain. Existing history is sealed too.
 --
--- The chain head is a locked row in audit_chain_heads. Under READ COMMITTED the
--- FOR UPDATE waits for the newest head; under SERIALIZABLE a concurrent writer
--- gets a retryable serialization failure instead of forking the chain.
---
--- UPDATE and direct DELETE on audit_events are rejected. Deletes cascading from
--- an organization deletion are allowed (pg_trigger_depth() > 1). Operators can
--- set `SET LOCAL linaw.audit_maintenance = 'on'` inside a transaction for an
--- authorized, deliberate correction; such a change will still fail verification.
---
--- Rows written before this migration keep null hashes and are reported as
--- legacy (unchained) by verification.
+-- `SET LOCAL linaw.audit_maintenance = 'on'` inside a transaction permits an
+-- authorized, deliberate correction; a sealed row changed this way still fails
+-- verification.
 
 ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS chain_seq bigint;
 ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS prev_hash varchar(64);
@@ -31,6 +29,9 @@ CREATE TABLE IF NOT EXISTS audit_chain_heads (
 CREATE UNIQUE INDEX IF NOT EXISTS audit_events_chain_seq_unique
   ON audit_events ((coalesce(organization_id, 0)), chain_seq)
   WHERE chain_seq IS NOT NULL;
+CREATE INDEX IF NOT EXISTS audit_events_unsealed_idx
+  ON audit_events (id)
+  WHERE chain_seq IS NULL;
 
 CREATE OR REPLACE FUNCTION audit_event_row_hash(
   prev text,
@@ -56,30 +57,6 @@ CREATE OR REPLACE FUNCTION audit_event_row_hash(
   )::text, 'UTF8')), 'hex')
 $$;
 
-CREATE OR REPLACE FUNCTION audit_events_chain() RETURNS trigger LANGUAGE plpgsql AS $$
-DECLARE
-  key integer := coalesce(NEW.organization_id, 0);
-  head_seq bigint;
-  head_hash varchar(64);
-BEGIN
-  INSERT INTO audit_chain_heads (chain_key) VALUES (key) ON CONFLICT (chain_key) DO NOTHING;
-  SELECT last_seq, last_hash INTO head_seq, head_hash
-    FROM audit_chain_heads WHERE chain_key = key FOR UPDATE;
-
-  NEW.chain_seq := head_seq + 1;
-  NEW.prev_hash := head_hash;
-  NEW.row_hash := audit_event_row_hash(
-    NEW.prev_hash, NEW.chain_seq, NEW.id, NEW.organization_id,
-    NEW.actor, NEW.action, NEW.resource, NEW.metadata, NEW.created_at
-  );
-
-  UPDATE audit_chain_heads
-    SET last_seq = NEW.chain_seq, last_hash = NEW.row_hash, updated_at = now()
-    WHERE chain_key = key;
-  RETURN NEW;
-END;
-$$;
-
 CREATE OR REPLACE FUNCTION audit_events_protect() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF current_setting('linaw.audit_maintenance', true) = 'on' THEN
@@ -88,17 +65,65 @@ BEGIN
   IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN
     RETURN OLD;
   END IF;
+  -- The sealer may only fill the chain columns of an unsealed row.
+  IF TG_OP = 'UPDATE'
+    AND current_setting('linaw.audit_sealing', true) = 'on'
+    AND OLD.chain_seq IS NULL
+    AND (NEW.id, NEW.organization_id, NEW.actor, NEW.action, NEW.resource, NEW.metadata, NEW.created_at)
+      IS NOT DISTINCT FROM (OLD.id, OLD.organization_id, OLD.actor, OLD.action, OLD.resource, OLD.metadata, OLD.created_at)
+  THEN
+    RETURN NEW;
+  END IF;
   RAISE EXCEPTION 'audit_events is append-only (% rejected)', TG_OP
     USING ERRCODE = 'insufficient_privilege';
 END;
 $$;
 
-DROP TRIGGER IF EXISTS audit_events_chain_insert ON audit_events;
-CREATE TRIGGER audit_events_chain_insert
-  BEFORE INSERT ON audit_events
-  FOR EACH ROW EXECUTE FUNCTION audit_events_chain();
-
 DROP TRIGGER IF EXISTS audit_events_protect_mutation ON audit_events;
 CREATE TRIGGER audit_events_protect_mutation
   BEFORE UPDATE OR DELETE ON audit_events
   FOR EACH ROW EXECUTE FUNCTION audit_events_protect();
+
+-- Returns the number of rows sealed, or 0 when another sealer holds the lock.
+CREATE OR REPLACE FUNCTION seal_audit_events(max_rows integer DEFAULT 500) RETURNS integer LANGUAGE plpgsql AS $$
+DECLARE
+  event record;
+  key integer;
+  head_seq bigint;
+  head_hash varchar(64);
+  next_hash varchar(64);
+  sealed integer := 0;
+BEGIN
+  IF NOT pg_try_advisory_xact_lock(hashtext('linaw:audit-chain-seal')) THEN
+    RETURN 0;
+  END IF;
+  PERFORM set_config('linaw.audit_sealing', 'on', true);
+
+  FOR event IN
+    SELECT id, organization_id, actor, action, resource, metadata, created_at
+    FROM audit_events
+    WHERE chain_seq IS NULL
+    ORDER BY id
+    LIMIT greatest(max_rows, 1)
+  LOOP
+    key := coalesce(event.organization_id, 0);
+    INSERT INTO audit_chain_heads (chain_key) VALUES (key) ON CONFLICT (chain_key) DO NOTHING;
+    SELECT last_seq, last_hash INTO head_seq, head_hash FROM audit_chain_heads WHERE chain_key = key;
+
+    next_hash := audit_event_row_hash(
+      head_hash, head_seq + 1, event.id, event.organization_id,
+      event.actor, event.action, event.resource, event.metadata, event.created_at
+    );
+    UPDATE audit_events
+      SET chain_seq = head_seq + 1, prev_hash = head_hash, row_hash = next_hash
+      WHERE id = event.id;
+    UPDATE audit_chain_heads
+      SET last_seq = head_seq + 1, last_hash = next_hash, updated_at = now()
+      WHERE chain_key = key;
+    sealed := sealed + 1;
+  END LOOP;
+
+  PERFORM set_config('linaw.audit_sealing', 'off', true);
+  RETURN sealed;
+END;
+$$;

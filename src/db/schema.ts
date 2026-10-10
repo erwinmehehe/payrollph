@@ -2257,7 +2257,7 @@ export const auditEvents = pgTable("audit_events", {
   resource: varchar("resource", { length: 160 }).notNull(),
   metadata: jsonb("metadata").notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  // Set by the audit_events_chain trigger (drizzle/0107); never written by the app.
+  // Filled only by seal_audit_events() (drizzle/0107); never written by the app.
   chainSeq: bigint("chain_seq", { mode: "number" }),
   prevHash: varchar("prev_hash", { length: 64 }),
   rowHash: varchar("row_hash", { length: 64 }),

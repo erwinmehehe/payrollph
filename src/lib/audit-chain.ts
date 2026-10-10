@@ -20,7 +20,7 @@ export type AuditChainBreak = {
 export type AuditChainReport = {
   verified: boolean;
   chainedEvents: number;
-  legacyUnchainedEvents: number;
+  pendingSealEvents: number;
   headSeq: number | null;
   headHash: string | null;
   breaks: AuditChainBreak[];
@@ -57,11 +57,21 @@ export function evaluateAuditChain(rows: AuditChainRow[]): AuditChainReport {
   return {
     verified: breaks.length === 0,
     chainedEvents: chained.length,
-    legacyUnchainedEvents: rows.length - chained.length,
+    pendingSealEvents: rows.length - chained.length,
     headSeq: head?.chainSeq ?? null,
     headHash: head?.rowHash ?? null,
     breaks,
   };
+}
+
+/**
+ * Appends committed, unsealed audit rows to their organization's hash chain.
+ * Runs outside application transactions and returns 0 when another sealer
+ * holds the lock, so it is safe to call from the scheduler and the verifier.
+ */
+export async function sealAuditEvents(maxRows = 500): Promise<number> {
+  const result = await db.execute(sql`SELECT seal_audit_events(${maxRows}) AS sealed`);
+  return Number((result.rows[0] as { sealed?: unknown } | undefined)?.sealed ?? 0);
 }
 
 export async function verifyAuditChain(organizationId: number): Promise<AuditChainReport> {

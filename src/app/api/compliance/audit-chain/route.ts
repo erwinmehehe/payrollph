@@ -1,6 +1,6 @@
 import { assertOrganizationRole, getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { verifyAuditChain } from "@/lib/audit-chain";
+import { sealAuditEvents, verifyAuditChain } from "@/lib/audit-chain";
 
 export const dynamic = "force-dynamic";
 
@@ -27,12 +27,15 @@ export async function GET(request: Request) {
     return Response.json({ error: "Audit trail verification is company-wide and is not available to unit-scoped roles." }, { status: 403 });
   }
 
+  // Sealing is idempotent chain bookkeeping, not a business mutation; doing it
+  // first keeps the report current when the scheduler is not enabled.
+  await sealAuditEvents(5000);
   const report = await verifyAuditChain(organizationId);
   return Response.json({
     ...report,
     verifiedAt: new Date().toISOString(),
-    note: report.legacyUnchainedEvents > 0
-      ? "Events recorded before tamper-evident chaining was enabled are listed as legacy and are not covered by the hash chain."
+    note: report.pendingSealEvents > 0
+      ? "Some events are not sealed into the hash chain yet. They are still protected from edits and deletes, and will be sealed on the next run."
       : null,
   }, { headers: { "Cache-Control": "no-store" } });
 }

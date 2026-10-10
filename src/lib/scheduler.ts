@@ -22,6 +22,7 @@ import { runScheduledPerformanceActionReminders } from "@/lib/hcm-performance-ac
 import { runScheduledPerformanceEvidenceSealing } from "@/lib/hcm-performance-evidence-sealing";
 import { resumeDueAutomationExecutions } from "@/lib/automation";
 import { runScheduledAutomationTemporalEvents } from "@/lib/automation-temporal-events";
+import { sealAuditEvents } from "@/lib/audit-chain";
 
 const MIN_INTERVAL_MS = 30_000;
 
@@ -172,6 +173,14 @@ async function runScheduledJobs(
     compensationAutomationDelivery = await drainCompensationAutomationIntents(new Date(), 25);
   } catch {
     compensationAutomationDelivery = { error: "Compensation automation delivery queue unavailable; inspect the durable intent ledger." };
+  }
+  await assertLeaseOwnership();
+
+  let auditChainSeal: { sealed: number } | { error: string };
+  try {
+    auditChainSeal = { sealed: await sealAuditEvents(1000) };
+  } catch {
+    auditChainSeal = { error: "Audit chain sealing unavailable; apply drizzle/0107_tamper_evident_audit_chain.sql." };
   }
   await assertLeaseOwnership();
 
@@ -331,6 +340,7 @@ async function runScheduledJobs(
     hcmEmploymentTermDecisions,
     hcmCompensation,
     compensationAutomationDelivery,
+    auditChainSeal,
     hcmLifecycleNotifications,
     performanceReminders,
     performanceActionReminders,
