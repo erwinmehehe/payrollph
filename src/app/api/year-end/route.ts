@@ -75,8 +75,10 @@ export async function GET(request: Request) {
     : [];
   const legacySingleEmployer = allEmployers.length === 0 && Boolean(organization);
   const legalEmployer = activeEmployers.length === 1 ? activeEmployers[0] : null;
-  const employerTin = digits(legalEmployer?.birTin ?? organization?.birTin);
-  const employerBranch = digits(legalEmployer?.birBranchCode ?? organization?.birBranchCode);
+  // Explicit legal employers must use their own registered BIR identity; never
+  // inherit a different organization-level TIN when their record is incomplete.
+  const employerTin = digits(legalEmployer ? legalEmployer.birTin : organization?.birTin);
+  const employerBranch = digits(legalEmployer ? legalEmployer.birBranchCode : organization?.birBranchCode);
   const missingBirIdentity = rows.filter((row) =>
     digits(row.employee.tin, true).length !== 9 ||
     digits(row.employee.tinBranchCode, true).length !== 4
