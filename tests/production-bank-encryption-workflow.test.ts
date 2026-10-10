@@ -83,6 +83,7 @@ test("readiness requires one valid report, the matching key, and no bank blocker
     const result = spawnSync("bash", ["-c", stub + script], {
       encoding: "utf8", timeout: 5000,
       env: {
+        NODE_ENV: "test",
         PATH: process.env.PATH,
         PRODUCTION_BASE_URL: "https://synthetic.invalid",
         MOCK_READINESS: body, MOCK_CURL_STATUS: String(status),
