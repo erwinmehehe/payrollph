@@ -107,7 +107,7 @@ footer{margin:20px 0 0;border-top:1px solid #c8d2d4;padding:10px;color:#42505c;f
 <div class="note">DRAFT - NOT AN OFFICIAL BIR FORM 2316 / NOT FOR FILING OR SUBSTITUTED FILING</div>
 <p class="muted">This worksheet helps payroll reviewers map approved compensation data to BIR Form No. 2316 (September 2021 ENCS).
 Use the official BIR certificate and complete all applicable fields before authorized employer and employee signatures.</p></header>
-<button class="print-action" type="button" onclick="window.print()">Print or save review copy</button>
+<p class="muted">Use your browser's Print command to save this review copy as a PDF.</p>
 ${body}
 <aside class="warning"><strong>Required before issuing an official certificate</strong><ul>${notices}</ul></aside>
 <footer>This document was assembled from annualization source records, not from an accepted filing. No signatures,
