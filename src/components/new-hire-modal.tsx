@@ -43,6 +43,11 @@ export function NewHireModal({
   const wizard = taskFirstUiEnabled();
   const [step, setStep] = useState(0);
   const dialogRef = useRef<HTMLElement>(null);
+  const priorFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    priorFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    return () => { priorFocusRef.current?.focus(); };
+  }, []);
   useEffect(() => {
     if (!wizard) return;
     const target = dialogRef.current?.querySelector<HTMLElement>(".tf-hire-step:not([hidden]) input, .tf-hire-step:not([hidden]) select, .tf-hire-review h3");
@@ -85,7 +90,16 @@ export function NewHireModal({
 
   return (
     <div className="modal-backdrop linaw-dialog" role="presentation">
-      <section className="modal large" role="dialog" aria-modal="true" aria-labelledby="tf-hire-title" ref={dialogRef} onKeyDown={(event) => { if (event.key === "Escape" && !busy) onClose(); }}>
+      <section className="modal large" role="dialog" aria-modal="true" aria-labelledby="tf-hire-title" ref={dialogRef} onKeyDown={(event) => {
+          if (event.key === "Escape" && !busy) { event.preventDefault(); onClose(); }
+          if (event.key !== "Tab") return;
+          const elements = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])") ?? [])
+            .filter((element) => element.getClientRects().length > 0);
+          const first = elements[0]; const last = elements[elements.length - 1];
+          if (!first || !last) return;
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }}>
         <button type="button" className="modal-close" aria-label="Close employee onboarding" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Layers size={22} className="i-teal" /></div>
         <div className="card-kicker">NEW HIRE</div>
