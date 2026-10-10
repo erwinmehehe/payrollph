@@ -27,7 +27,7 @@ export function positiveSalaryRateCents(value: unknown): bigint {
   }
   const [whole, fraction = ""] = raw.split(".");
   const cents = BigInt(whole) * BigInt(100) + BigInt(fraction.padEnd(2, "0") || "0");
-  if (cents <= BigInt(0) || cents > 10_000_000_00BigInt(0)) {
+  if (cents <= BigInt(0) || cents > BigInt("10000000000")) {
     throw new Error("Proposed rate must be greater than 0 and at most 100000000.00.");
   }
   return cents;
