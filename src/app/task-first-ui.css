@@ -1,0 +1,39 @@
+/* Task-first UX proposal. Scoped to the feature-flagged payroll dashboard. */
+.tf-payroll-home{display:grid;gap:19px;max-width:1280px;margin:0 auto;padding:12px 3px 34px;color:#152a49;font-family:var(--font-inter),Inter,system-ui,sans-serif}
+.tf-home-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:5px}
+.tf-kicker{color:#607391;font-size:10px;line-height:1.5;font-weight:800;letter-spacing:1.25px}
+.tf-home-header h1{font-size:clamp(25px,2.8vw,34px);font-weight:780;letter-spacing:-.9px;line-height:1.2;margin:8px 0}
+.tf-home-header p{color:#71809a;font-size:13px;margin:0}
+.tf-org-chip{font-size:12px;font-weight:700;color:#1540a5;background:#eaf1ff;border:1px solid #d5e3fa;border-radius:99px;padding:9px 13px;white-space:nowrap}
+.tf-payroll-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(235px,1fr);gap:16px}
+.tf-card{background:#fff;border:1px solid #dfe8f5;border-radius:14px;box-shadow:0 5px 20px rgba(20,50,90,.035);padding:22px;min-width:0}
+.tf-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.tf-card-heading h2{font-size:20px;font-weight:770;margin:5px 0;line-height:1.3;letter-spacing:-.4px}
+.tf-card-heading p{font-size:12px;color:#70809b;margin:7px 0}
+.tf-status{font-size:11px;padding:6px 10px;border-radius:7px;background:#edf4ff;color:#235bb7;white-space:nowrap;font-weight:730}
+.tf-step-track{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0;margin:26px 0;list-style:none}
+.tf-step-track li{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#8391a9;position:relative}
+.tf-step-track li:not(:last-child):after{content:"";position:absolute;left:75%;width:20%;height:2px;background:#e1e9f4;top:50%}
+.tf-step-track li>span{display:grid;place-items:center;width:27px;height:27px;border-radius:50%;background:#eef3fb;color:#8391a9;flex:none;font-size:11px}
+.tf-step-track .tf-step-done{color:#188466}.tf-step-track .tf-step-done>span{color:#fff;background:#1d9d72}
+.tf-step-track .tf-step-current{color:#2259bf}.tf-step-track .tf-step-current>span{color:#fff;background:#2867d9}
+.tf-primary-foot{border-top:1px solid #eaf0f8;padding-top:19px;display:flex;align-items:center;justify-content:space-between;gap:15px}
+.tf-primary-foot>span{font-size:12px;color:#70809b;max-width:440px;line-height:1.55}
+.tf-primary{display:flex;align-items:center;justify-content:center;gap:9px;border:0;border-radius:9px;padding:12px 17px;white-space:nowrap;background:#195bc8;color:white;font-size:12px;font-weight:750;cursor:pointer}
+.tf-primary:hover{background:#124cae}
+.tf-payday{display:flex;flex-direction:column;align-items:flex-start;gap:12px;background:#f3f8ff}
+.tf-payday>svg{color:#2163bd}.tf-payday>strong{font-size:23px;letter-spacing:-.6px;line-height:1.3}
+.tf-payday>p{color:#647591;font-size:13px;margin:0}.tf-sublabel{font-size:11px;color:#637993;background:white;padding:7px 11px;border:1px solid #e1eaf6;border-radius:7px}
+.tf-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.tf-metric{padding:17px 19px;display:flex;flex-direction:column;gap:9px;background:#fff;border:1px solid #e1eaf5;border-radius:12px;min-width:0}
+.tf-metric>span{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#65758f}.tf-metric>span svg{color:#2766c3}.tf-metric>strong{font-size:21px;letter-spacing:-.5px;line-height:1.2;overflow-wrap:anywhere;color:#152d52}.tf-metric>small{font-size:11px;line-height:1.4;color:#8290a6}
+.tf-lower-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:16px}.tf-lower-grid>.tf-card{padding:12px 19px}
+.tf-row-heading{align-items:center;padding:6px 4px 16px}.tf-row-heading h2{font-size:16px;margin:0}.tf-count{font-size:11px;color:#148068;background:#e6f7ef;border-radius:8px;padding:5px 9px;font-weight:750}.tf-count-issue{background:#fff0e8;color:#bc5428}
+.tf-action-row{display:flex;align-items:center;gap:13px;min-height:76px;width:100%;border:0;border-top:1px solid #eff2f7;background:transparent;text-align:left;padding:13px 2px;color:#142a48;cursor:pointer}.tf-action-row:hover{background:#f7faff}
+.tf-action-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#ecf4ff;color:#2367c0;flex:none}.tf-action-icon svg{width:17px;height:17px}.tf-icon-issue{background:#fff0e7;color:#ba4c21}
+.tf-action-copy{display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}.tf-action-copy strong{font-size:12px;line-height:1.5}.tf-action-copy small{font-size:11px;color:#8190a7;line-height:1.5}.tf-action-go{display:flex;align-items:center;gap:3px;color:#1c60c1;font-size:11px;font-weight:750;white-space:nowrap}
+.tf-footer-note{margin:0;color:#8290a6;font-size:11px;line-height:1.55}
+.tf-payroll-home button:focus-visible{outline:3px solid #3279eb;outline-offset:3px}
+@media(max-width:1100px){.tf-payroll-grid{grid-template-columns:1fr}.tf-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.tf-lower-grid{grid-template-columns:1fr}}
+@media(max-width:680px){.tf-payroll-home{gap:13px;padding:2px 0 100px}.tf-home-header{display:block}.tf-home-header h1{font-size:25px}.tf-org-chip{display:inline-block;margin-top:12px}.tf-card{padding:18px}.tf-step-track{margin:23px 0}.tf-step-track li{font-size:10px;gap:3px}.tf-step-track li>span{width:22px;height:22px}.tf-step-track li:not(:last-child):after{display:none}.tf-primary-foot{align-items:stretch;flex-direction:column}.tf-metrics{gap:9px}.tf-metric{padding:13px}.tf-metric>strong{font-size:17px}.tf-lower-grid>.tf-card{padding:12px}.tf-action-go{font-size:0}.tf-action-go svg{width:18px;height:18px}}
+@media(prefers-reduced-motion:reduce){.tf-payroll-home *{scroll-behavior:auto!important;transition-duration:.01ms!important}}
