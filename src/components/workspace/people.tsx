@@ -349,6 +349,8 @@ export function PeopleView({
   canManage = true,
   focusEmployeeId,
   onClearFocus,
+  taskFilter,
+  taskSequence,
 }: {
   data: DashboardData;
   onRefresh: () => Promise<void>;
@@ -357,9 +359,17 @@ export function PeopleView({
   canManage?: boolean;
   focusEmployeeId?: number | null;
   onClearFocus?: () => void;
+  taskFilter?: "missing-payout";
+  taskSequence?: number;
 }) {
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("all");
   const [query, setQuery] = useState("");
+  const [payoutOnly, setPayoutOnly] = useState(taskFilter === "missing-payout");
+  useEffect(() => {
+    if (taskSequence === undefined) return;
+    setPayoutOnly(taskFilter === "missing-payout");
+    setPage(1);
+  }, [taskSequence, taskFilter]);
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
   const [page, setPage] = useState(1);
   const [picked, setPicked] = useState<Employee | null>(null);
@@ -392,6 +402,7 @@ export function PeopleView({
     const needle = query.trim().toLowerCase();
     const rows = data.employees.filter((employee) => {
       if (tab !== "all" && employee.status !== tab) return false;
+      if (payoutOnly && (employee.status !== "Active" || (employee.bankCode && employee.bankAccount))) return false;
       if (!needle) return true;
       return `${employee.firstName} ${employee.lastName} ${employee.employeeNo} ${employee.title} ${employee.employmentType}`
         .toLowerCase()
@@ -404,7 +415,7 @@ export function PeopleView({
       if (sort.key === "status") return a.status.localeCompare(b.status) * direction;
       return `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`) * direction;
     });
-  }, [data.employees, tab, query, sort]);
+  }, [data.employees, tab, query, sort, payoutOnly]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -539,6 +550,13 @@ export function PeopleView({
         ))}
       </div>
 
+      {payoutOnly && (
+        <div className="notice notice-blue" role="status">
+          <ShieldCheck size={15} className="i-teal" />
+          <span>Showing active employees with incomplete payout fields. Bank acceptance is not verified here.</span>
+          <button type="button" className="secondary-button" onClick={() => { setPayoutOnly(false); setPage(1); }}>Show all employees</button>
+        </div>
+      )}
       <section className="people-layout">
         <article className="card table-card">
           <div className="table-toolbar">
