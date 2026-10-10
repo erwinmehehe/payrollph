@@ -204,7 +204,7 @@ export function PayrollRunView({
 
   useEffect(() => {
     if (taskSequence === undefined || !run || (targetRunId && run.id !== targetRunId)) return;
-    const id = targetFocus === "exceptions" || targetFocus === "register" ? "payroll-register" : targetFocus === "comparison" ? "payroll-assurance" : null;
+    const id = targetFocus === "review" ? "payroll-review-status" : targetFocus === "exceptions" || targetFocus === "register" ? "payroll-register" : targetFocus === "comparison" ? "payroll-assurance" : null;
     if (!id) return;
     const frame = requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({behavior:"smooth",block:"start"}));
     return () => cancelAnimationFrame(frame);
@@ -431,6 +431,34 @@ export function PayrollRunView({
           </>
         }
       />
+
+      {(taskTarget?.focus === "review") && (
+        <section className="card tf-review-status" id="payroll-review-status" aria-labelledby="payroll-review-title" style={{ marginBottom: 18 }}>
+          <div className="card-header">
+            <div>
+              <div className="card-kicker">INDEPENDENT PAYROLL REVIEW</div>
+              <h2 id="payroll-review-title" tabIndex={-1}>{run.periodLabel} · Review status</h2>
+              <p>This is the recorded status for payroll run #{run.id}. Viewing it does not approve or release payroll.</p>
+            </div>
+            <Status value={run.status} />
+          </div>
+          <div className="card-body" style={{ paddingTop: 0 }}>
+            <PayrollHandoff
+              stages={handoffStages}
+              period={run.periodLabel}
+              status={run.status}
+              payDate={formatDate(run.payDate)}
+              viewerRole={handoffRole}
+              compact
+            />
+            <div className="tf-review-summary">
+              <div><strong>Checker assignment</strong><span>{relatedTask?.approver ?? "Not yet assigned"}</span></div>
+              <div><strong>Checker decision</strong><span>{relatedTask?.status ?? "No decision recorded"}</span></div>
+            </div>
+            <p className="tf-review-note">Checker review, payroll release, bank payout, and payment settlement are separate steps. A released payroll is not proof that employees have received funds.</p>
+          </div>
+        </section>
+      )}
 
       {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
         <PayrollConnectedImpactPanel runId={run.id} onPage={onPage} allowedPages={availablePages} />
