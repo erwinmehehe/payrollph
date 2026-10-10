@@ -1,46 +1,143 @@
-/* Task-first UX proposal. Scoped to the feature-flagged payroll dashboard. */
-.tf-payroll-home{display:grid;gap:19px;max-width:1280px;margin:0 auto;padding:12px 3px 34px;color:#152a49;font-family:var(--font-inter),Inter,system-ui,sans-serif}
-.tf-home-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:5px}
-.tf-kicker{color:#607391;font-size:10px;line-height:1.5;font-weight:800;letter-spacing:1.25px}
-.tf-home-header h1{font-size:clamp(25px,2.8vw,34px);font-weight:780;letter-spacing:-.9px;line-height:1.2;margin:8px 0}
-.tf-home-header p{color:#71809a;font-size:13px;margin:0}
-.tf-org-chip{font-size:12px;font-weight:700;color:#1540a5;background:#eaf1ff;border:1px solid #d5e3fa;border-radius:99px;padding:9px 13px;white-space:nowrap}
-.tf-payroll-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(235px,1fr);gap:16px}
-.tf-card{background:#fff;border:1px solid #dfe8f5;border-radius:14px;box-shadow:0 5px 20px rgba(20,50,90,.035);padding:22px;min-width:0}
-.tf-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-.tf-card-heading h2{font-size:20px;font-weight:770;margin:5px 0;line-height:1.3;letter-spacing:-.4px}
-.tf-card-heading p{font-size:12px;color:#70809b;margin:7px 0}
-.tf-status{font-size:11px;padding:6px 10px;border-radius:7px;background:#edf4ff;color:#235bb7;white-space:nowrap;font-weight:730}
-.tf-step-track{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0;margin:26px 0;list-style:none}
-.tf-step-track li{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#8391a9;position:relative}
-.tf-step-track li:not(:last-child):after{content:"";position:absolute;left:75%;width:20%;height:2px;background:#e1e9f4;top:50%}
-.tf-step-track li>span{display:grid;place-items:center;width:27px;height:27px;border-radius:50%;background:#eef3fb;color:#8391a9;flex:none;font-size:11px}
-.tf-step-track .tf-step-done{color:#188466}.tf-step-track .tf-step-done>span{color:#fff;background:#1d9d72}
-.tf-step-track .tf-step-current{color:#2259bf}.tf-step-track .tf-step-current>span{color:#fff;background:#2867d9}
-.tf-primary-foot{border-top:1px solid #eaf0f8;padding-top:19px;display:flex;align-items:center;justify-content:space-between;gap:15px}
-.tf-primary-foot>span{font-size:12px;color:#70809b;max-width:440px;line-height:1.55}
-.tf-primary{display:flex;align-items:center;justify-content:center;gap:9px;border:0;border-radius:9px;padding:12px 17px;white-space:nowrap;background:#195bc8;color:white;font-size:12px;font-weight:750;cursor:pointer}
-.tf-primary:hover{background:#124cae}
-.tf-payday{display:flex;flex-direction:column;align-items:flex-start;gap:12px;background:#f3f8ff}
-.tf-payday>svg{color:#2163bd}.tf-payday>strong{font-size:23px;letter-spacing:-.6px;line-height:1.3}
-.tf-payday>p{color:#647591;font-size:13px;margin:0}.tf-sublabel{font-size:11px;color:#637993;background:white;padding:7px 11px;border:1px solid #e1eaf6;border-radius:7px}
-.tf-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
-.tf-metric{padding:17px 19px;display:flex;flex-direction:column;gap:9px;background:#fff;border:1px solid #e1eaf5;border-radius:12px;min-width:0}
-.tf-metric>span{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#65758f}.tf-metric>span svg{color:#2766c3}.tf-metric>strong{font-size:21px;letter-spacing:-.5px;line-height:1.2;overflow-wrap:anywhere;color:#152d52}.tf-metric>small{font-size:11px;line-height:1.4;color:#8290a6}
-.tf-lower-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:16px}.tf-lower-grid>.tf-card{padding:12px 19px}
-.tf-row-heading{align-items:center;padding:6px 4px 16px}.tf-row-heading h2{font-size:16px;margin:0}.tf-count{font-size:11px;color:#148068;background:#e6f7ef;border-radius:8px;padding:5px 9px;font-weight:750}.tf-count-issue{background:#fff0e8;color:#bc5428}
-.tf-action-row{display:flex;align-items:center;gap:13px;min-height:76px;width:100%;border:0;border-top:1px solid #eff2f7;background:transparent;text-align:left;padding:13px 2px;color:#142a48;cursor:pointer}.tf-action-row:hover{background:#f7faff}
-.tf-action-icon{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:#ecf4ff;color:#2367c0;flex:none}.tf-action-icon svg{width:17px;height:17px}.tf-icon-issue{background:#fff0e7;color:#ba4c21}
-.tf-action-copy{display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}.tf-action-copy strong{font-size:12px;line-height:1.5}.tf-action-copy small{font-size:11px;color:#8190a7;line-height:1.5}.tf-action-go{display:flex;align-items:center;gap:3px;color:#1c60c1;font-size:11px;font-weight:750;white-space:nowrap}
-.tf-footer-note{margin:0;color:#8290a6;font-size:11px;line-height:1.55}
-.tf-payroll-home button:focus-visible{outline:3px solid #3279eb;outline-offset:3px}
-@media(max-width:1100px){.tf-payroll-grid{grid-template-columns:1fr}.tf-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.tf-lower-grid{grid-template-columns:1fr}}
-@media(max-width:680px){.tf-payroll-home{gap:13px;padding:2px 0 100px}.tf-home-header{display:block}.tf-home-header h1{font-size:25px}.tf-org-chip{display:inline-block;margin-top:12px}.tf-card{padding:18px}.tf-step-track{margin:23px 0}.tf-step-track li{font-size:10px;gap:3px}.tf-step-track li>span{width:22px;height:22px}.tf-step-track li:not(:last-child):after{display:none}.tf-primary-foot{align-items:stretch;flex-direction:column}.tf-metrics{gap:9px}.tf-metric{padding:13px}.tf-metric>strong{font-size:17px}.tf-lower-grid>.tf-card{padding:12px}.tf-action-go{font-size:0}.tf-action-go svg{width:18px;height:18px}}
-@media(prefers-reduced-motion:reduce){.tf-payroll-home *{scroll-behavior:auto!important;transition-duration:.01ms!important}}
+/* Linaw task-first surfaces — scoped to the flag, no changes to legacy shell */
+.tf-payroll-home {
+  --tf-ink:#152741; --tf-muted:#60728a; --tf-line:#e4ebf1;
+  --tf-blue:#165cc8; --tf-navy:#132945; --tf-teal:#139c85;
+  display:grid;gap:19px;max-width:1300px;margin:0 auto;padding:12px 2px 36px;
+  color:var(--tf-ink);font-family:var(--font-inter),Inter,system-ui,-apple-system,sans-serif;
+}
+.tf-payroll-home *, .tf-payroll-home *::before, .tf-payroll-home *::after {box-sizing:border-box}
+.tf-payroll-home button{font:inherit;cursor:pointer}
+.tf-home-header{display:flex;justify-content:space-between;align-items:center;gap:22px;min-height:81px;padding:3px 1px 7px}
+.tf-kicker{font-size:10px;letter-spacing:1.5px;line-height:1.4;font-weight:800;color:#667b98}
+.tf-kicker-dot{display:inline-block;vertical-align:middle;width:7px;height:7px;margin-right:9px;background:#12a994;border-radius:2px;transform:rotate(45deg)}
+.tf-home-header h1{font-size:clamp(26px,2.6vw,35px);letter-spacing:-1.35px;font-weight:820;line-height:1.12;margin:8px 0 7px;color:#152945}
+.tf-home-header p{color:#607591;font-size:13px;line-height:1.5;margin:0}
+.tf-org-chip{display:inline-flex;gap:7px;align-items:center;flex-shrink:0;padding:7px 13px 7px 7px;color:#284966;background:#fff;border:1px solid #e1e9f1;border-radius:99px;box-shadow:0 4px 14px rgba(29,53,77,.04);font-size:11px;font-weight:720;max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tf-org-mark{display:grid;place-items:center;flex:none;width:28px;height:28px;background:#dff6f1;color:#137d71;border-radius:50%;font-size:12px}
+.tf-org-dot{color:#aab8c8}
+.tf-payroll-grid{display:grid;grid-template-columns:minmax(0,1.85fr) minmax(240px,.85fr);gap:16px}
+.tf-card{background:white;border:1px solid var(--tf-line);border-radius:17px;box-shadow:0 7px 28px rgba(22,47,77,.04);min-width:0}
+.tf-current{padding:25px 29px 24px;position:relative;overflow:hidden;isolation:isolate;
+  background:radial-gradient(ellipse 63% 116% at 105% -10%,rgba(32,164,168,.30),transparent 73%),linear-gradient(121deg,#10243f 4%,#1c3856 62%,#173f56 112%);
+  border:1px solid #234760;color:#f5fbff;box-shadow:0 16px 38px rgba(14,38,69,.16)}
+.tf-current::before{content:"";position:absolute;right:-52px;top:-115px;width:290px;height:290px;border:1px solid rgba(150,228,226,.12);border-radius:50%;box-shadow:0 0 0 39px rgba(149,218,226,.025),0 0 0 83px rgba(149,218,226,.02);pointer-events:none;z-index:-1}
+.tf-current-top{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+.tf-current .tf-kicker{color:#9dd6d8;font-size:10px}
+.tf-run-id{color:#b9d2db;border-left:1px solid rgba(239,249,255,.26);margin-left:9px;padding-left:11px;letter-spacing:1px}
+.tf-current h2{font-size:clamp(25px,2.8vw,34px);font-weight:810;letter-spacing:-1px;line-height:1.16;margin:11px 0 7px;color:white}
+.tf-current-top p{color:#b5ccdc;font-size:12px;line-height:1.5;margin:0}
+.tf-status{display:inline-flex;align-items:center;gap:7px;max-width:49%;padding:8px 10px;border-radius:8px;background:rgba(215,232,244,.13);color:#e0f2ff;border:1px solid rgba(202,232,245,.20);font-size:10px;font-weight:750;white-space:normal;text-align:center;line-height:1.2}
+.tf-status-dot{width:6px;height:6px;border-radius:50%;background:#9cc3e0;flex:none}
+.tf-status-attention{background:#553b2a;color:#ffdcad;border-color:rgba(255,221,170,.26)}
+.tf-status-attention .tf-status-dot{background:#ffcb7d}
+.tf-status-done{color:#a1f8dd;background:rgba(24,146,118,.19);border-color:rgba(97,236,196,.25)}.tf-status-done .tf-status-dot{background:#51e1b8}
+.tf-status-failed{color:#ffc3ba;background:#582a34;border-color:rgba(245,146,143,.3)}.tf-status-failed .tf-status-dot{background:#ff9b98}
+.tf-progress-label{font-size:10px;color:#a5c1d0;font-weight:800;letter-spacing:1.2px;margin-top:32px}
+.tf-step-track{list-style:none;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:0;margin:14px 0 27px;gap:0}
+.tf-step-track li{display:flex;align-items:center;gap:9px;min-width:0;position:relative;font-size:12px;font-weight:680;color:#9bafc1}
+.tf-step-track li:not(:last-child)::after{content:"";height:1px;width:21%;position:absolute;right:7%;top:50%;background:rgba(191,216,234,.3)}
+.tf-step-number{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:50%;background:rgba(231,243,250,.08);border:1px solid rgba(231,243,250,.19);font-size:11px;color:#a5b9c9}
+.tf-step-done{color:#b2f3dd!important}.tf-step-done .tf-step-number{background:#0f917e;border-color:#0f917e;color:#fff}
+.tf-step-current{color:#f5ffff!important}.tf-step-current .tf-step-number{background:#defeed;border:1px solid #defeed;color:#124c48;box-shadow:0 0 0 4px rgba(138,234,216,.10);font-weight:800}
+.tf-primary-foot{border-top:1px solid rgba(218,238,245,.19);padding-top:19px;display:flex;align-items:center;gap:20px;justify-content:space-between}
+.tf-next-copy{min-width:0;max-width:70%}.tf-next-label{font-size:9px;font-weight:820;letter-spacing:1.3px;color:#7dcacb;display:block;margin-bottom:3px}
+.tf-next-copy strong{display:block;color:#fff;font-size:16px;line-height:1.3;font-weight:760}.tf-next-copy p{font-size:11px;color:#b5cad6;margin:5px 0 0;line-height:1.5}
+.tf-primary{display:inline-flex;align-items:center;justify-content:center;gap:11px;border:1px solid #8ff1d3;border-radius:9px;background:#9bf3d8;color:#113b42;padding:12px 15px;font-size:12px!important;font-weight:800!important;white-space:nowrap;min-height:46px;box-shadow:0 8px 22px rgba(6,28,32,.14);transition:background .15s,transform .15s}
+.tf-primary:hover{background:#c4ffe9;transform:translateY(-1px)}.tf-primary:active{transform:translateY(0)}
+.tf-payday{padding:23px 24px;display:flex;flex-direction:column;align-items:flex-start;position:relative;overflow:hidden;background:radial-gradient(circle at 120% 110%,rgba(84,214,191,.16),transparent 60%),linear-gradient(145deg,#effbf9,#f1f7fb);border-color:#d7eae6}
+.tf-payday::after{position:absolute;content:"";right:-40px;top:72px;width:178px;height:178px;border-radius:50%;border:1px solid rgba(21,135,122,.1);box-shadow:0 0 0 30px rgba(42,141,127,.04),0 0 0 62px rgba(31,146,129,.02);pointer-events:none}
+.tf-payday-heading{display:flex;align-items:center;justify-content:space-between;width:100%}.tf-payday .tf-kicker{color:#267c77}.tf-payday-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:11px;background:#d5f4e9;color:#168775}
+.tf-payday>strong{font-size:clamp(22px,2.3vw,29px);letter-spacing:-.85px;line-height:1.25;margin-top:26px;max-width:250px;color:#174142}
+.tf-payday>p{color:#4b7778;font-size:12px;line-height:1.5;margin:9px 0 0}
+.tf-payday-divider{height:1px;width:100%;margin:27px 0 19px;background:rgba(31,115,106,.13)}
+.tf-payday-detail{color:#78908e;font-size:9px;letter-spacing:1.1px;font-weight:800;margin-bottom:8px}
+.tf-sublabel{font-size:11px;font-weight:700;color:#1b6e66;background:white;border:1px solid #cce7df;border-radius:6px;padding:8px 11px}
+.tf-payday-bottom{display:flex;align-items:center;gap:7px;color:#5d8b86;margin-top:auto;padding-top:22px;font-size:10px;line-height:1.45;max-width:245px}.tf-payday-bottom svg{flex:none;color:#148b77}
+.tf-overview-heading{display:flex;align-items:baseline;justify-content:space-between;gap:15px;margin:2px 2px -7px}
+.tf-overview-heading h2{font-size:15px;letter-spacing:-.25px;margin:0;font-weight:780}.tf-overview-heading span{font-size:11px;color:#8393a7;text-align:right}
+.tf-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}
+.tf-metric{padding:18px 19px 17px;display:flex;flex-direction:column;min-width:0;gap:10px;border:1px solid #e2eaf1;border-radius:13px;background:white;box-shadow:0 4px 20px rgba(27,57,83,.025)}
+.tf-metric>span{display:flex;align-items:center;gap:8px;color:#62768e;font-size:11px;font-weight:750;line-height:1.4}
+.tf-metric>span svg{color:#196db0;flex:none}
+.tf-metric>strong{color:#172f4c;font-size:clamp(17px,1.75vw,24px);font-weight:825;letter-spacing:-.7px;line-height:1.22;overflow-wrap:anywhere}
+.tf-metric>small{color:#91a0b1;font-size:10px;line-height:1.45}
+.tf-metric-emphasis{border-color:#cbeae2;background:linear-gradient(146deg,#eefbf6,#fff 88%)}.tf-metric-emphasis>span svg,.tf-metric-emphasis>strong{color:#137969}
+.tf-lower-grid{display:grid;grid-template-columns:minmax(0,1.18fr) minmax(0,.82fr);gap:16px}
+.tf-lower-grid>.tf-card{padding:19px 22px 11px}
+.tf-row-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:64px;padding:0 1px 13px}
+.tf-row-heading .tf-kicker{font-size:9px;color:#87a0b5}.tf-row-heading h2{font-size:17px;font-weight:770;letter-spacing:-.5px;margin:3px 0 0;color:#19314a}
+.tf-count{border-radius:8px;background:#eaf9f4;color:#118269;padding:7px 10px;font-size:10px;font-weight:760;white-space:nowrap}
+.tf-count-issue{background:#fff2e6;color:#ab5c23}.tf-section-icon{color:#759cb6}
+.tf-action-row{display:flex;align-items:center;gap:13px;width:100%;min-height:80px;background:transparent;border:0;border-top:1px solid #edf1f5;text-align:left;padding:15px 0;color:#172f4c;transition:background .15s,transform .15s}
+.tf-action-row:hover{background:#f5fafb;transform:translateX(2px)}
+.tf-action-icon{width:41px;height:41px;display:grid;place-items:center;flex:none;border-radius:10px;background:#ebf3fa;color:#27699e}
+.tf-action-icon svg{width:17px;height:17px}.tf-icon-issue{background:#fff0e7;color:#bd5c36}
+.tf-action-copy{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}.tf-action-copy strong{font-size:12px;line-height:1.4;font-weight:760;letter-spacing:-.1px}
+.tf-action-copy small{color:#8192a5;font-size:10.5px;line-height:1.42}
+.tf-action-go{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:770;color:#187a8c;white-space:nowrap;padding:6px}
+.tf-attention-foot{color:#9aa6b6;border-top:1px solid #edf1f5;font-size:10px;line-height:1.4;margin:0;padding:13px 0 2px}
+.tf-footer-note{display:flex;gap:8px;align-items:flex-start;color:#8496a9;font-size:10px;line-height:1.5;margin:0;padding:0 2px}
+.tf-footer-note svg{color:#189783;flex:none}
+.tf-payroll-home button:focus-visible{outline:3px solid #4e9bec;outline-offset:3px}
+@media(max-width:1160px){
+ .tf-payroll-grid{grid-template-columns:minmax(0,1.4fr) minmax(250px,.8fr)}
+ .tf-current{padding:23px}
+ .tf-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .tf-lower-grid{grid-template-columns:1fr}
+}
+@media(max-width:900px){
+ .tf-home-header{flex-wrap:wrap}
+ .tf-org-chip{max-width:100%}
+ .tf-payroll-grid{grid-template-columns:1fr}
+ .tf-payday{min-height:190px}
+ .tf-payday>strong{margin-top:14px}
+ .tf-payday-divider{margin:18px 0 12px}
+ .tf-payday-bottom{padding-top:12px}
+}
+@media(max-width:590px){
+ .tf-payroll-home{gap:15px;padding:2px 0 110px}
+ .tf-home-header{gap:14px;min-height:0;padding:0 1px 7px}
+ .tf-home-header h1{font-size:28px;letter-spacing:-1px}
+ .tf-home-header p{font-size:12px}
+ .tf-current{padding:21px 18px;border-radius:15px}
+ .tf-current h2{font-size:25px}
+ .tf-current-top{flex-wrap:wrap}
+ .tf-status{max-width:100%}
+ .tf-progress-label{margin-top:23px}
+ .tf-step-track{margin:14px 0 25px}
+ .tf-step-track li{font-size:10px;gap:5px}
+ .tf-step-track li:not(:last-child)::after{display:none}
+ .tf-step-number{width:25px;height:25px;font-size:10px}
+ .tf-primary-foot{flex-direction:column;align-items:stretch;gap:18px}
+ .tf-next-copy{max-width:100%}
+ .tf-primary{width:100%}
+ .tf-payday{padding:22px}
+ .tf-overview-heading{display:block}
+ .tf-overview-heading h2{margin-bottom:6px}
+ .tf-overview-heading span{display:block;text-align:left}
+ .tf-metrics{gap:10px}
+ .tf-metric{padding:14px 13px}
+ .tf-metric>strong{font-size:18px;letter-spacing:-.4px}
+ .tf-lower-grid>.tf-card{padding:17px 16px 9px}
+ .tf-action-icon{height:38px;width:38px}
+ .tf-action-row{gap:9px}
+ .tf-action-go{font-size:0;gap:0}
+ .tf-action-go svg{width:19px;height:19px}
+}
+@media(max-width:350px){.tf-metrics{grid-template-columns:1fr}.tf-current h2{font-size:22px}.tf-step-track li{font-size:9px}.tf-step-number{height:23px;width:23px}.tf-org-chip{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.tf-payroll-home *{transition-duration:.01ms!important;animation-duration:.01ms!important;scroll-behavior:auto!important}}
 
-/* Hiring wizard: existing server submission and validations are preserved. */
-.tf-hire-steps{min-width:0}.tf-hire-step{margin:0;padding:0;border:0;min-width:0}.tf-hire-step[hidden]{display:none!important}
-.tf-hire-progress{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:15px 0 18px}.tf-hire-progress span{font-size:11px;color:#7585a0;background:#f0f4fb;border:1px solid #e1e9f3;border-radius:8px;text-align:center;padding:9px 4px;font-weight:700}.tf-hire-progress span.active{background:#e8f2ff;color:#1658b8;border-color:#bfdbfe}
-.tf-hire-review{border:1px solid #e1eaf5;border-radius:12px;padding:20px;background:#f9fbff}
-.tf-hire-review h3{font-size:17px;margin:0 0 12px;color:#142a48}.tf-hire-review dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.tf-hire-review dt{font-size:12px;color:#667792}.tf-hire-review dd{font-size:14px;font-weight:750;color:#183358;margin:4px 0 0;overflow-wrap:anywhere}.tf-hire-review>p{color:#5c6e86;font-size:12px;line-height:1.55}
-@media(max-width:620px){.tf-hire-progress span{font-size:9px;padding:8px 2px}.tf-hire-review dl{grid-template-columns:1fr}}
+/* Guided employee onboarding: applied only with the task-first UI flag. */
+.tf-hire-steps{min-width:0}
+.tf-hire-step{margin:0;padding:0;border:0;min-width:0}
+.tf-hire-step[hidden]{display:none!important}
+.tf-hire-progress{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:17px 0 22px}
+.tf-hire-progress span{flex:1 1 74px;min-width:0;text-align:center;padding:10px 6px;font-size:10px;line-height:1.4;color:#7d91a6;background:#f3f7fa;border:1px solid #e3ebf2;border-radius:9px;font-weight:730}
+.tf-hire-progress span.active{color:#0c756e;background:#e6f7f1;border-color:#bde9db}
+.tf-hire-review{border:1px solid #cce7df;border-radius:14px;padding:21px;background:linear-gradient(145deg,#f1fcf8,#fff)}
+.tf-hire-review h3{font-size:19px;letter-spacing:-.4px;margin:0 0 17px;color:#133b3c}
+.tf-hire-review dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px;margin:0}
+.tf-hire-review dt{font-size:11px;font-weight:750;letter-spacing:.2px;color:#658384}
+.tf-hire-review dd{font-size:14px;font-weight:750;color:#203a46;margin:4px 0 0;overflow-wrap:anywhere}
+.tf-hire-review>p{margin-top:18px;color:#56777d;font-size:12px;line-height:1.55}
+@media(max-width:620px){.tf-hire-progress{gap:4px}.tf-hire-progress span{font-size:9px;padding:8px 4px}.tf-hire-review dl{grid-template-columns:1fr}}
