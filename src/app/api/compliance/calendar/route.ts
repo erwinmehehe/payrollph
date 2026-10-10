@@ -133,6 +133,7 @@ export async function GET(request: Request) {
     legalName: organization.legalName,
     philHealthEmployerNo: organization.philHealthEmployerNo,
     bir1601cOperationalMonths,
+    includeAnnualObligations: true,
     batches: organizationBatches.map((batch) => ({
       agency: batch.agency,
       applicableMonth: batch.applicableMonth,

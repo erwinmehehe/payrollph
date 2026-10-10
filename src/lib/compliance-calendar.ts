@@ -215,6 +215,8 @@ export function buildComplianceCalendar(input: {
   philHealthEmployerNo?: string | null;
   batches: CalendarBatch[];
   bir1601cOperationalMonths?: string[];
+  /** Include separately labelled annual reminders; not certified filing evidence. */
+  includeAnnualObligations?: boolean;
 }) {
   const byKey = new Map(input.batches.map((batch) => [`${batch.applicableMonth}|${batch.agency}`, batch]));
   const birOperationalMonths = new Set(input.bir1601cOperationalMonths ?? []);
@@ -246,6 +248,41 @@ export function buildComplianceCalendar(input: {
     });
   }
 
+  // BIR annual obligations are distinct from the 1601-C monthly cycle.
+  // Form 2316 must be ISSUED to workers by Jan 31; its separate submission
+  // rules must not be confused with the 1604-C/Alphalist filing deadline.
+  if (input.includeAnnualObligations) {
+    const years = [...new Set((input.birApplicableMonths ?? input.applicableMonths)
+      .filter((month) => /^\d{4}-(0[1-9]|1[0-2])$/.test(month))
+      .map((month) => month.slice(0, 4)))];
+    for (const year of years) {
+      const dueDate = `${Number(year) + 1}-01-31`;
+      const time = timeStatus(dueDate, input.today);
+      const status = time === "overdue" ? "verification-required" : time;
+      items.push({
+        id: `BIR-1604C-ALPHALIST-${year}`,
+        agency: "BIR",
+        obligation: `BIR Form 1604-C and employee Alphalist for tax year ${year}`,
+        applicableMonth: `${year}-12`,
+        dueDate, status,
+        detail: "Annual information return and attached employee Alphalist. Validate in the current BIR tools, file through the required taxpayer channel, and retain authoritative BIR acknowledgement. No filing proof is inferred from a payroll worksheet.",
+        sourceLabel: "BIR Form 1604-C instructions",
+        sourceUrl: "https://www.bir.gov.ph/bir-forms",
+        exactness: "conservative-target",
+      });
+      items.push({
+        id: `BIR-2316-ISSUANCE-${year}`,
+        agency: "BIR",
+        obligation: `Issue BIR Form 2316 to employees for tax year ${year}`,
+        applicableMonth: `${year}-12`,
+        dueDate, status,
+        detail: "January 31 is the employee certificate ISSUANCE deadline, including eligible minimum-wage earners. This is not a statement that all BIR-copy 2316 submissions share that deadline. Record worker delivery evidence and verify any separate filing obligation with BIR.",
+        sourceLabel: "BIR Form 2316 certificate instructions",
+        sourceUrl: "https://www.bir.gov.ph/bir-forms",
+        exactness: "conservative-target",
+      });
+    }
+  }
   for (const applicableMonth of input.applicableMonths) {
     for (const agency of ["SSS", "PhilHealth", "Pag-IBIG"] as const) {
       items.push(remittanceItem({

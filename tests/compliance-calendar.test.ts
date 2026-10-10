@@ -111,3 +111,49 @@ test("BIR follows pay month independently from contribution month", () => {
   assert.equal(items.find((item) => item.agency === "SSS")?.applicableMonth, "2026-09");
   assert.equal(items.some((item) => item.agency === "BIR" && item.applicableMonth === "2026-09"), false);
 });
+
+test("annual 1604-C/Alphalist and 2316 certificate issuance are separately labeled Jan 31 reminders", () => {
+  const items = buildComplianceCalendar({
+    today: "2026-10-10", currentMonth: "2026-10",
+    applicableMonths: ["2026-09"],
+    birApplicableMonths: ["2026-09"],
+    legalName: "Annual Testing Inc.",
+    philHealthEmployerNo: "00-123456789-3", batches: [],
+    includeAnnualObligations: true,
+  });
+  const alphalist = items.find((item) => item.id === "BIR-1604C-ALPHALIST-2026");
+  const issuance = items.find((item) => item.id === "BIR-2316-ISSUANCE-2026");
+  assert.equal(alphalist?.dueDate, "2027-01-31");
+  assert.equal(issuance?.dueDate, "2027-01-31");
+  assert.match(alphalist?.detail ?? "", /authoritative BIR acknowledgement/);
+  assert.match(issuance?.obligation ?? "", /Issue BIR Form 2316/);
+  assert.match(issuance?.detail ?? "", /ISSUANCE deadline/);
+  assert.doesNotMatch(issuance?.obligation ?? "", /file|submit/i);
+  assert.notEqual(alphalist?.status, "complete");
+  assert.notEqual(issuance?.status, "complete");
+});
+
+test("annual reminders never invent filing success when previous year is overdue", () => {
+  const items = buildComplianceCalendar({
+    today: "2027-02-02", currentMonth: "2027-02",
+    applicableMonths: ["2026-12"], legalName: "Annual Testing Inc.",
+    philHealthEmployerNo: "00-123456789-3", batches: [],
+    includeAnnualObligations: true,
+  });
+  assert.equal(items.find((item) => item.id === "BIR-1604C-ALPHALIST-2026")?.status, "verification-required");
+  assert.equal(items.find((item) => item.id === "BIR-2316-ISSUANCE-2026")?.status, "verification-required");
+});
+
+test("government worksheet UX and HTTP download both clearly disclose non-certified status", () => {
+  const ui = readFileSync("src/components/workspace/exports.tsx", "utf8");
+  const route = readFileSync("src/app/api/payroll-runs/[id]/exports/route.ts", "utf8");
+  const exporter = readFileSync("src/lib/exporters.ts", "utf8");
+  const calendarRoute = readFileSync("src/app/api/compliance/calendar/route.ts", "utf8");
+  assert.ok(calendarRoute.includes("includeAnnualObligations: true"));
+  assert.ok(ui.includes("data-government-draft-warning"));
+  assert.ok(ui.includes("not certified portal upload files"));
+  assert.ok(ui.includes("not Form 2316"));
+  assert.ok(route.includes('"X-Linaw-Government-File-Status"'));
+  assert.ok(route.includes('"Cache-Control": "private, no-store"'));
+  assert.ok(exporter.includes("DRAFT ONLY, not a certified government submission file"));
+});
