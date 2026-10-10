@@ -143,20 +143,20 @@
 @media(max-width:620px){.tf-hire-progress{gap:4px}.tf-hire-progress span{font-size:9px;padding:8px 4px}.tf-hire-review dl{grid-template-columns:1fr}}
 
 /* Onboarding dialog — high-contrast labels, comfortable tap targets, visible progress. */
-.linaw-dialog .modal.large{width:min(760px,100%);max-height:min(91vh,960px);padding:30px 32px;border-radius:20px;box-shadow:0 24px 80px rgba(14,34,55,.26)}
-.linaw-dialog .modal-icon{border:1px solid #bfe6db;width:44px;height:44px;border-radius:13px;background:#e7f9f2}
-.linaw-dialog .modal h2{font-size:clamp(22px,2.5vw,28px);color:#193046;font-weight:800;letter-spacing:-.85px;line-height:1.2}
-.linaw-dialog .modal>p{font-size:12.5px;line-height:1.6;color:#6d8093;margin:9px 0 11px}
-.linaw-dialog .modal-close{width:36px;height:36px;top:16px;right:16px;display:grid;place-items:center;border-radius:9px}
-.linaw-dialog .tf-hire-step{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:17px;row-gap:17px;padding:5px 0 9px}
-.linaw-dialog .tf-step-intro{grid-column:1/-1;margin:0 0 3px;padding:12px 15px;background:#eff8f6;border-left:3px solid #28aa93;border-radius:7px;color:#567d7b;line-height:1.55;font-size:12px}
-.linaw-dialog .tf-hire-step label{font-size:12px;font-weight:730;line-height:1.5;color:#3b536c;gap:6px}
-.linaw-dialog .tf-hire-step input,.linaw-dialog .tf-hire-step select{min-height:44px;height:44px;border-radius:9px;border:1px solid #d5e1e9;padding:9px 12px;background:#fff;color:#142e42}
-.linaw-dialog .tf-hire-step input:focus,.linaw-dialog .tf-hire-step select:focus{outline:2px solid #80d5c2;outline-offset:1px;border-color:#2b968a}
-.linaw-dialog .tf-hire-step input[type=checkbox]{height:18px;min-height:18px}
-.linaw-dialog .modal-actions{position:sticky;bottom:-30px;background:#fff;border-top:1px solid #e7edf1;margin-top:20px;padding:16px 0 3px;z-index:2}
-.linaw-dialog .modal-actions button{min-height:44px;border-radius:9px;font-size:12px;font-weight:750}
-.linaw-dialog .modal-actions .primary-button{background:#15796d;color:#fff;border:1px solid #15796d;padding:10px 16px}
-.linaw-dialog .modal-actions .primary-button:hover{background:#116b61}
-.linaw-dialog .modal-actions .primary-button:focus-visible,.linaw-dialog .modal-close:focus-visible{outline:3px solid #58b8ac;outline-offset:2px}
-@media(max-width:640px){.linaw-dialog{padding:9px}.linaw-dialog .modal.large{padding:23px 17px;max-height:96vh;border-radius:15px}.linaw-dialog .tf-hire-step{grid-template-columns:1fr;gap:12px}.linaw-dialog .tf-hire-progress{margin:12px 0 17px;gap:3px}.linaw-dialog .tf-hire-progress span{font-size:9px;flex:1 1 0;min-width:0;padding:8px 2px}.linaw-dialog .modal-actions{bottom:-23px}.linaw-dialog .modal-actions .secondary-button{padding:10px 12px}}
+.linaw-dialog.tf-hire-dialog .modal.large{width:min(760px,100%);max-height:min(91vh,960px);padding:30px 32px;border-radius:20px;box-shadow:0 24px 80px rgba(14,34,55,.26)}
+.linaw-dialog.tf-hire-dialog .modal-icon{border:1px solid #bfe6db;width:44px;height:44px;border-radius:13px;background:#e7f9f2}
+.linaw-dialog.tf-hire-dialog .modal h2{font-size:clamp(22px,2.5vw,28px);color:#193046;font-weight:800;letter-spacing:-.85px;line-height:1.2}
+.linaw-dialog.tf-hire-dialog .modal>p{font-size:12.5px;line-height:1.6;color:#6d8093;margin:9px 0 11px}
+.linaw-dialog.tf-hire-dialog .modal-close{width:36px;height:36px;top:16px;right:16px;display:grid;place-items:center;border-radius:9px}
+.linaw-dialog.tf-hire-dialog .tf-hire-step{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:17px;row-gap:17px;padding:5px 0 9px}
+.linaw-dialog.tf-hire-dialog .tf-step-intro{grid-column:1/-1;margin:0 0 3px;padding:12px 15px;background:#eff8f6;border-left:3px solid #28aa93;border-radius:7px;color:#567d7b;line-height:1.55;font-size:12px}
+.linaw-dialog.tf-hire-dialog .tf-hire-step label{font-size:12px;font-weight:730;line-height:1.5;color:#3b536c;gap:6px}
+.linaw-dialog.tf-hire-dialog .tf-hire-step input,.linaw-dialog.tf-hire-dialog .tf-hire-step select{min-height:44px;height:44px;border-radius:9px;border:1px solid #d5e1e9;padding:9px 12px;background:#fff;color:#142e42}
+.linaw-dialog.tf-hire-dialog .tf-hire-step input:focus,.linaw-dialog.tf-hire-dialog .tf-hire-step select:focus{outline:2px solid #80d5c2;outline-offset:1px;border-color:#2b968a}
+.linaw-dialog.tf-hire-dialog .tf-hire-step input[type=checkbox]{height:18px;min-height:18px}
+.linaw-dialog.tf-hire-dialog .modal-actions{position:sticky;bottom:-30px;background:#fff;border-top:1px solid #e7edf1;margin-top:20px;padding:16px 0 3px;z-index:2}
+.linaw-dialog.tf-hire-dialog .modal-actions button{min-height:44px;border-radius:9px;font-size:12px;font-weight:750}
+.linaw-dialog.tf-hire-dialog .modal-actions .primary-button{background:#15796d;color:#fff;border:1px solid #15796d;padding:10px 16px}
+.linaw-dialog.tf-hire-dialog .modal-actions .primary-button:hover{background:#116b61}
+.linaw-dialog.tf-hire-dialog .modal-actions .primary-button:focus-visible,.linaw-dialog.tf-hire-dialog .modal-close:focus-visible{outline:3px solid #58b8ac;outline-offset:2px}
+@media(max-width:640px){.linaw-dialog.tf-hire-dialog{padding:9px}.linaw-dialog.tf-hire-dialog .modal.large{padding:23px 17px;max-height:96vh;border-radius:15px}.linaw-dialog.tf-hire-dialog .tf-hire-step{grid-template-columns:1fr;gap:12px}.linaw-dialog.tf-hire-dialog .tf-hire-progress{margin:12px 0 17px;gap:3px}.linaw-dialog.tf-hire-dialog .tf-hire-progress span{font-size:9px;flex:1 1 0;min-width:0;padding:8px 2px}.linaw-dialog.tf-hire-dialog .modal-actions{bottom:-23px}.linaw-dialog.tf-hire-dialog .modal-actions .secondary-button{padding:10px 12px}}
