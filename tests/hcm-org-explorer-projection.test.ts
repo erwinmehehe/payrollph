@@ -32,6 +32,8 @@ test("missing parents are visible as unresolved, not fabricated roots", () => {
   assert.equal(result.integrity, "needs_review");
   assert.equal(result.units[0].relationship, "missing_parent");
   assert.equal(result.units[0].depth, 0);
+  assert.equal(result.units[0].parentId, null);
+  assert.ok(!JSON.stringify(result).includes("999"));
 });
 
 test("cycles and descendants of cycles do not create a bogus org chart", () => {
