@@ -2,7 +2,6 @@ import { and, asc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, leaveRequests, orgUnits } from "@/db/schema";
 import {
-  currentPhilippineMonth,
   isPermittedTeamLeaveMonth,
   summarizeTeamLeaveMonth,
   TEAM_LEAVE_SOURCE_CEILING,
