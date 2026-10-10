@@ -14,6 +14,31 @@ export type PeopleOpsCategory =
   | "separation";
 
 export type PeopleOpsPriority = "review" | "follow_up" | "source_check";
+export type PeopleOpsDueWindow = "all" | "overdue" | "today" | "next7" | "next30" | "unscheduled";
+
+/** Controlled source-owner team labels, not persisted case ownership or user assignment. */
+export const PEOPLE_OPS_TEAMS = [
+  "People Ops / Employment Decisions",
+  "People Ops / IT",
+  "People Ops / Workforce Planning",
+  "People Ops / Manager",
+  "People Ops / IT / Finance",
+] as const;
+export type PeopleOpsTeam = (typeof PEOPLE_OPS_TEAMS)[number];
+export type PeopleOpsAttention = {
+  overdue: number;
+  dueToday: number;
+  dueNext7: number;
+  dueNext30: number;
+  undated: number;
+};
+export type PeopleOpsTeamLoad = {
+  team: PeopleOpsTeam;
+  total: number;
+  review: number;
+  overdue: number;
+  dueWithin7: number;
+};
 export type PeopleOpsPage = "People" | "Planning" | "Performance" | "Separation";
 
 export type PeopleOpsItem = {
@@ -66,6 +91,8 @@ export type PeopleOpsSummary = {
 export type PeopleOpsPayload = {
   today: string;
   summary: PeopleOpsSummary;
+  attention: PeopleOpsAttention;
+  teamLoad: PeopleOpsTeamLoad[];
   filteredTotal: number;
   page: number;
   pageSize: number;
@@ -79,6 +106,8 @@ export type PeopleOpsFilters = {
   pageSize?: number;
   category?: PeopleOpsCategory | "all";
   priority?: PeopleOpsPriority | "all";
+  dueWindow?: PeopleOpsDueWindow;
+  team?: PeopleOpsTeam | "all";
   search?: string;
 };
 
@@ -339,6 +368,69 @@ export function buildPeopleOperationsItems(input: PeopleOpsInput): PeopleOpsItem
   });
 }
 
+type DueBucket = "overdue" | "today" | "next7" | "next30" | "later" | "undated";
+
+/**
+ * Use the same Philippine business-date anchor for every item. These dates
+ * are source milestones, NOT a contractual SLA or payroll deadline.
+ */
+function dueBucket(today: string, dueDate: string | null): DueBucket {
+  if (!dueDate) return "undated";
+  const days = daysBetween(today, dueDate);
+  if (!Number.isSafeInteger(days) || days === Number.MAX_SAFE_INTEGER) return "undated";
+  if (days < 0) return "overdue";
+  if (days === 0) return "today";
+  if (days <= 7) return "next7";
+  if (days <= 30) return "next30";
+  return "later";
+}
+
+export function summarizePeopleOperationsAttention(
+  today: string,
+  rows: PeopleOpsItem[],
+): { attention: PeopleOpsAttention; teamLoad: PeopleOpsTeamLoad[] } {
+  const attention: PeopleOpsAttention = {
+    overdue: 0, dueToday: 0, dueNext7: 0, dueNext30: 0, undated: 0,
+  };
+  const teams = new Map<PeopleOpsTeam, PeopleOpsTeamLoad>();
+
+  for (const row of rows) {
+    const bucket = dueBucket(today, row.dueDate);
+    if (bucket === "overdue") attention.overdue++;
+    else if (bucket === "today") attention.dueToday++;
+    else if (bucket === "next7") attention.dueNext7++;
+    else if (bucket === "next30") attention.dueNext30++;
+    else if (bucket === "undated") attention.undated++;
+
+    const team = PEOPLE_OPS_TEAMS.find((label) => label === row.responsibleTeam);
+    if (!team) continue;
+    const load = teams.get(team) ?? { team, total: 0, review: 0, overdue: 0, dueWithin7: 0 };
+    load.total++;
+    if (row.priority === "review") load.review++;
+    if (bucket === "overdue") load.overdue++;
+    if (bucket === "today" || bucket === "next7") load.dueWithin7++;
+    teams.set(team, load);
+  }
+  return {
+    attention,
+    teamLoad: [...teams.values()].sort(
+      (a, b) => b.overdue - a.overdue || b.review - a.review
+        || b.total - a.total || a.team.localeCompare(b.team),
+    ),
+  };
+}
+
+function inDueWindow(today: string, dueDate: string | null, window: PeopleOpsDueWindow): boolean {
+  if (window === "all") return true;
+  const bucket = dueBucket(today, dueDate);
+  if (window === "unscheduled") return bucket === "undated";
+  if (window === "overdue") return bucket === "overdue";
+  if (window === "today") return bucket === "today";
+  if (window === "next7") return bucket === "today" || bucket === "next7";
+  // Next 30 days excludes already-overdue source milestones; it includes today.
+  return bucket === "today" || bucket === "next7" || bucket === "next30";
+}
+
 export function paginatePeopleOperationsItems(
   today: string,
   allRows: PeopleOpsItem[],
@@ -350,9 +442,12 @@ export function paginatePeopleOperationsItems(
   const filtered = allRows.filter((row) =>
     (!filters.category || filters.category === "all" || row.category === filters.category)
     && (!filters.priority || filters.priority === "all" || row.priority === filters.priority)
+    && (!filters.team || filters.team === "all" || row.responsibleTeam === filters.team)
+    && inDueWindow(today, row.dueDate, filters.dueWindow ?? "all")
     && (!q || (row.employeeName + " " + row.employeeNo).toLocaleLowerCase().includes(q)));
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, pages);
+  const overview = summarizePeopleOperationsAttention(today, allRows);
   return {
     today,
     summary: {
@@ -362,6 +457,8 @@ export function paginatePeopleOperationsItems(
       sourceCheck: allRows.filter((row) => row.priority === "source_check").length,
       employeesAffected: new Set(allRows.map((row) => row.employeeId)).size,
     },
+    attention: overview.attention,
+    teamLoad: overview.teamLoad,
     filteredTotal: filtered.length,
     page: safePage,
     pageSize,

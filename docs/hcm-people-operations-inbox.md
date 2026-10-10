@@ -18,7 +18,7 @@ All rows link to **existing** People, Planning, Performance or Separation module
 
 ## Access boundaries
 
-The read-only endpoint is **GET /api/hcm/people-operations-inbox**, with strictly validated `organizationId`, `page`, `pageSize` (1–50), `priority`, `category`, and employee search (max 80 characters). It:
+The read-only endpoint is **GET /api/hcm/people-operations-inbox**, with strictly validated `organizationId`, `page`, `pageSize` (1–50), `priority`, `category`, `dueWindow`, allowlisted `team`, and employee search (max 80 characters). It:
 
 1. Authenticates the session.
 2. Calls **assertOrganizationRole(..., PEOPLE_ADMIN_ROLES)**, which validates current organization membership, server session policy and deny-only custom People permission set/dynamic group.
@@ -33,6 +33,21 @@ The read-only endpoint is **GET /api/hcm/people-operations-inbox**, with strictl
 Review required → follow up → optional source check, then earliest due date, employee name and stable category ID. This is an **operational sorting order**, not a legal-compliance risk model. The summary counts all source-linked current follow-ups across the organization, including those outside the current page/filter. The API applies filtering and paginates to 20 items/page by default, max 50. It does not show false "all requirements complete" messages for an empty filtered set.
 
 To prevent duplicate Separation follow-ups, existing lifecycle start/continue handoffs are not echoed when an authoritative Separation package is already linked to that employee.
+
+## Daily HR triage and source-date watch
+
+The same native People Operations Inbox now includes a **read-only daily triage layer**. It does not create a second dashboard or change the authoritative source modules:
+
+- Whole-tenant counters for **past source date**, **due today**, **1–7 days after today**, **8–30 days after today**, and **no source date**. Beyond-30-day work remains present in the inbox but is not labeled urgent.
+- Interactive date filters: overdue; today; today plus next 7 days; today plus next 30 days; or missing source date. Next-7 and next-30 filters include today, **not overdue** entries.
+- Source-team workload breakdown with totals, items needing review, past source date and items due within 7 days. Selecting a team drills into the existing list.
+- Validated `dueWindow` and `team` GET parameters, with a fixed allowlist of known source-team labels. All filtering runs **after** the existing company-wide People role and tenant checks, using the exact existing tenant-scoped projections.
+- Summary and team counts remain **whole-tenant counts**, even when filtered or paginated. A user may clear filters to return to the full view.
+- The reference date is the Philippine business date; calculations use exact Gregorian `YYYY-MM-DD` UTC-midnight intervals to avoid browser timezone/daylight-saving drift.
+
+**Meaning matters:** An item past a source date is an HR *review prompt*, not a proven breach of statute, payroll obligation or an assigned SLA. Missing dates may be normal for legacy, externally documented or unconfigured work. The stored operational-case SLA controls under separate draft #673 remain independent and are **not** silently mapped to these source-team labels. No owner assignment is fabricated here. This project phase requires no SQL migration, payroll recalculation, employment decision, notification sending, employee status update or new persistence.
+
+Automated `tests/hcm-people-ops-daily-triage.test.ts` covers date boundaries, disjoint workloads, rolling horizons, missing dates, team filtering, global-vs-filtered counts, denied authorization, read-only API and source navigation. Staging still needs cross-tenant/org-switch, HR-role, source-workflow reconciliation and realistic workload testing. This triage layer stacks on #670, which depends on #669 → #640. Do not merge or deploy it independently of that dependency chain.
 
 ## Testing and staged acceptance
 
