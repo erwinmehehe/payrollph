@@ -9,7 +9,7 @@ test("Treasury admin clearly identifies disabled and enabled operator separation
   assert.match(s, /data-treasury-separation-on/);
   assert.match(s, /Treasury separation is ON/);
   assert.match(s, /data\.policy\.enabled/);
-  assert.match(s, /data\.canConfigure/);
+  assert.match(s, /data\?\.canConfigure/);
 });
 
 test("new hire and legacy pay editor provide explicit monthly conversion guidance", () => {
