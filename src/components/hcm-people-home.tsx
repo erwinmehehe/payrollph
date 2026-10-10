@@ -3,17 +3,11 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, RefreshCw, ShieldCheck } from "lucide-react";
 import type { DashboardData } from "@/components/workspace/types";
-import {
-  projectHcmDecisions, projectPeopleFollowUps, projectOperationalCases,
-  type HcmHomeItem,
-} from "@/lib/hcm-people-home-projection";
+import type { HcmHomeItem } from "@/lib/hcm-people-home-projection";
+import type { HcmPeopleHomeSlice } from "@/lib/hcm-people-home-bounds";
 
 type Slice = { status: "loading" | "ready" | "unavailable"; items: HcmHomeItem[]; partial: boolean };
 const loading = (): Slice => ({ status: "loading", items: [], partial: false });
-
-type BP = { myWork?: Parameters<typeof projectHcmDecisions>[1] };
-type Ops = { rows?: Parameters<typeof projectPeopleFollowUps>[1]; filteredTotal?: number; pages?: number };
-type Cases = { items?: Parameters<typeof projectOperationalCases>[1] };
 
 function dateLabel(value: string | null, milestone: boolean) {
   if (!value) return "No source date";
@@ -37,43 +31,45 @@ export function HcmPeopleHome({ data, onPage, onOpenWorker }: {
 
   useEffect(() => {
     const controller = new AbortController();
-    // Reset all sources on employer change; render is gated by sourceOrg below.
-    const options = { cache: "no-store" as const, signal: controller.signal };
-    const get = async (path: string) => {
-      const response = await fetch(path, options);
-      if (!response.ok) throw new Error("Source unavailable");
-      return response.json();
+    const unavailable = (): Slice => ({ status: "unavailable", items: [], partial: true });
+    const safeSource = (source: HcmPeopleHomeSlice | undefined): Slice => {
+      if (!source || !Array.isArray(source.items) ||
+        (source.status !== "ready" && source.status !== "unavailable")) return unavailable();
+      return { status: source.status, items: source.items, partial: source.partial };
     };
     setDecisions(loading());
     setFollowUps(loading());
     setCases(loading());
-    void get("/api/hcm/business-processes/inbox?organizationId=" + orgId).then((payload: BP) => {
-      if (!controller.signal.aborted) setDecisions({
-        status: "ready", items: projectHcmDecisions(orgId, payload.myWork ?? []),
-        partial: false,
-      });
-    }).catch(() => { if (!controller.signal.aborted) setDecisions({ status: "unavailable", items: [], partial: true }); });
-    if (hrAccess) {
-      void get("/api/hcm/people-operations-inbox?organizationId=" + orgId + "&page=1&pageSize=20").then((payload: Ops) => {
-        if (!controller.signal.aborted) setFollowUps({
-          status: "ready", items: projectPeopleFollowUps(orgId, payload.rows ?? []),
-          partial: (payload.filteredTotal ?? 0) > (payload.rows?.length ?? 0),
-        });
-      }).catch(() => { if (!controller.signal.aborted) setFollowUps({ status: "unavailable", items: [], partial: true }); });
-      void get("/api/hcm/work-items?organizationId=" + orgId).then((payload: Cases) => {
-        if (!controller.signal.aborted) setCases({
-          status: "ready", items: projectOperationalCases(orgId, payload.items ?? []),
-          partial: (payload.items?.length ?? 0) >= 200,
-        });
-      }).catch(() => { if (!controller.signal.aborted) setCases({ status: "unavailable", items: [], partial: true }); });
-    }
+    void fetch("/api/hcm/people-home?organizationId=" + orgId, {
+      cache: "no-store", signal: controller.signal,
+    }).then(async (response) => {
+      if (!response.ok) throw new Error("People Home unavailable");
+      const payload = await response.json() as {
+        tenantId?: number;
+        sources?: {
+          decisions?: HcmPeopleHomeSlice;
+          followUps?: HcmPeopleHomeSlice;
+          cases?: HcmPeopleHomeSlice;
+        };
+      };
+      if (controller.signal.aborted) return;
+      if (payload.tenantId !== orgId || !payload.sources) throw new Error("Unexpected employer context");
+      setDecisions(safeSource(payload.sources.decisions));
+      setFollowUps(safeSource(payload.sources.followUps));
+      setCases(safeSource(payload.sources.cases));
+    }).catch(() => {
+      if (controller.signal.aborted) return;
+      setDecisions(unavailable());
+      setFollowUps(unavailable());
+      setCases(unavailable());
+    });
     return () => controller.abort();
-  }, [orgId, hrAccess, revision]);
+  }, [orgId, revision]);
 
   function open(item: HcmHomeItem) {
     if (item.source === "operational_case") {
       window.location.assign("/hcm/work-items?organizationId=" + orgId);
-    } else if (item.subjectEmployeeId && item.actionRoute === "People") {
+    } else if (item.source === "people_operations" && item.subjectEmployeeId && item.actionRoute === "People") {
       onOpenWorker(item.subjectEmployeeId);
     } else {
       onPage(item.actionRoute);
@@ -92,7 +88,7 @@ export function HcmPeopleHome({ data, onPage, onOpenWorker }: {
       <div className="card-body">
         {slice.status === "loading" && <p role="status">Loading authorized items…</p>}
         {slice.status === "unavailable" && <p role="alert">Source unavailable. Work status is unknown; this is not an all-clear.</p>}
-        {slice.status === "ready" && slice.items.length === 0 && <p>No matching items in the current source view.</p>}
+        {slice.status === "ready" && slice.items.length === 0 && <p>No items returned in this bounded preview. Open the source to review all authorized work.</p>}
         {slice.status === "ready" && slice.items.slice(0, 10).map(item => <div key={item.source + item.sourceId} className="approval-content" style={{ padding: "12px 0", borderBottom: "1px solid var(--border, #e5e7eb)" }}>
           <div style={{ flex: 1 }}>
             <strong>{item.label}</strong>
