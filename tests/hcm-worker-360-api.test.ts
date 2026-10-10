@@ -68,6 +68,20 @@ test("untrusted source fields do not enter the event envelope", () => {
   }
 });
 
+test("unknown legacy event codes retain truthful preview counts without raw text", () => {
+  const events = Array.from({ length: 26 }, (_, index) => ({
+    id: index + 1,
+    effectiveDate: "2026-10-10",
+    eventType: index === 0 ? "private free text / hr note" : "transfer",
+    positionAssignmentId: null,
+  }));
+  const preview = projectWorker360Events(events, "2026-10-10", 25);
+  assert.equal(preview.items.length, 25);
+  assert.equal(preview.hasMore, true);
+  assert.ok(preview.items.some((event) => event.eventType === "other"));
+  assert.ok(!JSON.stringify(preview).includes("private free text"));
+});
+
 test("Worker 360 page and People workspace preserve selected tenant and UX request safety", () => {
   assert.match(page, /HCM_WORKER_360_ENABLED !== "true"/);
   assert.match(page, /assertOrganizationRole/);
