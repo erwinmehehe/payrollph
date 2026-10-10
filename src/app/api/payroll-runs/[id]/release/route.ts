@@ -19,6 +19,7 @@ import { managedPayrollReleaseRequirement } from "@/lib/managed-payroll";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
+import { checkIndependentPayrollReleaser } from "@/lib/payroll-approval-release-separation";
 import { connectedPayrollReleaseGateEnabled, safePayrollConnectedReleaseReadiness } from "@/lib/payroll-connected-release-gate-server";
 
 const RELEASABLE = ["Ready for release"];
@@ -188,6 +189,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (!claimed) {
     return Response.json({ error: "Payroll is no longer ready for release. Refresh and review its current status." }, { status: 409 });
+  }
+
+  // Authoritative approval audit contains the actual authenticated checker ID
+  // (including delegated approvals), not just a mutable display name. Enforce
+  // independent approve -> release regardless of opt-in treasury policies.
+  const checkerGate = await checkIndependentPayrollReleaser({
+    organizationId: run.organizationId,
+    payrollRunId: run.id,
+    approvalTaskId: payrollApproval.id,
+    releasingUserId: user.id,
+  });
+  if (checkerGate) {
+    // No settlement occurred; restore only our unchanged claim.
+    await db.update(payrollRuns)
+      .set({ status: "Ready for release" })
+      .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "Releasing")));
+    return checkerGate;
   }
 
   // Revalidate upstream evidence after the atomic Ready -> Releasing claim,

@@ -17,6 +17,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      # CI connects only to disposable Postgres; this deterministic fixture is
+      # intentionally NON-SECRET and must never be used for real employee data.
+      # Production deployments still require independent secret provisioning.
+      TOTP_ENCRYPTION_KEY: "4444444444444444444444444444444444444444444444444444444444444444"
     services:
       postgres:
         image: postgres:16
