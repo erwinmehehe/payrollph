@@ -1,10 +1,10 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, leaveBalances, leaveConversions } from "@/db/schema";
+import { auditEvents, employees, leaveBalances, leaveConversions, leavePolicies } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
-import { recordAuditEvent } from "@/lib/audit";
+import { approvedLeaveConversionCap, leaveConversionAllowance, validateLeaveConversionDays } from "@/lib/leave-conversion-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -61,15 +61,15 @@ export async function POST(request: Request) {
   const employeeId = Number(body.employeeId);
   const leaveType = String(body.leaveType ?? "Vacation leave").trim();
   const daysConverted = Number(body.daysConverted);
-  const year = Number(body.year ?? new Date().getFullYear());
+  const manilaYear = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", year: "numeric" }).format(new Date()));
+  const year = Number(body.year ?? manilaYear);
 
   if (
     !Number.isInteger(organizationId) ||
     !Number.isInteger(employeeId) ||
     !leaveType ||
-    !Number.isFinite(daysConverted) ||
-    daysConverted <= 0 ||
-    !Number.isInteger(year)
+    !validateLeaveConversionDays(daysConverted) ||
+    !Number.isInteger(year) || year !== manilaYear
   ) {
     return Response.json({
       error: "organizationId, employeeId, leaveType, year and positive daysConverted are required.",
@@ -89,81 +89,95 @@ export async function POST(request: Request) {
     .limit(1);
   if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
 
-  const balances = await db.select().from(leaveBalances)
-    .where(and(
-      eq(leaveBalances.organizationId, organizationId),
-      eq(leaveBalances.employeeId, employeeId),
-      eq(leaveBalances.year, year),
-    ));
-
-  const balance = balances.find((row) => row.leaveType.toLowerCase() === leaveType.toLowerCase());
-  if (!balance) {
+  const authorizedCap = approvedLeaveConversionCap(organizationId, leaveType);
+  if (authorizedCap === null) {
     return Response.json({
-      error: `No ${leaveType} balance exists for this employee in ${year}. Create/accrue the balance before monetizing it.`,
+      error: "Cash conversion is not enabled without an approved per-organization leave-type conversion cap.",
+      code: "LEAVE_CONVERSION_POLICY_NOT_APPROVED",
     }, { status: 409 });
   }
 
-  const available =
-    Number(balance.opening) +
-    Number(balance.accrued) -
-    Number(balance.used) -
-    Number(balance.pending);
+  // Lock the authoritative balance while inspecting reservations and posting.
+  // Two concurrent requests for the same employee/type/year cannot both spend
+  // the same leave days; unrelated employees continue independently.
+  const result = await db.transaction(async (tx) => {
+    const policies = await tx.select().from(leavePolicies)
+      .where(and(eq(leavePolicies.organizationId, organizationId), eq(leavePolicies.active, true)));
+    const matching = policies.filter((row) => row.leaveType.toLowerCase() === leaveType.toLowerCase());
+    if (matching.length !== 1) {
+      return { error: "One active leave policy is required for cash conversion.", code: "LEAVE_POLICY_AMBIGUOUS_OR_MISSING" } as const;
+    }
+    const policy = matching[0];
 
-  const alreadyConverted = await db.select().from(leaveConversions)
-    .where(and(
-      eq(leaveConversions.organizationId, organizationId),
-      eq(leaveConversions.employeeId, employeeId),
-    ));
-  const reserved = alreadyConverted
-    .filter((row) =>
+    const balances = await tx.select().from(leaveBalances)
+      .where(and(
+        eq(leaveBalances.organizationId, organizationId),
+        eq(leaveBalances.employeeId, employeeId),
+        eq(leaveBalances.year, year),
+        eq(leaveBalances.leaveType, policy.leaveType),
+      )).for("update");
+    if (balances.length !== 1) {
+      return { error: `An authoritative ${leaveType} balance is required for this employee and year.`, code: "LEAVE_BALANCE_MISSING" } as const;
+    }
+    const balance = balances[0];
+    const available =
+      Number(balance.opening) + Number(balance.accrued) - Number(balance.used) - Number(balance.pending);
+
+    const previous = await tx.select().from(leaveConversions)
+      .where(and(eq(leaveConversions.organizationId, organizationId), eq(leaveConversions.employeeId, employeeId)));
+    const reserved = previous.filter((row) =>
       row.status !== "rejected" &&
       row.leaveType.toLowerCase() === leaveType.toLowerCase() &&
-      new Date(row.createdAt).getFullYear() === year,
-    )
-    .reduce((sum, row) => sum + Number(row.daysConverted), 0);
+      Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", year: "numeric" }).format(row.createdAt)) === year,
+    ).reduce((sum, row) => sum + Number(row.daysConverted), 0);
+    const convertible = leaveConversionAllowance({
+      available, reserved, alreadyConverted: reserved,
+      policyAnnualDays: Number(policy.annualDays),
+      approvedAnnualConversionCap: authorizedCap,
+    });
+    if (daysConverted > convertible) {
+      return {
+        error: `Requested ${daysConverted.toFixed(1)} day(s), but the policy and unspent balance authorize only ${convertible.toFixed(1)} day(s).`,
+        code: "LEAVE_CONVERSION_CAP_EXCEEDED",
+        available: Number(Math.max(0, available).toFixed(1)),
+        alreadyReserved: Number(reserved.toFixed(1)),
+        convertible,
+      } as const;
+    }
 
-  const convertible = Math.max(0, available - reserved);
-  if (daysConverted > convertible + 0.001) {
-    return Response.json({
-      error: `Requested ${daysConverted} day(s), but only ${convertible.toFixed(1)} day(s) are available for conversion.`,
-      available: Number(available.toFixed(1)),
-      alreadyReserved: Number(reserved.toFixed(1)),
-      convertible: Number(convertible.toFixed(1)),
-    }, { status: 422 });
-  }
+    const dailyRate = Number((Number(employee.basicRate) / 22).toFixed(2));
+    if (!Number.isFinite(dailyRate) || dailyRate <= 0) {
+      return { error: "Employee daily rate cannot be verified.", code: "LEAVE_CONVERSION_PAY_RATE_INVALID" } as const;
+    }
+    const cashAmount = Number((daysConverted * dailyRate).toFixed(2));
+    // Existing tax-exemption policy is deliberately unchanged by this
+    // reservation fix; tax classification requires separate fiscal review.
+    const taxExempt = daysConverted <= 12;
 
-  const dailyRate = Number((Number(employee.basicRate) / 22).toFixed(2));
-  const cashAmount = Number((daysConverted * dailyRate).toFixed(2));
-  const taxExempt = daysConverted <= 12;
-
-  const [created] = await db.insert(leaveConversions).values({
-    organizationId,
-    employeeId,
-    leaveType,
-    daysConverted: daysConverted.toFixed(1),
-    dailyRate: dailyRate.toFixed(2),
-    cashAmount: cashAmount.toFixed(2),
-    taxExempt,
-    status: "approved",
-  }).returning();
-
-  await recordAuditEvent({
-    organizationId,
-    actor: user.name,
-    action: "Leave credits approved for cash conversion",
-    resource: `${employee.firstName} ${employee.lastName} (${daysConverted} days = ₱${cashAmount.toFixed(2)})`,
-    metadata: {
-      conversionId: created.id,
-      leaveBalanceId: balance.id,
-      year,
-      daysConverted,
-      availableBefore: available,
-      convertibleBefore: convertible,
-      dailyRate,
-      cashAmount,
+    const [created] = await tx.insert(leaveConversions).values({
+      organizationId, employeeId, leaveType: policy.leaveType,
+      daysConverted: daysConverted.toFixed(1),
+      dailyRate: dailyRate.toFixed(2),
+      cashAmount: cashAmount.toFixed(2),
       taxExempt,
-    },
+      status: "approved",
+    }).returning();
+
+    await tx.insert(auditEvents).values({
+      organizationId, actor: user.name, action: "Leave credits approved for cash conversion",
+      resource: `${employee.firstName} ${employee.lastName} (${daysConverted} days = PHP ${cashAmount.toFixed(2)})`,
+      metadata: {
+        conversionId: created.id, leaveBalanceId: balance.id,
+        year, daysConverted, availableBefore: available, reservedBefore: reserved,
+        convertibleBefore: convertible, authorizedCap, leavePolicyId: policy.id,
+        dailyRate, cashAmount, taxExempt,
+      },
+    });
+    return { created } as const;
   });
 
-  return Response.json(created, { status: 201 });
+  if ("error" in result) {
+    return Response.json(result, { status: result.code === "LEAVE_CONVERSION_CAP_EXCEEDED" ? 422 : 409 });
+  }
+  return Response.json(result.created, { status: 201 });
 }
