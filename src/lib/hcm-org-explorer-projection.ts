@@ -76,8 +76,11 @@ export function projectOrgExplorer(
     const relationship = reportingUnitId == null
       ? "no_unit"
       : byId.has(reportingUnitId) ? "linked" : "unit_not_in_snapshot";
-    if (relationship !== "linked") unlinkedPositionRecords += 1;
-    else counts.set(reportingUnitId!, (counts.get(reportingUnitId!) ?? 0) + 1);
+    if (relationship === "linked" && reportingUnitId !== null) {
+      counts.set(reportingUnitId, (counts.get(reportingUnitId) ?? 0) + 1);
+    } else {
+      unlinkedPositionRecords += 1;
+    }
     return {
       id: row.id, code: row.code, status: row.status, jobTitle: row.jobTitle,
       // Do not return foreign or out-of-snapshot org IDs as usable links.
