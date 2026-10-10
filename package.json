@@ -30,7 +30,7 @@
     "compensation:release:schema:check": "tsx scripts/check-compensation-release-schema.ts",
     "compensation:release:migration:rehearse": "tsx scripts/rehearse-compensation-outbox-migration.ts",
     "compensation:expiry:audit": "tsx scripts/audit-compensation-expiry-evidence.ts",
-    "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
+    "test": "tsx --test --test-concurrency=1 tests/*.test.ts && node --test --test-concurrency=1 tests/*.test.mjs",
     "source:size:check": "node scripts/check-source-size.mjs"
   },
   "dependencies": {
