@@ -23,11 +23,12 @@ jobs:
   encrypt-bank-data:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    if: ${{ github.ref == 'refs/heads/main' }}
     environment: production
     env:
-      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL || secrets.DATABASE_URL }}
-      BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY || secrets.BANK_DATA_ENCRYPTION_KEY }}
-      TOTP_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_TOTP_ENCRYPTION_KEY || secrets.TOTP_ENCRYPTION_KEY }}
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
+      TOTP_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_TOTP_ENCRYPTION_KEY }}
       PRODUCTION_BASE_URL: https://erwinmehehe-payrollph.vercel.app
     steps:
       - uses: actions/checkout@v7
@@ -44,7 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${DATABASE_URL:-}" ]; then
-            echo "Missing PRODUCTION_DATABASE_URL (or DATABASE_URL) secret."
+            echo "Missing dedicated PRODUCTION_DATABASE_URL secret."
             exit 1
           fi
           if [ -z "${BANK_DATA_ENCRYPTION_KEY:-}" ] && [ -z "${TOTP_ENCRYPTION_KEY:-}" ]; then
