@@ -1,6 +1,8 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, employees, userOrganizations, users, worksites } from "@/db/schema";
+import { PEOPLE_ADMIN_ROLES } from "@/lib/access";
+import { managerReceiptDays, summarizeManagerReceiptDays } from "./workforce-schedule-receipt-review";
 import { workforceScheduleReceipts as receipts } from "./workforce-schedule-receipt-schema";
 import { resolveEmployeeScheduleWindow } from "./workforce-schedule-window";
 import { manilaWorkDate } from "./workforce-employee-upcoming-week";
@@ -39,7 +41,7 @@ async function assertBoundIdentity(tx: Tx, who: ReceiptIdentity) {
     .limit(1).for("share");
   if (!row) throw new ScheduleReceiptError("RECEIPT_ACCESS_REVOKED", "Your active employee access could not be verified.", 403);
 }
-async function projectedDays(tx: Tx, who: ReceiptIdentity, dates: string[]) {
+async function projectedDays(tx: Tx, who: Pick<ReceiptIdentity, "organizationId" | "employeeId">, dates: string[]) {
   // A single POST also needs both neighboring dates; otherwise a previous
   // overnight shift or next-day start can overlap outside the requested date.
   const contextDates = receiptContextDates(dates);
@@ -104,5 +106,101 @@ export async function acknowledgeScheduleReceipt(who: ReceiptIdentity, body: unk
       metadata: { receiptId: created.id, employeeId: who.employeeId, userId: who.userId, workDate: request.workDate,
         snapshotHash: current.snapshotHash, attendanceChanged: false, payrollChanged: false, notificationSent: false } });
     return { created: true, workDate: request.workDate, snapshotHash: current.snapshotHash, acknowledgedAt: created.acknowledgedAt.toISOString() };
+  }, { isolationLevel: "read committed" });
+}
+
+/**
+ * Selected-worker, read-only receipt review for authorized People admins.
+ * Never returns prior snapshot JSON, receipt hashes, pay data or user logins.
+ * Access is checked by the route AND rechecked after the organization roster lock.
+ */
+export async function readManagerScheduleReceiptView(input: {
+  managerUserId: number;
+  organizationId: number;
+  employeeId: number;
+}, today: () => string = manilaWorkDate) {
+  if (![input.managerUserId, input.organizationId, input.employeeId].every(validReceiptId)) {
+    throw new ScheduleReceiptError("RECEIPT_REVIEW_SCOPE_INVALID", "Invalid employee review scope.", 400);
+  }
+  return db.transaction(async tx => {
+    await tx.execute(sql`select pg_advisory_xact_lock(6107, ${input.organizationId})`);
+    const [manager] = await tx.select({
+      role: userOrganizations.role, orgUnitId: userOrganizations.orgUnitId,
+    }).from(userOrganizations).innerJoin(users, eq(users.id, userOrganizations.userId))
+      .where(and(
+        eq(userOrganizations.organizationId, input.organizationId),
+        eq(userOrganizations.userId, input.managerUserId),
+        eq(userOrganizations.active, true), eq(users.active, true),
+      )).limit(1);
+    if (!manager || !PEOPLE_ADMIN_ROLES.includes(manager.role as typeof PEOPLE_ADMIN_ROLES[number])) {
+      throw new ScheduleReceiptError("RECEIPT_REVIEW_DENIED", "People administrator access is required.", 403);
+    }
+
+    const [employee] = await tx.select({
+      id: employees.id, orgUnitId: employees.orgUnitId,
+      employeeNo: employees.employeeNo, firstName: employees.firstName,
+      lastName: employees.lastName, status: employees.status,
+    }).from(employees).where(and(
+      eq(employees.organizationId, input.organizationId),
+      eq(employees.id, input.employeeId),
+    )).limit(1);
+    if (!employee || (manager.orgUnitId !== null && manager.orgUnitId !== employee.orgUnitId)) {
+      throw new ScheduleReceiptError("RECEIPT_REVIEW_SCOPE_DENIED",
+        "Employee is outside your permitted People scope.", 403);
+    }
+    if (employee.status !== "Active") {
+      throw new ScheduleReceiptError("RECEIPT_REVIEW_NOT_ACTIVE",
+        "Only active employees have a current acknowledgment review.", 409);
+    }
+    const label = {
+      employeeNo: employee.employeeNo,
+      name: (employee.firstName + " " + employee.lastName).trim(),
+    };
+    const accountRows = await tx.select({ userId: users.id }).from(users)
+      .innerJoin(userOrganizations, and(
+        eq(userOrganizations.userId, users.id),
+        eq(userOrganizations.organizationId, input.organizationId),
+        eq(userOrganizations.active, true),
+        eq(userOrganizations.role, "employee"),
+      )).where(and(
+        eq(users.employeeId, input.employeeId),
+        eq(users.role, "employee"), eq(users.active, true),
+      )).limit(2);
+    if (accountRows.length !== 1) {
+      return {
+        employee: label,
+        account: accountRows.length === 0 ? "not_enrolled" as const : "identity_review" as const,
+        days: [],
+        summary: null,
+        boundary: SCHEDULE_RECEIPT_BOUNDARY,
+      };
+    }
+
+    const dates = receiptDates(currentReceiptDay(today));
+    const projected = await projectedDays(tx, input, dates);
+    const userId = accountRows[0].userId;
+    const common = and(
+      eq(receipts.organizationId, input.organizationId),
+      eq(receipts.employeeId, input.employeeId),
+      eq(receipts.acknowledgedByUserId, userId),
+      inArray(receipts.workDate, dates),
+    );
+    const hashes = [...new Set(projected.flatMap(day => day.snapshotHash ? [day.snapshotHash] : []))];
+    const current = hashes.length ? await tx.select({
+      workDate: receipts.workDate, snapshotHash: receipts.snapshotHash,
+      acknowledgedAt: receipts.acknowledgedAt,
+    }).from(receipts).where(and(common, inArray(receipts.snapshotHash, hashes))) : [];
+    const previous = await tx.select({ workDate: receipts.workDate })
+      .from(receipts).where(common).groupBy(receipts.workDate);
+
+    // If midnight passes while waiting on the roster lock or source queries,
+    // return a refresh error, not an obsolete status summary.
+    assertCurrentReceiptDates(dates, today);
+    const days = managerReceiptDays(projected, current, new Set(previous.map(row => String(row.workDate))));
+    return {
+      employee: label, account: "ready" as const,
+      days, summary: summarizeManagerReceiptDays(days),
+      boundary: SCHEDULE_RECEIPT_BOUNDARY,
+    };
   }, { isolationLevel: "read committed" });
 }
