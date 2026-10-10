@@ -7,6 +7,7 @@ import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit } from "@/lib/security-request";
 import { receiptPilotAllowed, parseScheduleReceipt } from "@/lib/workforce-schedule-receipt";
 import { manilaWorkDate } from "@/lib/workforce-employee-upcoming-week";
+import { readScheduleReceiptBody, ScheduleReceiptBodyError } from "@/lib/workforce-schedule-receipt-body";
 import { acknowledgeScheduleReceipt, readScheduleReceiptView, ScheduleReceiptError } from "@/lib/workforce-schedule-receipt-server";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ async function selfScope() {
   return { session, who: { userId: session.id, employeeId: employee.id, organizationId: employee.organizationId }, denied: null };
 }
 function failure(error: unknown) {
+  if (error instanceof ScheduleReceiptBodyError) return fail(error.message, error.status, error.code);
   return error instanceof ScheduleReceiptError ? fail(error.message, error.status, error.code)
     : fail("Schedule receipts could not be verified. No successful acknowledgment is being reported.", 503);
 }
@@ -51,11 +53,10 @@ export async function POST(request: Request) {
     const limited = await enforceSensitiveActionRateLimit(request, { userId: scope.session!.id,
       action: "self-schedule-receipt", resourceId: scope.who!.employeeId, limit: 20, windowMs: 15 * 60_000 });
     if (limited) return limited;
-    if (!request.headers.get("content-type")?.includes("application/json")) return fail("JSON acknowledgment is required.", 400);
-    const text = await request.text();
-    if (text.length > 2048) return fail("Acknowledgment is too large.", 413);
-    let body: unknown;
-    try { body = JSON.parse(text); parseScheduleReceipt(body, manilaWorkDate()); }
+    // Enforce the real UTF-8 byte bound while streaming, not after buffering.
+    // Existing auth, origin, demo, allowlist and rate-limit gates remain first.
+    const body = await readScheduleReceiptBody(request);
+    try { parseScheduleReceipt(body, manilaWorkDate()); }
     catch { return fail("Review a current schedule and explicitly acknowledge it. Client-supplied employee or employer identifiers are not accepted.", 400); }
     const receipt = await acknowledgeScheduleReceipt(scope.who!, body);
     return Response.json(receipt, { status: receipt.created ? 201 : 200, headers });
