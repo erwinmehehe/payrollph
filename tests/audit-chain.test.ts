@@ -48,8 +48,8 @@ test("rows are evaluated in chain order, not id order", () => {
   assert.equal(evaluateAuditChain([...rows].reverse()).verified, true);
 });
 
-test("0107 seals real inserts, rejects mutation and detects maintenance edits (rolled back)", async () => {
-  const migration = readFileSync("drizzle/0107_tamper_evident_audit_chain.sql", "utf8");
+test("0109 seals real inserts, rejects mutation and detects maintenance edits (rolled back)", async () => {
+  const migration = readFileSync("drizzle/0109_tamper_evident_audit_chain.sql", "utf8");
   const client = await pool.connect();
   try {
     await client.query("BEGIN");

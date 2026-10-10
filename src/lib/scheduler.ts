@@ -181,7 +181,7 @@ async function runScheduledJobs(
   try {
     auditChainSeal = { sealed: await sealAuditEvents(1000) };
   } catch {
-    auditChainSeal = { error: "Audit chain sealing unavailable; apply drizzle/0107_tamper_evident_audit_chain.sql." };
+    auditChainSeal = { error: "Audit chain sealing unavailable; apply drizzle/0109_tamper_evident_audit_chain.sql." };
   }
   await assertLeaseOwnership();
 

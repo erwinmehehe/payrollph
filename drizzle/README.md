@@ -143,9 +143,9 @@ rehearses the SQL transactionally in a disposable local schema; the rehearsal
 cannot establish that a real employer's staging schema has been migrated.
 
 See [Compensation staging release gate](../docs/compensation-staging-release-gate.md).
-## Tamper-evident audit trail (0107)
+## Tamper-evident audit trail (0109)
 
-`0107_tamper_evident_audit_chain.sql` installs a trigger and SQL functions,
+`0109_tamper_evident_audit_chain.sql` installs a trigger and SQL functions,
 which `db:push` does not create. Apply it with `psql -f` (it is idempotent)
 after the schema exists. It rejects UPDATE/DELETE on `audit_events` (except
 cascades from an organization deletion), and `seal_audit_events()` appends
