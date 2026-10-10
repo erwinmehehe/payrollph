@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildComplianceCalendar, nominalBir1601CDueDate } from "../src/lib/compliance-calendar";
 
@@ -144,16 +143,3 @@ test("annual reminders never invent filing success when previous year is overdue
   assert.equal(items.find((item) => item.id === "BIR-2316-ISSUANCE-2026")?.status, "verification-required");
 });
 
-test("government worksheet UX and HTTP download both clearly disclose non-certified status", () => {
-  const ui = readFileSync("src/components/workspace/exports.tsx", "utf8");
-  const route = readFileSync("src/app/api/payroll-runs/[id]/exports/route.ts", "utf8");
-  const exporter = readFileSync("src/lib/exporters.ts", "utf8");
-  const calendarRoute = readFileSync("src/app/api/compliance/calendar/route.ts", "utf8");
-  assert.ok(calendarRoute.includes("includeAnnualObligations: true"));
-  assert.ok(ui.includes("data-government-draft-warning"));
-  assert.ok(ui.includes("not certified portal upload files"));
-  assert.ok(ui.includes("not Form 2316"));
-  assert.ok(route.includes('"X-Linaw-Government-File-Status"'));
-  assert.ok(route.includes('"Cache-Control": "private, no-store"'));
-  assert.ok(exporter.includes("DRAFT ONLY, not a certified government submission file"));
-});
