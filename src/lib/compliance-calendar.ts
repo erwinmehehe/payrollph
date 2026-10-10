@@ -276,7 +276,7 @@ export function buildComplianceCalendar(input: {
         obligation: `Issue BIR Form 2316 to employees for tax year ${year}`,
         applicableMonth: `${year}-12`,
         dueDate, status,
-        detail: "January 31 is the employee certificate ISSUANCE deadline, including eligible minimum-wage earners. This is not a statement that all BIR-copy 2316 submissions share that deadline. Record worker delivery evidence and verify any separate filing obligation with BIR.",
+        detail: "January 31 is the employee certificate ISSUANCE deadline for year-end employees, including minimum-wage earners. For a terminated employee, furnish the certificate on the date of the final wage payment rather than waiting until January. This does not set the separate BIR-copy submission deadline. Record employee delivery and verify any distinct filing obligation with BIR.",
         sourceLabel: "BIR Form 2316 certificate instructions",
         sourceUrl: "https://www.bir.gov.ph/bir-forms",
         exactness: "conservative-target",
