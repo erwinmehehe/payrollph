@@ -7,8 +7,8 @@ import {
   currentBankKeyOnly,
 } from "../scripts/lib/bank-envelope-inspection";
 
-const current = { BANK_DATA_ENCRYPTION_KEY: "c".repeat(64) } as NodeJS.ProcessEnv;
-const former = { BANK_DATA_ENCRYPTION_KEY: "d".repeat(64) } as NodeJS.ProcessEnv;
+const current: NodeJS.ProcessEnv = { NODE_ENV: "test", BANK_DATA_ENCRYPTION_KEY: "c".repeat(64) };
+const former: NodeJS.ProcessEnv = { NODE_ENV: "test", BANK_DATA_ENCRYPTION_KEY: "d".repeat(64) };
 const account = "123456789012";
 
 test("four-store cutover proof requires an authenticated current-key envelope", () => {
@@ -23,7 +23,7 @@ test("four-store cutover proof requires an authenticated current-key envelope", 
   for (const value of [42, { account }, "enc:v1:malformed", "enc:v1:"]) {
     assert.equal(classifyStoredBankEnvelope(value, currentBankKeyOnly(current)), "unreadable");
   }
-  assert.equal(classifyStoredBankEnvelope(sealed, currentBankKeyOnly({})), "unreadable");
+  assert.equal(classifyStoredBankEnvelope(sealed, currentBankKeyOnly({ NODE_ENV: "test" })), "unreadable");
 });
 
 test("an old-key-only envelope is NOT accepted even when a rotation key can read it", () => {
