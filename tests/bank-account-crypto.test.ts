@@ -49,6 +49,28 @@ test("the wrong key and tampering both fail instead of returning garbage", () =>
   assert.throws(() => decryptBankAccount(tampered, withKey(KEY_A)), /could not be decrypted/);
 });
 
+test("encrypted envelopes reject appended segments, invalid Base64URL and wrong IV/tag sizes", () => {
+  const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
+  const parts = sealed.split(":");
+  assert.equal(parts.length, 5);
+  const invalid = [
+    `${sealed}:ignored`,
+    `${sealed}:`,
+    sealed.replace("enc:v1:", "enc:v1::"),
+    parts.slice(0, 4).join(":"),
+    `${parts.slice(0, 4).join(":")}:${parts[4]}!`,
+    `${parts.slice(0, 4).join(":")}:${parts[4]}=`,
+    ["enc", "v1", "AAAA", parts[3], parts[4]].join(":"),
+    ["enc", "v1", parts[2], "AAAA", parts[4]].join(":"),
+  ];
+  for (const value of invalid) {
+    assert.throws(() => decryptBankAccount(value, withKey(KEY_A)), /malformed/,
+      "noncanonical envelope must be rejected, even if an authentic prefix is present");
+    assert.throws(() => encryptBankAccount(value, withKey(KEY_A)), /malformed/,
+      "a malformed envelope must never be persisted unchanged");
+  }
+});
+
 test("an encrypted value with no key configured is an error, never a silent blank", () => {
   const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
   assert.throws(() => decryptBankAccount(sealed, withKey(undefined)), /configured/);
@@ -92,6 +114,29 @@ test("keys are accepted as 64 hex characters or as base64", () => {
   assert.equal(parseBankEncryptionKey(Buffer.alloc(32, 7).toString("base64"))?.length, 32);
   assert.equal(parseBankEncryptionKey(Buffer.alloc(16, 7).toString("base64")), null);
   assert.equal(parseBankEncryptionKey(undefined), null);
+});
+
+test("malformed Base64 bank keys fail closed instead of being silently normalized", () => {
+  const bytes = Buffer.alloc(32, 0xff);
+  const standard = bytes.toString("base64");
+  const url = bytes.toString("base64url");
+  for (const valid of [standard, standard.slice(0, -1), url, `${url}=`]) {
+    assert.deepEqual(parseBankEncryptionKey(valid), bytes);
+    assert.equal(bankEncryptionConfigured(withKey(valid)), true);
+  }
+  for (const malformed of [
+    `!${standard}`, `${standard}?`, `${standard.slice(0, -1)}?`,
+    `${standard}=`, `${standard.slice(0, -1)}==`, `${url}?`, `??${url}`,
+    `${standard.slice(0, -1)}A`,
+  ]) {
+    assert.equal(parseBankEncryptionKey(malformed), null);
+    assert.equal(bankEncryptionConfigured(withKey(malformed)), false);
+    assert.throws(() => encryptBankAccount("1234567890", withKey(malformed)), /32 bytes/);
+  }
+  assert.throws(
+    () => encryptBankAccount("1234567890", withTotpMaster(`!${standard}`)),
+    /TOTP_ENCRYPTION_KEY.*32 bytes/,
+  );
 });
 
 test("what the browser receives shows the last four digits and nothing usable", () => {
