@@ -158,7 +158,7 @@ export async function POST(request: Request) {
         },
       });
       return row;
-    }, { isolationLevel: "serializable" });
+    }, { isolationLevel: "read committed" });
   } catch {
     return Response.json({
       code: "WFM_GUARDRAIL_POLICY_CHANGED",
