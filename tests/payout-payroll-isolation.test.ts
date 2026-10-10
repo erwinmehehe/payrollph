@@ -80,10 +80,10 @@ test("general CI keeps independent payroll and statutory certification mandatory
   const workflow = read(".github/workflows/ci.yml");
 
   // Direct CI invocation and npm test both run the same full shared-DB suite.
-  // Validate the npm script's expansion so a short alias cannot silently
+  // Validate the npm script's TS + operational MJS expansion so an alias cannot silently
   // replace the required tests.
   const packageJson = JSON.parse(read("package.json")) as { scripts?: { test?: string } };
-  const fullRegressionCommand = /^(?:npx )?tsx --test(?: --test-concurrency=\d+)? tests\/\*\.test\.ts$/;
+  const fullRegressionCommand = /^(?:npx )?tsx --test(?: --test-concurrency=\d+)? tests\/\*\.test\.ts && node --test(?: --test-concurrency=\d+)? tests\/\*\.test\.mjs$/;
   const direct = /npx tsx --test(?: --test-concurrency=\d+)? tests\/\*\.test\.ts/.test(workflow);
   const viaNpm = /- run: npm test(?:\s|$)/.test(workflow)
     && fullRegressionCommand.test(packageJson.scripts?.test ?? "");

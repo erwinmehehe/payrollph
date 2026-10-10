@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { holidayMultiplier } from "../src/lib/payroll-rules";
-import { FORTHCOMING_WAGE_ORDERS, holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, wageOrderFor, WAGE_ORDERS } from "../src/lib/wage-orders";
+import { holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, wageOrderFor, WAGE_ORDERS } from "../src/lib/wage-orders";
 
 test("NCR screening reference uses the current official Oct 2026 high tier", () => {
   const order = wageOrderFor("NCR");
@@ -83,23 +83,4 @@ test("employee creation validates wage regions at the API boundary before payrol
   assert.ok(source.includes("region: wageRegion"));
   assert.ok(!source.includes('region: String(body.region ?? "NCR")'));
   assert.equal(wageOrderFor(" iv-b ").region, "IV-B");
-});
-
-test("Central Visayas ROVII-27 does not change wages before 2026-10-14 and updates as-of screening after", () => {
-  assert.equal(FORTHCOMING_WAGE_ORDERS.length, 1);
-  assert.equal(wageOrderFor("VII", "2026-10-10").wageOrder, "WO-ROVII-26");
-  assert.equal(wageOrderFor("VII", "2026-10-13").dailyRate, 540);
-  assert.equal(wageOrderFor("VII", "2026-10-14").dailyRate, 582);
-  assert.equal(wageOrderFor("VII", "2026-10-14").wageOrder, "WO-ROVII-27");
-  assert.equal(wageOrderFor("VII", "2026-11-15").dailyRate, 582);
-  assert.equal(wageOrderFor("NCR", "2026-11-15").dailyRate, 755);
-  assert.throws(() => wageOrderFor("VII", "2026-02-29"), /Invalid wage screening calendar date/);
-  const monthly = 550 * 22;
-  assert.equal(isBelowMinimum(monthly, "VII", 22, "2026-10-10").below, false);
-  assert.equal(isBelowMinimum(monthly, "VII", 22, "2026-10-14").below, true);
-});
-
-test("payroll runtime screens minimum wage against pay-date reference, not a future tranche", () => {
-  const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
-  assert.ok(source.includes('isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth, input.payDate)'));
 });

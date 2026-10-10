@@ -52,49 +52,20 @@ export const WAGE_ORDERS: WageOrder[] = [
   { region: "BARMM", dailyRate: 436, wageOrder: "WO-BARMM-05", effectiveOn: "2026-08-06", verified: true },
 ];
 
-/**
- * Wage-order transitions published by the official NWPC but not yet
- * applicable to the 2026-10-10 baseline. The highest *Class A* reference is
- * an ADVISORY screen; legal Class B/sector treatment still requires HR review.
- * Source: https://nwpc.dole.gov.ph/central-visayas-workers-set-to-receive-%E2%82%B142-minimum-wage-increase-wage-review-in-other-regions-ongoing/
- */
-export const FORTHCOMING_WAGE_ORDERS: WageOrder[] = [
-  { region: "VII", dailyRate: 582, wageOrder: "WO-ROVII-27", effectiveOn: "2026-10-14", verified: true },
-];
-
-function wageOrderAsOfDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("Wage screening as-of date must use YYYY-MM-DD.");
-  const date = new Date(value + "T00:00:00Z");
-  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
-    throw new Error("Invalid wage screening calendar date.");
-  }
-  return value;
-}
-
-/**
- * Without an as-of date, returns the existing baseline reference. Explicit
- * payroll-date lookups may select a published transition only once effective.
- * No salary increase or MWE tax classification is performed automatically.
- */
-export function wageOrderFor(region: string, asOfDate?: string) {
+export function wageOrderFor(region: string) {
   const normalized = region.trim().toUpperCase();
   const order = WAGE_ORDERS.find((row) => row.region === normalized);
   if (!order) {
     throw new Error(`Unknown Philippine wage region "${region}". Select a supported NWPC region instead of assuming NCR.`);
   }
-  if (asOfDate == null) return order;
-  const date = wageOrderAsOfDate(asOfDate);
-  const current = FORTHCOMING_WAGE_ORDERS
-    .filter((candidate) => candidate.region === normalized && candidate.effectiveOn <= date)
-    .sort((a, b) => b.effectiveOn.localeCompare(a.effectiveOn))[0];
-  return current ?? order;
+  return order;
 }
 
-export function isBelowMinimum(monthlyBasic: number, region: string, daysPerMonth = 22, asOfDate?: string) {
+export function isBelowMinimum(monthlyBasic: number, region: string, daysPerMonth = 22) {
   if (!Number.isFinite(monthlyBasic) || monthlyBasic < 0 || !Number.isFinite(daysPerMonth) || daysPerMonth <= 0) {
     throw new Error("Wage screening requires a non-negative monthly rate and positive working days per month.");
   }
-  const order = wageOrderFor(region, asOfDate);
+  const order = wageOrderFor(region);
   const impliedDaily = monthlyBasic / daysPerMonth;
   return {
     below: impliedDaily + 0.005 < order.dailyRate,

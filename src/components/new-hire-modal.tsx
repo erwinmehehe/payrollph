@@ -105,6 +105,12 @@ export function NewHireModal({
             <label>Standard work days / month
               <input type="number" min="1" max="31" step="0.5" required value={form.standardWorkDaysPerMonth} onChange={(e) => setForm({ ...form, standardWorkDaysPerMonth: e.target.value })} />
             </label>
+            <div className="modal-note" data-monthly-workday-divisor-guidance style={{ gridColumn: "1 / -1" }}>
+              <strong>Workday conversion presets (optional):</strong>{" "}
+              <button type="button" className="secondary-button" style={{ marginRight: 6 }} onClick={() => setForm({ ...form, standardWorkDaysPerMonth: "22" })}>22 days · illustrative 5-day week</button>
+              <button type="button" className="secondary-button" onClick={() => setForm({ ...form, standardWorkDaysPerMonth: "26" })}>26 days · illustrative 6-day week</button>
+              <p>These are examples, not automatic DOLE-approved divisors. Confirm the employee contract, paid-day arrangements and applicable holiday/rest-day policy before saving. This 1–31 monthly-workday field is not the separate 261/262 or 313/314 annual divisor.</p>
+            </div>
             <label>Standard hours / day
               <input type="number" min="1" max="24" step="0.25" required value={form.standardHoursPerDay} onChange={(e) => setForm({ ...form, standardHoursPerDay: e.target.value })} />
             </label>
