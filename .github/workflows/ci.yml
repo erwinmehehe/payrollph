@@ -68,6 +68,8 @@ jobs:
           path: qa-artifacts/dr-rehearsal.json
           retention-days: 14
           if-no-files-found: warn
+      - name: Guard against new oversized source modules
+        run: npm run source:size:check
       - run: npx tsc --noEmit
       # Serialize shared-DB financial tests while preserving scheduler CI isolation.
       - run: npm test
