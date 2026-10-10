@@ -73,18 +73,16 @@ async function requireActiveUnit(organizationId: number, scope: ManagerDecisionS
  * delegation scan, and duplicate active display names cannot grant personal
  * approval visibility.
  */
-async function candidateApprovers(organizationId: number, userId: number, name: string, role: string, now: Date) {
+async function candidateApprovers(organizationId: number, userId: number, name: string, role: string) {
   const normalizedName = name.trim().toLowerCase();
-  // Superset around Manila/UTC boundaries; canDecide checks actual dates.
-  const yesterday = new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
-  const tomorrow = new Date(now.getTime() + 86_400_000).toISOString().slice(0, 10);
+  // Include the full active delegation pool, even date-expired rows, because
+  // canDecide resolves from that pool. Bound the exact same source first,
+  // then let canDecide enforce current effective dates without false misses.
   const [grants, names, [workerMembership]] = await Promise.all([
     db.select({ fromApprover: approvalDelegations.fromApprover })
       .from(approvalDelegations).where(and(
         eq(approvalDelegations.organizationId, organizationId),
         eq(approvalDelegations.active, true),
-        lte(approvalDelegations.startsOn, tomorrow),
-        gte(approvalDelegations.endsOn, yesterday),
       )).orderBy(approvalDelegations.id).limit(MAX_DELEGATIONS + 1),
     db.select({ userId: users.id }).from(userOrganizations)
       .innerJoin(users, and(
@@ -250,7 +248,7 @@ export async function loadManagerDecisionPage(input: {
   const now = new Date();
   await requireActiveUnit(organizationId, scope, now);
   const { nameUnique, selfEmployeeId, candidates } = await candidateApprovers(
-    organizationId, userId, userName, viewerRole, now,
+    organizationId, userId, userName, viewerRole,
   );
   const observedAt = now.toISOString();
   if (candidates.length === 0) {
