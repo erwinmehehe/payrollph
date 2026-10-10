@@ -37,3 +37,10 @@
 @media(max-width:1100px){.tf-payroll-grid{grid-template-columns:1fr}.tf-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.tf-lower-grid{grid-template-columns:1fr}}
 @media(max-width:680px){.tf-payroll-home{gap:13px;padding:2px 0 100px}.tf-home-header{display:block}.tf-home-header h1{font-size:25px}.tf-org-chip{display:inline-block;margin-top:12px}.tf-card{padding:18px}.tf-step-track{margin:23px 0}.tf-step-track li{font-size:10px;gap:3px}.tf-step-track li>span{width:22px;height:22px}.tf-step-track li:not(:last-child):after{display:none}.tf-primary-foot{align-items:stretch;flex-direction:column}.tf-metrics{gap:9px}.tf-metric{padding:13px}.tf-metric>strong{font-size:17px}.tf-lower-grid>.tf-card{padding:12px}.tf-action-go{font-size:0}.tf-action-go svg{width:18px;height:18px}}
 @media(prefers-reduced-motion:reduce){.tf-payroll-home *{scroll-behavior:auto!important;transition-duration:.01ms!important}}
+
+/* Hiring wizard: existing server submission and validations are preserved. */
+.tf-hire-steps{min-width:0}.tf-hire-step{margin:0;padding:0;border:0;min-width:0}.tf-hire-step[hidden]{display:none!important}
+.tf-hire-progress{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:15px 0 18px}.tf-hire-progress span{font-size:11px;color:#7585a0;background:#f0f4fb;border:1px solid #e1e9f3;border-radius:8px;text-align:center;padding:9px 4px;font-weight:700}.tf-hire-progress span.active{background:#e8f2ff;color:#1658b8;border-color:#bfdbfe}
+.tf-hire-review{border:1px solid #e1eaf5;border-radius:12px;padding:20px;background:#f9fbff}
+.tf-hire-review h3{font-size:17px;margin:0 0 12px;color:#142a48}.tf-hire-review dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.tf-hire-review dt{font-size:12px;color:#667792}.tf-hire-review dd{font-size:14px;font-weight:750;color:#183358;margin:4px 0 0;overflow-wrap:anywhere}.tf-hire-review>p{color:#5c6e86;font-size:12px;line-height:1.55}
+@media(max-width:620px){.tf-hire-progress span{font-size:9px;padding:8px 2px}.tf-hire-review dl{grid-template-columns:1fr}}
