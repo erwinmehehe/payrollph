@@ -34,3 +34,9 @@ Status: **code repair in review**. These controls DO NOT certify that live payro
 - Production live RBAC and encryption checks, tenant staging, treasury/payout integration, bank key provisioning, prior-data backfill, security review, and independent payroll reconciliation remain separate launch gates.
 - No feature switches are changed and no production secret, DB record or payout endpoint is altered by this patch.
 - Release owner approval and live production readiness evidence are required; green CI alone is not launch authorization.
+
+## Production workflow hardening (2026-10-10)
+
+- The manually triggered Production Bank Encryption workflow is **main-branch-only** and requires environment-specific `PRODUCTION_DATABASE_URL` plus `PRODUCTION_BANK_DATA_ENCRYPTION_KEY` or deliberately approved `PRODUCTION_TOTP_ENCRYPTION_KEY`. Generic `DATABASE_URL`, `BANK_DATA_ENCRYPTION_KEY` and `TOTP_ENCRYPTION_KEY` CI secret fallbacks have been removed to prevent accidental tests/staging backfill.
+- Authorized production operators must verify the protected `production` environment, required reviewers, deployment/source SHA, correct production database and key fingerprint before running **any** dry-run. The apply path still requires the existing separate approval and 0-plaintext four-store validation.
+- Workflow changes are code under review, **not** evidence that secrets were provisioned, production database inspected or backfill executed. A branch-protection administrator must also address issue #737 before relying on these gates.
