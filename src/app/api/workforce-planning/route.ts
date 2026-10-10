@@ -1,8 +1,13 @@
-import { enforceSameOriginMutation } from "@/lib/security-request";
+import {
+  enforceSameOriginMutation,
+  enforceSensitiveActionRateLimit,
+  requireSensitiveActionMfa,
+} from "@/lib/security-request";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, isNull, like, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   costCenters,
   employees,
   jobFamilies,
@@ -32,6 +37,11 @@ import {
 import { recordAuditEvent } from "@/lib/audit";
 import { startHcmBusinessProcessTx } from "@/lib/hcm-business-process";
 import { freezeHcmPositionSource } from "@/lib/hcm-position-business-process";
+import {
+  directPositionAssignmentGovernanceQuery,
+  HCM_GOVERNED_POSITION_ASSIGNMENT_REQUIRED,
+  isGovernedPositionAssignmentWorkspace,
+} from "@/lib/hcm-position-assignment-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -530,6 +540,33 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
+    const peopleDenied = await assertOrganizationRole(
+      user.id, organizationId, PEOPLE_ADMIN_ROLES,
+      "Direct position assignment requires People administration rights.",
+    );
+    if (peopleDenied) return peopleDenied;
+    const companyAccess = await getAccess(user.id, organizationId);
+    if (!companyAccess?.companyWide) {
+      return Response.json({
+        error: "Direct position assignment requires company-wide People administration. Use governed job changes for departmental decisions.",
+        code: "HCM_DIRECT_ASSIGNMENT_SCOPE_REQUIRED",
+      }, { status: 403 });
+    }
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+    const rateDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id,
+      action: "hcm-manual-position-assignment",
+      resourceId: `${employeeId}:${positionId}`,
+      limit: 5,
+      windowMs: 15 * 60_000,
+    });
+    if (rateDenied) return rateDenied;
+
+    if (await isGovernedPositionAssignmentWorkspace(organizationId)) {
+      return Response.json(HCM_GOVERNED_POSITION_ASSIGNMENT_REQUIRED, { status: 409 });
+    }
+
     const [position] = await db.select().from(positions)
       .where(and(eq(positions.id, positionId), eq(positions.organizationId, organizationId))).limit(1);
     if (!position) return Response.json({ error: "Position not found in this workspace." }, { status: 404 });
@@ -570,12 +607,19 @@ export async function POST(request: Request) {
         effectiveChangeStatus: unresolvedEffectiveChange.status,
       }, { status: 409 });
     }
-    const access = await getAccess(user.id, organizationId);
-    const employeeScope = assertScope(access, employee.orgUnitId);
+    const employeeScope = assertScope(companyAccess, employee.orgUnitId);
     if (!employeeScope.ok) return Response.json({ error: employeeScope.error }, { status: employeeScope.status });
 
     const rowOrResponse = await db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(4102, ${positionId})`);
+
+      const governedAssignment = await tx.execute(directPositionAssignmentGovernanceQuery(organizationId));
+      if (governedAssignment.rows[0]?.blocked !== false) {
+        throw new WorkforcePlanningConflict(
+          HCM_GOVERNED_POSITION_ASSIGNMENT_REQUIRED.error,
+          { code: HCM_GOVERNED_POSITION_ASSIGNMENT_REQUIRED.code },
+        );
+      }
 
       const [freshPosition] = await tx.select({ status: positions.status })
         .from(positions)
@@ -682,6 +726,23 @@ export async function POST(request: Request) {
         actorName: user.name,
       });
 
+      // The position, worker profile, employment event and actor audit must
+      // succeed together. An audit outage rolls back the assignment.
+      await tx.insert(auditEvents).values({
+        organizationId,
+        actor: user.name,
+        action: "Employee assigned to position",
+        resource: position.code.slice(0, 160),
+        metadata: {
+          positionId,
+          employeeId,
+          assignmentId: assignment.id,
+          effectiveFrom,
+          requisitionId: null,
+          source: "manual-legacy-ungoverned",
+          governanceRecheckedUnderLock: true,
+        },
+      });
       return assignment;
     }).catch((error: unknown) => {
       if (error instanceof WorkforcePlanningConflict) {
@@ -690,22 +751,7 @@ export async function POST(request: Request) {
       throw error;
     });
     if (rowOrResponse instanceof Response) return rowOrResponse;
-    const row = rowOrResponse;
-
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Employee assigned to position",
-      resource: position.code,
-      metadata: {
-        positionId,
-        employeeId,
-        assignmentId: row.id,
-        effectiveFrom,
-        requisitionId: null,
-      },
-    });
-    return Response.json(row, { status: 201 });
+    return Response.json(rowOrResponse, { status: 201 });
   }
 
   return Response.json({ error: "entityType must be job_family, job_level, job_grade, org_unit, profile, plan, position, or assignment." }, { status: 400 });
@@ -732,9 +778,44 @@ export async function PATCH(request: Request) {
   const unitScope = await scopedUnit(user.id, position.organizationId, position.orgUnitId);
   if ("error" in unitScope) return unitScope.error;
 
+  // Idempotent no-op is safe, but arbitrary status rewrites are not. In
+  // particular, moving frozen/closed positions straight back to "approved"
+  // previously bypassed independent position-creation review.
+  if (status === position.status) return Response.json(position);
+  const peopleDenied = await assertOrganizationRole(
+    user.id, position.organizationId, PEOPLE_ADMIN_ROLES,
+    "Position lifecycle transitions require company-wide People administration.",
+  );
+  if (peopleDenied) return peopleDenied;
+  if (!unitScope.access.companyWide) {
+    return Response.json({
+      error: "Position lifecycle transitions require company-wide People administration.",
+      code: "HCM_POSITION_SCOPE_REQUIRED",
+    }, { status: 403 });
+  }
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id,
+    action: "hcm-position-lifecycle-status",
+    resourceId: position.id,
+    limit: 8,
+    windowMs: 15 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
+
   const governedAction = status === "approved" && position.status === "planned"
     ? "create_position" : status === "closed" && position.status !== "closed"
       ? "close_position" : null;
+  if (!governedAction && (status !== "frozen" || !["approved", "open"].includes(position.status))) {
+    return Response.json({
+      error: "This position transition must use the approved position, recruitment, assignment or workforce-plan execution workflow. Direct status changes only allow a company-wide administrator to freeze an approved or recruiting vacancy.",
+      code: "HCM_POSITION_TRANSITION_REQUIRES_WORKFLOW",
+      fromStatus: position.status,
+      requestedStatus: status,
+    }, { status: 409 });
+  }
+
   if (governedAction) {
     const peopleDenied = await assertOrganizationRole(
       user.id, position.organizationId, PEOPLE_ADMIN_ROLES,
@@ -757,6 +838,9 @@ export async function PATCH(request: Request) {
     )).limit(1);
     if (!freshPosition) {
       throw new WorkforcePlanningConflict("Position no longer exists.");
+    }
+    if (freshPosition.status !== position.status) {
+      throw new WorkforcePlanningConflict("Position status changed during review. Reload and request a fresh transition.");
     }
 
     const freshRequisitions = await tx.select({ id: jobRequisitions.id, status: jobRequisitions.status })
@@ -857,9 +941,30 @@ export async function PATCH(request: Request) {
 
     const [updated] = await tx.update(positions)
       .set({ status, updatedAt: new Date() })
-      .where(eq(positions.id, id))
+      .where(and(
+        eq(positions.id, id),
+        eq(positions.organizationId, position.organizationId),
+        eq(positions.status, freshPosition.status),
+      ))
       .returning();
+    if (!updated) {
+      throw new WorkforcePlanningConflict("Position changed before its status could be frozen.");
+    }
 
+    await tx.insert(auditEvents).values({
+      organizationId: position.organizationId,
+      actor: user.name,
+      action: "Position status changed",
+      resource: position.code.slice(0, 160),
+      metadata: {
+        positionId: id,
+        from: freshPosition.status,
+        to: status,
+        requisitionId: activeRequisition?.id ?? null,
+        requisitionCancelled: cancelRequisition,
+        source: "companywide-mfa-vacancy-freeze",
+      },
+    });
     return {
       approvalRequired: false as const,
       updated,
@@ -897,18 +1002,6 @@ export async function PATCH(request: Request) {
     }, { status: 202 });
   }
 
-  await recordAuditEvent({
-    organizationId: position.organizationId,
-    actor: user.name,
-    action: "Position status changed",
-    resource: position.code,
-    metadata: {
-      positionId: id,
-      from: resultOrResponse.fromStatus,
-      to: status,
-      requisitionId: resultOrResponse.requisitionId,
-      requisitionCancelled: resultOrResponse.requisitionCancelled,
-    },
-  });
+  // Vacancy-freeze status and audit were committed in the same transaction.
   return Response.json(resultOrResponse.updated);
 }
