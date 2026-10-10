@@ -20,8 +20,6 @@ export type HcmPositionHistoryResponse = {
     code: string;
     status: string;
     currentJobTitle: string | null;
-    orgUnitId: number | null;
-    supervisoryOrgUnitId: number | null;
   };
   history: {
     source: "position_assignments";
