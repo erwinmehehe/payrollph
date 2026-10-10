@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
   calamityAdvisories,
@@ -29,6 +29,7 @@ import {
   payrollEntries,
   historicalPayrollEntries,
   payrollJobs,
+  payrollMonthClosures,
   payrollRuns,
   payslips,
   scheduleOverrides,
@@ -264,29 +265,68 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
   }
   const totalChunks = Math.max(1, Math.ceil(employeeRows.length / chunkSize));
 
-  await db.delete(payrollJobs).where(eq(payrollJobs.payrollRunId, runId));
-  await db.delete(payrollEntries).where(eq(payrollEntries.payrollRunId, runId));
+  // Any direct caller (API, worker, integration, script) must preserve final
+  // payroll. The HTTP route check alone is not a financial integrity boundary.
+  // Hold the payroll-run row lock across the guard AND all destructive writes.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM payroll_runs WHERE id = ${runId} FOR UPDATE`);
+    const [lockedRun] = await tx.select().from(payrollRuns)
+      .where(eq(payrollRuns.id, runId)).limit(1);
+    if (!lockedRun) throw new Error("Payroll run not found.");
+    if (!["Draft", "Failed", "Needs review", "Recalculating"].includes(lockedRun.status)) {
+      throw new Error(`PAYROLL_RECALCULATION_NOT_ALLOWED: run is ${lockedRun.status}. Approved, releasing, released and already queued payrolls cannot be overwritten.`);
+    }
+    if (lockedRun.organizationId !== run.organizationId
+      || lockedRun.legalEntityId !== run.legalEntityId
+      || String(lockedRun.payDate) !== String(run.payDate)
+      || String(lockedRun.periodStart) !== String(run.periodStart)
+      || String(lockedRun.periodEnd) !== String(run.periodEnd)) {
+      throw new Error("PAYROLL_RECALCULATION_SOURCE_CHANGED");
+    }
 
-  await db.update(payrollRuns).set({
-    status: "Queued",
-    employeeCount: employeeRows.length,
-    grossPay: "0",
-    netPay: "0",
-    exceptions: 0,
-    processedChunks: 0,
-    totalChunks,
-    ruleVersion: PAYROLL_RULE_VERSION,
-  }).where(eq(payrollRuns.id, runId));
+    // Certification is irreversible for original payroll history: retroactive
+    // changes require a separate, reviewed adjustment rather than rewriting
+    // this period. With no legal-entity identity, conservatively block if ANY
+    // employer in this tenant has certified the pay month.
+    const closureConditions = and(
+      eq(payrollMonthClosures.organizationId, lockedRun.organizationId),
+      eq(payrollMonthClosures.applicableMonth, String(lockedRun.payDate).slice(0, 7)),
+      eq(payrollMonthClosures.status, "certified"),
+      lockedRun.legalEntityId == null
+        ? undefined
+        : eq(payrollMonthClosures.legalEntityId, lockedRun.legalEntityId),
+    );
+    const [certifiedClosure] = await tx.select({ id: payrollMonthClosures.id })
+      .from(payrollMonthClosures).where(closureConditions).limit(1);
+    if (certifiedClosure) {
+      throw new Error("PAYROLL_MONTH_CERTIFIED_IMMUTABLE: a signed month-close exists. Use a separately approved correction instead.");
+    }
 
-  await db.insert(payrollJobs).values({
-    payrollRunId: runId,
-    organizationId: run.organizationId,
-    status: "queued",
-    chunkIndex: 0,
-    chunkSize,
-    attempts: 0,
+    await tx.delete(payrollJobs).where(eq(payrollJobs.payrollRunId, runId));
+    await tx.delete(payrollEntries).where(eq(payrollEntries.payrollRunId, runId));
+
+    const [queued] = await tx.update(payrollRuns).set({
+      status: "Queued",
+      employeeCount: employeeRows.length,
+      grossPay: "0",
+      netPay: "0",
+      exceptions: 0,
+      processedChunks: 0,
+      totalChunks,
+      ruleVersion: PAYROLL_RULE_VERSION,
+    }).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, lockedRun.status)))
+      .returning({ id: payrollRuns.id });
+    if (!queued) throw new Error("PAYROLL_RECALCULATION_CLAIM_LOST");
+
+    await tx.insert(payrollJobs).values({
+      payrollRunId: runId,
+      organizationId: lockedRun.organizationId,
+      status: "queued",
+      chunkIndex: 0,
+      chunkSize,
+      attempts: 0,
+    });
   });
-
   await recordAuditEvent({
     organizationId: run.organizationId,
     actor: "System",

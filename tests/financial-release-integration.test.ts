@@ -13,8 +13,11 @@ const migrationNames = [
 
 test("financial migration integration has one contiguous 0100-0103 sequence", () => {
   const names = readdirSync("drizzle").filter(name => /^01\d{2}_[a-z0-9_-]+\.sql$/.test(name));
-  assert.deepEqual(names.sort(), [...migrationNames].sort(),
-    "do not merge a second 0100, skip an ancestor or silently add later financial DDL");
+  // Only 0100-0103 belong to this financial release. Subsequent migrations
+  // (such as 0104 HCM work-item SLA) are separately governed by history guards.
+  const financialNames = names.filter(name => /^010[0-3]_/.test(name));
+  assert.deepEqual(financialNames.sort(), [...migrationNames].sort(),
+    "do not merge a duplicate financial migration or skip a 0100-0103 ancestor");
   for (const [index, name] of migrationNames.entries()) {
     assert.equal(name.slice(0, 4), String(100 + index).padStart(4, "0"));
   }
