@@ -1,6 +1,6 @@
--- A-1 / provider webhook inbox. 0110 is reserved AFTER pending PR #739's
+-- A-1 / provider webhook inbox. This SQL is a RELEASE CANDIDATE; a contiguous migration number must be reserved AFTER pending PR #739's
 -- 0109 tamper-evident audit migration; DBA must reconcile/apply ordered history.
--- This migration must NOT be automatically applied by PR/CI or to production.
+-- This file is deliberately outside drizzle/ because main currently ends at 0108 and 0109 is reserved by PR #739. Assign the next contiguous number only after that predecessor merges; do NOT apply this candidate without independent DBA review.
 CREATE TABLE IF NOT EXISTS "provider_events" (
   "id" serial PRIMARY KEY,
   "provider" varchar(32) NOT NULL,
