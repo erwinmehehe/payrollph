@@ -53,3 +53,9 @@ Organizations must assign a privacy administrator/DPO responsibility for:
 3. verifying destruction or anonymization when the retention basis expires;
 4. reviewing data-subject requests where legal retention limits deletion; and
 5. periodically reviewing this policy against current Philippine law and NPC/BIR/DOLE/SSS/PhilHealth/Pag-IBIG requirements.
+
+## Public enquiry consent and safeguards
+
+The public /privacy notice is linked from the site footer and from all public enquiry forms. Each form now requires affirmative consent for follow-up on that enquiry only. The server timestamps the consent and records its notice version and purpose inside the lead attribution JSON, instead of accepting a browser-supplied timestamp. A hidden honeypot and hashed-email/domain rate limits reduce automated intake before email delivery. Inactive leads are automatically removed 365 days after their last update by the separately enabled central scheduler. This change does not activate that scheduler.
+
+The DPO or privacy counsel must verify the deployed controller, transfer safeguards, recipient processors and contracts before production publication. Existing API consumers must be updated to submit an explicit boolean privacyConsent field.
