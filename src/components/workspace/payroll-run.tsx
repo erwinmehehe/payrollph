@@ -78,6 +78,7 @@ export function PayrollRunView({
   notify,
   availablePages = [],
   taskTarget,
+  onSelectRun,
 }: {
   data: DashboardData;
   busy: boolean;
@@ -90,6 +91,7 @@ export function PayrollRunView({
   notify: Notify;
   availablePages?: readonly string[];
   taskTarget?: TaskTarget & {sequence:number};
+  onSelectRun?: (runId: number) => void;
 }) {
   const [selectedId, setSelectedId] = useState<number | undefined>(data.payrollRuns[0]?.id);
   const taskSequence = taskTarget?.sequence;
@@ -674,6 +676,7 @@ export function PayrollRunView({
               onClick={() => {
                 setSelectedId(item.id);
                 setExpanded(null);
+                onSelectRun?.(item.id);
               }}
               aria-current={item.id === run.id ? "true" : undefined}
             >
