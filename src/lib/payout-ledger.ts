@@ -259,3 +259,112 @@ export async function markPayoutBatchForReconciliation(input: {
     return true;
   });
 }
+
+/**
+ * Persist an already received provider batch ACK atomically.
+ * This function does NOT call PayMongo. It only accepts the complete,
+ * exact reference/amount/transfer-ID set from a claimed batch.
+ *
+ * A successful HTTP response is NOT evidence of funds settled: even a
+ * succeeded-looking batch remains 'submitted' until provider reconciliation.
+ */
+export async function recordPayoutProviderBatchResponse(input: {
+  organizationId: number;
+  batchId: number;
+  providerBatchId: string;
+  transfers: readonly {
+    referenceNumber: string;
+    amountCents: number;
+    providerTransferId: string;
+  }[];
+}): Promise<boolean> {
+  if (!Number.isSafeInteger(input.organizationId) || input.organizationId <= 0
+    || !Number.isSafeInteger(input.batchId) || input.batchId <= 0
+    || !/^batch_tr_[A-Za-z0-9_-]+$/.test(input.providerBatchId)) {
+    throw new Error("PAYOUT_PROVIDER_ACK_INVALID");
+  }
+  const received = new Map<string, { amountCents: number; providerTransferId: string }>();
+  const remoteIds = new Set<string>();
+  for (const row of input.transfers) {
+    if (typeof row.referenceNumber !== "string"
+      || !Number.isSafeInteger(row.amountCents) || row.amountCents <= 0
+      || typeof row.providerTransferId !== "string"
+      || !/^[A-Za-z0-9_-]{3,160}$/.test(row.providerTransferId)
+      || received.has(row.referenceNumber) || remoteIds.has(row.providerTransferId)) {
+      throw new Error("PAYOUT_PROVIDER_ACK_DUPLICATE_OR_MALFORMED");
+    }
+    remoteIds.add(row.providerTransferId);
+    received.set(row.referenceNumber, {
+      amountCents: row.amountCents, providerTransferId: row.providerTransferId,
+    });
+  }
+
+  return db.transaction(async (tx) => {
+    const [batch] = await tx.select().from(payoutBatches).where(and(
+      eq(payoutBatches.id, input.batchId),
+      eq(payoutBatches.organizationId, input.organizationId),
+    )).for("update");
+    if (!batch || batch.status !== "submitting") return false;
+    if (received.size !== batch.transferCount) throw new Error("PAYOUT_PROVIDER_ACK_COUNT_MISMATCH");
+
+    const linked = await tx.select({
+      linkId: payoutBatchTransfers.id,
+      transferId: payoutTransfers.id,
+      referenceNumber: payoutTransfers.referenceNumber,
+      amountCents: payoutTransfers.amountCents,
+      linkStatus: payoutBatchTransfers.status,
+      transferStatus: payoutTransfers.status,
+    }).from(payoutBatchTransfers)
+      .innerJoin(payoutTransfers, eq(payoutBatchTransfers.payoutTransferId, payoutTransfers.id))
+      .where(and(
+        eq(payoutBatchTransfers.organizationId, input.organizationId),
+        eq(payoutBatchTransfers.payoutBatchId, batch.id),
+        eq(payoutTransfers.organizationId, input.organizationId),
+        eq(payoutTransfers.payrollRunId, batch.payrollRunId),
+      ));
+    if (linked.length !== batch.transferCount) throw new Error("PAYOUT_PROVIDER_ACK_LEDGER_COUNT_MISMATCH");
+
+    for (const row of linked) {
+      const item = received.get(row.referenceNumber);
+      if (!item || item.amountCents !== row.amountCents
+        || row.linkStatus !== "submitting" || row.transferStatus !== "submitting") {
+        throw new Error("PAYOUT_PROVIDER_ACK_IDENTITY_OR_STATE_MISMATCH");
+      }
+    }
+
+    for (const row of linked) {
+      const accepted = received.get(row.referenceNumber)!;
+      await tx.update(payoutBatchTransfers).set({
+        providerTransferId: accepted.providerTransferId,
+        status: "submitted",
+        updatedAt: new Date(),
+      }).where(eq(payoutBatchTransfers.id, row.linkId));
+      await tx.update(payoutTransfers).set({
+        status: "submitted", updatedAt: new Date(),
+      }).where(eq(payoutTransfers.id, row.transferId));
+    }
+    const [updated] = await tx.update(payoutBatches).set({
+      providerBatchId: input.providerBatchId,
+      status: "submitted", submittedAt: new Date(), updatedAt: new Date(),
+    }).where(and(
+      eq(payoutBatches.id, batch.id), eq(payoutBatches.status, "submitting"),
+    )).returning({ id: payoutBatches.id });
+    if (!updated) throw new Error("PAYOUT_PROVIDER_ACK_CLAIM_LOST");
+
+    await tx.insert(auditEvents).values({
+      organizationId: input.organizationId,
+      actor: "System",
+      action: "PayMongo payout batch acknowledged (settlement not verified)",
+      resource: `payroll-run-${batch.payrollRunId}`,
+      metadata: {
+        runId: batch.payrollRunId,
+        payoutBatchId: batch.id,
+        providerBatchId: input.providerBatchId,
+        transferCount: batch.transferCount,
+        requestHash: batch.requestHash,
+        settlementVerified: false,
+      },
+    });
+    return true;
+  });
+}
