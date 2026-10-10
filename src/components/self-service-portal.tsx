@@ -678,7 +678,8 @@ export function SelfServicePortal() {
             onPayslip={(id) => { setOpenPayslip(id); navigateTo("pay"); }}
             onPay={() => navigateTo("pay")}
             onAttendance={() => navigateTo("time")}
-            onLeave={() => { navigateTo("leave"); if (data.leave.policies.length) setLeaveOpen(true); }}
+            onLeave={() => navigateTo("leave")}
+            onRequestLeave={() => { navigateTo("leave"); if (data.leave.policies.length) setLeaveOpen(true); }}
           />
           {data.nextPay && (
             <div className="employee-contract-handoff" aria-hidden>
