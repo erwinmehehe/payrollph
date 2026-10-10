@@ -43,7 +43,9 @@ test("real employee payout details are captured and encrypted", () => {
   assert.ok(api.includes("Bank account and bank code must be provided together"));
   assert.ok(hire.includes('bankAccount: ""'));
   assert.ok(hire.includes('bankCode: ""'));
-  assert.ok(hire.includes("encrypted at rest"));
+  // Encryption is verified at the server boundary, not established by UI copy.
+  assert.ok(hire.includes("Only enter verified payout details"));
+  assert.ok(!hire.includes("encrypted at rest"), "Avoid unsupported security claims in the browser.");
   assert.ok(people.includes("PAYOUT DETAILS"));
   assert.ok(people.includes("Submit payout change"));
   assert.ok(people.includes("replacementBankAccount"));
