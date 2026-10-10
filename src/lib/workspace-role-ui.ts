@@ -55,7 +55,6 @@ export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> =
   bookkeeper: [
     "Overview",
     "Payroll",
-    "People Home",
     "Planning",
     "Workforce",
     "Exports",
