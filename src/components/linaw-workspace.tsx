@@ -140,7 +140,6 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
   useEffect(() => {
     if (!taskFirst) return;
     const restore = () => {
-      if (!new URLSearchParams(window.location.search).has("page")) return;
       const target = readWorkspaceLocation(window.location.search,{
         organizationId:data.selectedOrganization.id,
         pages:availablePages,runIds:data.payrollRuns.map(run=>run.id),
@@ -163,20 +162,27 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
 
   /* ------------------------------------------------------------- data ops */
 
+  const organizationSwitchSequence = useRef(0);
   const refresh = useCallback(
     async (organizationId = data.selectedOrganization.id) => {
+      const switchId = organizationSwitchSequence.current;
       const response = await fetch(`/api/dashboard?organizationId=${organizationId}`, { cache: "no-store" });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload.error ?? `The workspace could not be reloaded (${response.status}).`);
       }
-      setData((await response.json()) as DashboardData);
+      const nextData = (await response.json()) as DashboardData;
+      if (switchId !== organizationSwitchSequence.current) return;
+      if (nextData.selectedOrganization.id !== organizationId) {
+        throw new Error("Requested company could not be verified.");
+      }
+      // A mutation from an old employer can finish after a company switch.
+      setData(current => current.selectedOrganization.id === organizationId ? nextData : current);
     },
     [data.selectedOrganization.id],
   );
 
 
-  const organizationSwitchSequence = useRef(0);
   async function changeOrganization(id: number) {
     const switchId = ++organizationSwitchSequence.current;
     try {

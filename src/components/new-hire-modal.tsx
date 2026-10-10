@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Layers, X } from "lucide-react";
 import { WAGE_ORDERS } from "@/lib/wage-orders";
-import { taskFirstUiEnabled, uiMoney } from "@/lib/task-first-ui";
+import { taskFirstUiEnabled, uiMoney, reportOnboardingStepValidity } from "@/lib/task-first-ui";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
 
 /**
@@ -182,7 +182,8 @@ export function NewHireModal({
             {wizard && step>0 && <button type="button" className="secondary-button" disabled={busy} onClick={()=>setStep(x=>x-1)}>Back</button>}
             {wizard && step<4 ? <button type="button" className="primary-button" disabled={busy} onClick={()=>{
               const current=dialogRef.current?.querySelector<HTMLFieldSetElement>('.tf-hire-step:not([hidden])');
-              if (current && !current.reportValidity()) { setError("Check the required fields on this step."); return; }
+              const controls = current?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input, select, textarea");
+              if (!controls || !reportOnboardingStepValidity(controls)) { setError("Check the required fields on this step."); return; }
               if(step===2 && Boolean(form.bankCode)!==Boolean(form.bankAccount)) {setError("Enter both bank code and account number, or leave both empty until payout setup.");return;}
               setError("");setStep(x=>x+1);
             }}>Continue <ArrowRight size={16}/></button>

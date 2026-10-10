@@ -6,6 +6,13 @@ const FOCUSES = new Set<PayrollFocus>(["workflow","register","exceptions","compa
 export function taskFirstUiEnabled() {
   return process.env.NEXT_PUBLIC_LINAW_TASK_FIRST_UI_ENABLED === "true";
 }
+/** Fieldsets do not validate their descendants; validate each active control. */
+export function reportOnboardingStepValidity(controls: Iterable<{ reportValidity(): boolean }>): boolean {
+  for (const control of controls) {
+    if (!control.reportValidity()) return false;
+  }
+  return true;
+}
 export function positiveId(value: unknown): number | undefined {
   if (typeof value !== "number" && (typeof value !== "string" || !/^[1-9][0-9]*$/.test(value))) return undefined;
   const n = Number(value);
