@@ -45,6 +45,8 @@ import { AUTOMATION_DOCUMENT_TEMPLATES } from "@/lib/automation-document-templat
 import { draftAutomationFromLanguage, LanguageDraftError, validateNaturalLanguageDraft } from "@/lib/automation-language-draft";
 import { fingerprintLanguageProposal, issueLanguageProposalReceipt, verifyLanguageProposalReceipt } from "@/lib/automation-language-proposal-receipt";
 import { automationLanguageStudioEnabled } from "@/lib/automation-language-release";
+import { automationModelAllowedForOrganization } from "@/lib/automation-model-consent";
+import { sha256 } from "@/lib/crypto";
 import { fingerprintAutomationDraft, issueAutomationPreviewReceipt, verifyAutomationPreviewReceipt } from "@/lib/automation-preview-approval";
 import {
   AUTOMATION_WORKFLOW_TEMPLATES,
@@ -796,9 +798,27 @@ export async function POST(request: Request) {
   }
 
   if (action === "draft-from-language") {
-    // No workflow writes, execution, or publication: only an audit record is written.
+    // No workflow publication or execution. For external models an audit
+    // attempt must exist BEFORE sending anything to a third-party processor.
     try {
-      const result = await draftAutomationFromLanguage(String(body.request ?? ""));
+      const modelRequest = String(body.request ?? "");
+      if (automationModelAllowedForOrganization(organizationId)) {
+        await recordAuditEvent({
+          organizationId,
+          actor: user.name,
+          action: "External model draft request authorized",
+          resource: "language-workflow-proposal",
+          metadata: {
+            provider: "OpenAI",
+            model: process.env.OPENAI_AUTOMATION_DRAFT_MODEL || "gpt-4.1-mini",
+            promptSha256: sha256(modelRequest.trim()),
+            promptCharacters: modelRequest.trim().length,
+            purpose: "unpublished-automation-draft",
+            // Do not store raw prompts, employee details or provider responses.
+          },
+        });
+      }
+      const result = await draftAutomationFromLanguage(modelRequest, { organizationId });
       await recordAuditEvent({
         organizationId,
         actor: user.name,
