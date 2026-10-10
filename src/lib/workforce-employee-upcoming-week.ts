@@ -78,13 +78,15 @@ export function upcomingSevenDays(
       date: key, state: "review" as const, changed: false,
       label: "Schedule needs review", segments: [],
     };
-    if (day.isRestDay) return {
-      date: key, state: "rest" as const, changed: day.source === "override",
-      label: "Recorded rest day", segments: [],
-    };
+    // An unassigned day cannot become an authoritative rest day merely
+    // because the source resolver returned a default rest-day flag.
     if (day.source === "unassigned") return {
       date: key, state: "unassigned" as const, changed: false,
       label: "No published shift", segments: [],
+    };
+    if (day.isRestDay) return {
+      date: key, state: "rest" as const, changed: day.source === "override",
+      label: "Recorded rest day", segments: [],
     };
     if (day.segments.length === 0) return {
       date: key, state: "review" as const, changed: day.source === "override",
