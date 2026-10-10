@@ -274,5 +274,5 @@ test("production backfill checks all recorded bank-account sources before claimi
   }
   assert.ok(workflow.includes("0 legal entity disbursement account(s) hold plaintext."));
   assert.ok(workflow.includes("0 payout change request(s) hold plaintext."));
-  assert.equal(workflow.split("Verify live readiness sees encrypted bank data").length - 1, 1);
+  assert.equal((workflow.match(/^      - name: Verify live readiness sees encrypted bank data$/gm) ?? []).length, 1);
 });
