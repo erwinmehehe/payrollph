@@ -54,13 +54,14 @@ export function WorkforceBulkRosterPreview({
   const pending = useRef<AbortController | null>(null);
   const pendingStageKey = useRef<{ signature: string; key: string } | null>(null);
   const activeScope = useRef("");
-  const [stageReason, setStageReason] = useState("");
-  const [stageAcknowledged, setStageAcknowledged] = useState(false);
+  const [stageIntent, setStageIntent] = useState<{ scope: string; reason: string; acknowledged: boolean } | null>(null);
   const [staging, setStaging] = useState(false);
   const [stageMessage, setStageMessage] = useState<{ scope: string; text: string; error: boolean } | null>(null);
   const stageFeatureVisible = process.env.NEXT_PUBLIC_WFM_BULK_PUBLISH_UI_ENABLED === "true";
   const scope = JSON.stringify([organizationId, weekStart, page, appliedSearch]);
-  activeScope.current = scope;
+  const stageReason = stageIntent?.scope === scope ? stageIntent.reason : "";
+  const stageAcknowledged = stageIntent?.scope === scope && stageIntent.acknowledged;
+  useEffect(() => { activeScope.current = scope; }, [scope]);
   // A prior employer/week/page can never contribute selected worker IDs or shift IDs.
   const selectedIds = selection?.scope === scope ? selection.ids : [];
   const shiftChoice = shiftSelection?.scope === scope ? shiftSelection.value : "";
@@ -322,12 +323,14 @@ export function WorkforceBulkRosterPreview({
             <div className="setting-form" style={{ padding: "0 18px 18px" }}>
               <div className="notice notice-amber">This optional governed staging lane is separate from the read-only preview. Server checks are stricter and may decline the proposal; staged shifts are never published automatically.</div>
               <label>Why is this batch schedule change needed?
-                <input maxLength={240} value={stageReason} onChange={e => setStageReason(e.target.value)}
+                <input maxLength={240} value={stageReason} onChange={e => setStageIntent(current => ({ scope, reason: e.target.value,
+                  acknowledged: current?.scope === scope ? current.acknowledged : false }))}
                   placeholder="Document the roster impact and authorization" aria-label="Bulk shift staging reason"/>
               </label>
               <label style={{ display: "flex", alignItems: "start", gap: 10 }}>
                 <input type="checkbox" checked={stageAcknowledged}
-                  onChange={e => setStageAcknowledged(e.target.checked)}/>
+                  onChange={e => setStageIntent(current => ({ scope,
+                    reason: current?.scope === scope ? current.reason : "", acknowledged: e.target.checked }))}/>
                 <span>I understand this batch may change future payroll treatment and requires a second authorized reviewer.</span>
               </label>
               {stageMessage?.scope === scope && <div role="status"
