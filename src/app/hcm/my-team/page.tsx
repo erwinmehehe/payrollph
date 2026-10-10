@@ -38,5 +38,6 @@ export default async function MyTeamPage({
   const access = denied ? null : await getAccess(user.id, organizationId);
   if (denied || !deriveMyTeamScope(access)) notFound();
 
-  return <HcmMyTeamClient organizationId={organizationId} />;
+  // Reset client-side cursor and filters when switching legal employers.
+  return <HcmMyTeamClient key={organizationId} organizationId={organizationId} />;
 }
