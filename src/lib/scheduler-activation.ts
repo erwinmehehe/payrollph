@@ -1,3 +1,4 @@
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 /**
  * Separate, default-off release gate for the central scheduler.
  *
@@ -10,5 +11,5 @@
 export function isCentralSchedulerEnabled(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
-  return env.CENTRAL_SCHEDULER_ENABLED === "true";
+  return criticalReleaseFlagEnabled("centralScheduler", env);
 }
