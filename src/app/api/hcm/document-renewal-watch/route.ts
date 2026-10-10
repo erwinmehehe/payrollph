@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, lte, or, asc } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, or, asc } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, hcmDocumentRequirements, hcmEmployeeDocumentCompliance } from "@/db/schema";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
@@ -37,9 +37,11 @@ export async function GET(request: Request) {
     return Response.json({ error: "Company-wide HR access is required." }, { status: 403 });
   }
 
-  const today = new Intl.DateTimeFormat("en-CA", {
+  const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(new Date());
+  }).formatToParts(new Date());
+  const part = (name: string) => parts.find((item) => item.type === name)?.value ?? "";
+  const today = [part("year"), part("month"), part("day")].join("-");
   const compliance = hcmEmployeeDocumentCompliance;
   const req = hcmDocumentRequirements;
   const worker = employees;
@@ -76,7 +78,7 @@ export async function GET(request: Request) {
       // Include unresolved document tasks and upcoming verified expirations.
       or(
         inArray(compliance.status, ["missing", "submitted", "expiring", "expired"]),
-        and(eq(req.expiryRequired, true), lte(compliance.expiresAt, "2099-12-31")),
+        and(eq(req.expiryRequired, true), isNotNull(compliance.expiresAt)),
       ),
     ))
     .orderBy(asc(compliance.id))
