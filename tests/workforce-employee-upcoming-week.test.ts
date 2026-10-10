@@ -48,7 +48,7 @@ test("invalid and duplicate schedule evidence is never shown as a confirmed shif
     day("2026-10-11"),
     day("2026-10-11", { source: "override" }),
     day("2026-10-12", { source: "pattern", segments: [] }),
-    day("2026-10-13", { source: "unassigned", segments: [shift] }),
+    day("2026-10-13", { source: "unassigned", isRestDay: true, segments: [shift] }),
     day("2026-02-30"),
   ], "2026-10-10");
   assert.deepEqual(week.slice(0, 4).map(d => d.state), ["review", "review", "review", "unassigned"]);
@@ -77,4 +77,13 @@ test("ESS upcoming-week UI only renders session-scoped source and never posts sc
   assert.ok(!panel.includes("action: \"approve_override\""));
   assert.ok(route.includes("session.employeeId"));
   assert.ok(route.includes("assertMembership(session.id, employee.organizationId)"));
+});
+
+test("the ESS schedule fetch supersedes stale requests and clears data when access fails", () => {
+  const panel = readFileSync("src/components/employee-workforce-panel.tsx", "utf8");
+  assert.ok(panel.includes("currentLoad.current?.abort()"));
+  assert.ok(panel.includes("signal: controller.signal"));
+  assert.ok(panel.includes("currentLoad.current !== controller || controller.signal.aborted"));
+  assert.ok(panel.includes("setPayload(null)"));
+  assert.ok(panel.includes("setToday(manilaWorkDate())"));
 });
