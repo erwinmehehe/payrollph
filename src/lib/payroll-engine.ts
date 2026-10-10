@@ -1,3 +1,4 @@
+import { roundedGrossFromBuckets } from "@/lib/payroll-money";
 import { and, asc, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
@@ -2691,7 +2692,7 @@ function calculateEmployeePay(input: {
   // calendar days inside the cutoff. Daily/hourly portions come from the
   // punch date's effective rate, so a mid-cutoff change never rewrites earlier
   // worked time.
-  const baseBasicPay = semiMonthlyBasic + workedBasicPay + unworkedHolidayPay;
+  const baseBasicPay = roundToCents(semiMonthlyBasic + workedBasicPay) + roundToCents(unworkedHolidayPay);
 
   const approvedLeave = input.approvedLeave ?? [];
   const invalidPreEmploymentLeave = approvedLeave.find((leave) => leave.startDate < employeeStartDate);
@@ -3096,24 +3097,25 @@ function calculateEmployeePay(input: {
     })
     .sort((a, b) => a.governmentPriority - b.governmentPriority || a.id - b.id);
 
-  const gross = Math.max(
-    0,
-    baseBasicPay
-      + leaveAdjustmentTotal
-      + overtimePay
-      + nightDiffPay
-      + nightDifferentialPremiumPay
-      + calamityPay
-      + holidayPremium
-      + holidayRestDayPremiumPay
-      + overtimePremiumPay
-      + companyPremiumPay
-      + retroTotal
-      + expenseTotal
-      + supplementaryTotal
-      + deMinimisTotal
-      + conversionTotal,
-  );
+  // The earnings on the payslip are individually printed to centavos.
+  // Total the same rounded buckets, not unrounded floating-point fractions.
+  const gross = roundedGrossFromBuckets([
+    baseBasicPay,
+    leaveAdjustmentTotal,
+    overtimePay,
+    nightDiffPay,
+    nightDifferentialPremiumPay,
+    calamityPay,
+    holidayPremium,
+    holidayRestDayPremiumPay,
+    overtimePremiumPay,
+    companyPremiumPay,
+    retroTotal,
+    expenseTotal,
+    supplementaryTotal,
+    deMinimisTotal,
+    conversionTotal,
+  ]);
 
   // SSS uses total actual remuneration; Pag-IBIG monthly compensation includes
   // basic salary and allowances. First cutoffs retain the product's 50/50
@@ -3154,8 +3156,12 @@ function calculateEmployeePay(input: {
     pagIbigEmployer: 0,
   };
   const newHireInCurrentCutoff = employeeStartDate >= input.periodStart;
-  const hasPriorMonthStatutory =
-    priorStatutory.sssRemuneration > 0 || priorStatutory.pagIbigCompensation > 0;
+  // Existence of a verified earlier cutoff ledger matters; zero remuneration
+  // (e.g. an employee on leave) is still a valid prior-cutoff input.
+  const hasPriorMonthStatutory = input.priorStatutory != null;
+  if (input.isFinalCutoffOfMonth && !hasPriorMonthStatutory && !newHireInCurrentCutoff) {
+    flags.push("STATUTORY_TRUE_UP_INPUT_MISSING: Final cutoff lacks prior-month statutory ledger input. Reconcile the released first cutoff before payroll approval.");
+  }
   const canTrueUpActualMonth =
     Boolean(input.isFinalCutoffOfMonth)
     && (hasPriorMonthStatutory || newHireInCurrentCutoff);
