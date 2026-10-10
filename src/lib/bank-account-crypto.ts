@@ -46,9 +46,20 @@ export function parseBankEncryptionKey(raw: string | undefined): Buffer | null {
   if (!raw) return null;
   const value = raw.trim();
   if (/^[0-9a-fA-F]{64}$/.test(value)) return Buffer.from(value, "hex");
+  // Buffer.from(value, "base64") silently ignores invalid characters and
+  // excess padding. That can make a corrupted secret look properly configured.
+  // A 32-byte key has 43 Base64 digits and at most one trailing '='.
+  if (!/^[A-Za-z0-9+/_-]{43}=?$/.test(value)) return null;
   try {
     const decoded = Buffer.from(value, "base64");
-    return decoded.length === 32 ? decoded : null;
+    if (decoded.length !== 32) return null;
+    // Check canonical round trips, including padded and unpadded Base64URL.
+    // This also rejects nonzero unused trailing bits and mixed alphabets.
+    const standard = decoded.toString("base64");
+    const url = decoded.toString("base64url");
+    return [standard, standard.slice(0, -1), url, `${url}=`].includes(value)
+      ? decoded
+      : null;
   } catch {
     return null;
   }
@@ -184,14 +195,30 @@ export function decryptBankAccount(
     throw new Error(`A bank account is stored encrypted but neither ${KEY_ENV} nor a rotation key is configured.`);
   }
 
-  const [iv, tag, ciphertext] = stored.slice(PREFIX.length).split(":");
-  if (!iv || !tag || !ciphertext) throw new Error("Stored bank account is malformed.");
+  // Each envelope must have exactly three canonical, unpadded Base64URL
+  // components. Node's decoder is permissive about invalid characters and
+  // ignores extra colon-separated data if we destructure without checking.
+  // Reject both, rather than authenticating only a prefix of a stored value.
+  const parts = stored.slice(PREFIX.length).split(":");
+  if (parts.length !== 3) throw new Error("Stored bank account is malformed.");
+  const decodePart = (part: string): Buffer => {
+    if (!/^[A-Za-z0-9_-]+$/.test(part)) throw new Error("Stored bank account is malformed.");
+    const decoded = Buffer.from(part, "base64url");
+    if (decoded.toString("base64url") !== part) throw new Error("Stored bank account is malformed.");
+    return decoded;
+  };
+  const iv = decodePart(parts[0]);
+  const tag = decodePart(parts[1]);
+  const ciphertext = decodePart(parts[2]);
+  if (iv.length !== 12 || tag.length !== 16 || ciphertext.length === 0) {
+    throw new Error("Stored bank account is malformed.");
+  }
 
   for (const key of keys) {
     try {
-      const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"));
-      decipher.setAuthTag(Buffer.from(tag, "base64url"));
-      return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");
+      const decipher = createDecipheriv("aes-256-gcm", key, iv);
+      decipher.setAuthTag(tag);
+      return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
     } catch {
       // Try the previous rotation key, if configured.
     }
