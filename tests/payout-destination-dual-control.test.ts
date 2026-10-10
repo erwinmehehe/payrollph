@@ -186,7 +186,8 @@ test("employee API routes payout changes into dual control only when treasury se
   assert.ok(employeesRoute.includes("treasuryControlPolicy"));
   assert.ok(employeesRoute.includes("createPayoutDestinationChangeRequest"));
   assert.ok(employeesRoute.includes("pendingApproval: true"));
-  assert.ok(employeesRoute.includes("submit payout destination changes separately"));
+  assert.ok(employeesRoute.includes("PAYOUT_DESTINATION_SEPARATE_CHANGE_REQUIRED"));
+  assert.ok(employeesRoute.includes("submit bank/mobile details separately"));
   assert.ok(employeesRoute.includes("requireSensitiveActionMfa"));
   assert.ok(employeesRoute.includes("employee-payout-destination-change"));
 });

@@ -10,6 +10,8 @@ type ImportResult = {
   totalRows?: number;
   createdCount?: number;
   updatedCount?: number;
+  newEligibleCount?: number;
+  skippedExistingCount?: number;
   errorCount?: number;
   errors?: { line: number; problems: string[] }[];
   unmappedColumns?: string[];
@@ -41,8 +43,8 @@ export function ImportPanel({ organizationId, onImported }: { organizationId: nu
     const payload = await response.json() as ImportResult;
     setResult(payload);
     if (response.ok && !dryRun) {
-      setCsv("");
-      onImported();
+      if ((payload.errorCount ?? 0) === 0) setCsv("");
+      if ((payload.createdCount ?? 0) > 0) onImported();
     }
   }
 
@@ -52,7 +54,7 @@ export function ImportPanel({ organizationId, onImported }: { organizationId: nu
         <div>
           <div className="card-kicker">BULK ONBOARDING</div>
           <h2>Import employees from a spreadsheet</h2>
-          <p>Upload the roster you already have. Unknown columns are ignored, not rejected.</p>
+          <p>Import new employees only. Include each worker's actual employment Start Date (YYYY-MM-DD). Existing employee numbers are skipped; salary, bank details, positions and separations must use their approved change workflows.</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <a className="secondary-button" href="/api/employees/import/template"><FileSpreadsheet size={15} className="i-teal" /> Template</a>
@@ -88,10 +90,10 @@ export function ImportPanel({ organizationId, onImported }: { organizationId: nu
                 <div className="notice notice-amber"><UsersRound size={16} className="i-purple" /><span><strong>{result.error}</strong>{result.plan && <> Current plan: {result.plan}.</>}{result.seatLimit && <> Seats in use: {result.currentlyUsed} of {result.seatLimit}.</>}</span></div>
               )}
               {result.errorCount === 0 && result.error === undefined && (
-                <div className="notice notice-green"><UsersRound size={16} className="i-purple" /><span><strong>{result.dryRun ? "Validation passed" : "Import complete"}.</strong> {result.createdCount ?? 0} created, {result.updatedCount ?? 0} updated, 0 errors.</span></div>
+                <div className="notice notice-green"><UsersRound size={16} className="i-purple" /><span><strong>{result.dryRun ? "Validation passed" : "Import complete"}.</strong> {result.dryRun ? `${result.newEligibleCount ?? 0} new employees eligible; no records changed.` : `${result.createdCount ?? 0} created; no existing records overwritten.`}</span></div>
               )}
               {(result.errorCount ?? 0) > 0 && (
-                <div className="notice notice-amber"><UsersRound size={16} className="i-purple" /><div><strong>{result.errorCount} row(s) need fixing</strong><span>Valid rows import; only the rows below are skipped.</span></div></div>
+                <div className="notice notice-amber"><UsersRound size={16} className="i-purple" /><div><strong>{result.errorCount} row(s) need fixing</strong><span>{result.dryRun ? "No employees created during validation." : `${result.createdCount ?? 0} new employees created. Existing records remain unchanged.`}</span></div></div>
               )}
               <div className="audit-list" style={{ marginTop: 8 }}>
                 {(result.errors ?? []).slice(0, 10).map((row, index) => (

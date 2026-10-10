@@ -51,10 +51,10 @@ test("the 90k tax-exempt ceiling and combined-benefit scope match the reference"
 });
 
 test("isBelowMinimum and wageOrderFor apply the configured table correctly", () => {
-  assert.equal(
-    wageOrderFor("A region nobody configured"),
-    WAGE_ORDERS[0],
-    "unknown region falls back to the first configured row",
+  assert.throws(
+    () => wageOrderFor("A region nobody configured"),
+    /Unknown Philippine wage region/,
+    "unknown region must fail closed; do not mislabel it NCR",
   );
 
   const daily = wageOrderFor("NCR").dailyRate;

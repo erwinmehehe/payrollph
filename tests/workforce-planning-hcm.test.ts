@@ -25,7 +25,9 @@ test("planning API enforces role, tenant and organization-unit scope", () => {
   assert.ok(route.includes("WORKFORCE_MANAGER_ROLES"));
   assert.ok(route.includes("assertOrganizationRole("));
   assert.ok(route.includes("getAccess(user.id, organizationId)"));
-  assert.ok(route.includes("assertScope(access, employee.orgUnitId)"));
+  assert.ok(route.includes("assertScope(companyAccess, employee.orgUnitId)"));
+  assert.ok(route.includes("if (!companyAccess?.companyWide)"));
+  assert.ok(route.includes("HCM_DIRECT_ASSIGNMENT_SCOPE_REQUIRED"));
   assert.ok(route.includes("This position is outside your assigned organization unit."));
 });
 

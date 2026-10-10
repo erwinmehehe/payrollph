@@ -92,8 +92,8 @@ test("scheduler and dedicated worker synchronize remittance actions without a pa
   assert.ok(actions.includes('jobName, SCHEDULE_JOB'));
   assert.ok(actions.includes("syncAllStatutoryRemittanceActions"));
   assert.ok(scheduler.includes("runScheduledStatutoryRemittanceSync"));
-  assert.ok(worker.includes("runScheduledStatutoryRemittanceSync"));
-  assert.ok(worker.includes('actor: "Dedicated worker"'));
+  assert.ok(worker.includes("await tickScheduler()"), "dedicated worker must invoke the central scheduler");
+  assert.ok(scheduler.includes('actor: "System scheduler"'), "the central scheduler must own remittance execution");
 });
 
 

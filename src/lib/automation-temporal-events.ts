@@ -9,6 +9,7 @@ import {
   workforceTimesheets,
 } from "@/db/schema";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { emitWorkforceClockInWatch } from "@/lib/workforce-clock-in-watch-server";
 
 const SCHEDULE_JOB = "automation-temporal-sla-events";
 const SCHEDULE_INTERVAL_MS = 60 * 60 * 1000;
@@ -298,6 +299,14 @@ export async function runScheduledAutomationTemporalEvents(options: {
     emitCoverageDeadlineEvents(today),
   ]);
 
+  // Explicit opt-in only. A monitor fault must not halt the established
+  // payroll/timesheet/attendance automation lanes.
+  const clockInWatch = process.env.WFM_CLOCK_IN_WATCH_ENABLED === "true"
+    ? await emitWorkforceClockInWatch(
+        now, Number(process.env.WFM_CLOCK_IN_WATCH_GRACE_MINUTES ?? "20"),
+      ).catch(() => ({ skipped: true as const, reason: "clock-in-watch-unavailable" }))
+    : { skipped: true as const, reason: "disabled" };
+
   const payload = {
     at: now.toISOString(),
     today,
@@ -306,6 +315,7 @@ export async function runScheduledAutomationTemporalEvents(options: {
     missingTimesheetEvents: missingTimesheets.length,
     attendanceEvents: attendance.length,
     coverageEvents: coverage.length,
+    clockInWatch,
     results: {
       payroll: payroll.slice(0, 50),
       timesheets: timesheets.slice(0, 50),

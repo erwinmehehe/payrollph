@@ -112,6 +112,29 @@ These labels are **not a cryptographic certification** and do not authorize
 merging or production release. The human reviewer must inspect the evidence.
 The script does not post approval, edit issues, deploy or modify workflow state.
 
+## Post-merge activation verification (distinct from the PR merge checker)
+
+PR #609 is **already merged**. The older `scripts/verify-automation-language-release.mjs` intentionally requires an **open** PR, so its former `activation` scope cannot certify a deployment **after** that merge. Do not override its open-PR checks or treat the merge commit as an independent review.
+
+For the actual post-merge decision, use the separate, **read-only and fail-closed** verifier `scripts/verify-automation-postmerge-activation.mjs` (tests: `tests/verify-automation-postmerge-activation.test.mjs`). It requires all of the following:
+
+- An exact 40-character commit SHA equal to current `main`, with the original merged #609 commit in that SHA's ancestry.
+- A **closed** security/intent review issue #621 and a separate, authorized GitHub collaborator's exact-SHA comment containing `SECURITY-REVIEWED: <main-sha>`, `INTENT-FIDELITY: PASS`, `TENANT-ACCESS: VERIFIED`, and `NO-EXECUTION-BYPASS: VERIFIED`.
+- A **closed** staging issue #622 and an independent reviewer comment containing `STAGING-ACCEPTED: <main-sha>`, `LIVE-PROVIDER: PASS`, `NONPROD-DB: VERIFIED`, `MFA: VERIFIED`, `NO-PRODUCTION-DATA: VERIFIED`, and `ROLLOUT-FLAG: OFF`.
+- All six existing required workflows successful **on the exact current main SHA**. Because synthetic Automation Language Acceptance normally runs on PRs, an authorized operator must first run its existing non-provider `workflow_dispatch` on the protected current `main` branch (using synthetic fixtures only). No provider credentials are required for that workflow.
+- Independent review and privately retained source evidence: the issue comments are *evidence indexes*, not proof by themselves. The verifier cannot inspect actual staging hosts, live provider prompts or real-environment secrets.
+
+From an authorized, reviewed checkout with a read-only `GITHUB_TOKEN` injected securely:
+
+```sh
+node --test tests/verify-automation-postmerge-activation.test.mjs
+export GITHUB_REPOSITORY=erwinmehehe/payrollph
+export AUTOMATION_ACTIVATION_MAIN_SHA=<current-main-40-character-sha>
+node scripts/verify-automation-postmerge-activation.mjs
+```
+
+The new verifier only reads GitHub metadata. It does not set `AUTOMATION_LANGUAGE_STUDIO_ENABLED`, call an AI provider, deploy an application, or approve any payroll or banking action. **Keep the language feature OFF** until authorized staff have independently completed both security and real-provider staging reviews, and a separate operational change-control authorizes activation. If current `main` changes, collect fresh exact-SHA evidence; never reuse an earlier acceptance.
+
 ## Final release decision
 
 **To merge default-OFF code:** current-head CI, synthetic acceptance, independently approved code/security review and closed issue #621. Do not self-approve. Merging alone must not enable the runtime lane.

@@ -105,6 +105,33 @@ test("engine exceptions require review but do not become hard blockers", () => {
 });
 
 
+test("invalid legacy loan schedule is a non-acknowledgeable release blocker", () => {
+  const flagged = entry({
+    status: "Exception",
+    trace: { flags: [
+      "PAYROLL_LOAN_SCHEDULE_INVALID: Loan #17 (SSS Salary Loan) has an invalid deduction or balance. No loan deduction applied; pause and reconcile the schedule before payroll release.",
+    ] },
+  });
+  const result = evaluatePayrollAssurance([flagged], []);
+  assert.equal(result.summary.blocking, 1);
+  assert.ok(result.findings.some((finding) =>
+    finding.code === "INVALID_PAYROLL_LOAN_SCHEDULE"
+    && finding.severity === "high"
+    && finding.blocking === true
+    && finding.employeeId === flagged.employeeId
+  ));
+  assert.ok(result.findings.some((finding) => finding.code === "ENGINE_EXCEPTION"));
+});
+
+test("ordinary engine warnings remain acknowledgeable, not loan blockers", () => {
+  const result = evaluatePayrollAssurance([entry({
+    status: "Exception",
+    trace: { flags: ["Incomplete punch pair, reviewer sign-off required"] },
+  })], []);
+  assert.equal(result.summary.blocking, 0);
+  assert.ok(result.findings.every((finding) => finding.code !== "INVALID_PAYROLL_LOAN_SCHEDULE"));
+});
+
 test("assurance contribution breakdown includes voluntary Pag-IBIG", () => {
   const components = payrollComponentsOf(entry({
     deductions: "5500",

@@ -420,6 +420,7 @@ export function LinawWorkspace({ initialData }: { initialData: DashboardData }) 
         {page === "Payroll" && (
           <PayrollRunView
             data={data}
+            availablePages={availablePages}
             busy={busy}
             onNewRun={() => setNewPayrollOpen(true)}
             onProcess={processRun}

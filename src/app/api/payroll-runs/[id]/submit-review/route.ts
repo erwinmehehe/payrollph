@@ -102,11 +102,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const requiredWorkflowItems = reviewReadiness.items.filter(
-    (item) => (item.key === "inputs" || item.key === "calculation") && !item.passed,
+    (item) => (item.key === "inputs" || item.key === "calculation" || item.key === "connected") && !item.passed,
   );
   if (requiredWorkflowItems.length > 0) {
     return Response.json({
-      error: "Payroll inputs and calculation must be complete before checker submission.",
+      error: "Payroll inputs, calculation, and (when enabled) connected HRIS/WFM/HCM sources must be verified before checker submission.",
       blockingWorkflowItems: requiredWorkflowItems,
     }, { status: 409 });
   }

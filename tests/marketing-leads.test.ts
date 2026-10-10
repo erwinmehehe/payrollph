@@ -72,7 +72,7 @@ test("marketing lead notifications are provider-gated, idempotent and recoverabl
   assert.ok(mailer.includes("organizationId: number | null"), "mailer retry scope must support platform-only outbox rows");
   assert.ok(mailer.includes('"demo-request"') && mailer.includes('"trial-access-request"') && mailer.includes('"payroll-outsourcing-enquiry"'), "marketing notifications must carry the same bounded outbox retry budget");
   assert.ok(mailer.includes("isNull(outbox.organizationId)"), "null-organization retries must be explicitly scoped");
-  assert.ok(worker.includes("drainMarketingLeadNotifications"), "dedicated worker must recover lead notifications");
+  assert.ok(worker.includes("await tickScheduler()"), "dedicated worker must invoke the central recovery scheduler");
   assert.ok(scheduler.includes("drainMarketingLeadNotifications"), "remote scheduler must recover lead notifications");
 });
 

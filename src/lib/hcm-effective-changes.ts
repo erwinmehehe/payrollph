@@ -1,6 +1,7 @@
 import { and, eq, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   costCenters,
   employees,
   jobProfiles,
@@ -11,7 +12,7 @@ import {
   workerEffectiveChanges,
   workerEmploymentEvents,
 } from "@/db/schema";
-import { recordAuditEvent } from "@/lib/audit";
+import { effectiveHcmSourceDrift, effectiveHcmTargetDrift } from "@/lib/hcm-effective-source-integrity";
 import { runAutomationEventSafely, runLifecycleAutomations } from "@/lib/automation";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { syncEmployeeHcmObligations } from "@/lib/hcm-documents";
@@ -99,12 +100,41 @@ export async function applyWorkerEffectiveChange(
         isNull(positionAssignments.effectiveUntil),
       )).limit(1);
 
+      // Lock both reviewed positions in a deterministic order before
+      // reading them. This blocks conflicting position-master edits until
+      // the worker/assignment/audit transaction completes.
+      const lockedPositionIds = [...new Set([
+        currentAssignment?.positionId,
+        change.targetPositionId,
+      ].filter((id): id is number => typeof id === "number"))].sort((a, b) => a - b);
+      if (lockedPositionIds.length > 0) {
+        await tx.execute(sql`
+          SELECT id FROM positions
+          WHERE organization_id = ${change.organizationId}
+            AND id IN (${sql.join(lockedPositionIds.map(id => sql`${id}`), sql`, `)})
+          ORDER BY id FOR UPDATE
+        `);
+      }
+
       const currentPosition = currentAssignment
         ? (await tx.select().from(positions).where(and(
             eq(positions.id, currentAssignment.positionId),
             eq(positions.organizationId, change.organizationId),
           )).limit(1))[0] ?? null
         : null;
+
+      // Source snapshots are frozen when a different People reviewer approves
+      // the request. Re-check after acquiring the employee lock, *before*
+      // any position or employee mutation. An older approval is not permission
+      // to undo a new transfer, legal-employer update or status change.
+      const sourceDrift = effectiveHcmSourceDrift(change.fromSnapshot, {
+        employee,
+        assignment: currentAssignment,
+        position: currentPosition,
+      });
+      if (sourceDrift) {
+        throw new Error(`${sourceDrift.code}: ${sourceDrift.message}`);
+      }
 
       const to = snapshot(change.toSnapshot);
       const changes = to.changes && typeof to.changes === "object" && !Array.isArray(to.changes)
@@ -116,6 +146,11 @@ export async function applyWorkerEffectiveChange(
             eq(positions.organizationId, change.organizationId),
           )).limit(1))[0] ?? null
         : null;
+
+      const targetDrift = effectiveHcmTargetDrift(change.toSnapshot, targetPosition);
+      if (targetDrift) {
+        throw new Error(`${targetDrift.code}: ${targetDrift.message}`);
+      }
 
       if (change.targetPositionId && !targetPosition) {
         throw new Error("The scheduled target position no longer exists.");
@@ -241,12 +276,16 @@ export async function applyWorkerEffectiveChange(
         if (!profile) throw new Error("The target position job profile is missing.");
 
         if (currentAssignment) {
-          await tx.update(positionAssignments).set({
+          const [closedAssignment] = await tx.update(positionAssignments).set({
             effectiveUntil: previousIsoDate(String(change.effectiveDate)),
           }).where(and(
             eq(positionAssignments.id, currentAssignment.id),
+            eq(positionAssignments.organizationId, change.organizationId),
             isNull(positionAssignments.effectiveUntil),
-          ));
+          )).returning({ id: positionAssignments.id });
+          if (!closedAssignment) {
+            throw new Error("The original position assignment changed during application. No HCM change was committed.");
+          }
         }
 
         const [createdAssignment] = await tx.insert(positionAssignments).values({
@@ -325,8 +364,21 @@ export async function applyWorkerEffectiveChange(
       }).where(and(
         eq(employees.id, change.employeeId),
         eq(employees.organizationId, change.organizationId),
+        // Optimistic compare-and-swap also fences writers that do not yet
+        // participate in advisory lock (4204, employeeId).
+        employee.orgUnitId === null
+          ? isNull(employees.orgUnitId)
+          : eq(employees.orgUnitId, employee.orgUnitId),
+        employee.legalEntityId === null
+          ? isNull(employees.legalEntityId)
+          : eq(employees.legalEntityId, employee.legalEntityId),
+        eq(employees.title, employee.title),
+        eq(employees.employmentType, employee.employmentType),
+        eq(employees.status, employee.status),
       )).returning();
-      if (!updatedEmployee) throw new Error("The employee changed before the scheduled transaction could apply.");
+      if (!updatedEmployee) {
+        throw new Error("The employee's authoritative HCM source changed before commit. No approved change was applied.");
+      }
 
       const [event] = await tx.insert(workerEmploymentEvents).values({
         organizationId: change.organizationId,
@@ -372,6 +424,29 @@ export async function applyWorkerEffectiveChange(
       )).returning();
       if (!applied) throw new Error("The scheduled change was modified before application.");
 
+      // Financially and legally meaningful job/legal-employer transitions
+      // must never commit without the actor/source audit. A failure inserting
+      // this row rolls back the position, employee, event and status changes.
+      const [audit] = await tx.insert(auditEvents).values({
+        organizationId: change.organizationId,
+        actor: actor.slice(0, 120),
+        action: "Effective-dated HCM change applied",
+        resource: `Employee #${change.employeeId}`,
+        metadata: {
+          effectiveChangeId: change.id,
+          employeeId: change.employeeId,
+          effectiveDate: change.effectiveDate,
+          movementType: change.movementType,
+          eventId: event.id,
+          approvedByUserId: change.approvedByUserId,
+          appliedByUserId: actorUserId,
+          fromSnapshot: change.fromSnapshot,
+          toSnapshot: change.toSnapshot,
+          sourceGuard: "validated-before-apply",
+        },
+      }).returning({ id: auditEvents.id });
+      if (!audit) throw new Error("HCM change audit did not persist. Application rolled back.");
+
       return {
         skipped: false as const,
         change: applied,
@@ -398,25 +473,9 @@ export async function applyWorkerEffectiveChange(
 
   if (result.skipped) return result;
 
+  // At this point the source, worker, position, history and audit have all
+  // committed. Only non-financial follow-up deliveries can warn and continue.
   const postApplyWarnings: string[] = [];
-  try {
-    await recordAuditEvent({
-      organizationId: result.change.organizationId,
-      actor,
-      action: "Effective-dated HCM change applied",
-      resource: `Employee #${result.change.employeeId}`,
-      metadata: {
-        effectiveChangeId: result.change.id,
-        employeeId: result.change.employeeId,
-        effectiveDate: result.change.effectiveDate,
-        movementType: result.change.movementType,
-        eventId: result.event.id,
-      },
-    });
-  } catch (error) {
-    postApplyWarnings.push(`audit: ${error instanceof Error ? error.message : "unknown failure"}`);
-  }
-
   let hcmObligations: unknown = null;
   try {
     hcmObligations = await syncEmployeeHcmObligations({
@@ -475,7 +534,9 @@ export async function applyWorkerEffectiveChange(
     }
   }
 
-  const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
+  let fieldChangeAutomation: Awaited<ReturnType<typeof runEmployeeFieldChangeAutomations>> | null = null;
+  try {
+    fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
     organizationId: result.change.organizationId,
     employeeId: result.change.employeeId,
     eventKey: `effective-change:${result.change.id}:field-change`,
@@ -553,7 +614,12 @@ export async function applyWorkerEffectiveChange(
         metadata: { effectiveChangeId: result.change.id, movementType: result.change.movementType },
       },
     ],
-  });
+    });
+  } catch (error) {
+    // A downstream notification failure MUST NOT be reported as an HCM apply
+    // failure after the worker/legal employer was committed and audited.
+    postApplyWarnings.push(`field-change-automation: ${error instanceof Error ? error.message : "unknown failure"}`);
+  }
 
   return {
     ...result,
@@ -591,6 +657,9 @@ export async function runScheduledWorkerEffectiveChanges({
         id: row.id,
         status: result.skipped ? "skipped" : "applied",
         reason: result.skipped ? result.reason : undefined,
+        // Do not bury failures from post-commit HR/notification hooks.
+        // Workers must not retry the source move, only reconcile delivery.
+        postApplyWarnings: result.skipped ? undefined : result.postApplyWarnings,
       });
     } catch (error) {
       results.push({
