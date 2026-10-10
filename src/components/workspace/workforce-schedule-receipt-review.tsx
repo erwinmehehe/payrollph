@@ -52,6 +52,7 @@ export function WorkforceScheduleReceiptReview({
   onClose: () => void;
 }) {
   const [refresh, setRefresh] = useState(0);
+  const [focus, setFocus] = useState<"all" | "follow_up" | "source_review">("all");
   const [snapshot, setSnapshot] = useState<{ scope: string; value: ReceiptView } | null>(null);
   const [failure, setFailure] = useState<{ scope: string; message: string } | null>(null);
   const [loadingScope, setLoadingScope] = useState<string | null>(null);
@@ -140,10 +141,18 @@ export function WorkforceScheduleReceiptReview({
             <div className="metric"><div className="metric-label">Schedule changed</div><strong>{value.summary.changed}</strong></div>
             <div className="metric"><div className="metric-label">Needs source review</div><strong>{value.summary.unavailable}</strong></div>
           </div>
+          <div className="run-actions" style={{ padding: "0 18px 12px" }}><label>Show dates
+            <select aria-label="Schedule receipt review filter" value={focus} onChange={event => setFocus(event.target.value as typeof focus)}>
+              <option value="all">All seven dates</option>
+              <option value="follow_up">Needs follow-up (pending or changed)</option>
+              <option value="source_review">Source evidence needs review</option>
+            </select></label></div>
           <div className="data-table-wrap slim-scroll">
             <table className="data-table" aria-label="Employee current schedule acknowledgment status">
               <thead><tr><th scope="col">Work date</th><th scope="col">Receipt state</th><th scope="col">Current version last acknowledged</th></tr></thead>
-              <tbody>{value.days.map(day => <tr key={day.date}>
+              <tbody>{value.days.filter(day => focus === "all" || (focus === "follow_up"
+                ? day.state === "pending" || day.state === "changed" : day.state === "unavailable"))
+                .map(day => <tr key={day.date}>
                 <td>{day.date}</td>
                 <td><Status value={
                   day.state === "acknowledged" ? "Acknowledged" :
