@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "../src/db";
-import { organizations } from "../src/db/schema";
 
 const sources = [
   "src/app/api/workforce/roster-batches/route.ts",
