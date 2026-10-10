@@ -1,4 +1,4 @@
-import { roundedGrossFromBuckets } from "@/lib/payroll-money";
+import { roundedGrossFromBuckets, statutoryTrueUpDecision } from "@/lib/payroll-money";
 import { and, asc, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
@@ -3159,12 +3159,15 @@ function calculateEmployeePay(input: {
   // Existence of a verified earlier cutoff ledger matters; zero remuneration
   // (e.g. an employee on leave) is still a valid prior-cutoff input.
   const hasPriorMonthStatutory = input.priorStatutory != null;
-  if (input.isFinalCutoffOfMonth && !hasPriorMonthStatutory && !newHireInCurrentCutoff) {
+  const trueUp = statutoryTrueUpDecision({
+    isFinalCutoffOfMonth: Boolean(input.isFinalCutoffOfMonth),
+    priorCutoffPresent: hasPriorMonthStatutory,
+    newHireInCurrentCutoff,
+  });
+  if (trueUp.missingPriorInput) {
     flags.push("STATUTORY_TRUE_UP_INPUT_MISSING: Final cutoff lacks prior-month statutory ledger input. Reconcile the released first cutoff before payroll approval.");
   }
-  const canTrueUpActualMonth =
-    Boolean(input.isFinalCutoffOfMonth)
-    && (hasPriorMonthStatutory || newHireInCurrentCutoff);
+  const canTrueUpActualMonth = trueUp.canTrueUp;
 
   const statutoryMonthlySssCompensation = roundToCents(
     canTrueUpActualMonth
