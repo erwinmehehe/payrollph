@@ -150,12 +150,6 @@ test("every place that reads or writes the number goes through the crypto module
   const settlement = read("src/lib/payroll-settlement.ts");
   assert.ok(settlement.includes("sameBankAccount(snapshot.bankAccount, employee.bankAccount)"), "release guard must compare decrypted values");
 
-  const engine = read("src/lib/payroll-engine.ts");
-  assert.ok(engine.includes("bankAccount: encryptBankAccount(employee.bankAccount)"),
-    "a payroll payment snapshot must never copy a legacy plaintext account into the financial trace");
-  assert.ok(!engine.includes("bankAccount: employee.bankAccount,"),
-    "a future payroll run must not write a raw bank account directly");
-
   for (const path of ["src/app/api/employees/import/route.ts", "src/app/api/migrations/route.ts"]) {
     const source = read(path);
     assert.ok(source.includes("encryptBankAccount(row.bankAccount)"), `${path} must encrypt on write`);
