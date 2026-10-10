@@ -26,6 +26,7 @@ import type { DashboardData, PayrollRun } from "./types";
 import { Status } from "./ui";
 import { StatutoryRemittanceWatch } from "./statutory-remittance-watch";
 import { taskFirstUiEnabled, type TaskTarget } from "@/lib/task-first-ui";
+import { TaskFirstPayrollHome } from "@/components/task-first/payroll-home";
 
 type Props = {
   data: DashboardData;
@@ -44,6 +45,11 @@ export function CleanRoleDashboard({
   onNewRun,
   onTask,
 }: Props) {
+  if (role === "payroll" && taskFirstUiEnabled() && onTask) return <TaskFirstPayrollHome data={data} run={run} onTask={onTask} onNewRun={onNewRun} />;
+  return <LegacyCleanRoleDashboard data={data} currentRun={run} role={role} onPage={onPage} onNewRun={onNewRun} onTask={onTask} />;
+}
+
+function LegacyCleanRoleDashboard({data,currentRun:run,role,onPage,onNewRun,onTask}:Props) {
   const active = data.employees.filter(
     (employee) => employee.status === "Active",
   );
