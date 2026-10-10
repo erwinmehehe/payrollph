@@ -2312,6 +2312,14 @@ export async function POST(request: Request) {
         )).limit(1);
         if (latestOverrides.length) throw new Error("A new day override superseded this claim.");
 
+        const siteNow = await employeeSiteEligibility({
+          organizationId, employeeId: employee.id,
+          worksiteId: openShift.worksiteId, date,
+          executor: tx,
+        });
+        if (!siteNow.eligible) {
+          throw new Error("Open-shift worksite authorization changed.");
+        }
         const lockedPolicy = await loadGuardrailPolicy(organizationId, tx);
         const lockedWindow = await resolveEmployeeScheduleWindow({
           organizationId, employeeId: employee.id,
