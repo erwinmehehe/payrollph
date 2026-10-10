@@ -107,7 +107,7 @@ export function TaskFirstPayrollHome({ data, run, onTask, onNewRun }: Props) {
         <section className="tf-card tf-current" aria-labelledby="tf-current-title">
           <div className="tf-current-top">
             <div>
-              <div className="tf-kicker">IN PROGRESS <span className="tf-run-id">{run ? `RUN #${run.id}` : "NO RUN YET"}</span></div>
+              <div className="tf-kicker">{run ? "IN PROGRESS" : "GET STARTED"} <span className="tf-run-id">{run ? `RUN #${run.id}` : "NO RUN YET"}</span></div>
               <h2 id="tf-current-title">{run?.periodLabel ?? "Start your next payroll"}</h2>
               <p>{run ? `${run.employeeCount} employees · Pay date ${uiDate(run.payDate)}` : "Create a run to begin preparing your team's pay."}</p>
             </div>
@@ -165,15 +165,15 @@ export function TaskFirstPayrollHome({ data, run, onTask, onNewRun }: Props) {
             <span className={`tf-count ${issueSignals ? "tf-count-issue" : ""}`}>{issueSignals ? `${issueSignals} signals` : "All clear"}</span>
           </div>
           <ActionRow icon={<Clock3 />} issue={attendance > 0}
-            title={attendance ? `${attendance} employee(s) with incomplete attendance` : "No incomplete attendance identified"}
+            title={attendance ? `${attendance} ${attendance === 1 ? "employee" : "employees"} with incomplete attendance` : "No incomplete attendance identified"}
             detail={attendance ? "Check missing or unresolved time entries." : "Based on the attendance records currently loaded."}
             action="Review" onClick={() => onTask({ page: "Time & attendance", filter: "attendance-exceptions" })} />
           <ActionRow icon={<AlertTriangle />} issue={exceptions > 0}
-            title={exceptions ? `${exceptions} payroll exception(s)` : "No payroll exceptions reported"}
+            title={exceptions ? `${exceptions} payroll ${exceptions === 1 ? "exception" : "exceptions"}` : "No payroll exceptions reported"}
             detail={exceptions ? "Open the flagged entries for this exact run." : "You can still inspect the complete register."}
             action="Inspect" onClick={() => payrollTask(exceptions ? "exceptions" : "register")} />
           <ActionRow icon={<ShieldCheck />} issue={missingPayout > 0}
-            title={missingPayout ? `${missingPayout} employee(s) missing payout fields` : "Required payout fields are present"}
+            title={missingPayout ? `${missingPayout} ${missingPayout === 1 ? "employee" : "employees"} missing payout fields` : "Required payout fields are present"}
             detail="Field completeness does not verify a bank account."
             action="View" onClick={() => onTask({ page: "People", filter: "missing-payout" })} />
           <p className="tf-attention-foot">Counts may overlap by employee and are not a distinct-person total.</p>
