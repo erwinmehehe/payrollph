@@ -73,7 +73,7 @@ test("bank writes fail closed in every environment with no usable current key", 
     assert.equal(encryptBankAccount("  ", env), null);
   }
   // A previous rotation key is for reading old ciphertext, not new writes.
-  const previousOnly = { BANK_DATA_ENCRYPTION_KEY_PREVIOUS: KEY_A } as NodeJS.ProcessEnv;
+  const previousOnly = { NODE_ENV: "test", BANK_DATA_ENCRYPTION_KEY_PREVIOUS: KEY_A } as NodeJS.ProcessEnv;
   assert.throws(() => encryptBankAccount("1234567890", previousOnly), /required to store/);
   const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
   assert.throws(() => encryptBankAccount(sealed, withKey(undefined)), /required to store/);
@@ -85,6 +85,7 @@ test("an already-encrypted bank value must authenticate before being saved", () 
   assert.throws(() => encryptBankAccount(sealed, withKey(KEY_B)), /could not be decrypted/);
   assert.throws(() => encryptBankAccount("enc:v1:notvalid", withKey(KEY_A)), /malformed/);
   const rotation = {
+    NODE_ENV: "test",
     BANK_DATA_ENCRYPTION_KEY: KEY_B,
     BANK_DATA_ENCRYPTION_KEY_PREVIOUS: KEY_A,
   } as NodeJS.ProcessEnv;
