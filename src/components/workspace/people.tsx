@@ -1354,6 +1354,18 @@ function PersonDrawer({
                   </div>
                 </div>
 
+                {process.env.NEXT_PUBLIC_HCM_WORKER_360_ENABLED === "true" &&
+                  data.access?.companyWide &&
+                  ["owner", "admin", "hr"].includes(data.access.role) && (
+                    <div style={{ margin: "12px 0 16px" }}>
+                      <Link
+                        className="secondary-button"
+                        href={`/hcm/worker-360?organizationId=${data.selectedOrganization.id}&employeeId=${employee.id}`}
+                      >
+                        Open Worker 360 history
+                      </Link>
+                    </div>
+                  )}
                 <HcmWorkerJourneyPanel journey={connectedProfile.journey} onPage={onPage} />
                 <HcmWorkerJourneyActions journey={connectedProfile.journey} onPage={onPage} />
 

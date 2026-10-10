@@ -90,13 +90,32 @@ jobs:
             # The workspace shell is client-rendered, so raw HTML is not a valid
             # assertion for the ROLE SANDBOX text. Prove the session instead by
             # loading the app route and an authenticated role-scoped API.
-            curl -fsS -b /tmp/demo-cookies.txt "$BASE_URL/app?demoRole=${role}" -o "/tmp/${role}.html"
+            app_status=$(curl -sS -b /tmp/demo-cookies.txt               -w "%{http_code}" -o "/tmp/${role}.html" "$BASE_URL/app?demoRole=${role}")
+            echo "role=${role} endpoint=/app status=${app_status}"
+            if [ "$app_status" != "200" ]; then
+              echo "The demo workspace shell did not load. Response body is intentionally omitted."
+              exit 1
+            fi
 
             if [ "$role" = "employee" ]; then
-              curl -fsS -b /tmp/demo-cookies.txt "$BASE_URL/api/self/payslips" -o "/tmp/${role}-api.json"
+              endpoint="/api/self/payslips"
+              api_status=$(curl -sS -b /tmp/demo-cookies.txt -w "%{http_code}"                 -o "/tmp/${role}-api.json" "$BASE_URL${endpoint}")
+              echo "role=${role} endpoint=${endpoint} status=${api_status}"
+              if [ "$api_status" != "200" ]; then
+                echo "Self-service API failed; response body omitted to protect employee data."
+                exit 1
+              fi
               jq -e '.employee.employeeNo and .employer.id' "/tmp/${role}-api.json" >/dev/null
             else
-              curl -fsS -b /tmp/demo-cookies.txt "$BASE_URL/api/dashboard?organizationId=${organization_id}" -o "/tmp/${role}-api.json"
+              endpoint="/api/dashboard"
+              api_status=$(curl -sS -b /tmp/demo-cookies.txt -w "%{http_code}"                 -o "/tmp/${role}-api.json" "$BASE_URL${endpoint}?organizationId=${organization_id}")
+              echo "role=${role} endpoint=${endpoint} status=${api_status}"
+              if [ "$api_status" != "200" ]; then
+                # Do not print error bodies, identity values, cookies or organization IDs.
+                api_code=$(jq -r 'if type == "object" then (.code // "unavailable") else "unavailable" end'                   "/tmp/${role}-api.json" 2>/dev/null || echo unavailable)
+                echo "Dashboard API failed (sanitized code=${api_code:0:100})."
+                exit 1
+              fi
               jq -e '.selectedOrganization.id' "/tmp/${role}-api.json" >/dev/null
             fi
           done

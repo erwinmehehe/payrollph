@@ -28,6 +28,8 @@ import { WorkforceWorksitesPanel } from "./workforce-worksites-panel";
 import { WorkforceCoveragePanel } from "./workforce-coverage-panel";
 import { WorkforceTimesheetPanel } from "./workforce-timesheet-panel";
 import { WorkforceTeamRosterPanel } from "./workforce-team-roster-panel";
+import { WorkforceOperationsInbox } from "./workforce-operations-inbox";
+import { WorkforceBulkRosterPreview } from "./workforce-bulk-roster-preview";
 
 type ShiftRow = {
   id: number;
@@ -156,10 +158,12 @@ export function WorkforcePlanner({
   data,
   notify,
   canManage,
+  onOpenAttendance,
 }: {
   data: DashboardData;
   notify: Notify;
   canManage: boolean;
+  onOpenAttendance: () => void;
 }) {
   const organizationId = data.selectedOrganization.id;
   const [catalog, setCatalog] = useState<Catalog | null>(null);
@@ -405,9 +409,15 @@ export function WorkforcePlanner({
         const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
         tabs[next]?.focus(); tabs[next]?.click();
       }}>
-        {[['roster', 'Individual roster'], ['team', 'Team roster'], ['coverage', 'Coverage'], ['timesheets', 'Timesheets'], ['overtime', 'Overtime'], ['swaps', 'Schedule swaps'], ['worksites', 'Worksites'], ['costing', 'Labor costing'], ['guardrails', 'Guardrails']].map(([key, label]) => (
+        {[['operations', 'Operations'], ['bulk', 'Bulk draft'], ['roster', 'Individual roster'], ['team', 'Team roster'], ['coverage', 'Coverage'], ['timesheets', 'Timesheets'], ['overtime', 'Overtime'], ['swaps', 'Schedule swaps'], ['worksites', 'Worksites'], ['costing', 'Labor costing'], ['guardrails', 'Guardrails']].map(([key, label]) => (
           <button type="button" key={key} id={`wfm-tab-${key}`} role="tab" tabIndex={workspaceTab === key ? 0 : -1} aria-selected={workspaceTab === key} aria-controls={`wfm-panel-${key}`} className={workspaceTab === key ? "active" : ""} onClick={() => setWorkspaceTab(key)}>{label}</button>
         ))}
+      </div>
+      <div role="tabpanel" id="wfm-panel-operations" aria-labelledby="wfm-tab-operations" hidden={workspaceTab !== "operations"}><WorkforceOperationsInbox organizationId={organizationId} onOpenAttendance={onOpenAttendance} onOpenTab={setWorkspaceTab} /></div>
+      <div role="tabpanel" id="wfm-panel-bulk" aria-labelledby="wfm-tab-bulk" hidden={workspaceTab !== "bulk"}>
+        {["owner", "admin", "bookkeeper", "hr"].includes(data.access?.role ?? "") ? (
+          <WorkforceBulkRosterPreview organizationId={organizationId} enabled={workspaceTab === "bulk"} onOpenTeamRoster={() => setWorkspaceTab("team")}/>
+        ) : <div className="notice notice-slate">Bulk roster drafts require an authorized People administrator.</div>}
       </div>
       <div role="tabpanel" id="wfm-panel-roster" aria-labelledby="wfm-tab-roster" hidden={workspaceTab !== 'roster'}>
       {catalogError && <ErrorState title="Schedules could not load" detail={catalogError} onRetry={() => void loadCatalog()} />}
