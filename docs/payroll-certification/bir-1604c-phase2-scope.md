@@ -45,14 +45,14 @@ No plaintext certificate is stored.
 
 `src/lib/bir-1604c-dat-candidate.ts` defines:
 
-- 47 fields for D1, 56 fields for D2;
-- 35 fields for C1 control, 43 for C2 control, with sums of reviewed numeric detail;
+- 49 fields for D1, 59 fields for D2 (including the Annex A continuation-page fields);
+- 36 fields for C1 control, 45 for C2 control, with sums of reviewed numeric detail;
 - H1604C header, explicit numeric cents, exact TIN/branch/region field widths,
   official annual name convention, Windows-compatible printable ASCII,
   and CRLF-separated records.
 
 Every numeric field must have a **reviewer-provided** source amount, including
-explicit zeroes. No previous-employer amount, MWE premium, region number,
+explicit zeroes. No previous-employer amount, substituted-filing status, PERA tax credits, MWE statutory basic wages/premiums, region number,
 employment status, tax due, or tax withheld is guessed. Population and
 independently derived released-payroll withholding must reconcile. DRAFT
 candidates carry an `UNVALIDATED` filename and are never labeled accepted.
