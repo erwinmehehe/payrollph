@@ -13,7 +13,10 @@ function dateLabel(value: string | null, milestone: boolean) {
   if (!value) return "No source date";
   const parsed = milestone ? new Date(value + "T12:00:00+08:00") : new Date(value);
   if (Number.isNaN(parsed.getTime())) return "Date unavailable";
-  return new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric" }).format(parsed);
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila", month: "short", day: "numeric", year: "numeric",
+    ...(milestone ? {} : { hour: "numeric", minute: "2-digit", hour12: true }),
+  }).format(parsed) + (milestone ? "" : " PHT");
 }
 
 export function HcmPeopleHome({ data, onPage, onOpenWorker }: {
