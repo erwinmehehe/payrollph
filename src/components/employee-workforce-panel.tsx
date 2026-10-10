@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, CheckCircle2, PencilLine, RefreshCcw } from "lucide-react";
 import { manilaWorkDate, summarizeUpcomingWeek, upcomingSevenDays } from "@/lib/workforce-employee-upcoming-week";
 
@@ -84,9 +84,10 @@ function fromManilaInput(value: string) {
 
 export function EmployeeWorkforcePanel() {
   const [payload, setPayload] = useState<Payload | null>(null);
-  const [today] = useState(() => manilaWorkDate());
+  const [today, setToday] = useState(() => manilaWorkDate());
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const currentLoad = useRef<AbortController | null>(null);
   const [selected, setSelected] = useState<Punch | null>(null);
   const [timeIn, setTimeIn] = useState("");
   const [timeOut, setTimeOut] = useState("");
@@ -96,22 +97,40 @@ export function EmployeeWorkforcePanel() {
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
+    // Ignore late responses after a new request or view unmount.
+    currentLoad.current?.abort();
+    const controller = new AbortController();
+    currentLoad.current = controller;
     setLoading(true);
     try {
-      const response = await fetch("/api/self/workforce", { cache: "no-store" });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error ?? "Could not load your workforce schedule.");
+      const response = await fetch("/api/self/workforce", {
+        cache: "no-store", signal: controller.signal,
+      });
+      const body: unknown = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = body && typeof body === "object" && "error" in body
+          && typeof body.error === "string" ? body.error : "Could not load your workforce schedule.";
+        throw new Error(message);
+      }
+      if (currentLoad.current !== controller || controller.signal.aborted) return;
       setPayload(body as Payload);
+      setToday(manilaWorkDate());
       setError("");
     } catch (cause) {
+      if (currentLoad.current !== controller || controller.signal.aborted) return;
+      // Never retain a previous employee's schedule after a scope/auth failure.
+      setPayload(null);
       setError(cause instanceof Error ? cause.message : "Could not load your workforce schedule.");
     } finally {
-      setLoading(false);
+      if (currentLoad.current === controller && !controller.signal.aborted) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     void load();
+    return () => currentLoad.current?.abort();
   }, [load]);
 
   const pendingByPunch = useMemo(
