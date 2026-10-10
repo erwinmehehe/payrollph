@@ -33,7 +33,7 @@ export function WorkforceRosterBatchReviews({
   refreshKey: number;
 }) {
   const [snapshot, setSnapshot] = useState<BatchSnapshot | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<{ employer: number; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<{ employer: number; id: number } | null>(null);
   const [note, setNote] = useState("");
@@ -55,7 +55,7 @@ export function WorkforceRosterBatchReviews({
     }
     if (!signal.aborted && request.current?.signal === signal) {
       setSnapshot({ employer: organizationId, batches: raw.batches as Batch[] });
-      setError("");
+      setError(null);
     }
   }, [organizationId]);
 
@@ -67,7 +67,7 @@ export function WorkforceRosterBatchReviews({
     void load(controller.signal).catch((cause: unknown) => {
       if (controller.signal.aborted || request.current !== controller) return;
       setSnapshot(null);
-      setError(cause instanceof Error ? cause.message : "Roster batch list unavailable.");
+      setError({ employer: organizationId, message: cause instanceof Error ? cause.message : "Roster batch list unavailable." });
     });
     return () => controller.abort();
   }, [load, enabled, refreshKey, reload]);
@@ -96,10 +96,10 @@ export function WorkforceRosterBatchReviews({
       setSelected(null);
       setNote("");
       setAcknowledged(false);
-      setError("");
+      setError(null);
       setReload(n => n + 1);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Roster decision unavailable.");
+      setError({ employer: organizationId, message: cause instanceof Error ? cause.message : "Roster decision unavailable." });
       setReload(n => n + 1);
     } finally {
       setBusy(false);
@@ -118,8 +118,8 @@ export function WorkforceRosterBatchReviews({
           <RefreshCcw size={15} aria-hidden="true" /> Refresh
         </button>
       </div>
-      {error && <div role="alert" className="notice notice-amber" style={{ margin: "0 18px 16px" }}>{error}</div>}
-      {enabled && !snapshot && !error && <div role="status" className="notice notice-slate">Loading authorized review queue…</div>}
+      {error?.employer === organizationId && <div role="alert" className="notice notice-amber" style={{ margin: "0 18px 16px" }}>{error.message}</div>}
+      {enabled && snapshot?.employer !== organizationId && error?.employer !== organizationId && <div role="status" className="notice notice-slate">Loading authorized review queue…</div>}
       {enabled && batches.length === 0 && snapshot && <div className="notice notice-slate" style={{ margin: "0 18px 16px" }}>No staged roster batches in this employer.</div>}
       {enabled && batches.length > 0 && <div className="data-table-wrap slim-scroll">
         <table className="data-table" aria-label="Governed bulk roster batch queue">
