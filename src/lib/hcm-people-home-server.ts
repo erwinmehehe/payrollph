@@ -1,4 +1,4 @@
-import { and, eq, gte, lte, ne, notInArray } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, ne, notInArray, or, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
   approvalDelegations, employees, hcmBusinessProcessInstances,
@@ -11,7 +11,7 @@ import {
   type HcmHomeFollowUpInput,
 } from "@/lib/hcm-people-home-projection";
 import {
-  boundedPeopleHomeRows, delegatedHcmAssigneeMatches,
+  allowedDelegatedHcmAssigneeNames, boundedPeopleHomeRows, delegatedHcmAssigneeMatches,
   HCM_PEOPLE_HOME_CASE_LIMIT, HCM_PEOPLE_HOME_DECISION_LIMIT,
   HCM_PEOPLE_HOME_DELEGATION_LIMIT, HCM_PEOPLE_HOME_FOLLOWUP_LIMIT,
   unavailablePeopleHomeSlice, type HcmPeopleHomeSlice,
@@ -37,8 +37,38 @@ function sourceTimestamp(value: Date | string | null): string | null {
 /** Bounded source query and one batched delegation lookup, not N+1 canDecide. */
 async function loadDecisions(organizationId: number, viewer: Viewer): Promise<HcmPeopleHomeSlice> {
   const date = delegationBusinessDate();
-  const [candidateRows, delegations] = await Promise.all([
-    db.select({
+  // Load active delegation edges once; do not scan every other assignee's steps.
+  const delegations = await db.select({
+      fromApprover: approvalDelegations.fromApprover,
+      toApprover: approvalDelegations.toApprover,
+    }).from(approvalDelegations)
+      .where(and(
+        eq(approvalDelegations.organizationId, organizationId),
+        eq(approvalDelegations.active, true),
+        lte(approvalDelegations.startsOn, date),
+        gte(approvalDelegations.endsOn, date),
+      ))
+      .orderBy(approvalDelegations.id)
+      .limit(HCM_PEOPLE_HOME_DELEGATION_LIMIT + 1);
+
+  if (delegations.length > HCM_PEOPLE_HOME_DELEGATION_LIMIT) {
+    throw new Error("Delegation preview ceiling reached");
+  }
+  // If a from-approver has conflicting simultaneous delegations, do not guess
+  // which branch the governing source endpoint would authorize.
+  const seenApprovers = new Set<string>();
+  for (const row of delegations) {
+    const key = row.fromApprover.toLowerCase();
+    if (seenApprovers.has(key)) throw new Error("Ambiguous active delegation");
+    seenApprovers.add(key);
+  }
+
+  const namedAssignees = allowedDelegatedHcmAssigneeNames(viewer.name, delegations);
+  const roleAssignees = ["role:hr", "role:finance", "role:owner", "role:manager"]
+    .filter((target) => roleApproverMatchesRole(target, viewer.role));
+  // Tenant, active-state and approver restrictions are all SQL predicates.
+  // The +1 result signals genuine overflow of *authorized candidates*.
+  const candidateRows = await db.select({
       id: hcmBusinessProcessInstanceSteps.id,
       stepType: hcmBusinessProcessInstanceSteps.stepType,
       assignee: hcmBusinessProcessInstanceSteps.assignee,
@@ -59,34 +89,16 @@ async function loadDecisions(organizationId: number, viewer: Viewer): Promise<Hc
         eq(hcmBusinessProcessInstanceSteps.organizationId, organizationId),
         eq(hcmBusinessProcessInstanceSteps.status, "pending"),
         eq(hcmBusinessProcessInstances.status, "in_progress"),
+        // Restrict to role or named/delegated assignees BEFORE applying LIMIT.
+        or(
+          inArray(sql<string>`lower(${hcmBusinessProcessInstanceSteps.assignee})`, namedAssignees),
+          roleAssignees.length > 0
+            ? inArray(sql<string>`lower(btrim(${hcmBusinessProcessInstanceSteps.assignee}))`, roleAssignees)
+            : undefined,
+        ),
       ))
       .orderBy(hcmBusinessProcessInstanceSteps.dueAt, hcmBusinessProcessInstanceSteps.id)
-      .limit(HCM_PEOPLE_HOME_DECISION_LIMIT + 1),
-    db.select({
-      fromApprover: approvalDelegations.fromApprover,
-      toApprover: approvalDelegations.toApprover,
-    }).from(approvalDelegations)
-      .where(and(
-        eq(approvalDelegations.organizationId, organizationId),
-        eq(approvalDelegations.active, true),
-        lte(approvalDelegations.startsOn, date),
-        gte(approvalDelegations.endsOn, date),
-      ))
-      .orderBy(approvalDelegations.id)
-      .limit(HCM_PEOPLE_HOME_DELEGATION_LIMIT + 1),
-  ]);
-
-  if (delegations.length > HCM_PEOPLE_HOME_DELEGATION_LIMIT) {
-    throw new Error("Delegation preview ceiling reached");
-  }
-  // If a from-approver has conflicting simultaneous delegations, do not guess
-  // which branch the governing source endpoint would authorize.
-  const seenApprovers = new Set<string>();
-  for (const row of delegations) {
-    const key = row.fromApprover.toLowerCase();
-    if (seenApprovers.has(key)) throw new Error("Ambiguous active delegation");
-    seenApprovers.add(key);
-  }
+      .limit(HCM_PEOPLE_HOME_DECISION_LIMIT + 1);
 
   const candidates = boundedPeopleHomeRows(candidateRows, HCM_PEOPLE_HOME_DECISION_LIMIT);
   const visible = candidates.rows.flatMap((row) => {
