@@ -38,15 +38,18 @@ export async function resolveEmployeeScheduleWindow(input: {
   endDate: string;
   prospectiveAssignment?: WorkforceScheduleAssignment | null;
   prospectiveOverride?: WorkforceScheduleOverride | null;
+  /** Use the same locked transaction for release-time schedule validation. */
+  executor?: Pick<typeof db, "select">;
 }) {
+  const executor = input.executor ?? db;
   const [shifts, patterns, days, segments, assignmentRows, overrideRows, worksiteAssignments] = await Promise.all([
-    db.select().from(shiftDefinitions)
+    executor.select().from(shiftDefinitions)
       .where(eq(shiftDefinitions.organizationId, input.organizationId))
       .orderBy(asc(shiftDefinitions.code)),
-    db.select().from(schedulePatterns)
+    executor.select().from(schedulePatterns)
       .where(eq(schedulePatterns.organizationId, input.organizationId))
       .orderBy(asc(schedulePatterns.code)),
-    db.select({
+    executor.select({
       id: schedulePatternDays.id,
       patternId: schedulePatternDays.patternId,
       dayIndex: schedulePatternDays.dayIndex,
@@ -56,7 +59,7 @@ export async function resolveEmployeeScheduleWindow(input: {
       .innerJoin(schedulePatterns, eq(schedulePatternDays.patternId, schedulePatterns.id))
       .where(eq(schedulePatterns.organizationId, input.organizationId))
       .orderBy(asc(schedulePatternDays.patternId), asc(schedulePatternDays.dayIndex)),
-    db.select({
+    executor.select({
       patternDayId: schedulePatternSegments.patternDayId,
       shiftDefinitionId: schedulePatternSegments.shiftDefinitionId,
       segmentOrder: schedulePatternSegments.segmentOrder,
@@ -65,17 +68,17 @@ export async function resolveEmployeeScheduleWindow(input: {
       .innerJoin(schedulePatterns, eq(schedulePatternDays.patternId, schedulePatterns.id))
       .where(eq(schedulePatterns.organizationId, input.organizationId))
       .orderBy(asc(schedulePatternSegments.patternDayId), asc(schedulePatternSegments.segmentOrder)),
-    db.select().from(employeeScheduleAssignments).where(and(
+    executor.select().from(employeeScheduleAssignments).where(and(
       eq(employeeScheduleAssignments.organizationId, input.organizationId),
       eq(employeeScheduleAssignments.employeeId, input.employeeId),
     )).orderBy(asc(employeeScheduleAssignments.effectiveFrom), asc(employeeScheduleAssignments.id)),
-    db.select().from(scheduleOverrides).where(and(
+    executor.select().from(scheduleOverrides).where(and(
       eq(scheduleOverrides.organizationId, input.organizationId),
       eq(scheduleOverrides.employeeId, input.employeeId),
       gte(scheduleOverrides.workDate, input.startDate),
       lte(scheduleOverrides.workDate, input.endDate),
     )).orderBy(asc(scheduleOverrides.workDate), asc(scheduleOverrides.id)),
-    db.select().from(employeeWorksiteAssignments).where(and(
+    executor.select().from(employeeWorksiteAssignments).where(and(
       eq(employeeWorksiteAssignments.organizationId, input.organizationId),
       eq(employeeWorksiteAssignments.employeeId, input.employeeId),
     )).orderBy(asc(employeeWorksiteAssignments.effectiveFrom), asc(employeeWorksiteAssignments.id)),

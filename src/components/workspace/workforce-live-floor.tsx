@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clock3, RefreshCcw, UsersRound } from "lucide-react";
 import type { FloorRow } from "@/lib/workforce-live-floor";
 import { floorNeedsReview } from "@/lib/workforce-live-floor";
+import { activeLiveFloorSnapshot, isCurrentLiveFloorRequest, liveFloorScopeKey, type ScopedLiveFloorSnapshot } from "@/lib/workforce-live-floor-client";
 import { Metric, Status } from "./ui";
 
 type FloorSnapshot = {
@@ -31,43 +32,58 @@ function phTime(value: string) {
 
 export function WorkforceLiveFloor({ organizationId }: { organizationId: number }) {
   const [page, setPage] = useState(1);
-  const [snapshot, setSnapshot] = useState<FloorSnapshot | null>(null);
-  const [error, setError] = useState("");
+  const [snapshot, setSnapshot] = useState<ScopedLiveFloorSnapshot<FloorSnapshot> | null>(null);
+  const [error, setError] = useState<{ scopeKey: string; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<"all" | "review" | "on_shift" | "upcoming" | "leave">("all");
   const [search, setSearch] = useState("");
-  const load = useCallback(async (signal?: AbortSignal) => {
+  const pendingRequest = useRef<AbortController | null>(null);
+  const scopeKey = liveFloorScopeKey(organizationId, page);
+  const activeSnapshot = activeLiveFloorSnapshot(snapshot, scopeKey);
+  const load = useCallback(async () => {
+    // A manual refresh, page change, or tenant switch invalidates older
+    // requests; an older private roster must never replace the current view.
+    pendingRequest.current?.abort();
+    const controller = new AbortController();
+    pendingRequest.current = controller;
+    const requestedScope = liveFloorScopeKey(organizationId, page);
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams({ organizationId: String(organizationId), page: String(page) });
-      const response = await fetch("/api/workforce/live-floor?" + params, { cache: "no-store", signal });
+      const response = await fetch("/api/workforce/live-floor?" + params, {
+        cache: "no-store", signal: controller.signal,
+      });
       const value = await response.json();
-      if (!response.ok) throw new Error(value.error ?? "Live floor could not be loaded.");
-      if (signal?.aborted) return;
-      setSnapshot(value as FloorSnapshot); setError("");
+      if (!isCurrentLiveFloorRequest(controller, pendingRequest.current)) return;
+      if (!response.ok) throw new Error(value?.error ?? "Live floor could not be loaded.");
+      if (value?.page !== page) throw new Error("Live floor returned an unexpected worker page.");
+      setSnapshot({ scopeKey: requestedScope, data: value as FloorSnapshot });
     } catch (err) {
-      if (signal?.aborted) return;
-      setError(err instanceof Error ? err.message : "Could not load live floor.");
+      if (!isCurrentLiveFloorRequest(controller, pendingRequest.current)) return;
+      setError({ scopeKey: requestedScope, message: err instanceof Error ? err.message : "Could not load live floor." });
       setSnapshot(null);
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (pendingRequest.current === controller) {
+        pendingRequest.current = null;
+        if (!controller.signal.aborted) setLoading(false);
+      }
     }
   }, [organizationId, page]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    void load(controller.signal);
+    void load();
     const interval = setInterval(() => {
-      if (document.visibilityState === "visible") void load(controller.signal);
+      if (document.visibilityState === "visible") void load();
     }, 60_000);
-    return () => { controller.abort(); clearInterval(interval); };
+    return () => { pendingRequest.current?.abort(); clearInterval(interval); };
   }, [load]);
 
   useEffect(() => { setPage(1); setSearch(""); setView("all"); }, [organizationId]);
 
   const visibleRows = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase("en-PH");
-    const matches = (snapshot?.rows ?? []).filter(row => {
+    const matches = (activeSnapshot?.rows ?? []).filter(row => {
       const category = view === "all" ||
         (view === "review" && floorNeedsReview(row.status)) ||
         (view === "on_shift" && ["clocked_in", "break_recorded"].includes(row.status)) ||
@@ -79,7 +95,7 @@ export function WorkforceLiveFloor({ organizationId }: { organizationId: number 
     return matches.sort((a, b) =>
       Number(floorNeedsReview(b.status)) - Number(floorNeedsReview(a.status)) ||
       a.startsAt.localeCompare(b.startsAt) || a.employeeId - b.employeeId);
-  }, [snapshot?.rows, view, search]);
+  }, [activeSnapshot?.rows, view, search]);
 
   return (
     <section className="card" data-wfm-live-floor aria-label="Live workforce floor" style={{ margin: "0 18px 18px" }}>
@@ -93,16 +109,16 @@ export function WorkforceLiveFloor({ organizationId }: { organizationId: number 
           <RefreshCcw size={15} aria-hidden="true" /> {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
-      {error && <div role="alert" className="notice notice-amber">{error}</div>}
-      {snapshot && <>
-        <p className="id">As of {phTime(snapshot.generatedAt)} (Asia/Manila), {snapshot.workDate} · worker page {snapshot.page} · {snapshot.totalEmployees} visible employees</p>
+      {error?.scopeKey === scopeKey && <div role="alert" className="notice notice-amber">{error.message}</div>}
+      {activeSnapshot && <>
+        <p className="id">As of {phTime(activeSnapshot.generatedAt)} (Asia/Manila), {activeSnapshot.workDate} · worker page {activeSnapshot.page} · {activeSnapshot.totalEmployees} visible employees</p>
         <div className="stats-grid">
-          <Metric label="Shift segments" value={String(snapshot.summary.shiftSegments)} hint="this page" icon={<UsersRound size={16} />} tone="slate" />
-          <Metric label="Recorded clock-ins" value={String(snapshot.summary.recordedIn)} hint="includes recorded breaks" icon={<Clock3 size={16} />} tone="blue" />
-          <Metric label="Needs review" value={String(snapshot.summary.requiresReview)} hint="not automatically absent" icon={<Clock3 size={16} />} tone={snapshot.summary.requiresReview ? "amber" : "mint"} />
-          <Metric label="Approved full leave" value={String(snapshot.summary.approvedLeave)} hint="schedule context" icon={<Clock3 size={16} />} tone="slate" />
+          <Metric label="Shift segments" value={String(activeSnapshot.summary.shiftSegments)} hint="this page" icon={<UsersRound size={16} />} tone="slate" />
+          <Metric label="Recorded clock-ins" value={String(activeSnapshot.summary.recordedIn)} hint="includes recorded breaks" icon={<Clock3 size={16} />} tone="blue" />
+          <Metric label="Needs review" value={String(activeSnapshot.summary.requiresReview)} hint="not automatically absent" icon={<Clock3 size={16} />} tone={activeSnapshot.summary.requiresReview ? "amber" : "mint"} />
+          <Metric label="Approved full leave" value={String(activeSnapshot.summary.approvedLeave)} hint="schedule context" icon={<Clock3 size={16} />} tone="slate" />
         </div>
-        {snapshot.unresolvedSchedules > 0 && <div role="status" className="notice notice-amber">{snapshot.unresolvedSchedules} worker schedule(s) could not be resolved; do not treat this page as complete.</div>}
+        {activeSnapshot.unresolvedSchedules > 0 && <div role="status" className="notice notice-amber">{activeSnapshot.unresolvedSchedules} worker schedule(s) could not be resolved; do not treat this page as complete.</div>}
         <div className="setting-form" style={{ padding: "4px 0 12px", display: "flex", flexWrap: "wrap", alignItems: "end", gap: 12 }}>
           <label>Show
             <select aria-label="Filter live floor shift status" value={view} onChange={event => setView(event.target.value as typeof view)}>
@@ -117,7 +133,7 @@ export function WorkforceLiveFloor({ organizationId }: { organizationId: number 
             <input type="search" value={search} onChange={event => setSearch(event.target.value)}
               placeholder="Name, employee no. or shift" />
           </label>
-          <span className="id" role="status">{visibleRows.length} of {snapshot.rows.length} shift segment(s) on this page</span>
+          <span className="id" role="status">{visibleRows.length} of {activeSnapshot.rows.length} shift segment(s) on this page</span>
         </div>
         {visibleRows.length ? (
           <div style={{ overflowX: "auto" }}>
@@ -134,13 +150,13 @@ export function WorkforceLiveFloor({ organizationId }: { organizationId: number 
             </table>
           </div>
         ) : <div className="notice notice-slate">
-          {snapshot.rows.length > 0 ? "No shifts on this page match these filters." :
+          {activeSnapshot.rows.length > 0 ? "No shifts on this page match these filters." :
             "No shift segments in this employee page and live window. This does not mean the whole company has no active shifts."}
         </div>}
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", paddingTop: 12 }}>
           <button className="secondary-button" type="button" disabled={page <= 1 || loading} onClick={() => setPage(p => Math.max(1, p - 1))}>Previous workers</button>
           <span className="id">Page {page}</span>
-          <button className="secondary-button" type="button" disabled={!snapshot.hasMore || loading} onClick={() => setPage(p => p + 1)}>Next workers</button>
+          <button className="secondary-button" type="button" disabled={!activeSnapshot.hasMore || loading} onClick={() => setPage(p => p + 1)}>Next workers</button>
           <span className="id">Counts and filters apply to this page only, independent of the Coverage Dynamic Group filter.</span>
         </div>
       </>}

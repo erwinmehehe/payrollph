@@ -1,6 +1,7 @@
-import { and, asc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   employeeScheduleAssignments,
   employeeWorksiteAssignments,
   employees,
@@ -10,6 +11,7 @@ import {
   schedulePatterns,
   scheduleSwapRequests,
   shiftDefinitions,
+  workforceScheduleGuardrailPolicies,
 } from "@/db/schema";
 import {
   assertOrganizationRole,
@@ -29,6 +31,10 @@ import {
   type WorkforceScheduleOverrideSegment,
 } from "@/lib/workforce-scheduling";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
+import { employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
+import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
+import { rosterDateOffset } from "@/lib/workforce-team-roster";
+import { DEFAULT_SCHEDULE_GUARDRAIL_POLICY, evaluateScheduleGuardrails, scheduleGuardrailBlocksMutation } from "@/lib/workforce-schedule-guardrails";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import {
   assertScheduleSwappable,
@@ -67,18 +73,18 @@ async function resolveSchedulesForPair(input: {
   counterpartyEmployeeId: number;
   requesterWorkDate: string;
   counterpartyWorkDate: string;
-}) {
+}, executor: Pick<typeof db, "select"> = db) {
   const employeeIds = [input.requesterEmployeeId, input.counterpartyEmployeeId];
   const dates = [...new Set([input.requesterWorkDate, input.counterpartyWorkDate])];
 
   const [shifts, patterns, assignments, overrides, worksiteAssignments] = await Promise.all([
-    db.select().from(shiftDefinitions)
+    executor.select().from(shiftDefinitions)
       .where(eq(shiftDefinitions.organizationId, input.organizationId))
       .orderBy(asc(shiftDefinitions.code)),
-    db.select().from(schedulePatterns)
+    executor.select().from(schedulePatterns)
       .where(eq(schedulePatterns.organizationId, input.organizationId))
       .orderBy(asc(schedulePatterns.code)),
-    db.select().from(employeeScheduleAssignments).where(and(
+    executor.select().from(employeeScheduleAssignments).where(and(
       eq(employeeScheduleAssignments.organizationId, input.organizationId),
       inArray(employeeScheduleAssignments.employeeId, employeeIds),
     )).orderBy(
@@ -86,7 +92,7 @@ async function resolveSchedulesForPair(input: {
       asc(employeeScheduleAssignments.effectiveFrom),
       asc(employeeScheduleAssignments.id),
     ),
-    db.select().from(scheduleOverrides).where(and(
+    executor.select().from(scheduleOverrides).where(and(
       eq(scheduleOverrides.organizationId, input.organizationId),
       inArray(scheduleOverrides.employeeId, employeeIds),
       inArray(scheduleOverrides.workDate, dates),
@@ -95,7 +101,7 @@ async function resolveSchedulesForPair(input: {
       asc(scheduleOverrides.workDate),
       asc(scheduleOverrides.id),
     ),
-    db.select().from(employeeWorksiteAssignments).where(and(
+    executor.select().from(employeeWorksiteAssignments).where(and(
       eq(employeeWorksiteAssignments.organizationId, input.organizationId),
       inArray(employeeWorksiteAssignments.employeeId, employeeIds),
     )).orderBy(
@@ -107,7 +113,7 @@ async function resolveSchedulesForPair(input: {
 
   const patternIds = patterns.map((pattern) => pattern.id);
   const days = patternIds.length
-    ? await db.select({
+    ? await executor.select({
         id: schedulePatternDays.id,
         patternId: schedulePatternDays.patternId,
         dayIndex: schedulePatternDays.dayIndex,
@@ -119,7 +125,7 @@ async function resolveSchedulesForPair(input: {
     : [];
   const dayIds = days.map((day) => day.id);
   const segments = dayIds.length
-    ? await db.select({
+    ? await executor.select({
         id: schedulePatternSegments.id,
         patternDayId: schedulePatternSegments.patternDayId,
         shiftDefinitionId: schedulePatternSegments.shiftDefinitionId,
@@ -506,83 +512,149 @@ export async function POST(request: Request) {
 
     try {
       const result = await db.transaction(async (tx) => {
-        const [requesterCreated] = await tx.insert(scheduleOverrides).values({
+        // The final source verification and writes are serialized with the
+        // roster-batch approval path and ordinary one-worker edits.
+        await tx.execute(sql`select pg_advisory_xact_lock(6107, ${organizationId})`);
+        const [liveRequest] = await tx.select().from(scheduleSwapRequests).where(and(
+          eq(scheduleSwapRequests.id, requestId),
+          eq(scheduleSwapRequests.organizationId, organizationId),
+        )).for("update").limit(1);
+        if (!liveRequest || liveRequest.status !== "pending" ||
+          liveRequest.requestedByUserId === user.id) {
+          throw new Error("The pending swap or independent checker is no longer valid.");
+        }
+        const lockedPair = await resolveSchedulesForPair({
           organizationId,
-          employeeId: existing.requesterEmployeeId,
-          workDate: existing.requesterWorkDate,
-          ...requesterOverride,
-          status: "approved",
-          createdBy: user.name,
-          approvedBy: user.name,
-          approvedAt: new Date(),
+          requesterEmployeeId: existing.requesterEmployeeId,
+          counterpartyEmployeeId: existing.counterpartyEmployeeId,
+          requesterWorkDate: String(existing.requesterWorkDate),
+          counterpartyWorkDate: String(existing.counterpartyWorkDate),
+        }, tx);
+        const lockedRequester = scheduleSwapSnapshot(lockedPair.requester);
+        const lockedCounterparty = scheduleSwapSnapshot(lockedPair.counterparty);
+        assertScheduleSwappable(lockedRequester);
+        assertScheduleSwappable(lockedCounterparty);
+        if (!scheduleSwapSnapshotsMatch(storedRequester, lockedRequester) ||
+          !scheduleSwapSnapshotsMatch(storedCounterparty, lockedCounterparty)) {
+          throw new Error("The source roster changed before approval; reject and recreate the swap.");
+        }
+
+        const [guardrailRow] = await tx.select().from(workforceScheduleGuardrailPolicies)
+          .where(eq(workforceScheduleGuardrailPolicies.organizationId, organizationId)).limit(1);
+        const policy = guardrailRow ? {
+          minimumRestMinutes: guardrailRow.minimumRestMinutes,
+          maxConsecutiveWorkingDays: guardrailRow.maxConsecutiveWorkingDays,
+          rollingSevenDayMinutes: guardrailRow.rollingSevenDayMinutes,
+          enforcementMode: guardrailRow.enforcementMode === "block" ? "block" as const : "advisory" as const,
+          active: guardrailRow.active,
+        } : DEFAULT_SCHEDULE_GUARDRAIL_POLICY;
+        for (const planned of [
+          {
+            employeeId: existing.requesterEmployeeId,
+            workDate: String(existing.requesterWorkDate),
+            override: requesterOverride,
+          },
+          {
+            employeeId: existing.counterpartyEmployeeId,
+            workDate: String(existing.counterpartyWorkDate),
+            override: counterpartyOverride,
+          },
+        ]) {
+          // Swaps may not create unguided worksite or rest-day changes.
+          if (!planned.override.isRestDay) {
+            if (planned.override.worksiteId == null) {
+              throw new Error("Schedule swap lacks a governed destination worksite.");
+            }
+            const eligible = await employeeSiteEligibility({
+              organizationId, employeeId: planned.employeeId,
+              worksiteId: planned.override.worksiteId,
+              date: planned.workDate, executor: tx,
+            });
+            if (!eligible.eligible) {
+              throw new Error("The requested swap worksite is not currently authorized.");
+            }
+          }
+          const lockedWindow = await resolveEmployeeScheduleWindow({
+            organizationId, employeeId: planned.employeeId,
+            startDate: rosterDateOffset(planned.workDate, -7),
+            endDate: rosterDateOffset(planned.workDate, 7),
+            prospectiveOverride: {
+              id: Number.MAX_SAFE_INTEGER,
+              ...planned.override, workDate: planned.workDate,
+              status: "approved",
+            },
+            executor: tx,
+          });
+          const lockedIssues = evaluateScheduleGuardrails({ days: lockedWindow, policy })
+            .filter(issue => issue.date === planned.workDate ||
+              issue.relatedDate === planned.workDate);
+          if (scheduleGuardrailBlocksMutation(lockedIssues)) {
+            throw new Error("Swap approval would violate binding rest or overlap controls.");
+          }
+        }
+
+        const [requesterCreated] = await tx.insert(scheduleOverrides).values({
+          organizationId, employeeId: existing.requesterEmployeeId,
+          workDate: existing.requesterWorkDate, ...requesterOverride,
+          status: "approved", createdBy: user.name,
+          approvedBy: user.name, approvedAt: new Date(),
         }).returning();
 
         const [counterpartyCreated] = await tx.insert(scheduleOverrides).values({
-          organizationId,
-          employeeId: existing.counterpartyEmployeeId,
-          workDate: existing.counterpartyWorkDate,
-          ...counterpartyOverride,
-          status: "approved",
-          createdBy: user.name,
-          approvedBy: user.name,
-          approvedAt: new Date(),
+          organizationId, employeeId: existing.counterpartyEmployeeId,
+          workDate: existing.counterpartyWorkDate, ...counterpartyOverride,
+          status: "approved", createdBy: user.name,
+          approvedBy: user.name, approvedAt: new Date(),
         }).returning();
 
         const [updated] = await tx.update(scheduleSwapRequests).set({
-          status: "approved",
-          decidedBy: user.name,
-          decidedByUserId: user.id,
-          decidedAt: new Date(),
-          decisionNote,
-          updatedAt: new Date(),
+          status: "approved", decidedBy: user.name, decidedByUserId: user.id,
+          decidedAt: new Date(), decisionNote, updatedAt: new Date(),
         }).where(and(
           eq(scheduleSwapRequests.id, requestId),
           eq(scheduleSwapRequests.status, "pending"),
+          eq(scheduleSwapRequests.organizationId, organizationId),
         )).returning();
+        if (!updated) throw new Error("Schedule swap was already decided.");
 
-        if (!updated) throw new Error("Schedule swap was already decided by another transaction.");
-        return { updated, requesterCreated, counterpartyCreated };
-      });
-
-      const [requesterStaleTimesheets, counterpartyStaleTimesheets] = await Promise.all([
-        markTimesheetsStaleForEmployeeDate({
-          organizationId,
-          employeeId: existing.requesterEmployeeId,
-          workDate: String(existing.requesterWorkDate),
-        }),
-        markTimesheetsStaleForEmployeeDate({
-          organizationId,
-          employeeId: existing.counterpartyEmployeeId,
-          workDate: String(existing.counterpartyWorkDate),
-        }),
-      ]);
-
-      await recordAuditEvent({
-        organizationId,
-        actor: user.name,
-        action: "Workforce schedule swap approved",
-        resource: `Swap #${requestId}`,
-        metadata: {
-          scheduleSwapRequestId: requestId,
-          requesterOverrideId: result.requesterCreated.id,
-          counterpartyOverrideId: result.counterpartyCreated.id,
-          requesterEmployeeId: existing.requesterEmployeeId,
-          counterpartyEmployeeId: existing.counterpartyEmployeeId,
-          requesterWorkDate: existing.requesterWorkDate,
-          counterpartyWorkDate: existing.counterpartyWorkDate,
-          requesterStaleTimesheetIds: requesterStaleTimesheets.map((row) => row.id),
-          counterpartyStaleTimesheetIds: counterpartyStaleTimesheets.map((row) => row.id),
-          decisionNote,
-        },
-      });
+        const [requesterStaleTimesheets, counterpartyStaleTimesheets] = await Promise.all([
+          markTimesheetsStaleForEmployeeDate({
+            organizationId, employeeId: existing.requesterEmployeeId,
+            workDate: String(existing.requesterWorkDate), executor: tx,
+          }),
+          markTimesheetsStaleForEmployeeDate({
+            organizationId, employeeId: existing.counterpartyEmployeeId,
+            workDate: String(existing.counterpartyWorkDate), executor: tx,
+          }),
+        ]);
+        await tx.insert(auditEvents).values({
+          organizationId, actor: user.name,
+          action: "Workforce schedule swap approved",
+          resource: `Swap #${requestId}`,
+          metadata: {
+            scheduleSwapRequestId: requestId,
+            requesterOverrideId: requesterCreated.id,
+            counterpartyOverrideId: counterpartyCreated.id,
+            requesterEmployeeId: existing.requesterEmployeeId,
+            counterpartyEmployeeId: existing.counterpartyEmployeeId,
+            requesterWorkDate: existing.requesterWorkDate,
+            counterpartyWorkDate: existing.counterpartyWorkDate,
+            requesterStaleTimesheetIds: requesterStaleTimesheets.map(row => row.id),
+            counterpartyStaleTimesheetIds: counterpartyStaleTimesheets.map(row => row.id),
+            decisionNote,
+          },
+        });
+        return { updated, requesterCreated, counterpartyCreated,
+          staleTimesheetIds: [
+            ...requesterStaleTimesheets.map(row => row.id),
+            ...counterpartyStaleTimesheets.map(row => row.id),
+          ] };
+      }, { isolationLevel: "read committed" });
 
       return Response.json({
         swap: result.updated,
         overrides: [result.requesterCreated, result.counterpartyCreated],
-        staleTimesheetIds: [
-          ...requesterStaleTimesheets.map((row) => row.id),
-          ...counterpartyStaleTimesheets.map((row) => row.id),
-        ],
+        staleTimesheetIds: result.staleTimesheetIds,
       });
     } catch (error) {
       return Response.json({

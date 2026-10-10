@@ -474,6 +474,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
             data={data}
             notify={notify}
             canManage={canManageTime}
+            onOpenAttendance={() => setPage("Time & attendance")}
           />
         )}
 
