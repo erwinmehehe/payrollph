@@ -539,6 +539,60 @@ export async function POST(request: Request) {
           throw new Error("The source roster changed before approval; reject and recreate the swap.");
         }
 
+        const [guardrailRow] = await tx.select().from(workforceScheduleGuardrailPolicies)
+          .where(eq(workforceScheduleGuardrailPolicies.organizationId, organizationId)).limit(1);
+        const policy = guardrailRow ? {
+          minimumRestMinutes: guardrailRow.minimumRestMinutes,
+          maxConsecutiveWorkingDays: guardrailRow.maxConsecutiveWorkingDays,
+          rollingSevenDayMinutes: guardrailRow.rollingSevenDayMinutes,
+          enforcementMode: guardrailRow.enforcementMode === "block" ? "block" as const : "advisory" as const,
+          active: guardrailRow.active,
+        } : DEFAULT_SCHEDULE_GUARDRAIL_POLICY;
+        for (const planned of [
+          {
+            employeeId: existing.requesterEmployeeId,
+            workDate: String(existing.requesterWorkDate),
+            override: requesterOverride,
+          },
+          {
+            employeeId: existing.counterpartyEmployeeId,
+            workDate: String(existing.counterpartyWorkDate),
+            override: counterpartyOverride,
+          },
+        ]) {
+          // Swaps may not create unguided worksite or rest-day changes.
+          if (!planned.override.isRestDay) {
+            if (planned.override.worksiteId == null) {
+              throw new Error("Schedule swap lacks a governed destination worksite.");
+            }
+            const eligible = await employeeSiteEligibility({
+              organizationId, employeeId: planned.employeeId,
+              worksiteId: planned.override.worksiteId,
+              date: planned.workDate, executor: tx,
+            });
+            if (!eligible.eligible) {
+              throw new Error("The requested swap worksite is not currently authorized.");
+            }
+          }
+          const lockedWindow = await resolveEmployeeScheduleWindow({
+            organizationId, employeeId: planned.employeeId,
+            startDate: rosterDateOffset(planned.workDate, -7),
+            endDate: rosterDateOffset(planned.workDate, 7),
+            prospectiveOverride: {
+              id: Number.MAX_SAFE_INTEGER,
+              ...planned.override, workDate: planned.workDate,
+              status: "approved",
+            },
+            executor: tx,
+          });
+          const lockedIssues = evaluateScheduleGuardrails({ days: lockedWindow, policy })
+            .filter(issue => issue.date === planned.workDate ||
+              issue.relatedDate === planned.workDate);
+          if (scheduleGuardrailBlocksMutation(lockedIssues)) {
+            throw new Error("Swap approval would violate binding rest or overlap controls.");
+          }
+        }
+
         const [requesterCreated] = await tx.insert(scheduleOverrides).values({
           organizationId, employeeId: existing.requesterEmployeeId,
           workDate: existing.requesterWorkDate, ...requesterOverride,
