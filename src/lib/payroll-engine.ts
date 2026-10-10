@@ -3085,7 +3085,7 @@ function calculateEmployeePay(input: {
       // an accidental credit to net wages or a malformed amount be settled.
       if (!validPayrollLoanSchedule(loan)) {
         flags.push(
-          `Loan #${loan.id} (${loan.loanType}) has an invalid deduction or balance. No loan deduction applied; pause and reconcile the schedule before payroll release.`,
+          `PAYROLL_LOAN_SCHEDULE_INVALID: Loan #${loan.id} (${loan.loanType}) has an invalid deduction or balance. No loan deduction applied; pause and reconcile the schedule before payroll release.`,
         );
         return [] as Array<{
           id: number; loanType: string; referenceNo: string;
