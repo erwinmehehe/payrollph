@@ -1,0 +1,32 @@
+/** Advisory evidence only: not a staffing shortage, absence, payroll or shift-coverage certification. */
+export type TeamAttendanceDay = {
+  employeeId: number; name: string; workDate: string;
+  scheduledSegments: number; overnightSegments: number;
+  punchRecords: number; incompletePunchRecords: number;
+  state: "scheduled" | "rest_day" | "unassigned" | "review";
+};
+export function classifyTeamAttendance(input: {
+  employeeId: number; name: string; workDate: string;
+  schedule: { source: "pattern" | "override" | "unassigned"; isRestDay: boolean; segments: { spansMidnight: boolean }[] };
+  punches: { timeIn: Date | null; timeOut: Date | null }[];
+}): TeamAttendanceDay {
+  const { schedule, punches } = input;
+  const incomplete = punches.filter(p => (p.timeIn === null) !== (p.timeOut === null)).length;
+  const state = schedule.source === "unassigned" ? "unassigned"
+    : incomplete > 0 || (schedule.isRestDay && punches.length > 0) ? "review"
+    : schedule.isRestDay ? "rest_day" : "scheduled";
+  return {
+    employeeId: input.employeeId, name: input.name, workDate: input.workDate,
+    scheduledSegments: schedule.segments.length,
+    overnightSegments: schedule.segments.filter(s => s.spansMidnight).length,
+    punchRecords: punches.length, incompletePunchRecords: incomplete, state,
+  };
+}
+export function summarizeTeamAttendance(rows: readonly TeamAttendanceDay[]) {
+  return {
+    employeeDaysOnPage: rows.length,
+    scheduledSegmentsOnPage: rows.reduce((n, row) => n + row.scheduledSegments, 0),
+    recordedPunchesOnPage: rows.reduce((n, row) => n + row.punchRecords, 0),
+    reviewRowsOnPage: rows.filter(row => row.state === "review" || row.state === "unassigned").length,
+  };
+}
