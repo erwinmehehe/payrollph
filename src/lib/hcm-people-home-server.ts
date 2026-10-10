@@ -9,6 +9,7 @@ import { roleApproverMatchesRole } from "@/lib/delegation";
 import {
   projectHcmDecisions, projectPeopleFollowUps, projectOperationalCases,
   type HcmHomeFollowUpInput,
+  type HcmHomeDecisionInput,
 } from "@/lib/hcm-people-home-projection";
 import {
   allowedDelegatedHcmAssigneeNames, boundedPeopleHomeRows, delegatedHcmAssigneeMatches,
@@ -101,7 +102,7 @@ async function loadDecisions(organizationId: number, viewer: Viewer): Promise<Hc
       .limit(HCM_PEOPLE_HOME_DECISION_LIMIT + 1);
 
   const candidates = boundedPeopleHomeRows(candidateRows, HCM_PEOPLE_HOME_DECISION_LIMIT);
-  const visible = candidates.rows.flatMap((row) => {
+  const visible: HcmHomeDecisionInput[] = candidates.rows.flatMap((row): HcmHomeDecisionInput[] => {
     if (row.stepType !== "approval" && row.stepType !== "review" && row.stepType !== "to_do") return [];
     if (!roleApproverMatchesRole(row.assignee, viewer.role)
       && !delegatedHcmAssigneeMatches(row.assignee, viewer.name, delegations)) return [];
