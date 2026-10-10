@@ -120,9 +120,9 @@
   color:#49627f;font-size:13px;font-weight:600;
 }
 .tf-shell[data-workspace-role="payroll"] .side-navigation .nav-icon{
-  width:28px;height:28px;color:#5a7fa9;background:transparent;border-radius:7px;
+  width:30px;height:30px;color:#51759d;background:transparent;border-radius:8px;
 }
-.tf-shell[data-workspace-role="payroll"] .side-navigation .nav-icon svg{width:17px;height:17px}
+.tf-shell[data-workspace-role="payroll"] .side-navigation .nav-icon svg{width:18px;height:18px;stroke-width:2;vector-effect:non-scaling-stroke}
 .tf-shell[data-workspace-role="payroll"] .side-navigation .nav-item:hover{background:#f3f7fc;color:#234f8b}
 .tf-shell[data-workspace-role="payroll"] .side-navigation .nav-item.active{
   background:#e8f1fd;color:#1b5cab;font-weight:740
