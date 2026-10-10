@@ -75,7 +75,7 @@ export function NewHireModal({
   return (
     <div className="modal-backdrop linaw-dialog" role="presentation">
       <section className="modal large" role="dialog" aria-modal="true" aria-label="Add employee">
-        <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        <button type="button" className="modal-close" aria-label="Close employee onboarding" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Layers size={22} className="i-teal" /></div>
         <div className="card-kicker">NEW HIRE</div>
         <h2>Add employee &amp; start onboarding</h2>
@@ -139,7 +139,7 @@ export function NewHireModal({
             <label>Serial number<input value={form.serialNumber} onChange={(e) => setForm({ ...form, serialNumber: e.target.value })} /></label>
           </div>
           <div className="modal-note" style={{ marginTop: 12 }}>
-            Bank account and bank code are required together for payout readiness. The account number is encrypted at rest and is not returned in plaintext after save.
+            Bank account and bank code are required together for payout readiness. Only enter verified payout details. Do not use this form to test encryption or payment delivery.
           </div>
           <div className="modal-note" style={{ marginTop: 8 }}>
             Payroll uses the selected pay basis directly. Monthly staff keep a fixed cutoff salary, while daily/hourly staff are paid from worked regular time. Workdays and hours also define the traceable daily/hourly equivalents used by payroll.
