@@ -112,3 +112,14 @@ test("readiness requires one valid report, the matching key, and no bank blocker
   }
   assert.notEqual(check(JSON.stringify(report), 22).status, 0, "HTTP failure must not pass");
 });
+
+test("production backfill cannot use unreviewed branches or generic CI secret fallbacks", () => {
+  assert.ok(workflow.includes("if: ${{ github.ref == 'refs/heads/main' }}"),
+    "production-protected bank workflow must run only against reviewed main");
+  assert.ok(workflow.includes("DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}"));
+  assert.ok(workflow.includes("BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}"));
+  assert.ok(workflow.includes("TOTP_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_TOTP_ENCRYPTION_KEY }}"));
+  assert.ok(!workflow.includes("|| secrets.DATABASE_URL"));
+  assert.ok(!workflow.includes("|| secrets.BANK_DATA_ENCRYPTION_KEY"));
+  assert.ok(!workflow.includes("|| secrets.TOTP_ENCRYPTION_KEY"));
+});
