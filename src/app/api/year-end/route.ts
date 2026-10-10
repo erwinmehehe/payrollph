@@ -14,6 +14,9 @@ import { evaluateBirAnnualReadiness } from "@/lib/bir-annual-readiness";
 
 export const dynamic = "force-dynamic";
 
+const requiresAnnualEmployerScope = (format: string) =>
+  format === "preflight" || format === "alphalist" || format === "2316";
+
 export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
@@ -57,12 +60,20 @@ export async function GET(request: Request) {
     (encrypted ? decryptGovernmentId(value) ?? "" : value ?? "").replace(/\D/g, "");
   // Annualization is currently organization-wide. Do not silently turn a
   // mixed-employer register into a single employer's BIR 1604-C / 2316.
-  const activeEmployers = format === "2316" || format === "alphalist" || format === "preflight"
+  const activeEmployers = requiresAnnualEmployerScope(format)
     ? await db.select().from(legalEntities).where(and(
         eq(legalEntities.organizationId, organizationId),
         eq(legalEntities.active, true),
       ))
     : [];
+  // Old single-employer organizations can predate the legal_entities table.
+  // Keep that legacy scope usable only when the organization has no explicit
+  // legal-employer records at all. Any inactive/multiple entity setup remains blocked.
+  const allEmployers = requiresAnnualEmployerScope(format)
+    ? await db.select({ id: legalEntities.id }).from(legalEntities)
+        .where(eq(legalEntities.organizationId, organizationId))
+    : [];
+  const legacySingleEmployer = allEmployers.length === 0 && Boolean(organization);
   const legalEmployer = activeEmployers.length === 1 ? activeEmployers[0] : null;
   const employerTin = digits(legalEmployer?.birTin ?? organization?.birTin);
   const employerBranch = digits(legalEmployer?.birBranchCode ?? organization?.birBranchCode);
@@ -71,7 +82,7 @@ export async function GET(request: Request) {
     digits(row.employee.tinBranchCode, true).length !== 4
   );
 
-  const requiresAnnualPreflight = format === "preflight" || format === "alphalist" || format === "2316";
+  const requiresAnnualPreflight = requiresAnnualEmployerScope(format);
   let readiness: ReturnType<typeof evaluateBirAnnualReadiness> | null = null;
   if (requiresAnnualPreflight) {
     const releasedRuns = await db.select().from(payrollRuns).where(and(
@@ -109,10 +120,10 @@ export async function GET(request: Request) {
       taxYear,
       employerTin,
       employerBranchCode: employerBranch,
-      legalEmployerCount: activeEmployers.length,
-      mismatchedLegalEmployerRunIds: legalEmployer
-        ? releasedRuns.filter((run) => run.legalEntityId != null && run.legalEntityId !== legalEmployer.id).map((run) => run.id)
-        : [],
+      legalEmployerCount: legacySingleEmployer ? 1 : activeEmployers.length,
+      mismatchedLegalEmployerRunIds: releasedRuns.filter((run) =>
+        run.legalEntityId != null && (!legalEmployer || run.legalEntityId !== legalEmployer.id)
+      ).map((run) => run.id),
       rows: rows.map(({ adjustment, employee }) => ({
         employeeId: employee.id,
         employeeNo: employee.employeeNo,
