@@ -50,7 +50,8 @@ async function createOrg(name: string) {
 }
 
 async function cleanupOrg(organizationId: number) {
-  await db.delete(auditEvents).where(eq(auditEvents.organizationId, organizationId));
+  // audit_events rows go with the organization via ON DELETE CASCADE; direct
+  // deletes are rejected by the append-only trigger.
   await db.delete(outbox).where(eq(outbox.organizationId, organizationId));
   await db.delete(organizations).where(eq(organizations.id, organizationId));
 }

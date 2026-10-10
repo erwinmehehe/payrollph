@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "../src/db";
 import {
   auditEvents,
@@ -228,13 +228,17 @@ test("incorrect audit links, event dates and missing notification types fail vis
       effectiveDate: "2026-10-21",
       payRevisionId: null,
     }).where(eq(compensationEvents.id, data.financialEventId!));
-    await db.update(auditEvents).set({
-      metadata: {
-        proposalId: data.proposalId,
-        compensationEventId: data.financialEventId! + 90000,
-        payRevisionId: data.revisionId + 90000,
-      },
-    }).where(eq(auditEvents.id, data.operationalAuditId!));
+    await db.transaction(async (tx) => {
+      // Simulates a corrupted audit link; the append-only trigger allows this only under maintenance.
+      await tx.execute(sql`SET LOCAL linaw.audit_maintenance = 'on'`);
+      await tx.update(auditEvents).set({
+        metadata: {
+          proposalId: data.proposalId,
+          compensationEventId: data.financialEventId! + 90000,
+          payRevisionId: data.revisionId + 90000,
+        },
+      }).where(eq(auditEvents.id, data.operationalAuditId!));
+    });
     await db.delete(compensationAutomationIntents).where(
       eq(compensationAutomationIntents.id, data.intentIds[2]),
     );
