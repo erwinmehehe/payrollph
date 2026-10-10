@@ -105,6 +105,12 @@ jobs:
           grep -Fqx '0 payout change request(s) hold plaintext.' /tmp/bank-encryption-verify.txt
           echo "Legacy employee, payroll snapshot, legal-entity, and payout-change bank accounts are encrypted."
 
+      # A forged enc:v1: prefix, corrupt GCM tag or previous-key-only envelope
+      # must never satisfy the production backfill completion gate.
+      - name: Authenticate every bank envelope with the current key
+        if: ${{ inputs.mode == 'apply' }}
+        run: npx tsx scripts/verify-bank-account-envelopes.ts
+
       - name: Verify live readiness sees encrypted bank data
         if: ${{ inputs.mode == 'apply' }}
         shell: bash
