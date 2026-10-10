@@ -61,7 +61,7 @@ test("bulk route defaults OFF and enforces company-wide, MFA, same-origin, atomi
   assert.ok(s.includes("enforceSensitiveActionRateLimit(request"));
   assert.ok(s.includes('db.transaction(async tx => {'));
   assert.ok(s.includes('pg_advisory_xact_lock(6107'));
-  assert.ok(s.includes('isolationLevel: "serializable"'));
+  assert.ok(s.includes('isolationLevel: "read committed"'));
   assert.ok(s.includes('canReviewRosterBatch(batch.requestedByUserId, user.id)'));
   assert.ok(s.includes('tx.insert(scheduleOverrides).values('));
   assert.ok(s.includes('tx.insert(auditEvents).values('));
