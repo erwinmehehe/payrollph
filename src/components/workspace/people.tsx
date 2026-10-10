@@ -24,6 +24,7 @@ import { HcmEmploymentLifecycleActionCenter } from "@/components/hcm-employment-
 import { HcmEmploymentLifecycleWorker } from "@/components/hcm-employment-lifecycle-worker";
 import { HcmLifecycleNotificationInbox } from "@/components/hcm-lifecycle-notification-inbox";
 import { HcmLifecyclePolicyPanel } from "@/components/hcm-lifecycle-policy-panel";
+import { HcmPeopleOperationsInbox } from "@/components/hcm-people-operations-inbox";
 import { HcmWorkerJourneyPanel } from "@/components/hcm-worker-journey-panel";
 import { HcmWorkerJourneyActions } from "@/components/hcm-worker-journey-actions";
 import type { HcmWorkerJourney } from "@/lib/hcm-worker-journey";
@@ -448,6 +449,19 @@ export function PeopleView({
             and are outside your current access.
           </span>
         </div>
+      )}
+
+      {canManageLifecycle && (
+        <HcmPeopleOperationsInbox
+          organizationId={data.selectedOrganization.id}
+          onOpenWorker={(employeeId) => {
+            const worker = data.employees.find((employee) => employee.id === employeeId);
+            if (!worker) return false;
+            setPicked(worker);
+            return true;
+          }}
+          onPage={onPage}
+        />
       )}
 
       {(canManage || canManageLifecycle || canViewLifecycleNotifications) && <details className="panel-disclosure"><summary>Employee administration <span>Import, lifecycle policies and notifications</span></summary>
