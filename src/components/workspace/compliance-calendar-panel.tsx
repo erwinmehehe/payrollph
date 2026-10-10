@@ -34,12 +34,34 @@ type CalendarItem = {
   exactness: "nominal" | "conservative-target";
 };
 
+type RuleWatchItem = {
+  family: string;
+  label: string;
+  status: "current" | "review-due" | "verification-unrecorded" | "change-upcoming" | "update-overdue" | "coverage-ending" | "no-coverage";
+  currentVersion: string | null;
+  sourceDocument: string | null;
+  lastVerifiedOn: string | null;
+  detail: string;
+};
+
 type Payload = {
   today: string;
   applicableMonths: string[];
   items: CalendarItem[];
+  ruleWatch?: RuleWatchItem[];
   note: string;
 };
+
+const RULE_WATCH_LABEL: Record<RuleWatchItem["status"], string> = {
+  current: "Current",
+  "review-due": "Review due",
+  "verification-unrecorded": "Verification not recorded",
+  "change-upcoming": "Change upcoming",
+  "update-overdue": "Update overdue",
+  "coverage-ending": "Coverage ending",
+  "no-coverage": "No coverage",
+};
+const RULE_WATCH_URGENT = new Set<RuleWatchItem["status"]>(["update-overdue", "no-coverage", "coverage-ending", "change-upcoming"]);
 
 const urgent = new Set<CalendarStatus>([
   "overdue",
@@ -156,6 +178,34 @@ export function ComplianceCalendarPanel({ organizationId }: { organizationId: nu
             <CalendarDays size={15} />
             <span>{payload.note}</span>
           </div>
+
+          {payload.ruleWatch && payload.ruleWatch.length > 0 && (
+            <section className="leave-request" data-rule-watch style={{ display: "grid", gap: 8 }}>
+              <div>
+                <div className="card-kicker">STATUTORY RULE WATCH</div>
+                <strong>Are the rates payroll uses still the current law?</strong>
+              </div>
+              {payload.ruleWatch.filter((item) => item.status !== "current").map((item) => (
+                <div
+                  key={`${item.family}-${item.sourceDocument ?? item.label}`}
+                  className={RULE_WATCH_URGENT.has(item.status) ? "notice notice-amber" : "notice"}
+                  style={{ margin: 0 }}
+                >
+                  <CircleAlert size={14} />
+                  <span>
+                    <strong>{item.label}</strong>
+                    {RULE_WATCH_LABEL[item.status]}{item.currentVersion ? ` · ${item.currentVersion}` : ""}. {item.detail}
+                  </span>
+                </div>
+              ))}
+              {payload.ruleWatch.every((item) => item.status === "current") && (
+                <div className="notice notice-green" style={{ margin: 0 }}>
+                  <CheckCircle2 size={14} />
+                  <span>All statutory rule packs are verified and current.</span>
+                </div>
+              )}
+            </section>
+          )}
 
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button

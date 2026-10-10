@@ -28,6 +28,14 @@ import { drainPayrollQueue, enqueuePayrollRun } from "../src/lib/payroll-engine"
 import { computePagIbig, computePhilHealth, computeSss } from "../src/lib/payroll-rules";
 import { settlePayrollRun } from "../src/lib/payroll-settlement";
 
+// Isolated synthetic keys; never expose or reuse a key in production.
+const priorTestBankKey = process.env.BANK_DATA_ENCRYPTION_KEY;
+test.before(() => { process.env.BANK_DATA_ENCRYPTION_KEY = "a".repeat(64); });
+test.after(() => {
+  if (priorTestBankKey === undefined) delete process.env.BANK_DATA_ENCRYPTION_KEY;
+  else process.env.BANK_DATA_ENCRYPTION_KEY = priorTestBankKey;
+});
+
 test("pay basis helper keeps monthly, daily and hourly behavior explicit", () => {
   const monthly = resolvePayProfile({
     payBasis: "monthly",

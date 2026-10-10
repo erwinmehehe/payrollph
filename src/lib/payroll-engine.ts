@@ -42,6 +42,7 @@ import {
   yearEndAdjustments,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { sealPayrollPaymentBankAccount } from "@/lib/payroll-snapshot-sealing";
 import { validPayrollLoanSchedule } from "@/lib/payroll-loan-approval";
 import {
   computeCutoffStatutoryDeduction,
@@ -488,6 +489,11 @@ async function processPayrollChunk(input: {
     );
   }
   const chunk = allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
+  // Authenticate all account snapshots before writing any payroll entry for this chunk.
+  const sealedPaymentBankAccounts = new Map<number, string | null>();
+  for (const employee of chunk) {
+    sealedPaymentBankAccounts.set(employee.id, sealPayrollPaymentBankAccount(employee.bankAccount));
+  }
   const chunkIds = chunk.map((employee) => employee.id);
   const payProfileRows = chunkIds.length
     ? await db.select().from(employeePayProfiles).where(inArray(employeePayProfiles.employeeId, chunkIds))
@@ -1594,7 +1600,8 @@ async function processPayrollChunk(input: {
           middleName: employee.middleName,
           lastName: employee.lastName,
           email: employee.email,
-          bankAccount: employee.bankAccount,
+          // The payment snapshot must never copy unsealed legacy plaintext.
+          bankAccount: sealedPaymentBankAccounts.get(employee.id) ?? null,
           bankCode: employee.bankCode,
           mobile: employee.mobile,
         },
@@ -3097,8 +3104,8 @@ function calculateEmployeePay(input: {
     })
     .sort((a, b) => a.governmentPriority - b.governmentPriority || a.id - b.id);
 
-  // The earnings on the payslip are individually printed to centavos.
-  // Total the same rounded buckets, not unrounded floating-point fractions.
+  // Payroll trace and payslip show centavo-rounded earning buckets;
+  // reconcile gross to precisely those printed values.
   const gross = roundedGrossFromBuckets([
     baseBasicPay,
     leaveAdjustmentTotal,
@@ -3156,12 +3163,12 @@ function calculateEmployeePay(input: {
     pagIbigEmployer: 0,
   };
   const newHireInCurrentCutoff = employeeStartDate >= input.periodStart;
-  // Existence of a verified earlier cutoff ledger matters; zero remuneration
-  // (e.g. an employee on leave) is still a valid prior-cutoff input.
-  const hasPriorMonthStatutory = input.priorStatutory != null;
+  // A zero-earnings earlier cutoff is still valid ledger evidence. Missing
+  // prior evidence on the final cutoff must flag an approval-blocking exception.
+  const priorCutoffPresent = input.priorStatutory != null;
   const trueUp = statutoryTrueUpDecision({
     isFinalCutoffOfMonth: Boolean(input.isFinalCutoffOfMonth),
-    priorCutoffPresent: hasPriorMonthStatutory,
+    priorCutoffPresent,
     newHireInCurrentCutoff,
   });
   if (trueUp.missingPriorInput) {
