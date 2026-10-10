@@ -63,13 +63,17 @@ export function projectWorker360Events(
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error("Invalid preview limit");
   const eligible = events.filter((event) =>
     Number.isSafeInteger(event.id) && event.id > 0 &&
-    validWorker360Date(event.effectiveDate) && event.effectiveDate <= asOfDate &&
-    /^[a-zA-Z0-9_:-]{1,32}$/.test(event.eventType));
+    validWorker360Date(event.effectiveDate) && event.effectiveDate <= asOfDate);
   const sorted = [...eligible].sort((a, b) =>
     b.effectiveDate.localeCompare(a.effectiveDate) || b.id - a.id);
   return {
-    items: sorted.slice(0, limit).map(({ id, effectiveDate, eventType, positionAssignmentId }) =>
-      ({ id, effectiveDate, eventType, positionAssignmentId })),
+    items: sorted.slice(0, limit).map(({ id, effectiveDate, eventType, positionAssignmentId }) => ({
+      id, effectiveDate,
+      // Unknown legacy codes are preserved as evidence, never exposed raw or
+      // silently dropped (which would falsify the hasMore source preview).
+      eventType: /^[a-zA-Z0-9_:-]{1,32}$/.test(eventType) ? eventType : "other",
+      positionAssignmentId,
+    })),
     hasMore: sorted.length > limit,
     partial: sorted.length > limit,
   };
