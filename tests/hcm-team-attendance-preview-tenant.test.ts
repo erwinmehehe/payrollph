@@ -22,6 +22,7 @@ test("Team Attendance SQL applies tenant + current unit before page, respects WF
     { name: "Preview Beta " + tag, legalName: "Preview Beta " + tag, plan: "Core" },
   ]).returning();
   const now = new Date("2026-10-10T01:00:00Z");
+  let insertedPatternDayId: number | null = null;
   try {
     const [alphaTeam, alphaOther, betaTeam] = await db.insert(orgUnits).values([
       { organizationId: alpha.id, type: "department", code: "TEAM-" + tag,
@@ -48,6 +49,7 @@ test("Team Attendance SQL applies tenant + current unit before page, respects WF
     const [day] = await db.insert(schedulePatternDays).values({
       patternId: pattern.id, dayIndex: 0, isRestDay: false,
     }).returning();
+    insertedPatternDayId = day.id;
     await db.insert(schedulePatternSegments).values({
       patternDayId: day.id, shiftDefinitionId: shift.id, segmentOrder: 1,
     });
@@ -121,6 +123,10 @@ test("Team Attendance SQL applies tenant + current unit before page, respects WF
       TeamAttendanceSourceOverflowError,
     );
   } finally {
+    // Segments retain a restrict FK to shift definitions. Remove this fixture first.
+    if (insertedPatternDayId !== null) {
+      await db.delete(schedulePatternSegments).where(eq(schedulePatternSegments.patternDayId, insertedPatternDayId));
+    }
     await db.delete(organizations).where(inArray(organizations.id, [alpha.id, beta.id]));
   }
 });
