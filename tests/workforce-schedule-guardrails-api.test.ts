@@ -35,11 +35,11 @@ test("schedule previews use prior-week context and return guardrail issues", () 
   assert.ok(windowService.includes("resolveEmployeeScheduleWindow"));
 });
 
-test("assignments and overrides are preflighted before database insertion", () => {
+test("assignments and overrides are preflighted, then rechecked in the locked transaction", () => {
   const assignmentPreflight = schedulesRoute.indexOf('prospectiveAssignment: {');
-  const assignmentInsert = schedulesRoute.indexOf("db.insert(employeeScheduleAssignments)");
+  const assignmentInsert = schedulesRoute.indexOf("tx.insert(employeeScheduleAssignments)");
   const overridePreflight = schedulesRoute.indexOf('prospectiveOverride: {');
-  const overrideInsert = schedulesRoute.indexOf("db.insert(scheduleOverrides)");
+  const overrideInsert = schedulesRoute.indexOf("tx.insert(scheduleOverrides)");
 
   assert.ok(assignmentPreflight > -1 && assignmentPreflight < assignmentInsert);
   assert.ok(overridePreflight > -1 && overridePreflight < overrideInsert);
