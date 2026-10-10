@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarClock, CircleAlert, Plus, RefreshCcw, ShieldCheck, UsersRound } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
-import { simulateBestFitCoverage } from "@/lib/workforce-coverage";
+import { paidShiftMinutes } from "@/lib/workforce-labor-variance";
+import { planSmartRecoveryDraft, type RecoveryMode } from "@/lib/workforce-recovery-draft";
+import { buildWfmManagerActionQueue, phWorkDateAt } from "@/lib/workforce-manager-actions";
+import { WorkforceLiveFloor } from "./workforce-live-floor";
 
 type Shift = {
   id: number;
@@ -12,6 +15,8 @@ type Shift = {
   name: string;
   startTime: string;
   endTime: string;
+  breakMinutes: number;
+  spansMidnight: boolean;
 };
 
 type Worksite = {
@@ -134,7 +139,7 @@ type ProactiveSuggestion = {
     score: number;
     preferred: boolean;
     scheduledMinutesInWindow: number;
-    consecutiveWorkingDaysBeforeShift: number;
+    consecutiveWorkingDaysBeforeShift: number | null;
     workloadRisk: "low" | "medium" | "high";
     reasons: string[];
   }>;
@@ -264,9 +269,8 @@ type Payload = {
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function localToday() {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
+  // A Philippine WFM work date is not the manager browser's local date.
+  return phWorkDateAt();
 }
 
 function addDays(dateText: string, days: number) {
@@ -309,6 +313,7 @@ export function WorkforceCoveragePanel({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
   const [simulateHighRisk, setSimulateHighRisk] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState<RecoveryMode>("coverage");
   const [dynamicGroupCode, setDynamicGroupCode] = useState("");
   const [reviewChains, setReviewChains] = useState<HandoffChain[]>([]);
   const [reviewChainCode, setReviewChainCode] = useState("");
@@ -556,22 +561,58 @@ export function WorkforceCoveragePanel({
   );
   const siteExclusions = (payload?.coverage ?? []).reduce((sum, row) => sum + row.siteIneligibleHeadcount, 0);
   const labor = payload?.laborVariance;
-  const simulation = useMemo(() => simulateBestFitCoverage({
+  const simulation = useMemo(() => planSmartRecoveryDraft({
+    mode: recoveryMode,
     allowHighWorkloadRisk: simulateHighRisk,
+    // Draft-only company planning guidance; configurable governed policy is the source of truth.
+    maxProjectedMinutesInWindow: 96 * 60,
+    maxConsecutiveWorkingDays: 6,
     requirements: (payload?.coverage ?? [])
       .filter((row) => row.gap > 0)
-      .map((row) => ({
-        requirementId: row.requirementId,
-        workDate: row.workDate,
-        gap: row.gap,
-        candidates: (proactiveByRequirement.get(row.requirementId)?.recommendations ?? []).map((candidate) => ({
-          employeeId: candidate.employeeId,
-          employeeName: candidate.employeeName,
-          score: candidate.score,
-          workloadRisk: candidate.workloadRisk,
-        })),
-      })),
-  }), [payload?.coverage, proactiveByRequirement, simulateHighRisk]);
+      .map((row) => {
+        const shift = (payload?.shifts ?? []).find((item) => item.id === row.shiftDefinitionId);
+        let paidMinutes = 0;
+        if (shift) {
+          try {
+            paidMinutes = paidShiftMinutes(shift);
+          } catch {
+            // Invalid shift evidence cannot produce a draft assignment.
+          }
+        }
+        return {
+          requirementId: row.requirementId,
+          workDate: row.workDate,
+          gap: row.gap,
+          startTime: shift?.startTime ?? "",
+          endTime: shift?.endTime ?? "",
+          spansMidnight: shift?.spansMidnight,
+          paidMinutes,
+          candidates: (proactiveByRequirement.get(row.requirementId)?.recommendations ?? []).map((candidate) => ({
+            employeeId: candidate.employeeId,
+            employeeName: candidate.employeeName,
+            score: candidate.score,
+            workloadRisk: candidate.workloadRisk,
+            scheduledMinutesInWindow: candidate.scheduledMinutesInWindow,
+            consecutiveWorkingDaysBeforeShift: candidate.consecutiveWorkingDaysBeforeShift ?? undefined,
+          })),
+        };
+      }),
+  }), [payload?.coverage, payload?.shifts, proactiveByRequirement, recoveryMode, simulateHighRisk]);
+
+  const managerActions = useMemo(() => buildWfmManagerActionQueue({
+    today: phWorkDateAt(),
+    coverage: payload?.coverage ?? [],
+    openShifts: payload?.openShifts ?? [],
+    claims: payload?.claims ?? [],
+    blockingGuardrailIssues: payload?.guardrailReadiness?.blockingIssueCount ?? 0,
+    attendanceExceptionCount: payload?.laborVariance?.summary.attendanceExceptionCount ?? 0,
+    evidenceWarnings: payload?.rosterReadiness?.signals ?? [],
+  }), [
+    payload?.coverage, payload?.openShifts, payload?.claims,
+    payload?.guardrailReadiness?.blockingIssueCount,
+    payload?.laborVariance?.summary.attendanceExceptionCount,
+    payload?.rosterReadiness?.signals,
+  ]);
 
   return (
     <article className="card" style={{ marginTop: 16 }} data-wfm-coverage>
@@ -639,8 +680,52 @@ export function WorkforceCoveragePanel({
         <Metric label="Pending claims" value={String(pendingClaims)} hint="manager decision needed" icon={<UsersRound size={16} />} tone={pendingClaims ? "amber" : "slate"} />
       </section>
 
+      <WorkforceLiveFloor organizationId={organizationId} />
+
+      {payload && (
+        <section style={{ padding: "0 18px 18px" }} data-wfm-manager-queue>
+          <article className="card" style={{ margin: 0 }}>
+            <div className="card-header">
+              <div>
+                <div className="card-kicker">Manager action queue · automatic prioritization</div>
+                <h3>What needs attention before the next shift?</h3>
+                <p>One read-only queue for coverage, pending claims, policy blockers, attendance and missing staffing evidence. Every action still goes through the existing manager workflow.</p>
+              </div>
+              <Status value={managerActions.critical > 0 ? "Urgent" : managerActions.high > 0 ? "Attention" : "Clear"} />
+            </div>
+            <section className="stats-grid" style={{ padding: "0 18px 18px" }}>
+              <Metric label="Actions" value={String(managerActions.total)} hint="current visible scope" icon={<UsersRound size={16} />} tone="slate" />
+              <Metric label="Urgent" value={String(managerActions.critical)} hint="coverage or blocking controls" icon={<CircleAlert size={16} />} tone={managerActions.critical ? "amber" : "mint"} />
+              <Metric label="Work dates approaching" value={String(managerActions.dueWithinTwoDays)} hint="today through two days ahead" icon={<CalendarClock size={16} />} tone="blue" />
+            </section>
+            {managerActions.actions.length > 0 ? (
+              <div className="policy-lines" style={{ padding: "0 18px 18px" }}>
+                {managerActions.actions.slice(0, 10).map((item) => (
+                  <div key={item.id} style={{ display: "block" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <Status value={item.priority} />
+                      <b>{item.title}</b>
+                      {item.workDate && <small>{item.workDate}</small>}
+                    </div>
+                    <small style={{ display: "block", color: "var(--muted)", marginTop: 4 }}>{item.detail}</small>
+                    <a href={item.destination} className="id" style={{ display: "inline-block", marginTop: 6 }}>Open the relevant review workflow →</a>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>No active action signals in the selected coverage window.</div>
+            )}
+            {managerActions.total > 10 && (
+              <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
+                Showing the ten highest-priority actions from {managerActions.total}; adjust the coverage window to review remaining shifts.
+              </div>
+            )}
+          </article>
+        </section>
+      )}
+
       {payload?.rosterReadiness && (
-        <section style={{ padding: "0 18px 18px" }} data-wfm-roster-readiness>
+        <section id="wfm-roster-readiness" style={{ padding: "0 18px 18px" }} data-wfm-roster-readiness>
           <article className="card" style={{ margin: 0 }}>
             <div className="card-header">
               <div>
@@ -732,15 +817,22 @@ export function WorkforceCoveragePanel({
         <label>Window end<input value={endDate} readOnly /></label>
       </div>
 
-      <section style={{ padding: "0 18px 18px" }} data-wfm-what-if>
+      <section id="wfm-smart-recovery" style={{ padding: "0 18px 18px" }} data-wfm-what-if>
         <article className="card" style={{ margin: 0 }}>
           <div className="card-header">
             <div>
-              <div className="card-kicker">What-if roster simulation</div>
-              <h3>Test recovery before changing the roster.</h3>
-              <p>Simulate filling current coverage gaps with the best governed candidates. This preview never writes schedule changes.</p>
+              <div className="card-kicker">Smart recovery draft · review-first automation</div>
+              <h3>Cover scarce roles first. Avoid double-booking employees.</h3>
+              <p>Draft from eligible candidates and staffing demand. Compare coverage priority with balanced planned hours. Suggestions never change schedules or payroll automatically.</p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                Draft priority
+                <select aria-label="Recovery draft strategy" value={recoveryMode} onChange={(event) => setRecoveryMode(event.target.value as RecoveryMode)}>
+                  <option value="coverage">Maximize coverage</option>
+                  <option value="balanced">Balance planned hours</option>
+                </select>
+              </label>
               <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <input type="checkbox" checked={simulateHighRisk} onChange={(event) => setSimulateHighRisk(event.target.checked)} />
                 Include high workload risk
@@ -756,22 +848,25 @@ export function WorkforceCoveragePanel({
             <Metric label="Current uncovered" value={String(simulation.baselineGap)} hint="recorded staffing gap" icon={<CircleAlert size={16} />} tone={simulation.baselineGap ? "amber" : "mint"} />
             <Metric label="Projected uncovered" value={String(simulation.projectedGap)} hint="after best-fit simulation" icon={<UsersRound size={16} />} tone={simulation.projectedGap ? "amber" : "mint"} />
             <Metric label="Requirements recovered" value={String(simulation.requirementsRecovered)} hint="fully covered in scenario" icon={<UsersRound size={16} />} tone="blue" />
-            <Metric label="Still at risk" value={String(simulation.requirementsStillAtRisk)} hint={simulation.avoidedHighRiskCandidates + " high-risk candidate(s) avoided"} icon={<CircleAlert size={16} />} tone={simulation.requirementsStillAtRisk ? "amber" : "mint"} />
+            <Metric label="Still at risk" value={String(simulation.requirementsStillAtRisk)} hint={simulation.avoidedHighRiskCandidates + " high-risk candidate(s) excluded"} icon={<CircleAlert size={16} />} tone={simulation.requirementsStillAtRisk ? "amber" : "mint"} />
+            <Metric label="Conflicts avoided" value={String(simulation.avoidedConflictingAssignments)} hint="duplicate day or overnight overlap" icon={<ShieldCheck size={16} />} tone="blue" />
+            <Metric label="Workload/rest exclusions" value={String(simulation.avoidedProjectedOverload + simulation.avoidedConsecutiveStreak + simulation.missingWorkloadEvidence)} hint="14-day hours, consecutive days or missing evidence" icon={<ShieldCheck size={16} />} tone="slate" />
           </section>
           <div className="notice notice-slate" style={{ margin: "0 18px 18px" }}>
             <span>
-              <strong>Governed handoff.</strong> Staging creates pending open-shift claims only. It does not change the roster.
+              <strong>Review-first automation.</strong> Drafts avoid proposed double bookings, overnight overlaps, more than 96 planned hours in the 14-day view, and more than six consecutive working days when source evidence is available. These are conservative planning guidelines, <em>not Philippine statutory compliance conclusions</em>. Staging creates pending claims only, not a published roster.
               Each approval rechecks the live staffing gap, job profile, skills/credentials, worksite eligibility, leave,
               availability, current schedule, and blocking schedule guardrails before an override can be created.
             </span>
           </div>
+          {simulation.limitedToFiftyClaims && <div className="notice notice-amber" style={{ margin: "0 18px 18px" }}>Draft is capped at 50 claims. Re-plan remaining gaps after review.</div>}
           {simulation.fills.length > 0 ? (
             <div className="policy-lines" style={{ padding: "0 18px 18px" }}>
               {simulation.fills.slice(0, 12).map((fill) => (
                 <span key={fill.requirementId + "-" + fill.employeeId}>
                   <b>{fill.workDate} · Requirement #{fill.requirementId}</b>
                   <small style={{ display: "block", color: "var(--muted)" }}>
-                    {fill.employeeName} · score {fill.score} · {fill.workloadRisk} workload risk
+                    {fill.employeeName} · score {fill.score} · {fill.workloadRisk} workload risk · projected {(fill.projectedWindowMinutes / 60).toFixed(1)}h{fill.projectedConsecutiveDays !== null ? ` · ${fill.projectedConsecutiveDays} projected consecutive days` : ""}
                   </small>
                 </span>
               ))}
@@ -785,7 +880,7 @@ export function WorkforceCoveragePanel({
       </section>
 
       {labor && (
-        <section style={{ padding: "0 18px 18px" }} data-wfm-labor-variance>
+        <section id="wfm-labor-variance" style={{ padding: "0 18px 18px" }} data-wfm-labor-variance>
           <div className="card-header" style={{ paddingLeft: 0, paddingRight: 0 }}>
             <div>
               <div className="card-kicker">Required → scheduled → actual</div>
@@ -1007,7 +1102,7 @@ export function WorkforceCoveragePanel({
 
       {(payload?.openShifts.length ?? 0) > 0 && (
         <div style={{ padding: 18 }}>
-          <div className="card-kicker" style={{ marginBottom: 8 }}>Open shifts and claims</div>
+          <div id="wfm-claims" className="card-kicker" style={{ marginBottom: 8 }}>Open shifts and claims</div>
           <div className="notice notice-slate" style={{ margin: "0 0 12px" }}>
             <span>
               <strong>Coverage recommendations are advisory.</strong> Pending claims are ranked using preferred availability,
