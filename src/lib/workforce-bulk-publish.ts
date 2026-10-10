@@ -15,6 +15,33 @@ export function rosterBulkPublishEnabled() {
   return process.env.WFM_BULK_ROSTER_PUBLISH_ENABLED === "true";
 }
 
+/**
+ * An explicit server-only employer allowlist is required IN ADDITION to
+ * the global kill switch, user role, MFA and maker/checker controls.
+ * An omitted, wildcard, duplicate, malformed or oversized allowlist fails
+ * closed rather than accidentally authorizing every customer tenant.
+ */
+export function rosterBulkPilotOrganizationAllowed(
+  organizationId: number,
+  configuredIds: string | undefined = process.env.WFM_BULK_ROSTER_ALLOWED_ORGANIZATION_IDS,
+): boolean {
+  if (!Number.isSafeInteger(organizationId) || organizationId < 1 ||
+    organizationId > 2147483647 ||
+    typeof configuredIds !== "string" || !configuredIds.trim() ||
+    configuredIds.length > 240) return false;
+  const tokens = configuredIds.split(",");
+  if (tokens.length < 1 || tokens.length > 20) return false;
+  const authorized = new Set<number>();
+  for (const token of tokens) {
+    const idText = token.trim();
+    if (!/^[1-9][0-9]{0,9}$/.test(idText)) return false;
+    const id = Number(idText);
+    if (!Number.isSafeInteger(id) || id > 2147483647 || authorized.has(id)) return false;
+    authorized.add(id);
+  }
+  return authorized.has(organizationId);
+}
+
 export function safeSha256(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
