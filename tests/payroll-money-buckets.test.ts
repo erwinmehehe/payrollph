@@ -3,8 +3,10 @@ import test from "node:test";
 import { roundedGrossFromBuckets, statutoryTrueUpDecision } from "../src/lib/payroll-money";
 
 test("rounded gross matches displayed overtime and holiday premium cents", () => {
-  const overtime = 1.25 * 113.636;
-  const holidayPremium = 17.045;
+  // Half-cent floating-point edge and a reproducible multi-bucket mismatch.
+  // The engine must sum what line items actually print, never raw fractions.
+  const overtime = 1.25 * 113.6368;
+  const holidayPremium = 17.046;
   const overtimePrinted = Math.round((overtime + Number.EPSILON) * 100) / 100;
   const holidayPrinted = Math.round((holidayPremium + Number.EPSILON) * 100) / 100;
   const result = roundedGrossFromBuckets([overtime, holidayPremium]);
