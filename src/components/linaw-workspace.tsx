@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { Clock, ShieldCheck, Sparkles } from "lucide-react";
 import { AssetsPanel } from "@/components/assets-panel";
 import { AutomationStudioPanel } from "@/components/automation-studio-panel";
@@ -9,6 +10,10 @@ import { BenefitsPanel } from "@/components/benefits-panel";
 import { ContractorsPanel } from "@/components/contractors-panel";
 import { CompensationPanel } from "@/components/compensation-panel";
 import { HcmDocumentsPanel } from "@/components/hcm-documents-panel";
+const HcmDocumentRenewalWatch = dynamic(
+  () => import("@/components/hcm-document-renewal-watch").then((module) => module.HcmDocumentRenewalWatch),
+  { ssr: false },
+);
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { SaasOnboardingQuickstart } from "@/components/saas-onboarding-quickstart";
@@ -78,6 +83,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"organization" | "team">("organization");
   const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(null);
+  const [documentView, setDocumentView] = useState<"manage" | "renewals">("manage");
 
   // Modals kept from the original build, all still server-authorised.
   const [newPayrollOpen, setNewPayrollOpen] = useState(false);
@@ -120,6 +126,12 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
   const canManageDeliveryOutbox = effectiveRole === "owner" || effectiveRole === "admin";
   const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
+  const canSeeDocumentWatch =
+    process.env.NEXT_PUBLIC_HCM_DOCUMENT_RENEWAL_WATCH_ENABLED === "true" &&
+    data.access?.companyWide === true &&
+    ["owner", "admin", "hr"].includes(data.access.role) &&
+    availablePages.includes("Documents") &&
+    availablePages.includes("People");
 
   usePaletteShortcut(() => setPaletteOpen(true));
 
@@ -527,7 +539,58 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
         )}
         {page === "Loans" && <LoansPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Benefits" && <BenefitsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
-        {page === "Documents" && <HcmDocumentsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Documents" && (
+          <div className="space-y-4">
+            {canSeeDocumentWatch && (
+              <nav aria-label="Documents workspace views" className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  aria-pressed={documentView === "manage"}
+                  onClick={() => setDocumentView("manage")}
+                  className={"min-h-10 rounded-lg border px-4 py-2 text-sm font-semibold " +
+                    (documentView === "manage"
+                      ? "border-emerald-700 bg-emerald-800 text-white"
+                      : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50")}
+                >
+                  Documents & policies
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={documentView === "renewals"}
+                  onClick={() => setDocumentView("renewals")}
+                  className={"min-h-10 rounded-lg border px-4 py-2 text-sm font-semibold " +
+                    (documentView === "renewals"
+                      ? "border-emerald-700 bg-emerald-800 text-white"
+                      : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50")}
+                >
+                  Document Renewal Watch
+                </button>
+              </nav>
+            )}
+            {canSeeDocumentWatch && documentView === "renewals" ? (
+              <HcmDocumentRenewalWatch
+                key={data.selectedOrganization.id}
+                organizationId={data.selectedOrganization.id}
+                onOpenEmployee={(employeeId) => {
+                  // Navigate only to an employee in this already-authorized
+                  // selected employer's active workspace roster.
+                  if (!availablePages.includes("People") ||
+                      !data.employees.some((employee) => employee.id === employeeId)) {
+                    noticeAdapter("This employee is not available in the current People workspace.");
+                    return;
+                  }
+                  setFocusEmployeeId(employeeId);
+                  setPage("People");
+                }}
+              />
+            ) : (
+              <HcmDocumentsPanel
+                organizationId={data.selectedOrganization.id}
+                setNotice={noticeAdapter}
+              />
+            )}
+          </div>
+        )}
         {page === "De minimis" && <DeMinimisPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Expenses" && <ExpensesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Earned wage" && <EwaPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
