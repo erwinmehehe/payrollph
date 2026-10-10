@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Check, ClipboardCheck, Clock3, Settings2, ShieldCheck, UserCheck, X } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { CheckerVarianceCenter } from "./checker-variance";
@@ -58,6 +59,12 @@ export function ApprovalsView({
     : [];
   const handoffRole = handoffViewerRole(data.access?.role ?? data.user?.role);
   const checkerMode = data.access?.role === "checker";
+  const canSeeTeamLeaveCalendar =
+    process.env.NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ENABLED === "true" &&
+    !!data.access && (
+      ["owner", "admin", "hr"].includes(data.access.role) ||
+      (data.access.role === "manager" && !data.access.companyWide)
+    );
 
   async function decide(task: Task, status: "Approved" | "Declined") {
     setPendingId(task.id);
@@ -86,6 +93,24 @@ export function ApprovalsView({
           ) : undefined
         }
       />
+
+      {canSeeTeamLeaveCalendar && (
+        <section className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Team Leave Calendar</p>
+            <p className="mt-1 max-w-xl text-xs text-slate-600">
+              Review authorized approved and pending request spans by month, without
+              viewing leave reasons or editing source records.
+            </p>
+          </div>
+          <Link
+            href={"/hcm/team-leave-calendar?organizationId=" + data.selectedOrganization.id}
+            className="inline-flex min-h-10 items-center rounded-lg bg-emerald-800 px-4 text-sm font-semibold text-white hover:bg-emerald-900"
+          >
+            View team calendar
+          </Link>
+        </section>
+      )}
 
       {currentRun && (
         <PayrollHandoff
