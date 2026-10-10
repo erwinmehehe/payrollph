@@ -63,7 +63,7 @@ export function ApprovalsView({
     process.env.NEXT_PUBLIC_HCM_MANAGER_DECISION_INBOX_ENABLED === "true" &&
     !!data.access && (
       (["owner", "admin", "hr"].includes(data.access.role)) ||
-      (data.access.role === "manager" && !data.access.companyWide && data.access.orgUnitId !== null)
+      (data.access.role === "manager" && !data.access.companyWide)
     );
 
   async function decide(task: Task, status: "Approved" | "Declined") {
