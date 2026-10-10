@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, CheckCircle2, PencilLine, RefreshCcw } from "lucide-react";
+import { manilaWorkDate, summarizeUpcomingWeek, upcomingSevenDays } from "@/lib/workforce-employee-upcoming-week";
 
 type ScheduleSegment = {
   shiftDefinitionId: number;
@@ -83,6 +84,7 @@ function fromManilaInput(value: string) {
 
 export function EmployeeWorkforcePanel() {
   const [payload, setPayload] = useState<Payload | null>(null);
+  const [today] = useState(() => manilaWorkDate());
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Punch | null>(null);
@@ -161,12 +163,55 @@ export function EmployeeWorkforcePanel() {
     }
   }
 
+  const upcoming = useMemo(() => upcomingSevenDays(payload?.schedule ?? [], today), [payload, today]);
+  const upcomingSummary = useMemo(() => summarizeUpcomingWeek(upcoming), [upcoming]);
+
   const workingSchedule = (payload?.schedule ?? []).filter(
     (day) => day.source !== "unassigned" || day.isRestDay || day.segments.length > 0,
   );
 
   return (
     <div style={{ display: "grid", gap: 16, marginTop: 16 }}>
+      {payload && (
+        <article className="employee-list-card" data-employee-upcoming-week>
+          <div className="employee-list-card-head">
+            <div>
+              <span className="card-kicker">UPCOMING WEEK · PHILIPPINE TIME</span>
+              <h3>Your next seven days</h3>
+            </div>
+            <span className="employee-mini-meta">Today through the next 6 days</span>
+          </div>
+          <div role="list" aria-label="Seven-day schedule overview" style={{
+            display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+            gap: 10, padding: "12px 14px",
+          }}>
+            {upcoming.map(day => (
+              <div key={day.date} role="listitem" style={{
+                display: "flex", flexDirection: "column", gap: 8,
+                border: "1px solid var(--border, #e2e8f0)", borderRadius: 10,
+                padding: 12, minHeight: 125,
+              }}>
+                <strong>{phDateLabel(day.date)}</strong>
+                <span className={"employee-status-pill " + (
+                  day.state === "review" || day.changed ? "warn" :
+                    day.state === "shift" ? "good" : ""
+                )}>
+                  {day.changed ? "Changed" : day.state === "rest" ? "Rest" :
+                    day.state === "unassigned" ? "Unassigned" :
+                    day.state === "review" ? "Review" : "Scheduled"}
+                </span>
+                <span style={{ fontSize: 12 }}>{day.label}</span>
+                {day.segments.map((segment, index) => (
+                  <small key={index} style={{ overflowWrap: "anywhere" }}>{segment}</small>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="notice notice-slate" style={{ margin: "4px 14px 14px" }}>
+            <span>{upcomingSummary.scheduled} shift day(s), {upcomingSummary.restDays} recorded rest day(s), {upcomingSummary.changes} changed day(s), {upcomingSummary.needsReview} requiring schedule confirmation. A missing roster entry is not an absence or a payroll deduction.</span>
+          </div>
+        </article>
+      )}
       <article className="employee-list-card">
         <div className="employee-list-card-head">
           <div>
