@@ -242,6 +242,11 @@ export async function POST(request: Request) {
         }
         const shift = shifts.find(s => s.id === shiftId && s.active);
         if (!shift) return { error: "The selected shift is not an active employer-owned shift.", rows: [], sha: "" };
+        // Cross-midnight leave, device and payroll boundaries need a distinct
+        // certified interval-level review; reject overnight in this first batch lane.
+        if (shift.spansMidnight || shift.endTime <= shift.startTime) {
+          return { error: "Bulk publishing of overnight shifts is not yet enabled. Use individual governed scheduling.", rows: [], sha: "" };
+        }
         if (activeLeaves.length || punches.length || overtime.length || timecards.length ||
           payroll.length || activeLocks.length) {
           return {
@@ -331,7 +336,8 @@ export async function POST(request: Request) {
           const originalDays = dates.map(date => resolve(date, employeeOverrides));
           const currentDay = originalDays[7];
           if (currentDay.source === "unassigned" || currentDay.isRestDay ||
-            currentDay.segments.length !== 1 || currentDay.worksiteId == null) {
+            currentDay.segments.length !== 1 || currentDay.worksiteId == null ||
+            currentDay.segments[0].spansMidnight) {
             return { error: "Only assigned single-shift working dates with governed worksite evidence may be changed in bulk.", rows: [], sha: "" };
           }
           if (currentDay.segments[0].shiftDefinitionId === shiftId) {
@@ -341,7 +347,11 @@ export async function POST(request: Request) {
             ...eligibilityEvidence,
             employeeId: employee.id, worksiteId: currentDay.worksiteId, date: workDate,
           });
-          if (siteReview.status !== "eligible") {
+          const deniedPrimary = eligibilityEvidence.primaryAssignments.some(row =>
+            row.employeeId === employee.id && row.worksiteId === currentDay.worksiteId &&
+            row.decision === "deny" && row.effectiveFrom <= workDate &&
+            (!row.effectiveUntil || row.effectiveUntil >= workDate));
+          if (siteReview.status !== "eligible" || deniedPrimary) {
             return { error: "A worker has missing, warning or denied worksite authorization.", rows: [], sha: "" };
           }
           const nextOverride: WorkforceScheduleOverride = {
