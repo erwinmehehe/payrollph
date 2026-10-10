@@ -4,36 +4,10 @@ import { employees, positionAssignments, workerEmploymentEvents } from "@/db/sch
 import {
   projectWorker360Events,
   selectWorker360Assignment,
-  type Worker360EventPreview,
-  type Worker360Selection,
 } from "@/lib/hcm-worker-360-projection";
+import type { Worker360Summary } from "@/lib/hcm-worker-360-contract";
 
 export const WORKER_360_EVENT_PAGE_SIZE = 25;
-
-export type Worker360Summary = {
-  tenantId: number;
-  employeeId: number;
-  asOfDate: string;
-  observedAt: string;
-  worker: {
-    source: "employees";
-    id: number;
-    employeeNo: string;
-    name: string;
-    /** Mutable employee fields: the current snapshot, NOT an as-of assertion. */
-    currentTitle: string;
-    currentStatus: string;
-    startedOn: string;
-  };
-  primaryAssignment: {
-    source: "position_assignments";
-    selection: Worker360Selection;
-  };
-  employmentEvents: {
-    source: "worker_employment_events";
-    preview: Worker360EventPreview;
-  };
-};
 
 /**
  * Reads only the validated tenant and worker. Called AFTER the route's
