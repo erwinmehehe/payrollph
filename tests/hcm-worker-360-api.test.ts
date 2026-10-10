@@ -72,7 +72,7 @@ test("unknown legacy event codes retain truthful preview counts without raw text
   const events = Array.from({ length: 26 }, (_, index) => ({
     id: index + 1,
     effectiveDate: "2026-10-10",
-    eventType: index === 0 ? "private free text / hr note" : "transfer",
+    eventType: index === 25 ? "private free text / hr note" : "transfer",
     positionAssignmentId: null,
   }));
   const preview = projectWorker360Events(events, "2026-10-10", 25);
