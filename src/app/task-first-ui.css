@@ -109,29 +109,44 @@
  .tf-payroll-home *{transition-duration:.01ms!important;scroll-behavior:auto!important}
 }
 
-/* Modest sidebar refinement, payroll officer only, only with task-first UI enabled. */
-.tf-shell[data-workspace-role="payroll"] .sidebar{background:#fff;border-right-color:#e4eaf2;padding:14px 9px 10px}
-.tf-shell[data-workspace-role="payroll"] .workspace-label{font-size:10.5px;letter-spacing:1.15px;margin:19px 10px 10px;color:#6c829c;font-weight:770}
-.tf-shell[data-workspace-role="payroll"] .workspace-label .pulse-dot{display:none}
-.tf-shell[data-workspace-role="payroll"] .side-navigation{padding-right:2px}
-.tf-shell[data-workspace-role="payroll"] .nav-group{margin-bottom:12px}
-.tf-shell[data-workspace-role="payroll"] .side-navigation .nav-item{
+/* Shared light navigation across workspace roles, gated by task-first UI flag. */
+.tf-shell .sidebar{background:#fff;border-right-color:#e4eaf2;padding:14px 9px 10px}
+.tf-shell .workspace-label{font-size:10.5px;letter-spacing:1.15px;margin:19px 10px 10px;color:#6c829c;font-weight:770}
+.tf-shell .workspace-label .pulse-dot{display:none}
+.tf-shell .side-navigation{padding-right:2px}
+.tf-shell .nav-group{margin-bottom:12px}
+.tf-shell .side-navigation .nav-item{
   min-height:46px;gap:9px;border-radius:9px;padding:0 11px;margin:2px 0;
   color:#49627f;font-size:13px;font-weight:600;
 }
-.tf-shell[data-workspace-role="payroll"] .side-navigation .nav-icon{
+.tf-shell .side-navigation .nav-icon{
   width:30px;height:30px;color:#51759d;background:transparent;border-radius:8px;
 }
-.tf-shell[data-workspace-role="payroll"] .side-navigation .nav-icon svg{width:18px;height:18px;stroke-width:2;vector-effect:non-scaling-stroke}
-.tf-shell[data-workspace-role="payroll"] .side-navigation .nav-item:hover{background:#f3f7fc;color:#234f8b}
-.tf-shell[data-workspace-role="payroll"] .side-navigation .nav-item.active{
+.tf-shell .side-navigation .nav-icon svg{width:18px;height:18px;stroke-width:2;vector-effect:non-scaling-stroke}
+.tf-shell .side-navigation .nav-item:hover{background:#f3f7fc;color:#234f8b}
+.tf-shell .side-navigation .nav-item.active{
   background:#e8f1fd;color:#1b5cab;font-weight:740
 }
-.tf-shell[data-workspace-role="payroll"] .side-navigation .nav-item.active .nav-icon{background:transparent;color:#1c5fb0;box-shadow:none}
-.tf-shell[data-workspace-role="payroll"] .side-navigation .nav-item.active::before{display:none}
-.tf-shell[data-workspace-role="payroll"] .side-navigation .nav-item.active b{background:#d1e2fa;color:#215fa3}
-.tf-shell[data-workspace-role="payroll"] .side-navigation .nav-item:focus-visible{outline:3px solid #67a6ed;outline-offset:1px}
-.tf-shell[data-workspace-role="payroll"] .sidebar-bottom{border-top-color:#edf0f5}
+.tf-shell .side-navigation .nav-item.active .nav-icon{background:transparent;color:#1c5fb0;box-shadow:none}
+.tf-shell .side-navigation .nav-item.active::before{display:none}
+.tf-shell .side-navigation .nav-item.active b{background:#d1e2fa;color:#215fa3}
+.tf-shell .side-navigation .nav-item:focus-visible{outline:3px solid #67a6ed;outline-offset:1px}
+.tf-shell .sidebar-bottom{border-top-color:#edf0f5}
+
+
+/* Run-scoped reviewer status, reached from the Payroll review shortcut. */
+.tf-review-status { scroll-margin-top:90px; }
+.tf-review-status .card-header h2:focus { outline: none; }
+.tf-review-status .card-header h2:focus-visible { outline: 3px solid #538fdb; outline-offset:4px; border-radius:3px; }
+.tf-review-status .tf-review-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:15px 0 8px}
+.tf-review-status .tf-review-summary>div{display:flex;flex-direction:column;gap:5px;border:1px solid #e4ebf3;background:#f9fbfe;border-radius:9px;padding:11px 13px;min-width:0}
+.tf-review-status .tf-review-summary strong{font-size:11px;font-weight:750;color:#526983}
+.tf-review-status .tf-review-summary span{font-size:13px;font-weight:700;color:#193754;overflow-wrap:anywhere}
+.tf-review-status .tf-review-note{font-size:12px;line-height:1.6;color:#697f95;margin:12px 0 0}
+.app-shell.tf-shell.rail .side-navigation .nav-item{justify-content:center;padding:0}
+.app-shell.tf-shell.rail .side-navigation .nav-item>.nav-icon{display:grid}
+.app-shell.tf-shell.rail .side-navigation .nav-item>span:not(.nav-icon){display:none}
+@media(max-width:560px){.tf-review-status .tf-review-summary{grid-template-columns:1fr}}
 
 /* Guided employee onboarding: applied only with the task-first UI flag. */
 .tf-hire-steps{min-width:0}
