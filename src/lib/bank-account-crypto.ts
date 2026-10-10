@@ -195,14 +195,30 @@ export function decryptBankAccount(
     throw new Error(`A bank account is stored encrypted but neither ${KEY_ENV} nor a rotation key is configured.`);
   }
 
-  const [iv, tag, ciphertext] = stored.slice(PREFIX.length).split(":");
-  if (!iv || !tag || !ciphertext) throw new Error("Stored bank account is malformed.");
+  // Each envelope must have exactly three canonical, unpadded Base64URL
+  // components. Node's decoder is permissive about invalid characters and
+  // ignores extra colon-separated data if we destructure without checking.
+  // Reject both, rather than authenticating only a prefix of a stored value.
+  const parts = stored.slice(PREFIX.length).split(":");
+  if (parts.length !== 3) throw new Error("Stored bank account is malformed.");
+  const decodePart = (part: string): Buffer => {
+    if (!/^[A-Za-z0-9_-]+$/.test(part)) throw new Error("Stored bank account is malformed.");
+    const decoded = Buffer.from(part, "base64url");
+    if (decoded.toString("base64url") !== part) throw new Error("Stored bank account is malformed.");
+    return decoded;
+  };
+  const iv = decodePart(parts[0]);
+  const tag = decodePart(parts[1]);
+  const ciphertext = decodePart(parts[2]);
+  if (iv.length !== 12 || tag.length !== 16 || ciphertext.length === 0) {
+    throw new Error("Stored bank account is malformed.");
+  }
 
   for (const key of keys) {
     try {
-      const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"));
-      decipher.setAuthTag(Buffer.from(tag, "base64url"));
-      return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");
+      const decipher = createDecipheriv("aes-256-gcm", key, iv);
+      decipher.setAuthTag(tag);
+      return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
     } catch {
       // Try the previous rotation key, if configured.
     }
