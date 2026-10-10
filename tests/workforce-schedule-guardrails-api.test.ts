@@ -25,6 +25,9 @@ test("guardrail policy mutations require company-wide People access, MFA and aud
   assert.ok(policyRoute.includes("enforceSameOriginMutation(request)"));
   assert.ok(policyRoute.includes("enforceSensitiveActionRateLimit(request"));
   assert.ok(policyRoute.includes('action: "WFM schedule guardrail policy updated"'));
+  assert.ok(policyRoute.includes("pg_advisory_xact_lock(6107, ${organizationId})"));
+  assert.ok(policyRoute.includes('isolationLevel: "serializable"'));
+  assert.ok(policyRoute.includes("tx.insert(auditEvents).values("));
 });
 
 test("schedule previews use prior-week context and return guardrail issues", () => {
