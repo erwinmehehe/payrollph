@@ -125,7 +125,7 @@ test("MWE needs statutory premium split for D2 even when totals match", () => {
 test("printable Form 2316 worksheet is clearly non-official and escapes hostile names", () => {
   const html = renderBir2316ReviewHtml({
     taxYear: 2026, employerName: "<ACME & Co>", employerTin: "123456789-0000",
-    employeeNo: "A1", employeeName: "<script>alert(1)</script>",
+    employeeNo: "A1", employeeName: "<ScRiPt>alert(1)</ScRiPt> & <svg onload=alert(1)>",
     employeeTin: "987654321-0000", employmentStart: "2026-01-01",
     mwe: false, sourceStatus: "settled", ruleVersion: "PH-2026.03",
     grossCompensation: "500000", exemptBenefitPool: "50000", deMinimis: "0",
@@ -133,8 +133,11 @@ test("printable Form 2316 worksheet is clearly non-official and escapes hostile 
     taxDue: "30100", withheldBeforeYearEnd: "30000", yearEndAdjustment: "100",
   });
   assert.match(html, /DRAFT - NOT AN OFFICIAL BIR FORM 2316/);
-  assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
-  assert.doesNotMatch(html, /<script>/);
+  assert.ok(html.includes("&lt;ScRiPt&gt;alert(1)&lt;/ScRiPt&gt;"));
+  assert.ok(html.includes("&lt;svg onload=alert(1)&gt;"));
+  assert.ok(html.includes("&lt;ACME &amp; Co&gt;"));
+  assert.equal(html.toLowerCase().includes("<script"), false, "no script element may survive HTML escaping");
+  assert.equal(html.toLowerCase().includes("<svg onload"), false, "no inline event-handler element may survive HTML escaping");
   assert.match(html, /30,100\.00/);
   assert.match(html, /REQUIRES VERIFIED/);
   assert.doesNotMatch(html, /window\.print\(/);
