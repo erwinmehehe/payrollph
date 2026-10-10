@@ -1,8 +1,8 @@
 /** Presentation and deep-link helpers only. These do not grant access or change payroll rules. */
-export type PayrollFocus = "workflow" | "register" | "exceptions" | "comparison" | "history";
+export type PayrollFocus = "workflow" | "register" | "exceptions" | "comparison" | "history" | "review";
 export type TaskTarget = { page: string; runId?: number; focus?: PayrollFocus; employeeId?: number; filter?: "attendance-exceptions" | "missing-payout" };
 export type WorkspaceLocation = TaskTarget & { organizationId: number };
-const FOCUSES = new Set<PayrollFocus>(["workflow","register","exceptions","comparison","history"]);
+const FOCUSES = new Set<PayrollFocus>(["workflow","register","exceptions","comparison","history","review"]);
 export function taskFirstUiEnabled() {
   return process.env.NEXT_PUBLIC_LINAW_TASK_FIRST_UI_ENABLED === "true";
 }
