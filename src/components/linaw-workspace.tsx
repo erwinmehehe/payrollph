@@ -9,6 +9,7 @@ import { BenefitsPanel } from "@/components/benefits-panel";
 import { ContractorsPanel } from "@/components/contractors-panel";
 import { CompensationPanel } from "@/components/compensation-panel";
 import { HcmDocumentsPanel } from "@/components/hcm-documents-panel";
+import { HcmPeopleHome } from "@/components/hcm-people-home";
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { SaasOnboardingQuickstart } from "@/components/saas-onboarding-quickstart";
@@ -102,7 +103,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
       NAVIGATION.flatMap((group) => group.items)
         .map((item) => item.name)
         .filter((name) => !(isFreelancer && FREELANCER_HIDDEN.has(name)))
-        .filter((name) => !rolePages || rolePages.includes(name)),
+        .filter((name) => !rolePages || rolePages.includes(name))
+        .filter((name) => name !== "People Home" || (process.env.NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED === "true" && ["owner", "admin", "bookkeeper", "hr"].includes(effectiveRole ?? ""))),
     [isFreelancer, rolePages],
   );
 
@@ -441,6 +443,15 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
               await refresh();
             }}
             notify={notify}
+          />
+        )}
+
+        {page === "People Home" && availablePages.includes("People Home") && (
+          <HcmPeopleHome
+            key={data.selectedOrganization.id}
+            data={data}
+            onPage={setPage}
+            onOpenWorker={(employeeId) => { setFocusEmployeeId(employeeId); setPage("People"); }}
           />
         )}
 
