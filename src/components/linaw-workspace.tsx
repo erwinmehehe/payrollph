@@ -392,6 +392,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
         primaryPages={primaryPages ?? undefined}
         workspaceRole={effectiveRole}
         displayRole={demoRole}
+        onTask={taskFirst ? goTask : undefined}
+        payrollRunId={taskFirst ? currentRun?.id : undefined}
+        payrollReviewActive={taskFirst && page === "Payroll" && taskTarget?.focus === "review"}
         allowClientSwitch={allowClientSwitch}
         headerExtras={
           <>
