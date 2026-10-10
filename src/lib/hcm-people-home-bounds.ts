@@ -37,3 +37,24 @@ export function delegatedHcmAssigneeMatches(
   }
   return seen.has(actorName.toLowerCase());
 }
+
+/**
+ * Create the named-assignee SQL filter before selecting pending BP steps.
+ * The caller must supply only active, tenant-scoped delegation edges and reject
+ * ambiguous duplicate 'from' edges as the preview server already does.
+ *
+ * This matches canDecide's direct-name and <=3-hop delegate semantics, while
+ * keeping out other users' tasks BEFORE applying the page ceiling.
+ */
+export function allowedDelegatedHcmAssigneeNames(
+  actorName: string,
+  delegations: readonly { fromApprover: string; toApprover: string }[],
+): string[] {
+  const allowed = new Set<string>([actorName.toLowerCase()]);
+  for (const delegation of delegations) {
+    if (delegatedHcmAssigneeMatches(delegation.fromApprover, actorName, delegations)) {
+      allowed.add(delegation.fromApprover.toLowerCase());
+    }
+  }
+  return [...allowed];
+}
