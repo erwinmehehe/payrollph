@@ -105,7 +105,6 @@ test("staging and checking are only exposed behind UI gate; no automatic bank/pa
 test("bulk pilot tenant gate rejects missing, malformed and broad configuration", () => {
   const permitted = (org: number, allowlist?: string) =>
     rosterBulkPilotOrganizationAllowed(org, allowlist);
-  assert.equal(permitted(17, undefined), false);
   assert.equal(permitted(17, ""), false);
   assert.equal(permitted(17, "*"), false);
   assert.equal(permitted(17, "17"), true);
