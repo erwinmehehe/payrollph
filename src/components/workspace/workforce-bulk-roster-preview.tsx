@@ -42,15 +42,18 @@ export function WorkforceBulkRosterPreview({
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selection, setSelection] = useState<{ scope: string; ids: number[] } | null>(null);
   const [workDate, setWorkDate] = useState(() => rosterDateOffset(phWorkDateAt(), 1));
-  const [shiftChoice, setShiftChoice] = useState("");
+  const [shiftSelection, setShiftSelection] = useState<{ scope: string; value: string } | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [snapshot, setSnapshot] = useState<{ scope: string; data: RosterPage } | null>(null);
   const [failure, setFailure] = useState<{ scope: string; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const pending = useRef<AbortController | null>(null);
   const scope = JSON.stringify([organizationId, weekStart, page, appliedSearch]);
+  // A prior employer/week/page can never contribute selected worker IDs or shift IDs.
+  const selectedIds = selection?.scope === scope ? selection.ids : [];
+  const shiftChoice = shiftSelection?.scope === scope ? shiftSelection.value : "";
 
   const load = useCallback(async () => {
     if (!enabled) return;
@@ -100,7 +103,6 @@ export function WorkforceBulkRosterPreview({
     return () => pending.current?.abort();
   }, [load, reloadKey]);
 
-  useEffect(() => { setSelectedIds([]); setShiftChoice(""); }, [scope]);
 
   const visible = enabled && snapshot?.scope === scope ? snapshot.data : null;
   const currentFailure = enabled && failure?.scope === scope ? failure.message : null;
@@ -199,7 +201,7 @@ export function WorkforceBulkRosterPreview({
             </label>
             <label>
               Proposed shift
-              <select value={shiftChoice} onChange={e => setShiftChoice(e.target.value)}
+              <select value={shiftChoice} onChange={e => setShiftSelection({ scope, value: e.target.value })}
                 aria-label="Bulk draft shift">
                 <option value="">Select shift</option>
                 {visible.shifts.map(shift => <option key={shift.id} value={String(shift.id)}>
@@ -213,7 +215,7 @@ export function WorkforceBulkRosterPreview({
               <thead><tr>
                 <th><input type="checkbox" aria-label="Select all workers on this roster page"
                   checked={visible.rows.length > 0 && selectedIds.length === visible.rows.length}
-                  onChange={e => setSelectedIds(e.target.checked ? visible.rows.map(row => row.employee.id) : [])}/></th>
+                  onChange={e => setSelection({ scope, ids: e.target.checked ? visible.rows.map(row => row.employee.id) : [] })}/></th>
                 <th>Worker</th><th>Employment state</th><th>Existing schedule</th>
               </tr></thead>
               <tbody>{visible.rows.map(row => {
@@ -221,9 +223,15 @@ export function WorkforceBulkRosterPreview({
                 return <tr key={row.employee.id}>
                   <td><input type="checkbox" checked={selectedIds.includes(row.employee.id)}
                     aria-label={"Select " + row.employee.name}
-                    onChange={e => setSelectedIds(current => e.target.checked
-                      ? [...current, row.employee.id]
-                      : current.filter(id => id !== row.employee.id))}/></td>
+                    onChange={e => {
+                      const checked = e.target.checked;
+                      setSelection(current => {
+                        const ids = current?.scope === scope ? current.ids : [];
+                        return { scope, ids: checked
+                          ? ids.includes(row.employee.id) ? ids : [...ids, row.employee.id]
+                          : ids.filter(id => id !== row.employee.id) };
+                      });
+                    }}/></td>
                   <td><strong>{row.employee.name}</strong><div className="id">{row.employee.employeeNo}</div></td>
                   <td><Status value={row.employee.status}/></td>
                   <td>{row.error ? "Needs source review" : day
