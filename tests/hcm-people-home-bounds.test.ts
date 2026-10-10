@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  boundedPeopleHomeRows, delegatedHcmAssigneeMatches,
+  allowedDelegatedHcmAssigneeNames, boundedPeopleHomeRows, delegatedHcmAssigneeMatches,
   HCM_PEOPLE_HOME_CASE_LIMIT, HCM_PEOPLE_HOME_DECISION_LIMIT,
   HCM_PEOPLE_HOME_FOLLOWUP_LIMIT, unavailablePeopleHomeSlice,
 } from "../src/lib/hcm-people-home-bounds";
@@ -60,4 +60,37 @@ test("People Home is scoped, server-minimized, and default off", () => {
   assert.ok(!home.includes("/api/hcm/business-processes/inbox?organizationId="));
   assert.ok(!home.includes('method: "POST"'));
   assert.ok(!home.includes('method: "PATCH"'));
+});
+
+test("authorized SQL assignee filters cover the viewer and only <=3-hop delegates", () => {
+  const edges = [
+    { fromApprover: "Anna", toApprover: "Bea" },
+    { fromApprover: "Bea", toApprover: "Cleo" },
+    { fromApprover: "Cleo", toApprover: "Dana" },
+    { fromApprover: "Dana", toApprover: "Erin" },
+    { fromApprover: "Unrelated", toApprover: "SomeoneElse" },
+  ];
+  const names = allowedDelegatedHcmAssigneeNames("Dana", edges);
+  assert.deepEqual(new Set(names), new Set(["dana", "anna", "bea", "cleo"]));
+  assert.ok(!names.includes("unrelated"));
+  assert.ok(!names.includes("erin"));
+
+  // A role target may itself delegate, but a named assignment must not be
+  // silently trimmed: canDecide compares these case-insensitively, exactly.
+  const roleEdges = [{ fromApprover: "role:hr", toApprover: "Dana" }];
+  assert.ok(allowedDelegatedHcmAssigneeNames("Dana", roleEdges).includes("role:hr"));
+  assert.deepEqual(allowedDelegatedHcmAssigneeNames("Dana", []), ["dana"]);
+});
+
+test("decision SQL filters eligible assignees before the bounded limit", () => {
+  const server = readFileSync("src/lib/hcm-people-home-server.ts", "utf8");
+  const query = server.split("const candidateRows = await ")[1]?.split("const candidates = boundedPeopleHomeRows")[0] ?? "";
+  assert.ok(query.includes("eq(hcmBusinessProcessInstanceSteps.organizationId, organizationId)"));
+  assert.ok(query.includes("eq(hcmBusinessProcessInstances.organizationId, organizationId)"));
+  assert.ok(query.includes("inArray(sql<string>`lower(${hcmBusinessProcessInstanceSteps.assignee})`, namedAssignees)"));
+  assert.ok(query.includes("roleAssignees.length > 0"));
+  assert.ok(query.includes("btrim(${hcmBusinessProcessInstanceSteps.assignee})"));
+  assert.ok(query.indexOf("inArray(") < query.indexOf(".limit(HCM_PEOPLE_HOME_DECISION_LIMIT + 1)"));
+  assert.ok(server.indexOf("const namedAssignees") < server.indexOf("const candidateRows"));
+  assert.ok(!query.includes("canDecide("), "no N+1 decision authorization lookups");
 });
