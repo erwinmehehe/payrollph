@@ -13,7 +13,7 @@ test("PH salary correction dates reject invalid or impossible dates", () => {
 });
 
 test("money validation uses cents without decimal rounding or exponent coercion", () => {
-  assert.equal(positiveSalaryRateCents("12500.25"), 1250025n);
+  assert.equal(positiveSalaryRateCents("12500.25"), BigInt(1250025));
   assert.throws(() => positiveSalaryRateCents("12500.251"));
   assert.throws(() => positiveSalaryRateCents("1e5"));
   assert.throws(() => positiveSalaryRateCents(-10));

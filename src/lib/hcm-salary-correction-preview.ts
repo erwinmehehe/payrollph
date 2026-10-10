@@ -26,16 +26,16 @@ export function positiveSalaryRateCents(value: unknown): bigint {
     throw new Error("Proposed rate must be a positive decimal with no more than two places.");
   }
   const [whole, fraction = ""] = raw.split(".");
-  const cents = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0") || "0");
-  if (cents <= 0n || cents > 10_000_000_000n) {
+  const cents = BigInt(whole) * BigInt(100) + BigInt(fraction.padEnd(2, "0") || "0");
+  if (cents <= BigInt(0) || cents > 10_000_000_00BigInt(0)) {
     throw new Error("Proposed rate must be greater than 0 and at most 100000000.00.");
   }
   return cents;
 }
 
 function centsAsDecimal(cents: bigint): string {
-  const abs = cents < 0n ? -cents : cents;
-  return (cents < 0n ? "-" : "") + String(abs / 100n) + "." + String(abs % 100n).padStart(2, "0");
+  const abs = cents < BigInt(0) ? -cents : cents;
+  return (cents < BigInt(0) ? "-" : "") + String(abs / BigInt(100)) + "." + String(abs % BigInt(100)).padStart(2, "0");
 }
 
 export function previewHistoricalSalaryRate(input: {
