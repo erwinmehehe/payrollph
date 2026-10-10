@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, organizations, payrollRuns, yearEndAdjustments } from "@/db/schema";
+import { birWithholdingRemittanceBatches, employees, historicalPayrollEntries, legalEntities, organizations, payrollEntries, payrollRuns, yearEndAdjustments } from "@/db/schema";
 import { renderForm2316 } from "@/lib/annualization";
 import { decryptGovernmentId } from "@/lib/government-id-crypto";
 import { getSessionUser } from "@/lib/auth";
@@ -10,8 +10,13 @@ import { runYearEndAnnualization } from "@/lib/year-end";
 import { enqueuePayrollRun } from "@/lib/payroll-engine";
 import { assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { evaluateBirAnnualReadiness } from "@/lib/bir-annual-readiness";
+import { renderBir2316ReviewHtml } from "@/lib/bir-2316-print";
 
 export const dynamic = "force-dynamic";
+
+const requiresAnnualEmployerScope = (format: string) =>
+  format === "preflight" || format === "alphalist" || format === "2316" || format === "2316-print";
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
@@ -33,7 +38,7 @@ export async function GET(request: Request) {
   const taxYear = Number(searchParams.get("taxYear") ?? new Date().getFullYear());
   const format = searchParams.get("format") ?? "json";
   const employeeId = Number(searchParams.get("employeeId") ?? 0);
-  if (format === "2316" || format === "alphalist") {
+  if (format === "2316" || format === "2316-print" || format === "alphalist" || format === "preflight") {
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return mfaDenied;
   }
@@ -54,16 +59,119 @@ export async function GET(request: Request) {
 
   const digits = (value: string | null | undefined, encrypted = false) =>
     (encrypted ? decryptGovernmentId(value) ?? "" : value ?? "").replace(/\D/g, "");
-  const employerTin = digits(organization?.birTin);
-  const employerBranch = digits(organization?.birBranchCode).padStart(4, "0");
+  // Annualization is currently organization-wide. Do not silently turn a
+  // mixed-employer register into a single employer's BIR 1604-C / 2316.
+  const activeEmployers = requiresAnnualEmployerScope(format)
+    ? await db.select().from(legalEntities).where(and(
+        eq(legalEntities.organizationId, organizationId),
+        eq(legalEntities.active, true),
+      ))
+    : [];
+  // Old single-employer organizations can predate the legal_entities table.
+  // Keep that legacy scope usable only when the organization has no explicit
+  // legal-employer records at all. Any inactive/multiple entity setup remains blocked.
+  const allEmployers = requiresAnnualEmployerScope(format)
+    ? await db.select({ id: legalEntities.id }).from(legalEntities)
+        .where(eq(legalEntities.organizationId, organizationId))
+    : [];
+  const legacySingleEmployer = allEmployers.length === 0 && Boolean(organization);
+  const legalEmployer = activeEmployers.length === 1 ? activeEmployers[0] : null;
+  // Explicit legal employers must use their own registered BIR identity; never
+  // inherit a different organization-level TIN when their record is incomplete.
+  const employerTin = digits(legalEmployer ? legalEmployer.birTin : organization?.birTin);
+  const employerBranch = digits(legalEmployer ? legalEmployer.birBranchCode : organization?.birBranchCode);
   const missingBirIdentity = rows.filter((row) =>
     digits(row.employee.tin, true).length !== 9 ||
     digits(row.employee.tinBranchCode, true).length !== 4
   );
 
-  if (format === "2316") {
-    const match = rows.find((row) => row.employee.id === employeeId) ?? rows[0];
-    if (!match) return Response.json({ error: "No annualization on record. Run it first." }, { status: 404 });
+  const requiresAnnualPreflight = requiresAnnualEmployerScope(format);
+  let readiness: ReturnType<typeof evaluateBirAnnualReadiness> | null = null;
+  if (requiresAnnualPreflight) {
+    const releasedRuns = await db.select().from(payrollRuns).where(and(
+      eq(payrollRuns.organizationId, organizationId),
+      eq(payrollRuns.status, "Released"),
+      gte(payrollRuns.payDate, `${taxYear}-01-01`),
+      lte(payrollRuns.payDate, `${taxYear}-12-31`),
+    ));
+    const releasedIds = releasedRuns.map((run) => run.id);
+    const [releasedEntries, historicalRows, monthlyBatches] = await Promise.all([
+      releasedIds.length
+        ? db.select({ employeeId: payrollEntries.employeeId }).from(payrollEntries)
+            .where(inArray(payrollEntries.payrollRunId, releasedIds))
+        : Promise.resolve([]),
+      db.select({ employeeId: historicalPayrollEntries.employeeId }).from(historicalPayrollEntries)
+        .where(and(
+          eq(historicalPayrollEntries.organizationId, organizationId),
+          gte(historicalPayrollEntries.payDate, `${taxYear}-01-01`),
+          lte(historicalPayrollEntries.payDate, `${taxYear}-12-31`),
+        )),
+      legalEmployer
+        ? db.select({
+            month: birWithholdingRemittanceBatches.applicableMonth,
+            status: birWithholdingRemittanceBatches.status,
+          }).from(birWithholdingRemittanceBatches).where(and(
+            eq(birWithholdingRemittanceBatches.organizationId, organizationId),
+            eq(birWithholdingRemittanceBatches.legalEntityId, legalEmployer.id),
+            gte(birWithholdingRemittanceBatches.applicableMonth, `${taxYear}-01`),
+            lte(birWithholdingRemittanceBatches.applicableMonth, `${taxYear}-12`),
+          ))
+        : Promise.resolve([]),
+    ]);
+
+    readiness = evaluateBirAnnualReadiness({
+      taxYear,
+      employerTin,
+      employerBranchCode: employerBranch,
+      legalEmployerCount: legacySingleEmployer ? 1 : activeEmployers.length,
+      mismatchedLegalEmployerRunIds: releasedRuns.filter((run) =>
+        run.legalEntityId != null && (!legalEmployer || run.legalEntityId !== legalEmployer.id)
+      ).map((run) => run.id),
+      rows: rows.map(({ adjustment, employee }) => ({
+        employeeId: employee.id,
+        employeeNo: employee.employeeNo,
+        tin: digits(employee.tin, true),
+        tinBranchCode: digits(employee.tinBranchCode, true),
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        mwe: adjustment.mwe,
+        grossCompensation: adjustment.grossCompensation,
+        nonTaxable: adjustment.nonTaxable,
+        taxableIncome: adjustment.taxableIncome,
+        taxDue: adjustment.taxDue,
+        taxWithheld: adjustment.taxWithheld,
+        adjustment: adjustment.adjustment,
+        outcome: adjustment.outcome,
+        status: adjustment.status,
+      })),
+      payrollEmployeeIds: [...releasedEntries, ...historicalRows].map((row) => row.employeeId),
+      releasedPayrollRunCount: releasedRuns.length,
+      importedHistoryCount: historicalRows.length,
+      payrollMonths: releasedRuns.map((run) => String(run.payDate).slice(0, 7)),
+      bir1601cMonths: monthlyBatches.map((batch) => ({
+        month: batch.month,
+        reconciled: batch.status === "reconciled",
+      })),
+    });
+    if (format === "preflight") {
+      return Response.json(readiness, {
+        headers: { "Cache-Control": "no-store, private" },
+      });
+    }
+  }
+
+  if (format === "2316" || format === "2316-print") {
+    if (!Number.isInteger(employeeId) || employeeId <= 0) {
+      return Response.json({ error: "employeeId is required to select the exact Form 2316 employee." }, { status: 400 });
+    }
+    const match = rows.find((row) => row.employee.id === employeeId);
+    if (!match) return Response.json({ error: "No year-end annualization exists for the requested employee." }, { status: 404 });
+    const employeeBlockers = (readiness?.blockers ?? []).filter((issue) =>
+      !issue.employeeNo || issue.employeeNo === match.employee.employeeNo
+    );
+    if (employeeBlockers.length) {
+      return Response.json({ error: "The Form 2316 source requires corrections before draft generation.", blockers: employeeBlockers }, { status: 409 });
+    }
     if (employerTin.length !== 9 || employerBranch.length !== 4) {
       return Response.json({ error: "Employer BIR TIN and 4-digit branch code are required before generating Form 2316." }, { status: 422 });
     }
@@ -71,9 +179,51 @@ export async function GET(request: Request) {
       return Response.json({ error: "Employee BIR TIN and 4-digit branch code are required before generating Form 2316." }, { status: 422 });
     }
 
+    if (format === "2316-print") {
+      const breakdown = (match.adjustment.breakdown ?? {}) as Record<string, unknown>;
+      const html = renderBir2316ReviewHtml({
+        taxYear,
+        employerName: legalEmployer?.legalName ?? organization?.legalName ?? organization?.name ?? "Employer",
+        employerTin: `${employerTin}-${employerBranch}`,
+        employeeName: [match.employee.lastName, match.employee.firstName, match.employee.middleName].filter(Boolean).join(", "),
+        employeeNo: match.employee.employeeNo,
+        employeeTin: `${digits(match.employee.tin, true)}-${digits(match.employee.tinBranchCode, true)}`,
+        employmentStart: String(match.employee.startDate),
+        mwe: match.adjustment.mwe,
+        sourceStatus: match.adjustment.status,
+        ruleVersion: match.adjustment.ruleVersion,
+        grossCompensation: match.adjustment.grossCompensation,
+        exemptBenefitPool: typeof breakdown.exemptBenefitPool === "number" ? breakdown.exemptBenefitPool : "NaN",
+        deMinimis: typeof breakdown.deMinimis === "number" ? breakdown.deMinimis : "NaN",
+        statutoryContributions: match.adjustment.statutoryContributions,
+        nonTaxable: match.adjustment.nonTaxable,
+        taxableIncome: match.adjustment.taxableIncome,
+        taxDue: match.adjustment.taxDue,
+        withheldBeforeYearEnd: match.adjustment.taxWithheld,
+        yearEndAdjustment: match.adjustment.adjustment,
+      });
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "BIR 2316 internal printable review worksheet generated",
+        resource: `${match.employee.employeeNo} - ${taxYear}`,
+        metadata: { employeeId, taxYear, officialCertificate: false, plaintextPersisted: false },
+      });
+      return new Response(html, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store, private",
+          "Content-Disposition": `inline; filename="bir-2316-review-${taxYear}.html"`,
+          "X-Content-Type-Options": "nosniff",
+          "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+          "Referrer-Policy": "no-referrer",
+        },
+      });
+    }
+
     const body = renderForm2316({
       taxYear,
-      employerName: organization?.legalName ?? organization?.name ?? "Employer",
+      employerName: legalEmployer?.legalName ?? organization?.legalName ?? organization?.name ?? "Employer",
       employerTin: `${employerTin}-${employerBranch}`,
       employeeName: [match.employee.firstName, match.employee.middleName, match.employee.lastName].filter(Boolean).join(" "),
       employeeNo: match.employee.employeeNo,
@@ -102,6 +252,12 @@ export async function GET(request: Request) {
   }
 
   if (format === "alphalist") {
+    if (!readiness?.canExportSource) {
+      return Response.json({
+        error: "BIR 1604-C source export is blocked by annual filing preflight. Fix the blockers and rerun the preflight.",
+        readiness,
+      }, { status: 409 });
+    }
     if (employerTin.length !== 9 || employerBranch.length !== 4) {
       return Response.json({ error: "Employer BIR TIN and 4-digit branch code are required before generating an Alphalist source extract." }, { status: 422 });
     }
@@ -127,8 +283,10 @@ export async function GET(request: Request) {
         "Non-Taxable",
         "Taxable Income",
         "Tax Due",
-        "Tax Withheld",
-        "Adjustment",
+        "Tax Withheld Before Year-End Settlement",
+        "Year-End Tax Adjustment",
+        "Expected Tax Withheld After Settlement",
+        "Settlement Status",
         "Outcome",
       ],
       rows: rows.map((row) => [
@@ -147,6 +305,8 @@ export async function GET(request: Request) {
         row.adjustment.taxDue,
         row.adjustment.taxWithheld,
         row.adjustment.adjustment,
+        (Number(row.adjustment.taxWithheld) + Number(row.adjustment.adjustment)).toFixed(2),
+        row.adjustment.status,
         row.adjustment.outcome,
       ]),
     });
@@ -160,14 +320,19 @@ export async function GET(request: Request) {
         employeeCount: rows.length,
         containsFullTin: true,
         plaintextFilePersisted: false,
+        sourceOnly: true,
+        birValidated: false,
+        preflight: readiness.summary,
       },
     });
-    return new Response(
-      `DRAFT ALPHALIST SOURCE EXTRACT ${taxYear} - not an ADES .DAT file and not portal validated\n${csv}`,
+    // Keep the first CSV record as the header so spreadsheet tools can import
+    // it cleanly. The filename and response headers disclose its DRAFT status.
+    return new Response(csv,
       {
         headers: {
           "Content-Type": "text/csv",
           "Content-Disposition": `attachment; filename=alphalist-source-draft-${taxYear}.csv`,
+          "X-PayrollPH-Filing-Status": "DRAFT-SOURCE-NOT-BIR-DAT",
           "Cache-Control": "no-store, private",
           "X-Content-Type-Options": "nosniff",
         },

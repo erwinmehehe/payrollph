@@ -1,6 +1,7 @@
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { approvalTasks, auditEvents, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { checkerReleaseSeparationError } from "@/lib/treasury-controls";
 import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
@@ -109,6 +110,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
+  const checkerEvents = await db.select().from(auditEvents).where(and(
+    eq(auditEvents.organizationId, run.organizationId),
+    inArray(auditEvents.action, ["Approval approved", "Approval approved by delegate"]),
+  ));
+  const separationError = checkerReleaseSeparationError({
+    events: checkerEvents,
+    approvalTaskId: payrollApproval.id,
+    payrollRunId: run.id,
+    userId: user.id,
+    userName: user.name,
+  });
+  if (separationError) {
+    return Response.json({ error: separationError, code: "PAYROLL_CHECKER_RELEASE_SEPARATION" }, { status: 403 });
+  }
+
   const approvalSnapshot = await verifyPayrollApprovalSnapshot(run, payrollApproval);
   if (!approvalSnapshot.valid) {
     return Response.json({
@@ -147,9 +163,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
-  // Mandatory, tenant/task-linked actor separation. Approval-task display
-  // names cannot prove who actually approved; the authenticated audit event can.
-  // This is not controlled by any optional maker-checker policy switch.
+  // Mandatory, tenant/task-linked release separation. A display name cannot
+  // prove that a distinct person approved this payroll. Keep the original
+  // checker-event guard too: both must be satisfied before settlement.
   const separation = await checkPayrollReleaseSegregation({
     organizationId: run.organizationId,
     payrollRunId: run.id,

@@ -24,6 +24,12 @@ export async function recordGeneratedFiling(input: {
   definition: FilingFormDefinition;
   actor: string;
 }) {
+  // The per-run 1604-C source predates year-end settlement preflight.
+  // Retain historical evidence rows read-only; never create new records from
+  // an unverified source format or claim their worksheet is an ADES .DAT.
+  if (input.definition.agency === "BIR" && input.definition.form === "1604-C") {
+    throw new Error("BIR 1604-C per-run filing evidence is retired. Use Compliance > Year-End Annualization and Check BIR source before exporting a draft; official BIR ADES validation is still required.");
+  }
   const [run] = await db
     .select()
     .from(payrollRuns)
@@ -148,6 +154,18 @@ export async function recordFilingOutcome(input: {
   outcome: FilingOutcomeInput;
 }) {
   const { outcome } = input;
+  if (outcome.outcome === "accepted") {
+    const [source] = await db.select({
+      agency: governmentFilingValidations.agency,
+      form: governmentFilingValidations.form,
+    }).from(governmentFilingValidations).where(and(
+      eq(governmentFilingValidations.organizationId, input.organizationId),
+      eq(governmentFilingValidations.id, input.id),
+    )).limit(1);
+    if (source?.agency === "BIR" && source.form === "1604-C") {
+      throw new Error("Legacy 1604-C source worksheets cannot be marked as current BIR-validated filing evidence.");
+    }
+  }
   const [updated] = await db
     .update(governmentFilingValidations)
     .set({

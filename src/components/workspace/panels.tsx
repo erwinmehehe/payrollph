@@ -52,7 +52,7 @@ import { DoleThirteenthMonthReportPanel } from "@/components/workspace/dole-thir
 import { CompliancePolicyReviewPanel } from "@/components/workspace/compliance-policy-review-panel";
 import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
-import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money } from "./ui";
+import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money, moneyExact } from "./ui";
 export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData; setNotice: (message: string) => void; onRefresh: () => Promise<void> }) {
   const requests = data.leaveRequests ?? [];
   const policies = data.leavePolicies ?? [];
@@ -538,14 +538,111 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
   );
 }
 
+type BirEmployerReconciliationResult = {
+  legalEntityId: number;
+  sourceDigest: string;
+  sourceStatus: string;
+  certification: string;
+  totals: { employees: number; payrollRuns: number; payrollActualWithheld: string; annualTaxDue: string; blockers: number; warnings: number };
+  issues: Array<{ code: string; severity: "blocker" | "warning"; message: string; employeeNo?: string; month?: string }>;
+  monthly: Array<{ month: string; payrollWithheld: string; reportedWithheld: string | null; state: string }>;
+};
+
+type BirAnnualPreflight = {
+  canExportSource: boolean;
+  filingReady: false;
+  summary: { annualizedEmployees: number; blockers: number; warnings: number };
+  blockers: Array<{ code: string; message: string; employeeNo?: string }>;
+  warnings: Array<{ code: string; message: string; employeeNo?: string }>;
+};
+
 function YearEndPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (message: string) => void }) {
   const [taxYear, setTaxYear] = useState(2026);
   const [summary, setSummary] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const [checkingBIR, setCheckingBIR] = useState(false);
+  const [birPreflight, setBirPreflight] = useState<BirAnnualPreflight | null>(null);
+  const [birEmployers, setBirEmployers] = useState<Array<{ id: number; code: string; legalName: string; primaryEntity: boolean }>>([]);
+  const [birEntityId, setBirEntityId] = useState(0);
+  const [birEntityLoading, setBirEntityLoading] = useState(false);
+  const [birEntityReport, setBirEntityReport] = useState<BirEmployerReconciliationResult | null>(null);
 
   async function load(year: number) {
     const response = await fetch(`/api/year-end?organizationId=${organizationId}&taxYear=${year}`, { cache: "no-store" });
     if (response.ok) setSummary(await response.json());
+  }
+
+  // Existing settled year-end records must be visible after reopening the page;
+  // re-running annualization is intentionally prohibited once tax was settled.
+  useEffect(() => {
+    let active = true;
+    void fetch(`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}`, { cache: "no-store" })
+      .then(async (response) => response.ok ? await response.json() : null)
+      .then((payload) => { if (active) setSummary(payload); })
+      .catch(() => { if (active) setSummary(null); });
+    return () => { active = false; };
+  }, [organizationId, taxYear]);
+
+  useEffect(() => {
+    let active = true;
+    void fetch(`/api/bir/annual-employer?organizationId=${organizationId}&taxYear=${taxYear}&mode=employers`, { cache: "no-store" })
+      .then(async response => response.ok ? await response.json() : { employers: [] })
+      .then(payload => {
+        if (!active) return;
+        const options = (payload.employers ?? []) as typeof birEmployers;
+        setBirEmployers(options);
+        setBirEntityId(previous => options.some(option => option.id === previous)
+          ? previous : (options.find(option => option.primaryEntity)?.id ?? options[0]?.id ?? 0));
+      })
+      .catch(() => { if (active) { setBirEmployers([]); setBirEntityId(0); } });
+    return () => { active = false; };
+  }, [organizationId, taxYear]);
+
+  async function runBirEmployerReconciliation() {
+    if (!birEntityId) { setNotice("Choose an active legal employer."); return; }
+    setBirEntityLoading(true);
+    setBirEntityReport(null);
+    try {
+      const response = await fetch(
+        `/api/bir/annual-employer?organizationId=${organizationId}&taxYear=${taxYear}&legalEntityId=${birEntityId}`,
+        { cache: "no-store" },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? "Employer annual reconciliation failed.");
+        return;
+      }
+      setBirEntityReport(payload.reconciliation as BirEmployerReconciliationResult);
+      setNotice(payload.reconciliation.totals.blockers
+        ? "Employer annual reconciliation found exceptions. Do not prepare a BIR DAT until they are resolved."
+        : "Employer figures reconciled internally. Detailed BIR schedules and official ADES validation are still outstanding.");
+    } catch {
+      setNotice("Could not reach annual BIR legal-employer reconciliation.");
+    } finally {
+      setBirEntityLoading(false);
+    }
+  }
+
+  async function checkBirPreflight() {
+    setCheckingBIR(true);
+    setBirPreflight(null);
+    try {
+      const response = await fetch(`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}&format=preflight`, { cache: "no-store" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? "BIR source preflight could not be completed.");
+        return;
+      }
+      const result = payload as BirAnnualPreflight;
+      setBirPreflight(result);
+      setNotice(result.canExportSource
+        ? "Annual Alphalist source checks passed. BIR ADES and submission acceptance are still required."
+        : `BIR source export blocked: ${result.summary.blockers} issue(s) need correction.`);
+    } catch {
+      setNotice("Could not reach the BIR annual preflight service.");
+    } finally {
+      setCheckingBIR(false);
+    }
   }
 
   async function runAnnualization() {
@@ -560,6 +657,8 @@ function YearEndPanel({ organizationId, setNotice }: { organizationId: number; s
       if (!response.ok) { setNotice(payload.error ?? "Annualization failed."); return; }
       if (payload.warning) setNotice(payload.warning);
       else setNotice(`Annualized ${payload.employees} employees: ${payload.refunds} refund(s), ${payload.collections} collection(s).`);
+      setBirPreflight(null);
+      setBirEntityReport(null);
       await load(taxYear);
     } finally {
       setBusy(false);
@@ -571,13 +670,102 @@ function YearEndPanel({ organizationId, setNotice }: { organizationId: number; s
       <div className="card-header">
         <div><div className="card-kicker">YEAR-END ANNUALIZATION</div><h2>December tax adjustment (BIR 2316)</h2><p>Sums released runs for the year, applies the ₱90k 13th-month exemption, and reconciles tax due vs withheld.</p></div>
         <div className="heading-actions">
-          <select value={taxYear} onChange={(event) => { setTaxYear(Number(event.target.value)); setSummary(null); }} style={{ height: 35, borderRadius: 8, border: "1px solid var(--line)", padding: "0 10px", fontSize: 12 }}>
+          <select value={taxYear} onChange={(event) => { setTaxYear(Number(event.target.value)); setSummary(null); setBirPreflight(null); setBirEntityReport(null); }} style={{ height: 35, borderRadius: 8, border: "1px solid var(--line)", padding: "0 10px", fontSize: 12 }}>
             <option value={2026}>Tax year 2026</option>
             <option value={2025}>Tax year 2025</option>
           </select>
-          <button className="primary-button" onClick={runAnnualization} disabled={busy}>{busy ? "Computing…" : "Run annualization"}</button>
+          <button className="primary-button" onClick={runAnnualization} disabled={busy || checkingBIR}>{busy ? "Computing…" : "Run annualization"}</button>
+          <button type="button" className="secondary-button" onClick={() => void checkBirPreflight()} disabled={busy || checkingBIR}>{checkingBIR ? "Checking…" : "Check BIR source"}</button>
         </div>
       </div>
+      {birPreflight && (
+        <section className="notice notice-slate" role="status" data-bir-annual-preflight style={{ marginTop: 12 }}>
+          <div>
+            <strong>{birPreflight.canExportSource ? "Annual source checks passed" : "BIR annual source export blocked"}</strong>
+            <p style={{ margin: "6px 0" }}>
+              {birPreflight.summary.annualizedEmployees} employees reviewed · {birPreflight.summary.blockers} blocker(s) · {birPreflight.summary.warnings} warning(s).
+              This checks payroll source data only. It does not produce or validate a BIR .DAT, certify Form 2316, or submit returns.
+            </p>
+            {birPreflight.blockers.length > 0 && (
+              <ul style={{ paddingLeft: 18, margin: "6px 0" }}>
+                {birPreflight.blockers.map((issue, i) => (
+                  <li key={`blocker-${issue.code}-${issue.employeeNo ?? i}`}>
+                    {issue.employeeNo ? `${issue.employeeNo}: ` : ""}{issue.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {birPreflight.warnings.length > 0 && (
+              <details>
+                <summary>{birPreflight.warnings.length} item(s) require manual review</summary>
+                <ul style={{ paddingLeft: 18 }}>
+                  {birPreflight.warnings.map((issue, i) => (
+                    <li key={`warning-${issue.code}-${issue.employeeNo ?? i}`}>
+                      {issue.employeeNo ? `${issue.employeeNo}: ` : ""}{issue.message}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        </section>
+      )}
+      <section className="notice notice-blue" style={{ marginTop: 14 }} aria-label="Employer-specific BIR reconciliation">
+        <div style={{ width: "100%", display: "grid", gap: 8 }}>
+          <strong>Employer-specific 1604-C and 1601-C reconciliation</strong>
+          <p style={{ margin: 0 }}>Review the exact legal employer, released payroll and monthly BIR withholding evidence before preparing any official alphalist. This check never submits to BIR.</p>
+          <div className="heading-actions" style={{ flexWrap: "wrap", gap: 8 }}>
+            <label>
+              <span className="sr-only">Legal employer</span>
+              <select aria-label="Legal employer" value={birEntityId} onChange={event => { setBirEntityId(Number(event.target.value)); setBirEntityReport(null); }}>
+                {birEmployers.length === 0 && <option value={0}>No active legal employers</option>}
+                {birEmployers.map(item => <option key={item.id} value={item.id}>{item.code} - {item.legalName}</option>)}
+              </select>
+            </label>
+            <button type="button" className="secondary-button" disabled={!birEntityId || birEntityLoading}
+              onClick={() => void runBirEmployerReconciliation()}>
+              {birEntityLoading ? "Reconciling…" : "Reconcile legal employer"}
+            </button>
+          </div>
+          {birEntityReport && (
+            <div role="status" data-bir-employer-reconciliation>
+              <p style={{ margin: "4px 0", fontWeight: 600 }}>
+                {birEntityReport.sourceStatus === "blocked" ? "Blocked - resolve exceptions" : "Internal source cross-check complete; tax review pending"}
+                {" · "}{birEntityReport.totals.employees} employees
+                {" · "}Tax withheld: {moneyExact(birEntityReport.totals.payrollActualWithheld)}
+                {" · "}Tax due: {moneyExact(birEntityReport.totals.annualTaxDue)}
+                {" · "}{birEntityReport.totals.blockers} blockers
+              </p>
+              {birEntityReport.issues.length > 0 && (
+                <ul style={{ paddingLeft: 18 }}>
+                  {birEntityReport.issues.map((issue, index) => (
+                    <li key={index}><strong>{issue.severity === "blocker" ? "Blocker" : "Review"}:</strong>{" "}
+                      {issue.employeeNo ? `${issue.employeeNo}: ` : ""}
+                      {issue.month ? `${issue.month}: ` : ""}{issue.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <details>
+                <summary>Monthly BIR 1601-C comparison</summary>
+                {birEntityReport.monthly.length === 0
+                  ? <p>No released payroll withholding for this employer/year.</p>
+                  : <div className="data-table-wrap"><table className="data-table">
+                    <thead><tr><th>MONTH</th><th>PAYROLL WITHHELD</th><th>1601-C RECORDED</th><th>STATE</th></tr></thead>
+                    <tbody>{birEntityReport.monthly.map(item => (
+                      <tr key={item.month}>
+                        <td>{item.month}</td><td>{moneyExact(item.payrollWithheld)}</td>
+                        <td>{item.reportedWithheld === null ? "Not recorded" : moneyExact(item.reportedWithheld)}</td>
+                        <td>{item.state}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table></div>}
+              </details>
+              <small>Source fingerprint: {birEntityReport.sourceDigest.slice(0, 16)} · Not an official BIR DAT or certified filing record.</small>
+            </div>
+          )}
+        </div>
+      </section>
       {summary?.rows?.length ? (
         <>
           <div className="run-stats">
@@ -596,14 +784,27 @@ function YearEndPanel({ organizationId, setNotice }: { organizationId: number; s
                     <td>{money(row.taxDue)}</td>
                     <td>{money(row.taxWithheld)}</td>
                     <td><Status value={row.outcome === "refund" ? "Refund" : row.outcome === "collect" ? "Collect" : "Balanced"} /> {money(Math.abs(Number(row.adjustment)))}</td>
-                    <td><a className="link-button" href={`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}&employeeId=${row.employeeId}&format=2316`}><Download size={13} style={{ display: "inline" }} /> Draft</a></td>
+                    <td>
+                      <a className="link-button" href={`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}&employeeId=${row.employeeId}&format=2316`}><Download size={13} style={{ display: "inline" }} /> Text</a>
+                      {" · "}
+                      <a className="link-button" target="_blank" rel="noopener noreferrer" href={`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}&employeeId=${row.employeeId}&format=2316-print`}>Print review</a>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <div className="run-actions">
-            <a className="secondary-button" href={`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}&format=alphalist`}><FileSpreadsheet size={16} className="i-teal" /> Alphalist 1604-C CSV</a>
+            {birPreflight?.canExportSource ? (
+              <a className="secondary-button" href={`/api/year-end?organizationId=${organizationId}&taxYear=${taxYear}&format=alphalist`}>
+                <FileSpreadsheet size={16} className="i-teal" /> Download source CSV
+              </a>
+            ) : (
+              <button type="button" className="secondary-button" onClick={() => void checkBirPreflight()} disabled={checkingBIR}>
+                <FileSpreadsheet size={16} className="i-teal" /> Check BIR source before export
+              </button>
+            )}
+            <small>1604-C Alphalist source only — validate against BIR ADES, generate the official .DAT with the approved tool, and retain actual filing acknowledgement.</small>
           </div>
         </>
       ) : (

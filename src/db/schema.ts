@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   type AnyPgColumn,
+  bigint,
   boolean,
   check,
   date,
@@ -2256,6 +2257,10 @@ export const auditEvents = pgTable("audit_events", {
   resource: varchar("resource", { length: 160 }).notNull(),
   metadata: jsonb("metadata").notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Filled only by seal_audit_events() (drizzle/0109); never written by the app.
+  chainSeq: bigint("chain_seq", { mode: "number" }),
+  prevHash: varchar("prev_hash", { length: 64 }),
+  rowHash: varchar("row_hash", { length: 64 }),
 });
 
 /**
@@ -5386,5 +5391,52 @@ export const attendanceExceptionEvents = pgTable(
     index("attendance_exception_events_sla_idx").on(table.organizationId, table.status, table.slaDueAt),
     check("attendance_exception_events_severity_check", sql`${table.severity} in ('info','warning','blocker')`),
     check("attendance_exception_events_status_check", sql`${table.status} in ('open','resolved')`),
+  ],
+);
+
+
+/**
+ * Maker/checker WFM batch requests. This is not the published roster:
+ * approved schedule_overrides remain the payroll-facing source of truth.
+ * Bulk execution is server-flagged OFF until staging, DBA and release sign-off.
+ */
+export const workforceRosterBatches = pgTable(
+  "workforce_roster_batches",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    workDate: date("work_date").notNull(),
+    shiftDefinitionId: integer("shift_definition_id").notNull().references(() => shiftDefinitions.id, { onDelete: "restrict" }),
+    employeeIds: jsonb("employee_ids").notNull(),
+    evidenceSha256: varchar("evidence_sha256", { length: 64 }).notNull(),
+    requestSha256: varchar("request_sha256", { length: 64 }).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 80 }).notNull(),
+    reason: varchar("reason", { length: 240 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("pending"),
+    requestedByUserId: integer("requested_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    requestedByName: varchar("requested_by_name", { length: 120 }).notNull(),
+    requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedByName: varchar("decided_by_name", { length: 120 }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decisionNote: varchar("decision_note", { length: 240 }),
+    overrideIds: jsonb("override_ids").notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("wfm_roster_batches_idempotency_unique")
+      .on(table.organizationId, table.requestedByUserId, table.idempotencyKey),
+    index("wfm_roster_batches_review_idx")
+      .on(table.organizationId, table.status, table.workDate, table.id),
+    check("wfm_roster_batches_status_check",
+      sql`${table.status} in ('pending','approved','rejected','stale')`),
+    check("wfm_roster_batches_employees_check",
+      sql`jsonb_typeof(${table.employeeIds}) = 'array' and jsonb_array_length(${table.employeeIds}) between 1 and 20`),
+    check("wfm_roster_batches_maker_checker_check",
+      sql`${table.decidedByUserId} is null or ${table.decidedByUserId} <> ${table.requestedByUserId}`),
+    check("wfm_roster_batches_decision_check",
+      sql`(${table.status} = 'pending' and ${table.decidedAt} is null and ${table.decidedByUserId} is null)
+        or (${table.status} <> 'pending' and ${table.decidedAt} is not null and ${table.decidedByUserId} is not null)`),
   ],
 );

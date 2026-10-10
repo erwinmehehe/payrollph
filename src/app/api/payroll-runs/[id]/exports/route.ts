@@ -68,6 +68,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   );
   if (scopeDenied) return scopeDenied;
 
+  if (kind === "government" && template === "bir-1604c-source") {
+    return Response.json({
+      error: "The legacy per-run Alphalist extract does not reconcile year-end adjustments. Use Compliance → Year-End Annualization, run the BIR source preflight, and export from /api/year-end?format=alphalist. This remains source CSV, not an official .DAT.",
+    }, { status: 409 });
+  }
+
   const actor = user.name;
   let finalBankTreasuryEvidence: TreasuryEvidence | null = null;
 
