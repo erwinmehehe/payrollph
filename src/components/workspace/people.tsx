@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ArrowUpDown,
   Building2,
@@ -1344,12 +1345,12 @@ function PersonDrawer({
                   data.access?.companyWide &&
                   ["owner", "admin", "hr"].includes(data.access.role) && (
                     <div style={{ margin: "12px 0 16px" }}>
-                      <a
+                      <Link
                         className="secondary-button"
                         href={`/hcm/worker-360?organizationId=${data.selectedOrganization.id}&employeeId=${employee.id}`}
                       >
                         Open Worker 360 history
-                      </a>
+                      </Link>
                     </div>
                   )}
                 <HcmWorkerJourneyPanel journey={connectedProfile.journey} onPage={onPage} />
