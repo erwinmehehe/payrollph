@@ -1,3 +1,5 @@
+import { receiptDates } from "./workforce-schedule-receipt";
+
 /**
  * Read-only manager projection of an employee's schedule content receipts.
  * A missing acknowledgment is not attendance evidence or a payroll exception.
@@ -26,8 +28,9 @@ export function managerReceiptDays(
   current: readonly Current[],
   historicalDates: ReadonlySet<string>,
 ): ManagerReceiptDay[] {
-  if (projected.length !== 7 || new Set(projected.map(day => day.date)).size !== 7) {
-    throw new Error("A complete seven-day current roster is required.");
+  const expected = receiptDates(projected[0]?.date ?? "");
+  if (projected.length !== 7 || projected.some((day, index) => day.date !== expected[index])) {
+    throw new Error("A complete, consecutive seven-day roster is required.");
   }
   return projected.map(day => {
     if (day.snapshotHash === null) {
