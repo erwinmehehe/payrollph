@@ -1136,6 +1136,88 @@ export const payrollEntries = pgTable("payroll_entries", {
   trace: jsonb("trace").notNull().default({}),
 });
 
+/**
+ * First-class payout intent ledger (A-2). Each employee is represented once
+ * per payroll run; provider requests are recorded separately at batch level
+ * because one PayMongo batch idempotency key covers multiple employees.
+ *
+ * These tables DO NOT authorize sending funds. They remain staging-only until
+ * a separate reviewed submission integration and numbered migration exist.
+ */
+export const payoutBatches = pgTable(
+  "payout_batches",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "restrict" }),
+    payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "restrict" }),
+    provider: varchar("provider", { length: 24 }).notNull().default("paymongo"),
+    idempotencyKey: varchar("idempotency_key", { length: 160 }).notNull(),
+    requestHash: varchar("request_hash", { length: 64 }).notNull(),
+    transferCount: integer("transfer_count").notNull(),
+    totalAmountCents: bigint("total_amount_cents", { mode: "number" }).notNull(),
+    status: varchar("status", { length: 32 }).notNull().default("prepared"),
+    providerBatchId: varchar("provider_batch_id", { length: 160 }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("payout_batches_provider_idempotency_unique").on(table.provider, table.idempotencyKey),
+    uniqueIndex("payout_batches_remote_batch_unique").on(table.provider, table.providerBatchId)
+      .where(sql`${table.providerBatchId} is not null`),
+    index("payout_batches_org_run_status_idx").on(table.organizationId, table.payrollRunId, table.status),
+    check("payout_batches_positive_total_check", sql`${table.transferCount} > 0 and ${table.totalAmountCents} > 0`),
+    check("payout_batches_status_check", sql`${table.status} in ('prepared','submitting','submitted','reconciliation_required','settled','failed','cancelled')`),
+    check("payout_batches_provider_check", sql`${table.provider} = 'paymongo'`),
+  ],
+);
+
+export const payoutTransfers = pgTable(
+  "payout_transfers",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "restrict" }),
+    payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "restrict" }),
+    payrollEntryId: integer("payroll_entry_id").notNull().references(() => payrollEntries.id, { onDelete: "restrict" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+    referenceNumber: varchar("reference_number", { length: 120 }).notNull(),
+    amountCents: bigint("amount_cents", { mode: "number" }).notNull(),
+    status: varchar("status", { length: 32 }).notNull().default("prepared"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("payout_transfers_run_employee_unique").on(table.organizationId, table.payrollRunId, table.employeeId),
+    uniqueIndex("payout_transfers_run_reference_unique").on(table.payrollRunId, table.referenceNumber),
+    uniqueIndex("payout_transfers_entry_unique").on(table.payrollEntryId),
+    index("payout_transfers_org_status_idx").on(table.organizationId, table.status),
+    check("payout_transfers_positive_amount_check", sql`${table.amountCents} > 0`),
+    check("payout_transfers_status_check", sql`${table.status} in ('prepared','submitting','submitted','succeeded','failed','reconciliation_required','cancelled')`),
+  ],
+);
+
+export const payoutBatchTransfers = pgTable(
+  "payout_batch_transfers",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "restrict" }),
+    payoutBatchId: integer("payout_batch_id").notNull().references(() => payoutBatches.id, { onDelete: "restrict" }),
+    payoutTransferId: integer("payout_transfer_id").notNull().references(() => payoutTransfers.id, { onDelete: "restrict" }),
+    providerTransferId: varchar("provider_transfer_id", { length: 160 }),
+    status: varchar("status", { length: 32 }).notNull().default("prepared"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("payout_batch_transfers_batch_transfer_unique").on(table.payoutBatchId, table.payoutTransferId),
+    uniqueIndex("payout_batch_transfers_provider_transfer_unique").on(table.providerTransferId)
+      .where(sql`${table.providerTransferId} is not null`),
+    index("payout_batch_transfers_org_batch_idx").on(table.organizationId, table.payoutBatchId),
+    check("payout_batch_transfers_status_check", sql`${table.status} in ('prepared','submitting','submitted','succeeded','failed','reconciliation_required','cancelled')`),
+  ],
+);
+
 export const payrollJobs = pgTable("payroll_jobs", {
   id: serial("id").primaryKey(),
   payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
