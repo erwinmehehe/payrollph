@@ -33,7 +33,7 @@ function phTime(value: string) {
 export function WorkforceLiveFloor({ organizationId }: { organizationId: number }) {
   const [page, setPage] = useState(1);
   const [snapshot, setSnapshot] = useState<ScopedLiveFloorSnapshot<FloorSnapshot> | null>(null);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<{ scopeKey: string; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState<"all" | "review" | "on_shift" | "upcoming" | "leave">("all");
   const [search, setSearch] = useState("");
@@ -48,7 +48,7 @@ export function WorkforceLiveFloor({ organizationId }: { organizationId: number 
     pendingRequest.current = controller;
     const requestedScope = liveFloorScopeKey(organizationId, page);
     setLoading(true);
-    setError("");
+    setError(null);
     try {
       const params = new URLSearchParams({ organizationId: String(organizationId), page: String(page) });
       const response = await fetch("/api/workforce/live-floor?" + params, {
@@ -61,7 +61,7 @@ export function WorkforceLiveFloor({ organizationId }: { organizationId: number 
       setSnapshot({ scopeKey: requestedScope, data: value as FloorSnapshot });
     } catch (err) {
       if (!isCurrentLiveFloorRequest(controller, pendingRequest.current)) return;
-      setError(err instanceof Error ? err.message : "Could not load live floor.");
+      setError({ scopeKey: requestedScope, message: err instanceof Error ? err.message : "Could not load live floor." });
       setSnapshot(null);
     } finally {
       if (pendingRequest.current === controller) {
@@ -109,7 +109,7 @@ export function WorkforceLiveFloor({ organizationId }: { organizationId: number 
           <RefreshCcw size={15} aria-hidden="true" /> {loading ? "Refreshing…" : "Refresh"}
         </button>
       </div>
-      {error && <div role="alert" className="notice notice-amber">{error}</div>}
+      {error?.scopeKey === scopeKey && <div role="alert" className="notice notice-amber">{error.message}</div>}
       {activeSnapshot && <>
         <p className="id">As of {phTime(activeSnapshot.generatedAt)} (Asia/Manila), {activeSnapshot.workDate} · worker page {activeSnapshot.page} · {activeSnapshot.totalEmployees} visible employees</p>
         <div className="stats-grid">
