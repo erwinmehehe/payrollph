@@ -42,6 +42,7 @@ export function parseRosterBatchProposal(body: Record<string, unknown>, phToday:
   }
   const after = rosterDateOffset(phToday, 1);
   const max = rosterDateOffset(phToday, 35);
+  rosterDateOffset(workDate, 0); // Reject nonexistent calendar dates before lexical bounds.
   if (workDate < after || workDate > max) {
     throw new Error("Bulk roster publication requires a future Philippine work date within 35 days.");
   }
