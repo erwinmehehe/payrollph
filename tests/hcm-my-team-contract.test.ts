@@ -79,6 +79,7 @@ test("all SQL reads use explicit tenant and narrowly scoped team employee IDs", 
   assert.match(source, /inArray\(leaveRequests\.employeeId, employeeIds\)/);
   assert.match(source, /inArray\(overtimeRequests\.employeeId, employeeIds\)/);
   assert.match(source, /gt\(employees\.id, cursor\)/);
+  assert.ok(source.includes("concat_ws"), "full-name search must happen before pagination");
   assert.match(source, /\.limit\(PAGE_SIZE \+ 1\)/);
   assert.match(source, /groupBy\(leaveRequests\.employeeId\)/);
   assert.match(source, /groupBy\(overtimeRequests\.employeeId\)/);
