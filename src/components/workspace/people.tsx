@@ -1717,6 +1717,12 @@ function PersonDrawer({
                 <label>Standard work days / month
                   <input type="number" min="1" max="31" step="0.5" value={standardWorkDaysPerMonth} onChange={(event) => setStandardWorkDaysPerMonth(event.target.value)} />
                 </label>
+                <div className="modal-note" data-monthly-workday-divisor-guidance style={{ gridColumn: "1 / -1" }}>
+                  <strong>Conversion examples, not prescribed divisors:</strong>{" "}
+                  <button className="secondary-button" type="button" onClick={() => setStandardWorkDaysPerMonth("22")}>22 days · example 5-day schedule</button>{" "}
+                  <button className="secondary-button" type="button" onClick={() => setStandardWorkDaysPerMonth("26")}>26 days · example 6-day schedule</button>
+                  <p>Verify the contract, paid leave, rest days and holiday rules before changing this financial assumption. Annual 261/262/313/314 day divisors are not values for this monthly field.</p>
+                </div>
                 <label>Standard hours / day
                   <input type="number" min="1" max="24" step="0.25" value={standardHoursPerDay} onChange={(event) => setStandardHoursPerDay(event.target.value)} />
                 </label>
