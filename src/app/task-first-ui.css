@@ -160,3 +160,6 @@
 .linaw-dialog.tf-hire-dialog .modal-actions .primary-button:hover{background:#116b61}
 .linaw-dialog.tf-hire-dialog .modal-actions .primary-button:focus-visible,.linaw-dialog.tf-hire-dialog .modal-close:focus-visible{outline:3px solid #58b8ac;outline-offset:2px}
 @media(max-width:640px){.linaw-dialog.tf-hire-dialog{padding:9px}.linaw-dialog.tf-hire-dialog .modal.large{padding:23px 17px;max-height:96vh;border-radius:15px}.linaw-dialog.tf-hire-dialog .tf-hire-step{grid-template-columns:1fr;gap:12px}.linaw-dialog.tf-hire-dialog .tf-hire-progress{margin:12px 0 17px;gap:3px}.linaw-dialog.tf-hire-dialog .tf-hire-progress span{font-size:9px;flex:1 1 0;min-width:0;padding:8px 2px}.linaw-dialog.tf-hire-dialog .modal-actions{bottom:-23px}.linaw-dialog.tf-hire-dialog .modal-actions .secondary-button{padding:10px 12px}}
+
+/* Increase selector specificity over legacy wizard styles so active payroll stage is teal. */
+.tf-payroll-home .tf-step-track li.tf-step-current > .tf-step-number{background:#defeed;border-color:#defeed;color:#124c48;box-shadow:0 0 0 4px rgba(138,234,216,.10)}
