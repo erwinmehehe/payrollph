@@ -128,6 +128,12 @@ test("My Team isolates employer and exact unit, with SQL paging before request c
     assert.equal(filtered.items.length, 1);
     assert.equal(filtered.items[0].status, "On leave");
 
+    const fullName = await loadHcmMyTeam({
+      organizationId: alpha.id, scope, cursor: 0,
+      query: "ScopedAlpha0 Synthetic", statusFilter: "Active",
+    });
+    assert.deepEqual(fullName.items.map((row) => row.id), [firstWorker.id]);
+
     const otherUnit = await loadHcmMyTeam({
       organizationId: alpha.id, scope, cursor: 0,
       query: "OutsideAlpha", statusFilter: "all",
