@@ -18,6 +18,7 @@
 - No bank, government, employee pay rate or payroll API is accessed.
 - It does not infer missed attendance, unpaid work or statutory OT from a roster draft.
 - No silent rest-day changes, retroactive edits, missing worksite selection or silently backdated overrides.
+- This pilot **rejects overnight target or existing shifts** until interval-level approved leave, premium and post-midnight attendance boundaries are independently proven. Other adjacent-day shifts are checked with schedule guardrails.
 - It is intentionally stricter than the existing one-worker override workflow and excludes even preexisting draft payroll periods.
 - Government labor or payroll compliance is **not certified** by these code checks.
 
