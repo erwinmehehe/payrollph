@@ -27,3 +27,49 @@ export function classifyDocumentRenewal(input: {
 export function documentWatchEnabled(env: NodeJS.ProcessEnv = process.env) {
   return env.HCM_DOCUMENT_RENEWAL_WATCH_ENABLED === "true";
 }
+
+/** The query API applies these choices before SQL keyset pagination. */
+export const DOCUMENT_WATCH_STATES = [
+  "all", "overdue", "expired", "expiring", "missing", "submitted", "current", "waived",
+] as const;
+export type DocumentWatchStateFilter = (typeof DOCUMENT_WATCH_STATES)[number];
+
+export const DOCUMENT_WATCH_EXPIRIES = [
+  "all", "past", "next30", "next60", "next90",
+] as const;
+export type DocumentWatchExpiry = (typeof DOCUMENT_WATCH_EXPIRIES)[number];
+
+export type DocumentWatchRow = {
+  id: number;
+  employeeId: number;
+  employeeNo: string;
+  employeeName: string;
+  orgUnitId: number | null;
+  requirementId: number;
+  requirementName: string;
+  requirementCode: string;
+  state: DocumentRenewalState;
+  recordedStatus: string;
+  dueAt: string | null;
+  expiresAt: string | null;
+  mandatory: boolean;
+  hasAttachment: boolean;
+};
+
+/** Tenant-scoped, privacy-minimized, bounded response. Counts are page-only. */
+export type DocumentWatchResponse = {
+  organizationId: number;
+  asOf: string;
+  filters: {
+    q: string;
+    state: DocumentWatchStateFilter;
+    expiry: DocumentWatchExpiry;
+  };
+  items: DocumentWatchRow[];
+  page: {
+    size: number;
+    hasMore: boolean;
+    nextCursor: number | null;
+  };
+  note: string;
+};
