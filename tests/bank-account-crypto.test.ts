@@ -54,10 +54,21 @@ test("an encrypted value with no key configured is an error, never a silent blan
   assert.throws(() => decryptBankAccount(sealed, withKey(undefined)), /configured/);
 });
 
-test("rollout is non-breaking: legacy plaintext reads, and writes pass through without a key", () => {
+test("legacy plaintext remains readable for migration, but non-empty writes fail closed without a key", () => {
   assert.equal(decryptBankAccount("1234567890", withKey(KEY_A)), "1234567890");
   assert.equal(decryptBankAccount("1234567890", withKey(undefined)), "1234567890");
-  assert.equal(encryptBankAccount("1234567890", withKey(undefined)), "1234567890");
+  assert.throws(
+    () => encryptBankAccount("1234567890", withKey(undefined)),
+    /Bank-account save refused: configure BANK_DATA_ENCRYPTION_KEY or TOTP_ENCRYPTION_KEY/,
+  );
+  const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
+  assert.throws(
+    () => encryptBankAccount(sealed, withKey(undefined)),
+    /Bank-account save refused/,
+    "re-saving ciphertext must not silently skip key verification",
+  );
+  assert.equal(encryptBankAccount(null, withKey(undefined)), null);
+  assert.equal(encryptBankAccount("  ", withKey(undefined)), null);
 });
 
 test("saving twice never double-encrypts, and empty stays null", () => {
