@@ -15,7 +15,8 @@ import {
 } from "@/lib/security-request";
 import {
   canReviewRosterBatch, parseRecordedBatchEmployeeIds, parseRosterBatchProposal,
-  rosterBatchRequestSha, rosterBulkPublishEnabled, safeSha256,
+  rosterBatchRequestSha, rosterBulkPublishEnabled, rosterBulkPilotOrganizationAllowed,
+  safeSha256,
 } from "@/lib/workforce-bulk-publish";
 import { phWorkDateAt } from "@/lib/workforce-manager-actions";
 import { rosterDateOffset } from "@/lib/workforce-team-roster";
@@ -45,6 +46,10 @@ export async function GET(request: Request) {
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0 || organizationId > 2147483647) {
     return Response.json({ error: "A valid employer is required." }, { status: 400 });
+  }
+  if (!rosterBulkPilotOrganizationAllowed(organizationId)) {
+    return Response.json({ error: "Governed roster batches are not enabled for this organization." },
+      { status: 404, headers: noStore });
   }
   const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES,
     "Only People administrators may view governed roster batches.");
@@ -99,6 +104,10 @@ export async function POST(request: Request) {
     || !["stage", "approve", "reject"].includes(action)) {
     return Response.json({ error: "Valid employer and stage/approve/reject action are required." },
       { status: 400 });
+  }
+  if (!rosterBulkPilotOrganizationAllowed(organizationId)) {
+    return Response.json({ error: "Governed roster batches are not enabled for this organization." },
+      { status: 404, headers: noStore });
   }
   const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES,
     "Only People administrators may stage or decide roster batches.");
