@@ -7,6 +7,7 @@ import {
   parseRosterBatchProposal,
   rosterBatchRequestSha,
   rosterBulkPublishEnabled,
+  rosterBulkPilotOrganizationAllowed,
   safeSha256,
 } from "../src/lib/workforce-bulk-publish";
 
@@ -99,4 +100,32 @@ test("staging and checking are only exposed behind UI gate; no automatic bank/pa
   assert.ok(reviews.includes('snapshot?.employer === organizationId'));
   assert.ok(!p.includes('/api/payroll'));
   assert.ok(!reviews.includes('/api/payout'));
+});
+
+test("bulk pilot tenant gate rejects missing, malformed and broad configuration", () => {
+  const permitted = (org: number, allowlist?: string) =>
+    rosterBulkPilotOrganizationAllowed(org, allowlist);
+  assert.equal(permitted(17, undefined), false);
+  assert.equal(permitted(17, ""), false);
+  assert.equal(permitted(17, "*"), false);
+  assert.equal(permitted(17, "17"), true);
+  assert.equal(permitted(18, "17"), false);
+  assert.equal(permitted(18, "17, 18, 29"), true);
+  assert.equal(permitted(18, "17, 18, *"), false);
+  assert.equal(permitted(18, "18, 18"), false);
+  assert.equal(permitted(18, "18, -19"), false);
+  assert.equal(permitted(18, "18, +19"), false);
+  assert.equal(permitted(18, "18, 0"), false);
+  assert.equal(permitted(18, "18, 2147483648"), false);
+  assert.equal(permitted(18, "18,"), false);
+  assert.equal(permitted(18, "18,not-an-id"), false);
+  assert.equal(permitted(18, Array.from({ length: 21 }, (_, i) => String(i + 1)).join(",")), false);
+  assert.equal(permitted(2147483648, "2147483648"), false);
+});
+
+test("both API methods enforce server-side pilot allowlist before tenant data access", () => {
+  const api = readFileSync("src/app/api/workforce/roster-batches/route.ts", "utf8");
+  assert.equal((api.match(/if \(!rosterBulkPilotOrganizationAllowed\(organizationId\)\)/g) ?? []).length, 2);
+  assert.ok(api.includes('Governed roster batches are not enabled for this organization.'));
+  assert.ok(!api.includes("NEXT_PUBLIC_WFM_BULK_ROSTER_ALLOWED_ORGANIZATION_IDS"));
 });
