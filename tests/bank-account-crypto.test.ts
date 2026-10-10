@@ -162,6 +162,16 @@ test("every place that reads or writes the number goes through the crypto module
     assert.ok(!/bankAccount: row\.bankAccount,/.test(source), `${path} must not store the raw number`);
   }
 
+  const payoutControls = read("src/lib/payout-destination-controls.ts");
+  assert.ok(payoutControls.includes("bankAccount: encryptBankAccount(request.proposedBankAccount)"),
+    "approving an old pending payout change must reseal the proposed account");
+  assert.ok(payoutControls.includes("const proposedBankAccount = encryptBankAccount("),
+    "even bank-code-only payout changes must seal a legacy account");
+
+  const legalEntities = read("src/app/api/legal-entities/route.ts");
+  assert.ok(legalEntities.includes("encryptBankAccount(existing.disbursementAccount)"),
+    "editing a legal entity must not preserve a legacy plaintext disbursement account");
+
   const publicDemo = read("src/db/public-demo.ts");
   assert.ok(publicDemo.includes("bankAccount: null"), "public demo must not persist bank-account data at all");
   assert.ok(!publicDemo.includes("encryptBankAccount(person.bankAccount)"), "public demo must not depend on production bank encryption keys");
