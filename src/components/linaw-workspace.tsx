@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Clock, ShieldCheck, Sparkles } from "lucide-react";
 import { AssetsPanel } from "@/components/assets-panel";
 import { AutomationStudioPanel } from "@/components/automation-studio-panel";
@@ -345,6 +346,15 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
         allowClientSwitch={allowClientSwitch}
         headerExtras={
           <>
+            {!demoRole && !isFreelancer && effectiveRole === "manager" &&
+              process.env.NEXT_PUBLIC_HCM_MANAGER_TEAM_ENABLED === "true" && (
+                <Link
+                  className="topbar-link"
+                  href={`/hcm/my-team?organizationId=${data.selectedOrganization.id}`}
+                >
+                  My team
+                </Link>
+              )}
             {availablePages.includes("Compliance") && (
               <button className="topbar-link" onClick={() => setGovModalOpen(true)}>
                 <ShieldCheck size={13} style={{ color: "var(--brand)" }} /> Gov status
