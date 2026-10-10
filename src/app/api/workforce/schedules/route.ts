@@ -1,6 +1,7 @@
-import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   employeeScheduleAssignments,
   employeeWorksiteAssignments,
   employees,
@@ -76,8 +77,8 @@ function addDays(dateText: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-async function scheduleGuardrailPolicy(organizationId: number): Promise<ScheduleGuardrailPolicy> {
-  const [row] = await db.select().from(workforceScheduleGuardrailPolicies)
+async function scheduleGuardrailPolicy(organizationId: number, executor: Pick<typeof db, "select"> = db): Promise<ScheduleGuardrailPolicy> {
+  const [row] = await executor.select().from(workforceScheduleGuardrailPolicies)
     .where(eq(workforceScheduleGuardrailPolicies.organizationId, organizationId))
     .limit(1);
   if (!row) return DEFAULT_SCHEDULE_GUARDRAIL_POLICY;
