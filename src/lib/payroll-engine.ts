@@ -41,7 +41,6 @@ import {
   yearEndAdjustments,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
-import { encryptBankAccount } from "@/lib/bank-account-crypto";
 import { validPayrollLoanSchedule } from "@/lib/payroll-loan-approval";
 import {
   computeCutoffStatutoryDeduction,
@@ -1594,8 +1593,7 @@ async function processPayrollChunk(input: {
           middleName: employee.middleName,
           lastName: employee.lastName,
           email: employee.email,
-          // Never persist a legacy plaintext account into the payroll trace.
-          bankAccount: encryptBankAccount(employee.bankAccount),
+          bankAccount: employee.bankAccount,
           bankCode: employee.bankCode,
           mobile: employee.mobile,
         },
