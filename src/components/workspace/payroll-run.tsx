@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
+import type { TaskTarget } from "@/lib/task-first-ui";
 import { PayrollConnectedImpactPanel } from "./payroll-connected-impact-panel";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
@@ -76,6 +77,7 @@ export function PayrollRunView({
   onRefresh,
   notify,
   availablePages = [],
+  taskTarget,
 }: {
   data: DashboardData;
   busy: boolean;
@@ -87,8 +89,12 @@ export function PayrollRunView({
   onRefresh: () => Promise<void>;
   notify: Notify;
   availablePages?: readonly string[];
+  taskTarget?: TaskTarget & {sequence:number};
 }) {
   const [selectedId, setSelectedId] = useState<number | undefined>(data.payrollRuns[0]?.id);
+  const taskSequence = taskTarget?.sequence;
+  const targetRunId = taskTarget?.runId;
+  const targetFocus = taskTarget?.focus;
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
   const [explainEmployeeId, setExplainEmployeeId] = useState<number | null>(null);
@@ -115,6 +121,13 @@ export function PayrollRunView({
   } | null>(null);
   const [releaseReceipt, setReleaseReceipt] = useState<PayrollReleaseReceipt | null>(null);
   const [releaseFailure, setReleaseFailure] = useState<{ runId: number; error: string } | null>(null);
+
+  useEffect(() => {
+    if (taskSequence === undefined) return;
+    if (targetRunId && data.payrollRuns.some(r=>r.id===targetRunId)) setSelectedId(targetRunId);
+    setOnlyExceptions(targetFocus === "exceptions");
+    setExpanded(null);
+  },[taskSequence,targetRunId,targetFocus,data.payrollRuns]);
 
   // Derived, not synced: if the selected run disappears (client switch, new
   // run) the first run takes over without an effect round-trip.
@@ -188,6 +201,14 @@ export function PayrollRunView({
   // have come back, unless the request already failed.
   const entriesFailed = failedRunId === runId;
   const entriesLoading = !loadedForSelection && !entriesFailed;
+
+  useEffect(() => {
+    if (taskSequence === undefined || !run || (targetRunId && run.id !== targetRunId)) return;
+    const id = targetFocus === "exceptions" || targetFocus === "register" ? "payroll-register" : targetFocus === "comparison" ? "payroll-assurance" : null;
+    if (!id) return;
+    const frame = requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({behavior:"smooth",block:"start"}));
+    return () => cancelAnimationFrame(frame);
+  },[taskSequence,targetRunId,targetFocus,run?.id]);
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
