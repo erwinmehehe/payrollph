@@ -52,7 +52,9 @@ export async function checkIndependentPayrollReleaser(input: {
   approvalTaskId: number;
   releasingUserId: number;
 }): Promise<Response | null> {
-  const events = await db.select({ metadata: auditEvents.metadata })
+  let events: PayrollCheckerAudit[];
+  try {
+    events = await db.select({ metadata: auditEvents.metadata })
     .from(auditEvents)
     .where(and(
       eq(auditEvents.organizationId, input.organizationId),
@@ -61,6 +63,14 @@ export async function checkIndependentPayrollReleaser(input: {
       sql`${auditEvents.metadata} ->> 'payrollRunId' = ${String(input.payrollRunId)}`,
     ))
     .limit(2);
+  } catch {
+    // The caller has claimed Ready -> Releasing. Return a denial so its
+    // existing guarded reset runs; never strand the claim on a read failure.
+    return Response.json({
+      code: "PAYROLL_CHECKER_EVIDENCE_UNAVAILABLE",
+      error: "Payroll checker evidence is temporarily unavailable. No settlement was attempted.",
+    }, { status: 503, headers: { "Cache-Control": "private, no-store" } });
+  }
   const violation = independentPayrollReleaseViolation({
     approvalEvents: events,
     releasingUserId: input.releasingUserId,

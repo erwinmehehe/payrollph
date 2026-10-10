@@ -10,6 +10,17 @@ import {
 
 const evidence = (deciderUserId: unknown) => ({ metadata: { deciderUserId } });
 
+test("checker evidence read failure returns a safe denial for claim recovery", async (t) => {
+  t.mock.method(db, "select", () => { throw new Error("private database connection detail"); });
+  const response = await checkIndependentPayrollReleaser({
+    organizationId: 1, payrollRunId: 2, approvalTaskId: 3, releasingUserId: 4,
+  });
+  assert.equal(response?.status, 503);
+  const body = await response!.json();
+  assert.equal(body.code, "PAYROLL_CHECKER_EVIDENCE_UNAVAILABLE");
+  assert.ok(!JSON.stringify(body).includes("private database"));
+});
+
 test("checker/releaser SoD uses authenticated identity, never display-name similarity", () => {
   assert.equal(independentPayrollReleaseViolation({
     approvalEvents: [evidence(11)], releasingUserId: 22,
