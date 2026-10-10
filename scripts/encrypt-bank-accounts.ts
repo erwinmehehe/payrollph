@@ -1,7 +1,7 @@
 import "dotenv/config";
-import { eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db, pool } from "../src/db";
-import { employees, payrollEntries } from "../src/db/schema";
+import { employeePayoutChangeRequests, employees, legalEntities, payrollEntries } from "../src/db/schema";
 import {
   bankEncryptionConfigured,
   decryptBankAccount,
@@ -24,11 +24,10 @@ import {
  *   3. Run this once without flags. It only reports what it would change.
  *   4. Run it again with --apply.
  *
- * It also encrypts the copy of the account number that every payroll entry
- * keeps in its payment snapshot (payroll_entries.trace.payment). Without that,
- * old runs would still hold the plaintext number even after the employee row
- * was protected. The release guard compares by decrypted value, so re-sealing
- * a snapshot does not make it look "changed".
+ * It also encrypts payroll payment snapshots, legacy proposed payout-destination
+ * accounts, and legal-entity disbursement accounts. Otherwise an operator
+ * could see "zero plaintext" on employees while those other tables still
+ * retain copies. The release guard compares by decrypted value.
  *
  * Safe to re-run: already-encrypted rows are skipped, and every row is
  * decrypted again after writing and compared to the original before the script
@@ -71,6 +70,17 @@ async function main() {
 
   const pending = rows.filter((row) => row.bankAccount?.trim() && !isEncryptedBankAccount(row.bankAccount));
   const alreadyEncrypted = rows.filter((row) => isEncryptedBankAccount(row.bankAccount)).length;
+  const legalLegacy = await db.select({
+    id: legalEntities.id, bankAccount: legalEntities.disbursementAccount,
+  }).from(legalEntities).where(sql`${legalEntities.disbursementAccount} is not null
+    and ${legalEntities.disbursementAccount} <> ''
+    and ${legalEntities.disbursementAccount} not like 'enc:v1:%'`);
+
+  const proposedLegacy = await db.select({
+    id: employeePayoutChangeRequests.id, bankAccount: employeePayoutChangeRequests.proposedBankAccount,
+  }).from(employeePayoutChangeRequests).where(sql`${employeePayoutChangeRequests.proposedBankAccount} is not null
+    and ${employeePayoutChangeRequests.proposedBankAccount} <> ''
+    and ${employeePayoutChangeRequests.proposedBankAccount} not like 'enc:v1:%'`);
 
   console.log(
     `${rows.length} employee(s) have a bank account. ${alreadyEncrypted} already encrypted, ${pending.length} to encrypt.`,
@@ -84,6 +94,8 @@ async function main() {
                  and ${payrollEntries.trace} #>> '{payment,bankAccount}' <> ''
                  and ${payrollEntries.trace} #>> '{payment,bankAccount}' not like 'enc:v1:%'`);
     console.log(`${snapshotCount} payroll payment snapshot(s) also hold a plaintext account number.`);
+    console.log(`${legalLegacy.length} legal entity disbursement account(s) hold plaintext.`);
+    console.log(`${proposedLegacy.length} payout change request(s) hold plaintext.`);
     console.log("Dry run, nothing written. Re-run with --apply to encrypt.");
     return;
   }
