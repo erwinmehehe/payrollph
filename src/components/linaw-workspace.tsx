@@ -500,6 +500,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
             onPage={setPage}
             canManage={canManagePeople}
             focusEmployeeId={focusEmployeeId}
+            taskFilter={taskFirst && taskTarget?.page === "People" && taskTarget.filter === "missing-payout" ? "missing-payout" : undefined}
+            taskSequence={taskFirst && taskTarget?.page === "People" ? taskSequence : undefined}
             onClearFocus={() => setFocusEmployeeId(null)}
           />
         )}
@@ -527,6 +529,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
         {page === "Time & attendance" && (
           <TimeView
             data={data}
+            taskFilter={taskFirst && taskTarget?.page === "Time & attendance" && taskTarget.filter === "attendance-exceptions" ? "attendance-exceptions" : undefined}
+            taskSequence={taskFirst && taskTarget?.page === "Time & attendance" ? taskSequence : undefined}
             onOpenBundy={() => setWebBundyOpen(true)}
             notify={notify}
             canManage={canManageTime}
