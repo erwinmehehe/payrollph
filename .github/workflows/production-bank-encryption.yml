@@ -29,6 +29,7 @@ jobs:
       BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY || secrets.BANK_DATA_ENCRYPTION_KEY }}
       TOTP_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_TOTP_ENCRYPTION_KEY || secrets.TOTP_ENCRYPTION_KEY }}
       PRODUCTION_BASE_URL: https://erwinmehehe-payrollph.vercel.app
+      PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
     steps:
       - uses: actions/checkout@v7
 
@@ -51,7 +52,11 @@ jobs:
             echo "Missing production bank encryption key material."
             exit 1
           fi
-          echo "Required database and encryption secret material is present."
+          if [ -z "${PRODUCTION_READINESS_TOKEN:-}" ]; then
+            echo "Missing PRODUCTION_READINESS_TOKEN for private production readiness probe."
+            exit 1
+          fi
+          echo "Required database, bank encryption and readiness secret material is present."
 
       - name: Prepare bank-account column safely
         run: npx tsx scripts/prepare-bank-encryption.ts
@@ -62,7 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           local_fp=$(npx tsx -e 'import { bankEncryptionKeyFingerprint } from "./src/lib/bank-account-crypto"; const fp = bankEncryptionKeyFingerprint(); if (!fp) process.exit(2); console.log(fp);')
-          body=$(curl --fail --silent --show-error --max-time 20 "${PRODUCTION_BASE_URL%/}/api/readiness/pilot-status")
+          body=$(curl --fail --silent --show-error --max-time 20 -H "x-readiness-token: ${PRODUCTION_READINESS_TOKEN}" "${PRODUCTION_BASE_URL%/}/api/readiness/pilot-status")
           live_fp=$(printf '%s' "$body" | jq -r '.bankEncryptionFingerprint // empty')
 
           if [ -z "$live_fp" ]; then
@@ -106,7 +111,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          body=$(curl --fail --silent --show-error --max-time 20 "${PRODUCTION_BASE_URL%/}/api/readiness/pilot-status")
+          body=$(curl --fail --silent --show-error --max-time 20 -H "x-readiness-token: ${PRODUCTION_READINESS_TOKEN}" "${PRODUCTION_BASE_URL%/}/api/readiness/pilot-status")
           if printf '%s' "$body" | jq -e '.criticalBlockers | index("bank-data-encryption") != null' >/dev/null; then
             echo "Production still reports bank-data-encryption as a critical blocker."
             printf '%s' "$body" | jq '{status, criticalBlockers, launchBlockers, deploymentSha}'

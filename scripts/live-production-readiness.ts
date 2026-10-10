@@ -263,7 +263,10 @@ async function verifyDetailedReadiness() {
 }
 
 async function verifySanitizedReadiness() {
-  const response = await fetchWithTimeout(`${baseUrl}/api/readiness/pilot-status`);
+  assert.ok(token.length >= 24, "PRODUCTION_READINESS_TOKEN is required for the private pilot-readiness probe.");
+  const response = await fetchWithTimeout(`${baseUrl}/api/readiness/pilot-status`, {
+    headers: { "x-readiness-token": token },
+  });
   const payload = await response.json().catch(() => ({}));
   assert.ok(
     response.ok,
