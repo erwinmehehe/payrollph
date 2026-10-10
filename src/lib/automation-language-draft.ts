@@ -293,6 +293,10 @@ export function matchApprovedLanguageTemplate(request: string): TypedAutomationL
 // the administrator to avoid names and other sensitive employee details.
 const LIKELY_PERSONAL_DATA = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:\+63|0)9[\s-]?\d{3}[\s-]?\d{3}[\s-]?\d{4}|\b\d{8,}\b/i;
 
+// Keep case-level health, family, discipline, allegations and sensitive payroll
+// details in the governed manual workflow builder, not an external model.
+const SENSITIVE_PERSONNEL_CASE = /\b(?:diagnos(?:is|ed)|medical condition|medical history|mental health|pregnan(?:cy|t)|HIV|disabilit(?:y|ies)|sick leave details|disciplin(?:ary|e)|misconduct|harassment|grievance|termination reason|investigation|criminal allegation|garnishment|bank account|government id|salary amount|wage dispute)\b/i;
+
 const UNSAFE_DIRECT_REQUEST = /\b(bypass approval|skip (?:review|approval)|publish (?:it )?automatically|auto.?publish|execute immediately|send (?:money|payment|payout)|transfer funds)\b/i;
 
 export class LanguageDraftError extends Error {
@@ -381,6 +385,12 @@ export async function draftAutomationFromLanguage(request: string, options: { or
   }
   if (LIKELY_PERSONAL_DATA.test(prompt)) {
     throw new LanguageDraftError("Remove personal contact details and long identification/account numbers before drafting.", 422);
+  }
+  if (SENSITIVE_PERSONNEL_CASE.test(prompt)) {
+    throw new LanguageDraftError(
+      "Describe a generic workflow without personal medical, disciplinary, identification or compensation case details. Use the governed manual builder for sensitive situations.",
+      422,
+    );
   }
 
   if (/\b(?:org(?:anization)?(?:\s+unit)?|payroll(?:\s+run)?|timesheet(?:\s+expectation)?|worksite|benefit(?:\s+plan)?|contribution(?:\s+case)?|case|document(?:\s+requirement)?|position|legal(?:\s+entity)?|employee)[-\s]*(?:id|code|version)\b/i.test(prompt)) {
