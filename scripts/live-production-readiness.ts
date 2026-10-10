@@ -338,9 +338,22 @@ async function main() {
     `Unauthenticated detailed readiness must be protected or fail-closed in production, got ${unauthenticated.status}.`,
   );
 
+  // Code-only deploy checks can prove the exact public deployment SHA and
+  // login surfaces without reading protected payroll/bank readiness details.
+  // Pilot/full mode still fails closed without a configured operator token.
   const result = token.length >= 24
     ? await verifyDetailedReadiness()
-    : await verifySanitizedReadiness();
+    : rolloutMode === "code"
+      ? {
+          status: "deployment-verified-only",
+          codeReady: true,
+          pilotReady: false,
+          fullLaunchReady: false,
+          criticalBlockers: ["readiness-token-not-configured"],
+          launchBlockers: [],
+          launchBlockersRemaining: null,
+        }
+      : await verifySanitizedReadiness();
 
   writeReport();
   console.log(JSON.stringify({ ok: true, rolloutMode, gaApproved: false, externalCertification: "not-assessed-by-live-readiness-probe", ...result }, null, 2));
