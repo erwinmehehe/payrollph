@@ -8,7 +8,8 @@ import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa,
 } from "@/lib/security-request";
 import {
-  positiveSalaryRateCents, previewHistoricalSalaryRate, validSalaryCorrectionDate,
+  isSalaryCorrectionRequestObject, positiveSalaryRateCents, previewHistoricalSalaryRate,
+  projectSalaryCorrectionEvidence, validSalaryCorrectionDate,
 } from "@/lib/hcm-salary-correction-preview";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,11 @@ export async function POST(request: Request) {
   const demoDenied = publicDemoMutationDenied(user.email, "Salary correction impact preview");
   if (demoDenied) return demoDenied;
 
-  const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+  const payload: unknown = await request.json().catch(() => null);
+  if (!isSalaryCorrectionRequestObject(payload)) {
+    return Response.json({ error: "A JSON object is required." }, { status: 400 });
+  }
+  const body = payload;
   const organizationId = Number(body.organizationId);
   const employeeId = Number(body.employeeId);
   const legalEntityId = Number(body.legalEntityId);
@@ -168,6 +173,7 @@ export async function POST(request: Request) {
       currentRateAmount: profile.rateAmount,
       revisions: history, historyCapped,
     });
+    const publicEvidence = projectSalaryCorrectionEvidence(assessment, history);
     const affectedPayrollPeriods = payrollRows.slice(0, PAYROLL_PERIOD_LIMIT).map((row) => ({
       runId: row.runId,
       entryId: row.entryId,
@@ -185,8 +191,8 @@ export async function POST(request: Request) {
       legalEntityId,
       employeeStatus: employee.status,
       latestRevisionId,
-      assessment,
-      recentRevisions: history,
+      assessment: publicEvidence.assessment,
+      recentRevisions: publicEvidence.recentRevisions,
       affectedPayrollPeriods,
       preview: {
         historyCapped, periodsCapped,

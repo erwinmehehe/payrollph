@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  positiveSalaryRateCents, previewHistoricalSalaryRate, validSalaryCorrectionDate,
+  isSalaryCorrectionRequestObject, positiveSalaryRateCents, previewHistoricalSalaryRate,
+  projectSalaryCorrectionEvidence, validSalaryCorrectionDate,
 } from "../src/lib/hcm-salary-correction-preview";
 
 test("PH salary correction dates reject invalid or impossible dates", () => {
@@ -74,4 +75,76 @@ test("API is default-off, scoped, and incapable of applying payroll changes", ()
   assert.ok(!source.includes("db.update("));
   assert.ok(!source.includes("db.delete("));
   assert.ok(!source.includes("db.transaction("));
+});
+
+test("salary preview rejects non-object JSON without dereferencing null", () => {
+  for (const value of [null, undefined, [], [1], true, false, 1, "{}", "null"]) {
+    assert.equal(isSalaryCorrectionRequestObject(value), false);
+  }
+  assert.equal(isSalaryCorrectionRequestObject({}), true);
+  assert.equal(isSalaryCorrectionRequestObject({ organizationId: 1 }), true);
+  const source = readFileSync("src/app/api/hcm/salary-corrections/preview/route.ts", "utf8");
+  assert.match(source, /request\.json\(\)\.catch\(\(\) => null\)/);
+  const guard = source.indexOf("if (!isSalaryCorrectionRequestObject(payload))");
+  assert.ok(guard >= 0 && guard < source.indexOf("Number(body.organizationId)"));
+  assert.match(source, /A JSON object is required[\s\S]*?status: 400/);
+});
+
+test("client evidence allowlist excludes raw rates and unexpected source fields", () => {
+  const revisions = [{
+    id: 2, effectiveDate: "2026-09-01", previousPayBasis: "monthly",
+    previousRateAmount: "20000.00", newPayBasis: "monthly", newRateAmount: "25000.00",
+    bankAccount: "SYNTHETIC-BANK-DO-NOT-EXPOSE", notes: "SYNTHETIC-HR-NOTE",
+  }];
+  const calculated = previewHistoricalSalaryRate({
+    effectiveDate: "2026-09-15", proposedPayBasis: "monthly", proposedRateAmount: "22000.00",
+    currentPayBasis: "monthly", currentRateAmount: "25000.00", revisions, historyCapped: false,
+  });
+  const assessment = {
+    ...calculated,
+    before: { ...calculated.before!, notes: "SYNTHETIC-BEFORE-NOTE" },
+    proposed: { ...calculated.proposed, bankAccount: "SYNTHETIC-PROPOSED-BANK" },
+    employeeName: "SYNTHETIC-EMPLOYEE-NAME",
+  };
+  const original = JSON.stringify({ assessment, revisions });
+  const projected = projectSalaryCorrectionEvidence(assessment, revisions);
+  assert.deepEqual(projected, {
+    assessment: {
+      effectiveDate: "2026-09-15", before: { payBasis: "monthly" },
+      proposed: { payBasis: "monthly" }, rateDeltaPerBasisUnit: "-3000.00",
+      evidence: "revision_as_of_date", payrollAmountDelta: null,
+      requiresIndependentPayrollRecalculation: true,
+    },
+    recentRevisions: [{ id: 2, effectiveDate: "2026-09-01", previousPayBasis: "monthly", newPayBasis: "monthly" }],
+  });
+  assert.doesNotMatch(JSON.stringify(projected), /rateAmount|previousRateAmount|newRateAmount|20000\.00|25000\.00|22000\.00|SYNTHETIC-/);
+  assert.equal(JSON.stringify({ assessment, revisions }), original, "projection must not mutate calculation evidence");
+});
+
+test("redaction preserves unknown evidence and never invents a payable amount", () => {
+  for (const historyCapped of [false, true]) {
+    const assessment = previewHistoricalSalaryRate({
+      effectiveDate: "2026-01-15", proposedPayBasis: "hourly", proposedRateAmount: "150.00",
+      currentPayBasis: "monthly", currentRateAmount: "22000.00", revisions: [], historyCapped,
+    });
+    const projected = projectSalaryCorrectionEvidence(assessment, []);
+    assert.equal(projected.assessment.evidence, historyCapped ? "incomplete_history" : "current_profile_unverified");
+    assert.equal(projected.assessment.rateDeltaPerBasisUnit, null);
+    assert.equal(projected.assessment.payrollAmountDelta, null);
+    assert.equal(projected.assessment.requiresIndependentPayrollRecalculation, true);
+    assert.deepEqual(projected.assessment.before, historyCapped ? null : { payBasis: "monthly" });
+    assert.deepEqual(projected.recentRevisions, []);
+    assert.doesNotMatch(JSON.stringify(projected), /rateAmount|22000\.00|150\.00/);
+  }
+});
+
+test("successful API response uses projected evidence rather than raw salary history", () => {
+  const source = readFileSync("src/app/api/hcm/salary-corrections/preview/route.ts", "utf8");
+  assert.match(source, /const publicEvidence = projectSalaryCorrectionEvidence\(assessment, history\)/);
+  const responseStart = source.indexOf('status: "assessment_only"');
+  assert.ok(responseStart >= 0);
+  const response = source.slice(responseStart);
+  assert.match(response, /assessment: publicEvidence\.assessment/);
+  assert.match(response, /recentRevisions: publicEvidence\.recentRevisions/);
+  assert.doesNotMatch(response, /recentRevisions:\s*history|\n\s*assessment,|\.\.\.(?:assessment|history)|rateAmount|previousRateAmount|newRateAmount/);
 });

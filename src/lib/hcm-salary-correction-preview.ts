@@ -86,3 +86,38 @@ export function previewHistoricalSalaryRate(input: {
     requiresIndependentPayrollRecalculation: true as const,
   };
 }
+
+/** Reject non-object JSON before the API reads any request properties. */
+export function isSalaryCorrectionRequestObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Explicit response allowlist: keep raw rates inside the calculation boundary.
+ * The permitted per-unit difference is still sensitive compensation evidence,
+ * not anonymous data or a payable amount; the API's payroll/MFA gates remain.
+ * Never spread source objects here: future salary, bank or note fields must not
+ * become client-visible merely because they were added to an internal record.
+ */
+export function projectSalaryCorrectionEvidence(
+  assessment: ReturnType<typeof previewHistoricalSalaryRate>,
+  revisions: readonly SalaryRateRevisionEvidence[],
+) {
+  return {
+    assessment: {
+      effectiveDate: assessment.effectiveDate,
+      before: assessment.before ? { payBasis: assessment.before.payBasis } : null,
+      proposed: { payBasis: assessment.proposed.payBasis },
+      rateDeltaPerBasisUnit: assessment.rateDeltaPerBasisUnit,
+      evidence: assessment.evidence,
+      payrollAmountDelta: null,
+      requiresIndependentPayrollRecalculation: true as const,
+    },
+    recentRevisions: revisions.map((revision) => ({
+      id: revision.id,
+      effectiveDate: revision.effectiveDate,
+      previousPayBasis: revision.previousPayBasis,
+      newPayBasis: revision.newPayBasis,
+    })),
+  };
+}
