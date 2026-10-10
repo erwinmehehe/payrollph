@@ -242,3 +242,16 @@ test("an API key and global ON switch do not authorize any tenant by default", (
     assert.equal(automationModelAllowedForOrganization(100, { ...enabled, [required]: "false" }), false);
   }
 });
+
+test("medical and disciplinary case descriptions never reach external drafting", async () => {
+  await withMockModel(allowed, async (calls) => {
+    for (const prompt of [
+      "When an employee has a medical diagnosis, ask their manager to review it.",
+      "When there is a disciplinary investigation, create a task to review that case.",
+      "When HR receives an allegation of harassment, notify a manager.",
+    ]) {
+      await assert.rejects(draftForSyntheticOrg(prompt), /sensitive situations/);
+    }
+    assert.equal(calls(), 0);
+  });
+});
