@@ -713,6 +713,13 @@ export async function POST(request: Request) {
         // Serialize ALL roster mutations on this employer with governed bulk
         // approval, then recheck source evidence before the write.
         await tx.execute(sql`select pg_advisory_xact_lock(6107, ${organizationId})`);
+        if (worksiteId != null) {
+          const siteNow = await employeeSiteEligibility({
+            organizationId, employeeId, worksiteId,
+            date: effectiveFrom, executor: tx,
+          });
+          if (!siteNow.eligible) throw new Error("Worksite authorization changed before the roster write.");
+        }
         const lockedPolicy = await scheduleGuardrailPolicy(organizationId, tx);
         const lockedWindow = await resolveEmployeeScheduleWindow({
           organizationId,
@@ -900,6 +907,13 @@ export async function POST(request: Request) {
     try {
       const result = await db.transaction(async (tx) => {
         await tx.execute(sql`select pg_advisory_xact_lock(6107, ${organizationId})`);
+        if (worksiteId != null) {
+          const siteNow = await employeeSiteEligibility({
+            organizationId, employeeId, worksiteId,
+            date: workDate, executor: tx,
+          });
+          if (!siteNow.eligible) throw new Error("Worksite authorization changed before the roster write.");
+        }
         const lockedPolicy = await scheduleGuardrailPolicy(organizationId, tx);
         const lockedWindow = await resolveEmployeeScheduleWindow({
           organizationId, employeeId,
