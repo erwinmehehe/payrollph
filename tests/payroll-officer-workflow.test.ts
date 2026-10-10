@@ -127,7 +127,7 @@ test("checker submission endpoint enforces required input and calculation readin
   const source = readFileSync("src/app/api/payroll-runs/[id]/submit-review/route.ts", "utf8");
   assert.ok(source.includes("buildPayrollReleaseChecklist"));
   assert.ok(source.includes('item.key === "inputs" || item.key === "calculation"'));
-  assert.ok(source.includes("Payroll inputs and calculation must be complete before checker submission."));
+  assert.ok(source.includes("Payroll inputs, calculation, and (when enabled) connected HRIS/WFM/HCM sources must be verified before checker submission."));
   assert.ok(source.includes("blockingWorkflowItems"));
 });
 
