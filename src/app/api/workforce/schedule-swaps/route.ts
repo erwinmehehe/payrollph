@@ -11,6 +11,7 @@ import {
   schedulePatterns,
   scheduleSwapRequests,
   shiftDefinitions,
+  workforceScheduleGuardrailPolicies,
 } from "@/db/schema";
 import {
   assertOrganizationRole,
@@ -30,6 +31,10 @@ import {
   type WorkforceScheduleOverrideSegment,
 } from "@/lib/workforce-scheduling";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
+import { employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
+import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
+import { rosterDateOffset } from "@/lib/workforce-team-roster";
+import { DEFAULT_SCHEDULE_GUARDRAIL_POLICY, evaluateScheduleGuardrails, scheduleGuardrailBlocksMutation } from "@/lib/workforce-schedule-guardrails";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import {
   assertScheduleSwappable,
