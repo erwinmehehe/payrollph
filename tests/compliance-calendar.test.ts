@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildComplianceCalendar, nominalBir1601CDueDate } from "../src/lib/compliance-calendar";
 
