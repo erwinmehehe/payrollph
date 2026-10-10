@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { DashboardData, PayrollRun } from "@/components/workspace/types";
-import { uiDate, uiMoney, type TaskTarget } from "@/lib/task-first-ui";
+import { summarizeTaskFirstPayroll, uiDate, uiMoney, type TaskTarget } from "@/lib/task-first-ui";
 
 type Props = {
   data: DashboardData;
@@ -48,10 +48,8 @@ export function TaskFirstPayrollHome({ data, run, onTask, onNewRun }: Props) {
   const released = run?.status === "Released";
   const failed = run?.status === "Failed";
   const handedOff = Boolean(run && REVIEW_STATES.includes(run.status));
-  const calculated = Boolean(run && (Number(run.grossPay) > 0 || released));
-  const gross = calculated ? Number(run?.grossPay) : null;
-  const net = calculated ? Number(run?.netPay) : null;
-  const deductions = gross !== null && net !== null ? Math.max(gross - net, 0) : null;
+  const { calculated, gross, net, deductions } = summarizeTaskFirstPayroll(run, data.payrollEntries);
+  const attendanceEvidenceAvailable = Boolean(data.punches?.length);
 
   const payrollTask = (focus: "workflow" | "register" | "exceptions") =>
     run ? onTask({ page: "Payroll", runId: run.id, focus }) : onNewRun();
@@ -100,7 +98,7 @@ export function TaskFirstPayrollHome({ data, run, onTask, onNewRun }: Props) {
           <div className="tf-strip-label">CURRENT PAYROLL</div>
           <div className="tf-strip-title-row">
             <h2 id="tf-run-title">{run?.periodLabel ?? "No payroll run yet"}</h2>
-            <span className={`tf-status ${failed ? "tf-status-failed" : handedOff ? "tf-status-done" : exceptions > 0 ? "tf-status-attention" : ""}`}>
+            <span className={`tf-status ${failed ? "tf-status-failed" : released ? "tf-status-done" : exceptions > 0 || run?.status === "Needs review" ? "tf-status-attention" : ""}`}>
               <span className="tf-status-dot" aria-hidden />{run?.status ?? "Not started"}
             </span>
           </div>
@@ -120,7 +118,7 @@ export function TaskFirstPayrollHome({ data, run, onTask, onNewRun }: Props) {
 
       <section className="tf-metrics" aria-label="Current payroll summary">
         <Metric icon={<Wallet size={18}/>} label="Gross compensation" value={gross === null ? "Not calculated" : uiMoney(gross)} note={calculated ? "Calculated earnings" : "Awaiting calculation"} />
-        <Metric icon={<FileText size={18}/>} label="Deductions" value={deductions === null ? "Not calculated" : uiMoney(deductions)} note="Gross less net · see register" />
+        <Metric icon={<FileText size={18}/>} label="Deductions" value={deductions === null ? (calculated ? "Verify register" : "Not calculated") : uiMoney(deductions)} note={deductions === null ? "Entry totals not yet reconciled" : "Reconciled stored payroll entries"} />
         <Metric icon={<ShieldCheck size={18}/>} label="Net pay" value={net === null ? "Not calculated" : uiMoney(net)} note={released ? "Released, payment unconfirmed" : calculated ? "Not yet released" : "Awaiting calculation"} emphasis />
         <Metric icon={<Users size={18}/>} label={run ? "Employees in run" : "Active employees"} value={String(run?.employeeCount ?? activeEmployees.length)} note={run ? "Included in selected payroll" : "No payroll run selected"} />
       </section>
@@ -133,14 +131,14 @@ export function TaskFirstPayrollHome({ data, run, onTask, onNewRun }: Props) {
               <p>Items worth checking before payroll moves forward.</p>
             </div>
             <span className={`tf-count ${issueCategories ? "tf-count-issue" : ""}`}>
-              {issueCategories ? `${issueCategories} ${issueCategories === 1 ? "area" : "areas"} to review` : "All clear"}
+              {issueCategories ? `${issueCategories} ${issueCategories === 1 ? "area" : "areas"} to review` : "Check readiness"}
             </span>
           </div>
           <ActionRow
             icon={<CreditCard size={19}/>}
             issue={missingPayout > 0}
-            title={missingPayout ? `${missingPayout} ${missingPayout === 1 ? "employee" : "employees"} missing payout details` : "Payout fields are complete"}
-            detail={missingPayout ? "Complete the missing fields before payment preparation." : "Field presence is not bank-account verification."}
+            title={missingPayout ? `${missingPayout} ${missingPayout === 1 ? "employee" : "employees"} missing payout details` : "Payout fields recorded"}
+            detail={missingPayout ? "Active employees with missing fields; verify the selected run." : "Field presence does not verify bank ownership or run readiness."}
             action="View employees"
             onClick={() => onTask({ page: "People", filter: "missing-payout" })}
           />
@@ -155,12 +153,12 @@ export function TaskFirstPayrollHome({ data, run, onTask, onNewRun }: Props) {
           <ActionRow
             icon={<Clock3 size={19}/>}
             issue={incompleteAttendance > 0}
-            title={incompleteAttendance ? `${incompleteAttendance} ${incompleteAttendance === 1 ? "employee" : "employees"} with incomplete time entries` : "Recorded time entries appear complete"}
-            detail={incompleteAttendance ? "Review incomplete punches in the selected period." : "Based on time entries currently loaded."}
+            title={incompleteAttendance ? `${incompleteAttendance} ${incompleteAttendance === 1 ? "employee" : "employees"} with incomplete time entries` : attendanceEvidenceAvailable ? "No incomplete punches in loaded records" : "Attendance coverage not verified"}
+            detail={incompleteAttendance ? "Review incomplete punches in the selected period." : attendanceEvidenceAvailable ? "This does not confirm all scheduled work has been recorded." : "Check the attendance register before payroll handoff."}
             action="Review attendance"
             onClick={() => onTask({ page: "Time & attendance", filter: "attendance-exceptions" })}
           />
-          <p className="tf-attention-foot">Categories may overlap by employee. A missing field does not prove an account is invalid.</p>
+          <p className="tf-attention-foot">Counts cover visible records, not a payroll release checklist. Categories may overlap and payout fields are not bank verification.</p>
         </section>
 
         <section className="tf-card tf-actions" aria-labelledby="tf-actions-title">
@@ -209,7 +207,7 @@ function Metric({ icon, label, value, note, emphasis = false }: {
   return (
     <article className={`tf-metric ${emphasis ? "tf-metric-emphasis" : ""}`}>
       <span className="tf-metric-title">{icon}<span>{label}</span></span>
-      <strong className={value === "Not calculated" ? "tf-metric-pending" : ""}>{value}</strong>
+      <strong className={value === "Not calculated" || value === "Verify register" ? "tf-metric-pending" : ""}>{value}</strong>
       <small>{note}</small>
     </article>
   );

@@ -7,14 +7,14 @@
 .tf-payroll-home *, .tf-payroll-home *::before, .tf-payroll-home *::after {box-sizing:border-box}
 .tf-payroll-home button{font:inherit;cursor:pointer}
 .tf-home-header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px}
-.tf-kicker{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:760;letter-spacing:1.3px;color:#6f86a0;line-height:1.5}
+.tf-kicker{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:760;letter-spacing:1.3px;color:#49617a;line-height:1.5}
 .tf-home-header h1{font-size:clamp(25px,2.6vw,30px);line-height:1.16;font-weight:780;letter-spacing:-.95px;color:#17304e;margin:7px 0}
 .tf-home-header p{font-size:13px;color:var(--tf-muted);margin:0;line-height:1.55}
 .tf-run-strip{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:18px 22px;
   background:#fff;border:1px solid var(--tf-line);border-radius:14px;
   box-shadow:0 5px 22px rgba(23,46,77,.03)}
 .tf-strip-info{min-width:0;flex:1}
-.tf-strip-label{font-size:10px;font-weight:760;letter-spacing:1.2px;color:#8497ac;margin-bottom:7px}
+.tf-strip-label{font-size:12px;font-weight:760;letter-spacing:1.2px;color:#4c6279;margin-bottom:7px}
 .tf-strip-title-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .tf-strip-title-row h2{font-size:19px;font-weight:780;letter-spacing:-.5px;line-height:1.3;color:#19314e;margin:0}
 .tf-status{display:inline-flex;align-items:center;gap:7px;border:1px solid #d3e4f8;border-radius:7px;padding:5px 9px;
@@ -26,11 +26,11 @@
 .tf-status-done .tf-status-dot{background:#2c9a75}
 .tf-status-failed{border-color:#f1c8c6;color:#af433b;background:#fff1f0}
 .tf-status-failed .tf-status-dot{background:#d75c52}
-.tf-run-facts{display:flex;align-items:center;gap:9px 20px;flex-wrap:wrap;margin-top:10px;color:#697e94;font-size:12px}
+.tf-run-facts{display:flex;align-items:center;gap:9px 20px;flex-wrap:wrap;margin-top:10px;color:#4c6279;font-size:12px}
 .tf-run-facts span{display:inline-flex;align-items:center;gap:6px;line-height:1.5}
 .tf-run-facts svg{color:#658aaa;flex:none}
 .tf-strip-next{display:flex;align-items:center;gap:16px;max-width:46%;min-width:0}
-.tf-strip-next p{font-size:11.5px;line-height:1.5;color:#70839b;max-width:240px;margin:0}
+.tf-strip-next p{font-size:13px;line-height:1.5;color:#4c6279;max-width:240px;margin:0}
 .tf-primary{display:inline-flex;align-items:center;justify-content:center;gap:9px;min-height:44px;padding:10px 16px;flex:none;
   border:1px solid #225eb2;border-radius:9px;background:#225fb5;color:white;font-size:12.5px!important;font-weight:750!important;
   white-space:nowrap;transition:background .15s,box-shadow .15s}
@@ -39,22 +39,22 @@
 .tf-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
 .tf-metric{display:flex;flex-direction:column;min-width:0;gap:9px;padding:19px 20px 17px;
   background:#fff;border:1px solid var(--tf-line);border-radius:13px;box-shadow:0 4px 16px rgba(23,46,77,.025)}
-.tf-metric-title{display:flex;align-items:center;gap:9px;color:#435d7d;font-size:12.5px;line-height:1.4;font-weight:710}
+.tf-metric-title{display:flex;align-items:center;gap:9px;color:#435d7d;font-size:13px;line-height:1.4;font-weight:710}
 .tf-metric-title svg{color:#497eb5;flex:none}
 .tf-metric strong{color:#172f4d;font-size:clamp(19px,2vw,27px);font-weight:780;letter-spacing:-.65px;line-height:1.24;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
-.tf-metric strong.tf-metric-pending{font-size:17px;font-weight:690;color:#8798aa;letter-spacing:-.3px}
-.tf-metric small{font-size:12px;line-height:1.4;color:#6e8198}
+.tf-metric strong.tf-metric-pending{font-size:17px;font-weight:690;color:#4c6279;letter-spacing:-.3px}
+.tf-metric small{font-size:13px;line-height:1.4;color:#4c6279}
 .tf-metric-emphasis{border-color:#bbe4dc;background:#f7fcfa;box-shadow:0 4px 16px rgba(24,119,97,.025)}
 .tf-metric-emphasis .tf-metric-title svg,.tf-metric-emphasis strong{color:#14816f}
-.tf-metric-emphasis strong.tf-metric-pending{color:#728d86}
+.tf-metric-emphasis strong.tf-metric-pending{color:#42655c}
 .tf-lower-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:16px;align-items:stretch}
 .tf-card{background:#fff;border:1px solid var(--tf-line);border-radius:15px;
   box-shadow:0 6px 24px rgba(23,46,77,.03);min-width:0;padding:23px 24px 13px}
 .tf-card-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;margin:0 0 10px}
 .tf-card-heading h2{font-size:18px;font-weight:770;letter-spacing:-.5px;line-height:1.3;color:#19324e;margin:0 0 4px}
-.tf-card-heading p{font-size:11.5px;line-height:1.5;margin:0;color:#72859b}
-.tf-count{flex:none;white-space:nowrap;display:inline-flex;align-items:center;border:1px solid #d4e9dd;background:#f0f8f3;
-  border-radius:8px;padding:6px 9px;font-size:11px;color:#197454;font-weight:760}
+.tf-card-heading p{font-size:12.5px;line-height:1.5;margin:0;color:#4c6279}
+ .tf-count{flex:none;white-space:nowrap;display:inline-flex;align-items:center;border:1px solid #dce6ee;background:#f5f8fa;
+  border-radius:8px;padding:6px 9px;font-size:12px;color:#35546e;font-weight:760}
 .tf-count-issue{border-color:#f7e1c7;background:#fff5e9;color:#985b1f}
 .tf-action-row{display:flex;align-items:center;gap:13px;min-height:83px;width:100%;padding:16px 2px;
   text-align:left;background:transparent;border:0;border-top:1px solid #eaf0f6;color:#1b334f;transition:background .15s}
@@ -62,12 +62,12 @@
 .tf-action-icon{display:grid;place-items:center;width:42px;height:42px;flex:none;border-radius:11px;background:#eaf2fb;color:#477bab}
 .tf-icon-issue{background:#fff0e6;color:#b96b42}
 .tf-action-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:5px}
-.tf-action-copy strong{font-size:13px;font-weight:740;color:#203752;line-height:1.35}
-.tf-action-copy small{font-size:11.5px;color:#6b7f96;line-height:1.5}
+.tf-action-copy strong{font-size:14px;font-weight:740;color:#203752;line-height:1.35}
+.tf-action-copy small{font-size:12.5px;color:#4c6279;line-height:1.5}
 .tf-action-go{display:inline-flex;align-items:center;gap:6px;flex:none;color:#1e629e;font-size:11.5px;font-weight:750;white-space:nowrap}
 .tf-action-go svg{transition:transform .15s}.tf-action-row:hover .tf-action-go svg{transform:translateX(2px)}
-.tf-attention-foot{font-size:11px;color:#8595aa;margin:2px 0 0;padding:12px 2px 3px;border-top:1px solid #eaf0f6;line-height:1.5}
-.tf-footer-note{display:flex;align-items:flex-start;gap:8px;color:#8798a9;line-height:1.5;font-size:11px;margin:0;padding:0 2px}
+.tf-attention-foot{font-size:12px;color:#4c6279;margin:2px 0 0;padding:12px 2px 3px;border-top:1px solid #eaf0f6;line-height:1.5}
+.tf-footer-note{display:flex;align-items:flex-start;gap:8px;color:#4c6279;line-height:1.5;font-size:12px;margin:0;padding:0 2px}
 .tf-footer-note svg{color:#1d927d;flex:none}
 @media(max-width:1210px){
  .tf-strip-next{max-width:50%}.tf-metrics{gap:10px}.tf-metric{padding:17px 15px}
@@ -86,19 +86,19 @@
  .tf-strip-next{max-width:none;align-items:stretch;border-top:1px solid #edf1f6;padding-top:14px;margin-top:14px;gap:12px}
  .tf-strip-next p{max-width:none;text-align:left}
  .tf-primary{width:100%}
- .tf-run-facts{font-size:11px;gap:7px 15px}
+ .tf-run-facts{font-size:12px;gap:7px 15px}
  .tf-metrics{gap:9px}
  .tf-metric{padding:14px 12px;gap:9px}
- .tf-metric-title{font-size:11.5px;gap:6px}.tf-metric-title svg{width:16px;height:16px}
+ .tf-metric-title{font-size:12px;gap:6px}.tf-metric-title svg{width:16px;height:16px}
  .tf-metric strong{font-size:clamp(17px,4.5vw,23px);letter-spacing:-.35px}
- .tf-metric small{font-size:11px}
+ .tf-metric small{font-size:12px}
  .tf-card{padding:19px 16px 11px}
  .tf-card-heading{align-items:flex-start;min-height:0;margin-bottom:11px}
  .tf-card-heading h2{font-size:17px}
- .tf-card-heading p{font-size:11px}
+ .tf-card-heading p{font-size:12px}
  .tf-action-row{min-height:82px;gap:9px;padding:13px 0}
  .tf-action-icon{width:36px;height:36px}.tf-action-icon svg{width:18px;height:18px}
- .tf-action-copy strong{font-size:12px}.tf-action-copy small{font-size:11px}
+ .tf-action-copy strong{font-size:13px}.tf-action-copy small{font-size:12px}
  .tf-action-go{font-size:0;gap:0}.tf-action-go svg{width:18px;height:18px}
 }
 @media(max-width:360px){
@@ -111,7 +111,7 @@
 
 /* Shared light navigation across workspace roles, gated by task-first UI flag. */
 .tf-shell .sidebar{background:#fff;border-right-color:#e4eaf2;padding:14px 9px 10px}
-.tf-shell .workspace-label{font-size:10.5px;letter-spacing:1.15px;margin:19px 10px 10px;color:#6c829c;font-weight:770}
+.tf-shell .workspace-label{font-size:10.5px;letter-spacing:1.15px;margin:19px 10px 10px;color:#4c6279;font-weight:770}
 .tf-shell .workspace-label .pulse-dot{display:none}
 .tf-shell .side-navigation{padding-right:2px}
 .tf-shell .nav-group{margin-bottom:12px}
@@ -142,7 +142,7 @@
 .tf-review-status .tf-review-summary>div{display:flex;flex-direction:column;gap:5px;border:1px solid #e4ebf3;background:#f9fbfe;border-radius:9px;padding:11px 13px;min-width:0}
 .tf-review-status .tf-review-summary strong{font-size:11px;font-weight:750;color:#526983}
 .tf-review-status .tf-review-summary span{font-size:13px;font-weight:700;color:#193754;overflow-wrap:anywhere}
-.tf-review-status .tf-review-note{font-size:12px;line-height:1.6;color:#697f95;margin:12px 0 0}
+.tf-review-status .tf-review-note{font-size:12px;line-height:1.6;color:#4c6279;margin:12px 0 0}
 .app-shell.tf-shell.rail .side-navigation .nav-item{justify-content:center;padding:0}
 .app-shell.tf-shell.rail .side-navigation .nav-item>.nav-icon{display:grid}
 .app-shell.tf-shell.rail .side-navigation .nav-item>span:not(.nav-icon){display:none}
@@ -153,12 +153,12 @@
 .tf-hire-step{margin:0;padding:0;border:0;min-width:0}
 .tf-hire-step[hidden]{display:none!important}
 .tf-hire-progress{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:17px 0 22px}
-.tf-hire-progress span{flex:1 1 74px;min-width:0;text-align:center;padding:10px 6px;font-size:10px;line-height:1.4;color:#7d91a6;background:#f3f7fa;border:1px solid #e3ebf2;border-radius:9px;font-weight:730}
+.tf-hire-progress span{flex:1 1 74px;min-width:0;text-align:center;padding:10px 6px;font-size:10px;line-height:1.4;color:#49617a;background:#f3f7fa;border:1px solid #e3ebf2;border-radius:9px;font-weight:730}
 .tf-hire-progress span.active{color:#0c756e;background:#e6f7f1;border-color:#bde9db}
 .tf-hire-review{border:1px solid #cce7df;border-radius:14px;padding:21px;background:linear-gradient(145deg,#f1fcf8,#fff)}
 .tf-hire-review h3{font-size:19px;letter-spacing:-.4px;margin:0 0 17px;color:#133b3c}
 .tf-hire-review dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px;margin:0}
-.tf-hire-review dt{font-size:11px;font-weight:750;letter-spacing:.2px;color:#658384}
+.tf-hire-review dt{font-size:12px;font-weight:750;letter-spacing:.2px;color:#3c6263}
 .tf-hire-review dd{font-size:14px;font-weight:750;color:#203a46;margin:4px 0 0;overflow-wrap:anywhere}
 .tf-hire-review>p{margin-top:18px;color:#56777d;font-size:12px;line-height:1.55}
 @media(max-width:620px){.tf-hire-progress{gap:4px}.tf-hire-progress span{font-size:9px;padding:8px 4px}.tf-hire-review dl{grid-template-columns:1fr}}
@@ -167,10 +167,10 @@
 .linaw-dialog.tf-hire-dialog .modal.large{width:min(760px,100%);max-height:min(91vh,960px);padding:30px 32px;border-radius:20px;box-shadow:0 24px 80px rgba(14,34,55,.26)}
 .linaw-dialog.tf-hire-dialog .modal-icon{border:1px solid #bfe6db;width:44px;height:44px;border-radius:13px;background:#e7f9f2}
 .linaw-dialog.tf-hire-dialog .modal h2{font-size:clamp(22px,2.5vw,28px);color:#193046;font-weight:800;letter-spacing:-.85px;line-height:1.2}
-.linaw-dialog.tf-hire-dialog .modal>p{font-size:12.5px;line-height:1.6;color:#6d8093;margin:9px 0 11px}
+.linaw-dialog.tf-hire-dialog .modal>p{font-size:12.5px;line-height:1.6;color:#4b6077;margin:9px 0 11px}
 .linaw-dialog.tf-hire-dialog .modal-close{width:36px;height:36px;top:16px;right:16px;display:grid;place-items:center;border-radius:9px}
 .linaw-dialog.tf-hire-dialog .tf-hire-step{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:17px;row-gap:17px;padding:5px 0 9px}
-.linaw-dialog.tf-hire-dialog .tf-step-intro{grid-column:1/-1;margin:0 0 3px;padding:12px 15px;background:#eff8f6;border-left:3px solid #28aa93;border-radius:7px;color:#567d7b;line-height:1.55;font-size:12px}
+.linaw-dialog.tf-hire-dialog .tf-step-intro{grid-column:1/-1;margin:0 0 3px;padding:12px 15px;background:#eff8f6;border-left:3px solid #28aa93;border-radius:7px;color:#3c6263;line-height:1.55;font-size:12px}
 .linaw-dialog.tf-hire-dialog .tf-hire-step label{font-size:12px;font-weight:730;line-height:1.5;color:#3b536c;gap:6px}
 .linaw-dialog.tf-hire-dialog .tf-hire-step input,.linaw-dialog.tf-hire-dialog .tf-hire-step select{min-height:44px;height:44px;border-radius:9px;border:1px solid #d5e1e9;padding:9px 12px;background:#fff;color:#142e42}
 .linaw-dialog.tf-hire-dialog .tf-hire-step input:focus,.linaw-dialog.tf-hire-dialog .tf-hire-step select:focus{outline:2px solid #80d5c2;outline-offset:1px;border-color:#2b968a}
@@ -184,3 +184,12 @@
 
 /* Increase selector specificity over legacy wizard styles so active payroll stage is teal. */
 .tf-payroll-home .tf-step-track li.tf-step-current > .tf-step-number{background:#defeed;border-color:#defeed;color:#124c48;box-shadow:0 0 0 4px rgba(138,234,216,.10)}
+
+/* Review groups use verified-on-screen inputs and never render raw account numbers. */
+.linaw-dialog.tf-hire-dialog .tf-hire-review-group{padding:14px 0;border-top:1px solid #e3edf0}
+.linaw-dialog.tf-hire-dialog .tf-hire-review-group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.linaw-dialog.tf-hire-dialog .tf-hire-review-group-head h4{margin:0;font-size:14px;font-weight:780;color:#173c49}
+.linaw-dialog.tf-hire-dialog .tf-hire-review-group-head button{background:#f0f8f6;color:#195d56;border:1px solid #c2e3dc;border-radius:9px;padding:8px 12px;min-height:44px;font:inherit;font-size:12px;font-weight:750;cursor:pointer}
+.linaw-dialog.tf-hire-dialog .tf-hire-review-group-head button:focus-visible{outline:3px solid #247c73;outline-offset:2px}
+.linaw-dialog.tf-hire-dialog .tf-hire-review-group dl{margin:0}
+@media(max-width:430px){.linaw-dialog.tf-hire-dialog .tf-hire-review-group-head{align-items:flex-start}.linaw-dialog.tf-hire-dialog .tf-hire-review-group-head h4{padding-top:12px}}

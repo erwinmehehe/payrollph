@@ -1,3 +1,5 @@
+import type { PayrollEntry, PayrollRun } from "@/components/workspace/types";
+
 /** Presentation and deep-link helpers only. These do not grant access or change payroll rules. */
 export type PayrollFocus = "workflow" | "register" | "exceptions" | "comparison" | "history" | "review";
 export type TaskTarget = { page: string; runId?: number; focus?: PayrollFocus; employeeId?: number; filter?: "attendance-exceptions" | "missing-payout" };
@@ -62,4 +64,46 @@ export function employeeNeedsPayout(account: string | null | undefined, code:str
 }
 export function unpaidPayslipLabel(payDate: string) {
   return "Pay date "+uiDate(payDate);
+}
+
+/** Display-only summary. Never infer completed payroll from a positive amount. */
+const PRESENTABLE_PAYROLL_STATES = new Set(["Processed", "Needs review", "Pending approval", "Ready for release", "Released"]);
+function integerCentavos(value: string | number): number | null {
+  if (String(value).trim() === "") return null;
+  const parsed = Number(value);
+  const cents = Math.round(parsed * 100);
+  return Number.isFinite(parsed) && Number.isSafeInteger(cents) ? cents : null;
+}
+/** The dashboard payload has entry rows for only its selected current run. Treat
+ * deductions as unavailable unless the entries are complete, belong to that
+ * run and reconcile to the server-provided gross and net amounts.
+ */
+export function summarizeTaskFirstPayroll(
+  run: Pick<PayrollRun, "id" | "status" | "grossPay" | "netPay" | "employeeCount"> | undefined,
+  entries: readonly (Pick<PayrollEntry, "grossPay" | "deductions" | "netPay"> & { payrollRunId?: number })[],
+) {
+  const empty = { calculated: false, gross: null as number | null, net: null as number | null, deductions: null as number | null };
+  if (!run || !PRESENTABLE_PAYROLL_STATES.has(run.status)) return empty;
+  const grossCents = integerCentavos(run.grossPay);
+  const netCents = integerCentavos(run.netPay);
+  if (grossCents === null || netCents === null) return empty;
+  const summary = { calculated: true, gross: grossCents / 100, net: netCents / 100, deductions: null as number | null };
+  if (!Number.isSafeInteger(run.employeeCount) || run.employeeCount <= 0 || entries.length !== run.employeeCount) return summary;
+  let grossEntryCents = 0;
+  let netEntryCents = 0;
+  let deductionEntryCents = 0;
+  for (const entry of entries) {
+    // A stale employer/run snapshot must never substantiate the KPI.
+    if (entry.payrollRunId !== run.id) return summary;
+    const gross = integerCentavos(entry.grossPay);
+    const net = integerCentavos(entry.netPay);
+    const deductions = integerCentavos(entry.deductions);
+    if (gross === null || net === null || deductions === null) return summary;
+    grossEntryCents += gross;
+    netEntryCents += net;
+    deductionEntryCents += deductions;
+    if (![grossEntryCents, netEntryCents, deductionEntryCents].every(Number.isSafeInteger)) return summary;
+  }
+  if (grossEntryCents !== grossCents || netEntryCents !== netCents) return summary;
+  return { ...summary, deductions: deductionEntryCents / 100 };
 }

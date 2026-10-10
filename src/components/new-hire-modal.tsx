@@ -169,7 +169,48 @@ export function NewHireModal({
             <label>Equipment name<input value={form.assetName} onChange={(e) => setForm({ ...form, assetName: e.target.value })} placeholder="MacBook Air M3 (optional)" /></label>
             <label>Serial number<input value={form.serialNumber} onChange={(e) => setForm({ ...form, serialNumber: e.target.value })} /></label>
           </fieldset>
-          {wizard && step===4 && <section className="tf-hire-review"><h3 tabIndex={-1}>Review before creating</h3><dl><div><dt>Employee</dt><dd>{form.firstName} {form.lastName}</dd></div><div><dt>Work email</dt><dd>{form.email || "Not provided"}</dd></div><div><dt>Pay basis</dt><dd>{form.payBasis}</dd></div><div><dt>Pay rate</dt><dd>{form.rateAmount ? uiMoney(form.rateAmount) : "Not set"}</dd></div><div><dt>Start date</dt><dd>{form.startDate}</dd></div><div><dt>Payout details</dt><dd>{form.bankCode && form.bankAccount ? "Provided (not shown)" : "Incomplete — finish before payroll payout"}</dd></div></dl><p>Creating the record does not run payroll or send money. Verify pay and bank information before proceeding.</p></section>}
+          {wizard && step===4 && (
+            <section className="tf-hire-review" aria-labelledby="tf-hire-review-heading">
+              <h3 id="tf-hire-review-heading" tabIndex={-1}>Review before creating</h3>
+              <div className="tf-hire-review-group">
+                <div className="tf-hire-review-group-head"><h4>Identity and contact</h4><button type="button" onClick={() => setStep(0)} disabled={busy}>Edit identity</button></div>
+                <dl>
+                  <div><dt>Employee</dt><dd>{form.firstName} {form.lastName}</dd></div>
+                  <div><dt>Work email</dt><dd>{form.email || "Not provided"}</dd></div>
+                  <div><dt>Job title</dt><dd>{form.title || "Not provided"}</dd></div>
+                </dl>
+              </div>
+              <div className="tf-hire-review-group">
+                <div className="tf-hire-review-group-head"><h4>Employment and pay</h4><button type="button" onClick={() => setStep(1)} disabled={busy}>Edit employment</button></div>
+                <dl>
+                  <div><dt>Pay basis</dt><dd>{form.payBasis}</dd></div>
+                  <div><dt>Pay rate</dt><dd>{form.rateAmount ? uiMoney(form.rateAmount) : "Not set"} per {form.payBasis === "monthly" ? "month" : form.payBasis === "daily" ? "day" : "hour"}</dd></div>
+                  <div><dt>Standard work days / month</dt><dd>{form.standardWorkDaysPerMonth}</dd></div>
+                  <div><dt>Standard hours / day</dt><dd>{form.standardHoursPerDay}</dd></div>
+                  <div><dt>Start date</dt><dd>{form.startDate}</dd></div>
+                  <div><dt>Region</dt><dd>{form.region}</dd></div>
+                  <div><dt>Rest day</dt><dd>{form.restDay || "Not set"}</dd></div>
+                  <div><dt>Minimum wage earner</dt><dd>{form.mwe ? "Yes" : "No"}</dd></div>
+                </dl>
+              </div>
+              <div className="tf-hire-review-group">
+                <div className="tf-hire-review-group-head"><h4>Payout details</h4><button type="button" onClick={() => setStep(2)} disabled={busy}>Edit payout</button></div>
+                <dl>
+                  <div><dt>Bank / payout code</dt><dd>{form.bankCode || "Not provided"}</dd></div>
+                  <div><dt>Account number</dt><dd>{form.bankCode && form.bankAccount ? "Provided (hidden for privacy)" : "Incomplete — finish before payout"}</dd></div>
+                  <div><dt>Mobile payout number</dt><dd>{form.mobile ? "Provided (hidden for privacy)" : "Not provided"}</dd></div>
+                </dl>
+              </div>
+              <div className="tf-hire-review-group">
+                <div className="tf-hire-review-group-head"><h4>Equipment</h4><button type="button" onClick={() => setStep(3)} disabled={busy}>Edit equipment</button></div>
+                <dl>
+                  <div><dt>Assignment</dt><dd>{form.assetName ? `${form.assetType} — ${form.assetName}` : "No equipment assigned"}</dd></div>
+                  {form.assetName && <div><dt>Serial number</dt><dd>{form.serialNumber || "Not provided"}</dd></div>}
+                </dl>
+              </div>
+              <p>Creating this employee does not run payroll or send money. Verify the pay inputs, work schedule and payout information before saving.</p>
+            </section>
+          )}
           </div>
           {!wizard && <div className="modal-note" style={{ marginTop: 12 }}>
             Bank account and bank code are required together for payout readiness. Only enter verified payout details. Do not use this form to test encryption or payment delivery.
