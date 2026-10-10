@@ -25,6 +25,7 @@ import {
 import type { DashboardData, PayrollRun } from "./types";
 import { Status } from "./ui";
 import { StatutoryRemittanceWatch } from "./statutory-remittance-watch";
+import { taskFirstUiEnabled, type TaskTarget } from "@/lib/task-first-ui";
 
 type Props = {
   data: DashboardData;
@@ -32,6 +33,7 @@ type Props = {
   role: "owner" | "payroll" | "checker";
   onPage: (page: string) => void;
   onNewRun: () => void;
+  onTask?: (target: TaskTarget) => void;
 };
 
 export function CleanRoleDashboard({
@@ -40,6 +42,7 @@ export function CleanRoleDashboard({
   role,
   onPage,
   onNewRun,
+  onTask,
 }: Props) {
   const active = data.employees.filter(
     (employee) => employee.status === "Active",
@@ -54,7 +57,8 @@ export function CleanRoleDashboard({
   );
   const passed = (key: string) =>
     Boolean(releaseCheck?.items.find((item) => item.key === key)?.passed);
-  const openPayroll = () => (run ? onPage("Payroll") : onNewRun());
+  const openPayroll = () => (run ? (taskFirstUiEnabled() && onTask ? onTask({page:"Payroll",runId:run.id,focus:"workflow"}) : onPage("Payroll")) : onNewRun());
+  const openTask = (target: TaskTarget) => taskFirstUiEnabled() && onTask ? onTask(target) : onPage(target.page);
   return (
     <div className="clean-dashboard" data-role-dashboard={role}>
       <div className="clean-heading">
@@ -84,6 +88,7 @@ export function CleanRoleDashboard({
           run={run}
           onPage={onPage}
           onOpen={openPayroll}
+          onTask={openTask}
         />
       ) : role === "owner" ? (
         <section className="clean-card clean-owner">
@@ -212,11 +217,13 @@ function PayrollHome({
   run,
   onPage,
   onOpen,
+  onTask,
 }: {
   data: DashboardData;
   run?: PayrollRun;
   onPage: Props["onPage"];
   onOpen: () => void;
+  onTask?: (target: TaskTarget) => void;
 }) {
   const active = data.employees.filter(
     (employee) => employee.status === "Active",
@@ -372,7 +379,7 @@ function PayrollHome({
                 ? "Resolve missing time entries before calculation."
                 : "No incomplete attendance in the loaded period."
             }
-            onClick={() => onPage("Time & attendance")}
+            onClick={() => onTask?.({page:"Time & attendance",filter:"attendance-exceptions"}) ?? onPage("Time & attendance")}
           />
           <ActionRow
             icon={<ClipboardCheck size={19} />}
@@ -404,7 +411,7 @@ function PayrollHome({
                 ? "Payout details for active employees."
                 : "Add your team to prepare for payday."
             }
-            onClick={() => onPage("People")}
+            onClick={() => onTask?.({page:"People",filter:"missing-payout"}) ?? onPage("People")}
           />
         </section>
         <section className="clean-card">
@@ -412,17 +419,17 @@ function PayrollHome({
           <ActionRow
             icon={<Upload size={19} />}
             title="Import adjustments"
-            onClick={onOpen}
+            onClick={() => onTask && run ? onTask({page:"Payroll",runId:run.id,focus:"workflow"}) : onOpen()}
           />
           <ActionRow
             icon={<FileText size={19} />}
             title="Preview payroll register"
-            onClick={onOpen}
+            onClick={() => onTask && run ? onTask({page:"Payroll",runId:run.id,focus:"register"}) : onOpen()}
           />
           <ActionRow
             icon={<AlertCircle size={19} />}
             title="Review exceptions"
-            onClick={onOpen}
+            onClick={() => onTask && run ? onTask({page:"Payroll",runId:run.id,focus:"exceptions"}) : onOpen()}
           />
         </section>
       </div>
@@ -578,7 +585,7 @@ function CheckerHome({
                   : "No payroll available"
             }
             detail="Open the payroll workspace to inspect entries and validation checks."
-            onClick={() => onPage("Payroll")}
+            onClick={() => onTask?.({page:"Payroll",runId:run?.id,focus:"exceptions"}) ?? onPage("Payroll")}
           />
         ) : (
           <div className="clean-metrics">
