@@ -217,7 +217,7 @@ export function WorkspaceShell({
                       title={rail ? item.name : undefined}
                     >
                       <span className={`nav-icon t-${item.tone}`} aria-hidden>
-                        <Icon size={14} strokeWidth={active ? 2.3 : 2} />
+                        <Icon size={polishedPayrollNavigation ? 18 : 14} strokeWidth={polishedPayrollNavigation ? (active ? 2.2 : 1.9) : (active ? 2.3 : 2)} />
                       </span>
                       <span>{workspaceLabel(item.name, workspaceRole)}</span>
                       {badge && <b>{badge}</b>}
@@ -237,7 +237,7 @@ export function WorkspaceShell({
                 aria-expanded={moreOpen || secondaryHasCurrent}
               >
                 <span className="nav-icon t-slate" aria-hidden>
-                  <MoreHorizontal size={14} />
+                  <MoreHorizontal size={polishedPayrollNavigation ? 18 : 14} strokeWidth={polishedPayrollNavigation ? 1.9 : 2} />
                 </span>
                 <span>More</span>
                 <ChevronDown className="nav-more-chevron" size={13} />
@@ -263,7 +263,7 @@ export function WorkspaceShell({
                             title={rail ? item.name : undefined}
                           >
                             <span className={`nav-icon t-${item.tone}`} aria-hidden>
-                              <Icon size={14} strokeWidth={active ? 2.3 : 2} />
+                              <Icon size={polishedPayrollNavigation ? 18 : 14} strokeWidth={polishedPayrollNavigation ? (active ? 2.2 : 1.9) : (active ? 2.3 : 2)} />
                             </span>
                             <span>{workspaceLabel(item.name, workspaceRole)}</span>
                             {badge && <b>{badge}</b>}
@@ -513,7 +513,7 @@ export function WorkspaceShell({
               aria-current={active ? "page" : undefined}
             >
               <span className={`nav-icon t-${item.tone}`} aria-hidden>
-                <Icon size={16} strokeWidth={active ? 2.3 : 2} />
+                <Icon size={polishedPayrollNavigation ? 18 : 16} strokeWidth={polishedPayrollNavigation ? (active ? 2.2 : 1.9) : (active ? 2.3 : 2)} />
               </span>
               <span>{workspaceLabel(item.name, workspaceRole)}</span>
             </button>
