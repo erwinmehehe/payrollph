@@ -61,7 +61,7 @@ export default async function WorkspacePage() {
   const canSeeMyTeam = process.env.NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true" &&
     !!access && (
       ["owner", "admin", "hr"].includes(access.role) ||
-      (access.role === "manager" && !access.companyWide)
+      (access.role === "manager" && !access.companyWide && access.orgUnitId !== null)
     );
   return <>
     <div className="mx-auto flex max-w-7xl flex-wrap justify-end gap-3 px-5 pt-3">
