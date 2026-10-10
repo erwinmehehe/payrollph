@@ -5,6 +5,7 @@ import { LinawMark } from "@/components/linaw-mark";
 import {
   Bell,
   Check,
+  ClipboardCheck,
   ChevronDown,
   ChevronRight,
   Building2,
@@ -22,7 +23,7 @@ import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
 import { payrollHandoffRank } from "@/lib/payroll-handoff";
-import { taskFirstUiEnabled } from "@/lib/task-first-ui";
+import { taskFirstUiEnabled, type TaskTarget } from "@/lib/task-first-ui";
 
 export type Notification = {
   id: string;
@@ -69,6 +70,9 @@ export function WorkspaceShell({
   primaryPages,
   workspaceRole,
   displayRole,
+  onTask,
+  payrollRunId,
+  payrollReviewActive = false,
   allowClientSwitch = true,
   headerExtras,
   children,
@@ -86,6 +90,10 @@ export function WorkspaceShell({
   primaryPages?: readonly string[];
   workspaceRole?: string | null;
   displayRole?: DemoRoleId | null;
+  /** Contextual navigation; the destination continues to enforce authorization. */
+  onTask?: (target: TaskTarget) => void;
+  payrollRunId?: number;
+  payrollReviewActive?: boolean;
   allowClientSwitch?: boolean;
   headerExtras?: ReactNode;
   children: ReactNode;
@@ -98,7 +106,8 @@ export function WorkspaceShell({
   const [moreOpen, setMoreOpen] = useState(false);
 
   const isFreelancer = data.selectedOrganization.accountType === "freelancer";
-  const polishedPayrollNavigation = taskFirstUiEnabled() && workspaceRole === "payroll";
+  const polishedNavigation = taskFirstUiEnabled();
+  const polishedPayrollNavigation = polishedNavigation && workspaceRole === "payroll";
   const openApprovals = data.tasks.filter((task) => task.status === "Pending").length;
   const roleInfo = demoRoleInfo(displayRole);
   const userName = roleInfo?.person ?? data.user?.name ?? "Signed-in user";
@@ -112,6 +121,13 @@ export function WorkspaceShell({
     .filter((item) => !visiblePages || visiblePages.includes(item.name));
   const primarySet = new Set(primaryPages ?? allowedItems.map((item) => item.name));
   const primaryItems = allowedItems.filter((item) => primarySet.has(item.name));
+  const reviewShortcutAvailable = polishedPayrollNavigation && Boolean(onTask) && allowedItems.some(item => item.name === "Payroll");
+  const showReviewAsActive = reviewShortcutAvailable && page === "Payroll" && payrollReviewActive;
+  const openPayrollReview = () => {
+    if (!reviewShortcutAvailable || !onTask) return;
+    closeOverlays();
+    onTask({ page: "Payroll", runId: payrollRunId, focus: "review" });
+  };
   const secondaryItems = allowedItems.filter((item) => !primarySet.has(item.name));
   const navigationGroups = [{ label: "", items: primaryItems }];
   const secondaryGroups = NAVIGATION
@@ -162,7 +178,7 @@ export function WorkspaceShell({
 
   return (
     <div
-      className={`app-shell clean-shell ${polishedPayrollNavigation ? "tf-shell" : ""} ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`}
+      className={`app-shell clean-shell ${polishedNavigation ? "tf-shell" : ""} ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`}
       data-workspace-page={page}
       data-workspace-role={workspaceRole ?? undefined}
       data-demo-role={displayRole ?? undefined}
@@ -204,7 +220,7 @@ export function WorkspaceShell({
                 <p>{group.label}</p>
                 {items.map((item) => {
                   const Icon = item.icon;
-                  const active = page === item.name;
+                  const active = page === item.name && !(showReviewAsActive && item.name === "Payroll");
                   const badge = badgeFor(item.badge);
                   return (
                     <button
@@ -217,13 +233,28 @@ export function WorkspaceShell({
                       title={rail ? item.name : undefined}
                     >
                       <span className={`nav-icon t-${item.tone}`} aria-hidden>
-                        <Icon size={polishedPayrollNavigation ? 18 : 14} strokeWidth={polishedPayrollNavigation ? (active ? 2.2 : 1.9) : (active ? 2.3 : 2)} />
+                        <Icon size={polishedNavigation ? 18 : 14} strokeWidth={polishedNavigation ? (active ? 2.2 : 1.9) : (active ? 2.3 : 2)} />
                       </span>
                       <span>{workspaceLabel(item.name, workspaceRole)}</span>
                       {badge && <b>{badge}</b>}
                     </button>
                   );
                 })}
+                {reviewShortcutAvailable && (
+                  <button
+                    type="button"
+                    className={showReviewAsActive ? "nav-item tf-review-nav-item active" : "nav-item tf-review-nav-item"}
+                    data-nav-name="Payroll review"
+                    onClick={openPayrollReview}
+                    aria-current={showReviewAsActive ? "page" : undefined}
+                    title={rail ? "Payroll review" : undefined}
+                  >
+                    <span className="nav-icon t-blue" aria-hidden>
+                      <ClipboardCheck size={18} strokeWidth={showReviewAsActive ? 2.2 : 1.9} />
+                    </span>
+                    <span>Payroll review</span>
+                  </button>
+                )}
               </div>
             );
           })}
@@ -237,7 +268,7 @@ export function WorkspaceShell({
                 aria-expanded={moreOpen || secondaryHasCurrent}
               >
                 <span className="nav-icon t-slate" aria-hidden>
-                  <MoreHorizontal size={polishedPayrollNavigation ? 18 : 14} strokeWidth={polishedPayrollNavigation ? 1.9 : 2} />
+                  <MoreHorizontal size={polishedNavigation ? 18 : 14} strokeWidth={polishedNavigation ? 1.9 : 2} />
                 </span>
                 <span>More</span>
                 <ChevronDown className="nav-more-chevron" size={13} />
@@ -250,7 +281,7 @@ export function WorkspaceShell({
                       <p>{group.label}</p>
                       {group.items.map((item) => {
                         const Icon = item.icon;
-                        const active = page === item.name;
+                        const active = page === item.name && !(showReviewAsActive && item.name === "Payroll");
                         const badge = badgeFor(item.badge);
                         return (
                           <button
@@ -263,7 +294,7 @@ export function WorkspaceShell({
                             title={rail ? item.name : undefined}
                           >
                             <span className={`nav-icon t-${item.tone}`} aria-hidden>
-                              <Icon size={polishedPayrollNavigation ? 18 : 14} strokeWidth={polishedPayrollNavigation ? (active ? 2.2 : 1.9) : (active ? 2.3 : 2)} />
+                              <Icon size={polishedNavigation ? 18 : 14} strokeWidth={polishedNavigation ? (active ? 2.2 : 1.9) : (active ? 2.3 : 2)} />
                             </span>
                             <span>{workspaceLabel(item.name, workspaceRole)}</span>
                             {badge && <b>{badge}</b>}
@@ -500,9 +531,9 @@ export function WorkspaceShell({
       </div>
 
       <nav className="mobile-bottom-nav" aria-label="Mobile workspace navigation">
-        {primaryItems.slice(0, 5).map((item) => {
+        {primaryItems.slice(0, reviewShortcutAvailable ? 4 : 5).map((item) => {
           const Icon = item.icon;
-          const active = page === item.name;
+          const active = page === item.name && !(showReviewAsActive && item.name === "Payroll");
           return (
             <button
               key={item.name}
@@ -513,12 +544,24 @@ export function WorkspaceShell({
               aria-current={active ? "page" : undefined}
             >
               <span className={`nav-icon t-${item.tone}`} aria-hidden>
-                <Icon size={polishedPayrollNavigation ? 18 : 16} strokeWidth={polishedPayrollNavigation ? (active ? 2.2 : 1.9) : (active ? 2.3 : 2)} />
+                <Icon size={polishedNavigation ? 18 : 16} strokeWidth={polishedNavigation ? (active ? 2.2 : 1.9) : (active ? 2.3 : 2)} />
               </span>
               <span>{workspaceLabel(item.name, workspaceRole)}</span>
             </button>
           );
         })}
+        {reviewShortcutAvailable && (
+          <button
+            type="button"
+            className={showReviewAsActive ? "active" : ""}
+            onClick={openPayrollReview}
+            aria-current={showReviewAsActive ? "page" : undefined}
+            title="View the selected payroll run's review status"
+          >
+            <span className="nav-icon t-blue" aria-hidden><ClipboardCheck size={18} strokeWidth={showReviewAsActive ? 2.2 : 1.9} /></span>
+            <span>Payroll review</span>
+          </button>
+        )}
       </nav>
     </div>
   );
