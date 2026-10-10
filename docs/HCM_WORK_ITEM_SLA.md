@@ -1,0 +1,37 @@
+# HCM work-item ownership and SLA tracking
+
+This enhancement extends existing `automation_operational_cases` rather than copying cases to a second queue.
+
+## Required ordered SQL dependency (never auto-apply in production)
+
+This PR is **stacked on the reviewed SQL 0100-0103 train (PR #667)**. The HCM ownership/SLA extension is its next consecutive append-only migration, `drizzle/0104_hcm_work_item_sla.sql`. The `drizzle/` folder contains the canonical numbered migration history; the former ad-hoc `migrations/` path was removed to prevent bypassing the release guard. **Do not deploy this API/UI before an authorized DBA has confirmed actual applied-history/checksums, rehearsed the isolated rollback, and manually applied 0100-0104 in the approved order.** Passing CI `db:push` on an ephemeral database does not prove staging or production migration acceptance.
+
+## Release steps
+1. Apply `drizzle/0104_hcm_work_item_sla.sql` to the workspace database.
+2. Deploy the feature branch after tests and permission review.
+3. Set a strong random `HCM_SLA_CRON_SECRET` and configure a scheduler to call `POST /api/hcm/work-items/escalate` with `Authorization: Bearer <secret>` every 5-15 minutes. No secret means the endpoint returns 503 and does no work.
+4. Update your HCM case management UI to display and edit `ownerTeam`, `ownerUserId`, `dueAt`, `escalateAt`, and `overdue` via the API. API work does not automatically ship UI.
+5. Monitor escalation events in `hcm_work_item_events`. Escalation is durable and queryable, but escalation emails are queued to active company-wide owner/admin/HR recipients using the existing outbox. Actual sending requires a configured email provider and worker; in-app notification delivery is not included.
+
+## Endpoints
+- `GET /api/hcm/work-items?organizationId=123&status=overdue`: list 200 most urgent cases, with optional `open`, `acknowledged`, `resolved`, `overdue` filter.
+- `PATCH /api/hcm/work-items` body: `{ "organizationId": 123, "id": 456, "ownerTeam": "HR Operations", "ownerUserId": 21, "dueAt": "2026-10-15T09:00:00+08:00", "escalateAt": "2026-10-15T10:00:00+08:00" }`.
+- `POST /api/hcm/work-items/escalate`: scheduled sweep, at most 100 cases each invocation, with `remainingMayExist` hint.
+
+Only existing, open/acknowledged cases are eligible for ownership updates. Owners must be active in the same organization and have an HR-authorized role. Deadlines require a real Gregorian ISO 8601 timestamp with an explicit UTC offset or Z (for example, `2026-10-15T09:00:00+08:00`). Timezone-less or invalid dates receive HTTP 400 rather than silently scheduling an incorrect SLA; pass explicit `null` to clear a deadline. The HR editor converts its local datetime input to UTC before submission. Escalations run only once per SLA schedule; rescheduling resets escalation state and generates an audit event. Closing cases remains governed by the existing case workflow.
+
+## Follow-ups before rollout
+- The work queue dashboard is available at `/hcm/work-items`; add navigation from the existing workspace shell and surface event history in the UI.
+- Outbox escalation notifications are queued for People-admin leadership; verify provider delivery separately (queued is not sent).
+- Company-wide HR access is required. Scoped HR accounts receive 403 until unit-safe case scopes are implemented.
+- Add automated API/database tests for cross-tenant access, owner membership validation, overdue boundary, reassignments, idempotency, race conditions and closing a case.
+- Configure expected SLA targets by case type/priority; current implementation requires HR to enter explicit deadlines.
+
+
+## Unified HCM command center (first integration slice)
+- The authenticated workspace links to `/hcm/command-center`.
+- The command center displays live tenant-scoped employee record count, unresolved lifecycle follow-ups, operational cases, and recent payroll-run exceptions.
+- It links to `/hcm/work-items?organizationId=<org>` and the existing `/app` workspace.
+- The overview is read-only; payroll release and employee-state mutations remain in their original authorized workflows.
+- Only company-wide People-admin roles can view these aggregate HR metrics; unit-scoped users are blocked until source-specific unit scoping is available.
+- It is an integration slice, **not** a fully unified employee lifecycle or production-tested Workday-equivalent HCM implementation.
