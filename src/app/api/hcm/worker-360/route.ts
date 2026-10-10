@@ -1,6 +1,6 @@
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { validWorker360Date } from "@/lib/hcm-worker-360-projection";
+import { philippineWorker360Date, validWorker360Date } from "@/lib/hcm-worker-360-projection";
 import { loadWorker360Summary } from "@/lib/hcm-worker-360-server";
 
 export const dynamic = "force-dynamic";
@@ -15,14 +15,6 @@ function positiveId(value: string | null): number | null {
   if (!value || !/^[1-9]\d*$/.test(value)) return null;
   const id = Number(value);
   return Number.isSafeInteger(id) && id > 0 ? id : null;
-}
-
-export function philippineWorker360Date(now = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
-  }).formatToParts(now);
-  const value = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-  return [value("year"), value("month"), value("day")].join("-");
 }
 
 /** Read-only by design. All worker, position and payroll writes remain upstream. */
