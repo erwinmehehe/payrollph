@@ -103,6 +103,14 @@ function fixture(options: { now?: string; afterLock?: string; afterSource?: stri
   const dependencies: Record<string, unknown> = {
     "drizzle-orm": { and: expression, desc: expression, eq: expression, inArray: expression, sql },
     "@/db": { db }, "@/db/schema": schema,
+    // Manager-only imports exist in the same production service module. The
+    // synthetic timing harness invokes employee methods only, so supply
+    // explicit inert dependencies rather than loading a real auth/database path.
+    "@/lib/access": { PEOPLE_ADMIN_ROLES: ["owner", "admin", "bookkeeper", "hr"] },
+    "./workforce-schedule-receipt-review": {
+      managerReceiptDays: () => { throw new Error("Manager method used in employee timing fixture."); },
+      summarizeManagerReceiptDays: () => { throw new Error("Manager method used in employee timing fixture."); },
+    },
     "./workforce-schedule-receipt-schema": { workforceScheduleReceipts: receipts },
     "./workforce-schedule-receipt": receiptHelpers,
     "./workforce-employee-upcoming-week": { manilaWorkDate: currentDay },
