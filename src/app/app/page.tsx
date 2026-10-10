@@ -11,6 +11,7 @@ import { db } from "@/db";
 import { subscriptions } from "@/db/schema";
 import { isSelfServeOrganization } from "@/lib/saas-workspace-access";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
+import { pilotFocusEnabledForOrganization } from "@/lib/pilot-navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -57,8 +58,9 @@ export default async function WorkspacePage() {
   if (companyDenied) redirect("/login?ssoRequired=1");
 
   const data = await getDashboardData(companyOrganizationId);
+  const pilotFocusEnabled = pilotFocusEnabledForOrganization(companyOrganizationId);
   const access = data.access;
-  const canSeeMyTeam = process.env.NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true" &&
+  const canSeeMyTeam = !pilotFocusEnabled && process.env.NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true" &&
     !!access && (
       ["owner", "admin", "hr"].includes(access.role) ||
       (access.role === "manager" && !access.companyWide && access.orgUnitId !== null)
@@ -73,9 +75,9 @@ export default async function WorkspacePage() {
           My Team
         </Link>
       )}
-      <Link href="/hcm/command-center" className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>
+      {!pilotFocusEnabled && (<Link href="/hcm/command-center" className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>) }
     </div>
-    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} />
+    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} pilotFocusEnabled={pilotFocusEnabled} />
   </>;
 }
 
