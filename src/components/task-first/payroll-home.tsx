@@ -1,13 +1,14 @@
 "use client";
 
 import {
-  ArrowRight,
   AlertTriangle,
+  ArrowRight,
   CalendarDays,
-  Check,
   CheckCircle2,
-  ClipboardList,
+  ChevronRight,
+  ClipboardCheck,
   Clock3,
+  CreditCard,
   FileText,
   Plus,
   ShieldCheck,
@@ -29,10 +30,11 @@ const REVIEW_STATES = ["Pending approval", "Ready for release", "Released"];
 
 export function TaskFirstPayrollHome({ data, run, onTask, onNewRun }: Props) {
   const activeEmployees = data.employees.filter((employee) => employee.status === "Active");
+  // The dashboard returns masked bank accounts. An existing masked account still counts as present.
   const missingPayout = activeEmployees.filter(
     (employee) => !employee.bankCode || !employee.bankAccount,
   ).length;
-  const attendance = new Set(
+  const incompleteAttendance = new Set(
     (data.punches ?? [])
       .filter(
         (punch) =>
@@ -42,169 +44,190 @@ export function TaskFirstPayrollHome({ data, run, onTask, onNewRun }: Props) {
       .map((punch) => punch.employeeId),
   ).size;
   const exceptions = run?.exceptions ?? 0;
-  const issueSignals = missingPayout + attendance + exceptions;
+  const issueCategories = [missingPayout, exceptions, incompleteAttendance].filter((count) => count > 0).length;
   const released = run?.status === "Released";
   const failed = run?.status === "Failed";
   const handedOff = Boolean(run && REVIEW_STATES.includes(run.status));
   const calculated = Boolean(run && (Number(run.grossPay) > 0 || released));
-  const currentStep = !run
-    ? 0
-    : failed
-      ? 1
-      : attendance > 0 && !calculated
-        ? 0
-        : !calculated
-          ? 1
-          : exceptions > 0
-            ? 2
-            : 3;
-
-  const stages = ["Inputs", "Calculate", "Review", "Handoff"] as const;
   const gross = calculated ? Number(run?.grossPay) : null;
   const net = calculated ? Number(run?.netPay) : null;
-  const displayMoney = (value: number | null) =>
-    value === null ? "Not calculated" : uiMoney(value);
+  const deductions = gross !== null && net !== null ? Math.max(gross - net, 0) : null;
+
   const payrollTask = (focus: "workflow" | "register" | "exceptions") =>
     run ? onTask({ page: "Payroll", runId: run.id, focus }) : onNewRun();
 
-  const nextAction = !run
-    ? "Start your first payroll"
-    : failed
-      ? "Review failed calculation"
-      : handedOff
-        ? "Open payroll handoff"
-        : exceptions > 0
-          ? "Review payroll exceptions"
-          : calculated
-            ? "Review the register"
-            : "Prepare payroll";
   const nextFocus: "workflow" | "register" | "exceptions" =
-    !failed && !handedOff && exceptions > 0 ? "exceptions" : !failed && calculated && !handedOff ? "register" : "workflow";
+    !failed && !handedOff && exceptions > 0
+      ? "exceptions"
+      : !failed && !handedOff && calculated
+        ? "register"
+        : "workflow";
+  const nextAction = !run
+    ? "Create payroll"
+    : failed
+      ? "Review calculation"
+      : handedOff
+        ? "View run status"
+        : exceptions > 0
+          ? "Review exceptions"
+          : calculated
+            ? "Open register"
+            : "Prepare payroll";
   const nextHint = failed
-    ? "The calculation needs attention before this payroll can proceed."
+    ? "Calculation failed — review this run before trying again."
     : handedOff
       ? released
-        ? "Payroll has been released. Payment settlement is tracked separately."
-        : "This run is in the independent review and release workflow."
+        ? "Payroll released. This does not confirm that employees have been paid."
+        : "This payroll is in the independent review or release workflow."
       : exceptions > 0
-        ? "Resolve flagged entries before sending this run for review."
+        ? "Review the flagged entries before submitting the run."
         : calculated
-          ? "Check employee-level amounts before handing the run to a checker."
-          : "Confirm attendance, pay details, and adjustments before calculation.";
+          ? "Check stored employee-level amounts before handoff."
+          : "Check attendance and pay inputs before calculating.";
 
   return (
     <div className="tf-payroll-home">
       <header className="tf-home-header">
         <div>
-          <div className="tf-kicker"><span className="tf-kicker-dot" />PAYROLL / WORKSPACE</div>
-          <h1>Payday, without the guesswork.</h1>
-          <p>Everything you need to prepare this payroll, all in one place.</p>
+          <span className="tf-kicker">PAYROLL OFFICER <ChevronRight size={13} aria-hidden /> OVERVIEW</span>
+          <h1>Payroll overview</h1>
+          <p>Your current payroll, exceptions and next steps in one place.</p>
         </div>
-        <span className="tf-org-chip"><span className="tf-org-mark">{data.selectedOrganization.name.slice(0, 1).toUpperCase()}</span>{data.selectedOrganization.name}<span className="tf-org-dot">·</span>Payroll officer</span>
       </header>
 
-      <div className="tf-payroll-grid">
-        <section className="tf-card tf-current" aria-labelledby="tf-current-title">
-          <div className="tf-current-top">
-            <div>
-              <div className="tf-kicker">{run ? "IN PROGRESS" : "GET STARTED"} <span className="tf-run-id">{run ? `RUN #${run.id}` : "NO RUN YET"}</span></div>
-              <h2 id="tf-current-title">{run?.periodLabel ?? "Start your next payroll"}</h2>
-              <p>{run ? `${run.employeeCount} employees · Pay date ${uiDate(run.payDate)}` : "Create a run to begin preparing your team's pay."}</p>
-            </div>
-            <span className={`tf-status ${failed ? "tf-status-failed" : handedOff ? "tf-status-done" : exceptions ? "tf-status-attention" : "tf-status-open"}`}>
-              <span className="tf-status-dot" />{run?.status ?? "Not started"}
+      <section className="tf-run-strip" aria-labelledby="tf-run-title">
+        <div className="tf-strip-info">
+          <div className="tf-strip-label">CURRENT PAYROLL</div>
+          <div className="tf-strip-title-row">
+            <h2 id="tf-run-title">{run?.periodLabel ?? "No payroll run yet"}</h2>
+            <span className={`tf-status ${failed ? "tf-status-failed" : handedOff ? "tf-status-done" : exceptions > 0 ? "tf-status-attention" : ""}`}>
+              <span className="tf-status-dot" aria-hidden />{run?.status ?? "Not started"}
             </span>
           </div>
-
-          <div className="tf-progress-label">PAYROLL PROGRESS</div>
-          <ol className="tf-step-track" aria-label="Payroll preparation progress">
-            {stages.map((stage, index) => {
-              const done = handedOff || index < currentStep;
-              const current = !handedOff && index === currentStep;
-              return <li className={done ? "tf-step-done" : current ? "tf-step-current" : ""} key={stage} aria-current={current ? "step" : undefined}>
-                <span className="tf-step-number">{done ? <Check size={15} strokeWidth={3} /> : index + 1}</span><span>{stage}</span>
-              </li>;
-            })}
-          </ol>
-
-          <div className="tf-primary-foot">
-            <div className="tf-next-copy">
-              <span className="tf-next-label">{handedOff ? "CURRENT POSITION" : "RECOMMENDED NEXT STEP"}</span>
-              <strong>{nextAction}</strong>
-              <p>{nextHint}</p>
-            </div>
-            <button type="button" className="tf-primary" onClick={() => payrollTask(nextFocus)}>
-              {run ? "Open this run" : "Create payroll"} <ArrowRight size={17} aria-hidden />
-            </button>
+          <div className="tf-run-facts">
+            <span><CalendarDays size={15} aria-hidden /> {run ? `Pay date ${uiDate(run.payDate)}` : "Pay date not scheduled"}</span>
+            <span><Users size={15} aria-hidden /> {run ? `${run.employeeCount} employees` : `${activeEmployees.length} active employees`}</span>
+            {run && <span><ShieldCheck size={15} aria-hidden /> {run.scopeLabel}</span>}
           </div>
-        </section>
+        </div>
+        <div className="tf-strip-next">
+          <p>{nextHint}</p>
+          <button type="button" className="tf-primary" onClick={() => payrollTask(nextFocus)}>
+            {nextAction}<ArrowRight size={17} aria-hidden />
+          </button>
+        </div>
+      </section>
 
-        <aside className="tf-card tf-payday" aria-label="Current payroll pay date">
-          <div className="tf-payday-heading"><div className="tf-kicker">PAY DATE</div><span className="tf-payday-icon"><CalendarDays size={19} /></span></div>
-          <strong>{run ? uiDate(run.payDate) : "Not scheduled"}</strong>
-          <p>{run ? `${run.employeeCount} employees in this payroll` : "No payroll run selected"}</p>
-          <div className="tf-payday-divider" />
-          <span className="tf-payday-detail">PAYROLL SCOPE</span>
-          <span className="tf-sublabel">{run?.scopeLabel ?? "New payroll"}</span>
-          <div className="tf-payday-bottom"><ShieldCheck size={16} /> Reviewer and release controls stay separate</div>
-        </aside>
-      </div>
-
-      <div className="tf-overview-heading"><h2>Payroll snapshot</h2><span>Stored figures for the selected run · not payment confirmation</span></div>
-      <section className="tf-metrics" aria-label="Stored payroll totals">
-        <Metric icon={<Wallet size={17}/>} label="Gross compensation" value={displayMoney(gross)} note={calculated ? "Calculated earnings" : "Awaiting calculation"} />
-        <Metric icon={<FileText size={17}/>} label="Deductions" value={displayMoney(gross !== null && net !== null ? Math.max(0, gross - net) : null)} note="Tax, statutory and other" />
-        <Metric icon={<ShieldCheck size={17}/>} label="Net pay" value={displayMoney(net)} note={calculated ? "Subject to release controls" : "Awaiting calculation"} emphasis />
-        <Metric icon={<Users size={17}/>} label="Employees in run" value={String(run?.employeeCount ?? activeEmployees.length)} note={run ? "Included in selected period" : "Active employee records"} />
+      <section className="tf-metrics" aria-label="Current payroll summary">
+        <Metric icon={<Wallet size={18}/>} label="Gross compensation" value={gross === null ? "Not calculated" : uiMoney(gross)} note={calculated ? "Calculated earnings" : "Awaiting calculation"} />
+        <Metric icon={<FileText size={18}/>} label="Deductions" value={deductions === null ? "Not calculated" : uiMoney(deductions)} note="Gross less net · see register" />
+        <Metric icon={<ShieldCheck size={18}/>} label="Net pay" value={net === null ? "Not calculated" : uiMoney(net)} note={released ? "Released, payment unconfirmed" : calculated ? "Not yet released" : "Awaiting calculation"} emphasis />
+        <Metric icon={<Users size={18}/>} label={run ? "Employees in run" : "Active employees"} value={String(run?.employeeCount ?? activeEmployees.length)} note={run ? "Included in selected payroll" : "No payroll run selected"} />
       </section>
 
       <div className="tf-lower-grid">
         <section className="tf-card tf-attention" aria-labelledby="tf-attention-title">
-          <div className="tf-card-heading tf-row-heading">
-            <div><div className="tf-kicker">01 / WHAT NEEDS WORK</div><h2 id="tf-attention-title">Needs your attention</h2></div>
-            <span className={`tf-count ${issueSignals ? "tf-count-issue" : ""}`}>{issueSignals ? `${issueSignals} signals` : "All clear"}</span>
+          <div className="tf-card-heading">
+            <div>
+              <h2 id="tf-attention-title">Needs your attention</h2>
+              <p>Items worth checking before payroll moves forward.</p>
+            </div>
+            <span className={`tf-count ${issueCategories ? "tf-count-issue" : ""}`}>
+              {issueCategories ? `${issueCategories} ${issueCategories === 1 ? "area" : "areas"} to review` : "All clear"}
+            </span>
           </div>
-          <ActionRow icon={<Clock3 />} issue={attendance > 0}
-            title={attendance ? `${attendance} ${attendance === 1 ? "employee" : "employees"} with incomplete attendance` : "No incomplete attendance identified"}
-            detail={attendance ? "Check missing or unresolved time entries." : "Based on the attendance records currently loaded."}
-            action="Review" onClick={() => onTask({ page: "Time & attendance", filter: "attendance-exceptions" })} />
-          <ActionRow icon={<AlertTriangle />} issue={exceptions > 0}
+          <ActionRow
+            icon={<CreditCard size={19}/>}
+            issue={missingPayout > 0}
+            title={missingPayout ? `${missingPayout} ${missingPayout === 1 ? "employee" : "employees"} missing payout details` : "Payout fields are complete"}
+            detail={missingPayout ? "Complete the missing fields before payment preparation." : "Field presence is not bank-account verification."}
+            action="View employees"
+            onClick={() => onTask({ page: "People", filter: "missing-payout" })}
+          />
+          <ActionRow
+            icon={<AlertTriangle size={19}/>}
+            issue={exceptions > 0}
             title={exceptions ? `${exceptions} payroll ${exceptions === 1 ? "exception" : "exceptions"}` : "No payroll exceptions reported"}
-            detail={exceptions ? "Open the flagged entries for this exact run." : "You can still inspect the complete register."}
-            action="Inspect" onClick={() => payrollTask(exceptions ? "exceptions" : "register")} />
-          <ActionRow icon={<ShieldCheck />} issue={missingPayout > 0}
-            title={missingPayout ? `${missingPayout} ${missingPayout === 1 ? "employee" : "employees"} missing payout fields` : "Required payout fields are present"}
-            detail="Field completeness does not verify a bank account."
-            action="View" onClick={() => onTask({ page: "People", filter: "missing-payout" })} />
-          <p className="tf-attention-foot">Counts may overlap by employee and are not a distinct-person total.</p>
+            detail={exceptions ? "Inspect flagged entries for the selected run." : "Review the register before handing off payroll."}
+            action="Review exceptions"
+            onClick={() => payrollTask(exceptions ? "exceptions" : "register")}
+          />
+          <ActionRow
+            icon={<Clock3 size={19}/>}
+            issue={incompleteAttendance > 0}
+            title={incompleteAttendance ? `${incompleteAttendance} ${incompleteAttendance === 1 ? "employee" : "employees"} with incomplete time entries` : "Recorded time entries appear complete"}
+            detail={incompleteAttendance ? "Review incomplete punches in the selected period." : "Based on time entries currently loaded."}
+            action="Review attendance"
+            onClick={() => onTask({ page: "Time & attendance", filter: "attendance-exceptions" })}
+          />
+          <p className="tf-attention-foot">Categories may overlap by employee. A missing field does not prove an account is invalid.</p>
         </section>
 
         <section className="tf-card tf-actions" aria-labelledby="tf-actions-title">
-          <div className="tf-card-heading tf-row-heading"><div><div className="tf-kicker">02 / SHORTCUTS</div><h2 id="tf-actions-title">Your next moves</h2></div><ClipboardList size={19} className="tf-section-icon" /></div>
-          <ActionRow icon={<ClipboardList />} title="Prepare payroll inputs" detail="Review attendance, pay and adjustments." onClick={() => payrollTask("workflow")} />
-          <ActionRow icon={<FileText />} title="Open payroll register" detail="Inspect the employee-level calculation." onClick={() => payrollTask("register")} />
-          <ActionRow icon={<Plus />} title="Start a new payroll" detail="Create a separate period without changing this run." onClick={onNewRun} />
+          <div className="tf-card-heading">
+            <div>
+              <h2 id="tf-actions-title">Your next moves</h2>
+              <p>Go directly to the task you need.</p>
+            </div>
+          </div>
+          <ActionRow
+            icon={<ClipboardCheck size={19}/>}
+            title="Review payroll inputs"
+            detail="Open the preparation workflow for this payroll."
+            action="Open"
+            onClick={() => payrollTask("workflow")}
+          />
+          <ActionRow
+            icon={<FileText size={19}/>}
+            title="Open payroll register"
+            detail="Inspect stored calculations by employee."
+            action="Open"
+            onClick={() => payrollTask("register")}
+          />
+          <ActionRow
+            icon={<Plus size={19}/>}
+            title="Start another payroll"
+            detail="Create a separate payroll period."
+            action="Start"
+            onClick={onNewRun}
+          />
         </section>
       </div>
-      <p className="tf-footer-note"><CheckCircle2 size={14} aria-hidden/> Values come from the selected run. Calculation, checker approval, payroll release and bank payout are separate operations governed by existing server controls.</p>
+
+      <p className="tf-footer-note"><CheckCircle2 size={15} aria-hidden /> Amounts are from the selected run. Payroll release and bank settlement are separate steps with existing server-side controls.</p>
     </div>
   );
 }
 
 function Metric({ icon, label, value, note, emphasis = false }: {
-  icon: ReactNode; label: string; value: string; note: string; emphasis?: boolean;
+  icon: ReactNode;
+  label: string;
+  value: string;
+  note: string;
+  emphasis?: boolean;
 }) {
-  return <div className={`tf-metric ${emphasis ? "tf-metric-emphasis" : ""}`}>
-    <span>{icon}{label}</span><strong title={value}>{value}</strong><small>{note}</small>
-  </div>;
+  return (
+    <article className={`tf-metric ${emphasis ? "tf-metric-emphasis" : ""}`}>
+      <span className="tf-metric-title">{icon}<span>{label}</span></span>
+      <strong className={value === "Not calculated" ? "tf-metric-pending" : ""}>{value}</strong>
+      <small>{note}</small>
+    </article>
+  );
 }
 
-function ActionRow({ icon, title, detail, issue = false, action = "Open", onClick }: {
-  icon: ReactNode; title: string; detail: string; issue?: boolean; action?: string; onClick: () => void;
+function ActionRow({ icon, title, detail, issue = false, action, onClick }: {
+  icon: ReactNode;
+  title: string;
+  detail: string;
+  issue?: boolean;
+  action: string;
+  onClick: () => void;
 }) {
-  return <button type="button" className={`tf-action-row ${issue ? "tf-action-issue" : ""}`} onClick={onClick}>
-    <span className={`tf-action-icon ${issue ? "tf-icon-issue" : ""}`}>{icon}</span>
-    <span className="tf-action-copy"><strong>{title}</strong><small>{detail}</small></span>
-    <span className="tf-action-go">{action}<ArrowRight size={15} aria-hidden /></span>
-  </button>;
+  return (
+    <button type="button" className="tf-action-row" onClick={onClick}>
+      <span className={`tf-action-icon ${issue ? "tf-icon-issue" : ""}`} aria-hidden>{icon}</span>
+      <span className="tf-action-copy"><strong>{title}</strong><small>{detail}</small></span>
+      <span className="tf-action-go">{action}<ArrowRight size={15} aria-hidden /></span>
+    </button>
+  );
 }
