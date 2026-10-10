@@ -1,3 +1,12 @@
+## Release lane and dependencies
+- Lane: `WFM | HRIS/HCM | Payroll/Financial | Database/ESS | Automation | Billing | Platform`
+- Canonical PR for this feature (or **this PR**):
+- Parent/base PR (or `main`):
+- Blocked by:
+- Supersedes (with exact source/diff evidence; do not assume overlaps are duplicates):
+- Is this one of the **maximum three actively review-ready PRs**? `yes | no (draft)`
+- If SQL is added: reserved migration prefix(es), predecessor PR, DBA applied-journal status:
+
 ## Scope and behavior
 Describe the problem, fix, affected tenants/modules, risk of incorrect pay/data changes, and feature-flag state.
 

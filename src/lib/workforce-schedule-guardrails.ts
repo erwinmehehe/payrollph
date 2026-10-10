@@ -92,45 +92,45 @@ export function evaluateScheduleGuardrails(input: {
     .flatMap((day) => day.segments.map((segment) => intervalForSegment(day, segment)))
     .sort((a, b) => a.startMinute - b.startMinute || a.endMinute - b.endMinute);
 
-  for (let index = 1; index < intervals.length; index += 1) {
-    const previous = intervals[index - 1];
-    const current = intervals[index];
-    if (current.startMinute < previous.endMinute) {
-      issues.push({
-        code: "segment_overlap",
-        severity: "critical",
-        blocking: true,
-        date: current.date,
-        relatedDate: previous.date,
-        title: "Scheduled work overlaps",
-        detail: `${current.label} overlaps ${previous.label}. Overlapping scheduled intervals are always invalid.`,
-      });
+  // Sorted starts are not enough: a long shift can contain multiple shorter
+  // segments. Compare with the interval ending latest so later overlaps and
+  // subsequent rest gaps are evaluated against the true occupied boundary.
+  let lastEnding: AbsoluteInterval | null = null;
+  for (const current of intervals) {
+    if (lastEnding) {
+      if (current.startMinute < lastEnding.endMinute) {
+        issues.push({
+          code: "segment_overlap",
+          severity: "critical",
+          blocking: true,
+          date: current.date,
+          relatedDate: lastEnding.date,
+          title: "Scheduled work overlaps",
+          detail: `${current.label} overlaps ${lastEnding.label}. Overlapping scheduled intervals are always invalid.`,
+        });
+      } else if (policy.active && policy.minimumRestMinutes > 0) {
+        const restMinutes = current.startMinute - lastEnding.endMinute;
+        if (restMinutes < policy.minimumRestMinutes) {
+          issues.push({
+            code: "minimum_rest",
+            severity: "warning",
+            blocking: policyBlocks(policy),
+            date: current.date,
+            relatedDate: lastEnding.date,
+            title: "Minimum rest policy breached",
+            detail: `${Math.round(restMinutes / 60 * 10) / 10}h rest between scheduled work blocks; policy requires ${Math.round(policy.minimumRestMinutes / 60 * 10) / 10}h.`,
+            actualMinutes: restMinutes,
+            thresholdMinutes: policy.minimumRestMinutes,
+          });
+        }
+      }
+    }
+    if (!lastEnding || current.endMinute > lastEnding.endMinute) {
+      lastEnding = current;
     }
   }
 
   if (!policy.active) return issues;
-
-  if (policy.minimumRestMinutes > 0) {
-    for (let index = 1; index < intervals.length; index += 1) {
-      const previous = intervals[index - 1];
-      const current = intervals[index];
-      if (current.startMinute < previous.endMinute) continue;
-      const restMinutes = current.startMinute - previous.endMinute;
-      if (restMinutes < policy.minimumRestMinutes) {
-        issues.push({
-          code: "minimum_rest",
-          severity: "warning",
-          blocking: policyBlocks(policy),
-          date: current.date,
-          relatedDate: previous.date,
-          title: "Minimum rest policy breached",
-          detail: `${Math.round(restMinutes / 60 * 10) / 10}h rest between scheduled work blocks; policy requires ${Math.round(policy.minimumRestMinutes / 60 * 10) / 10}h.`,
-          actualMinutes: restMinutes,
-          thresholdMinutes: policy.minimumRestMinutes,
-        });
-      }
-    }
-  }
 
   const workingDates = workingDateSet(days);
   if (policy.maxConsecutiveWorkingDays > 0 && workingDates.size > 0) {

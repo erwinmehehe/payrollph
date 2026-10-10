@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { holidayMultiplier } from "../src/lib/payroll-rules";
 import { holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, wageOrderFor, WAGE_ORDERS } from "../src/lib/wage-orders";
 
@@ -63,4 +64,23 @@ test("national holiday calendar is effective-dated and fails closed outside cert
   assert.equal(nationalHolidayCalendarForDate("2026-12-25").some((holiday) => holiday.date === "2026-12-25"), true);
   assert.throws(() => nationalHolidayCalendarForDate("2025-12-25"), /No certified Philippine national-holiday rule pack/);
   assert.throws(() => nationalHolidayCalendarForDate("2027-01-01"), /No certified Philippine national-holiday rule pack/);
+});
+
+test("unknown wage regions cannot silently use the NCR wage reference", () => {
+  assert.equal(wageOrderFor(" ncr ").region, "NCR");
+  assert.throws(() => wageOrderFor("UNKNOWN"), /Unknown Philippine wage region/);
+  assert.throws(() => wageOrderFor(""), /Unknown Philippine wage region/);
+  assert.throws(() => isBelowMinimum(14_000, "IX", 0), /positive working days/);
+  assert.throws(() => isBelowMinimum(Number.NaN, "IX"), /non-negative monthly rate/);
+});
+
+
+test("employee creation validates wage regions at the API boundary before payroll", () => {
+  const source = readFileSync("src/app/api/employees/route.ts", "utf8");
+  assert.ok(source.includes('wageRegion = wageOrderFor(String(body.region ?? "NCR")).region'));
+  assert.ok(source.includes('code: "INVALID_WAGE_REGION"'));
+  assert.ok(source.includes('status: 422'));
+  assert.ok(source.includes("region: wageRegion"));
+  assert.ok(!source.includes('region: String(body.region ?? "NCR")'));
+  assert.equal(wageOrderFor(" iv-b ").region, "IV-B");
 });

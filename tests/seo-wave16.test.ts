@@ -44,7 +44,10 @@ test("employee-loan guide claims match the implemented loan workflow", () => {
 
   assert.ok(payrollEngine.includes('eq(employeeLoans.status, "active")'));
   assert.ok(payrollEngine.includes("cutoffDeduction: Number(l.cutoffDeduction)"));
-  assert.ok(payrollEngine.includes("requestedDeduction: Math.min(Number(loan.cutoffDeduction), Number(loan.remainingBalance))"));
+  // The original unguarded Number coercion was replaced with a fail-closed
+  // legacy-loan validator. Keep public guide claims tied to that actual path.
+  assert.ok(payrollEngine.includes("validPayrollLoanSchedule(loan)"));
+  assert.ok(payrollEngine.includes("requestedDeduction: Math.min(loan.cutoffDeduction, loan.remainingBalance)"));
 });
 
 test("retro-pay guide claims match effective-dated revision and settlement behavior", () => {
