@@ -22,6 +22,7 @@ import type { DashboardData, Organization } from "./types";
 import { Avatar, initialsOf, relativeTime } from "./ui";
 import { DEMO_ROLES, demoRoleInfo, type DemoRoleId } from "@/lib/demo-roles";
 import { payrollHandoffRank } from "@/lib/payroll-handoff";
+import { taskFirstUiEnabled } from "@/lib/task-first-ui";
 
 export type Notification = {
   id: string;
@@ -97,6 +98,7 @@ export function WorkspaceShell({
   const [moreOpen, setMoreOpen] = useState(false);
 
   const isFreelancer = data.selectedOrganization.accountType === "freelancer";
+  const polishedPayrollNavigation = taskFirstUiEnabled() && workspaceRole === "payroll";
   const openApprovals = data.tasks.filter((task) => task.status === "Pending").length;
   const roleInfo = demoRoleInfo(displayRole);
   const userName = roleInfo?.person ?? data.user?.name ?? "Signed-in user";
@@ -160,7 +162,7 @@ export function WorkspaceShell({
 
   return (
     <div
-      className={`app-shell clean-shell ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`}
+      className={`app-shell clean-shell ${polishedPayrollNavigation ? "tf-shell" : ""} ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`}
       data-workspace-page={page}
       data-workspace-role={workspaceRole ?? undefined}
       data-demo-role={displayRole ?? undefined}
@@ -188,7 +190,7 @@ export function WorkspaceShell({
 
         <div className="workspace-label">
           <span className="pulse-dot" aria-hidden />
-          <span>{isFreelancer ? "Solo workspace" : `${roleLabel} workspace`}</span>
+          <span>{polishedPayrollNavigation ? "Payroll officer" : isFreelancer ? "Solo workspace" : `${roleLabel} workspace`}</span>
         </div>
 
         <nav className="side-navigation slim-scroll">
