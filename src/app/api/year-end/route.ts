@@ -240,8 +240,10 @@ export async function GET(request: Request) {
         "Non-Taxable",
         "Taxable Income",
         "Tax Due",
-        "Tax Withheld",
-        "Adjustment",
+        "Tax Withheld Before Year-End Settlement",
+        "Year-End Tax Adjustment",
+        "Expected Tax Withheld After Settlement",
+        "Settlement Status",
         "Outcome",
       ],
       rows: rows.map((row) => [
@@ -260,6 +262,8 @@ export async function GET(request: Request) {
         row.adjustment.taxDue,
         row.adjustment.taxWithheld,
         row.adjustment.adjustment,
+        (Number(row.adjustment.taxWithheld) + Number(row.adjustment.adjustment)).toFixed(2),
+        row.adjustment.status,
         row.adjustment.outcome,
       ]),
     });
