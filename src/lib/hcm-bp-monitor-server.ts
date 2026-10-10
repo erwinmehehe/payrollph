@@ -1,19 +1,11 @@
 import { and, asc, desc, eq, inArray, lt } from "drizzle-orm";
 import { db } from "@/db";
 import { hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps } from "@/db/schema";
-import { projectMonitor, type MonitorItem } from "@/lib/hcm-bp-monitor-projection";
+import { projectMonitor } from "@/lib/hcm-bp-monitor-projection";
+import type { HcmMonitorPage } from "@/lib/hcm-bp-monitor-contract";
 
 export const HCM_BP_MONITOR_PAGE_SIZE = 30;
 export const HCM_BP_MONITOR_STEP_CEILING = 750;
-
-export type HcmMonitorPage = {
-  tenantId: number;
-  observedAt: string;
-  pageSize: number;
-  items: MonitorItem[];
-  hasMore: boolean;
-  nextCursor: number | null;
-};
 
 export class HcmMonitorSourceCapError extends Error {
   constructor() { super("Workflow step source exceeds the bounded monitor preview"); }
