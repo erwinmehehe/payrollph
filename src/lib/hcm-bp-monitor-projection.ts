@@ -8,7 +8,7 @@ export function projectMonitor(instances:readonly MonitorInstance[],steps:readon
    if(!eligible.has(step.instanceId)) continue;
    const date=step.dueAt===null?null:new Date(step.dueAt);
    const valid=date!==null&&!Number.isNaN(date.getTime());
-   const sla=step.status!=="pending"?"completed":!valid?"no_due_date":date!.getTime()<now.getTime()?"overdue":date!.getTime()===now.getTime()?"due":"not_due";
+   const sla=step.status==="completed"?"completed":step.status!=="pending"?"not_due":!valid?"no_due_date":date!.getTime()<now.getTime()?"overdue":date!.getTime()===now.getTime()?"due":"not_due";
    const list=output.get(step.instanceId)||[];
    list.push({id:step.id,stepIndex:step.stepIndex,type:step.stepType,status:step.status,sla});output.set(step.instanceId,list);
  }
