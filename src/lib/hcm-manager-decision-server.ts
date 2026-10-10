@@ -261,10 +261,10 @@ export async function loadManagerDecisionPage(input: {
   const page = rows.slice(0, PAGE_SIZE);
   const evaluations = new Map<string, Promise<AssignmentKind | null>>();
   const currentName = userName.trim().toLowerCase();
-  const evaluate = (assignee: string) => {
+  const evaluate = (assignee: string): Promise<AssignmentKind | null> => {
     const key = assignee.trim().toLowerCase();
     if (!evaluations.has(key)) {
-      evaluations.set(key, (async () => {
+      evaluations.set(key, (async (): Promise<AssignmentKind | null> => {
         const permission = await canDecide(organizationId, assignee, userName, userId);
         if (!permission.permitted) return null;
         if (permission.roleMatched) return "role";
