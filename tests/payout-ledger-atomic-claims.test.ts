@@ -10,6 +10,7 @@ import {
 } from "../src/db/schema";
 import {
   claimPreparedPayoutBatch, markPayoutBatchForReconciliation, prepareInitialPayoutBatch,
+  recordPayoutProviderBatchResponse,
 } from "../src/lib/payout-ledger";
 import {
   canonicalPayoutIntents, initialPayoutBatchKey, payoutBatchFingerprint,
@@ -194,4 +195,66 @@ test("pending SQL keeps batch key unique and immutable transfer fields protected
   assert.ok(runtime.includes('eq(payoutTransfers.status, "prepared")'));
   assert.ok(!runtime.includes("createPaymongoBatchDisbursement("));
   assert.ok(!runtime.includes("PAYMONGO_SECRET_KEY"));
+});
+
+
+test("provider acknowledgement requires the exact two-person frozen batch and is NOT settlement", async () => {
+  const source = await fixture();
+  try {
+    const prepared = await prepareInitialPayoutBatch({
+      organizationId: source.orgId, payrollRunId: source.runId, intents: source.intents,
+    });
+    const claim = await claimPreparedPayoutBatch({ organizationId: source.orgId, batchId: prepared.batchId });
+    assert.ok(claim);
+    const accepted = source.intents.map((item, index) => ({
+      referenceNumber: item.referenceNumber, amountCents: item.amountCents,
+      providerTransferId: `tr_synthetic_a2_${index}_${prepared.batchId}`,
+    }));
+    await assert.rejects(recordPayoutProviderBatchResponse({
+      organizationId: source.orgId, batchId: prepared.batchId,
+      providerBatchId: `batch_tr_synthetic_${prepared.batchId}`,
+      transfers: accepted.map((item, index) => index === 0 ? { ...item, amountCents: item.amountCents + 1 } : item),
+    }), /PAYOUT_PROVIDER_ACK_IDENTITY_OR_STATE_MISMATCH/);
+    const [afterRejected] = await db.select().from(payoutBatches).where(eq(payoutBatches.id, prepared.batchId));
+    assert.equal(afterRejected.status, "submitting", "invalid provider data must roll back fully");
+
+    assert.equal(await recordPayoutProviderBatchResponse({
+      organizationId: source.orgId, batchId: prepared.batchId,
+      providerBatchId: `batch_tr_synthetic_${prepared.batchId}`, transfers: accepted,
+    }), true);
+    assert.equal(await recordPayoutProviderBatchResponse({
+      organizationId: source.orgId, batchId: prepared.batchId,
+      providerBatchId: `batch_tr_synthetic_${prepared.batchId}`, transfers: accepted,
+    }), false, "same batch must not be acknowledged a second time");
+    const [batch] = await db.select().from(payoutBatches).where(eq(payoutBatches.id, prepared.batchId));
+    assert.equal(batch.status, "submitted");
+    assert.equal(batch.providerBatchId, `batch_tr_synthetic_${prepared.batchId}`);
+    const transfers = await db.select().from(payoutTransfers)
+      .where(eq(payoutTransfers.organizationId, source.orgId));
+    assert.ok(transfers.every((item) => item.status === "submitted"));
+    assert.ok(!transfers.some((item) => item.status === "succeeded"));
+  } finally { await cleanup(source.orgId); }
+});
+
+test("ambiguous claimed provider response cannot be retried as a fresh payout batch", async () => {
+  const source = await fixture();
+  try {
+    const staged = await prepareInitialPayoutBatch({
+      organizationId: source.orgId, payrollRunId: source.runId, intents: source.intents,
+    });
+    await claimPreparedPayoutBatch({ organizationId: source.orgId, batchId: staged.batchId });
+    assert.equal(await markPayoutBatchForReconciliation({
+      organizationId: source.orgId, batchId: staged.batchId,
+    }), true);
+    assert.equal(await recordPayoutProviderBatchResponse({
+      organizationId: source.orgId, batchId: staged.batchId, providerBatchId: "batch_tr_late",
+      transfers: source.intents.map((row, index) => ({
+        referenceNumber: row.referenceNumber, amountCents: row.amountCents,
+        providerTransferId: `tr_late_${index}`,
+      })),
+    }), false, "late ACK requires explicit reconciliation, not silent state change");
+    await assert.rejects(prepareInitialPayoutBatch({
+      organizationId: source.orgId, payrollRunId: source.runId, intents: source.intents,
+    }), /PAYOUT_BATCH_ALREADY_PREPARED/);
+  } finally { await cleanup(source.orgId); }
 });
