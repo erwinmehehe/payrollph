@@ -230,7 +230,7 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
                         <ol className="mt-4 divide-y divide-slate-100">
                           {positionHistory.history.preview.items.map((assignment) => (
                             <li key={assignment.id} className="py-3">
-                              <p className="text-sm font-medium">Recorded worker reference #{assignment.employeeId}</p>
+                              <p className="text-sm font-medium">{assignment.employeeId === null ? "Worker reference unverified in this employer" : "Recorded worker reference #" + assignment.employeeId}</p>
                               <p className="mt-1 text-xs text-slate-600">
                                 {assignment.assignmentType} assignment · {phDate(assignment.effectiveFrom)} — {phDate(assignment.effectiveUntil)}
                               </p>
