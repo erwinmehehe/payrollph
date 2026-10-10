@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - "scripts/validate-scheduler-staging-evidence.mjs"
+      - "scripts/verify-scheduler-github-runs.mjs"
       - "tests/scheduler-staging-evidence.test.mjs"
+      - "tests/scheduler-github-run-provenance.test.mjs"
       - "docs/engineering/scheduler-staging-evidence-*.md"
       - "docs/engineering/scheduler-staging-evidence-*.json"
       - ".github/workflows/scheduler-staging-evidence.yml"
@@ -12,7 +14,9 @@ on:
     branches: [main]
     paths:
       - "scripts/validate-scheduler-staging-evidence.mjs"
+      - "scripts/verify-scheduler-github-runs.mjs"
       - "tests/scheduler-staging-evidence.test.mjs"
+      - "tests/scheduler-github-run-provenance.test.mjs"
       - "docs/engineering/scheduler-staging-evidence-*.md"
       - "docs/engineering/scheduler-staging-evidence-*.json"
       - ".github/workflows/scheduler-staging-evidence.yml"
@@ -31,5 +35,5 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
-      - name: Test evidence shape and safe file handling (offline only)
-        run: node --test tests/scheduler-staging-evidence.test.mjs
+      - name: Validate offline evidence and mock GitHub run/reviewer provenance (no credentials)
+        run: node --test tests/scheduler-staging-evidence.test.mjs tests/scheduler-github-run-provenance.test.mjs

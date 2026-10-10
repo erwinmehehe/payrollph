@@ -1,0 +1,121 @@
+name: Automation Language Acceptance (Synthetic)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/api/automation-studio/route.ts"
+      - "src/components/automation-studio-panel.tsx"
+      - "src/lib/automation-language-*.ts"
+      - "src/lib/automation-preview-approval.ts"
+      - "src/lib/automation-versioning.ts"
+      - "scripts/automation-language-acceptance.ts"
+      - "scripts/automation-language-browser-acceptance.mjs"
+      - "scripts/automation-language-disabled-acceptance.mjs"
+      - ".github/workflows/automation-language-acceptance.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-language-acceptance:
+    name: No-external-AI HTTP acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      AUTOMATION_LANGUAGE_ACCEPTANCE_MODE: synthetic-postgres-only
+      AUTOMATION_ACCEPTANCE_URL: http://127.0.0.1:3000
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      # This job uses an ephemeral, single-use database and synthetic owner.
+      # It tests authorized positive flows; the separate Security HTTP Smoke
+      # is responsible for validating production-mode MFA enforcement.
+      REQUIRE_PRIVILEGED_MFA: "false"
+      OPENAI_AUTOMATION_DRAFT_ENABLED: "false"
+      OPENAI_API_KEY: ""
+      SETUP_TOKEN: ci-only-automation-setup-token-2026-never-use-in-production
+      WORKER_TOKEN: ci-only-automation-worker-token-2026-never-use-in-production
+      READINESS_TOKEN: ci-only-automation-readiness-token-2026-never-use-in-production
+      TOTP_ENCRYPTION_KEY: "3333333333333333333333333333333333333333333333333333333333333333"
+      MALWARE_SCAN_URL: https://scanner.invalid/scan
+      MALWARE_SCAN_TOKEN: ci-only-automation-scanner-token-2026-never-use-in-production
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run db:push
+      - name: Build production-mode local app against ephemeral database
+        run: npm run build
+      - name: Start disposable application
+        shell: bash
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/payrollph-language-acceptance.log 2>&1 &
+          echo $! > /tmp/payrollph-language-acceptance.pid
+          for attempt in {1..40}; do
+            if curl -fsS "$AUTOMATION_ACCEPTANCE_URL" >/dev/null; then
+              echo "Synthetic app ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Synthetic app did not start."
+          exit 1
+      - name: Acceptance — signed draft, preview, denied bypasses and inactive publication
+        run: npx tsx scripts/automation-language-acceptance.ts
+      - name: Install pinned Chromium test runner (only after app build)
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Browser acceptance — human-driven draft review, preview and inactive publish
+        run: node scripts/automation-language-browser-acceptance.mjs
+      - name: Start independent default-off instance on disposable loopback port
+        shell: bash
+        env:
+          AUTOMATION_LANGUAGE_STUDIO_ENABLED: "false"
+          APP_BASE_URL: http://127.0.0.1:3001
+        run: |
+          nohup npm start -- -p 3001 -H 127.0.0.1 > /tmp/payrollph-language-disabled.log 2>&1 &
+          echo $! > /tmp/payrollph-language-disabled.pid
+          for attempt in {1..40}; do
+            if curl -fsS "http://127.0.0.1:3001/login" >/dev/null; then
+              echo "Default-off synthetic application ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Default-off synthetic application failed readiness."
+          exit 1
+      - name: Browser and HTTP acceptance — rollout OFF blocks real receipts but retains manual Studio
+        env:
+          AUTOMATION_ACCEPTANCE_URL: http://127.0.0.1:3001
+          APP_BASE_URL: http://127.0.0.1:3001
+          AUTOMATION_LANGUAGE_STUDIO_ENABLED: "false"
+        run: node scripts/automation-language-disabled-acceptance.mjs
