@@ -4,6 +4,7 @@ import {
   assets,
   automationExecutions,
   automationRules,
+  compensationProposals,
   benefitEnrollments,
   benefitPlans,
   costCenters,
@@ -20,6 +21,11 @@ import {
   hcmJobProfileCredentialRequirements,
   hcmJobProfileSkillRequirements,
   hcmSkills,
+  jobApplicants,
+  jobRequisitions,
+  payrollEntries,
+  payrollRuns,
+  performanceReviews,
   hcmPolicyAssignments,
   hcmPolicyVersions,
   jobProfiles,
@@ -48,7 +54,11 @@ import {
   assertScope,
   getAccess,
   PEOPLE_ADMIN_ROLES,
+  PAYROLL_VIEW_ROLES,
+  roleAllowed,
 } from "@/lib/access";
+import { roleGateAllowed } from "@/lib/permissions";
+import { buildHcmWorkerJourney } from "@/lib/hcm-worker-journey";
 
 export const dynamic = "force-dynamic";
 
@@ -724,9 +734,96 @@ export async function GET(request: Request) {
       }, today)
     : null;
 
+
+  // The connected journey is a read-only join across governed source modules.
+  // Employee and organization membership are validated above. Every source
+  // query remains tenant-bound; unauthorized financial rows are not fetched.
+  const compensationVisible = access.companyWide;
+  const payrollVisible = roleAllowed(access.role, PAYROLL_VIEW_ROLES)
+    && (await roleGateAllowed(user.id, organizationId, "payroll.view")).allowed;
+  const [
+    linkedApplicantRows,
+    latestReviewRows,
+    latestCompensationRows,
+    releasedPayrollRows,
+  ] = await Promise.all([
+    db.select({
+      applicantId: jobApplicants.id,
+      stage: jobApplicants.stage,
+      requisitionId: jobRequisitions.id,
+      requisitionPositionId: jobRequisitions.positionId,
+    }).from(jobApplicants)
+      .innerJoin(jobRequisitions, and(
+        eq(jobApplicants.requisitionId, jobRequisitions.id),
+        eq(jobRequisitions.organizationId, organizationId),
+      ))
+      .where(and(
+        eq(jobApplicants.organizationId, organizationId),
+        eq(jobApplicants.hiredEmployeeId, employeeId),
+      ))
+      .orderBy(desc(jobApplicants.id)).limit(1),
+    db.select({
+      id: performanceReviews.id,
+      status: performanceReviews.status,
+    }).from(performanceReviews).where(and(
+      eq(performanceReviews.organizationId, organizationId),
+      eq(performanceReviews.employeeId, employeeId),
+    )).orderBy(desc(performanceReviews.createdAt), desc(performanceReviews.id)).limit(1),
+    compensationVisible
+      ? db.select({
+          id: compensationProposals.id,
+          status: compensationProposals.status,
+        }).from(compensationProposals).where(and(
+          eq(compensationProposals.organizationId, organizationId),
+          eq(compensationProposals.employeeId, employeeId),
+        )).orderBy(desc(compensationProposals.createdAt), desc(compensationProposals.id)).limit(1)
+      : Promise.resolve([]),
+    payrollVisible
+      ? db.select({
+          runId: payrollRuns.id,
+          periodEnd: payrollRuns.periodEnd,
+        }).from(payrollEntries)
+          .innerJoin(payrollRuns, and(
+            eq(payrollEntries.payrollRunId, payrollRuns.id),
+            eq(payrollRuns.organizationId, organizationId),
+          ))
+          .where(and(
+            eq(payrollEntries.employeeId, employeeId),
+            eq(payrollRuns.organizationId, organizationId),
+            eq(payrollRuns.status, "Released"),
+          ))
+          .orderBy(desc(payrollRuns.periodEnd), desc(payrollRuns.id)).limit(1)
+      : Promise.resolve([]),
+  ]);
+  const journey = buildHcmWorkerJourney({
+    employeeStatus: employee.status,
+    asOfDate: today,
+    recruitment: linkedApplicantRows[0] ?? null,
+    currentPositionId: position?.id ?? null,
+    currentPositionEffectiveFrom: position?.effectiveFrom ?? null,
+    lastPositionAssignmentId: assignmentHistoryRows.find((row) => String(row.effectiveFrom) <= today)?.id ?? null,
+    onboarding: taskRows.filter((row) => row.kind === "onboarding"),
+    offboarding: taskRows.filter((row) => row.kind === "offboarding"),
+    latestPerformance: latestReviewRows[0] ?? null,
+    compensationVisible,
+    latestCompensation: latestCompensationRows[0] ?? null,
+    payrollVisible,
+    lastReleasedPayroll: releasedPayrollRows[0]
+      ? {
+          runId: releasedPayrollRows[0].runId,
+          periodEnd: String(releasedPayrollRows[0].periodEnd),
+        }
+      : null,
+    separation: latestSeparation
+      ? { id: latestSeparation.id, status: latestSeparation.status }
+      : null,
+    outstandingAssets: assignedAssets.length,
+  });
+
   return Response.json({
     employee,
     position,
+    journey,
     benefits: benefitRows,
     assets: assetRows,
     lifecycle: {
