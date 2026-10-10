@@ -51,38 +51,38 @@ export function renderBir2316ReviewHtml(input: Bir2316ReviewInput) {
   badges.push("Employee address, RDO, detailed earnings categories and previous-employer fields are not yet verified.");
   badges.push("Employer and employee signatures are required where applicable; this draft contains no signature.");
   const rows: Array<[string,string]> = [
-    ["19. Gross compensation income", money(input.grossCompensation)],
-    ["20. Non-taxable/exempt compensation income", money(input.nonTaxable)],
-    ["21-23. Net taxable compensation", money(input.taxableIncome)],
-    ["24. Calculated annual tax due", money(input.taxDue)],
-    ["25A. Withholding before year-end adjustment", money(input.withheldBeforeYearEnd)],
+    ["Gross compensation income (annual payroll calculation)", money(input.grossCompensation)],
+    ["Non-taxable / exempt compensation (annual payroll calculation)", money(input.nonTaxable)],
+    ["Net taxable compensation (annual payroll calculation)", money(input.taxableIncome)],
+    ["Calculated annual tax due", money(input.taxDue)],
+    ["Payroll withholding before year-end adjustment", money(input.withheldBeforeYearEnd)],
     ["Year-end tax adjustment (collection + / refund -)", money(input.yearEndAdjustment)],
-    ["26. Expected adjusted withholding (subject to released ledger verification)", money(finalWithheld)],
-    ["34. Combined tax-exempt 13th-month and other benefits", money(input.exemptBenefitPool)],
-    ["35. Exempt de minimis benefits", money(input.deMinimis)],
-    ["36. Statutory employee contributions", money(input.statutoryContributions)],
+    ["Expected adjusted withholding (verify against released payroll ledger)", money(finalWithheld)],
+    ["Exempt 13th-month and other benefits", money(input.exemptBenefitPool)],
+    ["Exempt de minimis benefits", money(input.deMinimis)],
+    ["Employee statutory contributions", money(input.statutoryContributions)],
   ];
   const body = [
     section("Part I - Employee information", [
-      ["1. Tax year", String(input.taxYear)],
-      ["3. Employee TIN", input.employeeTin],
-      ["4. Employee", input.employeeName],
+      ["Tax year", String(input.taxYear)],
+      ["Employee TIN", input.employeeTin],
+      ["Employee name", input.employeeName],
       ["Employee number (internal)", input.employeeNo],
       ["Employment start (internal source)", input.employmentStart],
-      ["11. Minimum wage earner", input.mwe ? "Yes - classification requires separate premium-pay review" : "No"],
-      ["5-10. RDO, address, birth date, contact and minimum-wage rate", "REQUIRES VERIFIED EMPLOYEE RECORDS"],
+      ["Minimum wage earner", input.mwe ? "Yes - classification requires separate premium-pay review" : "No"],
+      ["Unverified employee address, RDO, birth date, contact and wage rate", "REQUIRES VERIFIED EMPLOYEE RECORDS"],
     ]),
     section("Part II - Present employer", [
-      ["12. Employer TIN", input.employerTin],
-      ["13. Registered legal name", input.employerName],
-      ["14. Registered address / postal code", "REQUIRES VERIFIED LEGAL-EMPLOYER RECORD"],
+      ["Employer TIN", input.employerTin],
+      ["Employer registered legal name", input.employerName],
+      ["Unverified employer address / postal code", "REQUIRES VERIFIED LEGAL-EMPLOYER RECORD"],
     ]),
     section("Part III - Previous employer", [
-      ["16-18. Previous employer / previous compensation", "NOT VERIFIED - COMPLETE FROM PREVIOUS EMPLOYER'S FORM 2316"],
+      ["Unverified previous employer / previous compensation", "NOT VERIFIED - COMPLETE FROM PREVIOUS EMPLOYER'S FORM 2316"],
     ]),
     section("Part IV-A - Compensation and withholding summary (internal)", rows),
     section("Part IV-B - Earnings and deduction detail", [
-      ["29-52. Required detailed compensation categories", "INCOMPLETE - map to BIR's individual fields before issuing official Form 2316"],
+      ["Unverified detailed compensation categories", "INCOMPLETE - map to BIR's individual fields before issuing official Form 2316"],
     ]),
   ].join("");
   const notices = badges.map(msg => `<li>${esc(msg)}</li>`).join("");
@@ -102,7 +102,7 @@ footer{margin:20px 0 0;border-top:1px solid #c8d2d4;padding:10px;color:#42505c;f
 .muted{color:#6c777b}.print-action{padding:8px 14px;background:#155365;color:white;border:0;border-radius:4px;margin:10px 0;cursor:pointer}
 @media print{.print-action{display:none}body{max-width:none}.warning{background:white}.note{background:white}}
 </style></head><body>
-<header><div class="muted">PAYROLLPH · INTERNAL TAX REVIEW</div><h1>BIR Form 2316 - review worksheet</h1>
+<header><div class="muted">PAYROLLPH · INTERNAL TAX REVIEW</div><h1>BIR Form 2316 - internal review worksheet</h1>
 <div>Tax year: ${esc(input.taxYear)} · Annualization rule: ${esc(input.ruleVersion)}</div>
 <div class="note">DRAFT - NOT AN OFFICIAL BIR FORM 2316 / NOT FOR FILING OR SUBSTITUTED FILING</div>
 <p class="muted">This worksheet helps payroll reviewers map approved compensation data to BIR Form No. 2316 (September 2021 ENCS).
