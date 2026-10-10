@@ -47,6 +47,17 @@ export default async function HcmCommandCenter() {
         <p className="mt-2 text-slate-600">Continue lifecycle and payroll actions with existing approvals and release controls.</p>
         <Link className="mt-5 inline-block rounded-lg border px-4 py-2 font-semibold text-emerald-900" href="/app">Open workspace</Link>
       </article>
+      {process.env.NEXT_PUBLIC_HCM_BP_MONITOR_ENABLED === "true" &&
+        ["owner", "admin", "hr"].includes(access.role) && (
+          <article className="rounded-xl border bg-white p-6">
+            <h2 className="text-xl font-semibold">Business Process Monitor</h2>
+            <p className="mt-2 text-slate-600">Review source-linked HR workflow states and step deadlines without approving or changing records.</p>
+            <Link className="mt-5 inline-block rounded-lg border px-4 py-2 font-semibold text-emerald-900"
+              href={"/hcm/bp-monitor?organizationId=" + organizationId}>
+              Open Business Process Monitor
+            </Link>
+          </article>
+        )}
     </section>
     <section className="mt-8 rounded-xl border bg-white p-6"><h2 className="text-xl font-semibold">Recent payroll runs</h2>
       <p className="mt-1 text-sm text-slate-600">Snapshot only. No payroll action can be initiated here.</p>
