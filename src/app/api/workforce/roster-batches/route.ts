@@ -507,7 +507,7 @@ export async function POST(request: Request) {
       return { status: 200, payload: {
         id: batch.id, status: "approved", published: overrideIds.length, overrideIds,
       } };
-    }, { isolationLevel: "serializable" });
+    }, { isolationLevel: "read committed" });
     return Response.json(decision.payload, { status: decision.status, headers: noStore });
   } catch {
     // Unique override constraints and serializable retry conflicts roll back the ENTIRE batch.
