@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
-import { employees, leaveRequests, orgUnits, organizations } from "../src/db/schema";
+import { employees, leaveRequestIntervals, leaveRequestIntervalSets, leaveRequests, orgUnits, organizations } from "../src/db/schema";
 import {
   loadTeamLeaveMonth,
   TeamLeaveInvalidMonthError, TeamLeaveScopeError, TeamLeaveSourceOverflowError,
@@ -98,17 +98,81 @@ test("calendar displays only current scoped source cases and never foreign emplo
       },
     ]);
 
+    // Actual authoritative source evidence, not a guessed day fraction:
+    // a first-half leave interval and a clock-bounded timed interval.
+    const [halfDayRequest, timedRequest] = await db.insert(leaveRequests).values([
+      {
+        organizationId: alpha.id, employeeId: visible.id,
+        leaveType: "Personal", reason: "Sensitive half-day detail",
+        startDate: "2026-10-14", endDate: "2026-10-14",
+        days: "0.5", status: "Approved",
+      },
+      {
+        organizationId: alpha.id, employeeId: visible.id,
+        leaveType: "Personal", reason: "Sensitive timed-leave detail",
+        startDate: "2026-10-15", endDate: "2026-10-15",
+        days: "0.5", status: "Pending",
+      },
+    ]).returning();
+    const [halfSet, timedSet] = await db.insert(leaveRequestIntervalSets).values([
+      {
+        organizationId: alpha.id, leaveRequestId: halfDayRequest.id,
+        revision: 1, status: "current", createdByName: "Synthetic source",
+      },
+      {
+        organizationId: alpha.id, leaveRequestId: timedRequest.id,
+        revision: 1, status: "current", createdByName: "Synthetic source",
+      },
+    ]).returning();
+    await db.insert(leaveRequestIntervals).values([
+      {
+        organizationId: alpha.id, intervalSetId: halfSet.id,
+        workDate: "2026-10-14", kind: "first_half",
+        timezone: "Asia/Manila", source: "request",
+      },
+      {
+        organizationId: alpha.id, intervalSetId: timedSet.id,
+        workDate: "2026-10-15", kind: "timed",
+        startLocalTime: "09:00", endLocalTime: "11:00",
+        timezone: "Asia/Manila", source: "request",
+      },
+    ]);
+    const sourceTiming = await db.select({
+      kind: leaveRequestIntervals.kind,
+      startLocalTime: leaveRequestIntervals.startLocalTime,
+    }).from(leaveRequestIntervals)
+      .where(eq(leaveRequestIntervals.organizationId, alpha.id));
+    assert.ok(sourceTiming.some((row) => row.kind === "first_half"));
+    assert.ok(sourceTiming.some((row) =>
+      row.kind === "timed" && row.startLocalTime === "09:00"));
+
     const scope = { kind: "unit" as const, orgUnitId: teamUnit.id };
     const oct = await loadTeamLeaveMonth({
       organizationId: alpha.id, scope, month: "2026-10", now: NOW,
     });
-    assert.equal(oct.cases.length, 2);
+    assert.equal(oct.cases.length, 4);
     assert.deepEqual(oct.summary, {
-      approvedRequestRecords: 1, pendingRequestRecords: 1,
+      approvedRequestRecords: 2, pendingRequestRecords: 2,
     });
     assert.ok(oct.cases.every((item) => item.employeeId === visible.id));
+    const halfDay = oct.cases.find((row) => row.requestId === halfDayRequest.id);
+    const timedDay = oct.cases.find((row) => row.requestId === timedRequest.id);
+    assert.deepEqual({ status: halfDay?.status, startDate: halfDay?.startDate, endDate: halfDay?.endDate }, {
+      status: "Approved", startDate: "2026-10-14", endDate: "2026-10-14",
+    });
+    assert.deepEqual({ status: timedDay?.status, startDate: timedDay?.startDate, endDate: timedDay?.endDate }, {
+      status: "Pending", startDate: "2026-10-15", endDate: "2026-10-15",
+    });
+    // The calendar is intentionally a request-span index, NOT a timing or
+    // workforce availability projection; source interval details stay private.
+    for (const row of [halfDay, timedDay]) {
+      assert.ok(row);
+      assert.deepEqual(Object.keys(row).sort(), [
+        "employeeId", "employeeName", "employeeNo", "endDate", "requestId", "startDate", "status",
+      ]);
+    }
     assert.deepEqual(oct.cases.map((item) => item.startDate).sort(),
-      ["2026-09-30", "2026-10-11"]);
+      ["2026-09-30", "2026-10-11", "2026-10-14", "2026-10-15"]);
 
     const november = await loadTeamLeaveMonth({
       organizationId: alpha.id, scope, month: "2026-11", now: NOW,
@@ -122,6 +186,8 @@ test("calendar displays only current scoped source cases and never foreign emplo
       "Private Other Unit Reason", "Private Beta Reason",
       "Private Beta Unit", "Foreign-linked Worker Reason", "Sensitive personal",
       "99999", "Declined Reason", "Restricted Other", "Restricted Beta",
+      "Sensitive half-day detail", "Sensitive timed-leave detail",
+      "first_half", "09:00", "11:00",
     ]) {
       assert.ok(!response.includes(secret), "Sensitive source value leaked: " + secret);
     }
