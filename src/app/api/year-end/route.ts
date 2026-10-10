@@ -11,11 +11,12 @@ import { enqueuePayrollRun } from "@/lib/payroll-engine";
 import { assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { evaluateBirAnnualReadiness } from "@/lib/bir-annual-readiness";
+import { renderBir2316ReviewHtml } from "@/lib/bir-2316-print";
 
 export const dynamic = "force-dynamic";
 
 const requiresAnnualEmployerScope = (format: string) =>
-  format === "preflight" || format === "alphalist" || format === "2316";
+  format === "preflight" || format === "alphalist" || format === "2316" || format === "2316-print";
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
   const taxYear = Number(searchParams.get("taxYear") ?? new Date().getFullYear());
   const format = searchParams.get("format") ?? "json";
   const employeeId = Number(searchParams.get("employeeId") ?? 0);
-  if (format === "2316" || format === "alphalist" || format === "preflight") {
+  if (format === "2316" || format === "2316-print" || format === "alphalist" || format === "preflight") {
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return mfaDenied;
   }
@@ -159,7 +160,7 @@ export async function GET(request: Request) {
     }
   }
 
-  if (format === "2316") {
+  if (format === "2316" || format === "2316-print") {
     if (!Number.isInteger(employeeId) || employeeId <= 0) {
       return Response.json({ error: "employeeId is required to select the exact Form 2316 employee." }, { status: 400 });
     }
@@ -176,6 +177,48 @@ export async function GET(request: Request) {
     }
     if (digits(match.employee.tin, true).length !== 9 || digits(match.employee.tinBranchCode, true).length !== 4) {
       return Response.json({ error: "Employee BIR TIN and 4-digit branch code are required before generating Form 2316." }, { status: 422 });
+    }
+
+    if (format === "2316-print") {
+      const breakdown = (match.adjustment.breakdown ?? {}) as Record<string, unknown>;
+      const html = renderBir2316ReviewHtml({
+        taxYear,
+        employerName: legalEmployer?.legalName ?? organization?.legalName ?? organization?.name ?? "Employer",
+        employerTin: `${employerTin}-${employerBranch}`,
+        employeeName: [match.employee.lastName, match.employee.firstName, match.employee.middleName].filter(Boolean).join(", "),
+        employeeNo: match.employee.employeeNo,
+        employeeTin: `${digits(match.employee.tin, true)}-${digits(match.employee.tinBranchCode, true)}`,
+        employmentStart: String(match.employee.startDate),
+        mwe: match.adjustment.mwe,
+        sourceStatus: match.adjustment.status,
+        ruleVersion: match.adjustment.ruleVersion,
+        grossCompensation: match.adjustment.grossCompensation,
+        exemptBenefitPool: typeof breakdown.exemptBenefitPool === "number" ? breakdown.exemptBenefitPool : "NaN",
+        deMinimis: typeof breakdown.deMinimis === "number" ? breakdown.deMinimis : "NaN",
+        statutoryContributions: match.adjustment.statutoryContributions,
+        nonTaxable: match.adjustment.nonTaxable,
+        taxableIncome: match.adjustment.taxableIncome,
+        taxDue: match.adjustment.taxDue,
+        withheldBeforeYearEnd: match.adjustment.taxWithheld,
+        yearEndAdjustment: match.adjustment.adjustment,
+      });
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "BIR 2316 internal printable review worksheet generated",
+        resource: `${match.employee.employeeNo} - ${taxYear}`,
+        metadata: { employeeId, taxYear, officialCertificate: false, plaintextPersisted: false },
+      });
+      return new Response(html, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store, private",
+          "Content-Disposition": `inline; filename="bir-2316-review-${taxYear}.html"`,
+          "X-Content-Type-Options": "nosniff",
+          "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+          "Referrer-Policy": "no-referrer",
+        },
+      });
     }
 
     const body = renderForm2316({
