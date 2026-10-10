@@ -60,6 +60,14 @@ test("rollout is non-breaking: legacy plaintext reads, and writes pass through w
   assert.equal(encryptBankAccount("1234567890", withKey(undefined)), "1234567890");
 });
 
+test("production refuses to store a plaintext account number when no key is configured", () => {
+  const production = { NODE_ENV: "production" } as unknown as NodeJS.ProcessEnv;
+  assert.throws(() => encryptBankAccount("1234567890", production), /required before bank account numbers/);
+  assert.equal(encryptBankAccount(null, production), null);
+  const sealed = encryptBankAccount("1234567890", { ...production, BANK_DATA_ENCRYPTION_KEY: KEY_A });
+  assert.ok(sealed && isEncryptedBankAccount(sealed));
+});
+
 test("saving twice never double-encrypts, and empty stays null", () => {
   const once = encryptBankAccount("1234567890", withKey(KEY_A))!;
   assert.equal(encryptBankAccount(once, withKey(KEY_A)), once);
