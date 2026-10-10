@@ -25,7 +25,6 @@ import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import { resolveDailySchedule, type WorkforceScheduleOverride } from "@/lib/workforce-scheduling";
 import {
   DEFAULT_SCHEDULE_GUARDRAIL_POLICY, evaluateScheduleGuardrails,
-  scheduleGuardrailBlocksMutation,
 } from "@/lib/workforce-schedule-guardrails";
 
 export const dynamic = "force-dynamic";
@@ -354,7 +353,9 @@ export async function POST(request: Request) {
           };
           const proposedDays = dates.map(date => resolve(date, [...employeeOverrides, nextOverride]));
           const issues = evaluateScheduleGuardrails({ days: proposedDays, policy });
-          if (scheduleGuardrailBlocksMutation(issues)) {
+          // Even advisory issues are blocked in this new bulk lane until a governed
+          // labor-policy exception workflow is separately implemented.
+          if (issues.length > 0) {
             return { error: "The proposed roster conflicts with binding workforce guardrails.", rows: [], sha: "" };
           }
           rows.push({
@@ -456,7 +457,7 @@ export async function POST(request: Request) {
       if (checked.error || checked.sha !== batch.evidenceSha256) {
         await tx.update(workforceRosterBatches).set({
           status: "stale", decidedByUserId: user.id, decidedByName: user.name,
-          decidedAt, decisionNote: "Source evidence changed or is blocked. " + decisionNote,
+          decidedAt, decisionNote: ("Source changed/blocked. " + decisionNote).slice(0, 240),
           updatedAt: decidedAt,
         }).where(eq(workforceRosterBatches.id, batch.id));
         await tx.insert(auditEvents).values({
