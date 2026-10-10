@@ -70,7 +70,11 @@ test("manager roster renders scoped digest and focus without a new data endpoint
 test("manager view cancels obsolete requests and does not silently change historical location", () => {
   assert.ok(panel.includes("pendingRequest.current?.abort()"));
   assert.ok(panel.includes("signal: controller.signal"));
-  assert.ok(panel.includes("if (controller.signal.aborted) return"));
+  assert.ok(panel.includes("if (controller.signal.aborted || pendingRequest.current !== controller) return"));
+  assert.ok(panel.includes("const payload = activeTeamRosterPayload(storedPayload, scopeKey);"));
+  assert.ok(panel.includes("const requestedScope = teamRosterScopeKey(organizationId, startDate, page, appliedSearch);"));
+  assert.ok(panel.includes("if (body?.page !== page || body?.startDate !== startDate)"));
+  assert.ok(panel.includes("editor.organizationId === organizationId && ("));
   assert.ok(panel.includes("editor.organizationId !== organizationId"));
   assert.ok(panel.includes("editor.day.date <= todayInManila()"));
   assert.ok(panel.includes("worksiteChoice ? Number(worksiteChoice) : editor.day.worksiteId"));
