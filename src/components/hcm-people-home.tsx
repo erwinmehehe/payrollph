@@ -29,7 +29,7 @@ export function HcmPeopleHome({ data, onPage, onOpenWorker }: {
 }) {
   const orgId = data.selectedOrganization.id;
   const role = data.access?.role ?? "";
-  const hrAccess = Boolean(data.access?.companyWide && ["owner", "admin", "bookkeeper", "hr"].includes(role));
+  const hrAccess = Boolean(data.access?.companyWide && ["owner", "admin", "hr"].includes(role));
   const [decisions, setDecisions] = useState<Slice>(loading);
   const [followUps, setFollowUps] = useState<Slice>(loading);
   const [cases, setCases] = useState<Slice>(loading);
@@ -60,7 +60,7 @@ export function HcmPeopleHome({ data, onPage, onOpenWorker }: {
           partial: (payload.filteredTotal ?? 0) > (payload.rows?.length ?? 0),
         });
       }).catch(() => { if (!controller.signal.aborted) setFollowUps({ status: "unavailable", items: [], partial: true }); });
-      void get("/api/hcm/work-items?organizationId=" + orgId + "&status=open").then((payload: Cases) => {
+      void get("/api/hcm/work-items?organizationId=" + orgId).then((payload: Cases) => {
         if (!controller.signal.aborted) setCases({
           status: "ready", items: projectOperationalCases(orgId, payload.items ?? []),
           partial: (payload.items?.length ?? 0) >= 200,
@@ -86,7 +86,7 @@ export function HcmPeopleHome({ data, onPage, onOpenWorker }: {
       <div className="card-header">
         <div><div className="card-kicker">READ-ONLY · SOURCE-LINKED</div><h2>{title}</h2><p>{hint}</p></div>
         <span aria-live="polite" style={{ fontWeight: 700 }}>
-          {slice.status === "ready" ? (slice.partial ? "Showing a limited preview" : slice.items.length + " visible") : slice.status}
+          {slice.status === "ready" ? (slice.partial ? "Showing a limited preview" : slice.items.length + " returned") : slice.status}
         </span>
       </div>
       <div className="card-body">
