@@ -11,3 +11,17 @@ export function roundedGrossFromBuckets(buckets: readonly number[]): number {
   }
   return Math.max(0, totalCentavos) / 100;
 }
+
+/** The prior-cutoff ledger may contain all zeroes and must still be used. */
+export function statutoryTrueUpDecision(input: {
+  isFinalCutoffOfMonth: boolean;
+  priorCutoffPresent: boolean;
+  newHireInCurrentCutoff: boolean;
+}): { canTrueUp: boolean; missingPriorInput: boolean } {
+  const missingPriorInput =
+    input.isFinalCutoffOfMonth && !input.priorCutoffPresent && !input.newHireInCurrentCutoff;
+  return {
+    canTrueUp: input.isFinalCutoffOfMonth && (input.priorCutoffPresent || input.newHireInCurrentCutoff),
+    missingPriorInput,
+  };
+}
