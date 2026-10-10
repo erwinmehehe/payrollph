@@ -97,6 +97,7 @@ import {
 } from "@/lib/workforce-scheduling";
 import {
   matchPunchesToWorkforceSegments,
+  payableTimeEvidenceFlagsForPayroll,
   payrollRestDayFromSchedule,
   segmentPayableTime,
   workforceScheduleTrace,
@@ -2109,18 +2110,12 @@ function calculateEmployeePay(input: {
       flags.push(message);
       punchNotes.push(message);
     }
-    const segmentationPricingClasses = new Set(
-      segmentation.segments.map(
-        (segment) =>
-          `${segment.calendarDate}|${segment.overtime ? "ot" : "regular"}|${segment.night ? "night" : "day"}`,
-      ),
+    const premiumEvidenceFlags = payableTimeEvidenceFlagsForPayroll(
+      segmentation,
+      derived.workedMinutes,
     );
-    if (
-      !segmentation.allocationComplete
-      && segmentation.flags.length > 0
-      && segmentationPricingClasses.size > 1
-    ) {
-      const message = `${workDate}: ${segmentation.flags.join("; ")}`;
+    if (premiumEvidenceFlags.length > 0) {
+      const message = `${workDate}: ${premiumEvidenceFlags.join("; ")}`;
       flags.push(message);
       punchNotes.push(message);
     }

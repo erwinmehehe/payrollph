@@ -44,18 +44,18 @@ export default function Hero() {
       <div className="payroll-home-hero-inner payroll-home-hero-inner-v2">
         <div className="payroll-home-hero-copy payroll-home-hero-copy-v2">
           <Reveal delay={60}>
-            <span className="payroll-home-kicker">Philippine payroll software · Review before release</span>
+            <span className="payroll-home-kicker">Philippine Payroll · HRIS · WFM · HCM</span>
           </Reveal>
 
           <Reveal delay={120}>
             <h1>
-              Philippine payroll you can verify before you pay.
+              One Philippine platform for payroll and people operations.
             </h1>
           </Reveal>
 
           <Reveal delay={180}>
             <p className="payroll-home-lede">
-              See what changed, clear the exceptions, get checker approval, and release payroll with a complete audit trail.
+              Connect employee records, schedules, attendance, performance and payroll review in one governed workspace. Understand changes and approvals before money moves.
             </p>
           </Reveal>
 

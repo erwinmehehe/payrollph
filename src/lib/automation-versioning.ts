@@ -1,6 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { automationRules, automationRuleVersions } from "@/db/schema";
+import { fingerprintAutomationDraft } from "@/lib/automation-preview-approval";
 import {
   automationTriggerIsLive,
   normalizeAutomationActions,
@@ -138,6 +139,7 @@ export async function publishAutomationRuleDraft(input: {
   organizationId: number;
   ruleId: number;
   actorUserId: number;
+  expectedDraftHash: string;
 }) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`
@@ -161,6 +163,10 @@ export async function publishAutomationRuleDraft(input: {
       eq(automationRuleVersions.status, "draft"),
     )).limit(1);
     if (!draft) throw new AutomationVersionError("The draft version could not be found.");
+    // Guard against an administrator changing the draft between preview and publish.
+    if (fingerprintAutomationDraft(draft) !== input.expectedDraftHash) {
+      throw new AutomationVersionError("The draft changed since Impact Preview. Run Impact Preview again.");
+    }
 
     const definition = validateStoredDefinition(draft);
     const now = new Date();
