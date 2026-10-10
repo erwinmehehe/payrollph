@@ -58,6 +58,16 @@ test("orphan positions are counted separately and do not claim vacancies", () =>
   assert.equal(p.units.reduce((n, x) => n + x.positionRecordCount, 0), 0);
 });
 
+test("out-of-snapshot org IDs are not returned as actionable position links", () => {
+  const data = projectOrgExplorer(units, [
+    { id: 55, code: "X", status: "planned", jobTitle: null, orgUnitId: 999, supervisoryOrgUnitId: 1000 },
+  ]);
+  assert.equal(data.positions[0].relationship, "unit_not_in_snapshot");
+  assert.equal(data.positions[0].orgUnitId, null);
+  assert.equal(data.positions[0].supervisoryOrgUnitId, null);
+  assert.equal(data.positions[0].reportingUnitId, null);
+});
+
 test("duplicate/invalid source IDs fail closed", () => {
   assert.throws(() => projectOrgExplorer([units[0], units[0]], []));
   assert.throws(() => projectOrgExplorer([{ ...units[0], id: 0 }], []));
