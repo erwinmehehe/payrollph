@@ -91,6 +91,8 @@ test("destructive queue rewrites and status claim are under the same lock/transa
   assert.match(source, /SELECT id FROM payroll_runs WHERE id = \$\{runId\} FOR UPDATE/);
   assert.match(source, /PAYROLL_RECALCULATION_NOT_ALLOWED/);
   assert.match(source, /PAYROLL_MONTH_CERTIFIED_IMMUTABLE/);
+  assert.match(source, /lockedRun\.scopeOrgUnitId !== run\.scopeOrgUnitId/,
+    "Changing a run's org-unit scope during queue preparation must invalidate the claim");
   assert.ok(source.indexOf("PAYROLL_MONTH_CERTIFIED_IMMUTABLE") < source.indexOf("tx.delete(payrollEntries)"));
   assert.ok(source.includes("await tx.delete(payrollEntries)"));
   assert.ok(source.includes("await tx.update(payrollRuns)"));

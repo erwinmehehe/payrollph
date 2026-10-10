@@ -279,6 +279,7 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
     }
     if (lockedRun.organizationId !== run.organizationId
       || lockedRun.legalEntityId !== run.legalEntityId
+      || lockedRun.scopeOrgUnitId !== run.scopeOrgUnitId
       || String(lockedRun.payDate) !== String(run.payDate)
       || String(lockedRun.periodStart) !== String(run.periodStart)
       || String(lockedRun.periodEnd) !== String(run.periodEnd)) {
