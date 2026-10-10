@@ -115,6 +115,29 @@ test("keys are accepted as 64 hex characters or as base64", () => {
   assert.equal(parseBankEncryptionKey(undefined), null);
 });
 
+test("malformed Base64 bank keys fail closed instead of being silently normalized", () => {
+  const bytes = Buffer.alloc(32, 0xff);
+  const standard = bytes.toString("base64");
+  const url = bytes.toString("base64url");
+  for (const valid of [standard, standard.slice(0, -1), url, `${url}=`]) {
+    assert.deepEqual(parseBankEncryptionKey(valid), bytes);
+    assert.equal(bankEncryptionConfigured(withKey(valid)), true);
+  }
+  for (const malformed of [
+    `!${standard}`, `${standard}?`, `${standard.slice(0, -1)}?`,
+    `${standard}=`, `${standard.slice(0, -1)}==`, `${url}?`, `??${url}`,
+    `${standard.slice(0, -1)}A`,
+  ]) {
+    assert.equal(parseBankEncryptionKey(malformed), null);
+    assert.equal(bankEncryptionConfigured(withKey(malformed)), false);
+    assert.throws(() => encryptBankAccount("1234567890", withKey(malformed)), /32 bytes/);
+  }
+  assert.throws(
+    () => encryptBankAccount("1234567890", withTotpMaster(`!${standard}`)),
+    /TOTP_ENCRYPTION_KEY.*32 bytes/,
+  );
+});
+
 test("what the browser receives shows the last four digits and nothing usable", () => {
   const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
   assert.equal(maskBankAccount(sealed, withKey(KEY_A)), "••••7890");

@@ -46,9 +46,20 @@ export function parseBankEncryptionKey(raw: string | undefined): Buffer | null {
   if (!raw) return null;
   const value = raw.trim();
   if (/^[0-9a-fA-F]{64}$/.test(value)) return Buffer.from(value, "hex");
+  // Buffer.from(value, "base64") silently ignores invalid characters and
+  // excess padding. That can make a corrupted secret look properly configured.
+  // A 32-byte key has 43 Base64 digits and at most one trailing '='.
+  if (!/^[A-Za-z0-9+/_-]{43}=?$/.test(value)) return null;
   try {
     const decoded = Buffer.from(value, "base64");
-    return decoded.length === 32 ? decoded : null;
+    if (decoded.length !== 32) return null;
+    // Check canonical round trips, including padded and unpadded Base64URL.
+    // This also rejects nonzero unused trailing bits and mixed alphabets.
+    const standard = decoded.toString("base64");
+    const url = decoded.toString("base64url");
+    return [standard, standard.slice(0, -1), url, `${url}=`].includes(value)
+      ? decoded
+      : null;
   } catch {
     return null;
   }
