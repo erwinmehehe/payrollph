@@ -27,7 +27,8 @@ test("single-worker writers re-evaluate effective roster and policy after acquir
   assert.ok(schedules.includes("executor: tx,"));
   assert.ok(schedules.includes("scheduleGuardrailPolicy(organizationId, tx)"));
   assert.ok(schedules.includes("employeeSiteEligibility({"));
-  assert.ok(schedules.includes("worksiteId, date:"));
+  assert.ok(schedules.includes("date: effectiveFrom, executor: tx"));
+  assert.ok(schedules.includes("date: workDate, executor: tx"));
   assert.ok(schedules.includes("staleTimesheetIds: result.staleTimesheets.map("));
   assert.ok(!schedules.includes("db.insert(scheduleOverrides).values("));
   assert.ok(!schedules.includes("db.insert(employeeScheduleAssignments).values("));
