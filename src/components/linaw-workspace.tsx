@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Clock, ShieldCheck, Sparkles } from "lucide-react";
 import { AssetsPanel } from "@/components/assets-panel";
@@ -57,6 +57,7 @@ import { WorkforcePlanningPanel } from "@/components/workforce-planning-panel";
 import type { DashboardData, PayrollReleaseReceipt, PricingPlan } from "@/components/workspace/types";
 import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
+import { taskFirstUiEnabled, readWorkspaceLocation, workspaceSearch, type TaskTarget } from "@/lib/task-first-ui";
 import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean }) {
@@ -70,6 +71,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
       : null;
   const demoInfo = demoRoleInfo(demoRole);
   const initialPage = demoInfo?.landingPage ?? "Overview";
+  const taskFirst = taskFirstUiEnabled();
   const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
@@ -78,6 +80,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"organization" | "team">("organization");
   const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(null);
+  const [taskTarget, setTaskTarget] = useState<TaskTarget | null>(null);
+  const [taskSequence, setTaskSequence] = useState(0);
 
   // Modals kept from the original build, all still server-authorised.
   const [newPayrollOpen, setNewPayrollOpen] = useState(false);
@@ -106,6 +110,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
     [isFreelancer, rolePages],
   );
 
+  const dashboardRoleLive = normalizeDashboardRole(demoRole ?? data.access?.role ?? data.user?.role);
   const notifications = useMemo(
     () => buildNotifications(data, effectiveRole).filter((item) => !item.page || availablePages.includes(item.page)),
     [data, effectiveRole, availablePages],
@@ -121,6 +126,34 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
   const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
 
+  function goTask(target: TaskTarget) {
+    if (!availablePages.includes(target.page)) return;
+    const runId = target.runId && data.payrollRuns.some(run => run.id === target.runId) ? target.runId : undefined;
+    const employeeId = target.employeeId && data.employees.some(employee => employee.id === target.employeeId) ? target.employeeId : undefined;
+    const next: TaskTarget = {...target, runId, employeeId};
+    setTaskTarget(next);
+    setTaskSequence(n => n+1);
+    setFocusEmployeeId(next.page === "People" ? (employeeId ?? null) : null);
+    setPage(next.page);
+    if (typeof window !== "undefined" && taskFirst) window.history.pushState(null,"",window.location.pathname+workspaceSearch(window.location.search,{...next,organizationId:data.selectedOrganization.id}));
+  }
+  useEffect(() => {
+    if (!taskFirst) return;
+    const restore = () => {
+      const target = readWorkspaceLocation(window.location.search,{
+        organizationId:data.selectedOrganization.id,
+        pages:availablePages,runIds:data.payrollRuns.map(run=>run.id),
+        employeeIds:data.employees.map(employee=>employee.id),
+      });
+      setPage(target.page);
+      setTaskTarget(target);
+      setTaskSequence(n=>n+1);
+      setFocusEmployeeId(target.employeeId ?? null);
+    };
+    restore();
+    window.addEventListener("popstate",restore);
+    return () => window.removeEventListener("popstate",restore);
+  }, [taskFirst,data.selectedOrganization.id,availablePages,data.payrollRuns,data.employees]);
   usePaletteShortcut(() => setPaletteOpen(true));
 
   useEffect(() => {
@@ -142,13 +175,23 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
   );
 
 
+  const organizationSwitchSequence = useRef(0);
   async function changeOrganization(id: number) {
+    const switchId = ++organizationSwitchSequence.current;
     try {
-      await refresh(id);
+      const response = await fetch("/api/dashboard?organizationId="+id,{cache:"no-store"});
+      if (!response.ok) throw new Error("Could not open this company.");
+      const nextData = await response.json() as DashboardData;
+      if (switchId !== organizationSwitchSequence.current) return;
+      if (nextData.selectedOrganization.id !== id) throw new Error("Requested company could not be verified.");
+      setData(nextData);
+      setTaskTarget(null);
+      setFocusEmployeeId(null);
       setPage("Overview");
-      notify("Switched client. Every query is re-scoped server-side to that workspace.");
+      if (taskFirst && typeof window !== "undefined") window.history.replaceState(null,"",window.location.pathname+workspaceSearch(window.location.search,{organizationId:id,page:"Overview"}));
+      notify("You are now viewing "+nextData.selectedOrganization.name+".");
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not switch client.", "err");
+      if(switchId === organizationSwitchSequence.current) notify(error instanceof Error ? error.message : "Could not switch client.", "err");
     }
   }
 
@@ -278,7 +321,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
       );
       return { receipt: payload.receipt as PayrollReleaseReceipt | undefined };
     } catch {
-      const error = "Could not reach the release endpoint.";
+      const error = "The release result could not be confirmed. Check this payroll run before trying again.";
       notify(error, "err");
       return { error };
     } finally {
@@ -331,7 +374,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
       <WorkspaceShell
         data={data}
         page={page}
-        onPage={setPage}
+        onPage={taskFirst ? (pageName) => goTask({page:pageName}) : setPage}
         notifications={notifications}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenNotification={canManageDeliveryOutbox && availablePages.includes("Exports") ? () => setOutboxOpen(true) : undefined}
@@ -388,11 +431,12 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
                 onAddEmployee={() => setNewHireOpen(true)}
               />
             )}
-            {dashboardRole ? (
+            {(taskFirst ? dashboardRoleLive : dashboardRole) ? (
               <RoleOverviewView
                 data={data}
                 currentRun={currentRun}
-                role={dashboardRole}
+                role={(taskFirst ? dashboardRoleLive : dashboardRole)!}
+                onTask={taskFirst ? goTask : undefined}
                 onNewRun={() => setNewPayrollOpen(true)}
                 onPage={setPage}
               />
@@ -430,6 +474,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
         {page === "Payroll" && (
           <PayrollRunView
             data={data}
+            taskTarget={taskFirst && taskTarget?.page === "Payroll" ? {...taskTarget,sequence:taskSequence} : undefined}
             availablePages={availablePages}
             busy={busy}
             onNewRun={() => setNewPayrollOpen(true)}
@@ -591,7 +636,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
           onClose={() => setCheckoutPlan(null)}
           onUpgraded={async () => {
             await refresh();
-            notify(`Plan upgraded to ${checkoutPlan.name}. Entitlements follow the subscription row.`);
+            notify(`Your plan was updated to ${checkoutPlan.name}.`);
             setCheckoutPlan(null);
           }}
         />
