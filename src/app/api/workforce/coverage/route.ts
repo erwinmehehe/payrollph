@@ -2377,7 +2377,7 @@ export async function POST(request: Request) {
           },
         });
         return { updatedClaim, override, filled, lockedIssues, staleTimesheets };
-      }, { isolationLevel: "serializable" });
+      }, { isolationLevel: "read committed" });
       return Response.json({
         claim: result.updatedClaim, scheduleOverride: result.override,
         openShiftFilled: result.filled,
