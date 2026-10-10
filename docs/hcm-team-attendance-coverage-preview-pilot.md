@@ -20,3 +20,10 @@
 - [ ] Recheck all relevant CI, CodeQL, payroll isolation, build and typecheck results after the last code change. Draft remains NO-GO until independent signoff.
 
 This is deliberately not a complete demand-based shift coverage calculator. A future source-certified worksite/shift demand comparison needs a separately reviewed requirement ledger and precise approved leave interval treatment before any gap computation.
+
+## Engineering safety fixes in draft PR #736
+
+- The server now uses a locale-independent Asia/Manila business date and independently validates active **and effective** supervisory unit dates against the selected employer. The UI shell and direct API remain default OFF.
+- One-sided and entirely timestamp-free punch rows are recorded as **needs review**. An effective non-rest schedule with no shift segments is also **needs review**; a planned shift with no punches never becomes a confirmed absence.
+- Synthetic two-tenant PostgreSQL regression tests exercise overlapping employee numbers, a cross-tenant time-punch/employee FK mismatch, scoped vs company-wide HR reads, a foreign unit reference, disabled/future-effective units and the 500+1 punch fail-closed limit.
+- The full exact-head CI and CodeQL jobs must pass after the final source/test commit. These automated tests do **not** constitute a protected staging session or independent HR/security/DBA signoff.
