@@ -8,7 +8,9 @@ test("banking and government worksheet labels fail closed on uncertified export 
   const exporter = readFileSync("src/lib/exporters.ts", "utf8");
   assert.ok(ui.includes("data-government-draft-warning"));
   assert.ok(ui.includes("not certified portal upload files"));
-  assert.ok(ui.includes("not Form 2316"));
+  assert.ok(!ui.includes('kind: "bir-1604c-source"'));
+  assert.ok(ui.includes("Year-End Annualization"));
+  assert.ok(route.includes('kind === "government" && template === "bir-1604c-source"'));
   assert.ok(route.includes('"X-Linaw-Government-File-Status"'));
   assert.ok(route.includes('"Cache-Control": "private, no-store"'));
   assert.ok(exporter.includes("DRAFT ONLY, not a certified government submission file"));

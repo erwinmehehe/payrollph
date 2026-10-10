@@ -27,7 +27,6 @@ import { EmptyState, PageHeading, Segmented, Status, formatDate, money } from ".
 // a label: sending the label made every Draft button here fail as an unsupported export.
 const GOVERNMENT_DRAFTS = [
   { template: "1601-C", kind: "bir-1601c", detail: "Monthly remittance return of income taxes withheld on compensation" },
-  { template: "1604-C / Alphalist source", kind: "bir-1604c-source", detail: "Uncertified source worksheet for external BIR Alphalist validation, not Form 2316" },
   { template: "SSS R-3", kind: "sss-r3", detail: "Monthly contribution collection list, recomputed from the full monthly MSC" },
   { template: "PhilHealth RF-1", kind: "philhealth-rf1", detail: "Employer remittance report" },
   { template: "Pag-IBIG MCRF", kind: "pagibig-mcrf", detail: "Membership contribution remittance form" },
@@ -846,7 +845,8 @@ export function ExportsView({
                   Government worksheets <Status value="Draft only" />
                 </h3>
                 <p>
-                  <strong>Internal reconciliation drafts — not certified portal upload files.</strong> Computed from the payroll engine, but not byte-validated against the agencies&apos; own import tools. Do not upload these worksheets directly to BIR, SSS, PhilHealth or Pag-IBIG. Use the current official filing tools and retain portal acknowledgement.
+                  <strong>Internal reconciliation drafts — not certified portal upload files.</strong> Computed from the payroll engine, but not byte-validated against agency import tools. Do not upload these worksheets directly to BIR, SSS, PhilHealth, or Pag-IBIG. Use current official filing tools and retain portal acknowledgement.
+                  For BIR 1604-C Alphalist and Form 2316, open Compliance → Year-End Annualization and run Check BIR source; the old per-run Alphalist extract was removed because it did not reconcile annualization.
                 </p>
                 <div className="worksheet-list" style={{ padding: "12px 0 0" }}>
                   {GOVERNMENT_DRAFTS.map((item) => (

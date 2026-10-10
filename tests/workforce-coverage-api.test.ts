@@ -39,10 +39,10 @@ test("approval evaluates blocking guardrails before writing the roster", () => {
   assert.ok(route.includes("scheduleOverrides"));
 });
 
-test("claim approval serializes slot allocation to avoid overfilling", () => {
-  assert.ok(route.includes("for update"));
+test("claim approval serializes slot allocation against the freshly locked shift", () => {
+  assert.ok(route.includes('.for("update")'));
   assert.ok(route.includes("Open shift is already fully claimed."));
-  assert.ok(route.includes("approved.length + 1 >= openShift.slots"));
+  assert.ok(route.includes("approved.length + 1 >= currentShift.slots"));
 });
 
 test("coverage UI is part of the main workforce planner", () => {

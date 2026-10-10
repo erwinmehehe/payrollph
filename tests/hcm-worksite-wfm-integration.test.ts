@@ -27,7 +27,9 @@ test("WFM checks effective site authorization in coverage, claims and manager ap
 });
 test("explicit roster mutations reject incompatible worksite arrangements", () => {
   const schedules = read("src/app/api/workforce/schedules/route.ts");
-  assert.equal(schedules.split("await employeeSiteEligibility(").length - 1, 2);
+  assert.ok(schedules.split("await employeeSiteEligibility(").length - 1 >= 4);
+  assert.ok(schedules.includes("date: effectiveFrom, executor: tx"));
+  assert.ok(schedules.includes("date: workDate, executor: tx"));
 });
 test("site governance remains visible in workforce operations", () => {
   const sites = read("src/components/workspace/workforce-worksites-panel.tsx");

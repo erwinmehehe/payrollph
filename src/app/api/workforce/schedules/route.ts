@@ -1,6 +1,7 @@
-import { and, asc, eq, gte, lte } from "drizzle-orm";
+import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   employeeScheduleAssignments,
   employeeWorksiteAssignments,
   employees,
@@ -76,8 +77,8 @@ function addDays(dateText: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-async function scheduleGuardrailPolicy(organizationId: number): Promise<ScheduleGuardrailPolicy> {
-  const [row] = await db.select().from(workforceScheduleGuardrailPolicies)
+async function scheduleGuardrailPolicy(organizationId: number, executor: Pick<typeof db, "select"> = db): Promise<ScheduleGuardrailPolicy> {
+  const [row] = await executor.select().from(workforceScheduleGuardrailPolicies)
     .where(eq(workforceScheduleGuardrailPolicies.organizationId, organizationId))
     .limit(1);
   if (!row) return DEFAULT_SCHEDULE_GUARDRAIL_POLICY;
@@ -707,50 +708,71 @@ export async function POST(request: Request) {
       }, { status: 409 });
     }
 
-    const [created] = await db.insert(employeeScheduleAssignments).values({
-      organizationId,
-      employeeId,
-      patternId,
-      effectiveFrom,
-      effectiveUntil,
-      anchorDate,
-      workLocationOrgUnitId,
-      worksiteId,
-      reason,
-      createdBy: user.name,
-    }).returning();
+    try {
+      const result = await db.transaction(async (tx) => {
+        // Serialize ALL roster mutations on this employer with governed bulk
+        // approval, then recheck source evidence before the write.
+        await tx.execute(sql`select pg_advisory_xact_lock(6107, ${organizationId})`);
+        if (worksiteId != null) {
+          const siteNow = await employeeSiteEligibility({
+            organizationId, employeeId, worksiteId,
+            date: effectiveFrom, executor: tx,
+          });
+          if (!siteNow.eligible) throw new Error("Worksite authorization changed before the roster write.");
+        }
+        const lockedPolicy = await scheduleGuardrailPolicy(organizationId, tx);
+        const lockedWindow = await resolveEmployeeScheduleWindow({
+          organizationId,
+          employeeId,
+          startDate: addDays(effectiveFrom, -7),
+          endDate: addDays(effectiveFrom, 13),
+          prospectiveAssignment: {
+            id: Number.MAX_SAFE_INTEGER, patternId, effectiveFrom,
+            effectiveUntil, anchorDate, workLocationOrgUnitId, worksiteId,
+          },
+          executor: tx,
+        });
+        const lockedIssues = evaluateScheduleGuardrails({
+          days: lockedWindow, policy: lockedPolicy,
+        });
+        if (scheduleGuardrailBlocksMutation(lockedIssues)) {
+          throw new Error("Concurrent roster changes now breach workforce assignment guardrails.");
+        }
+        const [created] = await tx.insert(employeeScheduleAssignments).values({
+          organizationId, employeeId, patternId, effectiveFrom, effectiveUntil,
+          anchorDate, workLocationOrgUnitId, worksiteId, reason, createdBy: user.name,
+        }).returning();
+        const staleTimesheets = await markTimesheetsStaleForEmployeeRange({
+          organizationId, employeeId, startDate: effectiveFrom,
+          endDate: effectiveUntil, executor: tx,
+        });
+        await tx.insert(auditEvents).values({
+          organizationId,
+          actor: user.name,
+          action: "Employee workforce schedule assigned",
+          resource: `${employeeCheck.employee!.employeeNo} · ${pattern.code}`,
+          metadata: {
+            assignmentId: created.id, employeeId, patternId, effectiveFrom,
+            effectiveUntil, anchorDate, workLocationOrgUnitId, worksiteId,
+            staleTimesheetIds: staleTimesheets.map((row) => row.id),
+          },
+        });
+        return { created, staleTimesheets, lockedIssues, lockedPolicy };
+      }, { isolationLevel: "read committed" });
 
-    const staleTimesheets = await markTimesheetsStaleForEmployeeRange({
-      organizationId,
-      employeeId,
-      startDate: effectiveFrom,
-      endDate: effectiveUntil,
-    });
-
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: "Employee workforce schedule assigned",
-      resource: `${employeeCheck.employee!.employeeNo} · ${pattern.code}`,
-      metadata: {
-        assignmentId: created.id,
-        employeeId,
-        patternId,
-        effectiveFrom,
-        effectiveUntil,
-        anchorDate,
-        workLocationOrgUnitId,
-        worksiteId,
-        staleTimesheetIds: staleTimesheets.map((row) => row.id),
-      },
-    });
-
-    return Response.json({
-      assignment: created,
-      guardrailIssues,
-      guardrailPolicy,
-      staleTimesheetIds: staleTimesheets.map((row) => row.id),
-    }, { status: 201 });
+      return Response.json({
+        assignment: result.created,
+        guardrailIssues: result.lockedIssues,
+        guardrailPolicy: result.lockedPolicy,
+        staleTimesheetIds: result.staleTimesheets.map((row) => row.id),
+      }, { status: 201 });
+    } catch {
+      // Serialization conflicts, evidence changes and DB errors are all no-commit.
+      return Response.json({
+        error: "The roster changed while this assignment was being saved. Refresh the schedule and retry.",
+        code: "WFM_ASSIGNMENT_SOURCE_CHANGED",
+      }, { status: 409 });
+    }
   }
 
   if (action === "create_override") {
@@ -883,56 +905,66 @@ export async function POST(request: Request) {
     }
 
     try {
-      const [created] = await db.insert(scheduleOverrides).values({
-        organizationId,
-        employeeId,
-        workDate,
-        kind,
-        isRestDay,
-        segments,
-        workLocationOrgUnitId,
-        worksiteId,
-        reason,
-        status: "approved",
-        createdBy: user.name,
-        approvedBy: user.name,
-        approvedAt: new Date(),
-      }).returning();
-
-      const staleTimesheets = await markTimesheetsStaleForEmployeeDate({
-        organizationId,
-        employeeId,
-        workDate,
-      });
-
-      await recordAuditEvent({
-        organizationId,
-        actor: user.name,
-        action: "Employee schedule override created",
-        resource: `${employeeCheck.employee!.employeeNo} · ${workDate}`,
-        metadata: {
-          overrideId: created.id,
-          employeeId,
-          workDate,
-          kind,
-          isRestDay,
-          shiftSegments: segments,
-          workLocationOrgUnitId,
-          worksiteId,
-          reason,
-          staleTimesheetIds: staleTimesheets.map((row) => row.id),
-        },
-      });
-
+      const result = await db.transaction(async (tx) => {
+        await tx.execute(sql`select pg_advisory_xact_lock(6107, ${organizationId})`);
+        if (worksiteId != null) {
+          const siteNow = await employeeSiteEligibility({
+            organizationId, employeeId, worksiteId,
+            date: workDate, executor: tx,
+          });
+          if (!siteNow.eligible) throw new Error("Worksite authorization changed before the roster write.");
+        }
+        const lockedPolicy = await scheduleGuardrailPolicy(organizationId, tx);
+        const lockedWindow = await resolveEmployeeScheduleWindow({
+          organizationId, employeeId,
+          startDate: addDays(workDate, -7),
+          endDate: addDays(workDate, 7),
+          prospectiveOverride: {
+            id: Number.MAX_SAFE_INTEGER, workDate,
+            kind: kind as "shift" | "split_shift" | "rest_day" | "off" | "location",
+            isRestDay, segments, workLocationOrgUnitId, worksiteId,
+            status: "approved", reason,
+          },
+          executor: tx,
+        });
+        const lockedIssues = evaluateScheduleGuardrails({
+          days: lockedWindow, policy: lockedPolicy,
+        });
+        if (scheduleGuardrailBlocksMutation(lockedIssues)) {
+          throw new Error("Concurrent roster changes now breach override guardrails.");
+        }
+        const [created] = await tx.insert(scheduleOverrides).values({
+          organizationId, employeeId, workDate, kind, isRestDay, segments,
+          workLocationOrgUnitId, worksiteId, reason,
+          status: "approved", createdBy: user.name,
+          approvedBy: user.name, approvedAt: new Date(),
+        }).returning();
+        const staleTimesheets = await markTimesheetsStaleForEmployeeDate({
+          organizationId, employeeId, workDate, executor: tx,
+        });
+        await tx.insert(auditEvents).values({
+          organizationId, actor: user.name,
+          action: "Employee schedule override created",
+          resource: `${employeeCheck.employee!.employeeNo} · ${workDate}`,
+          metadata: {
+            overrideId: created.id, employeeId, workDate, kind, isRestDay,
+            shiftSegments: segments, workLocationOrgUnitId, worksiteId, reason,
+            staleTimesheetIds: staleTimesheets.map((row) => row.id),
+          },
+        });
+        return { created, staleTimesheets, lockedIssues, lockedPolicy };
+      }, { isolationLevel: "read committed" });
       return Response.json({
-        override: created,
-        guardrailIssues,
-        guardrailPolicy,
-        staleTimesheetIds: staleTimesheets.map((row) => row.id),
+        override: result.created,
+        guardrailIssues: result.lockedIssues,
+        guardrailPolicy: result.lockedPolicy,
+        staleTimesheetIds: result.staleTimesheets.map((row) => row.id),
       }, { status: 201 });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Schedule override could not be created.";
-      return Response.json({ error: message }, { status: 409 });
+    } catch {
+      return Response.json({
+        error: "The roster changed while the override was being saved. Refresh the schedule and retry.",
+        code: "WFM_OVERRIDE_SOURCE_CHANGED",
+      }, { status: 409 });
     }
   }
 

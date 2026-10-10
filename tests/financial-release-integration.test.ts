@@ -73,3 +73,11 @@ test("loan governance test and runbook refer to the integrated migration", () =>
   // The runbook may legitimately cite the retired 0100 loan basename in its
   // historical explanation. Do not mistake prose for a live migration path.
 });
+
+test("later 01xx migrations retain unique sequence numbers", () => {
+  // Preserve the broader uniqueness check independently of the fixed
+  // historical financial cohort; later additive migrations remain allowed.
+  const names = readdirSync("drizzle").filter(name => /^01\d{2}_[a-z0-9_-]+\.sql$/.test(name));
+  assert.equal(new Set(names.map(name => name.slice(0, 4))).size, names.length,
+    "do not introduce duplicate migration sequence numbers in the 01xx namespace");
+});

@@ -25,6 +25,9 @@ test("guardrail policy mutations require company-wide People access, MFA and aud
   assert.ok(policyRoute.includes("enforceSameOriginMutation(request)"));
   assert.ok(policyRoute.includes("enforceSensitiveActionRateLimit(request"));
   assert.ok(policyRoute.includes('action: "WFM schedule guardrail policy updated"'));
+  assert.ok(policyRoute.includes("pg_advisory_xact_lock(6107, ${organizationId})"));
+  assert.ok(policyRoute.includes('isolationLevel: "read committed"'));
+  assert.ok(policyRoute.includes("tx.insert(auditEvents).values("));
 });
 
 test("schedule previews use prior-week context and return guardrail issues", () => {
@@ -35,11 +38,11 @@ test("schedule previews use prior-week context and return guardrail issues", () 
   assert.ok(windowService.includes("resolveEmployeeScheduleWindow"));
 });
 
-test("assignments and overrides are preflighted before database insertion", () => {
+test("assignments and overrides are preflighted, then rechecked in the locked transaction", () => {
   const assignmentPreflight = schedulesRoute.indexOf('prospectiveAssignment: {');
-  const assignmentInsert = schedulesRoute.indexOf("db.insert(employeeScheduleAssignments)");
+  const assignmentInsert = schedulesRoute.indexOf("tx.insert(employeeScheduleAssignments)");
   const overridePreflight = schedulesRoute.indexOf('prospectiveOverride: {');
-  const overrideInsert = schedulesRoute.indexOf("db.insert(scheduleOverrides)");
+  const overrideInsert = schedulesRoute.indexOf("tx.insert(scheduleOverrides)");
 
   assert.ok(assignmentPreflight > -1 && assignmentPreflight < assignmentInsert);
   assert.ok(overridePreflight > -1 && overridePreflight < overrideInsert);

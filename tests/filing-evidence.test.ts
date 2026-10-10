@@ -152,7 +152,8 @@ test("BIR evidence follows the same rules and never borrows SSS's acceptance", (
   assert.equal(bir.kind, "bir-1604c-source");
   const row = (overrides: Partial<FilingEvidenceRow> = {}) =>
     accepted({ agency: "BIR", form: "1604-C", generatorVersion: BIR_1604C_GENERATOR_VERSION, agencyReference: "TKT-2026-0001", ...overrides });
-  assert.equal(provesFileFormat(row(), bir), true);
+  assert.equal(provesFileFormat(row(), bir), false, "old per-run source CSV cannot count as official DAT acceptance");
+  assert.equal(provesOperationalFiling(row(), bir), false, "historical Alphalist evidence is not an operational filing acknowledgement");
   assert.equal(provesFileFormat(row({ submissionMethod: "manual_entry" }), bir), false);
   assert.equal(provesFileFormat(row({ generatorVersion: "bir-1604c-source-v0" }), bir), false);
   assert.equal(provesFileFormat(accepted(), bir), false, "an SSS acceptance must not turn on the BIR gate");
@@ -198,8 +199,13 @@ test("Pag-IBIG evidence follows the same rules and every agency stays separate",
     const others = rows.filter((item) => item.agency !== definition.agency || item.form !== definition.form);
     const summary = summarizeFilingEvidence(rows, definition);
     assert.equal(summarizeFilingEvidence(others, definition).operationallyProven, false, `${definition.agency} ${definition.form} was proven by another form's rows`);
-    if (definition.evidenceMode === "file-format") assert.equal(summary.provingCount, 1);
-    else assert.equal(summary.operationalProvingCount, 1);
+    if (definition.agency === "BIR" && definition.form === "1604-C") {
+      assert.equal(summary.provingCount, 0, "historical source CSV cannot certify current Alphalist filing format");
+    } else if (definition.evidenceMode === "file-format") {
+      assert.equal(summary.provingCount, 1);
+    } else {
+      assert.equal(summary.operationalProvingCount, 1);
+    }
   }
 });
 
