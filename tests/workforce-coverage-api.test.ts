@@ -40,7 +40,7 @@ test("approval evaluates blocking guardrails before writing the roster", () => {
 });
 
 test("claim approval serializes slot allocation against the freshly locked shift", () => {
-  assert.ok(route.includes("for update"));
+  assert.ok(route.includes('.for("update")'));
   assert.ok(route.includes("Open shift is already fully claimed."));
   assert.ok(route.includes("approved.length + 1 >= currentShift.slots"));
 });
