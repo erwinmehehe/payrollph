@@ -1,6 +1,7 @@
-import { and, asc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   employeeScheduleAssignments,
   employeeWorksiteAssignments,
   employees,
@@ -67,18 +68,18 @@ async function resolveSchedulesForPair(input: {
   counterpartyEmployeeId: number;
   requesterWorkDate: string;
   counterpartyWorkDate: string;
-}) {
+}, executor: Pick<typeof db, "select"> = db) {
   const employeeIds = [input.requesterEmployeeId, input.counterpartyEmployeeId];
   const dates = [...new Set([input.requesterWorkDate, input.counterpartyWorkDate])];
 
   const [shifts, patterns, assignments, overrides, worksiteAssignments] = await Promise.all([
-    db.select().from(shiftDefinitions)
+    executor.select().from(shiftDefinitions)
       .where(eq(shiftDefinitions.organizationId, input.organizationId))
       .orderBy(asc(shiftDefinitions.code)),
-    db.select().from(schedulePatterns)
+    executor.select().from(schedulePatterns)
       .where(eq(schedulePatterns.organizationId, input.organizationId))
       .orderBy(asc(schedulePatterns.code)),
-    db.select().from(employeeScheduleAssignments).where(and(
+    executor.select().from(employeeScheduleAssignments).where(and(
       eq(employeeScheduleAssignments.organizationId, input.organizationId),
       inArray(employeeScheduleAssignments.employeeId, employeeIds),
     )).orderBy(
@@ -86,7 +87,7 @@ async function resolveSchedulesForPair(input: {
       asc(employeeScheduleAssignments.effectiveFrom),
       asc(employeeScheduleAssignments.id),
     ),
-    db.select().from(scheduleOverrides).where(and(
+    executor.select().from(scheduleOverrides).where(and(
       eq(scheduleOverrides.organizationId, input.organizationId),
       inArray(scheduleOverrides.employeeId, employeeIds),
       inArray(scheduleOverrides.workDate, dates),
@@ -95,7 +96,7 @@ async function resolveSchedulesForPair(input: {
       asc(scheduleOverrides.workDate),
       asc(scheduleOverrides.id),
     ),
-    db.select().from(employeeWorksiteAssignments).where(and(
+    executor.select().from(employeeWorksiteAssignments).where(and(
       eq(employeeWorksiteAssignments.organizationId, input.organizationId),
       inArray(employeeWorksiteAssignments.employeeId, employeeIds),
     )).orderBy(
@@ -107,7 +108,7 @@ async function resolveSchedulesForPair(input: {
 
   const patternIds = patterns.map((pattern) => pattern.id);
   const days = patternIds.length
-    ? await db.select({
+    ? await executor.select({
         id: schedulePatternDays.id,
         patternId: schedulePatternDays.patternId,
         dayIndex: schedulePatternDays.dayIndex,
@@ -119,7 +120,7 @@ async function resolveSchedulesForPair(input: {
     : [];
   const dayIds = days.map((day) => day.id);
   const segments = dayIds.length
-    ? await db.select({
+    ? await executor.select({
         id: schedulePatternSegments.id,
         patternDayId: schedulePatternSegments.patternDayId,
         shiftDefinitionId: schedulePatternSegments.shiftDefinitionId,
