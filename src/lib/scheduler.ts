@@ -22,6 +22,8 @@ import { runScheduledPerformanceActionReminders } from "@/lib/hcm-performance-ac
 import { runScheduledPerformanceEvidenceSealing } from "@/lib/hcm-performance-evidence-sealing";
 import { resumeDueAutomationExecutions } from "@/lib/automation";
 import { runScheduledAutomationTemporalEvents } from "@/lib/automation-temporal-events";
+import { sealAuditEvents } from "@/lib/audit-chain";
+import { runScheduledComplianceDeadlineAlerts } from "@/lib/compliance-deadline-alerts";
 
 const MIN_INTERVAL_MS = 30_000;
 
@@ -174,6 +176,41 @@ async function runScheduledJobs(
     compensationAutomationDelivery = { error: "Compensation automation delivery queue unavailable; inspect the durable intent ledger." };
   }
   await assertLeaseOwnership();
+
+  let auditChainSeal: { sealed: number } | { error: string };
+  try {
+    auditChainSeal = { sealed: await sealAuditEvents(1000) };
+  } catch {
+    auditChainSeal = { error: "Audit chain sealing unavailable; apply drizzle/0109_tamper_evident_audit_chain.sql." };
+  }
+  await assertLeaseOwnership();
+
+  const [complianceAlertState] = await db.select().from(schedulerState)
+    .where(eq(schedulerState.jobName, "compliance-deadline-alerts"))
+    .limit(1);
+  const complianceAlertsDue =
+    !complianceAlertState?.lastRunAt
+    || now.getTime() - complianceAlertState.lastRunAt.getTime() >= 60 * 60 * 1000;
+  let complianceDeadlineAlerts: Awaited<ReturnType<typeof runScheduledComplianceDeadlineAlerts>> | { error: string } | null = null;
+  if (complianceAlertsDue) {
+    try {
+      complianceDeadlineAlerts = await runScheduledComplianceDeadlineAlerts({ now });
+    } catch {
+      complianceDeadlineAlerts = { error: "Compliance deadline alerts failed; the calendar remains available in the Compliance Center." };
+    }
+    await assertLeaseOwnership();
+    const complianceAlertPayload = { at: now.toISOString(), results: complianceDeadlineAlerts };
+    if (complianceAlertState) {
+      await db.update(schedulerState).set({ lastRunAt: now, lastResult: complianceAlertPayload })
+        .where(eq(schedulerState.id, complianceAlertState.id));
+    } else {
+      await db.insert(schedulerState).values({
+        jobName: "compliance-deadline-alerts",
+        lastRunAt: now,
+        lastResult: complianceAlertPayload,
+      });
+    }
+  }
 
   const [hcmLifecycleNotificationState] = await db.select().from(schedulerState)
     .where(eq(schedulerState.jobName, "hcm-lifecycle-notifications"))
@@ -331,6 +368,8 @@ async function runScheduledJobs(
     hcmEmploymentTermDecisions,
     hcmCompensation,
     compensationAutomationDelivery,
+    auditChainSeal,
+    complianceDeadlineAlerts,
     hcmLifecycleNotifications,
     performanceReminders,
     performanceActionReminders,

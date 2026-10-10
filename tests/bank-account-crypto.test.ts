@@ -76,21 +76,42 @@ test("an encrypted value with no key configured is an error, never a silent blan
   assert.throws(() => decryptBankAccount(sealed, withKey(undefined)), /configured/);
 });
 
-test("legacy plaintext remains readable for migration, but non-empty writes fail closed without a key", () => {
+test("legacy plaintext may be read for migration but never stored again without a key", () => {
+  // Reads stay compatible only so operators can re-encrypt legacy rows.
   assert.equal(decryptBankAccount("1234567890", withKey(KEY_A)), "1234567890");
   assert.equal(decryptBankAccount("1234567890", withKey(undefined)), "1234567890");
   assert.throws(
     () => encryptBankAccount("1234567890", withKey(undefined)),
-    /BANK_DATA_ENCRYPTION_KEY or a valid TOTP_ENCRYPTION_KEY is required/,
+    /BANK_DATA_ENCRYPTION_KEY.*TOTP_ENCRYPTION_KEY/,
   );
+});
+
+test("bank writes fail closed in every environment with no usable current key", () => {
+  for (const nodeEnv of ["production", "development", "test"]) {
+    const env = { NODE_ENV: nodeEnv } as NodeJS.ProcessEnv;
+    assert.throws(() => encryptBankAccount(" 1234567890 ", env), /required to store a bank account/);
+    assert.equal(encryptBankAccount(null, env), null);
+    assert.equal(encryptBankAccount("", env), null);
+    assert.equal(encryptBankAccount("  ", env), null);
+  }
+  // A previous rotation key is for reading old ciphertext, not new writes.
+  const previousOnly = { NODE_ENV: "test", BANK_DATA_ENCRYPTION_KEY_PREVIOUS: KEY_A } as NodeJS.ProcessEnv;
+  assert.throws(() => encryptBankAccount("1234567890", previousOnly), /required to store/);
   const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
-  assert.throws(
-    () => encryptBankAccount(sealed, withKey(undefined)),
-    /is required to store a bank account/,
-    "re-saving ciphertext must not silently skip key verification",
-  );
-  assert.equal(encryptBankAccount(null, withKey(undefined)), null);
-  assert.equal(encryptBankAccount("  ", withKey(undefined)), null);
+  assert.throws(() => encryptBankAccount(sealed, withKey(undefined)), /required to store/);
+  assert.throws(() => encryptBankAccount(sealed, previousOnly), /required to store/);
+});
+
+test("an already-encrypted bank value must authenticate before being saved", () => {
+  const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
+  assert.throws(() => encryptBankAccount(sealed, withKey(KEY_B)), /could not be decrypted/);
+  assert.throws(() => encryptBankAccount("enc:v1:notvalid", withKey(KEY_A)), /malformed/);
+  const rotation = {
+    NODE_ENV: "test",
+    BANK_DATA_ENCRYPTION_KEY: KEY_B,
+    BANK_DATA_ENCRYPTION_KEY_PREVIOUS: KEY_A,
+  } as NodeJS.ProcessEnv;
+  assert.equal(encryptBankAccount(sealed, rotation), sealed);
 });
 
 test("saving twice never double-encrypts, and empty stays null", () => {
@@ -167,8 +188,8 @@ test("every place that reads or writes the number goes through the crypto module
   const read = (path: string) => readFileSync(path, "utf8");
 
   const payout = read("src/lib/paymongo-disbursements.ts");
-  assert.ok(payout.includes("decryptBankAccount(frozen.bankAccount)"), "PayMongo transfers must decrypt the independently verified frozen recipient account");
-  assert.ok(!payout.includes("decryptBankAccount(employee.bankAccount)"), "PayMongo cannot route from a mutable employee account");
+  assert.ok(payout.includes("decryptBankAccount(frozen.bankAccount)"), "PayMongo transfers must use a frozen, validated payroll payment account");
+  assert.ok(!payout.includes("decryptBankAccount(employee.bankAccount)"), "PayMongo transfers must not use mutable employee bank accounts");
 
   const exporter = read("src/lib/exporters.ts");
   assert.ok(exporter.includes("decryptBankAccount(payment.bankAccount)"), "bank files must use the decrypted number");
@@ -181,6 +202,16 @@ test("every place that reads or writes the number goes through the crypto module
     assert.ok(source.includes("encryptBankAccount(row.bankAccount)"), `${path} must encrypt on write`);
     assert.ok(!/bankAccount: row\.bankAccount,/.test(source), `${path} must not store the raw number`);
   }
+
+  const payoutControls = read("src/lib/payout-destination-controls.ts");
+  assert.ok(payoutControls.includes("bankAccount: encryptBankAccount(request.proposedBankAccount)"),
+    "approving an old pending payout change must reseal the proposed account");
+  assert.ok(payoutControls.includes("const proposedBankAccount = encryptBankAccount("),
+    "even bank-code-only payout changes must seal a legacy account");
+
+  const legalEntities = read("src/app/api/legal-entities/route.ts");
+  assert.ok(legalEntities.includes("encryptBankAccount(existing.disbursementAccount)"),
+    "editing a legal entity must not preserve a legacy plaintext disbursement account");
 
   const publicDemo = read("src/db/public-demo.ts");
   assert.ok(publicDemo.includes("bankAccount: null"), "public demo must not persist bank-account data at all");
@@ -276,30 +307,18 @@ test("bank rotation also supports a previous TOTP-derived bank key", () => {
   assert.equal(decryptBankAccount(rotated, withKey(KEY_B)), "1234567890");
 });
 
-test("bank writes fail closed in every environment with no usable current key", () => {
-  for (const nodeEnv of ["production", "development", "test"]) {
-    const env = { NODE_ENV: nodeEnv } as NodeJS.ProcessEnv;
-    assert.throws(() => encryptBankAccount(" 1234567890 ", env), /required to store a bank account/);
-    assert.equal(encryptBankAccount(null, env), null);
-    assert.equal(encryptBankAccount("", env), null);
-    assert.equal(encryptBankAccount("  ", env), null);
+test("production backfill checks all recorded bank-account sources before claiming zero plaintext", () => {
+  const script = readFileSync("scripts/encrypt-bank-accounts.ts", "utf8");
+  const workflow = readFileSync(".github/workflows/production-bank-encryption.yml", "utf8");
+  for (const source of [
+    "employees.bankAccount",
+    "payrollEntries.trace",
+    "legalEntities.disbursementAccount",
+    "employeePayoutChangeRequests.proposedBankAccount",
+  ]) {
+    assert.ok(script.includes(source), "backfill must include " + source);
   }
-  // A previous rotation key is for reading old ciphertext, not new writes.
-  const previousOnly = { NODE_ENV: "test", BANK_DATA_ENCRYPTION_KEY_PREVIOUS: KEY_A } as NodeJS.ProcessEnv;
-  assert.throws(() => encryptBankAccount("1234567890", previousOnly), /required to store/);
-  const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
-  assert.throws(() => encryptBankAccount(sealed, withKey(undefined)), /required to store/);
-  assert.throws(() => encryptBankAccount(sealed, previousOnly), /required to store/);
-});
-
-test("an already-encrypted bank value must authenticate before being saved", () => {
-  const sealed = encryptBankAccount("1234567890", withKey(KEY_A))!;
-  assert.throws(() => encryptBankAccount(sealed, withKey(KEY_B)), /could not be decrypted/);
-  assert.throws(() => encryptBankAccount("enc:v1:notvalid", withKey(KEY_A)), /malformed/);
-  const rotation = {
-    NODE_ENV: "test",
-    BANK_DATA_ENCRYPTION_KEY: KEY_B,
-    BANK_DATA_ENCRYPTION_KEY_PREVIOUS: KEY_A,
-  } as NodeJS.ProcessEnv;
-  assert.equal(encryptBankAccount(sealed, rotation), sealed);
+  assert.ok(workflow.includes("0 legal entity disbursement account(s) hold plaintext."));
+  assert.ok(workflow.includes("0 payout change request(s) hold plaintext."));
+  assert.equal((workflow.match(/^      - name: Verify live readiness sees encrypted bank data$/gm) ?? []).length, 1);
 });

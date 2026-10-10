@@ -1,9 +1,43 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { treasuryReleaseSeparationError } from "../src/lib/treasury-controls";
+import { checkerReleaseSeparationError, treasuryReleaseSeparationError } from "../src/lib/treasury-controls";
 
 const read = (path: string) => readFileSync(path, "utf8");
+
+test("the checker who approved a payroll cannot release it, regardless of treasury policy", () => {
+  const approval = (id: number, deciderUserId: number | null, actor = "Casey", taskId = 7, payrollRunId = 42) => ({
+    id,
+    action: "Approval approved",
+    actor,
+    metadata: { taskId, payrollRunId, deciderUserId },
+  });
+  const base = { approvalTaskId: 7, payrollRunId: 42 };
+
+  assert.match(
+    checkerReleaseSeparationError({ ...base, events: [approval(1, 11)], userId: 11, userName: "Casey" }) ?? "",
+    /cannot also release/,
+  );
+  assert.equal(checkerReleaseSeparationError({ ...base, events: [approval(1, 11)], userId: 12, userName: "Owner" }), null);
+  // A different task or run never blocks.
+  assert.equal(checkerReleaseSeparationError({ ...base, events: [approval(1, 11, "Casey", 8)], userId: 11, userName: "Casey" }), null);
+  assert.equal(checkerReleaseSeparationError({ ...base, events: [approval(1, 11, "Casey", 7, 43)], userId: 11, userName: "Casey" }), null);
+  // Legacy decisions without a stable id compare by actor name.
+  assert.match(
+    checkerReleaseSeparationError({ ...base, events: [approval(1, null, "Casey")], userId: 99, userName: " casey " }) ?? "",
+    /cannot also release/,
+  );
+  // Delegated approvals count; the latest decision wins.
+  assert.match(
+    checkerReleaseSeparationError({
+      ...base,
+      events: [approval(1, 12), { ...approval(2, 11), action: "Approval approved by delegate" }],
+      userId: 11,
+      userName: "Casey",
+    }) ?? "",
+    /cannot also release/,
+  );
+});
 
 test("stable release identity blocks the same user and allows a distinct treasury user", () => {
   const base = {
