@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "../src/db";
 import {
   approvalDelegations, approvalTasks, employees,
@@ -175,10 +175,37 @@ test("Manager Decision Inbox only displays assigned same-unit, same-tenant sourc
       ...query, scope: { kind: "unit", orgUnitId: betaUnit.id }, source: "hcm",
     }).then(() => "unexpected success", () => "denied");
     assert.equal(foreignUnitPage, "denied");
+
+    // Ambiguous display names must not grant named/delegated tasks,
+    // although role-queue tasks remain authorized by actual role.
+    const [sameName] = await db.insert(users).values({
+      email: "decision-name-collision-" + id + "@example.invalid",
+      name: alphaUser.name, passwordHash: "synthetic-hash",
+    }).returning();
+    actorIds.push(sameName.id);
+    await db.insert(userOrganizations).values({
+      organizationId: alpha.id, userId: sameName.id, role: "employee",
+      orgUnitId: alphaUnit.id, active: true,
+    });
+    const ambiguous = await loadManagerDecisionPage({ ...query, source: "leave" });
+    assert.equal(ambiguous.items.length, 0, "named delegation cannot resolve a duplicate actor name");
+    const roleStillAllowed = await loadManagerDecisionPage({ ...query, source: "overtime" });
+    assert.equal(roleStillAllowed.items.length, 1, "role assignment is separate from name collision");
+
+    // A manager who is the underlying worker cannot use this read-only
+    // preview as evidence of an independent overtime decision.
+    await db.update(userOrganizations).set({ workerEmployeeId: member.id }).where(and(
+      eq(userOrganizations.organizationId, alpha.id),
+      eq(userOrganizations.userId, alphaUser.id),
+    ));
+    const selfRequest = await loadManagerDecisionPage({ ...query, source: "overtime" });
+    assert.equal(selfRequest.items.length, 0, "manager's own worker request excluded");
+
   } finally {
     await db.delete(organizations).where(eq(organizations.id, alpha.id));
     await db.delete(organizations).where(eq(organizations.id, beta.id));
-    if (actorIds.length) await db.delete(users).where(eq(users.id, actorIds[0]));
-    if (actorIds.length > 1) await db.delete(users).where(eq(users.id, actorIds[1]));
+    for (const actorId of actorIds) {
+      await db.delete(users).where(eq(users.id, actorId));
+    }
   }
 });
