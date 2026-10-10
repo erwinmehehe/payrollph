@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { GET } from "../src/app/api/readiness/deployment/route";
 
 test("private deployment metadata denies unauthenticated or forged calls", async () => {
@@ -47,7 +48,7 @@ test("malformed readiness secret fails closed without exposing infrastructure", 
 });
 
 test("production smoke workers authenticate the private deployment probe", () => {
-  const { readFileSync } = require("node:fs") as typeof import("node:fs");
+
   const script = readFileSync("scripts/live-production-readiness.ts", "utf8");
   const workflow = readFileSync(".github/workflows/live-rbac-sandbox-smoke.yml", "utf8");
   assert.ok(script.includes('headers: { "x-readiness-token": token }'));
