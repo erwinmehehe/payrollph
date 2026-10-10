@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarDays, Check, Clock3, Clock, Download, Search, Timer } from "lucide-react";
 import { AttendanceCorrectionsPanel } from "./attendance-corrections-panel";
 import { AttendanceExceptionsPanel } from "./attendance-exceptions-panel";
@@ -15,15 +15,24 @@ export function TimeView({
   onOpenBundy,
   notify,
   canManage = true,
+  taskFilter,
+  taskSequence,
 }: {
   data: DashboardData;
   onOpenBundy: () => void;
   notify: Notify;
   canManage?: boolean;
+  taskFilter?: "attendance-exceptions";
+  taskSequence?: number;
 }) {
   const punches = useMemo(() => data.punches ?? [], [data.punches]);
   const [view, setView] = useState<"all" | "incomplete">("all");
   const [query, setQuery] = useState("");
+  useEffect(() => {
+    if (taskSequence === undefined) return;
+    setView(taskFilter === "attendance-exceptions" ? "incomplete" : "all");
+    setQuery("");
+  }, [taskSequence, taskFilter]);
 
   const stats = useMemo(() => {
     const complete = punches.filter(isComplete);
