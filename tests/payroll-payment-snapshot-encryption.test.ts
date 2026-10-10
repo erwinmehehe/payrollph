@@ -29,7 +29,7 @@ test("legacy account cannot enter a payroll payment snapshot without a current k
     assert.equal(sealPayrollPaymentBankAccount("", env), null);
     assert.equal(sealPayrollPaymentBankAccount("   ", env), null);
   }
-  const previousOnly = { BANK_DATA_ENCRYPTION_KEY_PREVIOUS: KEY_A } as NodeJS.ProcessEnv;
+  const previousOnly = { NODE_ENV: "test", BANK_DATA_ENCRYPTION_KEY_PREVIOUS: KEY_A } as NodeJS.ProcessEnv;
   assert.throws(() => sealPayrollPaymentBankAccount("123456789012", previousOnly), /current bank encryption key is required/);
 });
 
@@ -49,6 +49,7 @@ test("stored envelopes with wrong key or invalid GCM authentication fail closed"
   assert.throws(() => sealPayrollPaymentBankAccount(sealed, withKey(KEY_B)), /could not be decrypted/);
   assert.throws(() => sealPayrollPaymentBankAccount("enc:v1:malformed", oldEnv), /malformed/);
   const rotation = {
+    NODE_ENV: "test",
     BANK_DATA_ENCRYPTION_KEY: KEY_B,
     BANK_DATA_ENCRYPTION_KEY_PREVIOUS: KEY_A,
   } as NodeJS.ProcessEnv;
