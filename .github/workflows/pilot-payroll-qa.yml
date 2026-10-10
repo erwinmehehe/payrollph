@@ -7,6 +7,9 @@ on:
   pull_request:
     branches:
       - main
+      # Stacked ESS and billing PRs also require browser/security assurance.
+      - feat/hcm-work-item-ownership-sla
+      - ui/ess-mobile-ux
     paths:
       - "src/app/api/employees/route.ts"
       - "src/app/api/invitations/**"
