@@ -103,10 +103,15 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
       NAVIGATION.flatMap((group) => group.items)
         .map((item) => item.name)
         .filter((name) => !(isFreelancer && FREELANCER_HIDDEN.has(name)))
-        .filter((name) => !rolePages || rolePages.includes(name))
-        .filter((name) => name !== "People Home" || (process.env.NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED === "true" && ["owner", "admin", "bookkeeper", "hr"].includes(effectiveRole ?? ""))),
+        .filter((name) => !rolePages || rolePages.includes(name)),
     [isFreelancer, rolePages],
   );
+
+  // Beta entry stays outside canonical sidebar/demo navigation until HR review.
+  const peopleHomeEnabled = process.env.NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED === "true"
+    && !demoRole && !isFreelancer && Boolean(data.access?.companyWide)
+    && ["owner", "admin", "hr"].includes(effectiveRole ?? "")
+    && availablePages.includes("People");
 
   const notifications = useMemo(
     () => buildNotifications(data, effectiveRole).filter((item) => !item.page || availablePages.includes(item.page)),
@@ -352,6 +357,11 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
                 <ShieldCheck size={13} style={{ color: "var(--brand)" }} /> Gov status
               </button>
             )}
+            {peopleHomeEnabled && (
+              <button type="button" className="topbar-link" onClick={() => setPage("People Home")}>
+                <ShieldCheck size={13} /> People Home
+              </button>
+            )}
             {canManageTime && availablePages.includes("Time & attendance") && (
               <button className="topbar-link" onClick={() => setWebBundyOpen(true)}>
                 <Clock size={13} style={{ color: "var(--brand)" }} /> Web bundy
@@ -446,7 +456,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
           />
         )}
 
-        {page === "People Home" && availablePages.includes("People Home") && (
+        {page === "People Home" && peopleHomeEnabled && (
           <HcmPeopleHome
             key={data.selectedOrganization.id}
             data={data}
