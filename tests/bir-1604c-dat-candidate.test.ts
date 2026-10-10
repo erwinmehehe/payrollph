@@ -13,7 +13,7 @@ const administrative = new Set([
   "RETRN_PERIOD", "SEQ_NUM", "TIN", "BRANCH_CODE",
   "LAST_NAME", "FIRST_NAME", "MIDDLE_NAME", "REGION_NUM",
   "EMPLOYMENT_FROM", "EMPLOYMENT_TO", "NATIONALITY",
-  "EMPLOYMENT_STATUS", "REASON_SEPARATION", "FACTOR_USED",
+  "EMPLOYMENT_STATUS", "REASON_SEPARATION", "SUBS_FILING", "FACTOR_USED",
 ]);
 function complete(schedule: "D1" | "D2", tax: string, withheld: number) {
   const names = schedule === "D1" ? BIR_1604C_D1_FIELDS : BIR_1604C_D2_FIELDS;
@@ -28,7 +28,7 @@ function complete(schedule: "D1" | "D2", tax: string, withheld: number) {
     FIRST_NAME: "MARIA", MIDDLE_NAME: "",
     REGION_NUM: "0001", EMPLOYMENT_FROM: "01/01/2026",
     EMPLOYMENT_TO: "12/31/2026", NATIONALITY: "FILIPINO",
-    EMPLOYMENT_STATUS: "01", REASON_SEPARATION: "00",
+    EMPLOYMENT_STATUS: "01", REASON_SEPARATION: "00", SUBS_FILING: "00",
     GROSS_COMP_INCOME: "600000.00",
     NET_TAXABLE_COMP_INCOME: "500000.00",
     TAX_DUE: String(withheld), ACTUAL_AMT_WTHLD: String(withheld),
@@ -39,13 +39,16 @@ function complete(schedule: "D1" | "D2", tax: string, withheld: number) {
 }
 
 test("RMC 25-2024 1604-C schedule and controls keep exact field counts", () => {
-  assert.equal(BIR_1604C_D1_FIELDS.length, 47);
-  assert.equal(BIR_1604C_D2_FIELDS.length, 56);
-  assert.equal(BIR_1604C_C1_FIELDS.length, 35);
-  assert.equal(BIR_1604C_C2_FIELDS.length, 43);
+  assert.equal(BIR_1604C_D1_FIELDS.length, 49);
+  assert.equal(BIR_1604C_D2_FIELDS.length, 59);
+  assert.equal(BIR_1604C_C1_FIELDS.length, 36);
+  assert.equal(BIR_1604C_C2_FIELDS.length, 45);
   assert.equal(BIR_1604C_D1_FIELDS[0], "SCHEDULE_NUM");
-  assert.equal(BIR_1604C_D1_FIELDS[46], "REASON_SEPARATION");
-  assert.equal(BIR_1604C_D2_FIELDS[55], "REASON_SEPARATION");
+  assert.equal(BIR_1604C_D1_FIELDS[48], "TAX_CREDIT_PERA");
+  assert.equal(BIR_1604C_D2_FIELDS[58], "NONTAX_BASIC_SAL");
+  assert.ok(BIR_1604C_D1_FIELDS.includes("SUBS_FILING"));
+  assert.ok(BIR_1604C_C1_FIELDS.includes("TAX_CREDIT_PERA"));
+  assert.ok(BIR_1604C_C2_FIELDS.includes("NONTAX_BASIC_SAL"));
 });
 
 test("complete synthetic D1+D2 sample produces H/D1/D2/C1/C2 candidate for external validation", () => {
@@ -64,10 +67,10 @@ test("complete synthetic D1+D2 sample produces H/D1/D2/C1/C2 candidate for exter
   assert.ok(lines[2].startsWith("D2,"));
   assert.ok(lines[3].startsWith("C1,"));
   assert.ok(lines[4].startsWith("C2,"));
-  assert.equal(lines[1].split(",").length, 47);
-  assert.equal(lines[2].split(",").length, 56);
-  assert.equal(lines[3].split(",").length, 35);
-  assert.equal(lines[4].split(",").length, 43);
+  assert.equal(lines[1].split(",").length, 49);
+  assert.equal(lines[2].split(",").length, 59);
+  assert.equal(lines[3].split(",").length, 36);
+  assert.equal(lines[4].split(",").length, 45);
 });
 
 test("DAT generator refuses fabricated zeros, wrong legal identity and mismatched tax", () => {
