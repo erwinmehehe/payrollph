@@ -28,7 +28,7 @@ function complete(schedule: "D1" | "D2", tax: string, withheld: number) {
     FIRST_NAME: "MARIA", MIDDLE_NAME: "",
     REGION_NUM: "0001", EMPLOYMENT_FROM: "01/01/2026",
     EMPLOYMENT_TO: "12/31/2026", NATIONALITY: "FILIPINO",
-    EMPLOYMENT_STATUS: "01", REASON_SEPARATION: "00", SUBS_FILING: "00",
+    EMPLOYMENT_STATUS: "R", REASON_SEPARATION: "NA", SUBS_FILING: "Y",
     GROSS_COMP_INCOME: "600000.00",
     NET_TAXABLE_COMP_INCOME: "500000.00",
     TAX_DUE: String(withheld), ACTUAL_AMT_WTHLD: String(withheld),
@@ -71,6 +71,9 @@ test("complete synthetic D1+D2 sample produces H/D1/D2/C1/C2 candidate for exter
   assert.equal(lines[2].split(",").length, 59);
   assert.equal(lines[3].split(",").length, 36);
   assert.equal(lines[4].split(",").length, 45);
+  assert.match(lines[1], /00000005000\\.00/);
+  assert.match(lines[1], /,000001,/);
+  assert.match(lines[2], /,313,/);
 });
 
 test("DAT generator refuses fabricated zeros, wrong legal identity and mismatched tax", () => {
@@ -122,4 +125,19 @@ test("serializer never silently fills missing previous employer or MWE statutory
     employerTin:"123456789", employerBranch:"0000", taxYear:2026,
     records:[mwe], expectedEmployees:1, expectedActualWithheld:0,
   }), /Missing reviewed 1604-C field PRES_NONTAX_NIGHT_DIFF/);
+});
+
+test("DAT candidate only accepts official alphabetic employment and substituted-filing codes", () => {
+  const item = complete("D1", "333222111", 5000);
+  item.fields.EMPLOYMENT_STATUS = "01";
+  assert.throws(() => buildBir1604cDatCandidate({
+    employerTin:"123456789",employerBranch:"0000",taxYear:2026,
+    records:[item],expectedEmployees:1,expectedActualWithheld:5000,
+  }), /official Annex A alphabetic code list/);
+  item.fields.EMPLOYMENT_STATUS = "R";
+  item.fields.SUBS_FILING = "00";
+  assert.throws(() => buildBir1604cDatCandidate({
+    employerTin:"123456789",employerBranch:"0000",taxYear:2026,
+    records:[item],expectedEmployees:1,expectedActualWithheld:5000,
+  }), /official Annex A alphabetic code list/);
 });
