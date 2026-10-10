@@ -9,7 +9,7 @@ import { primaryCompanyOrganizationId, primaryEmployeeOrganizationId } from "@/l
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { subscriptions } from "@/db/schema";
-import { saasSignupVerifications } from "@/lib/saas-billing-schema";
+import { isSelfServeOrganization } from "@/lib/saas-workspace-access";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 
 export const dynamic = "force-dynamic";
@@ -46,11 +46,8 @@ export default async function WorkspacePage() {
   // Newly self-registered company owners must authorize a successful
   // subscription before gaining payroll workspace access. Legacy pilot
   // organizations are not affected by the new signup gate.
-  const [signup] = await db.select({ organizationId: saasSignupVerifications.organizationId })
-    .from(saasSignupVerifications)
-    .where(eq(saasSignupVerifications.organizationId, companyOrganizationId))
-    .limit(1);
-  if (signup) {
+  const isSelfServe = await isSelfServeOrganization(companyOrganizationId);
+  if (isSelfServe) {
     const [billing] = await db.select({ status: subscriptions.status, periodEnd: subscriptions.periodEnd })
       .from(subscriptions).where(eq(subscriptions.organizationId, companyOrganizationId)).limit(1);
     if (!billing || billing.status === "pending_payment") redirect("/billing/setup");
@@ -64,7 +61,7 @@ export default async function WorkspacePage() {
     <div className="mx-auto flex max-w-7xl justify-end px-5 pt-3">
       <Link href="/hcm/command-center" className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>
     </div>
-    <LinawWorkspace initialData={data} isSelfServeCustomer={Boolean(signup)} />
+    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} />
   </>;
 }
 
