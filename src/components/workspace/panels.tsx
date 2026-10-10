@@ -52,7 +52,7 @@ import { DoleThirteenthMonthReportPanel } from "@/components/workspace/dole-thir
 import { CompliancePolicyReviewPanel } from "@/components/workspace/compliance-policy-review-panel";
 import { INVITABLE_ROLES, invitableRoleLabel } from "@/lib/roles";
 import type { AuditEvent, DashboardData, Employee, OrgUnit, PayrollEntry, PayrollRun, PricingPlan } from "./types";
-import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money } from "./ui";
+import { Avatar, Metric, PageHeading, Status, formatDate, formatDateTime as formatTime, money, moneyExact } from "./ui";
 export function LeavePage({ data, setNotice, onRefresh }: { data: DashboardData; setNotice: (message: string) => void; onRefresh: () => Promise<void> }) {
   const requests = data.leaveRequests ?? [];
   const policies = data.leavePolicies ?? [];
@@ -732,8 +732,8 @@ function YearEndPanel({ organizationId, setNotice }: { organizationId: number; s
               <p style={{ margin: "4px 0", fontWeight: 600 }}>
                 {birEntityReport.sourceStatus === "blocked" ? "Blocked - resolve exceptions" : "Internal source cross-check complete; tax review pending"}
                 {" · "}{birEntityReport.totals.employees} employees
-                {" · "}Tax withheld: {money(birEntityReport.totals.payrollActualWithheld)}
-                {" · "}Tax due: {money(birEntityReport.totals.annualTaxDue)}
+                {" · "}Tax withheld: {moneyExact(birEntityReport.totals.payrollActualWithheld)}
+                {" · "}Tax due: {moneyExact(birEntityReport.totals.annualTaxDue)}
                 {" · "}{birEntityReport.totals.blockers} blockers
               </p>
               {birEntityReport.issues.length > 0 && (
@@ -754,8 +754,8 @@ function YearEndPanel({ organizationId, setNotice }: { organizationId: number; s
                     <thead><tr><th>MONTH</th><th>PAYROLL WITHHELD</th><th>1601-C RECORDED</th><th>STATE</th></tr></thead>
                     <tbody>{birEntityReport.monthly.map(item => (
                       <tr key={item.month}>
-                        <td>{item.month}</td><td>{money(item.payrollWithheld)}</td>
-                        <td>{item.reportedWithheld === null ? "Not recorded" : money(item.reportedWithheld)}</td>
+                        <td>{item.month}</td><td>{moneyExact(item.payrollWithheld)}</td>
+                        <td>{item.reportedWithheld === null ? "Not recorded" : moneyExact(item.reportedWithheld)}</td>
                         <td>{item.state}</td>
                       </tr>
                     ))}</tbody>
