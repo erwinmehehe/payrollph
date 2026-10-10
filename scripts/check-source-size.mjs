@@ -4,7 +4,7 @@
  * New oversized modules are blocked until independently reviewed.
  */
 import { readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 
 const ROOT = "src";
 const MAX_LINES = 2500;
