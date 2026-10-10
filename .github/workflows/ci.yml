@@ -38,6 +38,13 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      # Synthetic CI fixtures need encryption just as production does.
+      # Generate an ephemeral 32-byte key, never commit or log a reusable key.
+      # No environment flag may permit plaintext bank-account writes.
+      - name: Provision ephemeral bank key for isolated CI only
+        shell: bash
+        run: |
+          echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - name: Block high and critical runtime dependency vulnerabilities
         run: npm audit --omit=dev --audit-level=high
       - name: Report high and critical development dependency vulnerabilities
