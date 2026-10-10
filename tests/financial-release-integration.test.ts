@@ -12,12 +12,13 @@ const migrationNames = [
 ] as const;
 
 test("financial migration integration has one contiguous 0100-0103 sequence", () => {
-  const names = readdirSync("drizzle").filter(name => /^01\d{2}_[a-z0-9_-]+\.sql$/.test(name));
-  // The financial cohort is 0100-0103. Later append-only migrations are
-  // independently governed; retain uniqueness checking across all 01xx files.
-  const financialNames = names.filter(name => /^010[0-3]_/.test(name));
-  assert.deepEqual(financialNames.sort(), [...migrationNames].sort(),
-    "do not merge a duplicate 0100-0103 migration or skip an ancestor");
+  // This integration test certifies the historical 0100-0103 financial
+  // train, not the entire 01xx migration namespace. Later additive
+  // migrations are checked by the independent SQL history guard.
+  const names = readdirSync("drizzle").filter(name =>
+    /^010[0-3]_[a-z0-9_-]+\.sql$/.test(name));
+  assert.deepEqual(names.sort(), [...migrationNames].sort(),
+    "preserve the exact 0100-0103 financial train: no missing, duplicate or renamed source");
   for (const [index, name] of migrationNames.entries()) {
     assert.equal(name.slice(0, 4), String(100 + index).padStart(4, "0"));
   }
