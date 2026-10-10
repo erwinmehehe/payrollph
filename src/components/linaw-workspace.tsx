@@ -10,10 +10,6 @@ import { BenefitsPanel } from "@/components/benefits-panel";
 import { ContractorsPanel } from "@/components/contractors-panel";
 import { CompensationPanel } from "@/components/compensation-panel";
 import { HcmDocumentsPanel } from "@/components/hcm-documents-panel";
-const HcmDocumentRenewalWatch = dynamic(
-  () => import("@/components/hcm-document-renewal-watch").then((module) => module.HcmDocumentRenewalWatch),
-  { ssr: false },
-);
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { SaasOnboardingQuickstart } from "@/components/saas-onboarding-quickstart";
@@ -63,6 +59,12 @@ import type { DashboardData, PayrollReleaseReceipt, PricingPlan } from "@/compon
 import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
+
+const HcmDocumentRenewalWatch = dynamic(
+  () => import("@/components/hcm-document-renewal-watch").then((module) => module.HcmDocumentRenewalWatch),
+  { ssr: false },
+);
+
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean }) {
   const searchParams = useSearchParams();
