@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { roundedGrossFromBuckets, statutoryTrueUpDecision } from "../src/lib/payroll-money";
+import { computeSemiMonthlyWithholdingTax } from "../src/lib/payroll-rules";
 
 test("rounded gross matches displayed overtime and holiday premium cents", () => {
   // Half-cent floating-point edge and a reproducible multi-bucket mismatch.
@@ -37,4 +38,26 @@ test("missing prior ledger on final cutoff fails closed, new hires use actual fi
   assert.deepEqual(statutoryTrueUpDecision({
     isFinalCutoffOfMonth: false, priorCutoffPresent: false, newHireInCurrentCutoff: false,
   }), { canTrueUp: false, missingPriorInput: false });
+});
+
+test("mid-cutoff hire: calculate withholding on rounded taxable centavos, never latent raw salary fractions", () => {
+  const rawGross = (44000 / 2) * (8 / 15);
+  const gross = roundedGrossFromBuckets([rawGross]);
+  const sss = 587.50;
+  const philHealth = 550.00;
+  const pagIbig = 100.00;
+  const taxable = roundedGrossFromBuckets([gross, -sss, -philHealth, -pagIbig]);
+  const withholding = computeSemiMonthlyWithholdingTax(taxable, false, "2026-09-15");
+  const deductions = roundedGrossFromBuckets([sss, philHealth, pagIbig, withholding]);
+  const net = roundedGrossFromBuckets([gross, -deductions]);
+
+  assert.equal(gross, 11733.33);
+  assert.equal(taxable, 10495.83);
+  assert.equal(withholding, 11.82);
+  assert.equal(deductions, 1249.32);
+  assert.equal(net, 10484.01);
+  // Unrounded prorating leaked 0.003333 peso into WHT and rounded its
+  // half-cent intermediate upward to 11.83. That older result is invalid
+  // under the explicit centavo-first withholding computation.
+  assert.equal(computeSemiMonthlyWithholdingTax(rawGross - sss - philHealth - pagIbig, false, "2026-09-15"), 11.83);
 });
