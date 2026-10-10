@@ -840,14 +840,13 @@ export function ExportsView({
               <span className="inline-icon amber" aria-hidden>
                 <ShieldCheck size={16} />
               </span>
-              <div>
+              <div data-government-draft-warning="not-certified">
                 <h3>
                   Government worksheets <Status value="Draft only" />
                 </h3>
                 <p>
-                  Computed from the same rule engine as payroll, but <strong>not</strong> byte-validated against the
-                  agencies&apos; own import tools. Every file is labelled DRAFT.
-                  For BIR 1604-C Alphalist and Form 2316, open Compliance → Year-End Annualization and run Check BIR source; the former per-run extract does not reconcile annualization.
+                  <strong>Internal reconciliation drafts — not certified portal upload files.</strong> Computed from the payroll engine, but not byte-validated against agency import tools. Do not upload these worksheets directly to BIR, SSS, PhilHealth, or Pag-IBIG. Use current official filing tools and retain portal acknowledgement.
+                  For BIR 1604-C Alphalist and Form 2316, open Compliance → Year-End Annualization and run Check BIR source; the old per-run Alphalist extract was removed because it did not reconcile annualization.
                 </p>
                 <div className="worksheet-list" style={{ padding: "12px 0 0" }}>
                   {GOVERNMENT_DRAFTS.map((item) => (
@@ -866,7 +865,7 @@ export function ExportsView({
                           )
                         }
                       >
-                        <Download size={13} className="i-teal" /> Draft
+                        <Download size={13} className="i-teal" /> Draft worksheet
                       </button>
                     </div>
                   ))}
