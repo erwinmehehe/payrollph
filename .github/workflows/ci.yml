@@ -44,6 +44,13 @@ jobs:
         continue-on-error: true
         run: npm audit --include=dev --audit-level=high
       - run: npm run db:push
+      - name: Check compensation outbox PostgreSQL schema compatibility (read-only)
+        run: npm run compensation:release:schema:check
+      - name: Rehearse compensation outbox migration in rollback-only CI schema
+        env:
+          CI: "true"
+          COMPENSATION_MIGRATION_REHEARSAL_MODE: isolated-ci-only
+        run: npm run compensation:release:migration:rehearse
       - name: Rehearse isolated PostgreSQL backup and restore
         env:
           CI: "true"
@@ -59,7 +66,8 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
       - run: npx tsc --noEmit
-      - run: npx tsx --test tests/*.test.ts
+      # Serialize shared-DB financial tests while preserving scheduler CI isolation.
+      - run: npx tsx --test --test-concurrency=1 tests/*.test.ts
         env:
           CI: "true"
           SCHEDULER_REHEARSAL_MODE: isolated-ci-only

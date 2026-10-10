@@ -79,8 +79,13 @@ test("bank and payout changes always trigger the fresh-tenant payroll pilot", ()
 test("general CI keeps independent payroll and statutory certification mandatory", () => {
   const workflow = read(".github/workflows/ci.yml");
 
+  // Permit bounded test concurrency while requiring the full regression glob.
+  assert.match(
+    workflow,
+    /npx tsx --test(?: --test-concurrency=\d+)? tests\/\*\.test\.ts/,
+    "CI must run all regression tests",
+  );
   for (const command of [
-    "npx tsx --test tests/*.test.ts",
     "npm run payroll:golden",
     "npm run payroll:golden:phase2a",
     "npm run payroll:golden:phase2b",

@@ -5,6 +5,7 @@ import {
   employees,
   payrollEntries,
   payrollRuns,
+  payrollUnderpaymentRequests,
   supplementaryEarnings,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
@@ -345,6 +346,23 @@ export async function PATCH(request: Request) {
     windowMs: 5 * 60_000,
   });
   if (rateDenied) return rateDenied;
+
+  // Correction earnings can only be posted after independent review. Their
+  // approval chain must not be undone through generic supplementary-earnings
+  // void, even before the next payroll calculates or settles.
+  const [reviewedCorrection] = await db.select({ id: payrollUnderpaymentRequests.id })
+    .from(payrollUnderpaymentRequests)
+    .where(and(
+      eq(payrollUnderpaymentRequests.organizationId, existing.organizationId),
+      eq(payrollUnderpaymentRequests.postedEarningId, id),
+    )).limit(1);
+  if (reviewedCorrection) {
+    return Response.json({
+      code: "REVIEWED_UNDERPAYMENT_IMMUTABLE",
+      error: "An independently approved historical underpayment cannot be voided through supplementary earnings. Use a separately reviewed reversing adjustment rather than erasing the audit trail.",
+      correctionRequestId: reviewedCorrection.id,
+    }, { status: 409 });
+  }
 
   if (existing.payrollRunId != null || existing.status === "settled") {
     return Response.json({

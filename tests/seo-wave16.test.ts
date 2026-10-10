@@ -38,9 +38,14 @@ test("employee-loan guide claims match the implemented loan workflow", () => {
 
   assert.ok(loansRoute.includes("employeeLoans"));
   assert.ok(loansRoute.includes('action === "record_payment"'));
-  assert.ok(loansRoute.includes('action === "pause" || action === "resume"'));
-  assert.ok(loansRoute.includes("Payment cannot exceed the remaining loan balance."));
-  assert.ok(loansRoute.includes('action: "Employee loan registered"'));
+  assert.ok(loansRoute.includes('"record_payment", "pause", "resume", "close"'));
+  assert.ok(loansRoute.includes('action === "pause"'));
+  assert.ok(loansRoute.includes('action === "approve" || action === "resume"'));
+  assert.ok(loansRoute.includes("LOAN_PAYMENT_EXCEEDS_BALANCE"));
+  assert.ok(loansRoute.includes("paymentCents > remaining"));
+  assert.ok(loansRoute.includes('action: "Employee loan deduction submitted for independent review"'));
+  assert.ok(loansRoute.includes('status: "pending_approval"'));
+  assert.ok(loansRoute.includes('process.env.PAYROLL_LOAN_DEDUCTION_ACTIVATION_ENABLED !== "true"'));
 
   assert.ok(payrollEngine.includes('eq(employeeLoans.status, "active")'));
   assert.ok(payrollEngine.includes("cutoffDeduction: Number(l.cutoffDeduction)"));

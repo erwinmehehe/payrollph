@@ -1,4 +1,4 @@
-import { and, eq, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, lt, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalTasks,
@@ -15,9 +15,12 @@ import {
   payrollRuns,
   workerEffectiveChanges,
 } from "@/db/schema";
-import { recordAuditEvent } from "@/lib/audit";
-import { runAutomationEventSafely } from "@/lib/automation";
-import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
+import { fieldChangeContext } from "@/lib/automation-change-events";
+import {
+  dispatchCompensationAutomationEvent,
+  enqueueCompensationAutomationIntents,
+  type CompensationAutomationIntentInput,
+} from "@/lib/compensation-automation-outbox";
 import { annualizePay, compaRatio } from "@/lib/compensation";
 import { resolvePayProfile } from "@/lib/pay-basis";
 
@@ -27,6 +30,26 @@ const BUSY_PAYROLL_STATUSES = new Set(["Queued", "Processing", "Recalculating", 
 // succeed or roll back together. A separate nested transaction would reset a
 // payroll run even if the later proposal approval fails.
 type CompensationTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Infrastructure evidence failures MUST NOT poison a valid scheduled salary.
+ * Everything in the pay transaction is rolled back, so a scheduler may retry
+ * the original approved decision without fabricating or rewriting pay.
+ */
+export class ScheduledCompensationAuditWriteError extends Error {
+  constructor() {
+    super("Scheduled salary application audit could not be saved. Salary was not changed; retry after audit storage recovers.");
+    this.name = "ScheduledCompensationAuditWriteError";
+  }
+}
+
+export class ScheduledCompensationIntentWriteError extends Error {
+  constructor() {
+    super("Scheduled salary notification intent could not be saved. Salary was not changed; retry after delivery storage recovers.");
+    this.name = "ScheduledCompensationIntentWriteError";
+  }
+}
+
 
 export function philippineBusinessDate(now = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(now);
@@ -323,6 +346,8 @@ export async function applyScheduledCompensationProposal(
         return { skipped: true as const, reason: "claimed" as const, proposal: proposal ?? null };
       }
 
+      // Match cancellation/approval lock order: proposal -> cycle -> worker.
+      await tx.execute(sql`select pg_advisory_xact_lock(4230, ${proposal.cycleId})`);
       await tx.execute(sql`select pg_advisory_xact_lock(4221, ${proposal.employeeId})`);
 
       const [[cycle], [revision], [pay], [employee], [band]] = await Promise.all([
@@ -446,102 +471,174 @@ export async function applyScheduledCompensationProposal(
       )).returning();
       if (!applied) throw new Error("The compensation proposal changed before application.");
 
-      return { skipped: false as const, proposal: applied, employee, revision, cycle, band, event, beforeAnnual, afterAnnual };
+      // The salary profile, governing proposal, financial event, linked audit,
+      // and secondary automation intents are ONE financial database commit.
+      // Any audit failure reverts every write and preserves retryable salary.
+      let audit;
+      try {
+        [audit] = await tx.insert(auditEvents).values({
+          organizationId: proposal.organizationId,
+          actor,
+          action: "Scheduled compensation change applied",
+          resource: `Employee #${proposal.employeeId}`,
+          metadata: {
+            proposalId: proposal.id,
+            payRevisionId: revision.id,
+            compensationEventId: event.id,
+            compensationCycleId: cycle.id,
+            effectiveDate: String(cycle.effectiveDate),
+            previousAnnual: beforeAnnual,
+            newAnnual: afterAnnual,
+            workerEffectiveChangeId: proposal.workerEffectiveChangeId,
+          },
+        }).returning({ id: auditEvents.id });
+      } catch {
+        throw new ScheduledCompensationAuditWriteError();
+      }
+
+      // Persist the notification snapshots in the SAME financial commit.
+      // Recovery never reads the worker's later mutable pay profile.
+      try {
+        await enqueueCompensationAutomationIntents(tx, {
+          organizationId: proposal.organizationId,
+          employeeId: proposal.employeeId,
+          compensationEventId: event.id,
+          intents: [
+            {
+              trigger: "compensation.changed",
+              eventKey: `compensation-applied:${proposal.id}`,
+              context: {
+                compensationProposalId: proposal.id,
+                compensationCycleId: cycle.id,
+                effectiveDate: cycle.effectiveDate,
+                previousAnnual: beforeAnnual,
+                proposedAnnual: afterAnnual,
+                eventAmount: afterAnnual - beforeAnnual,
+                payRevisionId: revision.id,
+                workerEffectiveChangeId: proposal.workerEffectiveChangeId,
+              },
+            },
+            {
+              trigger: "employee.field_changed",
+              eventKey: `compensation-applied:${proposal.id}:field-change:annualsalary`,
+              context: fieldChangeContext({
+                field: "annualSalary",
+                previousValue: beforeAnnual,
+                newValue: afterAnnual,
+                effectiveDate: String(cycle.effectiveDate),
+                source: "compensation-governance",
+                metadata: {
+                  compensationProposalId: proposal.id,
+                  compensationCycleId: cycle.id,
+                  payRevisionId: revision.id,
+                },
+              }),
+            },
+            {
+              trigger: "employee.field_changed",
+              eventKey: `compensation-applied:${proposal.id}:field-change:monthlyequivalentsalary`,
+              context: fieldChangeContext({
+                field: "monthlyEquivalentSalary",
+                previousValue: beforeAnnual / 12,
+                newValue: afterAnnual / 12,
+                effectiveDate: String(cycle.effectiveDate),
+                source: "compensation-governance",
+                metadata: {
+                  compensationProposalId: proposal.id,
+                  compensationCycleId: cycle.id,
+                  payRevisionId: revision.id,
+                },
+              }),
+            },
+          ],
+        });
+      } catch {
+        // Lost notification intent is an infrastructure failure, not a
+        // rejected/invalid salary proposal. The enclosing tx rolls back pay.
+        throw new ScheduledCompensationIntentWriteError();
+      }
+
+      return { skipped: false as const, proposal: applied, employee, revision, cycle, band, event, audit, beforeAnnual, afterAnnual };
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown compensation application failure.";
-    await db.update(compensationProposals).set({
-      status: "failed",
-      failure: message.slice(0, 4000),
-      updatedAt: now,
-    }).where(and(
-      eq(compensationProposals.id, proposalId),
-      eq(compensationProposals.status, "scheduled"),
-    ));
+    if (!(error instanceof ScheduledCompensationAuditWriteError)
+        && !(error instanceof ScheduledCompensationIntentWriteError)) {
+      // Domain failures need financial reviewer attention. Infrastructure
+      // evidence failures rolled back all pay and remain scheduled for retry.
+      const message = error instanceof Error ? error.message : "Unknown compensation application failure.";
+      await db.update(compensationProposals).set({
+        status: "failed",
+        failure: message.slice(0, 4000),
+        updatedAt: now,
+      }).where(and(
+        eq(compensationProposals.id, proposalId),
+        eq(compensationProposals.status, "scheduled"),
+      ));
+    }
     throw error;
   }
 
   if (result.skipped) return result;
 
   const warnings: string[] = [];
+
+  // Optimistic immediate handoff. Even if this call fails after commit, the
+  // scheduler can deliver the transactionally persisted intent later.
+  let automationDispatch: Awaited<ReturnType<typeof dispatchCompensationAutomationEvent>> | null = null;
   try {
-    await recordAuditEvent({
+    automationDispatch = await dispatchCompensationAutomationEvent({
       organizationId: result.proposal.organizationId,
-      actor,
-      action: "Scheduled compensation change applied",
-      resource: `Employee #${result.proposal.employeeId}`,
-      metadata: {
-        proposalId: result.proposal.id,
-        payRevisionId: result.revision.id,
-        compensationEventId: result.event.id,
-        effectiveDate: result.cycle.effectiveDate,
-        previousAnnual: result.beforeAnnual,
-        newAnnual: result.afterAnnual,
-      },
+      compensationEventId: result.event.id,
     });
-  } catch (error) {
-    warnings.push(`audit: ${error instanceof Error ? error.message : "unknown failure"}`);
+    if (automationDispatch.retry > 0) warnings.push("Compensation notification delivery queued for retry.");
+    if (automationDispatch.needsReview > 0) warnings.push("Compensation notification requires automation execution review.");
+  } catch {
+    warnings.push("Compensation notification delivery deferred to durable scheduler queue.");
   }
 
-  let automation: Awaited<ReturnType<typeof runAutomationEventSafely>> = [];
-  try {
-    automation = await runAutomationEventSafely({
-      organizationId: result.proposal.organizationId,
-      employeeId: result.proposal.employeeId,
-      trigger: "compensation.changed",
-      eventKey: `compensation-applied:${result.proposal.id}`,
-      context: {
-        compensationProposalId: result.proposal.id,
-        compensationCycleId: result.cycle.id,
-        effectiveDate: result.cycle.effectiveDate,
-        previousAnnual: result.beforeAnnual,
-        proposedAnnual: result.afterAnnual,
-        eventAmount: result.afterAnnual - result.beforeAnnual,
-        payRevisionId: result.revision.id,
-        workerEffectiveChangeId: result.proposal.workerEffectiveChangeId,
-      },
-    });
-  } catch (error) {
-    warnings.push(`automation: ${error instanceof Error ? error.message : "unknown failure"}`);
-  }
-
-  const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
-    organizationId: result.proposal.organizationId,
-    employeeId: result.proposal.employeeId,
-    eventKey: `compensation-applied:${result.proposal.id}:field-change`,
-    changes: [
-      {
-        field: "annualSalary",
-        previousValue: result.beforeAnnual,
-        newValue: result.afterAnnual,
-        effectiveDate: String(result.cycle.effectiveDate),
-        source: "compensation-governance",
-        metadata: {
-          compensationProposalId: result.proposal.id,
-          compensationCycleId: result.cycle.id,
-          payRevisionId: result.revision.id,
-        },
-      },
-      {
-        field: "monthlyEquivalentSalary",
-        previousValue: result.beforeAnnual / 12,
-        newValue: result.afterAnnual / 12,
-        effectiveDate: String(result.cycle.effectiveDate),
-        source: "compensation-governance",
-        metadata: {
-          compensationProposalId: result.proposal.id,
-          compensationCycleId: result.cycle.id,
-          payRevisionId: result.revision.id,
-        },
-      },
-    ],
-  });
-
-  return { ...result, automation, fieldChangeAutomation, warnings };
+  return { ...result, automationDispatch, warnings };
 }
 
 
 export type RecurringCompensationDecision = "approve" | "decline" | "cancel";
+
+/**
+ * Same-day approvals and scheduled activations must persist identical
+ * notification snapshots in the same commit as the financial event.
+ */
+function recurringActivationIntents(
+  assignment: typeof employeeCompensationComponents.$inferSelect,
+): CompensationAutomationIntentInput[] {
+  return [
+        {
+          trigger: "compensation.changed",
+          eventKey: `compensation-component-active:${assignment.id}`,
+          context: {
+            compensationComponentAssignmentId: assignment.id,
+            compensationComponentId: assignment.componentId,
+            effectiveDate: assignment.effectiveFrom,
+            eventAmount: Number(assignment.amount),
+            compensationChangeKind: "recurring_component",
+          },
+        },
+        {
+          trigger: "employee.field_changed",
+          eventKey: `compensation-component-active:${assignment.id}:field-change:recurringcompensationamount`,
+          context: fieldChangeContext({
+            field: "recurringCompensationAmount",
+            previousValue: 0,
+            newValue: Number(assignment.amount),
+            effectiveDate: String(assignment.effectiveFrom),
+            source: "compensation-component",
+            metadata: {
+              compensationComponentAssignmentId: assignment.id,
+              compensationComponentId: assignment.componentId,
+            },
+          }),
+        },
+  ];
+}
+
 
 /**
  * Recurring compensation is already read by payroll when scheduled, so a
@@ -651,8 +748,9 @@ export async function decideRecurringCompensationComponent(input: {
     )).returning();
     if (!updated) throw new Error("COMPONENT_ASSIGNMENT_STALE");
 
+    let compensationEventId: number | null = null;
     if (input.decision !== "decline") {
-      await tx.insert(compensationEvents).values({
+      const [financialEvent] = await tx.insert(compensationEvents).values({
         organizationId: updated.organizationId,
         employeeId: updated.employeeId,
         eventType: input.decision === "approve"
@@ -669,7 +767,21 @@ export async function decideRecurringCompensationComponent(input: {
         },
         actorUserId: input.actorUserId,
         actorName: input.actorName,
-      });
+      }).returning({ id: compensationEvents.id });
+      compensationEventId = financialEvent.id;
+
+      // Effective-today approval is already ACTIVE. It will never visit the
+      // scheduled-activation worker, so snapshot its two notification intents
+      // now; a failed insert must roll the approval, payroll reset, and audit
+      // back together.
+      if (input.decision === "approve" && nextStatus === "active") {
+        await enqueueCompensationAutomationIntents(tx, {
+          organizationId: updated.organizationId,
+          employeeId: updated.employeeId,
+          compensationEventId: financialEvent.id,
+          intents: recurringActivationIntents(updated),
+        });
+      }
     }
 
     const auditAction = input.decision === "approve"
@@ -690,6 +802,7 @@ export async function decideRecurringCompensationComponent(input: {
         effectiveFrom,
         decision: input.decision,
         invalidatedPayrollRunIds,
+        compensationEventId,
       },
     });
 
@@ -742,66 +855,135 @@ export async function activateCompensationComponentAssignment(
       actorName: actor,
     }).returning();
 
-    return { skipped: false as const, assignment: active, event };
+    // A successful activation must have BOTH financial and operational audit
+    // evidence. Any audit insert error rolls the activation and event back,
+    // leaving the scheduled component eligible for a governed retry.
+    const [audit] = await tx.insert(auditEvents).values({
+      organizationId: active.organizationId,
+      actor,
+      action: "Recurring compensation component activated",
+      resource: `Employee #${active.employeeId}`,
+      metadata: {
+        componentAssignmentId: active.id,
+        componentId: active.componentId,
+        compensationEventId: event.id,
+        effectiveFrom: String(active.effectiveFrom),
+        effectiveUntil: active.effectiveUntil,
+        amount: Number(active.amount),
+        previousStatus: "scheduled",
+        activatedOnPhilippineDate: today,
+      },
+    }).returning({ id: auditEvents.id });
+
+    await enqueueCompensationAutomationIntents(tx, {
+      organizationId: active.organizationId,
+      employeeId: active.employeeId,
+      compensationEventId: event.id,
+      intents: recurringActivationIntents(active),
+    });
+
+    return { skipped: false as const, assignment: active, event, audit };
   });
 
   if (result.skipped) return result;
 
   const warnings: string[] = [];
+  let automationDispatch: Awaited<ReturnType<typeof dispatchCompensationAutomationEvent>> | null = null;
   try {
-    await recordAuditEvent({
+    automationDispatch = await dispatchCompensationAutomationEvent({
       organizationId: result.assignment.organizationId,
+      compensationEventId: result.event.id,
+    });
+    if (automationDispatch.retry > 0) warnings.push("Recurring component notification queued for retry.");
+    if (automationDispatch.needsReview > 0) warnings.push("Recurring component notification needs execution review.");
+  } catch {
+    warnings.push("Recurring component notification deferred to durable scheduler queue.");
+  }
+
+  return { ...result, automationDispatch, warnings };
+}
+
+/**
+ * Close a recurring compensation component strictly AFTER its last payable
+ * Philippine calendar day. Assignment-level lock 4222 is shared with the
+ * approval/cancellation decision and scheduled-activation workflows.
+ *
+ * Status, compensation evidence and operational audit are one transaction.
+ * If any evidence write fails, the assignment stays active for safe retry.
+ * The ended status remains eligible for historical payroll recalculation only
+ * within the assignment's approved effective-date interval.
+ */
+export async function expireCompensationComponentAssignment(
+  assignmentId: number,
+  options: { actor?: string; actorUserId?: number | null; now?: Date } = {},
+) {
+  const now = options.now ?? new Date();
+  const today = philippineBusinessDate(now);
+  const actor = options.actor ?? "System scheduler";
+  const actorUserId = options.actorUserId ?? null;
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(4222, ${assignmentId})`);
+    const [assignment] = await tx.select().from(employeeCompensationComponents)
+      .where(eq(employeeCompensationComponents.id, assignmentId))
+      .limit(1);
+
+    if (!assignment) return { skipped: true as const, reason: "missing" as const };
+    if (assignment.status === "ended") return { skipped: true as const, reason: "already_ended" as const };
+    if (assignment.status !== "active") return { skipped: true as const, reason: "not_active" as const };
+    if (!assignment.effectiveUntil || String(assignment.effectiveUntil) >= today) {
+      return { skipped: true as const, reason: "not_expired" as const };
+    }
+
+    const [closed] = await tx.update(employeeCompensationComponents).set({
+      status: "ended",
+      updatedAt: now,
+    }).where(and(
+      eq(employeeCompensationComponents.id, assignment.id),
+      eq(employeeCompensationComponents.organizationId, assignment.organizationId),
+      eq(employeeCompensationComponents.status, "active"),
+      lt(employeeCompensationComponents.effectiveUntil, today),
+    )).returning();
+    if (!closed) return { skipped: true as const, reason: "claimed" as const };
+
+    const effectiveUntil = String(closed.effectiveUntil);
+    const evidence = {
+      componentId: closed.componentId,
+      amount: Number(closed.amount),
+      effectiveFrom: String(closed.effectiveFrom),
+      effectiveUntil,
+      endedOnPhilippineDate: today,
+      reason: closed.reason,
+      previousStatus: "active",
+    };
+    // The event is effective on the last payable day; the operational end
+    // is observed on the following Philippine business date or later.
+    const [event] = await tx.insert(compensationEvents).values({
+      organizationId: closed.organizationId,
+      employeeId: closed.employeeId,
+      eventType: "component_ended",
+      effectiveDate: effectiveUntil,
+      componentAssignmentId: closed.id,
+      metadata: evidence,
+      actorUserId,
+      actorName: actor,
+    }).returning({ id: compensationEvents.id });
+
+    const [audit] = await tx.insert(auditEvents).values({
+      organizationId: closed.organizationId,
       actor,
-      action: "Recurring compensation component activated",
-      resource: `Employee #${result.assignment.employeeId}`,
+      action: "Recurring compensation component ended",
+      resource: `Employee #${closed.employeeId}`,
       metadata: {
-        componentAssignmentId: result.assignment.id,
-        componentId: result.assignment.componentId,
-        effectiveFrom: result.assignment.effectiveFrom,
-        amount: Number(result.assignment.amount),
+        componentAssignmentId: closed.id,
+        employeeId: closed.employeeId,
+        compensationEventId: event.id,
+        ...evidence,
       },
-    });
-  } catch (error) {
-    warnings.push(`audit: ${error instanceof Error ? error.message : "unknown failure"}`);
-  }
+    }).returning({ id: auditEvents.id });
 
-  let automation: Awaited<ReturnType<typeof runAutomationEventSafely>> = [];
-  try {
-    automation = await runAutomationEventSafely({
-      organizationId: result.assignment.organizationId,
-      employeeId: result.assignment.employeeId,
-      trigger: "compensation.changed",
-      eventKey: `compensation-component-active:${result.assignment.id}`,
-      context: {
-        compensationComponentAssignmentId: result.assignment.id,
-        compensationComponentId: result.assignment.componentId,
-        effectiveDate: result.assignment.effectiveFrom,
-        eventAmount: Number(result.assignment.amount),
-        compensationChangeKind: "recurring_component",
-      },
-    });
-  } catch (error) {
-    warnings.push(`automation: ${error instanceof Error ? error.message : "unknown failure"}`);
-  }
-
-  const fieldChangeAutomation = await runEmployeeFieldChangeAutomations({
-    organizationId: result.assignment.organizationId,
-    employeeId: result.assignment.employeeId,
-    eventKey: `compensation-component-active:${result.assignment.id}:field-change`,
-    changes: [{
-      field: "recurringCompensationAmount",
-      previousValue: 0,
-      newValue: Number(result.assignment.amount),
-      effectiveDate: String(result.assignment.effectiveFrom),
-      source: "compensation-component",
-      metadata: {
-        compensationComponentAssignmentId: result.assignment.id,
-        compensationComponentId: result.assignment.componentId,
-      },
-    }],
+    return { skipped: false as const, assignment: closed, event, audit };
   });
-
-  return { ...result, automation, fieldChangeAutomation, warnings };
 }
 
 export async function runScheduledCompensationGovernance({
@@ -828,9 +1010,19 @@ export async function runScheduledCompensationGovernance({
   for (const row of dueProposals) {
     try {
       const result = await applyScheduledCompensationProposal(row.id, { actor, now });
-      proposalResults.push({ id: row.id, status: result.skipped ? "skipped" : "applied", reason: result.skipped ? result.reason : undefined });
+      proposalResults.push({
+        id: row.id,
+        status: result.skipped ? "skipped" : "applied",
+        reason: result.skipped ? result.reason : undefined,
+        ...(!result.skipped && result.warnings.length > 0 ? { warnings: result.warnings } : {}),
+      });
     } catch (error) {
-      proposalResults.push({ id: row.id, status: "failed", error: error instanceof Error ? error.message : "Unknown failure" });
+      proposalResults.push({
+        id: row.id,
+        status: error instanceof ScheduledCompensationAuditWriteError
+          || error instanceof ScheduledCompensationIntentWriteError ? "retryable" : "failed",
+        error: error instanceof Error ? error.message : "Unknown failure",
+      });
     }
   }
 
@@ -846,42 +1038,41 @@ export async function runScheduledCompensationGovernance({
   for (const row of dueComponents) {
     try {
       const result = await activateCompensationComponentAssignment(row.id, { actor, now });
-      componentResults.push({ id: row.id, status: result.skipped ? "skipped" : "active", reason: result.skipped ? result.reason : undefined });
+      componentResults.push({
+        id: row.id,
+        status: result.skipped ? "skipped" : "active",
+        reason: result.skipped ? result.reason : undefined,
+        ...(!result.skipped && result.warnings.length > 0 ? { warnings: result.warnings } : {}),
+      });
     } catch (error) {
       componentResults.push({ id: row.id, status: "failed", error: error instanceof Error ? error.message : "Unknown failure" });
     }
   }
 
-  const expired = await db.select().from(employeeCompensationComponents).where(and(
-    eq(employeeCompensationComponents.status, "active"),
-    or(
-      eq(employeeCompensationComponents.effectiveUntil, today),
-      sql`${employeeCompensationComponents.effectiveUntil} < ${today}`,
-    ),
-  ));
+  const expired = await db.select({ id: employeeCompensationComponents.id })
+    .from(employeeCompensationComponents)
+    .where(and(
+      eq(employeeCompensationComponents.status, "active"),
+      lt(employeeCompensationComponents.effectiveUntil, today),
+    ))
+    .orderBy(asc(employeeCompensationComponents.id))
+    .limit(Math.max(1, Math.min(limit, 100)));
 
   const ended: number[] = [];
+  const expirationFailures: Array<{ id: number; error: string }> = [];
   for (const assignment of expired) {
-    if (!assignment.effectiveUntil || String(assignment.effectiveUntil) >= today) continue;
-    const [closed] = await db.update(employeeCompensationComponents).set({
-      status: "ended",
-      updatedAt: now,
-    }).where(and(
-      eq(employeeCompensationComponents.id, assignment.id),
-      eq(employeeCompensationComponents.status, "active"),
-    )).returning();
-    if (!closed) continue;
-    ended.push(closed.id);
-    await db.insert(compensationEvents).values({
-      organizationId: closed.organizationId,
-      employeeId: closed.employeeId,
-      eventType: "component_ended",
-      effectiveDate: String(closed.effectiveUntil),
-      componentAssignmentId: closed.id,
-      metadata: { componentId: closed.componentId, amount: Number(closed.amount) },
-      actorName: actor,
-    });
+    try {
+      const result = await expireCompensationComponentAssignment(assignment.id, { actor, now });
+      if (!result.skipped) ended.push(result.assignment.id);
+    } catch (error) {
+      // A failed evidence insert must not interrupt expiration of other
+      // assignments. The rolled-back row remains active and is retried later.
+      expirationFailures.push({
+        id: assignment.id,
+        error: error instanceof Error ? error.message : "Unknown expiration failure",
+      });
+    }
   }
 
-  return { proposals: proposalResults, components: componentResults, ended };
+  return { proposals: proposalResults, components: componentResults, ended, expirationFailures };
 }
