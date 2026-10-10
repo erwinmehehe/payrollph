@@ -39,7 +39,7 @@ export type OrgExplorerProjection = {
 
 export type PositionAssignmentSource = {
   id: number;
-  employeeId: number;
+  employeeId: number | null;
   assignmentType: string;
   effectiveFrom: string;
   effectiveUntil: string | null;
@@ -80,8 +80,12 @@ export function projectOrgExplorer(
     else counts.set(reportingUnitId!, (counts.get(reportingUnitId!) ?? 0) + 1);
     return {
       id: row.id, code: row.code, status: row.status, jobTitle: row.jobTitle,
-      orgUnitId: row.orgUnitId, supervisoryOrgUnitId: row.supervisoryOrgUnitId,
-      reportingUnitId, relationship,
+      // Do not return foreign or out-of-snapshot org IDs as usable links.
+      orgUnitId: row.orgUnitId !== null && byId.has(row.orgUnitId) ? row.orgUnitId : null,
+      supervisoryOrgUnitId: row.supervisoryOrgUnitId !== null && byId.has(row.supervisoryOrgUnitId)
+        ? row.supervisoryOrgUnitId : null,
+      reportingUnitId: relationship === "linked" ? reportingUnitId : null,
+      relationship,
     };
   });
 
