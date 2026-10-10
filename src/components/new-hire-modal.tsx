@@ -89,7 +89,7 @@ export function NewHireModal({
   }
 
   return (
-    <div className="modal-backdrop linaw-dialog" role="presentation">
+    <div className={`modal-backdrop linaw-dialog ${wizard ? "tf-hire-dialog" : ""}`} role="presentation">
       <section className="modal large" role="dialog" aria-modal="true" aria-labelledby="tf-hire-title" ref={dialogRef} onKeyDown={(event) => {
           if (event.key === "Escape" && !busy) { event.preventDefault(); onClose(); }
           if (event.key !== "Tab") return;
