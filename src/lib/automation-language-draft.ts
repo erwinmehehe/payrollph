@@ -1,3 +1,4 @@
+import { automationModelAllowedForOrganization } from "@/lib/automation-model-consent";
 import {
   AUTOMATION_CONDITION_FIELDS,
   AUTOMATION_LIVE_TRIGGERS,
@@ -367,7 +368,7 @@ async function generateUsingModel(request: string): Promise<unknown> {
   }
 }
 
-export async function draftAutomationFromLanguage(request: string): Promise<LanguageDraftResult> {
+export async function draftAutomationFromLanguage(request: string, options: { organizationId?: number } = {}): Promise<LanguageDraftResult> {
   const prompt = request.trim();
   if (prompt.length < 12 || prompt.length > 2_000) {
     throw new LanguageDraftError("Describe the workflow in 12–2,000 characters.", 400);
@@ -389,8 +390,9 @@ export async function draftAutomationFromLanguage(request: string): Promise<Lang
     );
   }
 
-  const configured = process.env.OPENAI_AUTOMATION_DRAFT_ENABLED === "true"
-    && Boolean(process.env.OPENAI_API_KEY);
+  // Even with a global API key, model use is tenant-specific and requires
+  // verified external processing/notice/retention authorizations.
+  const configured = automationModelAllowedForOrganization(options.organizationId);
   const proposed = configured ? await generateUsingModel(prompt) : matchApprovedLanguageTemplate(prompt);
   if (!proposed) {
     throw new LanguageDraftError(
