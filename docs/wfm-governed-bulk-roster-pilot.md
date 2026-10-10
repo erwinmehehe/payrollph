@@ -1,6 +1,20 @@
 # Governed bulk roster staging and independent publication — PILOT DESIGN
 
-**Status:** unmerged draft. Server write functionality is **OFF** unless an explicitly reviewed staging operator sets `WFM_BULK_ROSTER_PUBLISH_ENABLED=true`. UI staging and checker queue are **hidden** unless `NEXT_PUBLIC_WFM_BULK_PUBLISH_UI_ENABLED=true`. Neither flag authorizes production use by itself.
+**Status:** unmerged draft. Server write functionality is **OFF** unless an explicitly reviewed staging operator sets `WFM_BULK_ROSTER_PUBLISH_ENABLED=true` **and** configures `WFM_BULK_ROSTER_ALLOWED_ORGANIZATION_IDS` with the approved employer ID(s). UI staging and checker queue are hidden unless `NEXT_PUBLIC_WFM_BULK_PUBLISH_UI_ENABLED=true`. These flags do not replace production authorization or review.
+
+## Pilot tenant activation gate (next increment)
+
+The new server-only `WFM_BULK_ROSTER_ALLOWED_ORGANIZATION_IDS` is mandatory for **both GET and POST** batch endpoints, in addition to the global publish kill switch. A missing, empty, wildcard, malformed, duplicate or more-than-20-entry list fails closed. No customer tenant has implicit permission, even if the UI flag was enabled globally.
+
+Example **only for an independently authorized fictional staging employer**:
+
+```ini
+WFM_BULK_ROSTER_PUBLISH_ENABLED=true
+WFM_BULK_ROSTER_ALLOWED_ORGANIZATION_IDS=12345
+NEXT_PUBLIC_WFM_BULK_PUBLISH_UI_ENABLED=true
+```
+
+Do **not** copy these values into production. The organization ID must be an actual authorized staging fixture; this documentation does not grant approval to any real customer. For normal operation, leave the global switch unset/false.
 
 ## Built flow
 
