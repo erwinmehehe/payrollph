@@ -1,0 +1,120 @@
+/** HTTP input boundary only; schedule identity and approval checks stay in the route/service. */
+export const SCHEDULE_RECEIPT_MAX_BODY_BYTES = 2048;
+// Absolute upload budget, not an idle timer reset by each tiny/empty chunk.
+export const SCHEDULE_RECEIPT_BODY_TIMEOUT_MS = 10_000;
+
+export class ScheduleReceiptBodyError extends Error {
+  readonly status: number;
+  readonly code: string;
+  constructor(message: string, status = 400, code = "SCHEDULE_RECEIPT_BODY_INVALID") {
+    super(message);
+    this.name = "ScheduleReceiptBodyError";
+    this.status = status;
+    this.code = code;
+  }
+}
+function tooLarge() {
+  return new ScheduleReceiptBodyError("Acknowledgment exceeds the 2048-byte limit.",
+    413, "SCHEDULE_RECEIPT_BODY_TOO_LARGE");
+}
+function timedOut() {
+  return new ScheduleReceiptBodyError("Acknowledgment upload timed out. Refresh before retrying.",
+    408, "SCHEDULE_RECEIPT_BODY_TIMEOUT");
+}
+function interrupted() {
+  return new ScheduleReceiptBodyError("Acknowledgment body was interrupted. Refresh before retrying.");
+}
+
+/**
+ * Never buffer the full upload before checking its size. Content-Length is an
+ * early rejection hint, not trusted evidence that the actual stream is small.
+ * Cancellation must not await an untrusted stream's cleanup promise.
+ */
+export async function readScheduleReceiptBody(request: Request): Promise<unknown> {
+  const cancelBody = () => { void request.body?.cancel().catch(() => undefined); };
+  const mediaType = request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+  if (mediaType !== "application/json") {
+    cancelBody();
+    throw new ScheduleReceiptBodyError("JSON acknowledgment is required.");
+  }
+  const lengthHeader = request.headers.get("content-length");
+  let declaredBytes: number | null = null;
+  if (lengthHeader !== null) {
+    if (!/^[0-9]+$/.test(lengthHeader)) {
+      cancelBody();
+      throw new ScheduleReceiptBodyError("Acknowledgment Content-Length is invalid.");
+    }
+    declaredBytes = Number(lengthHeader);
+    if (!Number.isSafeInteger(declaredBytes) || declaredBytes > SCHEDULE_RECEIPT_MAX_BODY_BYTES) {
+      cancelBody();
+      throw tooLarge();
+    }
+  }
+  if (request.signal.aborted) { cancelBody(); throw interrupted(); }
+  if (!request.body || request.bodyUsed || request.body.locked) {
+    throw new ScheduleReceiptBodyError("An unread JSON acknowledgment body is required.");
+  }
+
+  const reader = request.body.getReader();
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  const startedAt = performance.now();
+  let stoppedError: ScheduleReceiptBodyError | null = null;
+  let rejectStopped!: (error: ScheduleReceiptBodyError) => void;
+  const stopped = new Promise<never>((_resolve, reject) => { rejectStopped = reject; });
+  // An abort before the first read must also have a rejection handler.
+  void stopped.catch(() => undefined);
+  const stop = (error: ScheduleReceiptBodyError) => {
+    if (stoppedError) return;
+    stoppedError = error;
+    rejectStopped(error);
+    cancel();
+  };
+  const abort = () => stop(interrupted());
+  const timeout = setTimeout(() => stop(timedOut()), SCHEDULE_RECEIPT_BODY_TIMEOUT_MS);
+  request.signal.addEventListener("abort", abort, { once: true });
+  const checkReadBudget = () => {
+    if (stoppedError) throw stoppedError;
+    if (request.signal.aborted) throw interrupted();
+    // A timer alone can be delayed by a stream of immediately-resolved reads.
+    // Check monotonic elapsed time too; wall-clock changes do not extend it.
+    if (performance.now() - startedAt >= SCHEDULE_RECEIPT_BODY_TIMEOUT_MS) throw timedOut();
+  };
+  const bytes = new Uint8Array(SCHEDULE_RECEIPT_MAX_BODY_BYTES);
+  let used = 0;
+  const consume = async (): Promise<unknown> => {
+    for (;;) {
+      checkReadBudget();
+      const chunk = await reader.read();
+      checkReadBudget();
+      if (chunk.done) break;
+      if (!(chunk.value instanceof Uint8Array)) {
+        throw new ScheduleReceiptBodyError("Acknowledgment body must contain bytes.");
+      }
+      if (chunk.value.byteLength > SCHEDULE_RECEIPT_MAX_BODY_BYTES - used) throw tooLarge();
+      bytes.set(chunk.value, used);
+      used += chunk.value.byteLength;
+    }
+    if (declaredBytes !== null && declaredBytes !== used) {
+      throw new ScheduleReceiptBodyError("Acknowledgment body length does not match Content-Length.");
+    }
+    if (used === 0) throw new ScheduleReceiptBodyError("A JSON acknowledgment body is required.");
+    try {
+      // Fatal decoding prevents damaged UTF-8 from being silently rewritten.
+      return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, used))) as unknown;
+    } catch {
+      throw new ScheduleReceiptBodyError("Acknowledgment must contain valid UTF-8 JSON.");
+    }
+  };
+  try {
+    // One race for the whole upload: no growing promise handlers per chunk.
+    return await Promise.race([consume(), stopped]);
+  } catch (error) {
+    cancel();
+    // Do not expose raw stream errors or fragments of an employee request.
+    throw error instanceof ScheduleReceiptBodyError ? error : interrupted();
+  } finally {
+    clearTimeout(timeout);
+    request.signal.removeEventListener("abort", abort);
+    reader.releaseLock();
+  }
+}

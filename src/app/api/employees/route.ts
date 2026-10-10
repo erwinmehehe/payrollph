@@ -18,6 +18,7 @@ import {
   employeeRestDayRevisions,
   employeePayRetroAdjustments,
   employees,
+  hcmBusinessProcessDefinitions,
   legalEntities,
   payrollEntries,
   payrollRuns,
@@ -214,7 +215,25 @@ export async function POST(request: Request) {
   const existing = existingRows.length;
   const employeeNo = String(body.employeeNo ?? `EMP-${String(existing + 1).padStart(4, "0")}`).trim();
 
-  const [created] = await db.insert(employees).values({
+  // Acquire tenant intake lock before the HCM definition lock, both held to
+  // commit. A policy save can no longer race this employee creation.
+  const createdOrDenied = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(4212, ${organizationId})`);
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(4195, ${organizationId})`);
+    const [configuredHire] = await tx.select({ id: hcmBusinessProcessDefinitions.id })
+      .from(hcmBusinessProcessDefinitions)
+      .where(and(
+        eq(hcmBusinessProcessDefinitions.organizationId, organizationId),
+        eq(hcmBusinessProcessDefinitions.processType, "hire"),
+      )).limit(1);
+    if (configuredHire) throw new Error("HCM_GOVERNED_HIRE_REQUIRED");
+    const [duplicate] = await tx.select({ id: employees.id }).from(employees)
+      .where(and(
+        eq(employees.organizationId, organizationId),
+        eq(employees.employeeNo, employeeNo),
+      )).limit(1);
+    if (duplicate) throw new Error("EMPLOYEE_NO_CONCURRENT_CONFLICT");
+  const [created] = await tx.insert(employees).values({
     organizationId,
     orgUnitId: employeeOrgUnitId,
     legalEntityId: selectedLegalEntity.id,
@@ -247,7 +266,7 @@ export async function POST(request: Request) {
     startDate,
   }).returning();
 
-  await db.insert(employeePayProfiles).values({
+  await tx.insert(employeePayProfiles).values({
     employeeId: created.id,
     organizationId,
     payBasis: payProfile.payBasis,
@@ -264,6 +283,23 @@ export async function POST(request: Request) {
       updatedAt: new Date(),
     },
   });
+
+
+    return created;
+  }).catch((error: unknown) => {
+    if (error instanceof Error && error.message === "HCM_GOVERNED_HIRE_REQUIRED") {
+      return Response.json(GOVERNED_HIRE_REQUIRED, { status: 409 });
+    }
+    if (error instanceof Error && error.message === "EMPLOYEE_NO_CONCURRENT_CONFLICT") {
+      return Response.json({
+        error: "Another intake created this employee number during preparation. Refresh and retry.",
+        code: "EMPLOYEE_NO_CONCURRENT_CONFLICT",
+      }, { status: 409 });
+    }
+    throw error;
+  });
+  if (createdOrDenied instanceof Response) return createdOrDenied;
+  const created = createdOrDenied;
 
   const onboarding = await seedProvisioning(organizationId, created.id, "onboarding");
 

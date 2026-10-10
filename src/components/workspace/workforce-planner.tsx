@@ -30,6 +30,7 @@ import { WorkforceTimesheetPanel } from "./workforce-timesheet-panel";
 import { WorkforceTeamRosterPanel } from "./workforce-team-roster-panel";
 import { WorkforceOperationsInbox } from "./workforce-operations-inbox";
 import { WorkforceBulkRosterPreview } from "./workforce-bulk-roster-preview";
+import { WorkforceRosterBatchReviews } from "./workforce-roster-batch-reviews";
 
 type ShiftRow = {
   id: number;
@@ -171,6 +172,7 @@ export function WorkforcePlanner({
   const [loadingCatalog, setLoadingCatalog] = useState(true);
   const [catalogError, setCatalogError] = useState("");
   const [workspaceTab, setWorkspaceTab] = useState("roster");
+  const [batchRefresh, setBatchRefresh] = useState(0);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [saving, setSaving] = useState<string | null>(null);
 
@@ -416,7 +418,16 @@ export function WorkforcePlanner({
       <div role="tabpanel" id="wfm-panel-operations" aria-labelledby="wfm-tab-operations" hidden={workspaceTab !== "operations"}><WorkforceOperationsInbox organizationId={organizationId} onOpenAttendance={onOpenAttendance} onOpenTab={setWorkspaceTab} /></div>
       <div role="tabpanel" id="wfm-panel-bulk" aria-labelledby="wfm-tab-bulk" hidden={workspaceTab !== "bulk"}>
         {["owner", "admin", "bookkeeper", "hr"].includes(data.access?.role ?? "") ? (
-          <WorkforceBulkRosterPreview organizationId={organizationId} enabled={workspaceTab === "bulk"} onOpenTeamRoster={() => setWorkspaceTab("team")}/>
+          <>
+            <WorkforceBulkRosterPreview organizationId={organizationId} enabled={workspaceTab === "bulk"}
+              onOpenTeamRoster={() => setWorkspaceTab("team")}
+              onStageCompleted={() => setBatchRefresh(n => n + 1)}/>
+            {process.env.NEXT_PUBLIC_WFM_BULK_PUBLISH_UI_ENABLED === "true" && (
+              <WorkforceRosterBatchReviews organizationId={organizationId}
+                currentUserId={data.user?.id ?? 0}
+                enabled={workspaceTab === "bulk"} refreshKey={batchRefresh}/>
+            )}
+          </>
         ) : <div className="notice notice-slate">Bulk roster drafts require an authorized People administrator.</div>}
       </div>
       <div role="tabpanel" id="wfm-panel-roster" aria-labelledby="wfm-tab-roster" hidden={workspaceTab !== 'roster'}>

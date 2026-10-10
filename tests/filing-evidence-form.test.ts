@@ -93,7 +93,7 @@ test("every Draft button on the exports page sends a kind the generator accepts"
   const list = exporters.match(/const supportedKinds = new Set\(\[([\s\S]*?)\]\)/)?.[1] ?? "";
   const supported = [...list.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
   const kinds = [...exportsView.matchAll(/kind: "([a-z0-9-]+)", detail:/g)].map((match) => match[1]);
-  assert.equal(kinds.length, 5);
+  assert.equal(kinds.length, 4);
   for (const kind of kinds) assert.ok(supported.includes(kind), `"${kind}" is not a kind generateGovernmentDraft supports`);
   assert.ok(exportsView.includes("encodeURIComponent(item.kind)"), "the button must send the kind, not the visible label");
 });
@@ -103,4 +103,13 @@ test("user-facing copy has no em-dashes", () => {
   for (const definition of FILING_FORMS) {
     assert.ok(!JSON.stringify(definition.copy).includes(EM_DASH), `${definition.form} copy has an em-dash`);
   }
+});
+
+test("retired per-run 1604-C evidence card cannot create or accept source-only filings", () => {
+  assert.ok(panel.includes("retiredBirAlphalistSource"));
+  assert.ok(panel.includes("disabled={creating || records === null || !isFinalCutoff || retiredBirAlphalistSource}"));
+  const store = readFileSync("src/lib/filing-evidence-store.ts", "utf8");
+  assert.ok(store.includes("BIR 1604-C per-run filing evidence is retired."));
+  const resolve = readFileSync("src/app/api/compliance/filing-validations/[id]/route.ts", "utf8");
+  assert.ok(resolve.includes('existing.form === "1604-C"'));
 });

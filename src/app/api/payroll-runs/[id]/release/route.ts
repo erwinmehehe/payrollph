@@ -1,6 +1,7 @@
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { approvalTasks, auditEvents, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { checkerReleaseSeparationError } from "@/lib/treasury-controls";
 import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
@@ -19,7 +20,6 @@ import { managedPayrollReleaseRequirement } from "@/lib/managed-payroll";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
-import { checkIndependentPayrollReleaser } from "@/lib/payroll-approval-release-separation";
 import { connectedPayrollReleaseGateEnabled, safePayrollConnectedReleaseReadiness } from "@/lib/payroll-connected-release-gate-server";
 
 const RELEASABLE = ["Ready for release"];
@@ -109,6 +109,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
+  const checkerEvents = await db.select().from(auditEvents).where(and(
+    eq(auditEvents.organizationId, run.organizationId),
+    inArray(auditEvents.action, ["Approval approved", "Approval approved by delegate"]),
+  ));
+  const separationError = checkerReleaseSeparationError({
+    events: checkerEvents,
+    approvalTaskId: payrollApproval.id,
+    payrollRunId: run.id,
+    userId: user.id,
+    userName: user.name,
+  });
+  if (separationError) {
+    return Response.json({ error: separationError, code: "PAYROLL_CHECKER_RELEASE_SEPARATION" }, { status: 403 });
+  }
+
   const approvalSnapshot = await verifyPayrollApprovalSnapshot(run, payrollApproval);
   if (!approvalSnapshot.valid) {
     return Response.json({
@@ -189,23 +204,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (!claimed) {
     return Response.json({ error: "Payroll is no longer ready for release. Refresh and review its current status." }, { status: 409 });
-  }
-
-  // Authoritative approval audit contains the actual authenticated checker ID
-  // (including delegated approvals), not just a mutable display name. Enforce
-  // independent approve -> release regardless of opt-in treasury policies.
-  const checkerGate = await checkIndependentPayrollReleaser({
-    organizationId: run.organizationId,
-    payrollRunId: run.id,
-    approvalTaskId: payrollApproval.id,
-    releasingUserId: user.id,
-  });
-  if (checkerGate) {
-    // No settlement occurred; restore only our unchanged claim.
-    await db.update(payrollRuns)
-      .set({ status: "Ready for release" })
-      .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "Releasing")));
-    return checkerGate;
   }
 
   // Revalidate upstream evidence after the atomic Ready -> Releasing claim,

@@ -126,7 +126,7 @@ export const FILING_FORMS: readonly FilingFormDefinition[] = [
       },
       manualEntryNote: "If you typed the figures into ADES, record it as typed in: it is kept, but it does not prove Linaw's extract loads.",
       answerLabel: "BIR validation report or ticket reference",
-      scopeNote: "Linaw provides a source extract for BIR validation. A recorded acceptance proves only the exact generator version and dataset submitted; it does not replace BIR Alphalist v7.4 validation or the annual filing acknowledgement.",
+      scopeNote: "Linaw provides a source extract for BIR validation. A recorded acceptance proves only the exact generator version and dataset submitted; it does not replace BIR Alphalist v7.4 validation or the annual filing acknowledgement. Legacy per-run evidence is historical only; its source CSV is no longer eligible to count as current BIR file-format acceptance.",
       unconfirmedNote: "ADES produces the final .DAT you email to BIR; Linaw does not produce that .DAT. It is not confirmed that ADES can load this CSV, so a rejection or a typed-in filing is useful information, record it.",
     },
   },
@@ -290,6 +290,9 @@ export type FilingEvidenceRow = {
  * produces today. This is the single definition readiness and the scorecard use.
  */
 export function provesFileFormat(row: FilingEvidenceRow, definition: FilingFormDefinition): boolean {
+  // 1604-C legacy evidence refers to a payroll-source CSV, not the prescribed
+  // official BIR DAT. It cannot satisfy an agency file-format acceptance gate.
+  if (definition.agency === "BIR" && definition.form === "1604-C") return false;
   return (
     row.agency === definition.agency
     && row.form === definition.form
@@ -310,6 +313,7 @@ export function provesOperationalFiling(
   row: FilingEvidenceRow,
   definition: FilingFormDefinition,
 ): boolean {
+  if (definition.agency === "BIR" && definition.form === "1604-C") return false;
   return (
     row.agency === definition.agency
     && row.form === definition.form

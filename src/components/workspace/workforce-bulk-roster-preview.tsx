@@ -33,10 +33,12 @@ export function WorkforceBulkRosterPreview({
   organizationId,
   enabled,
   onOpenTeamRoster,
+  onStageCompleted,
 }: {
   organizationId: number;
   enabled: boolean;
   onOpenTeamRoster: () => void;
+  onStageCompleted?: () => void;
 }) {
   const [weekStart, setWeekStart] = useState(mondayInManila);
   const [page, setPage] = useState(1);
@@ -50,7 +52,16 @@ export function WorkforceBulkRosterPreview({
   const [failure, setFailure] = useState<{ scope: string; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const pending = useRef<AbortController | null>(null);
+  const pendingStageKey = useRef<{ signature: string; key: string } | null>(null);
+  const activeScope = useRef("");
+  const [stageIntent, setStageIntent] = useState<{ scope: string; reason: string; acknowledged: boolean } | null>(null);
+  const [staging, setStaging] = useState(false);
+  const [stageMessage, setStageMessage] = useState<{ scope: string; text: string; error: boolean } | null>(null);
+  const stageFeatureVisible = process.env.NEXT_PUBLIC_WFM_BULK_PUBLISH_UI_ENABLED === "true";
   const scope = JSON.stringify([organizationId, weekStart, page, appliedSearch]);
+  const stageReason = stageIntent?.scope === scope ? stageIntent.reason : "";
+  const stageAcknowledged = stageIntent?.scope === scope && stageIntent.acknowledged;
+  useEffect(() => { activeScope.current = scope; }, [scope]);
   // A prior employer/week/page can never contribute selected worker IDs or shift IDs.
   const selectedIds = selection?.scope === scope ? selection.ids : [];
   const shiftChoice = shiftSelection?.scope === scope ? shiftSelection.value : "";
@@ -128,6 +139,43 @@ export function WorkforceBulkRosterPreview({
       return { rows: [], error: error instanceof Error ? error.message : "Preview unavailable." };
     }
   }, [visible, chosenDate, chosenShift, selectedIds, today]);
+
+  async function stageBatch() {
+    if (!stageFeatureVisible || staging || !enabled || !visible || !chosenShift || !chosenDate ||
+      !stageAcknowledged || stageReason.trim().length < 12 || preview.rows.length === 0 ||
+      preview.error || preview.rows.some(row => row.status !== "review")) return;
+    const signature = JSON.stringify([scope, chosenDate, chosenShift.id, selectedIds, stageReason.trim()]);
+    const existing = pendingStageKey.current;
+    const idempotencyKey = existing?.signature === signature ? existing.key : crypto.randomUUID();
+    pendingStageKey.current = { signature, key: idempotencyKey };
+    setStaging(true);
+    setStageMessage(null);
+    try {
+      const response = await fetch("/api/workforce/roster-batches", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "stage", organizationId, workDate: chosenDate,
+          shiftDefinitionId: chosenShift.id, employeeIds: selectedIds,
+          reason: stageReason.trim(), idempotencyKey, acknowledged: true,
+        }),
+      });
+      const body: unknown = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = body && typeof body === "object" && "error" in body && typeof body.error === "string"
+          ? body.error : "The governed batch was not staged.";
+        throw new Error(message);
+      }
+      if (activeScope.current === scope) {
+        setStageMessage({ scope, text: "Batch staged for another authorized checker. No shifts published.", error: false });
+        onStageCompleted?.();
+      }
+    } catch (err) {
+      if (activeScope.current === scope) setStageMessage({ scope,
+        text: err instanceof Error ? err.message : "Could not stage batch.", error: true });
+    } finally {
+      setStaging(false);
+    }
+  }
 
   function findEmployee(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -270,6 +318,32 @@ export function WorkforceBulkRosterPreview({
                 </button>
               </div>
             </>
+          )}
+          {stageFeatureVisible && preview.rows.length > 0 && (
+            <div className="setting-form" style={{ padding: "0 18px 18px" }}>
+              <div className="notice notice-amber">This optional governed staging lane is separate from the read-only preview. Server checks are stricter and may decline the proposal; staged shifts are never published automatically.</div>
+              <label>Why is this batch schedule change needed?
+                <input maxLength={240} value={stageReason} onChange={e => setStageIntent(current => ({ scope, reason: e.target.value,
+                  acknowledged: current?.scope === scope ? current.acknowledged : false }))}
+                  placeholder="Document the roster impact and authorization" aria-label="Bulk shift staging reason"/>
+              </label>
+              <label style={{ display: "flex", alignItems: "start", gap: 10 }}>
+                <input type="checkbox" checked={stageAcknowledged}
+                  onChange={e => setStageIntent(current => ({ scope,
+                    reason: current?.scope === scope ? current.reason : "", acknowledged: e.target.checked }))}/>
+                <span>I understand this batch may change future payroll treatment and requires a second authorized reviewer.</span>
+              </label>
+              {stageMessage?.scope === scope && <div role="status"
+                className={stageMessage.error ? "notice notice-amber" : "notice notice-slate"}>
+                {stageMessage.text}
+              </div>}
+              <button type="button" className="primary-button brand"
+                disabled={staging || !stageAcknowledged || stageReason.trim().length < 12 ||
+                  preview.rows.some(row => row.status !== "review")}
+                onClick={() => void stageBatch()}>
+                {staging ? "Staging…" : "Stage for independent approval"}
+              </button>
+            </div>
           )}
           {selectedIds.length > 0 && (!chosenShift || !chosenDate) && (
             <div className="notice notice-slate" style={{ margin: "0 18px 16px" }}>

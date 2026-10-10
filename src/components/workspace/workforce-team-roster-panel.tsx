@@ -13,8 +13,10 @@ import {
   type TeamRosterSummary,
   type TeamRosterFocus,
 } from "@/lib/workforce-team-roster";
+import { activeTeamRosterPayload, teamRosterScopeKey, type ScopedTeamRosterPayload } from "@/lib/workforce-team-roster-client";
 import type { Notify } from "./types";
 import { EmptyState, Spinner, Status } from "./ui";
+import { WorkforceScheduleReceiptReview } from "./workforce-schedule-receipt-review";
 
 type TeamRosterResponse = {
   weekDates: string[];
@@ -37,7 +39,7 @@ type TeamRosterResponse = {
   worksites: Array<{ id: number; code: string; name: string; active: boolean }>;
 };
 
-type DayEditor = { employee: TeamRosterEmployee; day: TeamRosterDay; organizationId: number };
+type DayEditor = { employee: TeamRosterEmployee; day: TeamRosterDay; organizationId: number; scopeKey: string };
 
 function todayInManila() {
   return new Date(Date.now() + 8 * 60 * 60_000).toISOString().slice(0, 10);
@@ -87,16 +89,22 @@ export function WorkforceTeamRosterPanel({
   const [appliedSearch, setAppliedSearch] = useState("");
   const [focus, setFocus] = useState<TeamRosterFocus>("all");
   const pendingRequest = useRef<AbortController | null>(null);
-  const [payload, setPayload] = useState<TeamRosterResponse | null>(null);
+  const [storedPayload, setStoredPayload] = useState<ScopedTeamRosterPayload<TeamRosterResponse> | null>(null);
   const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  const [loadError, setLoadError] = useState<{ scopeKey: string; message: string } | null>(null);
   const [editor, setEditor] = useState<DayEditor | null>(null);
+  const [receiptSelection, setReceiptSelection] = useState<{ employee: TeamRosterEmployee; organizationId: number; scopeKey: string } | null>(null);
   const [shiftChoice, setShiftChoice] = useState("REST");
   const [worksiteChoice, setWorksiteChoice] = useState("");
   const [reason, setReason] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
   const [editorError, setEditorError] = useState("");
   const [saving, setSaving] = useState(false);
+  // Derive visibility directly from the current props/filters, without waiting
+  // for useEffect to clear a previous tenant's roster or CSV source.
+  const scopeKey = teamRosterScopeKey(organizationId, startDate, page, appliedSearch);
+  const payload = activeTeamRosterPayload(storedPayload, scopeKey);
+  const activeLoadError = loadError?.scopeKey === scopeKey ? loadError.message : "";
 
   const visibleRows = useMemo(() => payload
     ? filterTeamRosterRows(payload.rows, payload.weekDates, focus) : [], [payload, focus]);
@@ -106,15 +114,16 @@ export function WorkforceTeamRosterPanel({
     ? filterTeamRosterRows(payload.rows, payload.weekDates, "attention").length : 0, [payload]);
 
   useEffect(() => () => { pendingRequest.current?.abort(); }, []);
-  useEffect(() => { setEditor(null); }, [organizationId]);
+  useEffect(() => { setEditor(null); setReceiptSelection(null); }, [organizationId]);
 
   const load = useCallback(async () => {
     pendingRequest.current?.abort();
     const controller = new AbortController();
     pendingRequest.current = controller;
+    const requestedScope = teamRosterScopeKey(organizationId, startDate, page, appliedSearch);
     setLoading(true);
-    setLoadError("");
-    setPayload(null);
+    setLoadError(null);
+    setStoredPayload(null);
     try {
       const params = new URLSearchParams({
         organizationId: String(organizationId),
@@ -127,15 +136,18 @@ export function WorkforceTeamRosterPanel({
         signal: controller.signal,
       });
       const body = await response.json().catch(() => ({}));
+      if (controller.signal.aborted || pendingRequest.current !== controller) return;
       if (!response.ok) {
         throw new Error(body.error ?? "Could not load the team roster.");
       }
-      if (controller.signal.aborted) return;
-      setPayload(body as TeamRosterResponse);
+      if (body?.page !== page || body?.startDate !== startDate) {
+        throw new Error("The team roster returned an unexpected week or worker page.");
+      }
+      setStoredPayload({ scopeKey: requestedScope, data: body as TeamRosterResponse });
     } catch (error) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || pendingRequest.current !== controller) return;
       const message = error instanceof Error ? error.message : "Could not load the team roster.";
-      setLoadError(message);
+      setLoadError({ scopeKey: requestedScope, message });
       notify(message, "err");
     } finally {
       if (pendingRequest.current === controller) {
@@ -164,7 +176,7 @@ export function WorkforceTeamRosterPanel({
 
   function openDay(employee: TeamRosterEmployee, day: TeamRosterDay) {
     if (!canManage || day.date <= todayInManila() || day.source === "override" || day.segments.length > 1) return;
-    setEditor({ employee, day, organizationId });
+    setEditor({ employee, day, organizationId, scopeKey });
     setShiftChoice("");
     setWorksiteChoice("");
     setReason("");
@@ -173,7 +185,7 @@ export function WorkforceTeamRosterPanel({
   }
 
   async function saveOverride() {
-    if (!editor || !canManage || editor.organizationId !== organizationId || editor.day.date <= todayInManila()
+    if (!editor || !canManage || editor.organizationId !== organizationId || editor.scopeKey !== scopeKey || editor.day.date <= todayInManila()
       || !acknowledged || !reason.trim() || !shiftChoice || saving) return;
     setSaving(true);
     setEditorError("");
@@ -288,7 +300,7 @@ export function WorkforceTeamRosterPanel({
           )}
         </form>
 
-        {loadError && <div className="notice notice-red" role="alert" style={{ margin: "0 18px 16px" }}>{loadError}</div>}
+        {activeLoadError && <div className="notice notice-red" role="alert" style={{ margin: "0 18px 16px" }}>{activeLoadError}</div>}
         {loading && <div style={{ padding: 18 }}><Spinner label="Loading roster" /></div>}
 
         {payload && (
@@ -344,6 +356,19 @@ export function WorkforceTeamRosterPanel({
                         <strong>{row.employee.name}</strong>
                         <div className="id">{row.employee.employeeNo}</div>
                         <Status value={row.employee.status} />
+                        {process.env.NEXT_PUBLIC_WFM_SCHEDULE_RECEIPTS_ENABLED === "true" &&
+                          row.employee.status === "Active" && (
+                            <div style={{ marginTop: 8 }}>
+                              <button type="button" className="secondary-button"
+                                aria-label={"Review current schedule acknowledgments for " + row.employee.name}
+                                onClick={() => {
+                                  setEditor(null);
+                                  setReceiptSelection({ employee: row.employee, organizationId, scopeKey });
+                                }}>
+                                Review receipts
+                              </button>
+                            </div>
+                          )}
                       </th>
                       {payload.weekDates.map((date) => {
                         const day = row.days.find((item) => item.date === date);
@@ -406,7 +431,19 @@ export function WorkforceTeamRosterPanel({
         )}
       </article>
 
-      {editor && canManage && (
+      {process.env.NEXT_PUBLIC_WFM_SCHEDULE_RECEIPTS_ENABLED === "true" &&
+        receiptSelection && receiptSelection.organizationId === organizationId &&
+        receiptSelection.scopeKey === scopeKey &&
+        payload?.rows.some(row => row.employee.id === receiptSelection.employee.id) && (
+          <WorkforceScheduleReceiptReview
+            key={organizationId + ":" + receiptSelection.employee.id + ":" + scopeKey}
+            organizationId={organizationId}
+            employee={receiptSelection.employee}
+            onClose={() => setReceiptSelection(null)}
+          />
+        )}
+
+      {editor && canManage && editor.organizationId === organizationId && editor.scopeKey === scopeKey && (
         <article className="card" style={{ marginTop: 16 }} data-wfm-team-roster-editor>
           <div className="card-header">
             <div>

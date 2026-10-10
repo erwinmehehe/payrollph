@@ -143,6 +143,16 @@ rehearses the SQL transactionally in a disposable local schema; the rehearsal
 cannot establish that a real employer's staging schema has been migrated.
 
 See [Compensation staging release gate](../docs/compensation-staging-release-gate.md).
+## Tamper-evident audit trail (0109)
+
+`0109_tamper_evident_audit_chain.sql` installs a trigger and SQL functions,
+which `db:push` does not create. Apply it with `psql -f` (it is idempotent)
+after the schema exists. It rejects UPDATE/DELETE on `audit_events` (except
+cascades from an organization deletion), and `seal_audit_events()` appends
+committed rows to a per-organization SHA-256 chain. Inserts take no locks; the
+scheduler and the verifier seal pending rows. Verify a workspace with
+`GET /api/compliance/audit-chain?organizationId=…`.
+
 Do not run `db:push` or paste a historical baseline into a production
 employer database without a separate signed, reviewed migration and rollback
 plan. Neither schema compatibility nor CI supplies payroll GA authorization.

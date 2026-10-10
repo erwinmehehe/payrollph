@@ -104,11 +104,12 @@ test("CSV export is page-limited and neutralizes formula injection in employee n
   assert.ok(!csv.includes("bank"));
 });
 
-test("draft UI uses only a role-scoped roster GET, not bulk mutations", () => {
+test("bulk proposal uses role-scoped roster reads; optional staging is separately gated", () => {
   const ui = readFileSync("src/components/workspace/workforce-bulk-roster-preview.tsx", "utf8");
   const planner = readFileSync("src/components/workspace/workforce-planner.tsx", "utf8");
   assert.ok(ui.includes('fetch("/api/workforce/team-roster?"'));
-  assert.ok(!ui.includes('method: "POST"'));
+  assert.ok(ui.includes('method: "POST"'));
+  assert.ok(ui.includes('process.env.NEXT_PUBLIC_WFM_BULK_PUBLISH_UI_ENABLED === "true"'));
   assert.ok(!ui.includes("api/payroll"));
   assert.ok(ui.includes("pending.current?.abort()"));
   assert.ok(ui.includes("snapshot?.scope === scope"));

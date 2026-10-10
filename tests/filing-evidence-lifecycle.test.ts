@@ -158,104 +158,22 @@ test("if payroll data changes after a record is made, its file is refused instea
   }
 });
 
-test("a BIR 1604-C record is tracked separately and its acceptance never counts for SSS", async () => {
-  const { org, legalEntity, employee, run } = await seedRun("Filing BIR Co");
-  const BIR = findFilingForm("BIR", "1604-C")!;
+test("retired BIR 1604-C per-run evidence cannot be minted as official filing proof", async () => {
+  const { org, run } = await seedRun("Filing BIR Legacy Guard Co");
+  const bir = findFilingForm("BIR", "1604-C")!;
   try {
-    // The annual extract fails closed without identity fields, so a record cannot be made from incomplete data.
     await assert.rejects(
-      recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: BIR, actor: "Tester" }),
-      /employer BIR TIN/,
+      () => recordGeneratedFiling({
+        organizationId: org.id,
+        runId: run.id,
+        definition: bir,
+        actor: "Tester",
+      }),
+      /per-run filing evidence is retired/,
     );
-
-    await db.update(legalEntities).set({ birTin: "123456789", birBranchCode: "0000" }).where(eq(legalEntities.id, legalEntity.id));
-    await db.update(employees).set({ tin: "987654321", tinBranchCode: "0000" }).where(eq(employees.id, employee.id));
-    await db.update(payrollEntries).set({
-      lineItems: [{ code: "WHT", amount: "-1500" }],
-    }).where(eq(payrollEntries.payrollRunId, run.id));
-
-    const [secondReleasedRun] = await db.insert(payrollRuns).values({
-      organizationId: org.id,
-      legalEntityId: legalEntity.id,
-      periodLabel: "Dec 2026",
-      periodStart: "2026-12-01",
-      periodEnd: "2026-12-31",
-      payDate: "2026-12-31",
-      status: "Released",
-    }).returning();
-    await db.insert(payrollEntries).values({
-      payrollRunId: secondReleasedRun.id,
-      employeeId: employee.id,
-      grossPay: "10000",
-      deductions: "400",
-      netPay: "9600",
-      lineItems: [
-        { code: "WHT", amount: "-500" },
-        { code: "YE-TAX-REFUND", amount: "100" },
-      ],
-    });
-
-    const [draftRun] = await db.insert(payrollRuns).values({
-      organizationId: org.id,
-      legalEntityId: legalEntity.id,
-      periodLabel: "Nov 2026 Draft",
-      periodStart: "2026-11-01",
-      periodEnd: "2026-11-30",
-      payDate: "2026-11-30",
-      status: "Draft",
-    }).returning();
-    await db.insert(payrollEntries).values({
-      payrollRunId: draftRun.id,
-      employeeId: employee.id,
-      grossPay: "99999",
-      deductions: "9999",
-      netPay: "90000",
-      lineItems: [{ code: "WHT", amount: "-9999" }],
-    });
-
-    const [priorYearRun] = await db.insert(payrollRuns).values({
-      organizationId: org.id,
-      legalEntityId: legalEntity.id,
-      periodLabel: "Dec 2025",
-      periodStart: "2025-12-01",
-      periodEnd: "2025-12-31",
-      payDate: "2025-12-31",
-      status: "Released",
-    }).returning();
-    await db.insert(payrollEntries).values({
-      payrollRunId: priorYearRun.id,
-      employeeId: employee.id,
-      grossPay: "88888",
-      deductions: "8888",
-      netPay: "80000",
-      lineItems: [{ code: "WHT", amount: "-8888" }],
-    });
-
-    const sssBefore = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "SSS")!;
-    const birBefore = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "BIR" && item.definition.form === "1604-C")!;
-
-    const { record, file } = await recordGeneratedFiling({ organizationId: org.id, runId: run.id, definition: BIR, actor: "Tester" });
-    assert.equal(record.agency, "BIR");
-    assert.equal(record.form, "1604-C");
-    assert.equal(record.generatorVersion, BIR.generatorVersion);
-    assert.match(file.filename, /^bir-1604c-annual-source-2026-run-/);
-    assert.match(file.body, /# taxYear=2026/);
-    assert.match(file.body, /# releasedPayrollRunsIncluded=2/);
-    assert.match(file.body, /# employeesIncluded=1/);
-    const dataLines = file.body.split("\n").filter((line) => line && !line.startsWith("#"));
-    assert.equal(dataLines.length, 2, "annual source should contain one header and one row per employee");
-    assert.match(
-      dataLines[1],
-      /,"40000\.00","1900\.00","N","DRAFT"$/,
-      "annual source must include only released 2026 payrolls and apply the signed year-end refund",
-    );
-
-    await recordFilingOutcome({ organizationId: org.id, id: record.id, actor: "Tester", outcome: acceptance() });
-
-    const sssAfter = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "SSS")!;
-    const birAfter = (await filingEvidenceSummaries()).find((item) => item.definition.agency === "BIR" && item.definition.form === "1604-C")!;
-    assert.equal(birAfter.provingCount, birBefore.provingCount + 1);
-    assert.equal(sssAfter.provingCount, sssBefore.provingCount, "a BIR acceptance must not turn on the SSS gate");
+    const summary = (await filingEvidenceSummaries())
+      .find((item) => item.definition.agency === "BIR" && item.definition.form === "1604-C")!;
+    assert.equal(summary.provingCount, 0, "BIR source-only evidence does not prove DAT acceptance");
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }

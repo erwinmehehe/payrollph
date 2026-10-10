@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { LinawMark } from "@/components/linaw-mark";
 import { EmployeeHomeDashboard } from "@/components/employee-home-dashboard";
+import { EmployeeTakeHomeEstimator } from "@/components/employee-take-home-estimator";
 import { EmployeeProfileExtras } from "@/components/employee-profile-extras";
 import { EmployeeWorkforcePanel } from "@/components/employee-workforce-panel";
 import { EmployeeExplainPay } from "@/components/employee-explain-pay";
@@ -678,7 +679,8 @@ export function SelfServicePortal() {
             onPayslip={(id) => { setOpenPayslip(id); navigateTo("pay"); }}
             onPay={() => navigateTo("pay")}
             onAttendance={() => navigateTo("time")}
-            onLeave={() => { navigateTo("leave"); if (data.leave.policies.length) setLeaveOpen(true); }}
+            onLeave={() => navigateTo("leave")}
+            onRequestLeave={() => { navigateTo("leave"); if (data.leave.policies.length) setLeaveOpen(true); }}
           />
           {data.nextPay && (
             <div className="employee-contract-handoff" aria-hidden>
@@ -727,6 +729,8 @@ export function SelfServicePortal() {
               <div className="employee-rule-note"><ShieldCheck size={12} /> Rule version {latestPayslip.ruleVersion}</div>
             </article>
           )}
+
+          <EmployeeTakeHomeEstimator />
 
           <article className="employee-list-card">
             <div className="employee-list-card-head">

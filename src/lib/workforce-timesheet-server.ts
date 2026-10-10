@@ -357,9 +357,11 @@ export async function markTimesheetsStaleForEmployeeRange(input: {
   employeeId: number;
   startDate: string;
   endDate?: string | null;
+  executor?: Pick<typeof db, "update">;
 }) {
+  const executor = input.executor ?? db;
   const endDate = input.endDate ?? "9999-12-31";
-  return db.update(workforceTimesheets).set({
+  return executor.update(workforceTimesheets).set({
     status: "stale",
     updatedAt: new Date(),
   }).where(and(
@@ -375,11 +377,13 @@ export async function markTimesheetsStaleForEmployeeDate(input: {
   organizationId: number;
   employeeId: number;
   workDate: string;
+  executor?: Pick<typeof db, "update">;
 }) {
   return markTimesheetsStaleForEmployeeRange({
     organizationId: input.organizationId,
     employeeId: input.employeeId,
     startDate: input.workDate,
     endDate: input.workDate,
+    executor: input.executor,
   });
 }

@@ -27,7 +27,6 @@ import { EmptyState, PageHeading, Segmented, Status, formatDate, money } from ".
 // a label: sending the label made every Draft button here fail as an unsupported export.
 const GOVERNMENT_DRAFTS = [
   { template: "1601-C", kind: "bir-1601c", detail: "Monthly remittance return of income taxes withheld on compensation" },
-  { template: "Alphalist/2316", kind: "bir-1604c-source", detail: "Annual alphalist source extract, to validate in BIR's ADES" },
   { template: "SSS R-3", kind: "sss-r3", detail: "Monthly contribution collection list, recomputed from the full monthly MSC" },
   { template: "PhilHealth RF-1", kind: "philhealth-rf1", detail: "Employer remittance report" },
   { template: "Pag-IBIG MCRF", kind: "pagibig-mcrf", detail: "Membership contribution remittance form" },
@@ -848,6 +847,7 @@ export function ExportsView({
                 <p>
                   Computed from the same rule engine as payroll, but <strong>not</strong> byte-validated against the
                   agencies&apos; own import tools. Every file is labelled DRAFT.
+                  For BIR 1604-C Alphalist and Form 2316, open Compliance → Year-End Annualization and run Check BIR source; the former per-run extract does not reconcile annualization.
                 </p>
                 <div className="worksheet-list" style={{ padding: "12px 0 0" }}>
                   {GOVERNMENT_DRAFTS.map((item) => (
