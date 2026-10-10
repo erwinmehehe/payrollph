@@ -379,7 +379,7 @@ function PayrollHome({
                 ? "Resolve missing time entries before calculation."
                 : "No incomplete attendance in the loaded period."
             }
-            onClick={() => onTask?.({page:"Time & attendance",filter:"attendance-exceptions"}) ?? onPage("Time & attendance")}
+            onClick={() => onTask ? onTask({page:"Time & attendance",filter:"attendance-exceptions"}) : onPage("Time & attendance")}
           />
           <ActionRow
             icon={<ClipboardCheck size={19} />}
@@ -411,7 +411,7 @@ function PayrollHome({
                 ? "Payout details for active employees."
                 : "Add your team to prepare for payday."
             }
-            onClick={() => onTask?.({page:"People",filter:"missing-payout"}) ?? onPage("People")}
+            onClick={() => onTask ? onTask({page:"People",filter:"missing-payout"}) : onPage("People")}
           />
         </section>
         <section className="clean-card">
@@ -585,7 +585,7 @@ function CheckerHome({
                   : "No payroll available"
             }
             detail="Open the payroll workspace to inspect entries and validation checks."
-            onClick={() => onTask?.({page:"Payroll",runId:run?.id,focus:"exceptions"}) ?? onPage("Payroll")}
+            onClick={() => onTask ? onTask({page:"Payroll",runId:run?.id,focus:"exceptions"}) : onPage("Payroll")}
           />
         ) : (
           <div className="clean-metrics">
