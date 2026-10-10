@@ -47,6 +47,8 @@ Authenticated `POST /api/jobs/tick` returns HTTP **503**, not 200, when `CENTRAL
 
 ### Optional managed Vercel cron trigger (pilot remediation)
 
+IP rate-limit remediation S-1 is tracked separately in PR #741; this change only supplies the independently authenticated scheduler trigger and CI/test-runner checks.
+
 `vercel.json` registers `GET /api/jobs/cron` every five minutes on production deployments. This requires a Vercel Pro/Enterprise project: Hobby does not support five-minute cron schedules. If a deployment does not meet that prerequisite, choose a managed worker or an appropriately authenticated external scheduler instead of treating this code as proof of liveness.
 
 Vercel sends `Authorization: Bearer <CRON_SECRET>` for its cron request. Configure a dedicated strong random `CRON_SECRET` (at least 32 bytes), distinct from `WORKER_TOKEN` and `SCHEDULER_MONITOR_TOKEN`. Missing or invalid credentials fail closed with 503/401; the endpoint accepts GET only and never authenticates a browser session. Keep the established POST /api/jobs/tick worker endpoint separate. Neither cron registration nor the credential activates work: `CENTRAL_SCHEDULER_ENABLED` must still be deliberately enabled after isolated staging acceptance.

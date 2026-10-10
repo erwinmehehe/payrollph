@@ -8,7 +8,7 @@ export type CronAuthorization = "authorized" | "unauthorized" | "misconfigured";
  */
 export function cronAuthorization(
   request: Request,
-  env: Readonly<{ CRON_SECRET?: string }> = process.env,
+  env: Readonly<Record<string, string | undefined>> = process.env,
 ): CronAuthorization {
   const secret = env.CRON_SECRET;
   if (!secret || secret !== secret.trim() || /[\r\n]/.test(secret) || Buffer.byteLength(secret, "utf8") < 32) {
