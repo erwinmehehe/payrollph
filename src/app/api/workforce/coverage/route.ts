@@ -1,6 +1,7 @@
 import { and, asc, eq, gte, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   employeeAvailabilityRules,
   employeePayProfiles,
   employeePayRevisions,
@@ -23,6 +24,7 @@ import {
   staffingRequirements,
   timePunches,
   workforceScheduleGuardrailPolicies,
+  workforceAttendancePeriodLocks,
   worksites,
 } from "@/db/schema";
 import {
@@ -767,8 +769,8 @@ async function coverageRows(input: {
   };
 }
 
-async function loadGuardrailPolicy(organizationId: number) {
-  const [row] = await db.select().from(workforceScheduleGuardrailPolicies)
+async function loadGuardrailPolicy(organizationId: number, executor: Pick<typeof db, "select"> = db) {
+  const [row] = await executor.select().from(workforceScheduleGuardrailPolicies)
     .where(eq(workforceScheduleGuardrailPolicies.organizationId, organizationId))
     .limit(1);
   if (!row) return DEFAULT_SCHEDULE_GUARDRAIL_POLICY;
