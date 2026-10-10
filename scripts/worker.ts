@@ -1,11 +1,7 @@
 import "dotenv/config";
 import { pool } from "../src/db";
 import { processNextPayrollJob } from "../src/lib/payroll-engine";
-import { drainWebhookRetries } from "../src/lib/webhooks";
-import { drainOutboxRetries } from "../src/lib/mailer";
-import { drainMarketingLeadNotifications } from "../src/lib/marketing-leads";
-import { runScheduledStatutoryRemittanceSync } from "../src/lib/statutory-remittance-actions";
-import { runScheduledContributionCaseEscalations } from "../src/lib/statutory-contribution-case-escalations";
+import { tickScheduler } from "../src/lib/scheduler";
 
 const POLL_MS = Math.max(1000, Number(process.env.WORKER_POLL_MS ?? "3000"));
 let stopping = false;
@@ -15,23 +11,25 @@ function sleep(ms: number) {
 }
 
 async function tick() {
-  const payroll = await processNextPayrollJob("dedicated-worker");
-  const webhooks = await drainWebhookRetries(20);
-  const mail = await drainOutboxRetries(20);
-  const marketingLeads = await drainMarketingLeadNotifications(20);
-  const statutoryRemittanceActions = await runScheduledStatutoryRemittanceSync({
-    actor: "Dedicated worker",
-  });
-  const contributionCaseEscalations = await runScheduledContributionCaseEscalations({
-    actor: "Dedicated worker",
-  });
+  // A failed payroll job must not prevent scheduled HR/compensation work.
+  let payrollProcessed = false;
+  try {
+    payrollProcessed = (await processNextPayrollJob("dedicated-worker")).processed;
+  } catch (error) {
+    console.error("Payroll worker job failed:", error instanceof Error ? error.message : error);
+  }
+
+  // One authoritative scheduler owns outbox/webhook retries, statutory sync,
+  // retention, effective-dated HCM/compensation, and workflow continuations.
+  // Its durable lease prevents overlapping runs across app instances.
+  const scheduled = await tickScheduler();
   return {
-    payrollProcessed: payroll.processed,
-    webhookRetries: webhooks.length,
-    mailRetries: mail.filter((item) => item.retried).length,
-    marketingLeadNotifications: marketingLeads.filter((item) => item.notified).length,
-    statutoryRemittanceActions,
-    contributionCaseEscalations,
+    payrollProcessed,
+    schedulerTriggered: !scheduled.skipped,
+    schedulerSkipReason: scheduled.skipped ? scheduled.reason : null,
+    webhookRetries: scheduled.skipped ? 0 : scheduled.webhookRetries,
+    mailRetries: scheduled.skipped ? 0 : scheduled.mailRetries,
+    marketingLeadNotifications: scheduled.skipped ? 0 : scheduled.marketingLeadNotifications,
   };
 }
 
@@ -48,7 +46,7 @@ async function main() {
   while (!stopping) {
     try {
       const result = await tick();
-      if (!result.payrollProcessed && result.webhookRetries === 0 && result.mailRetries === 0 && result.marketingLeadNotifications === 0) {
+      if (!result.payrollProcessed) {
         await sleep(POLL_MS);
       }
     } catch (error) {

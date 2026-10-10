@@ -29,6 +29,14 @@ export async function POST(request: Request) {
   }
 
   const result = await tickScheduler(true);
+  if (result.skipped && result.reason === "scheduler-disabled") {
+    // A 200 response would misleadingly imply that an authenticated cron
+    // ran successfully when activation was intentionally withheld.
+    return Response.json({
+      scheduler: "disabled",
+      result,
+    }, { status: 503, headers: { "Cache-Control": "no-store" } });
+  }
   return Response.json({
     scheduler: "worker-triggered",
     result,
