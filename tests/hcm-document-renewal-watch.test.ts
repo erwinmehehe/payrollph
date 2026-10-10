@@ -31,8 +31,8 @@ test("route requires authenticated company-wide HR, scopes all joins, limits SQL
   assert.ok(s.includes("assertOrganizationRole("));
   assert.ok(s.includes("!access?.companyWide"));
   assert.ok(s.includes("eq(compliance.organizationId, organizationId)"));
-  assert.ok(s.includes("eq(worker.organizationId, organizationId)"));
-  assert.ok(s.includes("eq(req.organizationId, organizationId)"));
+  assert.ok(s.includes("eq(employee.organizationId, organizationId)"));
+  assert.ok(s.includes("eq(requirement.organizationId, organizationId)"));
   assert.ok(s.includes(".limit(limit + 1)"));
   assert.ok(s.includes('"Cache-Control": "private, no-store"'));
   assert.ok(!s.includes("export async function POST"));
