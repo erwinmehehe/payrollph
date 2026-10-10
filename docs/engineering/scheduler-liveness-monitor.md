@@ -44,3 +44,11 @@ Only turn on `CENTRAL_SCHEDULER_ENABLED` in an isolated synthetic-data staging d
 #### Forced cron response while disabled
 
 Authenticated `POST /api/jobs/tick` returns HTTP **503**, not 200, when `CENTRAL_SCHEDULER_ENABLED` is missing or not exactly `true`. The response identifies `scheduler: disabled` and `result.reason: scheduler-disabled`; no lease is acquired and no scheduled jobs run. This prevents monitoring systems from mistaking a skipped scheduled tick for a successful execution. Competing-worker skips and short-interval skips remain separate non-error cases.
+
+### Optional managed Vercel cron trigger (pilot remediation)
+
+`vercel.json` registers `GET /api/jobs/cron` every five minutes on production deployments. This requires a Vercel Pro/Enterprise project: Hobby does not support five-minute cron schedules. If a deployment does not meet that prerequisite, choose a managed worker or an appropriately authenticated external scheduler instead of treating this code as proof of liveness.
+
+Vercel sends `Authorization: Bearer <CRON_SECRET>` for its cron request. Configure a dedicated strong random `CRON_SECRET` (at least 32 bytes), distinct from `WORKER_TOKEN` and `SCHEDULER_MONITOR_TOKEN`. Missing or invalid credentials fail closed with 503/401; the endpoint accepts GET only and never authenticates a browser session. Keep the established POST /api/jobs/tick worker endpoint separate. Neither cron registration nor the credential activates work: `CENTRAL_SCHEDULER_ENABLED` must still be deliberately enabled after isolated staging acceptance.
+
+Vercel cron invokes production deployments, not preview deployments. Before enabling on a real-employer production environment, independently verify which Git SHA and database that project points to, rehearse with synthetic data in a suitable isolated deployment, confirm scheduler lease contention and retry/idempotency, and verify one job completes without manual calls. Configure an external, authorized monitor for `GET /api/jobs/status` using its distinct monitor token; alert on HTTP 503 or overdue ticks and verify the alert actually fires when scheduling stops. Cron delivery itself is not guaranteed execution evidence. Keep `CENTRAL_SCHEDULER_ENABLED=false` and `WORKER_ENABLED=false` on unapproved environments.

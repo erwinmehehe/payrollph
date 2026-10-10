@@ -1,3 +1,5 @@
+import { isIP } from "node:net";
+
 export type RateLimitResult = {
   allowed: boolean;
   remaining: number;
@@ -35,10 +37,36 @@ export function rateLimit(key: string, options?: { limit?: number; windowMs?: nu
   return { allowed: true, remaining: Math.max(0, limit - bucket.timestamps.length), retryAfterMs: 0, mode: "single-instance" };
 }
 
-export function clientIp(request: Request) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    || request.headers.get("x-real-ip")
-    || "127.0.0.1";
+/**
+ * Only use addresses provided by a *trusted* ingress. A caller can supply
+ * arbitrary X-Forwarded-For / X-Real-IP values when no proxy overwrites them.
+ * An unknown ingress intentionally shares one bucket instead of granting a
+ * fresh rate-limit identity for every spoofed header.
+ *
+ * Vercel overwrites x-vercel-forwarded-for at its edge. Self-hosted deployments
+ * must restrict direct access to the configured, append-only trusted proxies.
+ */
+export function clientIp(
+  request: Request,
+  env: Readonly<{ VERCEL?: string; TRUSTED_PROXY_HOPS?: string }> = process.env,
+): string {
+  if (env.VERCEL === "1") {
+    const candidate = request.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() ?? "";
+    return isIP(candidate) ? candidate : "unknown";
+  }
+
+  const configuredHops = env.TRUSTED_PROXY_HOPS;
+  if (configuredHops && /^[1-9]\d*$/.test(configuredHops)) {
+    const hops = Number(configuredHops);
+    if (hops <= 10) {
+      const addresses = (request.headers.get("x-forwarded-for") ?? "")
+        .split(",")
+        .map((value) => value.trim());
+      const candidate = addresses[addresses.length - hops] ?? "";
+      if (isIP(candidate)) return candidate;
+    }
+  }
+  return "unknown";
 }
 
 /** Device metadata stored with a session so users can audit and revoke logins. */
