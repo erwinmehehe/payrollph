@@ -40,6 +40,8 @@ test("source queries are bounded, tenant restricted and field minimized", () => 
   }
   assert.match(server, /eq\(positions\.id, positionId\)/);
   assert.match(server, /eq\(positionAssignments\.positionId, positionId\)/);
+  assert.match(server, /eq\(positionAssignments\.employeeId, employees\.id\)/);
+  assert.match(server, /eq\(employees\.organizationId, organizationId\)/);
   assert.match(server, /HCM_ORG_EXPLORER_UNIT_LIMIT \+ 1/);
   assert.match(server, /HCM_ORG_EXPLORER_POSITION_LIMIT \+ 1/);
   assert.match(server, /HCM_POSITION_HISTORY_LIMIT \+ 1/);
