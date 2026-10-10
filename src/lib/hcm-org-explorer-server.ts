@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
-import { jobProfiles, orgUnits, positionAssignments, positions } from "@/db/schema";
+import { employees, jobProfiles, orgUnits, positionAssignments, positions } from "@/db/schema";
 import { orgExplorerBusinessDate, projectOrgExplorer, projectPositionHistory } from "@/lib/hcm-org-explorer-projection";
 import type { HcmOrgExplorerResponse, HcmPositionHistoryResponse } from "@/lib/hcm-org-explorer-contract";
 
@@ -73,8 +73,6 @@ export async function loadHcmPositionHistory(
     id: positions.id,
     code: positions.code,
     status: positions.status,
-    orgUnitId: positions.orgUnitId,
-    supervisoryOrgUnitId: positions.supervisoryOrgUnitId,
     currentJobTitle: jobProfiles.title,
   }).from(positions)
     .leftJoin(jobProfiles, and(
@@ -89,11 +87,16 @@ export async function loadHcmPositionHistory(
 
   const rows = await db.select({
     id: positionAssignments.id,
-    employeeId: positionAssignments.employeeId,
+    // Return a worker reference only after verifying the target employer.
+    employeeId: employees.id,
     assignmentType: positionAssignments.assignmentType,
     effectiveFrom: positionAssignments.effectiveFrom,
     effectiveUntil: positionAssignments.effectiveUntil,
   }).from(positionAssignments)
+    .leftJoin(employees, and(
+      eq(positionAssignments.employeeId, employees.id),
+      eq(employees.organizationId, organizationId),
+    ))
     .where(and(
       eq(positionAssignments.organizationId, organizationId),
       eq(positionAssignments.positionId, positionId),
