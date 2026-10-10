@@ -86,31 +86,25 @@ export function ApprovalsView({
             : "This role can review approval status and history, but decision controls stay with an assigned approver or checker."
         }
         actions={
-          canManageDelegations ? (
-            <button className="secondary-button" onClick={() => setFormOpen((current) => !current)} aria-expanded={formOpen}>
-              <Settings2 size={15} className="i-slate" /> Delegation settings
-            </button>
+          canSeeTeamLeaveCalendar || canManageDelegations ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {canSeeTeamLeaveCalendar && (
+                <Link
+                  href={"/hcm/team-leave-calendar?organizationId=" + data.selectedOrganization.id}
+                  className="inline-flex min-h-10 items-center rounded-lg bg-emerald-800 px-4 text-sm font-semibold text-white hover:bg-emerald-900"
+                >
+                  Team leave calendar
+                </Link>
+              )}
+              {canManageDelegations && (
+                <button className="secondary-button" onClick={() => setFormOpen((current) => !current)} aria-expanded={formOpen}>
+                  <Settings2 size={15} className="i-slate" /> Delegation settings
+                </button>
+              )}
+            </div>
           ) : undefined
         }
       />
-
-      {canSeeTeamLeaveCalendar && (
-        <section className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Team Leave Calendar</p>
-            <p className="mt-1 max-w-xl text-xs text-slate-600">
-              Review authorized approved and pending request spans by month, without
-              viewing leave reasons or editing source records.
-            </p>
-          </div>
-          <Link
-            href={"/hcm/team-leave-calendar?organizationId=" + data.selectedOrganization.id}
-            className="inline-flex min-h-10 items-center rounded-lg bg-emerald-800 px-4 text-sm font-semibold text-white hover:bg-emerald-900"
-          >
-            View team calendar
-          </Link>
-        </section>
-      )}
 
       {currentRun && (
         <PayrollHandoff
