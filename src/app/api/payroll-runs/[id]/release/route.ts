@@ -19,6 +19,7 @@ import { managedPayrollReleaseRequirement } from "@/lib/managed-payroll";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
+import { checkPayrollReleaseSegregation } from "@/lib/payroll-release-segregation";
 import { connectedPayrollReleaseGateEnabled, safePayrollConnectedReleaseReadiness } from "@/lib/payroll-connected-release-gate-server";
 
 const RELEASABLE = ["Ready for release"];
@@ -146,6 +147,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
+  // Mandatory, tenant/task-linked actor separation. Approval-task display
+  // names cannot prove who actually approved; the authenticated audit event can.
+  // This is not controlled by any optional maker-checker policy switch.
+  const separation = await checkPayrollReleaseSegregation({
+    organizationId: run.organizationId,
+    payrollRunId: run.id,
+    approvalTaskId: payrollApproval.id,
+    releaserUserId: user.id,
+    managedClientApproverUserId: managedRequirement.required
+      ? managedRequirement.approval?.approvedByUserId ?? null
+      : null,
+  });
+  if (!separation.allowed) {
+    return Response.json({ code: separation.code, error: separation.error }, {
+      status: separation.status,
+      headers: { "Cache-Control": "private, no-store" },
+    });
+  }
+
   const assuranceResult = await buildPayrollAssurance(runId);
   const blockingFindings = assuranceResult?.assurance.findings.filter(
     (finding) => finding.blocking && !(sharedDemo && finding.code === "MISSING_BANK_DETAILS"),
@@ -231,6 +251,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         assurance: assuranceResult?.assurance.summary ?? null,
         approvalTaskId: payrollApproval.id,
         approvedBy: payrollApproval.decidedBy ?? payrollApproval.approver,
+        makerUserId: separation.makerUserId,
+        checkerUserId: separation.checkerUserId,
+        assignedCheckerUserId: separation.assignedCheckerUserId,
         connectedSourceGate: connectedReleaseEvidence,
       },
     });
