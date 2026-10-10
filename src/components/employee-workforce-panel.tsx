@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, CheckCircle2, PencilLine, RefreshCcw } from "lucide-react";
 import { manilaWorkDate, summarizeUpcomingWeek, upcomingSevenDays } from "@/lib/workforce-employee-upcoming-week";
@@ -229,6 +230,9 @@ export function EmployeeWorkforcePanel() {
           <div className="notice notice-slate" style={{ margin: "4px 14px 14px" }}>
             <span>{upcomingSummary.scheduled} shift day(s), {upcomingSummary.restDays} recorded rest day(s), {upcomingSummary.changes} changed day(s), {upcomingSummary.needsReview} requiring schedule confirmation. A missing roster entry is not an absence or a payroll deduction.</span>
           </div>
+          {process.env.NEXT_PUBLIC_WFM_SCHEDULE_RECEIPTS_ENABLED === "true" && (
+            <div style={{ padding: "0 14px 14px" }}><Link className="secondary-button" href="/self/schedule-receipts">Review schedule receipts</Link></div>
+          )}
         </article>
       )}
       <article className="employee-list-card">
