@@ -25,6 +25,7 @@ const D1_BODY = [
   "NET_TAXABLE_COMP_INCOME", "TAX_DUE", "PREV_TAX_WTHLD", "PRES_TAX_WTHLD",
   "AMT_WTHLD_DEC", "OVER_WTHLD", "ACTUAL_AMT_WTHLD",
   "NATIONALITY", "EMPLOYMENT_STATUS", "REASON_SEPARATION",
+  "SUBS_FILING", "TAX_CREDIT_PERA",
 ] as const;
 
 const D2_BODY = [
@@ -45,6 +46,7 @@ const D2_BODY = [
   "GROSS_COMP_INCOME", "NET_TAXABLE_COMP_INCOME", "TAX_DUE",
   "PREV_TAX_WTHLD", "PRES_TAX_WTHLD", "AMT_WTHLD_DEC", "OVER_WTHLD",
   "ACTUAL_AMT_WTHLD", "NATIONALITY", "EMPLOYMENT_STATUS", "REASON_SEPARATION",
+  "SUBS_FILING", "TAX_CREDIT_PERA", "NONTAX_BASIC_SAL",
 ] as const;
 
 export const BIR_1604C_D1_FIELDS = [...COMMON, ...D1_BODY] as const;
@@ -54,7 +56,7 @@ const BASIC_PREFIX = new Set(["SCHEDULE_NUM", "FTYPE_CODE", "TIN_EMPYR", "BRANCH
   "RETRN_PERIOD", "SEQ_NUM", "TIN", "BRANCH_CODE",
   "LAST_NAME", "FIRST_NAME", "MIDDLE_NAME", "REGION_NUM",
   "NATIONALITY", "EMPLOYMENT_STATUS", "REASON_SEPARATION",
-  "EMPLOYMENT_FROM", "EMPLOYMENT_TO"]);
+  "EMPLOYMENT_FROM", "EMPLOYMENT_TO", "SUBS_FILING"]);
 const MONEY_FIELDS = (fields: readonly string[]) =>
   fields.filter(field => !BASIC_PREFIX.has(field) && field !== "FACTOR_USED");
 // Control records consist of the first five common fields and totals for
@@ -139,8 +141,8 @@ function formatField(field: string, raw: unknown, rowSchedule: "D1" | "D2") {
       throw new Error(`BIR 1604-C text field ${field} must be nonblank (except middle name), at most 30 characters.`);
     }
   }
-  if (field === "EMPLOYMENT_STATUS" || field === "REASON_SEPARATION") {
-    if (!/^[0-9]{2}$/.test(value)) throw new Error(`BIR 1604-C status/exit code ${field} must be 2 digits from the official LOV.`);
+  if (field === "EMPLOYMENT_STATUS" || field === "REASON_SEPARATION" || field === "SUBS_FILING") {
+    if (!/^[0-9]{2}$/.test(value)) throw new Error(`BIR 1604-C code ${field} must be 2 digits from the official LOV.`);
   }
   return value;
 }
