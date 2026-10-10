@@ -1,5 +1,7 @@
 /** HTTP input boundary only; schedule identity and approval checks stay in the route/service. */
 export const SCHEDULE_RECEIPT_MAX_BODY_BYTES = 2048;
+// Absolute upload budget, not an idle timer reset by each tiny/empty chunk.
+export const SCHEDULE_RECEIPT_BODY_TIMEOUT_MS = 10_000;
 
 export class ScheduleReceiptBodyError extends Error {
   readonly status: number;
@@ -14,6 +16,10 @@ export class ScheduleReceiptBodyError extends Error {
 function tooLarge() {
   return new ScheduleReceiptBodyError("Acknowledgment exceeds the 2048-byte limit.",
     413, "SCHEDULE_RECEIPT_BODY_TOO_LARGE");
+}
+function timedOut() {
+  return new ScheduleReceiptBodyError("Acknowledgment upload timed out. Refresh before retrying.",
+    408, "SCHEDULE_RECEIPT_BODY_TIMEOUT");
 }
 function interrupted() {
   return new ScheduleReceiptBodyError("Acknowledgment body was interrupted. Refresh before retrying.");
@@ -51,14 +57,35 @@ export async function readScheduleReceiptBody(request: Request): Promise<unknown
 
   const reader = request.body.getReader();
   const cancel = () => { void reader.cancel().catch(() => undefined); };
-  request.signal.addEventListener("abort", cancel, { once: true });
+  const startedAt = performance.now();
+  let stoppedError: ScheduleReceiptBodyError | null = null;
+  let rejectStopped!: (error: ScheduleReceiptBodyError) => void;
+  const stopped = new Promise<never>((_resolve, reject) => { rejectStopped = reject; });
+  // An abort before the first read must also have a rejection handler.
+  void stopped.catch(() => undefined);
+  const stop = (error: ScheduleReceiptBodyError) => {
+    if (stoppedError) return;
+    stoppedError = error;
+    rejectStopped(error);
+    cancel();
+  };
+  const abort = () => stop(interrupted());
+  const timeout = setTimeout(() => stop(timedOut()), SCHEDULE_RECEIPT_BODY_TIMEOUT_MS);
+  request.signal.addEventListener("abort", abort, { once: true });
+  const checkReadBudget = () => {
+    if (stoppedError) throw stoppedError;
+    if (request.signal.aborted) throw interrupted();
+    // A timer alone can be delayed by a stream of immediately-resolved reads.
+    // Check monotonic elapsed time too; wall-clock changes do not extend it.
+    if (performance.now() - startedAt >= SCHEDULE_RECEIPT_BODY_TIMEOUT_MS) throw timedOut();
+  };
   const bytes = new Uint8Array(SCHEDULE_RECEIPT_MAX_BODY_BYTES);
   let used = 0;
-  try {
+  const consume = async (): Promise<unknown> => {
     for (;;) {
-      if (request.signal.aborted) throw interrupted();
+      checkReadBudget();
       const chunk = await reader.read();
-      if (request.signal.aborted) throw interrupted();
+      checkReadBudget();
       if (chunk.done) break;
       if (!(chunk.value instanceof Uint8Array)) {
         throw new ScheduleReceiptBodyError("Acknowledgment body must contain bytes.");
@@ -77,12 +104,17 @@ export async function readScheduleReceiptBody(request: Request): Promise<unknown
     } catch {
       throw new ScheduleReceiptBodyError("Acknowledgment must contain valid UTF-8 JSON.");
     }
+  };
+  try {
+    // One race for the whole upload: no growing promise handlers per chunk.
+    return await Promise.race([consume(), stopped]);
   } catch (error) {
     cancel();
     // Do not expose raw stream errors or fragments of an employee request.
     throw error instanceof ScheduleReceiptBodyError ? error : interrupted();
   } finally {
-    request.signal.removeEventListener("abort", cancel);
+    clearTimeout(timeout);
+    request.signal.removeEventListener("abort", abort);
     reader.releaseLock();
   }
 }

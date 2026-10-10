@@ -157,3 +157,65 @@ test("semantic identity overrides remain rejected after transport validation", a
   assert.equal((await api.post(input.input)).status, 400);
   assert.equal(api.counters().writes, 0);
 });
+
+test("actual POST returns private no-store 408 for stalled uploads without receipt persistence", { timeout: 2000 }, async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  for (const initial of [undefined, json]) {
+    const api = fixture();
+    const abort = new AbortController();
+    let signalRead!: () => void;
+    const started = new Promise<void>(resolve => { signalRead = resolve; });
+    let pulls = 0, cancelled = 0;
+    const upload = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulls++ === 0 && initial !== undefined) controller.enqueue(encoder.encode(initial));
+        signalRead();
+      },
+      cancel() { cancelled++; return new Promise<void>(() => undefined); },
+    }, { highWaterMark: 0 });
+    const input = new Request("https://example.invalid/api/self/schedule-receipts", {
+      method: "POST", headers: { "content-type": "application/json" }, body: upload,
+      signal: abort.signal, duplex: "half",
+    } as RequestInit & { duplex: "half" });
+    const result = api.post(input);
+    try {
+      await started;
+      t.mock.timers.tick(bodyBoundary.SCHEDULE_RECEIPT_BODY_TIMEOUT_MS);
+      const response = await result;
+      assert.equal(response.status, 408);
+      assert.equal(response.headers.get("cache-control"), "private, no-store");
+      assert.equal(response.headers.get("vary"), "Cookie");
+      const failure = await response.json();
+      assert.equal(failure.code, "SCHEDULE_RECEIPT_BODY_TIMEOUT");
+      assert.ok(!JSON.stringify(failure).includes(payload.snapshotHash));
+      assert.equal(api.counters().parses, 0);
+      assert.equal(api.counters().writes, 0);
+      assert.equal(cancelled, 1);
+      assert.equal(upload.locked, false);
+    } finally { abort.abort(); await result; }
+  }
+});
+test("a fresh valid POST succeeds after timeout but a late chunk cannot revive the cancelled request", { timeout: 2000 }, async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const api = fixture();
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  let signalRead!: () => void;
+  const started = new Promise<void>(resolve => { signalRead = resolve; });
+  const upload = new ReadableStream<Uint8Array>({
+    start(value) { controller = value; }, pull() { signalRead(); },
+  }, { highWaterMark: 0 });
+  const input = new Request("https://example.invalid/api/self/schedule-receipts", {
+    method: "POST", headers: { "content-type": "application/json" }, body: upload, duplex: "half",
+  } as RequestInit & { duplex: "half" });
+  const result = api.post(input);
+  await started;
+  t.mock.timers.tick(bodyBoundary.SCHEDULE_RECEIPT_BODY_TIMEOUT_MS);
+  assert.equal((await result).status, 408);
+  assert.equal(api.counters().writes, 0);
+  assert.throws(() => controller.enqueue(encoder.encode(json)));
+  const next = await api.post(stream([encoder.encode(json)]).input);
+  assert.equal(next.status, 201);
+  assert.equal(api.counters().writes, 1);
+  assert.equal(api.counters().parses, 1);
+  assert.equal(JSON.stringify(api.counters().savedIdentity), JSON.stringify(identity));
+});

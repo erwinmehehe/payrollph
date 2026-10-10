@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readScheduleReceiptBody, ScheduleReceiptBodyError, SCHEDULE_RECEIPT_MAX_BODY_BYTES } from "../src/lib/workforce-schedule-receipt-body";
+import { readScheduleReceiptBody, ScheduleReceiptBodyError, SCHEDULE_RECEIPT_MAX_BODY_BYTES, SCHEDULE_RECEIPT_BODY_TIMEOUT_MS } from "../src/lib/workforce-schedule-receipt-body";
 
 const encoder = new TextEncoder();
 const body = JSON.stringify({ workDate: "2031-01-01", snapshotHash: "a".repeat(64), acknowledged: true });
@@ -120,4 +120,140 @@ test("a failing or stalled cancel hook cannot mask or delay the size error", { t
     assert.deepEqual(fixture.stats(), { reads: 1, cancelled: 1 });
     assert.equal(fixture.input.body?.locked, false);
   }
+});
+
+// Fake only the timer clock; Request/ReadableStream and the body reader are real.
+function heldUpload(initial?: string, cancelHook?: () => void | Promise<void>) {
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  let signalRead!: () => void;
+  const started = new Promise<void>(resolve => { signalRead = resolve; });
+  const abort = new AbortController();
+  let pulls = 0, cancelled = 0;
+  const upload = new ReadableStream<Uint8Array>({
+    start(value) { controller = value; },
+    pull(value) {
+      if (pulls++ === 0 && initial !== undefined) value.enqueue(encoder.encode(initial));
+      signalRead();
+    },
+    cancel() { cancelled++; return cancelHook?.(); },
+  }, { highWaterMark: 0 });
+  const input = new Request("https://example.invalid/api/self/schedule-receipts", {
+    method: "POST", headers: { "content-type": "application/json" }, body: upload,
+    signal: abort.signal, duplex: "half",
+  } as RequestInit & { duplex: "half" });
+  return { input, upload, controller, abort, started, cancelled: () => cancelled };
+}
+const flushReads = () => new Promise<void>(resolve => setImmediate(resolve));
+const timeoutError = (error: unknown) => error instanceof ScheduleReceiptBodyError
+  && error.status === 408 && error.code === "SCHEDULE_RECEIPT_BODY_TIMEOUT";
+
+test("empty, partial and complete JSON streams without EOF stop at the upload deadline", { timeout: 2000 }, async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  for (const initial of [undefined, '{"acknowledged":', body]) {
+    const fixture = heldUpload(initial);
+    let outcome: unknown = "pending";
+    const result = readScheduleReceiptBody(fixture.input).then(value => { outcome = value; }, error => { outcome = error; });
+    try {
+      await fixture.started;
+      t.mock.timers.tick(SCHEDULE_RECEIPT_BODY_TIMEOUT_MS);
+      await flushReads();
+      assert.ok(timeoutError(outcome), "a body with no EOF must time out, not stay pending");
+      await result;
+      assert.equal(fixture.cancelled(), 1);
+      assert.equal(fixture.upload.locked, false);
+    } finally { fixture.abort.abort(); await result; }
+  }
+});
+test("trickled chunks cannot reset the absolute receipt upload deadline", { timeout: 2000 }, async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let elapsed = 0;
+  t.mock.method(performance, "now", () => elapsed);
+  const fixture = heldUpload();
+  const result = assert.rejects(readScheduleReceiptBody(fixture.input), timeoutError);
+  await fixture.started;
+  for (let part = 0; part < 2; part++) {
+    elapsed += 4000; t.mock.timers.tick(4000);
+    fixture.controller.enqueue(encoder.encode(" "));
+    await flushReads();
+    assert.equal(fixture.cancelled(), 0);
+  }
+  elapsed = SCHEDULE_RECEIPT_BODY_TIMEOUT_MS;
+  t.mock.timers.tick(2000);
+  await result;
+  assert.equal(fixture.cancelled(), 1);
+  assert.equal(fixture.upload.locked, false);
+});
+test("valid JSON and EOF just before the deadline still succeed and remove the timer", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const clear = t.mock.method(globalThis, "clearTimeout");
+  let elapsed = 0;
+  t.mock.method(performance, "now", () => elapsed);
+  const fixture = heldUpload();
+  const result = readScheduleReceiptBody(fixture.input);
+  await fixture.started;
+  elapsed = SCHEDULE_RECEIPT_BODY_TIMEOUT_MS - 1;
+  t.mock.timers.tick(elapsed);
+  fixture.controller.enqueue(encoder.encode(body)); fixture.controller.close();
+  assert.deepEqual(await result, JSON.parse(body));
+  assert.ok(clear.mock.callCount() > 0);
+  t.mock.timers.tick(SCHEDULE_RECEIPT_BODY_TIMEOUT_MS);
+  await flushReads();
+  assert.equal(fixture.cancelled(), 0);
+  assert.equal(fixture.upload.locked, false);
+});
+test("late chunks fail by monotonic elapsed time even before the timeout callback runs", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let elapsed = 0;
+  t.mock.method(performance, "now", () => elapsed);
+  const fixture = heldUpload();
+  const result = assert.rejects(readScheduleReceiptBody(fixture.input), timeoutError);
+  await fixture.started;
+  elapsed = SCHEDULE_RECEIPT_BODY_TIMEOUT_MS;
+  // Deliberately do not tick mocked timers: emulate delayed timer dispatch.
+  fixture.controller.enqueue(encoder.encode(body)); fixture.controller.close();
+  await result;
+  assert.equal(fixture.upload.locked, false);
+});
+test("immediately resolved empty chunks cannot evade elapsed-time checks", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let elapsed = 0, reads = 0, cancelled = 0;
+  t.mock.method(performance, "now", () => elapsed);
+  const upload = new ReadableStream<Uint8Array>({
+    pull(controller) { reads++; elapsed += 6000; controller.enqueue(new Uint8Array(0)); },
+    cancel() { cancelled++; },
+  }, { highWaterMark: 0 });
+  const input = new Request("https://example.invalid", { method: "POST", headers: { "content-type": "application/json" },
+    body: upload, duplex: "half" } as RequestInit & { duplex: "half" });
+  await assert.rejects(readScheduleReceiptBody(input), timeoutError);
+  assert.equal(reads, 2);
+  assert.equal(cancelled, 1);
+  assert.equal(upload.locked, false);
+});
+test("deadline rejection never waits for a failing or stalled cancel hook", { timeout: 2000 }, async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  for (const cancel of [() => Promise.reject(new Error("PRIVATE CLEANUP")), () => new Promise<void>(() => undefined)]) {
+    const fixture = heldUpload(undefined, cancel);
+    const result = assert.rejects(readScheduleReceiptBody(fixture.input), error => timeoutError(error)
+      && !(error as Error).message.includes("PRIVATE CLEANUP"));
+    await fixture.started;
+    t.mock.timers.tick(SCHEDULE_RECEIPT_BODY_TIMEOUT_MS);
+    await result;
+    assert.equal(fixture.cancelled(), 1);
+    assert.equal(fixture.upload.locked, false);
+  }
+});
+test("client abort preserves its request error and clears the upload timer and listener", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const fixture = heldUpload();
+  const clear = t.mock.method(globalThis, "clearTimeout");
+  const remove = t.mock.method(fixture.input.signal, "removeEventListener");
+  const result = assert.rejects(readScheduleReceiptBody(fixture.input), rejects(400));
+  await fixture.started;
+  fixture.abort.abort(); await result;
+  t.mock.timers.tick(SCHEDULE_RECEIPT_BODY_TIMEOUT_MS);
+  await flushReads();
+  assert.ok(clear.mock.callCount() > 0);
+  assert.ok(remove.mock.calls.some(call => call.arguments[0] === "abort"));
+  assert.equal(fixture.cancelled(), 1);
+  assert.equal(fixture.upload.locked, false);
 });
