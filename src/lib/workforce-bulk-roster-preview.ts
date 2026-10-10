@@ -141,7 +141,7 @@ export function previewBulkRosterDay(input: {
       ...base,
       status: "review" as const,
       reasons: [...reasons,
-        "Confirm approved leave, eligibility, rest policies, live changes and payroll effects in the native workflow."],
+        "Confirm approved leave, eligibility, rest policies, live source changes and payroll effects in the native workflow."],
     };
   });
 }
