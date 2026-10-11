@@ -414,7 +414,13 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         {page === "Overview" && (
           <>
             {hrisShortcuts.length > 0 && (
-              <HrisHomeShortcuts actions={hrisShortcuts} onPage={setPage} />
+              <HrisHomeShortcuts
+                key={data.selectedOrganization.id}
+                actions={hrisShortcuts}
+                onPage={setPage}
+                employees={canUsePeopleOps ? data.employees : []}
+                onOpenEmployee={canUsePeopleOps ? openHrEmployee : undefined}
+              />
             )}
             {dashboardRole ? (
               <RoleOverviewView
