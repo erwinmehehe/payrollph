@@ -104,7 +104,7 @@ test("review worksheet never labels malformed finance fields as paid or settled"
   assert.equal(review.reconciliationRequired, true);
   assert.equal(review.splitRecorded, false);
   const csv = finalPayReviewCsv(record);
-  assert.match(csv, /Gross final pay \\(PHP\\)","UNVERIFIABLE"/);
-  assert.match(csv, /BLOCKED - FINANCE\\/PAYROLL RECONCILIATION REQUIRED/);
+  assert.ok(csv.includes('"Gross final pay (PHP)","UNVERIFIABLE"'));
+  assert.ok(csv.includes("BLOCKED - FINANCE/PAYROLL RECONCILIATION REQUIRED"));
   assert.ok(!csv.includes('"Gross final pay (PHP)","0.00"'));
 });
