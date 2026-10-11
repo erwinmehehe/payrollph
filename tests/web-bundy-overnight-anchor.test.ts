@@ -67,6 +67,11 @@ test("server keeps both effective work-date and present-day payroll cutoff locks
   assert.match(route, /previousOpenRequiresClose/);
   assert.match(route, /previousShiftNeedsReview/);
   assert.match(route, /ATTENDANCE_REQUIRES_REVIEW/);
+  assert.match(route, /todayRows\.length > 1 \|\| previousRows\.length > 1/);
+  assert.match(route, /currentRows\.length > 1 \|\| priorRows\.length > 1/);
+  assert.match(route, /PREVIOUS_SHIFT_REQUIRES_REVIEW/);
+  const modal = readFileSync("src/components/web-bundy-modal.tsx", "utf8");
+  assert.match(modal, /visible\.status === "ready" && !previousNeedsReview/);
   assert.match(route, /attendanceMutationLock\(locks, effectiveWorkDate, "capture"\)/);
   assert.match(route, /attendanceMutationLock\(locks, todayStr, "capture"\)/);
   assert.match(route, /authorizedGeofenceSites\(organizationId, employeeId, effectiveWorkDate\)/);
