@@ -4,6 +4,7 @@ import { staffingRequirements, worksites } from "@/db/schema";
 import { getAccess, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { phWorkDateAt } from "@/lib/workforce-manager-actions";
+import { authorizedOutlookSite } from "@/lib/workforce-demand-outlook-scope";
 import {
   forecastHistoricalStaffingRequirements,
   shiftOutlookDate,
@@ -12,21 +13,6 @@ import {
 } from "@/lib/workforce-demand-outlook";
 
 export const dynamic = "force-dynamic";
-
-/**
- * Never use a user-provided org-unit filter for this read: the active account
- * membership, exact employer, and worksite's actual orgUnitId own visibility.
- */
-export function authorizedOutlookSite(
-  access: { organizationId: number; companyWide: boolean; orgUnitId: number | null },
-  site: { organizationId: number; orgUnitId: number | null; active: boolean },
-) {
-  return access.organizationId === site.organizationId
-    && site.active
-    && (access.companyWide || (
-      access.orgUnitId != null && site.orgUnitId === access.orgUnitId
-    ));
-}
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
