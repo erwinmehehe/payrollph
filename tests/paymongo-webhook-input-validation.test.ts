@@ -60,7 +60,7 @@ test("canonical numeric-string provider timestamp remains auditable", () => {
 });
 
 test("signature verifier refuses a correct digest with nonhex garbage suffix", () => {
-  const payload = '{"data":{"id":"evt_guardrail"}}';
+  const payload = '{"data":{"id":"evt_guardrail","attributes":{"livemode":false}}}';
   const timestamp = "1790812800";
   const secret = "test_only_webhook_secret";
   const digest = createHmac("sha256", secret).update(`${timestamp}.${payload}`).digest("hex");
@@ -70,5 +70,24 @@ test("signature verifier refuses a correct digest with nonhex garbage suffix", (
   }), true);
   assert.equal(verifyPaymongoWebhookSignature({
     payload, signatureHeader: `t=${timestamp},te=${digest}ZZZZ`, secret, nowMs,
+  }), false);
+});
+
+test("PayMongo verifier requires the signature that corresponds to the signed event mode", () => {
+  const secret = "test_only_webhook_secret";
+  const timestamp = "1790812800";
+  const nowMs = Number(timestamp) * 1000;
+  const livePayload = '{"data":{"id":"evt_live","attributes":{"livemode":true}}}';
+  const liveDigest = createHmac("sha256", secret).update(`${timestamp}.${livePayload}`).digest("hex");
+  assert.equal(verifyPaymongoWebhookSignature({
+    payload: livePayload, signatureHeader: `t=${timestamp},te=,li=${liveDigest}`, secret, nowMs,
+  }), true);
+  assert.equal(verifyPaymongoWebhookSignature({
+    payload: livePayload, signatureHeader: `t=${timestamp},te=${liveDigest},li=`, secret, nowMs,
+  }), false, "a valid test-mode signature cannot authenticate a live event");
+  const missingMode = '{"data":{"id":"evt_missing_mode","attributes":{}}}';
+  const missingDigest = createHmac("sha256", secret).update(`${timestamp}.${missingMode}`).digest("hex");
+  assert.equal(verifyPaymongoWebhookSignature({
+    payload: missingMode, signatureHeader: `t=${timestamp},te=${missingDigest}`, secret, nowMs,
   }), false);
 });
