@@ -40,6 +40,8 @@ import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { runLifecycleAutomations } from "@/lib/automation";
+import { requestOffboardingIT } from "@/lib/it-offboarding";
+import { seedProvisioning } from "@/lib/provisioning";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
 import { freezeSeparationIntent, separationEvidenceFromDefinition, separationIntentFingerprint, type HcmSeparationIntent } from "@/lib/hcm-separation-business-process";
@@ -919,10 +921,21 @@ export async function POST(request: Request) {
       return record;
     }, { isolationLevel: "serializable" });
 
+    // HR separation is committed. IT revocations and device recovery are requests,
+    // never remote actions. Failures cannot roll back committed payroll/final-pay state.
+    const itWarnings: string[] = [];
+    try {
+      await seedProvisioning(organizationId, employeeId, "offboarding");
+      await requestOffboardingIT(organizationId, employeeId);
+    } catch (error) {
+      itWarnings.push("IT offboarding requests could not be queued. Open IT Operations and retry reconciliation.");
+      console.error("IT offboarding queue failed for committed separation:", error);
+    }
     return Response.json({
       ...created,
       approvalRequired: false,
       businessProcess: separationProcess ? { id: separationProcess.id, status: "applied" } : null,
+      ...(itWarnings.length ? { itWarnings } : {}),
     }, { status: 201 });
   } catch (error) {
     if (isRetryableFinalPayConflict(error)) {
