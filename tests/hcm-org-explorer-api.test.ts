@@ -10,6 +10,10 @@ const access = read("src/lib/hcm-org-explorer-access.ts");
 const server = read("src/lib/hcm-org-explorer-server.ts");
 const client = read("src/components/hcm-org-explorer.tsx");
 const people = read("src/components/workspace/people.tsx");
+import {
+  hcmOrgExplorerEnabledForEmployer, hcmOrgExplorerPositiveId,
+} from "../src/lib/hcm-org-explorer-access";
+
 
 test("both read-only APIs fail closed behind the same disabled-by-default gate", () => {
   for (const content of [graphApi, historyApi]) {
@@ -24,6 +28,36 @@ test("both read-only APIs fail closed behind the same disabled-by-default gate",
   assert.ok(!page.includes("primaryCompanyOrganizationId"));
 });
 
+test("pilot flags fail closed without exact server employer allowlist", () => {
+  const enabled = {
+    HCM_ORG_EXPLORER_ENABLED: "true",
+    HCM_ORG_EXPLORER_ORG_IDS: "7, 12, 19",
+  };
+  assert.equal(hcmOrgExplorerEnabledForEmployer(7, enabled), true);
+  assert.equal(hcmOrgExplorerEnabledForEmployer(12, enabled), true);
+  assert.equal(hcmOrgExplorerEnabledForEmployer(8, enabled), false);
+  assert.equal(hcmOrgExplorerEnabledForEmployer(0, enabled), false);
+  assert.equal(hcmOrgExplorerEnabledForEmployer(Number.MAX_SAFE_INTEGER + 1, enabled), false);
+  assert.equal(hcmOrgExplorerEnabledForEmployer(7, {
+    ...enabled, HCM_ORG_EXPLORER_ENABLED: "false",
+  }), false);
+  assert.equal(hcmOrgExplorerEnabledForEmployer(7, {
+    HCM_ORG_EXPLORER_ENABLED: "true",
+  }), false);
+  assert.equal(hcmOrgExplorerPositiveId("007"), null);
+  assert.equal(hcmOrgExplorerPositiveId("7"), 7);
+  assert.equal(hcmOrgExplorerPositiveId("7.0"), null);
+});
+
+test("server flag and organization allowlist authorize before any read", () => {
+  for (const content of [graphApi, historyApi]) {
+    assert.ok(content.includes("hcmOrgExplorerEnabledForEmployer(organizationId)"));
+    assert.ok(content.indexOf("hcmOrgExplorerEnabledForEmployer(organizationId)") <
+      content.indexOf("denyHcmOrgExplorer(user.id, organizationId)"));
+  }
+  assert.ok(page.includes("hcmOrgExplorerEnabledForEmployer(organizationId)"));
+  assert.ok(people.includes("NEXT_PUBLIC_HCM_ORG_EXPLORER_ORG_IDS"));
+});
 test("access gate enforces membership, role, custom deny overlay and company-wide scope", () => {
   assert.match(access, /assertOrganizationRole/);
   assert.match(access, /PEOPLE_ADMIN_ROLES/);
@@ -62,6 +96,11 @@ test("UI never uses stale employer/position response or performs mutations", () 
   assert.match(client, /data\.positionId !== selectedPositionId/);
   assert.match(client, /graph\?\.scope === graphScope/);
   assert.match(client, /history\?\.scope === positionScope/);
+  assert.ok(client.includes("selectedUnitChoice?.scope === graphScope"));
+  assert.ok(client.includes("selectedPositionChoice?.scope === unitScope"));
+  assert.ok(!client.includes('setGraph({ scope: graphScope, status: "loading"'));
+  assert.ok(!client.includes('setHistory({ scope: positionScope, status: "loading"'));
+
   assert.match(people, /NEXT_PUBLIC_HCM_ORG_EXPLORER_ENABLED === "true"/);
   assert.match(people, /\/hcm\/org-explorer\?organizationId=\$\{data\.selectedOrganization\.id\}/);
   assert.ok(!client.includes('method: "POST"'));
