@@ -15,12 +15,17 @@ jobs:
     env:
       BASE_URL: https://erwinmehehe-payrollph.vercel.app
       EXPECTED_COMMIT_SHA: ${{ github.sha }}
+      PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
     steps:
       - name: Wait for exact production deployment
         run: |
           set -euo pipefail
+          if [ -z "${PRODUCTION_READINESS_TOKEN:-}" ]; then
+            echo "PRODUCTION_READINESS_TOKEN is required for private deployment verification."
+            exit 1
+          fi
           for attempt in {1..24}; do
-            body=$(curl -fsS "$BASE_URL/api/readiness/deployment" || true)
+            body=$(curl -fsS -H "x-readiness-token: ${PRODUCTION_READINESS_TOKEN}" "$BASE_URL/api/readiness/deployment" || true)
             deployed_sha=$(printf '%s' "$body" | jq -r '.deploymentSha // empty')
             echo "deployment attempt=$attempt deployed_sha=${deployed_sha:-missing} expected=$EXPECTED_COMMIT_SHA"
             if [ "$deployed_sha" = "$EXPECTED_COMMIT_SHA" ]; then

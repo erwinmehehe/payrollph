@@ -1,3 +1,5 @@
+import { operationalSecret } from "@/lib/operational-secret";
+import { constantTimeSecretEqual } from "@/lib/security-secret";
 import { bankEncryptionKeyFingerprint } from "@/lib/bank-account-crypto";
 import { buildReadinessPayload } from "@/app/api/readiness/route";
 
@@ -22,7 +24,12 @@ function deploymentFields() {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  // Deployment, encryption and readiness diagnostics are private.
+  const expected = operationalSecret("readiness");
+  if (!expected || !constantTimeSecretEqual(request.headers.get("x-readiness-token"), expected)) {
+    return Response.json({ error: "Not found." }, { status: 404, headers: { "Cache-Control": "no-store" } });
+  }
   try {
     const payload = await buildReadinessPayload();
     const gates = Array.isArray(payload.gates) ? payload.gates : [];
