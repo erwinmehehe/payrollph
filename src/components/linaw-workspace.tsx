@@ -424,6 +424,7 @@ export function LinawWorkspace({ initialData, pilotFocusEnabled = false }: { ini
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
                 readiness={data.firstPayrollReadiness}
+                allowedPages={availablePages}
                 onSettings={setSettingsInitialTab}
                 onPage={setPage}
                 onNewRun={() => setNewPayrollOpen(true)}
