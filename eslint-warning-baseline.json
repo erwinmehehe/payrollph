@@ -20,9 +20,6 @@
   "src/components/migration-center.tsx": {
     "react-hooks/exhaustive-deps": 1
   },
-  "src/components/payout-profiles-panel.tsx": {
-    "react-hooks/exhaustive-deps": 1
-  },
   "src/components/self-service-portal.tsx": {
     "@next/next/no-location-assign-relative-destination": 1
   },
