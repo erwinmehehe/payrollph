@@ -1,9 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Check, Clock3, Gauge, RefreshCcw, ShieldCheck, UsersRound, X } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Segmented, Spinner, Status } from "./ui";
+import { useScopedAsyncResource } from "./use-scoped-async-resource";
+import { resolveScopedOption, type ScopedOptionSelection } from "@/lib/scoped-option-selection";
+import { pendingReviewSelection, type ScopedReviewSelection } from "@/lib/scoped-review-selection";
 
 type OvertimeRequestRow = {
   id: number;
@@ -72,23 +75,20 @@ export function WorkforceOvertimePanel({
   notify: Notify;
 }) {
   const organizationId = data.selectedOrganization.id;
-  const [requests, setRequests] = useState<OvertimeRequestRow[]>([]);
-  const [budgets, setBudgets] = useState<OvertimeBudgetRow[]>([]);
-  const [managers, setManagers] = useState<OvertimeManager[]>([]);
-  const [canManageBudgets, setCanManageBudgets] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [filter, setFilter] = useState<"pending" | "all">("pending");
-  const [selectedRequestIds, setSelectedRequestIds] = useState<Set<number>>(new Set());
+  const [requestSelection, setRequestSelection] = useState<ScopedReviewSelection | null>(null);
 
-  const [employeeId, setEmployeeId] = useState<number>(data.employees[0]?.id ?? 0);
+  const [employeeSelection, setEmployeeSelection] = useState<ScopedOptionSelection | null>(null);
+  const employeeId = Number(resolveScopedOption(employeeSelection, organizationId, data.employees));
   const [workDate, setWorkDate] = useState(todayManila());
   const [requestedMinutes, setRequestedMinutes] = useState("60");
   const [requestKind, setRequestKind] = useState("pre_approved");
   const [reason, setReason] = useState("Operational overtime requirement");
 
-  const [budgetOrgUnitId, setBudgetOrgUnitId] = useState<number>(data.orgUnits?.[0]?.id ?? 0);
-  const [budgetManagerUserId, setBudgetManagerUserId] = useState<number | null>(null);
+  const [budgetUnitSelection, setBudgetUnitSelection] = useState<ScopedOptionSelection | null>(null);
+  const budgetOrgUnitId = Number(resolveScopedOption(budgetUnitSelection, organizationId, data.orgUnits ?? []));
+  const [budgetManagerSelection, setBudgetManagerSelection] = useState<ScopedOptionSelection | null>(null);
   const [budgetMonthStart, setBudgetMonthStart] = useState(currentMonthStart());
   const [budgetHours, setBudgetHours] = useState("40");
   const [budgetMode, setBudgetMode] = useState("advisory");
@@ -101,41 +101,38 @@ export function WorkforceOvertimePanel({
     () => new Map((data.orgUnits ?? []).map((unit) => [unit.id, unit])),
     [data.orgUnits],
   );
+  const scopeKey = JSON.stringify([organizationId, data.access?.role, data.access?.companyWide, data.access?.orgUnitName]);
+  const fetchOvertime = useCallback(async (signal: AbortSignal) => {
+    const response = await fetch(`/api/workforce/overtime?organizationId=${organizationId}`, {
+      cache: "no-store", signal,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error ?? "Could not load overtime requests.");
+    return {
+      requests: (Array.isArray(body.requests) ? body.requests : []) as OvertimeRequestRow[],
+      budgets: (Array.isArray(body.budgets) ? body.budgets : []) as OvertimeBudgetRow[],
+      managers: (Array.isArray(body.managers) ? body.managers : []) as OvertimeManager[],
+      canManageBudgets: body.canManageBudgets === true,
+    };
+  }, [organizationId]);
+  const onLoadError = useCallback((error: Error) => notify(error.message, "err"), [notify]);
+  const { data: payload, error: loadError, loading, reload: load } =
+    useScopedAsyncResource(scopeKey, fetchOvertime, onLoadError);
+  const requests = useMemo(() => payload?.requests ?? [], [payload]);
+  const budgets = payload?.budgets ?? [];
+  const managers = useMemo(() => payload?.managers ?? [], [payload]);
+  const canManageBudgets = payload?.canManageBudgets === true;
+  const selectedRequestIds = pendingReviewSelection(requestSelection, scopeKey, requests);
   const managerMap = useMemo(
     () => new Map(managers.map((manager) => [manager.userId, manager])),
     [managers],
   );
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/workforce/overtime?organizationId=${organizationId}`, {
-        cache: "no-store",
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error ?? "Could not load overtime requests.");
-      setRequests(Array.isArray(body.requests) ? body.requests : []);
-      setBudgets(Array.isArray(body.budgets) ? body.budgets : []);
-      setManagers(Array.isArray(body.managers) ? body.managers : []);
-      setCanManageBudgets(body.canManageBudgets === true);
-      setSelectedRequestIds((current) => {
-        const pendingIds = new Set(
-          (Array.isArray(body.requests) ? body.requests : [])
-            .filter((request: OvertimeRequestRow) => request.status === "pending")
-            .map((request: OvertimeRequestRow) => request.id),
-        );
-        return new Set([...current].filter((id) => pendingIds.has(id)));
-      });
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not load overtime requests.", "err");
-    } finally {
-      setLoading(false);
-    }
-  }, [notify, organizationId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const budgetManagerChoice = resolveScopedOption(budgetManagerSelection, organizationId, [
+    { id: 0 },
+    ...managers.filter((manager) => manager.orgUnitId == null || manager.orgUnitId === budgetOrgUnitId)
+      .map((manager) => ({ id: manager.userId })),
+  ]);
+  const budgetManagerUserId = budgetManagerChoice && Number(budgetManagerChoice) !== 0 ? Number(budgetManagerChoice) : null;
 
   async function mutate(
     action: "create_request" | "decide_request" | "bulk_decide_requests" | "upsert_budget",
@@ -166,7 +163,7 @@ export function WorkforceOvertimePanel({
         return false;
       }
       await load();
-      setSelectedRequestIds(new Set());
+      setRequestSelection((current) => current?.scopeKey === scopeKey ? null : current);
       notify(success);
       if (Array.isArray(body.budgetWarnings) && body.budgetWarnings.length > 0) {
         notify(body.budgetWarnings.join(" "), "info");
@@ -222,11 +219,12 @@ export function WorkforceOvertimePanel({
     const hours = Number(budgetHours);
     if (
       !budgetOrgUnitId
+      || !budgetManagerChoice
       || !/^\d{4}-\d{2}-01$/.test(budgetMonthStart)
       || !Number.isFinite(hours)
       || hours < 0
     ) {
-      notify("Organization unit, month, and a non-negative OT-hours budget are required.", "err");
+      notify("Organization unit, budget owner, month, and a non-negative OT-hours budget are required.", "err");
       return;
     }
     await mutate("upsert_budget", {
@@ -251,24 +249,25 @@ export function WorkforceOvertimePanel({
   const exceededBudgets = budgets.filter((budget) => budget.exceeded).length;
 
   function toggleRequest(id: number) {
-    setSelectedRequestIds((current) => {
-      const next = new Set(current);
+    setRequestSelection((current) => {
+      const next = pendingReviewSelection(current, scopeKey, requests);
       if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+      else if (requests.some((request) => request.id === id && request.status === "pending")) next.add(id);
+      return { scopeKey, ids: next };
     });
   }
 
   function toggleAllPending() {
-    setSelectedRequestIds((current) => {
-      const allSelected = pendingVisibleIds.length > 0 && pendingVisibleIds.every((id) => current.has(id));
-      if (allSelected) return new Set();
-      return new Set(pendingVisibleIds);
+    setRequestSelection((current) => {
+      const selected = pendingReviewSelection(current, scopeKey, requests);
+      const allSelected = pendingVisibleIds.length > 0 && pendingVisibleIds.every((id) => selected.has(id));
+      return { scopeKey, ids: new Set(allSelected ? [] : pendingVisibleIds) };
     });
   }
 
   return (
     <section style={{ marginTop: 16 }}>
+      {loadError && <div className="notice notice-red" role="alert">{loadError.message}</div>}
       <div className="card-header" style={{ padding: "0 0 12px" }}>
         <div>
           <div className="card-kicker">Enterprise OT control</div>
@@ -306,17 +305,19 @@ export function WorkforceOvertimePanel({
           <div className="setting-form">
             <label>
               Organization unit
-              <select value={budgetOrgUnitId || ""} onChange={(event) => setBudgetOrgUnitId(Number(event.target.value))}>
+              <select value={budgetOrgUnitId || ""} onChange={(event) => setBudgetUnitSelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose an organization unit</option>
                 {(data.orgUnits ?? []).map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
               </select>
             </label>
             <label>
               Budget owner
               <select
-                value={budgetManagerUserId ?? ""}
-                onChange={(event) => setBudgetManagerUserId(event.target.value ? Number(event.target.value) : null)}
+                value={budgetManagerChoice}
+                onChange={(event) => setBudgetManagerSelection({ organizationId, value: event.target.value })}
               >
-                <option value="">Department-wide</option>
+                <option value="">Choose a budget owner</option>
+                <option value="0">Department-wide</option>
                 {managers
                   .filter((manager) => manager.orgUnitId == null || manager.orgUnitId === budgetOrgUnitId)
                   .map((manager) => <option key={manager.userId} value={manager.userId}>{manager.name} · {manager.role}</option>)}
@@ -333,7 +334,7 @@ export function WorkforceOvertimePanel({
             </label>
           </div>
           <div className="run-actions">
-            <button className="primary-button brand" disabled={saving !== null || !budgetOrgUnitId} onClick={() => void saveBudget()}>
+            <button className="primary-button brand" disabled={saving !== null || !budgetOrgUnitId || !budgetManagerChoice} onClick={() => void saveBudget()}>
               {saving === "budget" ? <Spinner label="Saving" /> : <Gauge size={14} />} Save OT budget
             </button>
           </div>
@@ -383,7 +384,8 @@ export function WorkforceOvertimePanel({
           <div className="setting-form">
             <label>
               Employee
-              <select value={employeeId || ""} onChange={(event) => setEmployeeId(Number(event.target.value))}>
+              <select value={employeeId || ""} onChange={(event) => setEmployeeSelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose an employee</option>
                 {data.employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.firstName} {employee.lastName}</option>
                 ))}
@@ -401,7 +403,7 @@ export function WorkforceOvertimePanel({
             <label>Reason<input value={reason} maxLength={240} onChange={(event) => setReason(event.target.value)} /></label>
           </div>
           <div className="run-actions">
-            <button className="primary-button brand" disabled={saving !== null} onClick={() => void createRequest()}>
+            <button className="primary-button brand" disabled={saving !== null || !employeeId} onClick={() => void createRequest()}>
               {saving === "create" ? <Spinner label="Saving" /> : <ShieldCheck size={14} />} Submit for review
             </button>
           </div>
