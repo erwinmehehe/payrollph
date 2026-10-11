@@ -19,7 +19,8 @@ export async function GET(request: Request) {
   });
   const auth = cronAuthorization(request);
   if (auth === "misconfigured") {
-    emit("cron-misconfigured");
+    // No trusted caller can be identified without a configured secret.
+    // Avoid attacker-triggered per-request error logs; the 503 is monitored.
     return Response.json({ ok: false, error: "Cron credentials are not configured." }, { status: 503, headers });
   }
   if (auth !== "authorized") {
