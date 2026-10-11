@@ -276,6 +276,14 @@
   color: #697b72;
   line-height: 1.5;
 }
+.app-shell.clean-shell.premium-phase-one .p2-approval-actions .primary-button.brand {
+  background: #086b5b;
+  color: #fff;
+  border-color: #086b5b;
+}
+.app-shell.clean-shell.premium-phase-one .p2-approval-actions .primary-button.brand:hover {
+  background: #065346;
+}
 .app-shell.clean-shell.premium-phase-one .p2-approval-queue {
   border-color: #e5eee7;
   border-radius: 14px;
