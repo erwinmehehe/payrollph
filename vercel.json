@@ -4,8 +4,8 @@
     "deploymentEnabled": {
       "**": false,
       "main": true,
-      "staging": true,
-      "preview": true
+      "staging": false,
+      "preview": false
     }
   },
   "crons": [
