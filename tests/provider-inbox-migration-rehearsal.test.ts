@@ -7,7 +7,7 @@ import { decryptBankAccount, encryptBankAccount } from "../src/lib/bank-account-
 
 test("0110 rehearses on empty and encrypted synthetic schemas without changing bank evidence", async () => {
   const client = await pool.connect();
-  const key = { BANK_DATA_ENCRYPTION_KEY: "11".repeat(32) };
+  const key: NodeJS.ProcessEnv = { NODE_ENV: "test", BANK_DATA_ENCRYPTION_KEY: "11".repeat(32) };
   const account = encryptBankAccount("PILOT-MIGRATION-ONLY", key);
   const migration = readFileSync("drizzle/0110_provider_events_inbox.sql", "utf8");
   try {
