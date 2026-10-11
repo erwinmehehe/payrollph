@@ -134,11 +134,6 @@
       "count": 1
     }
   },
-  "src/components/migration-center.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/payout-profiles-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 2
