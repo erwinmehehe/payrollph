@@ -1,6 +1,6 @@
 import { getSessionUser } from "@/lib/auth";
 import {
-  denyHcmOrgExplorer, hcmOrgExplorerJson, hcmOrgExplorerPositiveId,
+  denyHcmOrgExplorer, hcmOrgExplorerEnabledForEmployer, hcmOrgExplorerJson, hcmOrgExplorerPositiveId,
 } from "@/lib/hcm-org-explorer-access";
 import { loadHcmOrgExplorer, OrgExplorerPreviewLimitError } from "@/lib/hcm-org-explorer-server";
 
@@ -19,8 +19,10 @@ export async function GET(request: Request) {
   );
   if (!organizationId) return hcmOrgExplorerJson({ error: "Valid organizationId required." }, 400);
 
+  if (!hcmOrgExplorerEnabledForEmployer(organizationId)) return hcmOrgExplorerJson({ error: "Not found." }, 404);
+
   const denied = await denyHcmOrgExplorer(user.id, organizationId);
-  if (denied) return denied;
+  if (denied) return hcmOrgExplorerJson({ error: "Workspace access denied." }, denied.status);
 
   try {
     return hcmOrgExplorerJson(await loadHcmOrgExplorer(organizationId));
