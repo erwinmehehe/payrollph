@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, provisioningTasks } from "@/db/schema";
+import { assets, employees, itAccessGrants, itManagedDevices, provisioningTasks } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { ensureLifecycleProvisioning } from "@/lib/provisioning";
@@ -65,6 +65,8 @@ export async function PATCH(request: Request) {
   const [target] = await db.select({
     organizationId: provisioningTasks.organizationId,
     employeeId: provisioningTasks.employeeId,
+    kind: provisioningTasks.kind,
+    title: provisioningTasks.title,
   }).from(provisioningTasks).where(and(
     eq(provisioningTasks.id, id),
     eq(provisioningTasks.organizationId, organizationId),
@@ -89,6 +91,34 @@ export async function PATCH(request: Request) {
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
   } else if (!access.companyWide) {
     return Response.json({ error: "Unit-scoped roles cannot update company-wide provisioning tasks." }, { status: 403 });
+  }
+
+  if (done && target.kind === "offboarding") {
+    if (target.title.startsWith("Revoke email")) {
+      const grants = await db.select({ state: itAccessGrants.state }).from(itAccessGrants).where(and(
+        eq(itAccessGrants.organizationId, target.organizationId),
+        eq(itAccessGrants.employeeId, target.employeeId),
+      ));
+      if (grants.some(grant => grant.state !== "revoked")) {
+        return Response.json({ error: "App access is not fully revoked. Confirm revocation in IT Operations before completing the IT checklist." }, { status: 409 });
+      }
+    }
+    if (target.title.startsWith("Recover laptop")) {
+      const [devices, issued] = await Promise.all([
+        db.select({ state: itManagedDevices.state }).from(itManagedDevices).where(and(
+          eq(itManagedDevices.organizationId, target.organizationId),
+          eq(itManagedDevices.employeeId, target.employeeId),
+        )),
+        db.select({ status: assets.status }).from(assets).where(and(
+          eq(assets.organizationId, target.organizationId),
+          eq(assets.employeeId, target.employeeId),
+        )),
+      ]);
+      if (devices.some(device => !["returned", "available", "retired"].includes(device.state))
+          || issued.length > 0) {
+        return Response.json({ error: "Assigned company equipment is outstanding. Confirm recovery in IT Operations before completing this checklist." }, { status: 409 });
+      }
+    }
   }
 
   const [row] = await db.update(provisioningTasks).set({
