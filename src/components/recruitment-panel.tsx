@@ -93,9 +93,11 @@ function peso(value: number | string | null | undefined) {
 export function RecruitmentPanel({
   organizationId,
   setNotice,
+  onHired,
 }: {
   organizationId: number;
   setNotice: (message: string) => void;
+  onHired?: () => Promise<void>;
 }) {
   const [requisitions, setRequisitions] = useState<Requisition[]>([]);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
@@ -250,6 +252,16 @@ export function RecruitmentPanel({
 
       setHiringApplicant(null);
       await load();
+      // A successful hire must refresh the parent employee/provisioning snapshot.
+      // An unsuccessful refresh never rolls back or resubmits the source hire.
+      try {
+        await onHired?.();
+      } catch {
+        setNotice(
+          `Employee ${payload.employee.employeeNo} was created, but the HR workspace could not refresh. Reload the workspace to view the onboarding checklist. Do not resubmit the hire.`,
+        );
+        return;
+      }
       setNotice(
         `${payload.employee.firstName} ${payload.employee.lastName} is now employee ${payload.employee.employeeNo}, assigned to ${payload.position.code}, with onboarding created.`,
       );
