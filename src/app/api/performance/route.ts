@@ -27,6 +27,7 @@ import {
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { validateGoalParent } from "@/lib/hcm-performance-goal-parent";
 
 export const dynamic = "force-dynamic";
 
@@ -644,18 +645,17 @@ export async function POST(request: Request) {
         eq(performanceGoals.organizationId, organizationId),
       )).limit(1);
       if (!parent) return Response.json({ error: "Parent goal not found in this workspace." }, { status: 404 });
-      if (parent.scope === "employee") {
-        return Response.json({ error: "Employee goals cannot be used as parents in the company → team → employee hierarchy." }, { status: 400 });
-      }
-      if (scope === "team" && parent.scope !== "company") {
-        return Response.json({ error: "Team goals may only cascade from a company goal." }, { status: 400 });
-      }
-      if (scope === "employee" && parent.scope === "team" && employee?.orgUnitId !== parent.orgUnitId) {
-        return Response.json({ error: "An employee goal can only cascade from a team goal in that employee's org unit." }, { status: 400 });
-      }
-      if (cycleId && parent.cycleId && parent.cycleId !== cycleId) {
-        return Response.json({ error: "Parent and child goals must belong to the same performance cycle." }, { status: 400 });
-      }
+      const parentError = validateGoalParent({
+        scope,
+        employeeOrgUnitId: employee?.orgUnitId ?? null,
+        cycleId,
+      }, {
+        scope: parent.scope,
+        orgUnitId: parent.orgUnitId,
+        cycleId: parent.cycleId,
+      });
+      if (parentError) return Response.json({ error: parentError }, { status: 400 });
+
     }
 
     const [row] = await db.insert(performanceGoals).values({

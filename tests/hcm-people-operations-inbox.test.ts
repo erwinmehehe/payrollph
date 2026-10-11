@@ -271,6 +271,7 @@ test("People UI preserves existing lifecycle tools and supports safe navigation"
   assert.ok(source.includes("Leave account number blank to keep the saved destination"));
   assert.ok(inbox.includes("onPage(row.page)"));
   assert.ok(inbox.includes("controller.abort()"));
-  assert.ok(inbox.includes("response?.organizationId === organizationId"));
+  assert.ok(inbox.includes("JSON.stringify([organizationId, filters, refreshVersion])"));
+  assert.ok(inbox.includes("response?.key === requestKey"));
   assert.ok(!inbox.includes('method: "POST"'));
 });

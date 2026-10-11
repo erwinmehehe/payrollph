@@ -1,10 +1,11 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, provisioningTasks } from "@/db/schema";
+import { assets, employees, itAccessGrants, itManagedDevices, provisioningTasks } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { ensureLifecycleProvisioning } from "@/lib/provisioning";
+import { parseScopedProvisioningMutation } from "@/lib/scoped-provisioning-mutation";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
@@ -54,24 +55,39 @@ export async function PATCH(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
-  const id = Number(body.id);
-  const done = Boolean(body.done);
-  if (!Number.isInteger(id)) return Response.json({ error: "id is required." }, { status: 400 });
+  const mutation = parseScopedProvisioningMutation(body);
+  if (!mutation) return Response.json({
+    error: "Positive numeric task, employer, and worker IDs plus a boolean done value are required.",
+  }, { status: 400 });
+  const { id, organizationId, employeeId, done } = mutation;
 
-  const [target] = await db.select({ organizationId: provisioningTasks.organizationId, employeeId: provisioningTasks.employeeId }).from(provisioningTasks).where(eq(provisioningTasks.id, id)).limit(1);
-  if (!target) return Response.json({ error: "Task not found." }, { status: 404 });
+  // Authorize the claimed employer before looking up any task identity.
+  // A task in a foreign employer must not be an existence oracle.
   const deniedTask = await assertOrganizationRole(
     user.id,
-    target.organizationId,
+    organizationId,
     PEOPLE_ADMIN_ROLES,
     "Your role is not allowed to update provisioning tasks.",
   );
   if (deniedTask) return deniedTask;
-  const access = await getAccess(user.id, target.organizationId);
+  const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+
+  // Bind the task lookup to the already-authorized employer and worker.
+  const [target] = await db.select({
+    organizationId: provisioningTasks.organizationId,
+    employeeId: provisioningTasks.employeeId,
+    kind: provisioningTasks.kind,
+    title: provisioningTasks.title,
+  }).from(provisioningTasks).where(and(
+    eq(provisioningTasks.id, id),
+    eq(provisioningTasks.organizationId, organizationId),
+    eq(provisioningTasks.employeeId, employeeId),
+  )).limit(1);
+  if (!target) return Response.json({ error: "Task not found." }, { status: 404 });
   if (target.employeeId != null) {
     const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees)
-      .where(eq(employees.id, target.employeeId))
+      .where(and(eq(employees.id, target.employeeId), eq(employees.organizationId, organizationId)))
       .limit(1);
     if (!employee) return Response.json({ error: "Employee not found for this provisioning task." }, { status: 404 });
     const scope = assertScope(access, employee.orgUnitId);
@@ -80,13 +96,74 @@ export async function PATCH(request: Request) {
     return Response.json({ error: "Unit-scoped roles cannot update company-wide provisioning tasks." }, { status: 403 });
   }
 
-  const [row] = await db.update(provisioningTasks).set({
-    done,
-    completedAt: done ? new Date() : null,
-    completedBy: done ? user.name : null,
-  }).where(eq(provisioningTasks.id, id)).returning();
+  if (done && target.kind === "offboarding") {
+    if (target.title.startsWith("Revoke email")) {
+      const grants = await db.select({ state: itAccessGrants.state }).from(itAccessGrants).where(and(
+        eq(itAccessGrants.organizationId, target.organizationId),
+        eq(itAccessGrants.employeeId, target.employeeId),
+      ));
+      if (grants.some(grant => grant.state !== "revoked")) {
+        return Response.json({ error: "App access is not fully revoked. Confirm revocation in IT Operations before completing the IT checklist." }, { status: 409 });
+      }
+    }
+    if (target.title.startsWith("Recover laptop")) {
+      const [devices, issued] = await Promise.all([
+        db.select({ state: itManagedDevices.state }).from(itManagedDevices).where(and(
+          eq(itManagedDevices.organizationId, target.organizationId),
+          eq(itManagedDevices.employeeId, target.employeeId),
+        )),
+        db.select({ status: assets.status }).from(assets).where(and(
+          eq(assets.organizationId, target.organizationId),
+          eq(assets.employeeId, target.employeeId),
+        )),
+      ]);
+      if (devices.some(device => !["returned", "available", "retired"].includes(device.state))
+          || issued.length > 0) {
+        return Response.json({ error: "Assigned company equipment is outstanding. Confirm recovery in IT Operations before completing this checklist." }, { status: 409 });
+      }
+    }
+  }
 
-  if (!row) return Response.json({ error: "Task not found." }, { status: 404 });
+  // Keep the employee's authorized unit stable until the task update commits.
+  // FOR SHARE conflicts with an employee reassignment UPDATE, so a scope
+  // decision cannot go stale between this locked read and the task write.
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`select id from employees
+      where id = ${employeeId} and organization_id = ${organizationId} for share`);
+    const [freshEmployee] = await tx.select({ orgUnitId: employees.orgUnitId }).from(employees)
+      .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))
+      .limit(1);
+    if (!freshEmployee) return { status: "missing_employee" as const };
+    if (!assertScope(access, freshEmployee.orgUnitId).ok) {
+      return { status: "scope_changed" as const };
+    }
+    const [updated] = await tx.update(provisioningTasks).set({
+      done,
+      completedAt: done ? new Date() : null,
+      completedBy: done ? user.name : null,
+    }).where(and(
+      eq(provisioningTasks.id, id),
+      eq(provisioningTasks.organizationId, organizationId),
+      eq(provisioningTasks.employeeId, employeeId),
+    )).returning();
+    return updated
+      ? { status: "updated" as const, row: updated }
+      : { status: "missing_task" as const };
+  });
+
+  if (result.status === "scope_changed") {
+    return Response.json({
+      code: "PROVISIONING_WORKER_UNIT_CHANGED",
+      error: "The employee's assigned unit changed during review. Refresh the checklist.",
+    }, { status: 409 });
+  }
+  if (result.status === "missing_employee") {
+    return Response.json({ error: "Employee not found for this provisioning task." }, { status: 404 });
+  }
+  if (result.status === "missing_task") {
+    return Response.json({ error: "Task not found." }, { status: 404 });
+  }
+  const { row } = result;
 
   await recordAuditEvent({
     organizationId: row.organizationId,

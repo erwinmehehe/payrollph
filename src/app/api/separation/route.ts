@@ -4,6 +4,9 @@ import { and, desc, eq, gte, inArray, isNull, like, lte, sql } from "drizzle-orm
 import { db } from "@/db";
 import {
   auditEvents,
+  assets,
+  itAccessGrants,
+  itManagedDevices,
   employeeLoans,
   employeePayProfiles,
   employees,
@@ -40,6 +43,8 @@ import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { runLifecycleAutomations } from "@/lib/automation";
+import { requestOffboardingIT } from "@/lib/it-offboarding";
+import { seedProvisioning } from "@/lib/provisioning";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
 import { freezeSeparationIntent, separationEvidenceFromDefinition, separationIntentFingerprint, type HcmSeparationIntent } from "@/lib/hcm-separation-business-process";
@@ -919,10 +924,21 @@ export async function POST(request: Request) {
       return record;
     }, { isolationLevel: "serializable" });
 
+    // HR separation is committed. IT revocations and device recovery are requests,
+    // never remote actions. Failures cannot roll back committed payroll/final-pay state.
+    const itWarnings: string[] = [];
+    try {
+      await seedProvisioning(organizationId, employeeId, "offboarding");
+      await requestOffboardingIT(organizationId, employeeId);
+    } catch (error) {
+      itWarnings.push("IT offboarding requests could not be queued. Open IT Operations and retry reconciliation.");
+      console.error("IT offboarding queue failed for committed separation:", error);
+    }
     return Response.json({
       ...created,
       approvalRequired: false,
       businessProcess: separationProcess ? { id: separationProcess.id, status: "applied" } : null,
+      ...(itWarnings.length ? { itWarnings } : {}),
     }, { status: 201 });
   } catch (error) {
     if (isRetryableFinalPayConflict(error)) {
@@ -1076,6 +1092,23 @@ export async function PATCH(request: Request) {
           throw new Error("SEPARATION_CLEARANCE_STALE");
         }
         if (requested === previous) return fresh;
+        if (field === "itCleared" && requested) {
+          // Clearing IT while a registered account or company laptop is
+          // outstanding is not an operator attestation we can trust.
+          const [grants, devices, assignedAssets] = await Promise.all([
+            tx.select({ id: itAccessGrants.id, state: itAccessGrants.state }).from(itAccessGrants)
+              .where(and(eq(itAccessGrants.organizationId, sep.organizationId), eq(itAccessGrants.employeeId, sep.employeeId))),
+            tx.select({ id: itManagedDevices.id, state: itManagedDevices.state }).from(itManagedDevices)
+              .where(and(eq(itManagedDevices.organizationId, sep.organizationId), eq(itManagedDevices.employeeId, sep.employeeId))),
+            tx.select({ id: assets.id, status: assets.status }).from(assets)
+              .where(and(eq(assets.organizationId, sep.organizationId), eq(assets.employeeId, sep.employeeId))),
+          ]);
+          if (grants.some(g => g.state !== "revoked")
+            || devices.some(d => !["returned", "available", "retired"].includes(d.state))
+            || assignedAssets.length > 0) {
+            throw new Error("SEPARATION_IT_RECOVERY_PENDING");
+          }
+        }
         const next = {
           itCleared: field === "itCleared" ? requested : fresh.itCleared,
           adminCleared: field === "adminCleared" ? requested : fresh.adminCleared,
@@ -1110,7 +1143,13 @@ export async function PATCH(request: Request) {
       return Response.json(updated);
     } catch (error) {
       const code = error instanceof Error ? error.message : "";
-      if (code === "SEPARATION_CLEARANCE_LOCKED" || code === "SEPARATION_CLEARANCE_STALE") {
+      if (code === "SEPARATION_IT_RECOVERY_PENDING") {
+        return Response.json({
+          code,
+          error: "IT clearance is blocked. Revoke remaining application access and recover or resolve issued devices in IT Operations first.",
+        }, { status: 409 });
+      }
+            if (code === "SEPARATION_CLEARANCE_LOCKED" || code === "SEPARATION_CLEARANCE_STALE") {
         return Response.json({
           code,
           error: code === "SEPARATION_CLEARANCE_LOCKED"

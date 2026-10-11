@@ -19,6 +19,8 @@ import {
   employeePayRetroAdjustments,
   employees,
   hcmBusinessProcessDefinitions,
+  itManagedDevices,
+  itDeviceEvents,
   legalEntities,
   payrollEntries,
   payrollRuns,
@@ -305,16 +307,25 @@ export async function POST(request: Request) {
 
   let assignedAsset = null;
   if (body.assetName) {
-    const [asset] = await db.insert(assets).values({
-      organizationId,
-      employeeId: created.id,
-      type: String(body.assetType ?? "Laptop"),
-      name: String(body.assetName),
-      serialNumber: body.serialNumber ? String(body.serialNumber) : null,
-      status: "assigned",
-      assignedOn: startDate,
-    }).returning();
-    assignedAsset = asset;
+    assignedAsset = await db.transaction(async tx => {
+      const [asset] = await tx.insert(assets).values({
+        organizationId,
+        employeeId: created.id,
+        type: String(body.assetType ?? "Laptop"),
+        name: String(body.assetName),
+        serialNumber: body.serialNumber ? String(body.serialNumber) : null,
+        status: "assigned",
+        assignedOn: startDate,
+      }).returning();
+      const [device] = await tx.insert(itManagedDevices).values({
+        organizationId, assetId: asset.id, employeeId: created.id, state: "assigned",
+      }).returning();
+      await tx.insert(itDeviceEvents).values({
+        organizationId, deviceId: device.id, employeeId: created.id,
+        eventType: "onboarding_assigned", actorUserId: user.id,
+      });
+      return asset;
+    });
   }
 
   await recordAuditEvent({

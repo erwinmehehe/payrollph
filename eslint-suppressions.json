@@ -1,9 +1,4 @@
 {
-  "src/app/hcm/work-items/page.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/approval-chain-admin.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -89,16 +84,6 @@
       "count": 1
     }
   },
-  "src/components/hcm-my-team.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/hcm-people-operations-inbox.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/hcm-probation-review-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -110,11 +95,6 @@
     }
   },
   "src/components/hcm-self-probation-reviews.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/hcm-worker-360.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
@@ -132,16 +112,6 @@
   "src/components/linaw-workspace.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
-    }
-  },
-  "src/components/migration-center.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/payout-profiles-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 2
     }
   },
   "src/components/payroll-overpayment-preview-panel.tsx": {
@@ -215,11 +185,6 @@
     }
   },
   "src/components/treasury-controls-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/web-bundy-modal.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
@@ -374,29 +339,9 @@
       "count": 2
     }
   },
-  "src/components/workspace/workforce-overtime-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/workspace/workforce-planner.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 4
-    }
-  },
-  "src/components/workspace/workforce-schedule-guardrails-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/workspace/workforce-schedule-receipt-review.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/workspace/workforce-schedule-swap-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
     }
   }
 }

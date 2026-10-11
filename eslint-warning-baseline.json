@@ -1,0 +1,35 @@
+{
+  "src/components/auth-screen.tsx": {
+    "@next/next/no-location-assign-relative-destination": 1
+  },
+  "src/components/employee-schedule-receipts.tsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "src/components/hcm-employment-lifecycle-worker.tsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "src/components/interactive-welcome.tsx": {
+    "@next/next/no-location-assign-relative-destination": 2
+  },
+  "src/components/invite-accept-form.tsx": {
+    "@next/next/no-location-assign-relative-destination": 1
+  },
+  "src/components/linaw-workspace.tsx": {
+    "@next/next/no-location-assign-relative-destination": 2
+  },
+  "src/components/migration-center.tsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "src/components/self-service-portal.tsx": {
+    "@next/next/no-location-assign-relative-destination": 1
+  },
+  "src/components/workspace/hr-payroll-readiness.tsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "src/components/workspace/labor-costing-panel.tsx": {
+    "react-hooks/exhaustive-deps": 1
+  },
+  "src/components/workspace/panels.tsx": {
+    "@next/next/no-location-assign-relative-destination": 1
+  }
+}

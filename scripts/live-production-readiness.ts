@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 
 const baseUrl = (process.env.PRODUCTION_BASE_URL ?? "").replace(/\/$/, "");
-const token = process.env.PRODUCTION_READINESS_TOKEN ?? "";
+const token = (process.env.PRODUCTION_READINESS_TOKEN ?? "").trim();
 const rolloutMode =
   process.env.ROLLOUT_MODE === "full"
     ? "full"
@@ -57,19 +57,19 @@ const blockerRemediation: Record<string, Omit<Remediation, "key">> = {
   },
   "gov-bir-alphalist": {
     owner: "compliance",
-    action: "Use the generated BIR file/extract with the agency workflow and record an accepted file-upload validation with its agency reference.",
+    action: "Validate and submit the official annual 1604-C Alphalist/DAT through the applicable BIR workflow and retain authentic agency acknowledgement. PayrollPH source worksheets are not certified DAT files. Form 2316 employee issuance must be evidenced separately.",
   },
   "gov-sss-r3": {
     owner: "compliance",
-    action: "Upload the generated SSS R-3 file and record an accepted validation with the PRN or acknowledgement reference.",
+    action: "Use the official My.SSS employer e-CL/PRN workflow or SSS R-3 generator, reconcile member contributions and keep actual agency acceptance, PRN and payment/posting proof. A PayrollPH R-3 CSV is only a reconciliation worksheet.",
   },
   "gov-philhealth-rf1": {
     owner: "compliance",
-    action: "Use the generated PhilHealth RF-1 file with the agency workflow and record an accepted file-upload validation with the ePAR/acknowledgement reference.",
+    action: "Reconcile employee PINs and premiums, submit through the authorized PhilHealth EPRS workflow, and retain actual acknowledgement plus payment/member-posting evidence. PayrollPH's RF-1 draft is not certified as a portal upload.",
   },
   "gov-pagibig-mcrf": {
     owner: "compliance",
-    action: "Use the generated Pag-IBIG MCRF file with the applicable employer workflow and record an accepted file-upload validation with its OPIN/confirmation reference.",
+    action: "Use the approved Pag-IBIG eSRS MSRF/remittance workflow and retain the official submission, payment and member-posting evidence. The PayrollPH MCRF worksheet must not be represented as a certified eSRS MSRF import.",
   },
 };
 
@@ -130,8 +130,8 @@ async function waitForSurface(path: string, expectedText?: RegExp) {
 async function waitForExpectedDeployment() {
   // Deployment provenance is private, even for code-only releases.
   // The operator must supply the matching live readiness secret.
-  assert.ok(token.length >= 24,
-    "PRODUCTION_READINESS_TOKEN is required to verify a private production deployment.");
+  assert.ok(token.length >= 32,
+    "PRODUCTION_READINESS_TOKEN must be a valid, protected, 32-byte-or-longer production verifier credential.");
   if (!expectedCommitSha) {
     report.deployment = {
       verified: false,
@@ -178,7 +178,7 @@ async function waitForExpectedDeployment() {
   throw new Error(
     lastDeploymentSha
       ? `Production is still serving commit ${lastDeploymentSha}; expected ${expectedCommitSha}.`
-      : "Production did not expose VERCEL_GIT_COMMIT_SHA, so this release cannot be proven as the deployed commit.",
+      : "Production did not report the expected deployment SHA. Confirm the Vercel build was not canceled by the ignored-build release hold and that the approved exact commit is promoted; no release is verified.",
   );
 }
 
@@ -334,9 +334,20 @@ async function verifySanitizedReadiness() {
 async function main() {
   assert.match(baseUrl, /^https:\/\//, "PRODUCTION_BASE_URL must be an HTTPS origin.");
 
+  // Check private prerequisites before contacting stale public aliases or
+  // spending minutes polling Vercel. Never accept a public 200 as a release.
+  if (token.length < 32) {
+    report.deployment = { verified: false, blocked: "missing-protected-verification-credential" };
+    throw new Error("Production verification BLOCKED: configure GitHub Actions PRODUCTION_READINESS_TOKEN to match the existing Vercel READINESS_TOKEN. Do not print or paste the value; production remains unverified.");
+  }
+  if (!/^[a-f0-9]{40}$/i.test(expectedCommitSha)) {
+    report.deployment = { verified: false, blocked: "missing-or-invalid-exact-commit-sha" };
+    throw new Error("Production verification BLOCKED: provide the exact reviewed 40-character deployment commit SHA.");
+  }
+
+  await waitForExpectedDeployment();
   await waitForSurface("/", /Linaw|payroll/i);
   await waitForSurface("/login", /sign in|log in|email/i);
-  await waitForExpectedDeployment();
 
   const unauthenticated = await fetchWithTimeout(`${baseUrl}/api/readiness`);
   assert.ok(
