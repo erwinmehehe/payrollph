@@ -268,7 +268,7 @@ export async function POST(request: Request) {
     // This covers both completed and clock-out-only attendance records.
     // Do not INSERT another row for a date that already has an orphan out.
     return Response.json({
-      error: `Already clocked out today at ${new Date(existingPunch.timeOut).toLocaleTimeString("en-PH", { timeZone: "Asia/Manila")}.`,
+      error: `Already clocked out today at ${new Date(existingPunch.timeOut).toLocaleTimeString("en-PH", { timeZone: "Asia/Manila" })}.`,
       code: "ATTENDANCE_ALREADY_CLOCKED_OUT",
     }, { status: 409 });
   }
