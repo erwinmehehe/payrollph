@@ -8,6 +8,7 @@ on:
       - "src/components/workspace/workforce-square-sandbox-panel.tsx"
       - "src/components/workspace/workforce-coverage-panel.tsx"
       - "tests/workforce-square-sandbox.test.ts"
+      - "tests/workforce-square-sandbox-db.test.ts"
       - "tests/fixtures/wfm-square-sandbox-browser.jsx"
       - "scripts/wfm-square-sandbox-browser.mjs"
       - ".github/workflows/wfm-square-sandbox-qa.yml"
@@ -23,6 +24,20 @@ jobs:
     env:
       CI: "true"
       TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,8 +51,13 @@ jobs:
         run: npm run lint
       - name: TypeScript
         run: npx tsc --noEmit
-      - name: Provider pagination, corrections and privacy (fictional data only)
-        run: npx tsx --test tests/workforce-square-sandbox.test.ts
+      - name: Synthetic-only encryption key
+        shell: bash
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Initialize disposable PostgreSQL 16
+        run: npm run db:push
+      - name: Square pagination, corrections and isolated source-history privacy QA
+        run: npx tsx --test --test-concurrency=1 tests/workforce-square-sandbox.test.ts tests/workforce-square-sandbox-db.test.ts
       - name: Source size gate
         run: npm run source:size:check
       - name: Next build
