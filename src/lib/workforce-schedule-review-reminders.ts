@@ -69,3 +69,12 @@ export function scheduleReviewSignals(input: {
   }
   return events;
 }
+
+/** Reject wildcard, duplicate, malformed or oversized employer activation lists. */
+export function explicitReminderEmployerIds(value: string | undefined): number[] | null {
+  if (!value || value.length > 240) return null;
+  const parts = value.split(",").map(part => part.trim());
+  if (!parts.length || parts.length > 20 || parts.some(part => !/^[1-9][0-9]{0,9}$/.test(part))) return null;
+  const numbers = parts.map(Number);
+  return numbers.every(validReceiptId) && new Set(numbers).size === numbers.length ? numbers : null;
+}
