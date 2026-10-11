@@ -66,9 +66,9 @@ async function main() {
       "Synthetic Alpha Employer", "My HCM decisions",
       "People Ops follow-ups", "Cases assigned to me", "Transfer",
       "Partial, bounded preview",
-    ]) assert.ok(alpha.includes(expected), "Missing authorized content: " + expected);
+    ]) assert.ok(alpha.toLowerCase().includes(expected.toLowerCase()), "Missing authorized content: " + expected);
     for (const forbidden of ["AlphaPrivate", "BetaPrivate", "99000.00", "Private step"]) {
-      assert.ok(!alpha.includes(forbidden), "Private source text leaked: " + forbidden);
+      assert.ok(!alpha.toLowerCase().includes(forbidden.toLowerCase()), "Private source text leaked: " + forbidden);
     }
     const source = page.getByRole("link", { name: "Open source workflow" }).first();
     await source.focus();
@@ -82,8 +82,8 @@ async function main() {
     assert.equal(await visit(page, 2), 200);
     assert.equal(await countEmployees(page), 2);
     const beta = await page.locator("main").innerText();
-    assert.ok(beta.includes("Synthetic Beta Employer") && beta.includes("Hire"));
-    assert.ok(!beta.includes("Transfer") && !beta.includes("AlphaPrivate"));
+    assert.ok(beta.toLowerCase().includes("synthetic beta employer") && beta.includes("Hire"));
+    assert.ok(!beta.includes("Transfer") && !beta.toLowerCase().includes("alphaprivate"));
     assert.equal(await visit(page, "invalid"), 404);
     assert.equal(await visit(page, ""), 404);
     await authorized.close();
