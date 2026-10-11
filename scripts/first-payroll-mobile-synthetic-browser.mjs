@@ -62,7 +62,8 @@ try {
     assert.ok(bounds.scrollWidth <= bounds.clientWidth + 1, role + " card content overflows");
     await card.getByRole("button", { name: "Open people", exact: true }).click();
     await page.locator('[data-workspace-page="People"]').waitFor({ timeout: 60000 });
-    await page.getByText("AlphaPrivate Worker", { exact: true }).first().waitFor();
+    await page.locator(".people-layout .data-table")
+      .getByText("AlphaPrivate Worker", { exact: true }).waitFor();
     assert.ok(!(await page.locator('[data-workspace-page="People"]').innerText()).includes("BetaPrivate"));
     report.checkpoints.push(role + ": seven steps, blocked incomplete setup, phone fit and People handoff");
 
