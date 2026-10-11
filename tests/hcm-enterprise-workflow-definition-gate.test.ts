@@ -53,6 +53,8 @@ test("client editor is hidden until authorized response; employer switch clears 
   assert.ok(admin.includes('response.status === 503 && data.code === "HCM_ENTITLEMENTS_UNAVAILABLE"'));
   assert.ok(admin.includes('view === "checking" || view === "restricted"'));
   assert.ok(admin.includes('if (view === "error" && !payload)'));
+  assert.equal(admin.split('setView("restricted")').length - 1, 3,
+    "Read, save, and enable/disable must all close on subscription revocation");
   assert.ok(people.includes('<HcmBusinessProcessAdmin key={data.selectedOrganization.id} organizationId={data.selectedOrganization.id} />'));
 });
 
