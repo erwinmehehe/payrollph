@@ -280,7 +280,7 @@ export function evaluatePayrollAssurance(
     const appliedTrace = tracesFor("mandatoryApplied");
     const shortfallTrace = tracesFor("mandatoryUncollected");
     const parseCents = (raw: string | undefined, allowNegative: boolean): number | null => {
-      if (raw === undefined || !(allowNegative ? /^-?\\d+(?:\\.\\d{1,2})?$/ : /^\\d+(?:\\.\\d{1,2})?$/).test(raw)) return null;
+      if (raw === undefined || !(allowNegative ? /^-?\d+(?:\.\d{1,2})?$/ : /^\d+(?:\.\d{1,2})?$/).test(raw)) return null;
       const centsAmount = Math.round(Number(raw) * 100);
       return Number.isSafeInteger(centsAmount) ? centsAmount : null;
     };
