@@ -36,3 +36,19 @@ test("event logger has no pathway to embed names, bank accounts or free text", (
   assert.equal(record.durationMs, 0);
   assert.ok(!JSON.stringify(record).includes("customer name"));
 });
+
+test("scheduler logger discards forged state text and non-v4 correlation IDs at runtime", () => {
+  const forged = schedulerOpsRecord({
+    requestId: "a".repeat(36),
+    state: "employee bank account details" as never,
+    durationMs: 1.25,
+  });
+  assert.equal(forged.requestId, "invalid");
+  assert.equal(forged.state, "cron-error");
+  assert.equal(forged.durationMs, 1);
+  assert.ok(!JSON.stringify(forged).includes("employee bank account"));
+  assert.equal(schedulerOpsRecord({
+    requestId: "12345678-1234-1234-1234-123456789abc",
+    state: "cron-started", durationMs: 0,
+  }).requestId, "invalid", "a UUID-shaped value is not necessarily the generated UUIDv4");
+});
