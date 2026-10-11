@@ -149,7 +149,8 @@ export async function GET(request: Request) {
   if (access.role === "manager" && deriveMyTeamScope(access)?.kind !== "unit") {
     return Response.json({ error: "A manager must have an assigned organizational unit." }, { status: 403 });
   }
-  if (!access.companyWide && (!Number.isSafeInteger(access.orgUnitId) || !access.orgUnitId)) {
+  if (access.role !== "employee" && !access.companyWide &&
+      (!Number.isSafeInteger(access.orgUnitId) || !access.orgUnitId)) {
     return Response.json({ error: "An assigned organizational unit is required for scoped leave access." }, { status: 403 });
   }
 
