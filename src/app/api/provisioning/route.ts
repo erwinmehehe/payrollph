@@ -61,7 +61,19 @@ export async function PATCH(request: Request) {
   }, { status: 400 });
   const { id, organizationId, employeeId, done } = mutation;
 
-  // A task ID alone must never select an employer or a different worker.
+  // Authorize the claimed employer before looking up any task identity.
+  // A task in a foreign employer must not be an existence oracle.
+  const deniedTask = await assertOrganizationRole(
+    user.id,
+    organizationId,
+    PEOPLE_ADMIN_ROLES,
+    "Your role is not allowed to update provisioning tasks.",
+  );
+  if (deniedTask) return deniedTask;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+
+  // Bind the task lookup to the already-authorized employer and worker.
   const [target] = await db.select({
     organizationId: provisioningTasks.organizationId,
     employeeId: provisioningTasks.employeeId,
@@ -73,15 +85,6 @@ export async function PATCH(request: Request) {
     eq(provisioningTasks.employeeId, employeeId),
   )).limit(1);
   if (!target) return Response.json({ error: "Task not found." }, { status: 404 });
-  const deniedTask = await assertOrganizationRole(
-    user.id,
-    target.organizationId,
-    PEOPLE_ADMIN_ROLES,
-    "Your role is not allowed to update provisioning tasks.",
-  );
-  if (deniedTask) return deniedTask;
-  const access = await getAccess(user.id, target.organizationId);
-  if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   if (target.employeeId != null) {
     const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees)
       .where(and(eq(employees.id, target.employeeId), eq(employees.organizationId, organizationId)))
