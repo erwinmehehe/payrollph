@@ -304,7 +304,7 @@ export type FilingEvidenceRow = {
  */
 export function hasRecordedAgencyAcknowledgement(row: FilingEvidenceRow): boolean {
   return Boolean(
-    row.agencyReference?.trim()
+    REFERENCE_PATTERN.test(row.agencyReference?.trim() ?? "")
     && row.submittedAt instanceof Date
     && Number.isFinite(row.submittedAt.getTime()),
   );
