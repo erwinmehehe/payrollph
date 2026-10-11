@@ -130,9 +130,6 @@
     }
   },
   "src/components/linaw-workspace.tsx": {
-    "react-hooks/preserve-manual-memoization": {
-      "count": 14
-    },
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
