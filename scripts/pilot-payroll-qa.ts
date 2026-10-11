@@ -25,6 +25,11 @@ const report: Record<string, unknown> = {
   tenant: "fresh-non-demo",
   lifecycle: [],
   externalReadinessBlockers: [],
+  independentOperatorAccepted: false,
+  realEmployerReconciled: false,
+  agencyAccepted: false,
+  physicalDeviceAccepted: false,
+  boundary: "Synthetic employee-record creation, onboarding, scheduling, historical attendance, timesheet approval, payroll review/release and draft filing evidence. Historical punches are seeded; recruitment conversion and physical clock capture remain separate gates.",
 };
 
 class ApiClient {
@@ -173,6 +178,7 @@ function assertDisposableSyntheticTarget() {
 
 async function main() {
   assertDisposableSyntheticTarget();
+  assert.equal(process.env.PAYMONGO_SECRET_KEY ?? "", "");
   assert.ok(setupToken && readinessToken, "Pilot QA tokens must be configured.");
   mkdirSync("qa-artifacts", { recursive: true });
 
@@ -270,6 +276,29 @@ async function main() {
     manualChecklistUpdatePersisted: true, independentExternalVerification: "NOT_RUN",
   };
   (report.lifecycle as string[]).push("onboarding-checklist-handoff-scoped-and-audited");
+
+  // Exercise the same onboarding source used by Recruitment and Employee 360.
+  // These are fictional checklist assertions, not witnessed employer reviews.
+  const onboardingAll = await expectOk(owner, `/api/provisioning?organizationId=${organizationId}`);
+  let completedOnboardingTasks = 0;
+  for (const person of created) {
+    const record = onboardingAll.employees.find((item: any) => Number(item.employeeId) === person.id);
+    assert.ok(record?.onboarding?.length > 0, "Created worker needs source onboarding tasks.");
+    for (const task of record.onboarding) {
+      await expectOk(owner, "/api/provisioning", { method: "PATCH", json: {
+        organizationId, employeeId: person.id, id: task.id, done: true,
+      } });
+      completedOnboardingTasks++;
+    }
+  }
+  const completedOnboarding = await expectOk(owner, `/api/provisioning?organizationId=${organizationId}`);
+  for (const person of created) {
+    const record = completedOnboarding.employees.find((item: any) => Number(item.employeeId) === person.id);
+    assert.ok(record.onboarding.every((task: any) => task.done === true));
+  }
+  report.onboardingEvidence = { workers: created.length, completedTasks: completedOnboardingTasks,
+    witnessedOperatorReview: false };
+  (report.lifecycle as string[]).push("same-worker-onboarding-completed-through-scoped-source-api");
 
   // The zero-leak synthetic CI suite tests a FINAL semi-monthly cutoff.
   // Therefore it needs an earlier RELEASED cutoff ledger for the same month
@@ -848,6 +877,10 @@ async function main() {
       `/api/compliance/filing-validations/${recordId}/file?organizationId=${organizationId}`,
     );
     assert.equal(download.status, 200, `${definition.agency} worksheet download failed.`);
+    const employeeDenied = await employee.request(
+      `/api/compliance/filing-validations/${recordId}/file?organizationId=${organizationId}`,
+    );
+    assert.equal(employeeDenied.status, 403, "Employee cannot download company filing evidence.");
     assert.match(download.headers.get("content-type") ?? "", /text\/csv/);
     const worksheet = await download.text();
     assert.match(worksheet, /DRAFT ONLY, not a certified government submission file/);

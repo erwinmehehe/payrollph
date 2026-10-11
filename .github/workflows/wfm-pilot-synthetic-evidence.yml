@@ -5,6 +5,8 @@ on:
   pull_request:
     paths:
       - "scripts/wfm-pilot-synthetic-evidence.mjs"
+      - "scripts/first-payroll-mobile-synthetic-*"
+      - "scripts/pilot-payroll-qa.ts"
       - ".github/workflows/wfm-pilot-synthetic-evidence.yml"
   workflow_dispatch:
 permissions:
