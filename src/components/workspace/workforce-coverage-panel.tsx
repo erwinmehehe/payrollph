@@ -557,14 +557,15 @@ export function WorkforceCoveragePanel({
   const futureCoverage = useMemo(() => (payload?.coverage ?? []).filter(
     (row) => row.workDate >= planningToday,
   ), [payload?.coverage, planningToday]);
+  const blockingMinimumRestMinutes = payload?.guardrailReadiness?.policy.active
+    && payload?.guardrailReadiness?.policy.enforcementMode === "block"
+    ? payload.guardrailReadiness.policy.minimumRestMinutes : undefined;
   const draftInputs = useMemo(() => ({
     allowHighWorkloadRisk: simulateHighRisk,
     // Draft-only company planning guidance; configurable governed policy is the source of truth.
     maxProjectedMinutesInWindow: 96 * 60,
     maxConsecutiveWorkingDays: 6,
-    minimumRestMinutes: payload?.guardrailReadiness?.policy.active
-      && payload?.guardrailReadiness?.policy.enforcementMode === "block"
-      ? payload.guardrailReadiness.policy.minimumRestMinutes : undefined,
+    minimumRestMinutes: blockingMinimumRestMinutes,
     requirements: futureCoverage
       .filter((row) => row.gap > 0)
       .map((row) => {
@@ -595,7 +596,7 @@ export function WorkforceCoveragePanel({
           })),
         };
       }),
-  }), [futureCoverage, payload?.shifts, payload?.guardrailReadiness?.policy, proactiveByRequirement, simulateHighRisk]);
+  }), [futureCoverage, payload?.shifts, blockingMinimumRestMinutes, proactiveByRequirement, simulateHighRisk]);
 
   const simulation = useMemo(() => planSmartRecoveryDraft({
     ...draftInputs, mode: recoveryMode,
