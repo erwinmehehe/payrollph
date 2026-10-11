@@ -1,10 +1,10 @@
-import { enforceSameOriginMutation } from "@/lib/security-request";
+import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, employees, leaveBalances, leaveConversions, leavePolicies } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
-import { approvedLeaveConversionCap, leaveConversionAllowance, validateLeaveConversionDays } from "@/lib/leave-conversion-policy";
+import { approvedLeaveConversionCap, leaveConversionAllowance, leaveConversionTaxReviewAcknowledged, validateLeaveConversionDays } from "@/lib/leave-conversion-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const organizationId = Number(url.searchParams.get("organizationId"));
   const employeeId = Number(url.searchParams.get("employeeId") ?? 0);
-  if (!Number.isInteger(organizationId)) {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 || !Number.isSafeInteger(employeeId) || employeeId < 0) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
 
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     employee: employees,
   })
     .from(leaveConversions)
-    .innerJoin(employees, eq(leaveConversions.employeeId, employees.id))
+    .innerJoin(employees, and(eq(leaveConversions.employeeId, employees.id), eq(employees.organizationId, organizationId)))
     .where(filter)
     .orderBy(desc(leaveConversions.id));
 
@@ -65,8 +65,8 @@ export async function POST(request: Request) {
   const year = Number(body.year ?? manilaYear);
 
   if (
-    !Number.isInteger(organizationId) ||
-    !Number.isInteger(employeeId) ||
+    !Number.isSafeInteger(organizationId) || organizationId <= 0 ||
+    !Number.isSafeInteger(employeeId) || employeeId <= 0 ||
     !leaveType ||
     !validateLeaveConversionDays(daysConverted) ||
     !Number.isInteger(year) || year !== manilaYear
@@ -83,6 +83,8 @@ export async function POST(request: Request) {
     "Only People or payroll administrators can approve leave cash conversions.",
   );
   if (denied) return denied;
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
 
   const [employee] = await db.select().from(employees)
     .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))
@@ -94,6 +96,13 @@ export async function POST(request: Request) {
     return Response.json({
       error: "Cash conversion is not enabled without an approved per-organization leave-type conversion cap.",
       code: "LEAVE_CONVERSION_POLICY_NOT_APPROVED",
+    }, { status: 409 });
+  }
+
+  if (!leaveConversionTaxReviewAcknowledged(organizationId)) {
+    return Response.json({
+      error: "Leave cash conversion remains disabled until the employer-specific tax treatment has been reviewed.",
+      code: "LEAVE_CONVERSION_TAX_REVIEW_REQUIRED",
     }, { status: 409 });
   }
 
@@ -150,6 +159,9 @@ export async function POST(request: Request) {
       return { error: "Employee daily rate cannot be verified.", code: "LEAVE_CONVERSION_PAY_RATE_INVALID" } as const;
     }
     const cashAmount = Number((daysConverted * dailyRate).toFixed(2));
+    if (!Number.isFinite(cashAmount) || cashAmount <= 0 || !Number.isSafeInteger(Math.round(cashAmount * 100))) {
+      return { error: "Leave cash amount exceeds safe payroll centavo limits.", code: "LEAVE_CONVERSION_AMOUNT_INVALID" } as const;
+    }
     // Existing tax-exemption policy is deliberately unchanged by this
     // reservation fix; tax classification requires separate fiscal review.
     const taxExempt = daysConverted <= 12;
