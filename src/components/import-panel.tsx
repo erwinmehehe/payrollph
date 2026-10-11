@@ -54,10 +54,10 @@ export function ImportPanel({ organizationId, onImported }: { organizationId: nu
         <div>
           <div className="card-kicker">BULK ONBOARDING</div>
           <h2>Import employees from a spreadsheet</h2>
-          <p>Import new employees only. Include each worker's actual employment Start Date (YYYY-MM-DD). Existing employee numbers are skipped; salary, bank details, positions and separations must use their approved change workflows.</p>
+          <p>Import new employees only. Include each worker&#39;s actual employment Start Date (YYYY-MM-DD). Existing employee numbers are skipped; salary, bank details, positions and separations must use their approved change workflows.</p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <a className="secondary-button" href="/api/employees/import/template"><FileSpreadsheet size={15} className="i-teal" /> Template</a>
+          <a className="secondary-button" href="/api/employees/import/template" download><FileSpreadsheet size={15} className="i-teal" /> Template</a>
           <button className="primary-button" onClick={() => setOpen(!open)}><Upload size={15} className="i-teal" /> {open ? "Close" : "Import CSV"}</button>
         </div>
       </div>

@@ -109,3 +109,19 @@ export function expectedFinalPaySourceAfterInitiation(
 ) {
   return { ...source, employeeStatus: "Separating" as const };
 }
+
+/** JSONB preserves values and array order, but not object property order. */
+export function sameFinalPaySource(left: unknown, right: unknown): boolean {
+  if (!left || !right || typeof left !== "object" || typeof right !== "object"
+    || Array.isArray(left) || Array.isArray(right)) return false;
+  const canonical = (value: unknown) => JSON.stringify(value, (_key, nested: unknown) => {
+    // JSON.stringify normalizes Date via toJSON before calling this replacer,
+    // matching timestamps read back from JSONB without dropping their value.
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      const record = nested as Record<string, unknown>;
+      return Object.fromEntries(Object.keys(record).sort().map(key => [key, record[key]]));
+    }
+    return nested;
+  });
+  return canonical(left) === canonical(right);
+}

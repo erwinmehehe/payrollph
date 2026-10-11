@@ -73,7 +73,7 @@ export function SelfServeSignupForm({ plans, initialPlan }: { plans: PlanView[];
         <CheckCircle2 size={32} className="text-[#13805c]" />
         <h2 className="mt-3 font-display text-[26px] font-semibold">Check your work email</h2>
         <p className="mt-3 text-[14px] leading-relaxed text-[#42546d]">
-          If the account is eligible, you'll receive a one-time verification link. Confirm your email and sign in to authorize the monthly subscription. You have not been charged.
+          If the account is eligible, you&#39;ll receive a one-time verification link. Confirm your email and sign in to authorize the monthly subscription. You have not been charged.
         </p>
         <Link href="/login" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#0868dc]">Already verified? Sign in <ArrowRight size={16} /></Link>
       </div>
