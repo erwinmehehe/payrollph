@@ -103,7 +103,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return Response.json(await submitXenditPayroll(run, user.name));
     }
     if (action === "reconcile") {
-      return Response.json(await reconcileXenditPayroll(run, user.name));
+      return Response.json(await reconcileXenditPayroll(run, user.name, body.cursor === undefined ? 0 : Number(body.cursor)));
     }
     if (typeof body.referenceNumber !== "string" || typeof body.payoutId !== "string"
       || body.confirm !== true) {
