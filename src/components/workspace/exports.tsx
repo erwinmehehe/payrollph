@@ -407,7 +407,7 @@ export function ExportsView({
           )}
 
           {run.status === "Released" && treasuryStatusEligible && (
-            <XenditPayoutPanel runId={run.id} onRefresh={onRefresh} />
+            <XenditPayoutPanel key={run.id} runId={run.id} onRefresh={onRefresh} />
           )}
 
           {run.status === "Released" && payoutState &&
