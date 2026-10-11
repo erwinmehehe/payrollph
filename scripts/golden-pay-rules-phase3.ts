@@ -366,6 +366,31 @@ async function runPayrollGolden(family: CatalogFamily, catalog: Catalog) {
       ? `${month}-15`
       : new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
 
+    // A final cutoff's statutory ledger is not a blank first half: produce
+    // the earlier cutoff from the *real* payroll engine in this synthetic
+    // test tenant and mark it released only for certification. M-7 correctly
+    // fails closed when this prior-cutoff input is absent in production.
+    if (day > 15) {
+      const [prior] = await db.insert(payrollRuns).values({
+        organizationId: org.id,
+        periodLabel: `Golden prior cutoff ${family.eventType}`,
+        periodStart: `${month}-01`,
+        periodEnd: `${month}-15`,
+        scopeLabel: "All locations",
+        status: "Draft",
+        payDate: `${month}-15`,
+      }).returning();
+      await enqueuePayrollRun(prior.id, 25);
+      await drainPayrollQueue(10, prior.id);
+      const priorEntries = await db.select()
+        .from(payrollEntries).where(eq(payrollEntries.payrollRunId, prior.id));
+      assert.equal(priorEntries.length, 2, "Both golden employees require earlier-cutoff ledger entries");
+      assert.ok(priorEntries.every((entry) => entry.status === "Ready"),
+        "Synthetic earlier-cutoff entries must be calculated without exceptions");
+      await db.update(payrollRuns).set({ status: "Released" })
+        .where(eq(payrollRuns.id, prior.id));
+    }
+
     const [run] = await db.insert(payrollRuns).values({
       organizationId: org.id,
       periodLabel: `Golden ${family.eventType}`,
