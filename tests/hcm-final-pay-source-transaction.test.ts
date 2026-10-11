@@ -82,6 +82,24 @@ test("final-pay fingerprint is deterministically sorted without modifying source
   assert.deepEqual(source.loans.map(row => row.id), loanOrder);
 });
 
+test("final-pay freeze includes retro adjustment source periods and invalidates a changed source year", () => {
+  const initial = fixture();
+  initial.retroSourcePeriods = [
+    { id: 11, sourcePeriodStart: "2025-12-16", sourcePeriodEnd: "2025-12-31" },
+    { id: 12, sourcePeriodStart: "2026-09-01", sourcePeriodEnd: "2026-09-15" },
+  ];
+  const frozen = snapshot(initial);
+  const reordered = fixture();
+  reordered.retroSourcePeriods = [...initial.retroSourcePeriods].reverse();
+  assert.equal(snapshot(reordered), frozen);
+  const changed = fixture();
+  changed.retroSourcePeriods = [
+    { id: 11, sourcePeriodStart: "2026-01-01", sourcePeriodEnd: "2026-01-15" },
+    { id: 12, sourcePeriodStart: "2026-09-01", sourcePeriodEnd: "2026-09-15" },
+  ];
+  assert.notEqual(snapshot(changed), frozen);
+});
+
 test("new separation freezes its authorized after-status without accepting a changed pre-transition source", () => {
   const original = fixture();
   original.employee.status = "Active";

@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: "22"
       - name: Test migration policy
-        run: node --test tests/sql-migration-history-guard.test.mjs
+        run: node --test tests/sql-migration-history-guard.test.mjs tests/migration-receipt-audit.test.mjs
       - name: Check SQL migration change history
         env:
           PR_BASE_REF: ${{ github.event.pull_request.base.ref }}

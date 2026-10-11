@@ -5,8 +5,10 @@ import {
 } from "@/lib/hcm-context-navigation";
 
 /** Accessible, read-only navigation for an already-authorized HCM page. */
-export function HcmContextNavigation(props: HcmNavigationOptions) {
-  const links = buildHcmNavigation(props);
+export function HcmContextNavigation(props: HcmNavigationOptions & { simpleHome?: boolean }) {
+  const links = buildHcmNavigation(props).filter((link) =>
+    !props.simpleHome || !["processMonitor", "orgExplorer", "actionCenter"].includes(link.id)
+  );
   if (links.length === 0) return null;
 
   return (
