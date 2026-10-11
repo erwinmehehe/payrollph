@@ -125,6 +125,20 @@ async function readPayrollExport(
         code: "PAYROLL_PAYOUT_LEDGER_ALREADY_CLAIMED",
       }, { status: 409 });
     }
+    const [previousFinalFile] = await db.select({ id: auditEvents.id })
+      .from(auditEvents).where(and(
+        eq(auditEvents.organizationId, run.organizationId),
+        eq(auditEvents.action, "bank export generated"),
+        sql`${auditEvents.metadata} ->> 'runId' = ${String(run.id)}`,
+        sql`${auditEvents.metadata} ->> 'kind' = 'bank'`,
+        sql`COALESCE(${auditEvents.metadata} ->> 'dryRun', 'false') <> 'true'`,
+      )).limit(1);
+    if (previousFinalFile) {
+      return Response.json({
+        error: "A final bank file was already issued for this payroll. Its external bank-upload outcome must be reviewed before generating any replacement. Do not upload a second salary batch.",
+        code: "FINAL_BANK_FILE_ALREADY_ISSUED",
+      }, { status: 409 });
+    }
     const treasury = await authorizeTreasuryOperation({
       organizationId: run.organizationId,
       runId: run.id,
