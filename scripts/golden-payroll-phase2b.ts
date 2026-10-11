@@ -38,14 +38,41 @@ function round2(value: number) {
 }
 
 function assertMoney(actual: number, expected: number, label: string, tolerance: number) {
+  // Compare integer centavos. Binary floating-point subtraction can turn a
+  // permitted 1-cent difference into 0.0100000000002 and falsely fail CI.
+  const actualCents = Math.round((round2(actual) + Number.EPSILON) * 100);
+  const expectedCents = Math.round((round2(expected) + Number.EPSILON) * 100);
+  const toleranceCents = Math.floor(tolerance * 100 + 1e-8);
   assert.ok(
-    Math.abs(round2(actual) - round2(expected)) <= tolerance,
+    Number.isFinite(actual) && Number.isFinite(expected)
+      && Math.abs(actualCents - expectedCents) <= toleranceCents,
     `${label}: expected ₱${Number(expected).toFixed(2)}, got ₱${Number(actual).toFixed(2)}`,
   );
 }
 
 function entryLines(entry: typeof payrollEntries.$inferSelect) {
   return Array.isArray(entry.lineItems) ? entry.lineItems as PayrollLine[] : [];
+}
+
+/** Prove what an employee sees adds up to stored centavos, not just a fixture. */
+function assertDisplayedPayslipReconciles(entry: typeof payrollEntries.$inferSelect, label: string) {
+  const cents = (value: number) => {
+    assert.ok(Number.isFinite(value), `${label}: non-finite line amount`);
+    const result = Math.round((value + Number.EPSILON) * 100);
+    assert.ok(Number.isSafeInteger(result), `${label}: unsafe centavo amount`);
+    return result;
+  };
+  const lines = entryLines(entry);
+  assert.ok(lines.length > 0, `${label}: a calculated payslip must contain line items`);
+  const printed = lines.map((line) => cents(Number(line.amount)));
+  const printedGross = printed.filter((amount) => amount > 0).reduce((a, b) => a + b, 0);
+  const printedDeductions = printed.filter((amount) => amount < 0).reduce((a, b) => a - b, 0);
+  const gross = cents(Number(entry.grossPay));
+  const deductions = cents(Number(entry.deductions));
+  const net = cents(Number(entry.netPay));
+  assert.equal(printedGross, gross, `${label}: printed earning buckets differ from stored gross`);
+  assert.equal(printedDeductions, deductions, `${label}: printed deduction buckets differ from stored deductions`);
+  assert.equal(gross - deductions, net, `${label}: gross - deductions differs from stored net`);
 }
 
 function lineAmount(entry: typeof payrollEntries.$inferSelect, code: string) {
@@ -246,6 +273,7 @@ async function caseMidCutoffHire(expected: Record<string, number>, tolerance: nu
       payDate: "2026-09-15",
     });
     const entry = await onlyEntry(run.id);
+    assertDisplayedPayslipReconciles(entry, "mid-cutoff hire");
     const actual = {
       grossPay: Number(entry.grossPay),
       sss: Math.abs(lineAmount(entry, "SSS")),
@@ -257,7 +285,8 @@ async function caseMidCutoffHire(expected: Record<string, number>, tolerance: nu
       netPay: Number(entry.netPay),
     };
     for (const [key, value] of Object.entries(expected)) {
-      assertMoney(Number(actual[key as keyof typeof actual]), value, `mid-cutoff hire ${key}`, tolerance);
+      // Mid-cutoff prorating must reconcile at the actual centavo, not a 1-cent tolerance.
+      assertMoney(Number(actual[key as keyof typeof actual]), value, `mid-cutoff hire ${key}`, 0);
     }
     return actual;
   } finally {
@@ -506,6 +535,7 @@ async function caseMonthFinalTrueUp(expected: Record<string, any>, tolerance: nu
       payDate: "2026-09-30",
     });
     const entry = await onlyEntry(secondRun.id);
+    assertDisplayedPayslipReconciles(entry, "month-final statutory true-up");
     const actual = {
       priorGross: Number(firstEntry.grossPay),
       currentGross: Number(entry.grossPay),

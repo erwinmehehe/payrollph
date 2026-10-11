@@ -1,0 +1,104 @@
+name: HCM Process Monitor Browser QA (Synthetic Only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/app/api/hcm/process-monitor/**'
+      - 'src/app/hcm/process-monitor/**'
+      - 'src/lib/hcm-process-monitor*.ts'
+      - 'src/components/hcm-business-process-inbox.tsx'
+      - 'scripts/hcm-process-monitor-synthetic-*.ts'
+      - 'scripts/hcm-process-monitor-synthetic-*.mjs'
+      - 'tests/hcm-process-monitor*.test.ts'
+      - '.github/workflows/hcm-process-monitor-browser-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      HCM_MONITOR_ACCEPTANCE_MODE: synthetic-postgres-only
+      HCM_PROCESS_MONITOR_ENABLED: 'true'
+      HCM_PROCESS_MONITOR_ORG_IDS: '1,2'
+      NEXT_PUBLIC_HCM_PROCESS_MONITOR_ENABLED: 'true'
+      NEXT_PUBLIC_HCM_PROCESS_MONITOR_ORG_IDS: '1,2'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'false'
+      OPENAI_API_KEY: ''
+      NEXT_TELEMETRY_DISABLED: '1'
+      TOTP_ENCRYPTION_KEY: '4444444444444444444444444444444444444444444444444444444444444444'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Ephemeral bank encryption key only
+        shell: bash
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - name: Seed two fictional employers in local PostgreSQL
+        run: npx tsx scripts/hcm-process-monitor-synthetic-fixture.ts
+      # These isolated tests complete before the full repository's serialized
+      # suite, so HCM regressions have an actionable, exact-commit signal.
+      # Run after fixture creation: the browser fixture assumes employer IDs 1/2.
+      - name: Verify monitor contract and two-employer PostgreSQL integration
+        run: npx tsx --test --test-concurrency=1 tests/hcm-process-monitor.test.ts tests/hcm-process-monitor-tenant-integration.test.ts
+      - name: Build local Next.js without external deployment
+        run: npm run build
+      - name: Install pinned local Chromium
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Start local app
+        shell: bash
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/hcm-monitor-app.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl -fsS 'http://127.0.0.1:3000/login' >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo 'Isolated app unavailable'
+          exit 1
+      - name: Start local disabled monitor instance
+        shell: bash
+        env:
+          HCM_PROCESS_MONITOR_ENABLED: 'false'
+          APP_BASE_URL: http://127.0.0.1:3001
+          TRUSTED_APP_ORIGINS: http://127.0.0.1:3001
+        run: |
+          nohup npm start -- -p 3001 -H 127.0.0.1 > /tmp/hcm-monitor-off.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl -fsS 'http://127.0.0.1:3001/login' >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo 'Local disabled monitor unavailable'
+          exit 1
+      - name: Browser QA — role/tenant/paging/mobile/default-off
+        run: node scripts/hcm-process-monitor-synthetic-browser.mjs

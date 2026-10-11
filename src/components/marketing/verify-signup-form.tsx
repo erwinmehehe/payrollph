@@ -29,7 +29,7 @@ export function VerifySignupForm({ token }: { token: string }) {
       <CheckCircle2 size={32} className="text-[#0877ff]" />
       <h1 className="font-display mt-5 text-[32px] font-semibold">Verify your email</h1>
       <p className="mt-3 text-sm leading-relaxed text-[#5B6080]">
-        Complete the email verification to enable your owner login. You'll review and authorize your subscription after you sign in; this step does not charge your payment method.
+        Complete the email verification to enable your owner login. You&#39;ll review and authorize your subscription after you sign in; this step does not charge your payment method.
       </p>
       {error && <p className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-800" role="alert">{error}</p>}
       <button type="button" disabled={!token || busy} onClick={() => void confirm()} className="mt-6 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-full bg-[#0877ff] px-5 font-semibold text-white disabled:opacity-50">
