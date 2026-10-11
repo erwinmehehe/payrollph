@@ -6,9 +6,13 @@ import {
   hcmBusinessProcessInstanceSteps,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { getAccess } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
-import { canDecide } from "@/lib/delegation";
+import { canDecide, loadPeopleHomeAssigneePermissions } from "@/lib/delegation";
+import {
+  HCM_BP_SCAN_LIMIT, HCM_BP_HISTORY_LIMIT,
+  canReadCompanyHcmHistory, projectHcmProcessSummary, reviewDeclineError,
+} from "@/lib/hcm-action-center";
 import {
   completeHcmBusinessProcessWorkItemTx,
   finalizeHcmBusinessProcessSource,
@@ -20,23 +24,40 @@ export const dynamic = "force-dynamic";
 function snapshotName(value: unknown, fallback: string) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
   const name = (value as Record<string, unknown>).name;
-  return typeof name === "string" && name.trim() ? name : fallback;
+  return typeof name === "string" && name.trim() ? name.trim().slice(0, 160) : fallback;
 }
+
+const privateResponse = { headers: { "Cache-Control": "private, no-store" } };
 
 export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
-  const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
-  if (!Number.isInteger(organizationId)) {
-    return Response.json({ error: "organizationId is required." }, { status: 400 });
+  const selected = new URL(request.url).searchParams.get("organizationId");
+  const organizationId = selected === null || !/^[1-9][0-9]*$/.test(selected) ? null : Number(selected);
+  if (!organizationId || !Number.isSafeInteger(organizationId)) {
+    return Response.json({ error: "A positive organizationId is required." }, { status: 400 });
   }
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "Workspace access required." }, { status: 403 });
 
+  // Read only a bounded candidate page, with both sides of each join bound to
+  // the explicitly selected legal employer. Do not hydrate full worker/master
+  // records or expose frozen BP sourceEvidence in the response.
   const pendingRows = await db.select({
-    step: hcmBusinessProcessInstanceSteps,
-    instance: hcmBusinessProcessInstances,
+    stepId: hcmBusinessProcessInstanceSteps.id,
+    stepIndex: hcmBusinessProcessInstanceSteps.stepIndex,
+    stepType: hcmBusinessProcessInstanceSteps.stepType,
+    label: hcmBusinessProcessInstanceSteps.label,
+    assignee: hcmBusinessProcessInstanceSteps.assignee,
+    dueAt: hcmBusinessProcessInstanceSteps.dueAt,
+    approvalTaskId: hcmBusinessProcessInstanceSteps.approvalTaskId,
+    instanceId: hcmBusinessProcessInstances.id,
+    processType: hcmBusinessProcessInstances.processType,
+    definitionSnapshot: hcmBusinessProcessInstances.definitionSnapshot,
+    effectiveDate: hcmBusinessProcessInstances.effectiveDate,
+    initiatedByName: hcmBusinessProcessInstances.initiatedByName,
+    initiatedByUserId: hcmBusinessProcessInstances.initiatedByUserId,
     employeeId: employees.id,
     employeeOrgUnitId: employees.orgUnitId,
     employeeNo: employees.employeeNo,
@@ -44,71 +65,103 @@ export async function GET(request: Request) {
     lastName: employees.lastName,
     title: employees.title,
   }).from(hcmBusinessProcessInstanceSteps)
-    .innerJoin(
-      hcmBusinessProcessInstances,
+    .innerJoin(hcmBusinessProcessInstances, and(
       eq(hcmBusinessProcessInstanceSteps.instanceId, hcmBusinessProcessInstances.id),
-    )
-    .leftJoin(employees, eq(hcmBusinessProcessInstances.employeeId, employees.id))
+      eq(hcmBusinessProcessInstances.organizationId, organizationId),
+    ))
+    .leftJoin(employees, and(
+      eq(hcmBusinessProcessInstances.employeeId, employees.id),
+      eq(employees.organizationId, organizationId),
+    ))
     .where(and(
       eq(hcmBusinessProcessInstanceSteps.organizationId, organizationId),
       eq(hcmBusinessProcessInstanceSteps.status, "pending"),
       eq(hcmBusinessProcessInstances.status, "in_progress"),
     ))
-    .orderBy(hcmBusinessProcessInstanceSteps.dueAt, hcmBusinessProcessInstanceSteps.id);
+    .orderBy(hcmBusinessProcessInstanceSteps.dueAt, hcmBusinessProcessInstanceSteps.id)
+    .limit(HCM_BP_SCAN_LIMIT + 1);
+
+  const candidates = pendingRows.slice(0, HCM_BP_SCAN_LIMIT);
+  let permissions: Map<string, boolean>;
+  try {
+    // One tenant-qualified permission snapshot, not an authorization query per
+    // candidate. The actual POST/approval endpoints independently reauthorize.
+    permissions = await loadPeopleHomeAssigneePermissions(
+      organizationId, Array.from(new Set(candidates.map(row => row.assignee))),
+      { id: user.id, name: user.name },
+    );
+  } catch {
+    return Response.json({
+      error: "Decision assignment evidence is unavailable; retry from the source workspace.",
+    }, { status: 503, ...privateResponse });
+  }
 
   const myWork = [];
-  for (const row of pendingRows) {
+  for (const row of candidates) {
     if (!access.companyWide && (!row.employeeId || row.employeeOrgUnitId !== access.orgUnitId)) continue;
-    const decision = await canDecide(organizationId, row.step.assignee, user.name, user.id);
-    if (!decision.permitted) continue;
+    if (!permissions.get(row.assignee)) continue;
     myWork.push({
-      id: row.step.id,
-      stepIndex: row.step.stepIndex,
-      stepType: row.step.stepType,
-      label: row.step.label,
-      assignee: row.step.assignee,
-      dueAt: row.step.dueAt,
-      approvalTaskId: row.step.approvalTaskId,
-      instanceId: row.instance.id,
-      processType: row.instance.processType,
-      processName: snapshotName(row.instance.definitionSnapshot, row.instance.processType),
-      sourceType: row.instance.sourceType,
-      sourceKey: row.instance.sourceKey,
-      effectiveDate: row.instance.effectiveDate,
-      initiatedByName: row.instance.initiatedByName,
-      makerBlocked: row.step.stepType === "approval" && row.instance.initiatedByUserId === user.id,
+      id: row.stepId,
+      stepIndex: row.stepIndex,
+      stepType: row.stepType,
+      label: row.label,
+      assignee: row.assignee,
+      dueAt: row.dueAt,
+      approvalTaskId: row.approvalTaskId,
+      instanceId: row.instanceId,
+      processType: row.processType,
+      processName: snapshotName(row.definitionSnapshot, row.processType),
+      effectiveDate: row.effectiveDate,
+      initiatedByName: row.initiatedByName,
+      makerBlocked: ["approval", "review"].includes(row.stepType) &&
+        row.initiatedByUserId === user.id,
       employee: row.employeeId ? {
         id: row.employeeId,
-        employeeNo: row.employeeNo,
+        employeeNo: row.employeeNo ?? "",
         name: `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim(),
-        title: row.title,
+        title: row.title ?? "",
       } : null,
     });
   }
 
-  const submittedRows = await db.select().from(hcmBusinessProcessInstances).where(and(
+  const historySelection = {
+    id: hcmBusinessProcessInstances.id,
+    processType: hcmBusinessProcessInstances.processType,
+    status: hcmBusinessProcessInstances.status,
+    effectiveDate: hcmBusinessProcessInstances.effectiveDate,
+    initiatedByName: hcmBusinessProcessInstances.initiatedByName,
+    initiatedAt: hcmBusinessProcessInstances.initiatedAt,
+    completedAt: hcmBusinessProcessInstances.completedAt,
+    employeeId: hcmBusinessProcessInstances.employeeId,
+    definitionSnapshot: hcmBusinessProcessInstances.definitionSnapshot,
+  };
+  const submittedRows = await db.select(historySelection).from(hcmBusinessProcessInstances).where(and(
     eq(hcmBusinessProcessInstances.organizationId, organizationId),
     eq(hcmBusinessProcessInstances.initiatedByUserId, user.id),
-  )).orderBy(desc(hcmBusinessProcessInstances.initiatedAt)).limit(20);
+  )).orderBy(desc(hcmBusinessProcessInstances.initiatedAt))
+    .limit(HCM_BP_HISTORY_LIMIT + 1);
 
-  const recentRows = access.companyWide
-    ? await db.select().from(hcmBusinessProcessInstances).where(eq(
-        hcmBusinessProcessInstances.organizationId,
-        organizationId,
-      )).orderBy(desc(hcmBusinessProcessInstances.updatedAt)).limit(25)
+  // A role alone cannot override a deny-only People permission assignment.
+  const recentAllowed = canReadCompanyHcmHistory(access) &&
+    !(await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES));
+  const recentRows = recentAllowed
+    ? await db.select(historySelection).from(hcmBusinessProcessInstances)
+      .where(eq(hcmBusinessProcessInstances.organizationId, organizationId))
+      .orderBy(desc(hcmBusinessProcessInstances.updatedAt))
+      .limit(HCM_BP_HISTORY_LIMIT + 1)
     : submittedRows;
 
   return Response.json({
     myWork,
-    submitted: submittedRows.map((row) => ({
-      ...row,
-      processName: snapshotName(row.definitionSnapshot, row.processType),
-    })),
-    recent: recentRows.map((row) => ({
-      ...row,
-      processName: snapshotName(row.definitionSnapshot, row.processType),
-    })),
-  });
+    submitted: submittedRows.slice(0, HCM_BP_HISTORY_LIMIT).map(projectHcmProcessSummary),
+    recent: recentRows.slice(0, HCM_BP_HISTORY_LIMIT).map(projectHcmProcessSummary),
+    meta: {
+      myWorkPartial: pendingRows.length > HCM_BP_SCAN_LIMIT,
+      submittedPartial: submittedRows.length > HCM_BP_HISTORY_LIMIT,
+      recentPartial: recentRows.length > HCM_BP_HISTORY_LIMIT,
+      companyHistoryAvailable: recentAllowed,
+    },
+  }, privateResponse);
 }
 
 export async function POST(request: Request) {
@@ -122,9 +175,9 @@ export async function POST(request: Request) {
   const organizationId = Number(body.organizationId);
   const stepId = Number(body.stepId);
   const action = String(body.action ?? "complete").trim().toLowerCase();
-  const note = String(body.note ?? "").trim();
+  const note = typeof body.note === "string" ? body.note.trim() : "";
 
-  if (!Number.isInteger(organizationId) || !Number.isInteger(stepId) || !["complete", "decline"].includes(action)) {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 || !Number.isSafeInteger(stepId) || stepId <= 0 || !["complete", "decline"].includes(action)) {
     return Response.json({
       error: "organizationId, stepId, and a complete/decline action are required.",
     }, { status: 400 });
@@ -143,6 +196,7 @@ export async function POST(request: Request) {
     .where(and(
       eq(hcmBusinessProcessInstanceSteps.id, stepId),
       eq(hcmBusinessProcessInstanceSteps.organizationId, organizationId),
+      eq(hcmBusinessProcessInstances.organizationId, organizationId),
     ))
     .limit(1);
   if (!row) return Response.json({ error: "HCM work item not found." }, { status: 404 });
@@ -165,6 +219,8 @@ export async function POST(request: Request) {
   if (row.step.stepType === "approval") {
     return Response.json({ error: "Approval steps must be decided from the approval endpoint." }, { status: 409 });
   }
+  const declineError = reviewDeclineError(action, row.step.stepType, body.note);
+  if (declineError) return Response.json({ error: declineError }, { status: 400 });
 
   const decision = await canDecide(organizationId, row.step.assignee, user.name, user.id);
   if (!decision.permitted) {
