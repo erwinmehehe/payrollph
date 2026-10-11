@@ -69,6 +69,9 @@ test("revoked or rewritten signed-authority evidence invalidates the frozen snap
   assert.equal(matchesRecordedFinalPayLoanReview({}, old), false);
   const replaced = reviewFinalPayLoans([{ ...valid(1, "70.50"), reviewEvidenceReference: "CHANGED-HR-REVIEW-17" }]);
   assert.equal(matchesRecordedFinalPayLoanReview(old, replaced), false);
+  assert.equal(matchesRecordedFinalPayLoanReview(
+    { ...old, unrecoveredBalance: 1 }, old,
+  ), false, "snapshot amount tampering must invalidate approval");
   assert.equal(matchesRecordedFinalPayLoanReview(old, reviewFinalPayLoans([
     { ...valid(1, "70.50"), deductionAuthorizationReference: null },
   ])), false);
@@ -112,4 +115,12 @@ test("finance preview and CSV list unrecovered loans without raw signed evidence
   assert.match(csv, /not independent proof of employee signature/i);
   assert.doesNotMatch(csv, /SIGNED-DOCUMENT-EMPLOYEE-7|HR-CHECKER-APPROVAL-1729/);
   assert.equal(finalPayLoanReviewSummary({ ...record, computationSnapshot: {} }).recorded, false);
+});
+
+test("active loan placeholders never constitute documented independent authority", () => {
+  for (const authorityRef of ["not applicable", "N/A", "pending approval", "test deduction", "unknown", "None"]) {
+    const loans = reviewFinalPayLoans([{ ...valid(70, "42.50"), deductionAuthorizationReference: authorityRef }]);
+    assert.equal(loans.eligibleBalance, 0, authorityRef);
+    assert.equal(loans.unrecoveredBalance, 42.50);
+  }
 });
