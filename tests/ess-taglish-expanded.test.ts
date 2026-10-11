@@ -79,7 +79,7 @@ test("every expanded ESS screen receives the chosen language through props witho
   assert.match(source, /<option value="fil">Taglish<\/option>/);
   assert.match(source, /<EmployeeTakeHomeEstimator language=\{language\} \/>/);
   assert.match(source, /<EmployeeContributionIssueModal\s+language=\{language\}/);
-  assert.match(source, /<WebBundyModal\s+language=\{language\}/);
+  assert.match(source, /<WebBundyModal\s+employeeId=\{data\.employee\.id\}\s+language=\{language\}/);
   assert.match(source, /<SectionHeading kicker=\{t\("MY TIME"\)\}/);
   assert.match(source, /<SectionHeading kicker=\{t\("MY LEAVE"\)\}/);
   assert.match(source, /<SectionHeading kicker=\{t\("MY PROFILE"\)\}/);
