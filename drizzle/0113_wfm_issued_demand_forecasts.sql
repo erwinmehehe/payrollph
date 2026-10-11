@@ -1,6 +1,6 @@
--- WFM staged issued-demand evidence (0114).
--- Depends on the separately reviewed 0113 WFM source-revision schema and
--- the prior independently approved 0112 release. Source merge does not run
+-- WFM staged issued-demand evidence (0113).
+-- Depends on the separately reviewed 0112 WFM source-revision schema. The separately draft 0114
+-- payout provider is NOT a WFM predecessor or activation requirement. Source merge does not run
 -- this DDL in staging or production. There is no ordered Drizzle journal.
 -- A DBA must review constraints, verify table ownership and plan rollback.
 CREATE TABLE IF NOT EXISTS workforce_demand_forecast_issues (

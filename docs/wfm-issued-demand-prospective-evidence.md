@@ -1,6 +1,6 @@
 # WFM issued future demand forecasts and prospective source-reported scores
 
-**Engineering candidate, default OFF.** This is a stacked follow-on to #828's source-reported aggregated workload import, and depends on SQL 0114 after its predecessor 0113. The source is neither independently provider-certified nor a labor productivity standard.
+**Engineering candidate, default OFF.** This is a stacked follow-on to #828's source-reported aggregated workload import, and depends on SQL 0113 after its WFM source predecessor 0112. The source is neither independently provider-certified nor a labor productivity standard.
 
 ## Exact problem fixed
 
@@ -36,9 +36,9 @@ All flags are **unset** by the source branch. GET only returns data in the signe
 
 ## Staged migration sequence
 
-- `0112_xendit_payout_provider.sql` is reserved by draft #813. It is **not authorization to turn on a payment provider**.
-- `0113_wfm_operational_demand_observations.sql` belongs to draft #828 and requires its own DBA approval.
-- **`0114_wfm_issued_demand_forecasts.sql`**, this stacked PR, must only be reviewed/applied *after* separately approved 0112 and 0113. There is no ordered Drizzle journal in this repository and the advisory SQL-history guard correctly blocks any migration-number gaps.
+- `0112_wfm_operational_demand_observations.sql` is the first WFM migration proposed by draft #828, subject to independently approved staging/schema history.
+- `0113_wfm_issued_demand_forecasts.sql` follows WFM 0112 and requires a separate DBA review.
+- **`0114_xendit_payout_provider.sql`** belongs to unmerged draft payout PR #813 and must not be merged or activated merely for WFM. No WFM feature requires it. There is no ordered Drizzle journal and the SQL-history guard only checks source numbering, not applied schema.
 
 No SQL, secret, pilot flags, notification worker, roster publisher, payroll or payout system is activated by merging source code. Staging DBA must rehearse the SQL on a disposable copy, verify indexes and constraints, and sign the selected employer pilot separately.
 
@@ -49,6 +49,6 @@ No SQL, secret, pilot flags, notification worker, roster publisher, payroll or p
 - [ ] 375px Chromium browser + keyboard and site/account-change fixture for list, issue acknowledgement, finalization 409/201 and frozen result; no real customer data.
 - [ ] Test two isolated synthetic employers, an unauthorized branch manager POST, unassigned site, wrong worksite/tenant and missing/MFA/CSRF/bad allowlist.
 - [ ] Verify concurrent source import during issuance cannot cross the cutoff, tampered SHA raises review, same-key retry never creates a new issue, missing/partial actuals never become zero, zero denominator WAPE is null and late revisions do not re-score.
-- [ ] Independent DBA on 0112 → 0113 → 0114, operator source-consent validation, HR/WFM/QA and security signoff. WFM pilot #691, real no-money payroll #579 and GA release #112 remain separate **NO-GO** until witnessed.
+- [ ] Independent DBA on 0112 WFM → 0113 WFM; Xendit 0114 remains separately gated, operator source-consent validation, HR/WFM/QA and security signoff. WFM pilot #691, real no-money payroll #579 and GA release #112 remain separate **NO-GO** until witnessed.
 
 **Follow-on:** provider-specific authenticated aggregate source adapter + signed source manifests, source revision provenance, versioned amendment approval for post-score corrections, and approved site/role productivity/service-level curves before proposing (never auto-publishing) roster changes.
