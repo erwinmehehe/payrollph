@@ -47,14 +47,24 @@ jobs:
             import { readFileSync } from "node:fs";
             const report = JSON.parse(readFileSync("qa-artifacts/runtime-schema-inventory.json", "utf8"));
             const unsafe = report.findings.filter(x => x.state === "unguarded");
+            const groups = new Map();
+            for (const x of unsafe) {
+              if (!groups.has(x.file)) groups.set(x.file, {
+                file: x.file, count: 0, DDL: 0, IMPLICIT_BACKFILL: 0,
+                DYNAMIC_QUERY_REVIEW: 0, exampleLines: []
+              });
+              const g = groups.get(x.file);
+              g.count++;
+              g[x.type] = (g[x.type] ?? 0) + 1;
+              if (g.exampleLines.length < 4) g.exampleLines.push(x.line);
+            }
+            const affectedFiles = [...groups.values()].sort((a,b) => b.count - a.count);
             console.log(JSON.stringify({
               filesScanned: report.filesScanned,
               unguarded: report.unguarded,
               earlyReadOnlyExit: report.earlyReadOnlyExit,
-              distinctUnsafeFiles: [...new Set(unsafe.map(x => x.file))].length,
-              sampleLocations: unsafe.slice(0, 65).map(x => ({
-                file: x.file, line: x.line, owner: x.owner, type: x.type
-              })),
+              distinctUnsafeFiles: affectedFiles.length,
+              affectedFiles,
               sourceOnly: true, productionReleaseApproved: false
             }, null, 2));
           '
