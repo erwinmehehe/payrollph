@@ -1,4 +1,5 @@
--- 0114: additive provider expansion for Xendit V3 (default for NEW batches).
+-- 0115: additive provider expansion for Xendit V3 (default for NEW batches).
+-- Follow WFM draft 0112, 0113 and separately approved 0114 staffing policy.
 -- Apply only after an independently reviewed backup and isolated migration
 -- rehearsal. Source merge must not trigger live payroll or data backfills.
 -- Existing PayMongo batches and bank-file payout profiles remain unchanged.
