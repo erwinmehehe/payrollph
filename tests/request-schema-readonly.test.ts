@@ -247,7 +247,7 @@ test("separation final-pay blocks missing/incorrect amounts, JSON snapshots and 
     { missingDefault: "separation_records.thirteenth_entitlement" },
     { wrongDefault: "separation_records.thirteenth_entitlement" },
     { wrongDefault: "separation_records.basic_salary_earned_ytd" },
-    { weakIndex: "separation_records_org_status_idx" },
+    { wrongIndexTable: "separation_records_org_status_idx" },
     { wrongIndexKeys: "separation_records_org_status_idx" },
     { missingConstraintToken: "prepared_by_user_id" },
     { missingConstraintToken: "approved_by_user_id" },
