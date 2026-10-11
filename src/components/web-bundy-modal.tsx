@@ -133,7 +133,7 @@ export function WebBundyModal({
   return (
     <div className="modal-backdrop linaw-dialog" role="presentation">
       <section className="modal" role="dialog" aria-modal="true" aria-label="Web Bundy Time Clock">
-        <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        <button className="modal-close" type="button" aria-label={t("Close time clock")} onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Clock size={22} className="i-cyan" /></div>
         <div className="card-kicker">{t("WEB & TEAM TIME CLOCK")}</div>
         <h2>{language === "fil" ? `${displayName} · ${t("attendance")}` : <>{displayName}&apos;s attendance</>}</h2>
