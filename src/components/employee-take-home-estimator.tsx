@@ -17,7 +17,7 @@ function numberInput(value: string) {
   return trimmed === "" ? 0 : Number(trimmed);
 }
 
-export function EmployeeTakeHomeEstimator({ language = "en" }: { language?: EssLanguage } = {}) {
+export function EmployeeTakeHomeEstimator({ language = "en" }: { language?: EssLanguage }) {
   const t = (text: string) => essText(language, text);
   const [payload, setPayload] = useState<BaselinePayload | null>(null);
   const [error, setError] = useState("");
