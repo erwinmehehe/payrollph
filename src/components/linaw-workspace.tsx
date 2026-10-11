@@ -457,6 +457,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
             onAddEmployee={() => setNewHireOpen(true)}
             onPage={setPage}
             canManage={canManagePeople}
+            expandHcmInbox={searchParams.get("hcmPanel") === "bp"}
             focusEmployeeId={focusEmployeeId}
             onClearFocus={() => setFocusEmployeeId(null)}
           />
