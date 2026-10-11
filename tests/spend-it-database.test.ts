@@ -51,6 +51,8 @@ test("employer-paid charges reject duplicate reference, invalid card digits and 
     assert.equal(stored.length, 1);
     assert.equal(stored[0].amount, "150.25");
   } finally {
+    await db.delete(spendCardTransactions).where(eq(spendCardTransactions.organizationId, org.id));
+    await db.delete(spendCards).where(eq(spendCards.organizationId, org.id));
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });
@@ -80,6 +82,8 @@ test("expense report member claim may belong to only one report and reviewer can
     const unchanged = await db.select().from(expenseReports).where(eq(expenseReports.id, reportA.id));
     assert.equal(unchanged[0].status, "submitted");
   } finally {
+    await db.delete(expenseReportItems).where(eq(expenseReportItems.organizationId, org.id));
+    await db.delete(expenseReports).where(eq(expenseReports.organizationId, org.id));
     await db.delete(organizations).where(eq(organizations.id, org.id));
     await db.delete(users).where(eq(users.id, actor.id));
   }
@@ -124,6 +128,13 @@ test("offboarding changes only the separating worker's live IT access and device
     const events = await db.select().from(itDeviceEvents).where(and(eq(itDeviceEvents.organizationId, alpha.id), eq(itDeviceEvents.deviceId, aDevices[0].id)));
     assert.equal(events.length, 1);
   } finally {
+    for (const organizationId of [alpha.id, beta.id]) {
+      await db.delete(itDeviceEvents).where(eq(itDeviceEvents.organizationId, organizationId));
+      await db.delete(itManagedDevices).where(eq(itManagedDevices.organizationId, organizationId));
+      await db.delete(itAccessGrants).where(eq(itAccessGrants.organizationId, organizationId));
+      await db.delete(assets).where(eq(assets.organizationId, organizationId));
+      await db.delete(itApplications).where(eq(itApplications.organizationId, organizationId));
+    }
     await db.delete(organizations).where(eq(organizations.id, alpha.id));
     await db.delete(organizations).where(eq(organizations.id, beta.id));
   }
