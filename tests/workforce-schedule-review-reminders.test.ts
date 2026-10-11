@@ -55,6 +55,21 @@ test("a changed content hash creates a new event; pending rest and far future ar
     "reminder is not emitted for a shift already started");
 });
 
+test("published approved overrides prompt review even before prior acknowledgment", () => {
+  const data = view();
+  data.days[3].snapshot!.source = "override";
+  data.days[3].snapshot!.assignmentId = null;
+  data.days[3].snapshot!.patternId = null;
+  data.days[3].snapshot!.overrideId = 99;
+  const active = scheduleReviewSignals({ ...who, now, view: data });
+  assert.deepEqual(active.find(x => x.workDate === "2026-10-14")?.reason, "published_change");
+  data.days[2].snapshot!.source = "override";
+  data.days[2].snapshot!.overrideId = 101;
+  assert.equal(scheduleReviewSignals({ ...who, now, view: data })
+    .find(x => x.workDate === "2026-10-13")?.reason, "published_change",
+    "approved rest-day changes are reviewable, not an absence finding");
+});
+
 test("broken scope and invalid window must fail closed, not manufacture notifications", () => {
   const original = view();
   for (const bad of [{ ...who, employeeId: -1 }, { ...who, userId: 0 }]) {
