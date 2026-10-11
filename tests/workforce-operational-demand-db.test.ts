@@ -45,14 +45,14 @@ test("isolated PostgreSQL writes idempotent revisions and never silently overwri
     };
     const v1 = parseDemandImport(baseline);
     const first = await writeOperationalDemandImport({
-      batch: v1, actorUserId: user.id, actorName: user.name,
+      batch: v1, actorUserId: user.id, actorName: "Synthetic Source Importer",
     });
     assert.equal(first.rowCount, 1);
     assert.equal(first.replayed, false);
     assert.match(first.sha256, /^[a-f0-9]{64}$/);
 
     const replayed = await writeOperationalDemandImport({
-      batch: v1, actorUserId: user.id, actorName: user.name,
+      batch: v1, actorUserId: user.id, actorName: "Synthetic Source Importer",
     });
     assert.equal(replayed.replayed, true);
     assert.equal(replayed.batchId, first.batchId);
@@ -60,7 +60,7 @@ test("isolated PostgreSQL writes idempotent revisions and never silently overwri
     await assert.rejects(
       writeOperationalDemandImport({ batch: parseDemandImport({ ...baseline,
         rows: [{ ...baseline.rows[0], observedCount: 99 }],
-      }), actorUserId: user.id, actorName: user.name }),
+      }), actorUserId: user.id, actorName: "Synthetic Source Importer" }),
       DemandImportConflict,
     );
     const revisionBatch = parseDemandImport({
@@ -68,7 +68,7 @@ test("isolated PostgreSQL writes idempotent revisions and never silently overwri
       rows: [{ ...baseline.rows[0], observedCount: 30, revision: 2 }],
     });
     const second = await writeOperationalDemandImport({
-      batch: revisionBatch, actorUserId: user.id, actorName: user.name,
+      batch: revisionBatch, actorUserId: user.id, actorName: "Synthetic Source Importer",
     });
     assert.equal(second.replayed, false);
 
@@ -76,7 +76,7 @@ test("isolated PostgreSQL writes idempotent revisions and never silently overwri
       writeOperationalDemandImport({ batch: parseDemandImport({
         ...baseline, idempotencyKey: "batch-" + randomUUID(),
         rows: [{ ...baseline.rows[0], observedCount: 15, revision: 4 }],
-      }), actorUserId: user.id, actorName: user.name }),
+      }), actorUserId: user.id, actorName: "Synthetic Source Importer" }),
       DemandImportConflict,
     );
 
