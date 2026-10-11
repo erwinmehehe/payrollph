@@ -10,6 +10,9 @@ const MAX_BYTES = 2_000_000;
 const TOKEN_LIMIT = 2048;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CALENDAR = /^\d{4}-\d{2}-\d{2}$/;
+// Provider timestamps must carry an explicit UTC offset; Date.parse of a bare
+// local time depends on the server timezone and can silently shift POS bins.
+const PROVIDER_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
 export const LOYVERSE_WFM_SOURCE = "loyverse_pos_sales";
 export type LoyverseSyncRequest = {
   organizationId: number;
@@ -50,6 +53,21 @@ const isDay = (x:unknown):x is string => {
 const validStore = (x:unknown):x is string => typeof x==="string" &&
   UUID.test(x);
 const iso = (ms:number)=>new Date(ms).toISOString();
+function explicitProviderTime(value:unknown):value is string {
+  return typeof value==="string" && PROVIDER_TIME.test(value) &&
+    Number.isFinite(Date.parse(value));
+}
+/**
+ * The aggregate import is committed and audited in its own SQL transaction.
+ * Failure to record a separate scan-freshness receipt must not falsely report
+ * the already-committed aggregate import as rejected.
+ */
+export async function recordLoyverseScanConfirmation(
+  write:()=>Promise<unknown>,
+):Promise<boolean>{
+  try {await write();return true;}
+  catch {return false;}
+}
 export function parseLoyverseSyncRequest(input:unknown):LoyverseSyncRequest {
   if(!obj(input)||!exact(input,[
     "organizationId","worksiteId","workDate","intervalMinutes","dryRun","acknowledged",
@@ -170,13 +188,13 @@ export async function readLoyversePosDay(input:{
         value.receipt_number.length<1 || value.receipt_number.length>128 ||
         value.store_id!==input.storeId ||
         typeof value.created_at!=="string" || typeof value.receipt_date!=="string" ||
-        !Number.isFinite(Date.parse(value.created_at)) ||
-        !Number.isFinite(Date.parse(value.receipt_date)) ||
+        !explicitProviderTime(value.created_at) ||
+        !explicitProviderTime(value.receipt_date) ||
         !["SALE","REFUND"].includes(String(value.receipt_type)) ||
         value.source!=="point of sale" ||
         (value.cancelled_at!==undefined && value.cancelled_at!==null &&
           (typeof value.cancelled_at!=="string" ||
-            !Number.isFinite(Date.parse(value.cancelled_at))))) {
+            !explicitProviderTime(value.cancelled_at)))) {
         throw new LoyverseSourceError("SOURCE_REVIEW");
       }
       const created=Date.parse(value.created_at);
