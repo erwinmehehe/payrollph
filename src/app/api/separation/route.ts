@@ -4,6 +4,9 @@ import { and, desc, eq, gte, inArray, isNull, like, lte, sql } from "drizzle-orm
 import { db } from "@/db";
 import {
   auditEvents,
+  assets,
+  itAccessGrants,
+  itManagedDevices,
   employeeLoans,
   employeePayProfiles,
   employees,
@@ -1089,6 +1092,23 @@ export async function PATCH(request: Request) {
           throw new Error("SEPARATION_CLEARANCE_STALE");
         }
         if (requested === previous) return fresh;
+        if (field === "itCleared" && requested) {
+          // Clearing IT while a registered account or company laptop is
+          // outstanding is not an operator attestation we can trust.
+          const [grants, devices, assignedAssets] = await Promise.all([
+            tx.select({ id: itAccessGrants.id, state: itAccessGrants.state }).from(itAccessGrants)
+              .where(and(eq(itAccessGrants.organizationId, sep.organizationId), eq(itAccessGrants.employeeId, sep.employeeId))),
+            tx.select({ id: itManagedDevices.id, state: itManagedDevices.state }).from(itManagedDevices)
+              .where(and(eq(itManagedDevices.organizationId, sep.organizationId), eq(itManagedDevices.employeeId, sep.employeeId))),
+            tx.select({ id: assets.id, status: assets.status }).from(assets)
+              .where(and(eq(assets.organizationId, sep.organizationId), eq(assets.employeeId, sep.employeeId))),
+          ]);
+          if (grants.some(g => g.state !== "revoked")
+            || devices.some(d => !["returned", "available", "retired"].includes(d.state))
+            || assignedAssets.some(a => a.status === "assigned")) {
+            throw new Error("SEPARATION_IT_RECOVERY_PENDING");
+          }
+        }
         const next = {
           itCleared: field === "itCleared" ? requested : fresh.itCleared,
           adminCleared: field === "adminCleared" ? requested : fresh.adminCleared,
@@ -1123,7 +1143,13 @@ export async function PATCH(request: Request) {
       return Response.json(updated);
     } catch (error) {
       const code = error instanceof Error ? error.message : "";
-      if (code === "SEPARATION_CLEARANCE_LOCKED" || code === "SEPARATION_CLEARANCE_STALE") {
+      if (code === "SEPARATION_IT_RECOVERY_PENDING") {
+        return Response.json({
+          code,
+          error: "IT clearance is blocked. Revoke remaining application access and recover or resolve issued devices in IT Operations first.",
+        }, { status: 409 });
+      }
+            if (code === "SEPARATION_CLEARANCE_LOCKED" || code === "SEPARATION_CLEARANCE_STALE") {
         return Response.json({
           code,
           error: code === "SEPARATION_CLEARANCE_LOCKED"
