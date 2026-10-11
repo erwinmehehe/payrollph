@@ -60,6 +60,7 @@ try {
   await rest.fill("630");
   await page.getByRole("button",{name:"Save guardrails"}).click();
   await complete(await requestId("/api/workforce/schedule-guardrails","POST"),{policy:policy(630),configured:true});
+  await page.waitForFunction(() => window.saved === 1);
   assert.equal(await rest.inputValue(),"630");
   assert.equal(await page.evaluate(()=>window.saved),1);
   await render("guardrails",3,false);
