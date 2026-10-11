@@ -168,11 +168,11 @@ try {
     "/api/hcm/position-history?organizationId=1&positionId=9999");
   assert.equal(anonymousHistory.status, 401,
     "Anonymous position-history must fail before billing");
-  await unauthenticated.close();
   const anonDefinitions = await read(anonymousPage,
     "/api/hcm/business-processes/definitions?organizationId=1");
   assert.equal(anonDefinitions.status, 401,
     "Anonymous workflow designer GET must reject before billing");
+  await unauthenticated.close();
   receipts.push("Unauthenticated requests denied before billing");
   console.log(JSON.stringify({
     status: "PASS", syntheticOnly: true, directApiAndPageGate: true,
