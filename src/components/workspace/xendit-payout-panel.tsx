@@ -14,13 +14,24 @@ type Ledger = {
 type Status = {
   provider: "xendit";
   selectedProvider: "xendit" | "paymongo";
+  claimedProvider: "xendit" | "paymongo" | null;
   readiness: { ready: boolean; blockers: string[] };
   ledger: Ledger | null;
 };
 
 export function XenditPayoutPanel({
-  runId, onRefresh,
-}: { runId: number; onRefresh: () => Promise<void> }) {
+  runId, onRefresh, onPaymongoPreflight, onPaymongoSubmit,
+  canSubmitPaymongo, allowPaymongoActions, paymongoPreflighting, paymongoSubmitting,
+}: {
+  runId: number;
+  onRefresh: () => Promise<void>;
+  onPaymongoPreflight: () => Promise<void>;
+  onPaymongoSubmit: () => Promise<void>;
+  canSubmitPaymongo: boolean;
+  allowPaymongoActions: boolean;
+  paymongoPreflighting: boolean;
+  paymongoSubmitting: boolean;
+}) {
   const [status, setStatus] = useState<Status | null>(null);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
@@ -140,25 +151,29 @@ export function XenditPayoutPanel({
 
   const ledger = status?.ledger;
   const hasUncertain = Boolean(ledger?.counts.unknown);
-  const canSubmit = status?.selectedProvider === "xendit" && status.readiness.ready
-    && !hasUncertain && Boolean(ledger ? ledger.counts.prepared > 0 : true);
+  const claimedByPaymongo = status?.claimedProvider === "paymongo";
+  const canSubmit = status?.selectedProvider === "xendit" && !claimedByPaymongo
+    && status.readiness.ready && !hasUncertain
+    && Boolean(ledger ? ledger.counts.prepared > 0 : true);
   return (
     <article className="card" data-xendit-payout-panel style={{ marginBottom: 16 }}>
       <div className="card-header">
         <div>
           <div className="card-kicker">PAYROLL PAYOUTS</div>
-          <h2>Xendit · default provider</h2>
-          <p>Bank and e-wallet salary payouts, protected by treasury approval. One individually tracked transfer per employee. PayMongo remains a separate legacy option.</p>
+          <h2>{status?.selectedProvider === "paymongo" ? "PayMongo · explicitly selected" : "Xendit · default provider"}</h2>
+          <p>{status?.selectedProvider === "paymongo"
+              ? "PayMongo is explicitly selected. Existing disbursements stay with their original provider and require independent settlement verification."
+              : "Bank and e-wallet salary payouts, protected by treasury approval. One individually tracked transfer per employee. PayMongo remains a separate legacy option."}</p>
         </div>
         <span className="status status-review">
-          {ledger?.status ?? (status?.readiness.ready ? "Ready for preflight" : "Activation required")}
+          {ledger?.status ?? (status?.selectedProvider === "paymongo" ? "Legacy provider" : status?.readiness.ready ? "Ready for preflight" : "Activation required")}
         </span>
       </div>
       <div className="card-body" style={{ display: "grid", gap: 12 }}>
         {status?.selectedProvider === "paymongo" && (
           <div className="notice notice-amber">This deployment explicitly selected PayMongo. Xendit payouts are inactive here.</div>
         )}
-        {status && !status.readiness.ready && (
+        {status && status.selectedProvider === "xendit" && !status.readiness.ready && (
           <div className="notice notice-amber">
             Xendit money movement is disabled. {status.readiness.blockers.join(" ")}
           </div>
@@ -178,13 +193,37 @@ export function XenditPayoutPanel({
             Some Xendit payouts have unknown outcomes. No further payout can be sent until the provider reference is independently reconciled. Do not retry unknown transfers.
           </div>
         )}
+        {claimedByPaymongo && (
+          <div className="notice notice-amber">
+            This run already has a PayMongo payout batch. Continue PayMongo reconciliation; Xendit cannot take ownership or resend those salaries.
+          </div>
+        )}
+        {status?.selectedProvider === "paymongo" && !status.claimedProvider && allowPaymongoActions && (
+          <div data-paymongo-legacy-controls style={{ display: "grid", gap: 8 }}>
+            <p className="field-help">Complete the no-money PayMongo preflight and independent treasury authorization before any legacy payout submission.</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <button className="secondary-button" disabled={paymongoPreflighting || paymongoSubmitting}
+                onClick={() => void onPaymongoPreflight()}>
+                {paymongoPreflighting ? "Checking..." : "Run PayMongo preflight"}
+              </button>
+              <button className="primary-button brand" disabled={!canSubmitPaymongo || paymongoPreflighting || paymongoSubmitting}
+                onClick={() => void onPaymongoSubmit()}>
+                {paymongoSubmitting ? "Submitting..." : "Submit via PayMongo"}
+              </button>
+            </div>
+          </div>
+        )}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <button className="secondary-button" disabled={Boolean(busy)}
-            onClick={() => void preflight()}>{busy === "preflight" ? "Checking..." : "Run Xendit preflight"}</button>
-          <button className="primary-button brand" disabled={Boolean(busy) || !canSubmit}
-            onClick={() => void submit()}>{busy === "submit" ? "Submitting..." : "Submit / continue Xendit payroll"}</button>
-          <button className="secondary-button" disabled={Boolean(busy) || !ledger}
-            onClick={() => void reconcile()}>{busy === "reconcile" ? "Checking..." : "Refresh provider settlement"}</button>
+          {status?.selectedProvider === "xendit" && !claimedByPaymongo && (<>
+            <button className="secondary-button" disabled={Boolean(busy)}
+              onClick={() => void preflight()}>{busy === "preflight" ? "Checking..." : "Run Xendit preflight"}</button>
+            <button className="primary-button brand" disabled={Boolean(busy) || !canSubmit}
+              onClick={() => void submit()}>{busy === "submit" ? "Submitting..." : "Submit / continue Xendit payroll"}</button>
+          </>)}
+          {ledger && (
+            <button className="secondary-button" disabled={Boolean(busy)}
+              onClick={() => void reconcile()}>{busy === "reconcile" ? "Checking..." : "Refresh provider settlement"}</button>
+          )}
         </div>
         {hasUncertain && (
           <div style={{ display: "grid", gap: 8 }}>
@@ -214,7 +253,9 @@ export function XenditPayoutPanel({
         )}
         {message && <div role="status" className="notice notice-amber">{message}</div>}
         <p className="field-help">
-          Xendit live access requires a dedicated MONEY-OUT key, approved legal employer and authorization, the reviewed database migration, and signed acceptance testing. Preflight does not reserve funds; an HTTP success does not prove final settlement.
+          {status?.selectedProvider === "paymongo"
+            ? "PayMongo payout submission requires a verified no-money preflight, independent treasury authorization and signed provider acceptance. An HTTP success does not prove final settlement."
+            : "Xendit live access requires a dedicated MONEY-OUT key, approved legal employer and authorization, the reviewed database migration, and signed acceptance testing. Preflight does not reserve funds; an HTTP success does not prove final settlement."}
         </p>
       </div>
     </article>
