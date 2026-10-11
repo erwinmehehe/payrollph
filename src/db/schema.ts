@@ -1725,6 +1725,7 @@ export const leaveBalances = pgTable("leave_balances", {
 
 export const expenseClaims = pgTable("expense_claims", {
   id: serial("id").primaryKey(),
+  submittedByUserId: integer("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   category: varchar("category", { length: 60 }).notNull(),
