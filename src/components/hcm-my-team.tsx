@@ -33,11 +33,16 @@ function observedInManila(value: string) {
  * One employer at a time. Read-only team overview only:
  * approvals and staffing changes remain in the owning source workflows.
  */
-export function HcmMyTeamClient({ organizationId }: { organizationId: number }) {
-  return <ScopedMyTeam key={organizationId} organizationId={organizationId}/>;
+export function HcmMyTeamClient({
+  organizationId, pilotFocusEnabled = false,
+}: { organizationId: number; pilotFocusEnabled?: boolean }) {
+  return <ScopedMyTeam key={organizationId} organizationId={organizationId}
+    pilotFocusEnabled={pilotFocusEnabled} />;
 }
 
-function ScopedMyTeam({ organizationId }: { organizationId: number }) {
+function ScopedMyTeam({
+  organizationId, pilotFocusEnabled,
+}: { organizationId: number; pilotFocusEnabled: boolean }) {
   const [searchDraft, setSearchDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<MyTeamStatusFilter>("all");
@@ -247,7 +252,8 @@ function ScopedMyTeam({ organizationId }: { organizationId: number }) {
                 </article>
               ))}
             </section>
-            <HcmMyTeamActionCenter organizationId={organizationId} summary={data.summary} />
+            <HcmMyTeamActionCenter organizationId={organizationId} summary={data.summary}
+              pilotFocusEnabled={pilotFocusEnabled} />
           </>
         )}
 
