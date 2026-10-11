@@ -33,6 +33,9 @@ test("shared access resolution never promotes unassigned manager to company-wide
   assert.ok(access.includes('row.orgUnitId <= 0'));
   assert.ok(access.includes('eq(orgUnits.id, row.orgUnitId)'));
   assert.ok(access.includes('eq(orgUnits.active, true)'));
+  assert.ok(access.includes('manilaCalendarDate()'));
+  assert.ok(access.includes('or(isNull(orgUnits.effectiveFrom), lte(orgUnits.effectiveFrom, today))'));
+  assert.ok(access.includes('or(isNull(orgUnits.effectiveUntil), gte(orgUnits.effectiveUntil, today))'));
   assert.ok(access.includes('The assigned manager unit is not active in this employer.'));
   assert.ok(access.includes('An assigned organizational unit is required for manager access.'));
 });
