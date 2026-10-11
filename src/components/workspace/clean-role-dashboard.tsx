@@ -23,6 +23,7 @@ import {
   dashboardPayrollSummary,
 } from "@/lib/dashboard-presentation";
 import type { DashboardData, PayrollRun } from "./types";
+import { isPreliminaryPayroll } from "@/lib/payroll-period-ui";
 import { Status } from "./ui";
 import { StatutoryRemittanceWatch } from "./statutory-remittance-watch";
 
@@ -49,6 +50,7 @@ export function CleanRoleDashboard({
   ).length;
   const summary = dashboardPayrollSummary(run, missingBank);
   const releaseCheck = useReleaseCheck(role === "owner" ? run : undefined);
+  const preliminary = Boolean(run && isPreliminaryPayroll(run.periodEnd, summary.calculated));
   const releaseReady = Boolean(
     run?.status === "Ready for release" && releaseCheck?.ready,
   );
@@ -63,7 +65,7 @@ export function CleanRoleDashboard({
             {role === "payroll"
               ? "Let’s make payday a good day."
               : role === "owner"
-                ? "Ready for payday"
+                ? "Your next payday"
                 : "Payroll review"}
           </h1>
           <p>
@@ -99,6 +101,7 @@ export function CleanRoleDashboard({
                     ? "All checks completed"
                     : "Checks before release"}
               </h2>
+              {preliminary && <p className="clean-muted" role="status">Preliminary calculation — this pay period is still in progress. Check attendance and recalculate when the period closes before requesting final approval.</p>}
               <CheckLine ok={passed("calculation")}>
                 Payroll calculated
               </CheckLine>
@@ -121,7 +124,7 @@ export function CleanRoleDashboard({
           </div>
           <div className="clean-funding">
             <div>
-              <span className="clean-muted">Net payroll funding</span>
+              <span className="clean-muted">Net salaries to fund</span>
               <strong>{dashboardMoney(summary.net)}</strong>
               <p>Payday: {dashboardDate(run?.payDate)}</p>
             </div>
@@ -129,7 +132,7 @@ export function CleanRoleDashboard({
               <WalletCards size={24} />
               <div>
                 <strong>Payout details</strong>
-                <p>Confirm the funding account before release.</p>
+                <p>Confirm payout destinations before release. Bank payout is a separate step after payroll is released.</p>
                 <button type="button" className="clean-link" onClick={openPayroll}>View details <ArrowRight size={15} /></button>
               </div>
             </div>

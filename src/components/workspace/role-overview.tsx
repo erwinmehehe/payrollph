@@ -19,6 +19,7 @@ import { DashboardStatCard } from "./dashboard-stat-card";
 import { RecentPayrollRuns } from "./recent-payroll-runs";
 import { RoleOverviewV2 } from "./role-overview-v2";
 import { CleanRoleDashboard } from "./clean-role-dashboard";
+import { PremiumDashboard } from "./premium-dashboard";
 import { buildPayrollHandoff, payrollHandoffRank, type PayrollHandoffStage } from "@/lib/payroll-handoff";
 import type { DashboardData, PayrollHandoffRunSummary, PayrollRun, Task } from "./types";
 import {
@@ -46,7 +47,10 @@ export function RoleOverviewView({
   onPage: (page: string) => void;
   onNewRun: () => void;
 }) {
-  if (role === "owner" || role === "payroll" || role === "checker") {
+  if (role === "owner" || role === "payroll") {
+    return <PremiumDashboard data={data} currentRun={currentRun} role={role} onPage={onPage} onNewRun={onNewRun} />;
+  }
+  if (role === "checker") {
     return <CleanRoleDashboard data={data} currentRun={currentRun} role={role} onPage={onPage} onNewRun={onNewRun} />;
   }
   return (

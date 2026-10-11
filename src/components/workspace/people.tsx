@@ -501,7 +501,7 @@ export function PeopleView({
             const worker = data.employees.find((employee) => employee.id === employeeId);
             if (worker) setPicked(worker);
           }}
-          onOpenSeparation={() => onPage("separation")}
+          onOpenSeparation={() => onPage("Separation")}
         />
       )}
 
@@ -512,7 +512,7 @@ export function PeopleView({
             const worker = data.employees.find((employee) => employee.id === employeeId);
             if (worker) setPicked(worker);
           }}
-          onOpenSeparation={() => onPage("separation")}
+          onOpenSeparation={() => onPage("Separation")}
         />
       )}
       </details>}
@@ -616,7 +616,7 @@ export function PeopleView({
                       {employee.mwe && <small className="mwe-tag">MWE</small>}
                     </td>
                     <td className="right mono" style={{ color: "var(--muted)" }}>
-                      {employee.region ?? "NCR"}
+                      {employee.region?.trim() || "Not set"}
                     </td>
                   </tr>
                 ))}
@@ -1655,7 +1655,7 @@ function PersonDrawer({
             employeeId={employee.id}
             currentEmploymentType={employee.employmentType}
             onChanged={refreshConnectedProfile}
-            onOpenSeparation={() => onPage("separation")}
+            onOpenSeparation={() => onPage("Separation")}
           />
         )}
 
@@ -1919,7 +1919,7 @@ function PersonDrawer({
                 </label>
               </div>
               <div className="modal-note" style={{ margin: "0 16px 10px" }}>
-                Leave account number blank to keep the saved destination; newly supplied numbers are encrypted server-side and returned masked. Once this employee appears in any payroll register (including a calculated Draft), bank/mobile payout changes require enterprise Treasury Controls and a different assigned treasury approver. Without that policy, direct entry is available only before this worker's first payroll calculation to a company-wide owner/admin with MFA. Never bypass an approval by creating a replacement employee.
+                Leave account number blank to keep the saved destination; newly supplied numbers are encrypted server-side and returned masked. Once this employee appears in any payroll register (including a calculated Draft), bank/mobile payout changes require enterprise Treasury Controls and a different assigned treasury approver. Without that policy, direct entry is available only before this worker&#39;s first payroll calculation to a company-wide owner/admin with MFA. Never bypass an approval by creating a replacement employee.
               </div>
               {payoutError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{payoutError}</span></div>}
               {payoutNotice && <div className="notice notice-slate" style={{ margin: "0 16px 10px" }}><span>{payoutNotice}</span></div>}

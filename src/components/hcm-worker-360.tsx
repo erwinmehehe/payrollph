@@ -182,7 +182,7 @@ export function Worker360Client({
                       : "No primary position assignment was recorded for this date. This does not establish that the worker had no job."}
                   </p>
                 )}
-                <p className="mt-5 text-xs text-slate-500">Historical job title, manager and department are intentionally not inferred from today's mutable position record.</p>
+                <p className="mt-5 text-xs text-slate-500">Historical job title, manager and department are intentionally not inferred from today&#39;s mutable position record.</p>
               </section>
 
               <section aria-labelledby="worker360-history" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">

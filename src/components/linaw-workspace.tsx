@@ -147,7 +147,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       }
       setData((await response.json()) as DashboardData);
     },
-    [data.selectedOrganization.id],
+    [data.selectedOrganization.id, setData],
   );
 
 
@@ -251,7 +251,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
     } finally {
       setBusy(false);
     }
-  }, [refresh, notify]);
+  }, [refresh, notify, setBusy]);
 
   async function releaseRun(
     runId: number,
@@ -327,7 +327,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       actions.push({ id: "gov", label: "Government validation status", hint: "Which agency outputs are still labelled DRAFT", run: () => setGovModalOpen(true) });
     }
     return actions;
-  }, [availablePages, canManageDeliveryOutbox, canManageTime, canUsePayrollOps, canUsePeopleOps, currentRun, processRun]);
+  }, [availablePages, canManageDeliveryOutbox, canManageTime, canUsePayrollOps, canUsePeopleOps, currentRun, processRun, setNewPayrollOpen, setNewHireOpen, setPage, setWebBundyOpen, setOutboxOpen, setGovModalOpen]);
 
   /* --------------------------------------------------------------- render */
 

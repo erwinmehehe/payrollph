@@ -177,7 +177,9 @@ test("People exposes org-wide lifecycle action center and worker-level governed 
   const people = read("src/components/workspace/people.tsx");
   assert.ok(people.includes("HcmEmploymentLifecycleActionCenter"));
   assert.ok(people.includes("HcmEmploymentLifecycleWorker"));
-  assert.ok(people.includes('onOpenSeparation={() => onPage("separation")}'));
+  assert.ok(people.includes('onOpenSeparation={() => onPage("Separation")}'));
+  const nav = read("src/components/workspace/nav.ts");
+  assert.ok(nav.includes('name: "Separation"'), "the lifecycle shortcut must target the registered Separation page");
 });
 
 test("worker lifecycle UI routes all mutations through existing governed APIs", () => {

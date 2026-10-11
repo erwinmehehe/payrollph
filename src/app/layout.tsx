@@ -8,6 +8,8 @@ import "./workspace-theme.css";
 import "./dashboard-design.css";
 import "./workspace-panels.css";
 import "./ess-mobile.css";
+import "./premium-dashboard.css";
+import "./phase-two.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const jetBrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono", display: "swap" });
