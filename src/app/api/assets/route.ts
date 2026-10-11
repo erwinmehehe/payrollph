@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     if (!Number.isInteger(candidate)) {
       return Response.json({ error: "employeeId must be an integer." }, { status: 422 });
     }
-    const [employee] = await db.select({ id: employees.id, orgUnitId: employees.orgUnitId }).from(employees)
+    const [employee] = await db.select({ id: employees.id, orgUnitId: employees.orgUnitId, status: employees.status }).from(employees)
       .where(and(eq(employees.id, candidate), eq(employees.organizationId, organizationId)))
       .limit(1);
     if (!employee) {
@@ -71,6 +71,9 @@ export async function POST(request: Request) {
     }
     const scope = assertScope(access, employee.orgUnitId);
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+    if (employee.status !== "Active") {
+      return Response.json({ error: "Equipment may be assigned only to active employees." }, { status: 409 });
+    }
     employeeId = employee.id;
   } else if (!access.companyWide) {
     return Response.json({ error: "Unit-scoped roles can create assets only when assigned to an employee in their own unit." }, { status: 403 });
@@ -140,7 +143,7 @@ export async function PATCH(request: Request) {
       if (!Number.isInteger(candidate)) {
         return Response.json({ error: "employeeId must be an integer." }, { status: 422 });
       }
-      const [employee] = await db.select({ id: employees.id, orgUnitId: employees.orgUnitId }).from(employees)
+      const [employee] = await db.select({ id: employees.id, orgUnitId: employees.orgUnitId, status: employees.status }).from(employees)
         .where(and(eq(employees.id, candidate), eq(employees.organizationId, target.organizationId)))
         .limit(1);
       if (!employee) {
@@ -148,6 +151,9 @@ export async function PATCH(request: Request) {
       }
       const scope = assertScope(access, employee.orgUnitId);
       if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+      if (employee.status !== "Active") {
+        return Response.json({ error: "Equipment may be assigned only to active employees." }, { status: 409 });
+      }
       updates.employeeId = employee.id;
     }
   }
