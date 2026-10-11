@@ -98,9 +98,15 @@ export async function verifyRequestSchemaReadOnly(
       "WHERE n.nspname = 'public' AND t.relname = ANY($1::text[])",
       [[...spec.tables]],
     );
-    const tableSet = new Set(tables.rows.map(row => row.name));
-    const colMap = new Map(cols.rows.map(row => [row.name, row]));
-    const indexMap = new Map(indexes.rows.map(row => [row.name, row]));
+    const tableSet = new Set(tables.rows.map(row => String(row.name)));
+    const colMap = new Map<string, Record<string, unknown>>();
+    const indexMap = new Map<string, Record<string, unknown>>();
+    for (const row of cols.rows) {
+      if (typeof row.name === "string") colMap.set(row.name, row);
+    }
+    for (const row of indexes.rows) {
+      if (typeof row.name === "string") indexMap.set(row.name, row);
+    }
     const soundTables = spec.tables.every(table => tableSet.has(table));
     const soundColumns = spec.columns.every(required => {
       const actual = colMap.get(required.name);
