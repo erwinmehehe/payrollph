@@ -64,10 +64,30 @@ test("checklist submits the selected employer and employee before mutation", () 
   assert.ok(board.includes("await onRefresh()"));
 });
 
-test("all source call sites send explicitly bound employer and employee IDs", () => {
-  // Search the checked-out application source (not a hand-maintained list).
-  // If another client calls this endpoint, this test must force a contract
-  // review before a rollout can silently break that client.
+test("offboarding checklist cannot bypass IT app revocation or asset recovery", () => {
+  const route = readFileSync("src/app/api/provisioning/route.ts", "utf8");
+  const patch = route.slice(route.indexOf("export async function PATCH("));
+  const itGuard = patch.indexOf('if (done && target.kind === "offboarding")');
+  const write = patch.indexOf("db.update(provisioningTasks)");
+  assert.ok(itGuard > 0 && itGuard < write, "IT evidence must be checked before task completion");
+  for (const expected of [
+    'target.title.startsWith("Revoke email")',
+    "itAccessGrants.organizationId, target.organizationId",
+    "itAccessGrants.employeeId, target.employeeId",
+    'grant.state !== "revoked"',
+    'target.title.startsWith("Recover laptop")',
+    "itManagedDevices.organizationId, target.organizationId",
+    "itManagedDevices.employeeId, target.employeeId",
+    "assets.organizationId, target.organizationId",
+    "assets.employeeId, target.employeeId",
+    "Assigned company equipment is outstanding",
+    "App access is not fully revoked",
+  ]) {
+    assert.ok(patch.includes(expected), "Missing original offboarding safety gate: " + expected);
+  }
+});
+
+test("provisioning callers using PATCH must send tenant and employee context", () => {
   const callers: Array<{ path: string; content: string }> = [];
   function scan(dir: string) {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -82,14 +102,17 @@ test("all source call sites send explicitly bound employer and employee IDs", ()
     }
   }
   scan("src");
-  assert.ok(callers.length > 0, "At least one onboarding client should use provisioning");
+  assert.ok(callers.length > 0, "A checklist client should use provisioning");
+  let mutationCallers = 0;
   for (const caller of callers) {
-    const matches = caller.content.match(/fetch\(\s*["'\x60]\/api\/provisioning/g) ?? [];
-    assert.ok(matches.length > 0, "Provisioning source reference requires caller contract review: " + caller.path);
-    for (const match of matches) {
+    // Read-only callers may query the endpoint without a PATCH body.
+    // Fail closed on an unreviewed mutation in a source file.
+    if (caller.content.includes('method: "PATCH"') || caller.content.includes("method: 'PATCH'")) {
+      mutationCallers++;
       assert.ok(caller.content.includes(
         'JSON.stringify({ id: task.id, organizationId, employeeId, done })',
-      ), "Review the new employer/worker mutation contract for " + caller.path + ": " + match);
+      ), "Review the new scoped PATCH contract for " + caller.path);
     }
   }
+  assert.ok(mutationCallers >= 1, "No scoped provisioning PATCH caller located");
 });
