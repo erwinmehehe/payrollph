@@ -5,10 +5,12 @@ import { and, eq } from "drizzle-orm";
 import { db, pool } from "../src/db";
 import { attendanceExceptionEvents, auditEvents, employees, leaveBalances, leaveConversions, leavePolicies, leaveRequests, payrollEntries, payrollRuns, separationRecords, timePunches, userOrganizations, users, workforceTimesheets } from "../src/db/schema";
 import { hashPassword } from "../src/lib/crypto";
+import { configuredPayrollPayoutProvider } from "../src/lib/payroll-payout-provider";
 import { isEncryptedBankAccount } from "../src/lib/bank-account-crypto";
 import { reconcileAttendanceExceptionEvents } from "../src/lib/workforce-attendance-exception-events";
 
 const base = process.env.QA_URL ?? "http://127.0.0.1:3000";
+const selectedPayoutProvider = configuredPayrollPayoutProvider();
 const setupToken = process.env.SETUP_TOKEN ?? "";
 const readinessToken = process.env.READINESS_TOKEN ?? "";
 const unique = randomUUID().replaceAll("-", "");
@@ -682,8 +684,13 @@ async function main() {
     501,
     `Fresh CI pilot has no external PayMongo credentials, so no-money preflight must fail closed: ${preflightBody}`,
   );
-  assert.match(preflightBody, /PAYMONGO_SECRET_KEY|PayMongo/i);
-  (report.lifecycle as string[]).push("paymongo-preflight-fails-closed-without-provider-credentials");
+  assert.match(preflightBody,
+    selectedPayoutProvider === "xendit" ? /Xendit/i : /PAYMONGO_SECRET_KEY|PayMongo/i);
+  (report.lifecycle as string[]).push(
+    selectedPayoutProvider === "xendit"
+      ? "xendit-default-blocks-legacy-paymongo-preflight"
+      : "paymongo-preflight-fails-closed-without-provider-credentials",
+  );
 
   const payout = await owner.request(`/api/payroll-runs/${runId}/exports`, {
     method: "POST",
@@ -696,7 +703,11 @@ async function main() {
     `Live PayMongo payout must stay blocked until provider credentials, wallet and webhook are configured: ${payoutBody}`,
   );
   assert.match(payoutBody, /not fully configured/i);
-  (report.lifecycle as string[]).push("live-paymongo-payout-blocked-until-provider-config");
+  (report.lifecycle as string[]).push(
+    selectedPayoutProvider === "xendit"
+      ? "xendit-default-prevents-legacy-paymongo-submission"
+      : "live-paymongo-payout-blocked-until-provider-config",
+  );
 
   const self = await expectOk(employee, "/api/self/payslips");
   const slip = (self.payslips ?? []).find((row: any) => Number(row.entryId) === Number(employeeEntry.id));
@@ -744,7 +755,7 @@ async function main() {
     "Payroll submitted for review",
     "Approval approved",
     "Payroll released",
-    "PayMongo payroll preflight failed",
+    ...(selectedPayoutProvider === "paymongo" ? ["PayMongo payroll preflight failed"] : []),
   ];
   for (const action of expectedActions) assert.ok(actions.has(action), `Missing audit event: ${action}`);
   report.auditEventsVerified = expectedActions;
