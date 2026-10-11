@@ -322,6 +322,13 @@ export async function POST(request: Request) {
     metadata: { employeeId, workDate: todayStr, timeOut: now.toISOString(), ip },
   });
 
+  // Final clock-out changes payable hours. Submitted/approved timesheets must
+  // be reviewed again before payroll handoff, just as with all other punches.
+  await markTimesheetsStaleForEmployeeDate({
+    organizationId,
+    employeeId,
+    workDate: todayStr,
+  });
   const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
   return Response.json({ ok: true, action: "clock_out", punch: updated, attendanceExceptionSync });
 }
