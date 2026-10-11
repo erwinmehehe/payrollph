@@ -114,7 +114,7 @@ export function projectOrgExplorer(
       id: row.id, code: row.code, name: row.name, type: row.type,
       // A missing parent may belong to another employer. Preserve the
       // integrity warning without exposing an unverified source identifier.
-      parentId: row.parentId !== null && byId.has(row.parentId) ? row.parentId : null,
+      parentId: issue === null && row.parentId !== null && byId.has(row.parentId) ? row.parentId : null,
       depth: issue ? 0 : path.length - 1,
       relationship: issue ?? (path.length === 1 ? "root" : "linked"),
       positionRecordCount: counts.get(row.id) ?? 0,
