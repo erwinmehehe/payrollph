@@ -41,6 +41,7 @@ import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { DEMO_ROLES, demoRolePath, type DemoRoleId } from "@/lib/demo-roles";
 import { buildPayrollHandoff } from "@/lib/payroll-handoff";
+import { essText, parseEssLanguage, ESS_LANGUAGE_STORAGE_KEY, type EssLanguage } from "@/lib/ess-language";
 
 type Payslip = {
   entryId: number;
@@ -263,6 +264,8 @@ function statusTone(status: string) {
 export function SelfServicePortal() {
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demoRole") === "employee";
+  const [language, setLanguage] = useState<EssLanguage>("en");
+  const t = (label: string) => essText(language, label);
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState("");
   const [employeeNo, setEmployeeNo] = useState("");
@@ -297,6 +300,15 @@ export function SelfServicePortal() {
     agency?: string;
     applicableMonth?: string;
   } | null>(null);
+
+  useEffect(() => {
+    try { setLanguage(parseEssLanguage(window.localStorage.getItem(ESS_LANGUAGE_STORAGE_KEY))); } catch { /* Private browsing may disable storage. */ }
+  }, []);
+
+  function changeLanguage(next: EssLanguage) {
+    setLanguage(next);
+    try { window.localStorage.setItem(ESS_LANGUAGE_STORAGE_KEY, next); } catch { /* Preference remains usable for this session. */ }
+  }
 
   function navigateTo(next: SelfTab) {
     setMoreOpen(false);
@@ -502,22 +514,33 @@ export function SelfServicePortal() {
     };
   }, [latestPayslip]);
 
+  const languageControl = (
+    <label className="employee-language-control" style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12 }}>
+      <span>{t("Language")}</span>
+      <select aria-label={t("Display language")} value={language} onChange={(event) => changeLanguage(parseEssLanguage(event.target.value))} style={{ minHeight: 34, borderRadius: 8, padding: "4px 8px" }}>
+        <option value="en">English</option>
+        <option value="fil">Taglish</option>
+      </select>
+    </label>
+  );
+
   if (!data) {
     return (
       <main className="employee-app employee-app-link">
         <section className="employee-link-card">
           <div className="employee-brand-mark">L</div>
-          <div className="card-kicker">EMPLOYEE SELF-SERVICE</div>
-          <h1>Link your employee record</h1>
-          <p>This one-time step connects your login to exactly one employee record. After that, you can see only your own pay, time and leave.</p>
+          <div className="card-kicker">{t("EMPLOYEE SELF-SERVICE")}</div>
+          <h1>{t("Link your employee record")}</h1>
+          <p>{t("This one-time step connects your login to exactly one employee record. After that, you can see only your own pay, time and leave.")}</p>
+          {languageControl}
           <form onSubmit={link} className="employee-link-form">
             <label>
-              Employee number
+              {t("Employee number")}
               <input value={employeeNo} onChange={(event) => setEmployeeNo(event.target.value)} placeholder="e.g. LL-101" />
             </label>
             {error && <div className="notice notice-amber"><span>{error}</span></div>}
-            {linked && <div className="notice notice-green"><ShieldCheck size={15} /><span>Linked. Loading your account…</span></div>}
-            <button className="primary-button brand" disabled={busy || !employeeNo}>{busy ? "Linking…" : "Link my record"}</button>
+            {linked && <div className="notice notice-green"><ShieldCheck size={15} /><span>{t("Linked. Loading your account…")}</span></div>}
+            <button className="primary-button brand" disabled={busy || !employeeNo}>{busy ? t("Linking…") : t("Link my record")}</button>
           </form>
         </section>
       </main>
@@ -528,13 +551,13 @@ export function SelfServicePortal() {
 
   return (
     <div className="app-shell clean-shell employee-workspace-shell" data-workspace-page={`employee-${tab}`} data-workspace-role="employee">
-      <aside className="sidebar employee-workspace-sidebar" aria-label="Employee navigation">
+      <aside className="sidebar employee-workspace-sidebar" aria-label={t("Employee navigation")}>
         <div className="sidebar-brand employee-shell-brand">
           <span className="brand-mark employee-shell-brandmark"><LinawMark /></span>
           <div><strong>Linaw</strong><span>PayrollPH</span></div>
         </div>
-        <div className="workspace-label employee-workspace-label"><span className="pulse-dot" />Employee workspace</div>
-        <nav className="side-navigation employee-side-nav" aria-label="Employee pages">
+        <div className="workspace-label employee-workspace-label"><span className="pulse-dot" />{t("Employee workspace")}</div>
+        <nav className="side-navigation employee-side-nav" aria-label={t("Employee pages")}>
           {ESS_ALL_TABS.map((value) => {
             const { icon: Icon, label } = ESS_TAB_CONFIG[value];
             return (
@@ -547,7 +570,7 @@ export function SelfServicePortal() {
                 onClick={() => navigateTo(value)}
               >
                 <span className="nav-icon t-green"><Icon size={17} aria-hidden="true" /></span>
-                {label}
+                {t(label)}
               </button>
             );
           })}
@@ -559,12 +582,12 @@ export function SelfServicePortal() {
           <div className="employee-topbar-greeting">
             <div>
               <strong>Hi, {data.employee.firstName} 👋</strong>
-              <span>{data.employer?.name ?? "Your employer"} · {data.employee.title}</span>
+              <span>{data.employer?.name ?? t("Your employer")} · {data.employee.title}</span>
             </div>
           </div>
           <div className="employee-shell-top-actions employee-self-service-actions">
-            <button className="employee-clock-button" type="button" aria-label="Open time clock" onClick={() => setWebBundyOpen(true)}>
-              <Clock size={18} /> <span>Time clock</span>
+            <button className="employee-clock-button" type="button" aria-label={t("Open time clock")} onClick={() => setWebBundyOpen(true)}>
+              <Clock size={18} /> <span>{t("Time clock")}</span>
             </button>
             {isDemo && (
               <label className="role-pill-btn employee-role-switcher">
@@ -574,7 +597,7 @@ export function SelfServicePortal() {
                 </select>
               </label>
             )}
-            <button className="top-profile-button employee-shell-profile" type="button" onClick={() => navigateTo("profile")} aria-label="Open profile">
+            <button className="top-profile-button employee-shell-profile" type="button" onClick={() => navigateTo("profile")} aria-label={t("Open profile")}>
               <span className="employee-app-avatar">
                 {photoAvailable
                   ? <Image unoptimized width={44} height={44} src={`/api/self/photo?v=${photoVersion}`} alt="" />
@@ -582,17 +605,18 @@ export function SelfServicePortal() {
               </span>
               <span className="clean-profile-copy"><strong>{data.employee.firstName} {data.employee.lastName}</strong><small>Employee</small></span>
             </button>
-            <button className="employee-icon-button employee-shell-signout" type="button" disabled={busy} onClick={() => void signOut()} aria-label="Sign out">
+            <button className="employee-icon-button employee-shell-signout" type="button" disabled={busy} onClick={() => void signOut()} aria-label={t("Sign out")}>
               <LogOut size={14} />
             </button>
           </div>
         </header>
 
         <main className="content-area employee-app employee-self-service">
-          <span className="employee-contract-copy">My pay · What did I get paid, and what do I need today? · Payslip available</span>
+          <span className="employee-contract-copy">{language === "fil" ? "Sahod ko · Magkano ang natanggap ko? · Available ang payslip" : "My pay · What did I get paid, and what do I need today? · Payslip available"}</span>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>{languageControl}</div>
           {error && <div className="notice notice-amber" role="alert"><span>{error}</span></div>}
 
-          <nav className="employee-tabs employee-mobile-nav" aria-label="Employee pages">
+          <nav className="employee-tabs employee-mobile-nav" aria-label={t("Employee pages")}>
             {ESS_PRIMARY_TABS.map((value) => {
               const { icon: Icon, label, mobileLabel } = ESS_TAB_CONFIG[value];
               return (
@@ -604,7 +628,7 @@ export function SelfServicePortal() {
                   onClick={() => navigateTo(value)}
                 >
                   <span className="employee-tab-icon"><Icon size={20} aria-hidden="true" /></span>
-                  <span>{mobileLabel ?? label}</span>
+                  <span>{t(mobileLabel ?? label)}</span>
                 </button>
               );
             })}
@@ -618,7 +642,7 @@ export function SelfServicePortal() {
               onClick={() => setMoreOpen((open) => !open)}
             >
               <span className="employee-tab-icon"><Menu size={20} aria-hidden="true" /></span>
-              <span>More</span>
+              <span>{t("More")}</span>
             </button>
           </nav>
           {moreOpen && (
@@ -626,8 +650,8 @@ export function SelfServicePortal() {
               <button className="employee-more-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setMoreOpen(false)} />
               <section id="employee-more-panel" className="employee-more-panel" aria-label="Additional employee pages">
                 <div className="employee-more-header">
-                  <strong>More from Linaw</strong>
-                  <button type="button" aria-label="Close more pages" onClick={() => { setMoreOpen(false); moreButtonRef.current?.focus(); }}>
+                  <strong>{t("More from Linaw")}</strong>
+                  <button type="button" aria-label={t("Close more pages")} onClick={() => { setMoreOpen(false); moreButtonRef.current?.focus(); }}>
                     <X size={20} aria-hidden="true" />
                   </button>
                 </div>
@@ -643,7 +667,7 @@ export function SelfServicePortal() {
                         onClick={() => navigateTo(value)}
                       >
                         <Icon size={20} aria-hidden="true" />
-                        <span>{mobileLabel ?? label}</span>
+                        <span>{t(mobileLabel ?? label)}</span>
                         <ChevronRight size={18} aria-hidden="true" />
                       </button>
                     );
@@ -651,7 +675,7 @@ export function SelfServicePortal() {
                 </div>
                 <button className="employee-more-signout" type="button" disabled={busy} onClick={() => void signOut()}>
                   <LogOut size={20} aria-hidden="true" />
-                  <span>{busy ? "Signing out…" : "Sign out"}</span>
+                  <span>{busy ? t("Signing out…") : t("Sign out")}</span>
                 </button>
               </section>
             </>
@@ -675,6 +699,7 @@ export function SelfServicePortal() {
       {tab === "home" && (
         <div>
           <EmployeeHomeDashboard
+            language={language}
             data={data}
             onPayslip={(id) => { setOpenPayslip(id); navigateTo("pay"); }}
             onPay={() => navigateTo("pay")}
@@ -684,8 +709,8 @@ export function SelfServicePortal() {
           />
           {data.nextPay && (
             <div className="employee-contract-handoff" aria-hidden>
-              <span>NEXT PAY STATUS</span>
-              <span>Your pay amount stays private and hidden until payroll is released.</span>
+              <span>{t("NEXT PAY STATUS")}</span>
+              <span>{t("Your pay amount stays private and hidden until payroll is released.")}</span>
               <PayrollHandoff
                 stages={buildPayrollHandoff({
                   status: data.nextPay.status,
@@ -705,28 +730,28 @@ export function SelfServicePortal() {
 
       {tab === "pay" && (
         <section className="employee-section">
-          <SectionHeading kicker="MY PAY" title="Payslips" copy="Latest released pay first. Draft and in-review payroll amounts never appear here." />
+          <SectionHeading kicker={t("MY PAY")} title={t("Payslips")} copy={t("Latest released pay first. Draft and in-review payroll amounts never appear here.")} />
           {latestPayslip && (
             <article className="employee-pay-breakdown">
               <div className="employee-pay-breakdown-head">
                 <div>
                   <span>{latestPayslip.period}</span>
                   <strong>{peso(latestPayslip.net)}</strong>
-                  <small>Net pay · paid {payDateLabel(latestPayslip.payDate)}</small>
+                  <small>{t("Net pay · paid")} {payDateLabel(latestPayslip.payDate)}</small>
                 </div>
                 <a className="secondary-button" href={"/api/self/payslips/" + latestPayslip.entryId}><Download size={14} /> PDF</a>
               </div>
               <div className="employee-pay-totals">
-                <div><span>Gross</span><strong>{peso(latestPayslip.gross)}</strong></div>
-                <div><span>Deductions</span><strong>{peso(latestPayslip.deductions)}</strong></div>
-                <div><span>Tax withheld YTD</span><strong>{peso(data.yearToDate.tax)}</strong></div>
+                <div><span>{t("Gross")}</span><strong>{peso(latestPayslip.gross)}</strong></div>
+                <div><span>{t("Deductions")}</span><strong>{peso(latestPayslip.deductions)}</strong></div>
+                <div><span>{t("Tax withheld YTD")}</span><strong>{peso(data.yearToDate.tax)}</strong></div>
               </div>
               <div className="employee-breakdown-columns">
-                <PayLines title="Earnings" rows={latestBreakdown.earnings} empty="No positive pay lines stored." />
-                <PayLines title="Deductions" rows={latestBreakdown.deductions} empty="No deductions stored." deductions />
+                <PayLines title={t("Earnings")} rows={latestBreakdown.earnings} empty={t("No positive pay lines stored.")} />
+                <PayLines title={t("Deductions")} rows={latestBreakdown.deductions} empty={t("No deductions stored.")} deductions />
               </div>
-              <EmployeeExplainPay entryId={latestPayslip.entryId} period={latestPayslip.period} />
-              <div className="employee-rule-note"><ShieldCheck size={12} /> Rule version {latestPayslip.ruleVersion}</div>
+              <EmployeeExplainPay entryId={latestPayslip.entryId} period={latestPayslip.period} language={language} />
+              <div className="employee-rule-note"><ShieldCheck size={12} /> {t("Rule version")} {latestPayslip.ruleVersion}</div>
             </article>
           )}
 
@@ -934,12 +959,12 @@ export function SelfServicePortal() {
           <article className="employee-list-card">
             <div className="employee-list-card-head">
               <div>
-                <span className="card-kicker">PAY HISTORY</span>
-                <h3>{data.payslips.length} released period{data.payslips.length === 1 ? "" : "s"}</h3>
+                <span className="card-kicker">{t("PAY HISTORY")}</span>
+                <h3>{data.payslips.length} {t(data.payslips.length === 1 ? "released period" : "released periods")}</h3>
               </div>
             </div>
             {data.payslips.length === 0 ? (
-              <div className="employee-empty-row">No released payslips yet.</div>
+              <div className="employee-empty-row">{t("No released payslips yet.")}</div>
             ) : data.payslips.map((slip) => {
               const expanded = openPayslip === slip.entryId;
               return (
@@ -951,16 +976,16 @@ export function SelfServicePortal() {
                     </div>
                     <div className="employee-pay-row-amount">
                       <strong>{peso(slip.net)}</strong>
-                      <span>net pay</span>
+                      <span>{t("Net pay")}</span>
                     </div>
                     <ChevronRight size={15} className={expanded ? "open" : ""} />
                   </button>
                   {expanded && (
                     <div className="employee-pay-row-detail" id={"employee-payslip-" + slip.entryId}>
-                      <div><span>Gross</span><strong>{peso(slip.gross)}</strong></div>
-                      <div><span>Deductions</span><strong>{peso(slip.deductions)}</strong></div>
-                      <a className="secondary-button" href={"/api/self/payslips/" + slip.entryId}><Download size={13} /> Download PDF</a>
-                      <EmployeeExplainPay entryId={slip.entryId} period={slip.period} />
+                      <div><span>{t("Gross")}</span><strong>{peso(slip.gross)}</strong></div>
+                      <div><span>{t("Deductions")}</span><strong>{peso(slip.deductions)}</strong></div>
+                      <a className="secondary-button" href={"/api/self/payslips/" + slip.entryId}><Download size={13} /> {t("Download PDF")}</a>
+                      <EmployeeExplainPay entryId={slip.entryId} period={slip.period} language={language} />
                     </div>
                   )}
                 </div>
