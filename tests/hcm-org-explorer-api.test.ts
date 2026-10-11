@@ -102,6 +102,11 @@ test("UI never uses stale employer/position response or performs mutations", () 
   assert.match(client, /history\?\.scope === positionScope/);
   assert.ok(client.includes("selectedUnitChoice?.scope === graphScope"));
   assert.ok(client.includes("selectedPositionChoice?.scope === unitScope"));
+  assert.ok(client.includes("const showingUnlinked ="));
+  assert.ok(client.includes("position.reportingUnitId === null"));
+  assert.ok(client.includes("current.unlinkedPositionRecords > 0"));
+  assert.ok(client.includes("relationships are not inferred"));
+
   assert.ok(!client.includes('setGraph({ scope: graphScope, status: "loading"'));
   assert.ok(!client.includes('setHistory({ scope: positionScope, status: "loading"'));
 
