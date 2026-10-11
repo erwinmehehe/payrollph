@@ -1,16 +1,27 @@
+import { coreSchemaCompatibilityMode } from "@/lib/core-schema-readonly";
+import { workforceAttendanceSchemaSpec, verifyRequestSchemaReadOnlyFromPool } from "@/lib/request-schema-readonly";
 import { pool } from "@/db";
 
 let ready = false;
 let inFlight: Promise<void> | null = null;
 
 export async function ensureWorkforceAttendanceControlSchema() {
+  const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+  if (mode === "read-only") {
+    if (inFlight) throw new Error("WORKFORCE_ATTENDANCE_LEGACY_SCHEMA_WRITE_IN_PROGRESS");
+    await verifyRequestSchemaReadOnlyFromPool(pool, workforceAttendanceSchemaSpec);
+    return;
+  }
   if (ready) return;
   if (inFlight) return inFlight;
 
   inFlight = (async () => {
     const client = await pool.connect();
+    let transactionOpen = false;
+    let safeToReuse = false;
     try {
       await client.query("BEGIN");
+      transactionOpen = true;
       await client.query(
         "SELECT pg_advisory_xact_lock(hashtext('linaw_workforce_attendance_control_v1'))",
       );
@@ -92,12 +103,22 @@ export async function ensureWorkforceAttendanceControlSchema() {
       `);
 
       await client.query("COMMIT");
+      transactionOpen = false;
+      safeToReuse = true;
       ready = true;
     } catch (error) {
-      try { await client.query("ROLLBACK"); } catch { /* no-op */ }
+      if (transactionOpen) {
+        try {
+          await client.query("ROLLBACK");
+          transactionOpen = false;
+          safeToReuse = true;
+        } catch {
+          // Never reuse a client with an uncertain open transaction.
+        }
+      }
       throw error;
     } finally {
-      client.release();
+      client.release(!safeToReuse);
       inFlight = null;
     }
   })();
