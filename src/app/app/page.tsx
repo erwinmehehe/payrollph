@@ -39,7 +39,10 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
   let companyOrganizationId: number | null;
   if (requestedValue !== undefined) {
     const requestedOrganizationId = explicitHcmEmployerId(requestedValue);
-    if (!requestedOrganizationId || !(await getAccess(user.id, requestedOrganizationId))) notFound();
+    const requestedAccess = requestedOrganizationId ? await getAccess(user.id, requestedOrganizationId) : null;
+    // A user may be staff for one employer and employee-only for another.
+    // An employee membership never grants access to the company workspace.
+    if (!requestedAccess || requestedAccess.role === "employee") notFound();
     companyOrganizationId = requestedOrganizationId;
   } else {
     companyOrganizationId = await primaryCompanyOrganizationId(user.id);
