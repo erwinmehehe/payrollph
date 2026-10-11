@@ -98,7 +98,9 @@ function WebBundyView({
   const visible = validEmployer
     ? visibleWebBundyState(readKey, readState)
     : { status: "unavailable" as const, punches: [] };
-  const historyReady = validEmployer && selectedEmployeeId !== null && visible.status === "ready";
+  const previousNeedsReview = readState?.key === readKey && readState.previousShiftNeedsReview === true;
+  const historyReady = validEmployer && selectedEmployeeId !== null
+    && visible.status === "ready" && !previousNeedsReview;
   // Never reuse location policy for another employer, worker, or refresh generation.
   const policy = clockPolicy?.key === readKey ? clockPolicy : null;
   const policyReady = Boolean(policy && !policy.error && (!policy.required || policy.canClockWithLocation));
@@ -212,7 +214,6 @@ function WebBundyView({
     timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
   }).format(now);
   const fromPreviousWorkDate = Boolean(todayPunch?.workDate && todayPunch.workDate !== todayWorkDate);
-  const previousNeedsReview = readState?.key === readKey && readState.previousShiftNeedsReview === true;
   const breakActive = Boolean(todayPunch?.breakStart && !todayPunch?.breakEnd);
   const canClockIn = mayClockInWebBundy(historyReady, todayPunch);
   const canStartBreak = Boolean(historyReady && todayPunch?.timeIn && !todayPunch?.breakStart && !todayPunch?.timeOut);
