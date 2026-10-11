@@ -23,6 +23,8 @@ test("cron endpoint emits telemetry and request ID without exposing stack or sec
   assert.ok(source.includes('emit(result.skipped ? "cron-skipped" : "cron-completed")'));
   assert.ok(!source.includes("console.error(error)"));
   assert.ok(!source.includes("console.log(request)"));
+  const misconfigured = source.split('if (auth === "misconfigured") {')[1]?.split("\n  }")[0];
+  assert.ok(misconfigured && !misconfigured.includes("emit("), "unauthenticated missing-secret probes must not flood logs");
 });
 
 test("event logger has no pathway to embed names, bank accounts or free text", () => {
