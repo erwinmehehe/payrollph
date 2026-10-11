@@ -9,11 +9,13 @@ export function FirstPayrollReadinessCard({
   onPage,
   onNewRun,
   onSettings,
+  allowedPages,
 }: {
   readiness: FirstPayrollReadinessState;
   onPage: (page: string) => void;
   onNewRun: () => void;
   onSettings?: (tab: "organization" | "team") => void;
+  allowedPages: readonly string[];
 }) {
   // Keep the export/filing handoff visible after the first run is released.
   // Once a second run exists, the employer has completed the initial journey.
@@ -55,7 +57,7 @@ export function FirstPayrollReadinessCard({
               </span>
             </div>
             <p style={{ fontSize: 12, margin: "8px 0" }}>{step.detail}</p>
-            {step.state !== "complete" && step.state !== "upcoming" && (
+            {step.state !== "complete" && step.state !== "upcoming" && allowedPages.includes(step.page) && (
               <button type="button" className="first-payroll-link" onClick={() => {
                 if (step.settingsTab && onSettings) onSettings(step.settingsTab);
                 onPage(step.page);
@@ -76,7 +78,7 @@ export function FirstPayrollReadinessCard({
               <strong>{item.label}</strong>
               <p>{item.detail}</p>
             </div>
-            {!item.ready && (
+            {!item.ready && allowedPages.includes(item.actionPage) && (
               <button className="first-payroll-link" onClick={() => {
                 if (item.actionPage === "Settings" && onSettings) {
                   onSettings(item.key === "workspace" ? "organization" : "team");
@@ -103,7 +105,7 @@ export function FirstPayrollReadinessCard({
                 : "Finish the five setup checks before starting a payroll calculation."}
           </span>
         </div>
-        {readiness.ready && (
+        {readiness.ready && allowedPages.includes(readiness.firstPayrollReleased ? "Exports" : "Payroll") && (
           <button
             className="primary-button"
             onClick={readiness.firstPayrollReleased
