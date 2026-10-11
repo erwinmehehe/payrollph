@@ -5746,3 +5746,64 @@ export const workforceDemandObservationRevisions = pgTable(
     check("wfm_demand_observation_metric_check", sql`${table.metricKind} IN ('transactions', 'visits', 'orders', 'appointments', 'calls')`),
   ],
 );
+
+/**
+ * Issued operational-demand predictions. The forecast's exact content is
+ * captured before its future intervals occur and is never edited by any app
+ * route. Corrections to source-reported counts are separate append-only
+ * source revisions; score evidence is separately frozen once finalized.
+ */
+export const workforceDemandForecastIssues = pgTable(
+  "workforce_demand_forecast_issues",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "cascade" }),
+    sourceKey: varchar("source_key", { length: 64 }).notNull(),
+    metricKind: varchar("metric_kind", { length: 24 }).notNull(),
+    intervalMinutes: integer("interval_minutes").notNull(),
+    horizonDays: integer("horizon_days").notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
+    requestSha256: varchar("request_sha256", { length: 64 }).notNull(),
+    issuedByUserId: integer("issued_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
+    sourceCutoffAt: timestamp("source_cutoff_at", { withTimezone: true }).notNull(),
+    trainingEvidenceSha256: varchar("training_evidence_sha256", { length: 64 }).notNull(),
+    snapshotSha256: varchar("snapshot_sha256", { length: 64 }).notNull(),
+    pointsCount: integer("points_count").notNull(),
+    snapshot: jsonb("snapshot").notNull(),
+  },
+  t => [
+    uniqueIndex("wfm_demand_issued_key_unique").on(t.organizationId, t.idempotencyKey),
+    index("wfm_demand_issued_scope_idx").on(t.organizationId, t.worksiteId, t.issuedAt),
+    check("wfm_demand_issued_interval_check", sql`${t.intervalMinutes} IN (15, 30, 60)`),
+    check("wfm_demand_issued_horizon_check", sql`${t.horizonDays} IN (7, 14)`),
+    check("wfm_demand_issued_points_check", sql`${t.pointsCount} BETWEEN 1 AND 400`),
+    check("wfm_demand_issued_hash_check", sql`(
+      ${t.requestSha256} ~ '^[a-f0-9]{64}$'
+      AND ${t.snapshotSha256} ~ '^[a-f0-9]{64}$'
+      AND ${t.trainingEvidenceSha256} ~ '^[a-f0-9]{64}$'
+    )`),
+  ],
+);
+
+export const workforceDemandForecastScores = pgTable(
+  "workforce_demand_forecast_scores",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    issueId: integer("issue_id").notNull().references(() => workforceDemandForecastIssues.id, { onDelete: "restrict" }),
+    scoredByUserId: integer("scored_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    scoredAt: timestamp("scored_at", { withTimezone: true }).notNull(),
+    evaluationCutoffAt: timestamp("evaluation_cutoff_at", { withTimezone: true }).notNull(),
+    pointsCount: integer("points_count").notNull(),
+    reportSha256: varchar("report_sha256", { length: 64 }).notNull(),
+    report: jsonb("report").notNull(),
+  },
+  t => [
+    uniqueIndex("wfm_demand_issued_score_unique").on(t.issueId),
+    index("wfm_demand_score_tenant_idx").on(t.organizationId, t.scoredAt),
+    check("wfm_demand_score_points_check", sql`${t.pointsCount} BETWEEN 1 AND 400`),
+    check("wfm_demand_score_hash_check", sql`${t.reportSha256} ~ '^[a-f0-9]{64}$'`),
+  ],
+);

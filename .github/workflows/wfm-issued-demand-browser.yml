@@ -1,0 +1,32 @@
+name: WFM Issued Demand Browser QA
+on:
+  pull_request:
+    paths:
+      - "src/components/workspace/workforce-issued-demand-panel.tsx"
+      - "src/components/workspace/workforce-coverage-panel.tsx"
+      - "tests/fixtures/wfm-issued-demand-browser.jsx"
+      - "scripts/wfm-issued-demand-browser.mjs"
+      - ".github/workflows/wfm-issued-demand-browser.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  issued-demand-chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --ignore-scripts playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/wfm-issued-demand-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wfm-issued-demand-chromium
+          path: qa-artifacts/
+          retention-days: 7

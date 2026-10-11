@@ -1,0 +1,67 @@
+name: WFM Issued Forecast Prospective Scoring QA
+
+on:
+  push:
+    branches:
+      - feat/wfm-issued-demand-forecast-evidence-20261011
+  pull_request:
+    paths:
+      - "src/lib/workforce-issued-demand-*.ts"
+      - "src/app/api/workforce/demand-observations/issued/**"
+      - "src/components/workspace/workforce-issued-demand-panel.tsx"
+      - "src/components/workspace/workforce-coverage-panel.tsx"
+      - "src/db/schema.ts"
+      - "drizzle/0114_wfm_issued_demand_forecasts.sql"
+      - "tests/workforce-issued-demand*.test.ts"
+      - ".github/workflows/wfm-issued-demand-prospective-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  issued-future-workload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      TZ: Asia/Manila
+      CI: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Pinned lint baseline
+        run: npm run lint
+      - name: Synthetic-only encryption key (never persisted)
+        shell: bash
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Initialize disposable Postgres 16
+        run: npm run db:push
+      - name: Verify issued and source-revision tables plus unique score index
+        run: |
+          node -e 'const {Client}=require("pg");(async()=>{const c=new Client({connectionString:process.env.DATABASE_URL});await c.connect();try{const names=["public.workforce_demand_import_batches","public.workforce_demand_observation_revisions","public.workforce_demand_forecast_issues","public.workforce_demand_forecast_scores","public.wfm_demand_issued_score_unique"];const {rows}=await c.query("select unnest($1::text[]) as name", [names]);for(const row of rows){const out=await c.query("select to_regclass($1) as found",[row.name]);if(!out.rows[0].found)throw Error("Missing WFM test schema object: "+row.name)}}finally{await c.end()}})().catch(e=>{console.error(e);process.exitCode=1})'
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Future issuance, frozen scores and base aggregate import SQL tests
+        run: npx tsx --test --test-concurrency=1 tests/workforce-operational-demand.test.ts tests/workforce-operational-demand-db.test.ts tests/workforce-issued-demand-evidence.test.ts tests/workforce-issued-demand-db.test.ts
+      - name: Source size gate
+        run: npm run source:size:check
+      - name: Production build
+        run: npm run build
