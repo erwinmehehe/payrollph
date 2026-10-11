@@ -67,8 +67,15 @@ export async function prepareInitialPayoutBatch(input: {
           "Payroll payout submitted via Xendit",
           "Payroll payout completed via Xendit",
           "Payroll payout completed manually",
+          "PayMongo transfer webhook received",
+          "bank export generated",
         ]),
         sql`${auditEvents.metadata} ->> 'runId' = ${String(input.payrollRunId)}`,
+        // Dry-run validation has not created an external payment instruction;
+        // final bank files may already have been uploaded outside the app.
+        sql`(${auditEvents.action} <> 'bank export generated'
+          OR (${auditEvents.metadata} ->> 'kind' = 'bank'
+            AND COALESCE(${auditEvents.metadata} ->> 'dryRun', 'false') <> 'true'))`,
       )).limit(1);
     if (priorProvider.length > 0) throw new Error("PAYOUT_EXISTING_LEGACY_PAYMENT_REQUIRES_RECONCILIATION");
 
