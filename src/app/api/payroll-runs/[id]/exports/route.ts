@@ -1,3 +1,4 @@
+import { configuredPayrollPayoutProvider, xenditPayrollLiveReadiness } from "@/lib/payroll-payout-provider";
 import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -249,6 +250,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       : body.mode === "complete-manual"
         ? "complete-manual"
         : "disburse";
+
+  // Xendit is the default selected rail. The legacy PayMongo payment endpoint
+  // must never move funds merely because its credentials are present.
+  // Xendit V3 transfers use one request per employee and require a separately
+  // reviewed durable settlement path; until then fail closed, not fall back.
+  if (mode !== "complete-manual" && configuredPayrollPayoutProvider() === "xendit") {
+    const readiness = xenditPayrollLiveReadiness({
+      organizationId: run.organizationId,
+      legalEntityId: run.legalEntityId,
+    });
+    return Response.json({
+      error: "Xendit is the selected payroll payout provider, but its reviewed payment submission and reconciliation workflow has not been activated. No money moved. Never reroute a released payroll to PayMongo automatically.",
+      code: "XENDIT_DEFAULT_PAYROLL_PAYOUT_NOT_ACTIVATED",
+      provider: "xendit",
+      providerConfigured: readiness.ready,
+      blockers: readiness.blockers,
+      moneyMoved: false,
+      manualWorkaround: "A bank-validated manual payout remains available after independent treasury authorization.",
+    }, { status: 501 });
+  }
 
   let treasuryEvidence: TreasuryEvidence | null = null;
   if (mode === "preflight") {
