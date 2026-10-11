@@ -5684,3 +5684,65 @@ export const itDeviceEvents = pgTable("it_device_events", {
   actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [index("it_device_events_idx").on(t.organizationId, t.deviceId, t.createdAt)]);
+
+/**
+ * WFM operational-demand evidence v1. Individual customers, patients, card
+ * transactions and employee identities are NEVER recorded here. Data is
+ * reported aggregated interval counts, not source-system certification.
+ * Corrections insert another revision; no application update/delete route.
+ */
+export const workforceDemandImportBatches = pgTable(
+  "workforce_demand_import_batches",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "cascade" }),
+    sourceKey: varchar("source_key", { length: 64 }).notNull(),
+    metricKind: varchar("metric_kind", { length: 24 }).notNull(),
+    intervalMinutes: integer("interval_minutes").notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
+    requestSha256: varchar("request_sha256", { length: 64 }).notNull(),
+    rowCount: integer("row_count").notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("wfm_demand_import_idempotency_unique").on(table.organizationId, table.idempotencyKey),
+    index("wfm_demand_import_scope_idx").on(table.organizationId, table.worksiteId, table.importedAt),
+    check("wfm_demand_import_interval_check", sql`${table.intervalMinutes} IN (15, 30, 60)`),
+    check("wfm_demand_import_count_check", sql`${table.rowCount} BETWEEN 1 AND 100`),
+    check("wfm_demand_import_metric_check", sql`${table.metricKind} IN ('transactions', 'visits', 'orders', 'appointments', 'calls')`),
+  ],
+);
+
+export const workforceDemandObservationRevisions = pgTable(
+  "workforce_demand_observation_revisions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "cascade" }),
+    importBatchId: integer("import_batch_id").notNull().references(() => workforceDemandImportBatches.id, { onDelete: "restrict" }),
+    sourceKey: varchar("source_key", { length: 64 }).notNull(),
+    metricKind: varchar("metric_kind", { length: 24 }).notNull(),
+    intervalStart: timestamp("interval_start", { withTimezone: true }).notNull(),
+    intervalMinutes: integer("interval_minutes").notNull(),
+    revision: integer("revision").notNull(),
+    observedCount: integer("observed_count").notNull(),
+    quality: varchar("quality", { length: 20 }).notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("wfm_demand_observation_version_unique").on(
+      table.organizationId, table.worksiteId, table.sourceKey, table.metricKind,
+      table.intervalStart, table.intervalMinutes, table.revision,
+    ),
+    index("wfm_demand_observation_history_idx").on(
+      table.organizationId, table.worksiteId, table.metricKind, table.intervalStart,
+    ),
+    check("wfm_demand_observation_interval_check", sql`${table.intervalMinutes} IN (15, 30, 60)`),
+    check("wfm_demand_observation_revision_check", sql`${table.revision} BETWEEN 1 AND 1000`),
+    check("wfm_demand_observation_count_check", sql`${table.observedCount} BETWEEN 0 AND 1000000`),
+    check("wfm_demand_observation_quality_check", sql`${table.quality} IN ('complete', 'partial', 'unverified')`),
+    check("wfm_demand_observation_metric_check", sql`${table.metricKind} IN ('transactions', 'visits', 'orders', 'appointments', 'calls')`),
+  ],
+);
