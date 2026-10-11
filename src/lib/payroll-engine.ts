@@ -3217,7 +3217,7 @@ function calculateEmployeePay(input: {
     priorStatutory.pagIbigVoluntaryEmployee,
   );
   const statutoryReconciliationMode = canTrueUpActualMonth
-    ? (hasPriorMonthStatutory ? "month-final-ledger-true-up" : "new-hire-final-cutoff-actual")
+    ? (priorCutoffPresent ? "month-final-ledger-true-up" : "new-hire-final-cutoff-actual")
     : timing === "first_cutoff"
       ? "first-cutoff-full"
       : timing === "second_cutoff"
