@@ -70,7 +70,13 @@ test("leave reads filter all assigned-unit staff and reject missing manager unit
   assert.match(get, /else if \(!access\.companyWide && access\.orgUnitId\)/);
   assert.match(get, /eq\(employees\.organizationId, organizationId\)/);
   assert.match(get, /eq\(employees\.orgUnitId, access\.orgUnitId\)/);
-  assert.match(get, /rows\.filter\(\(\{ leave \}\) => employeeIds!\.includes\(leave\.employeeId\)\)/);
+  assert.match(get, /eq\(leaveRequests\.employeeId, user\.employeeId\)/);
+  assert.match(get, /eq\(leaveRequests\.organizationId, organizationId\)/);
+  assert.match(get, /where\(and\(\.\.\.scopeConditions\)\)/);
+  assert.match(get, /innerJoin\(employees, and\(/);
+  assert.ok(!get.includes("rows.filter("), "Do not filter leave only after retrieving other teams.");
+  assert.ok(!get.includes("employeeIds"), "Apply authorized employee scope in SQL.");
+  assert.ok(!get.includes("employee: employees"), "Do not read unnecessary private employee fields.");
   assert.ok(get.includes('access.role !== "employee" && !access.companyWide'));
   assert.ok(!get.includes('access.role === "manager" && !access.companyWide && access.orgUnitId'));
 });
