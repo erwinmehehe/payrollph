@@ -51,15 +51,17 @@ export async function GET(request:Request) {
     ![15,30,60].includes(intervalMinutes)){
     return Response.json({error:"Exact employer, worksite and interval required."},{status:400,headers});
   }
-  if(!operationalDemandPilotAllowed(organizationId)||
-    !loyversePilotEnabled(organizationId)||
-    !loyverseConnection(organizationId,worksiteId)) {
-    return Response.json({error:"Consented POS source is not configured for employer/worksite."},{status:404,headers});
-  }
+  // Deny outsiders before revealing whether a merchant has an opted-in
+  // provider connector; the source configuration is not a membership oracle.
   const access=await getAccess(user.id,organizationId);
   if(!access||!WORKFORCE_MANAGER_ROLES.some(role=>role===access.role)||
     !await siteAuthorized(organizationId,worksiteId,access)) {
     return Response.json({error:"Scoped workforce manager access required."},{status:403,headers});
+  }
+  if(!operationalDemandPilotAllowed(organizationId)||
+    !loyversePilotEnabled(organizationId)||
+    !loyverseConnection(organizationId,worksiteId)) {
+    return Response.json({error:"Consented POS source is not configured for employer/worksite."},{status:404,headers});
   }
   try {
     const [lastImport]=await db.select({
@@ -118,17 +120,17 @@ export async function POST(request:Request) {
   let scoped;
   try{scoped=parseLoyverseSyncRequest(JSON.parse(body));}
   catch{return Response.json({error:"Exact, acknowledged historical POS sync request required."},{status:400,headers});}
+  const access=await getAccess(user.id,scoped.organizationId);
+  if(!access||!access.companyWide||!PEOPLE_ADMIN_ROLES.some(role=>role===access.role)||
+    !await siteAuthorized(scoped.organizationId,scoped.worksiteId,access)) {
+    return Response.json({error:"Company-wide People admin and exact active PH worksite access required."},{status:403,headers});
+  }
   if(!operationalDemandPilotAllowed(scoped.organizationId)||
     !loyversePilotEnabled(scoped.organizationId)) {
     return Response.json({error:"POS source pilot is off for this employer."},{status:404,headers});
   }
   const connection=loyverseConnection(scoped.organizationId,scoped.worksiteId);
   if(!connection)return Response.json({error:"Merchant OAuth or store consent mapping unavailable."},{status:404,headers});
-  const access=await getAccess(user.id,scoped.organizationId);
-  if(!access||!access.companyWide||!PEOPLE_ADMIN_ROLES.some(role=>role===access.role)||
-    !await siteAuthorized(scoped.organizationId,scoped.worksiteId,access)) {
-    return Response.json({error:"Company-wide People admin and exact active PH worksite access required."},{status:403,headers});
-  }
   const mfa=requireSensitiveActionMfa(user);
   if(mfa)return mfa;
   const limit=await enforceSensitiveActionRateLimit(request,{
