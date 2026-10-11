@@ -36,6 +36,7 @@ on:
       - "src/lib/payout-**"
       - "src/lib/treasury-**"
       - "src/lib/exporters.ts"
+      - "src/lib/filing-evidence-store.ts"
       - "src/lib/payroll-**"
       - "src/lib/workforce-**"
       - "src/app/api/workforce/**"

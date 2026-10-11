@@ -839,6 +839,8 @@ async function main() {
     assert.equal(generated.record?.status, "generated");
     assert.equal(Number(generated.record?.payrollRunId), runId);
     assert.equal(Number(generated.record?.organizationId), organizationId);
+    assert.equal(generated.record?.applicableMonth, definition.agency === "BIR" ? "2026-10" : "2026-09",
+      "Filing metadata must match its source month, including next-month pay dates");
     assert.match(String(generated.record?.fileSha256), /^[a-f0-9]{64}$/);
 
     const recordId = Number(generated.record.id);

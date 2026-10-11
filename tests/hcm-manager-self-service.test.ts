@@ -60,7 +60,9 @@ test("My Team actions are navigation only, not another HR approval endpoint", ()
 
   assert.ok(app.includes('searchParams.get("workspacePage") === "People"'), "Preserve existing People focus routing");
   assert.ok(app.includes("requestedMyTeamWorkspacePage({"));
-  assert.ok(app.includes("linkedTeamWorkflowPage ?? \"Overview\""));
+  // Preserve manager navigation precedence while permitting separately gated HR review return links.
+  assert.ok(app.includes('linkedTeamWorkflowPage ?? linkedHirePayrollPage ?? "Overview"'));
+  assert.ok(app.includes("allowHirePayrollReview && !pilotFocusEnabled && !demoRole"));
   assert.ok(actionCenter.includes("myTeamWorkflowHref(organizationId, action.page)"));
   assert.ok(actionCenter.includes("Only actually assigned requests can be approved or declined."));
   assert.ok(actionCenter.includes("All counts are limited to this directory page"));

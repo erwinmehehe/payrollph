@@ -67,6 +67,30 @@ function acceptance(method: "file_upload" | "manual_entry" = "file_upload") {
   return parsed.ok ? parsed.value : (undefined as never);
 }
 
+for (const [periodEnd, payDate] of [["2026-09-30", "2026-10-05"], ["2026-12-31", "2027-01-05"]]) {
+  test(`filing evidence uses pay month for BIR and cutoff month for contributions: ${payDate}`, async () => {
+    const { org, run } = await seedRun(`Filing month boundary ${payDate}`);
+    try {
+      await db.update(payrollRuns).set({ periodStart: `${periodEnd.slice(0, 7)}-01`, periodEnd, payDate })
+        .where(eq(payrollRuns.id, run.id));
+      for (const [agency, form] of [["BIR", "1601-C"], ["SSS", "R-3"], ["PhilHealth", "RF-1"], ["Pag-IBIG", "MCRF"]]) {
+        const definition = findFilingForm(agency, form)!;
+        const input = { organizationId: org.id, runId: run.id, definition, actor: "Synthetic month QA" };
+        const first = await recordGeneratedFiling(input);
+        assert.equal(first.record.applicableMonth, (agency === "BIR" ? payDate : periodEnd).slice(0, 7));
+        assert.equal(first.record.status, "generated");
+        const downloaded = await regenerateRecordedFile(first.record);
+        assert.equal(downloaded.body, first.file.body);
+        const again = await recordGeneratedFiling(input);
+        assert.equal(again.created, false);
+        assert.equal(again.record.id, first.record.id);
+      }
+    } finally {
+      await db.delete(organizations).where(eq(organizations.id, org.id));
+    }
+  });
+}
+
 test("a filing is recorded by hash, can be accepted once, and then counts as proof", async () => {
   const { org, run } = await seedRun("Filing Evidence Co");
   try {
