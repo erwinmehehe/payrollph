@@ -50,3 +50,29 @@ test("existing workspace navigation presents spend and device workflows", () => 
   assert.ok(read("src/components/workspace/nav.ts").includes('name: "Expenses"'));
   assert.ok(read("src/components/workspace/nav.ts").includes('name: "Assets"'));
 });
+
+test("finance release and IT clearance both preserve their independent state-machine guards", () => {
+  const payroll = read("src/lib/payroll-settlement.ts");
+  const spend = read("src/app/api/spend/route.ts");
+  const separation = read("src/app/api/separation/route.ts");
+  assert.ok(payroll.includes('status: "paid", payrollRunId: run.id'));
+  assert.ok(payroll.includes('eq(expenseClaims.status, "approved")'));
+  assert.ok(spend.includes('reimbursementStatus'));
+  assert.ok(spend.includes('requireSensitiveActionMfa(user)'));
+  assert.ok(separation.includes("requestOffboardingIT(organizationId, employeeId)"));
+  assert.ok(separation.includes("SEPARATION_IT_RECOVERY_PENDING"));
+  assert.ok(separation.includes('g.state !== "revoked"'));
+  assert.ok(separation.includes('a.status === "assigned"'));
+});
+
+test("legacy mutations cannot silently change a managed device and checklist completion requires recovery", () => {
+  const assets = read("src/app/api/assets/route.ts");
+  const provisioning = read("src/app/api/provisioning/route.ts");
+  const it = read("src/app/api/it-operations/route.ts");
+  assert.ok(assets.includes('This asset is managed by IT Operations'));
+  assert.ok(assets.includes('employee.status !== "Active"'));
+  assert.ok(provisioning.includes("App access is not fully revoked"));
+  assert.ok(provisioning.includes("Assigned company equipment is outstanding"));
+  assert.ok(it.includes("requireSensitiveActionMfa(user)"));
+  assert.ok(it.includes('currentEmployeeStatus === "Active" ? "assigned" : "return_requested"'));
+});
