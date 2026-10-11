@@ -62,7 +62,7 @@ import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll,
 import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 
-export function LinawWorkspace({ initialData, pilotFocusEnabled = false }: { initialData: DashboardData; pilotFocusEnabled?: boolean }) {
+export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean }) {
   const searchParams = useSearchParams();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
@@ -424,6 +424,7 @@ export function LinawWorkspace({ initialData, pilotFocusEnabled = false }: { ini
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
                 readiness={data.firstPayrollReadiness}
+                guided={isSelfServeCustomer}
                 allowedPages={availablePages}
                 onSettings={setSettingsInitialTab}
                 onPage={setPage}
