@@ -65,7 +65,7 @@ test("onboarding action remains in authorized workspace and existing audited sou
   assert.ok(workspace.includes("onOpenDocuments={availablePages.includes(\"Documents\")"));
   assert.ok(board.includes('fetch("/api/provisioning"'));
   assert.ok(board.includes('method: "PATCH"'));
-  assert.ok(board.includes("JSON.stringify({ id: task.id, done })"));
+  assert.ok(board.includes("JSON.stringify({ id: task.id, organizationId, employeeId, done })"));
   assert.ok(board.includes("payload.organizationId !== organizationId"));
   assert.ok(board.includes("payload.employeeId !== employeeId"));
   assert.ok(board.includes('payload.kind !== "onboarding"'));

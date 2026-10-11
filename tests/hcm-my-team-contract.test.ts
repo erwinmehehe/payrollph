@@ -108,7 +108,10 @@ test("workspace UI has a gated link and stale employer/page responses cannot sur
   assert.match(app, /data\.selectedOrganization\.id/);
   assert.ok(app.includes('access.role === "manager" && !access.companyWide && access.orgUnitId !== null'));
   const page = readFileSync("src/app/hcm/my-team/page.tsx", "utf8");
-  assert.ok(page.includes("<HcmMyTeamClient key={organizationId} organizationId={organizationId} />"), "employer switch must reset cursors and filters");
+  // The keyed instance resets cursors on employer change, while the
+  // separately gated pilot-navigation flag may add client props.
+  assert.ok(page.includes("<HcmMyTeamClient key={organizationId} organizationId={organizationId}"), "employer switch must reset cursors and filters");
+  assert.ok(page.includes("pilotFocusEnabled={pilotFocusEnabledForOrganization(organizationId)}"), "pilot focus must be resolved for the selected employer");
   assert.match(ui, /new AbortController\(\)/);
   assert.match(ui, /controller\.abort\(\)/);
   assert.match(ui, /data\.organizationId !== organizationId/);
