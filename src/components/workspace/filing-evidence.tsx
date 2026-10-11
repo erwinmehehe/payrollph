@@ -45,6 +45,12 @@ type FilingForm = {
     worksheetStatus: "reconciliation-only";
     notes: string;
   } | null;
+  relatedCertificate?: {
+    form: string;
+    officialInstructionsUrl: string;
+    acceptanceChecklist: string[];
+    notes: string;
+  } | null;
   copy: {
     title: string;
     agencyLabel: string;
@@ -327,6 +333,19 @@ export function FilingEvidencePanel({
               <a href={official.officialInstructionsUrl} target="_blank" rel="noopener noreferrer">Official filing instructions</a>
               <a href={official.officialPortalUrl} target="_blank" rel="noopener noreferrer">Open agency website</a>
             </div>
+          </section>
+        )}
+
+        {definition?.relatedCertificate && (
+          <section className="notice notice-slate" data-separate-bir-2316 style={{ margin: 0, display: "block" }}>
+            <strong>BIR Form 2316 — separate employee certificate</strong>
+            <p style={{ fontSize: 12, margin: "6px 0" }}>{definition.relatedCertificate.notes}</p>
+            <ul style={{ margin: "5px 0 10px", paddingLeft: 20, fontSize: 12 }}>
+              {definition.relatedCertificate.acceptanceChecklist.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+            <a href={definition.relatedCertificate.officialInstructionsUrl} target="_blank" rel="noopener noreferrer">
+              View official BIR Form 2316
+            </a>
           </section>
         )}
 
