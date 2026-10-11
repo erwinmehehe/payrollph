@@ -7,7 +7,7 @@ type Employee = { id: number; firstName: string; lastName: string };
 type Claim = { id: number; employeeId: number; description: string; amount: string; incurredOn: string; category: string };
 type Card = { id: number; issuer: string; lastFour: string; employeeId: number | null; status: string };
 type Charge = { id: number; cardId: number; merchant: string; amount: string; spentOn: string };
-type Report = { id: number; title: string; employeeId: number; status: string; totalAmount: string; claimIds: number[] };
+type Report = { id: number; title: string; employeeId: number; status: string; totalAmount: string; claimIds: number[]; reimbursementStatus: string };
 type Data = { employees: Employee[]; cards: Card[]; transactions: Charge[]; reports: Report[]; unreportedClaims: Claim[] };
 const currency = (v: string) => "₱" + Number(v).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export function SpendOperationsPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (text: string) => void }) {
@@ -85,7 +85,7 @@ export function SpendOperationsPanel({ organizationId, setNotice }: { organizati
         <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Report title" />
         <button className="primary-button" disabled={busy || claimIds.length === 0}>Submit report</button>
       </form>
-      <table className="data-table"><thead><tr><th>Report</th><th>Employee</th><th>Amount</th><th>Status</th><th>Decision</th></tr></thead><tbody>{data.reports.map(r => <tr key={r.id}><td>{r.title}</td><td>{name(r.employeeId)}</td><td>{currency(r.totalAmount)}</td><td>{r.status}</td><td>{r.status === "submitted" && <span><button disabled={busy} onClick={() => write("PATCH", { id: r.id, status: "approved" })}>Approve</button> <button disabled={busy} onClick={() => write("PATCH", { id: r.id, status: "rejected" })}>Reject</button></span>}</td></tr>)}</tbody></table>
+      <table className="data-table"><thead><tr><th>Report</th><th>Employee</th><th>Amount</th><th>Decision status</th><th>Reimbursement</th><th>Actions</th></tr></thead><tbody>{data.reports.map(r => <tr key={r.id}><td>{r.title}</td><td>{name(r.employeeId)}</td><td>{currency(r.totalAmount)}</td><td>{r.status}</td><td>{r.reimbursementStatus.replaceAll("_", " ")}</td><td>{r.status === "submitted" && <span><button disabled={busy} onClick={() => write("PATCH", { id: r.id, status: "approved" })}>Approve</button> <button disabled={busy} onClick={() => write("PATCH", { id: r.id, status: "rejected" })}>Reject</button></span>}</td></tr>)}</tbody></table>
     </div>
   </section>;
 }
