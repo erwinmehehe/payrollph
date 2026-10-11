@@ -191,10 +191,14 @@ function classifyGuard(functionNode, sourceFile, firstMutation) {
     // A mutation inside the putative guard is not protected by that guard.
     if (stmt.getStart(sourceFile) >= firstMutation) break;
     if (ts.isVariableStatement(stmt)) {
-      verifiedModeBinding = stmt.declarationList.declarations.some(decl =>
-        ts.isIdentifier(decl.name) && decl.name.text === 'mode'
-        && isStrictModeCall(decl.initializer, sourceFile)
-      ) || verifiedModeBinding;
+      // Only an immutable parser result can prove this early exit.
+      // A let/var mode can be reassigned to legacy before the guard.
+      if ((stmt.declarationList.flags & ts.NodeFlags.Const) !== 0) {
+        verifiedModeBinding = stmt.declarationList.declarations.some(decl =>
+          ts.isIdentifier(decl.name) && decl.name.text === 'mode'
+          && isStrictModeCall(decl.initializer, sourceFile)
+        ) || verifiedModeBinding;
+      }
       continue;
     }
     if (!ts.isIfStatement(stmt) || stmt.getEnd() > firstMutation) continue;

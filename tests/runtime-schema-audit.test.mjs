@@ -204,6 +204,20 @@ test('a fake mode binding or parser in a comment does not pass the source guard'
 });
 
 
+test('mutable schema mode never qualifies as a fail-closed early exit', () => {
+  for (const keyword of ['let', 'var']) {
+    const source = `async function ensureUnsafeSchema() {
+      ${keyword} mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+      mode = "legacy";
+      if (mode === "read-only") return;
+      await client.query("CREATE TABLE accidentally_unprotected (id integer)");
+    }`;
+    const findings = auditSource(source);
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].state, 'unguarded');
+  }
+});
+
 test('catalog verifier delegates only recognize imported reviewed callbacks', () => {
   const verified = `import { verifyRequestSchemaReadOnly } from "@/lib/request-schema-readonly";
   async function ensureAudited() {
