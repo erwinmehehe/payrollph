@@ -84,8 +84,20 @@ export const ISSUED_FORECAST_BOUNDARY =
   "Final scores compare frozen predictions with later complete counts; missing/partial observations never become zero. " +
   "Late corrections after final scoring do not rewrite the score. No auto-scheduling, payroll, or employment action.";
 
+/** JSONB reorders object keys, so hashes must be key-order independent. */
+function stableData(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stableData);
+  if (value instanceof Date) return value.toISOString();
+  if (value && typeof value === "object") {
+    const input = value as Record<string, unknown>;
+    return Object.fromEntries(Object.keys(input).sort().map(key => [
+      key, stableData(input[key]),
+    ]));
+  }
+  return value;
+}
 export function demandSha256(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  return createHash("sha256").update(JSON.stringify(stableData(value))).digest("hex");
 }
 
 export function nextPhDay(instant: Date): string {
