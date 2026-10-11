@@ -38,6 +38,11 @@ export async function GET(request: Request) {
       forms: FILING_FORMS.map((definition) => ({
         ...definition,
         official: officialFilingGuidance(definition.agency, definition.form),
+        // BIR Form 2316 is an independently issued employee certificate,
+        // not an annual Alphalist import. Show its official guidance nearby.
+        relatedCertificate: definition.agency === "BIR" && definition.form === "1604-C"
+          ? officialFilingGuidance("BIR", "2316")
+          : null,
       })),
       legalEntity: { id: legalEntity.id, code: legalEntity.code, displayName: legalEntity.displayName },
       records: await listFilingValidations(organizationId, legalEntity.id),
