@@ -89,7 +89,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       )}
       {!pilotFocusEnabled && peopleHomeEnabledForOrganization(data.selectedOrganization.id) && canOpenPeopleHome(access) && (<Link href={`/hcm/command-center?organizationId=${data.selectedOrganization.id}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>) }
     </div>
-    <LinawWorkspace initialData={data} pilotFocusEnabled={pilotFocusEnabled} />
+    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} pilotFocusEnabled={pilotFocusEnabled} />
   </>;
 }
 
