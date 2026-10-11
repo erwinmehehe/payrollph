@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useMemo, useState } from "react";
 import {
   ArrowRight,
@@ -32,11 +34,13 @@ const ICONS: Record<HrisHomeShortcut["icon"], LucideIcon> = {
 export function HrisHomeShortcuts({
   actions,
   onPage,
+  reviewTeamHref,
   employees = [],
   onOpenEmployee,
 }: {
   actions: readonly HrisHomeShortcut[];
   onPage: (page: string) => void;
+  reviewTeamHref?: string | null;
   /** Authorized roster for the currently selected employer; never cross-employer search. */
   employees?: readonly HrisQuickFindEmployee[];
   onOpenEmployee?: (employeeId: number) => void;
@@ -48,6 +52,9 @@ export function HrisHomeShortcuts({
     [canQuickFind, employees, employeeQuery],
   );
   if (actions.length === 0) return null;
+  const dailyIds = new Set(["directory", "hiring", "leave", "approvals"]);
+  const dailyActions = actions.filter((action) => dailyIds.has(action.id));
+  const additionalActions = actions.filter((action) => !dailyIds.has(action.id));
 
   return (
     <section aria-labelledby="hris-home-actions-heading"
@@ -56,10 +63,10 @@ export function HrisHomeShortcuts({
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-emerald-800">HR workspace</p>
           <h2 id="hris-home-actions-heading" className="mt-1 text-xl font-semibold tracking-tight">
-            People operations
+            Everyday HR
           </h2>
           <p className="mt-1 text-sm text-slate-600">
-            Go directly to an existing HR workflow for this employer.
+            Find an employee, onboard a hire, manage leave, review your team or handle approvals for this employer.
           </p>
         </div>
         <span className="text-xs text-slate-500">Available to your role</span>
@@ -132,7 +139,7 @@ export function HrisHomeShortcuts({
         </div>
       )}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {actions.map((action) => {
+        {dailyActions.map((action) => {
           const Icon = ICONS[action.icon];
           return (
             <button
@@ -155,6 +162,30 @@ export function HrisHomeShortcuts({
           );
         })}
       </div>
+      {reviewTeamHref && (
+        <div className="mt-3">
+          <Link href={reviewTeamHref}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900 hover:border-emerald-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+            <UsersRound size={18} aria-hidden="true" /> Review team <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+        </div>
+      )}
+      {additionalActions.length > 0 && (
+        <details className="mt-5 rounded-xl border border-slate-200 px-4 py-3">
+          <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-slate-800">
+            More HR tools
+          </summary>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {additionalActions.map((action) => (
+              <button key={action.id} type="button" onClick={() => onPage(action.page)}
+                className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 text-left text-sm hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-700">
+                <span><strong className="block">{action.title}</strong><span className="text-xs text-slate-600">{action.description}</span></span>
+                <ArrowRight size={16} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </details>
+      )}
     </section>
   );
 }
