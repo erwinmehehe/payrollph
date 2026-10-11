@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { ArrowLeftRight, Check, RefreshCcw, ShieldCheck, X } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Segmented, Spinner, Status } from "./ui";
+import { useScopedAsyncResource } from "./use-scoped-async-resource";
+import { resolveScopedOption, type ScopedOptionSelection } from "@/lib/scoped-option-selection";
 
 type SwapRow = {
   id: number;
@@ -41,12 +43,12 @@ export function WorkforceScheduleSwapPanel({
   notify: Notify;
 }) {
   const organizationId = data.selectedOrganization.id;
-  const [swaps, setSwaps] = useState<SwapRow[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [filter, setFilter] = useState<"pending" | "all">("pending");
-  const [requesterEmployeeId, setRequesterEmployeeId] = useState(data.employees[0]?.id ?? 0);
-  const [counterpartyEmployeeId, setCounterpartyEmployeeId] = useState(data.employees[1]?.id ?? data.employees[0]?.id ?? 0);
+  const [requesterSelection, setRequesterSelection] = useState<ScopedOptionSelection | null>(null);
+  const [counterpartySelection, setCounterpartySelection] = useState<ScopedOptionSelection | null>(null);
+  const requesterEmployeeId = Number(resolveScopedOption(requesterSelection, organizationId, data.employees));
+  const counterpartyEmployeeId = Number(resolveScopedOption(counterpartySelection, organizationId, data.employees, 1));
   const [requesterWorkDate, setRequesterWorkDate] = useState(todayManila());
   const [counterpartyWorkDate, setCounterpartyWorkDate] = useState(todayManila());
   const [reason, setReason] = useState("Schedule coverage swap");
@@ -56,25 +58,19 @@ export function WorkforceScheduleSwapPanel({
     [data.employees],
   );
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await fetch(`/api/workforce/schedule-swaps?organizationId=${organizationId}`, {
-        cache: "no-store",
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error ?? "Could not load schedule swaps.");
-      setSwaps(Array.isArray(body.swaps) ? body.swaps : []);
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not load schedule swaps.", "err");
-    } finally {
-      setLoading(false);
-    }
-  }, [notify, organizationId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const scopeKey = JSON.stringify([organizationId, data.access?.role, data.access?.companyWide, data.access?.orgUnitName]);
+  const fetchSwaps = useCallback(async (signal: AbortSignal) => {
+    const response = await fetch(`/api/workforce/schedule-swaps?organizationId=${organizationId}`, {
+      cache: "no-store", signal,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error ?? "Could not load schedule swaps.");
+    return (Array.isArray(body.swaps) ? body.swaps : []) as SwapRow[];
+  }, [organizationId]);
+  const onLoadError = useCallback((error: Error) => notify(error.message, "err"), [notify]);
+  const { data: payload, error: loadError, loading, reload: load } =
+    useScopedAsyncResource(scopeKey, fetchSwaps, onLoadError);
+  const swaps = useMemo(() => payload ?? [], [payload]);
 
   async function mutate(action: "create_request" | "decide_request", payload: Record<string, unknown>, success: string) {
     setSaving(action === "create_request" ? "create" : String(payload.requestId ?? "decision"));
@@ -143,6 +139,7 @@ export function WorkforceScheduleSwapPanel({
 
   return (
     <section style={{ marginTop: 16 }}>
+      {loadError && <div className="notice notice-red" role="alert">{loadError.message}</div>}
       <div className="card-header" style={{ padding: "0 0 12px" }}>
         <div>
           <div className="card-kicker">Roster control</div>
@@ -180,7 +177,8 @@ export function WorkforceScheduleSwapPanel({
           <div className="setting-form">
             <label>
               Employee A
-              <select value={requesterEmployeeId || ""} onChange={(event) => setRequesterEmployeeId(Number(event.target.value))}>
+              <select value={requesterEmployeeId || ""} onChange={(event) => setRequesterSelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose an employee</option>
                 {data.employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.firstName} {employee.lastName}</option>
                 ))}
@@ -189,7 +187,8 @@ export function WorkforceScheduleSwapPanel({
             <label>Employee A date<input type="date" value={requesterWorkDate} onChange={(event) => setRequesterWorkDate(event.target.value)} /></label>
             <label>
               Employee B
-              <select value={counterpartyEmployeeId || ""} onChange={(event) => setCounterpartyEmployeeId(Number(event.target.value))}>
+              <select value={counterpartyEmployeeId || ""} onChange={(event) => setCounterpartySelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose an employee</option>
                 {data.employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.firstName} {employee.lastName}</option>
                 ))}
@@ -199,7 +198,7 @@ export function WorkforceScheduleSwapPanel({
             <label>Reason<input value={reason} maxLength={240} onChange={(event) => setReason(event.target.value)} /></label>
           </div>
           <div className="run-actions">
-            <button className="primary-button brand" disabled={saving !== null || data.employees.length < 2} onClick={() => void createSwap()}>
+            <button className="primary-button brand" disabled={saving !== null || !requesterEmployeeId || !counterpartyEmployeeId || requesterEmployeeId === counterpartyEmployeeId} onClick={() => void createSwap()}>
               {saving === "create" ? <Spinner label="Saving" /> : <ArrowLeftRight size={14} />} Submit swap
             </button>
           </div>
