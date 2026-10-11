@@ -13,6 +13,7 @@ import { HcmDocumentsPanel } from "@/components/hcm-documents-panel";
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { SaasOnboardingQuickstart } from "@/components/saas-onboarding-quickstart";
+import { HrisHomeShortcuts } from "@/components/hris-home-shortcuts";
 import { DisciplinePanel } from "@/components/discipline-panel";
 import { LoansPanel } from "@/components/loans-panel";
 import { LegalEntitiesPanel } from "@/components/legal-entities-panel";
@@ -60,6 +61,7 @@ import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, roleHasPeopleWorkspace, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
 import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
+import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean }) {
   const searchParams = useSearchParams();
@@ -115,6 +117,12 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       : roleAllowedPages;
   }, [isFreelancer, rolePages, pilotFocusEnabled, demoRole]);
 
+  // Only surface existing HR modules that this role, plan and pilot menu permit.
+  const hrisShortcuts = useMemo(
+    () => hrisHomeShortcutsForRole(effectiveRole, availablePages),
+    [effectiveRole, availablePages],
+  );
+
   const notifications = useMemo(
     () => buildNotifications(data, effectiveRole).filter((item) => !item.page || availablePages.includes(item.page)),
     [data, effectiveRole, availablePages],
@@ -129,6 +137,15 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
   const canManageDeliveryOutbox = effectiveRole === "owner" || effectiveRole === "admin";
   const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
+
+  function openHrEmployee(employeeId: number) {
+    // The dashboard can only focus a worker already present in the current
+    // authorized employer snapshot; it cannot query or guess another worker.
+    if (!canUsePeopleOps || !Number.isSafeInteger(employeeId) || employeeId <= 0 ||
+        !data.employees.some((employee) => employee.id === employeeId)) return;
+    setFocusEmployeeId(employeeId);
+    setPage("People");
+  }
 
   usePaletteShortcut(() => setPaletteOpen(true));
 
@@ -393,6 +410,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
                 onAddEmployee={() => setNewHireOpen(true)}
               />
             )}
+            {hrisShortcuts.length > 0 && (
+              <HrisHomeShortcuts actions={hrisShortcuts} onPage={setPage} />
+            )}
             {dashboardRole ? (
               <RoleOverviewView
                 data={data}
@@ -400,6 +420,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
                 role={dashboardRole}
                 onNewRun={() => setNewPayrollOpen(true)}
                 onPage={setPage}
+                onFocusEmployee={openHrEmployee}
               />
             ) : (
               <OverviewView
