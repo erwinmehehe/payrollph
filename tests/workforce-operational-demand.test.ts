@@ -62,7 +62,7 @@ test("reject PII-like extra fields, ambiguous times, future, invalid alignment a
     })) },
   ];
   for (const bad of rejects) {
-    assert.throws(() => parseDemandImport(bad, now), undefined, JSON.stringify(bad).slice(0, 130));
+    assert.throws(() => parseDemandImport(bad, now), Error, JSON.stringify(bad).slice(0, 130));
   }
 });
 
