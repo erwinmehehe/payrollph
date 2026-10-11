@@ -84,6 +84,15 @@ export function workspacePrimaryPagesForRole(role: string | null | undefined) {
   return ROLE_PRIMARY_PAGES[role] ?? null;
 }
 
+/** Match People workspace links to the sidebar's role page entitlement.
+ * Read/write endpoints must still enforce their own source permissions.
+ */
+export function roleHasPeopleWorkspace(role: string | null | undefined): boolean {
+  if (!role) return false;
+  const pages = workspacePagesForRole(role);
+  return pages ? pages.includes("People") : role === "owner" || role === "admin";
+}
+
 export function roleCanManagePayroll(role: string | null | undefined) {
   return Boolean(role && PAYROLL_OPERATOR_UI_ROLES.has(role));
 }

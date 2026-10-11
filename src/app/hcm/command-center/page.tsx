@@ -8,6 +8,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { canOpenPeopleHome, explicitHcmEmployerId, peopleHomeEnabledForOrganization } from "@/lib/hcm-people-home-scope";
 import { loadPeopleHomeWorklist } from "@/lib/hcm-people-home-worklist";
+import { roleHasPeopleWorkspace } from "@/lib/workspace-role-ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "People Home | Linaw HCM", robots: { index: false, follow: false } };
@@ -32,6 +33,8 @@ export default async function HcmCommandCenter({
   const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES);
   const access = denied ? null : await getAccess(user.id, organizationId);
   if (denied || !canOpenPeopleHome(access)) notFound();
+  const hasPeopleWorkspace = roleHasPeopleWorkspace(access?.role);
+  const canOpenSource = (url: string) => hasPeopleWorkspace || !url.startsWith("/app?");
 
   // Exact headcount remains distinct from bounded, incomplete work previews.
   const [employer, headcount] = await Promise.all([
@@ -89,6 +92,10 @@ export default async function HcmCommandCenter({
       </p>
     </header>
 
+    {!hasPeopleWorkspace && <p role="note" className="mb-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+      This role can review People Home summaries, but People directory and HCM Inbox actions must be opened by an authorized People workspace user.
+    </p>}
+
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {summary.map((item) => <article key={item.label} className="rounded-xl border bg-white p-5 shadow-sm">
         <p className="text-sm text-slate-600">{item.label}</p>
@@ -138,9 +145,11 @@ export default async function HcmCommandCenter({
                   {item.blockedByMakerChecker && <p className="mt-2 text-xs font-semibold text-amber-800">
                     You initiated this request. A separate reviewer is required.
                   </p>}
-                  <Link href={item.sourceUrl} className="mt-2 inline-block text-sm font-semibold text-emerald-800 underline">
-                    Open source workflow
-                  </Link>
+                  {canOpenSource(item.sourceUrl) ? (
+                    <Link href={item.sourceUrl} className="mt-2 inline-block text-sm font-semibold text-emerald-800 underline">
+                      Open source workflow
+                    </Link>
+                  ) : <p className="mt-2 text-xs text-slate-600">People workspace action unavailable to this role.</p>}
                 </li>)}
               </ul>
               {(section.data.hasMore || section.data.partial) && <p className="mt-3 text-xs text-slate-600">
@@ -148,8 +157,10 @@ export default async function HcmCommandCenter({
               </p>}
             </>
           )}
-          <Link className="mt-5 inline-block rounded-lg border border-emerald-800 px-4 py-2 text-sm font-semibold text-emerald-900"
-            href={section.sourceUrl}>Open {section.sourceName}</Link>
+          {canOpenSource(section.sourceUrl) ? (
+            <Link className="mt-5 inline-block rounded-lg border border-emerald-800 px-4 py-2 text-sm font-semibold text-emerald-900"
+              href={section.sourceUrl}>Open {section.sourceName}</Link>
+          ) : <p className="mt-5 text-xs text-slate-600">This source requires an authorized People workspace role.</p>}
         </article>)}
       </div>
     </section>

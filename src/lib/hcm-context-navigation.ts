@@ -6,6 +6,7 @@ import {
   canReadHcmProcessMonitor, canonicalHcmId,
   monitorEnabledForEmployer,
 } from "@/lib/hcm-process-monitor";
+import { roleHasPeopleWorkspace } from "@/lib/workspace-role-ui";
 
 /**
  * Discovery only, never an authorization gate.
@@ -45,6 +46,7 @@ export function buildHcmNavigation(
   }
 
   const canPeople = canOpenPeopleHome(access);
+  const canPeopleWorkspace = canPeople && roleHasPeopleWorkspace(access.role);
   const canMonitor = canReadHcmProcessMonitor(access);
   if (!canPeople && !canMonitor) return [];
 
@@ -86,14 +88,14 @@ export function buildHcmNavigation(
     });
   }
 
-  if (canPeople) {
+  if (canPeopleWorkspace) {
     links.push({
       id: "inbox", label: "HCM Inbox",
       href: directoryHref + "&hcmPanel=bp",
     });
+    links.push({
+      id: "directory", label: "People directory", href: directoryHref,
+    });
   }
-  links.push({
-    id: "directory", label: "People directory", href: directoryHref,
-  });
   return links.map((link) => ({ ...link, current: link.id === current }));
 }

@@ -195,6 +195,18 @@ async function main() {
     });
     assert.equal(await financeNav.getByRole("link", { name: "Process monitor" }).count(), 0);
     assert.equal(await financeNav.getByRole("link", { name: "Worker 360" }).count(), 0);
+    assert.equal(await financeNav.getByRole("link", { name: "HCM Inbox" }).count(), 0);
+    assert.equal(await financeNav.getByRole("link", { name: "People directory" }).count(), 0);
+    assert.equal(await financePage.getByRole("link", { name: "Open HCM Inbox" }).count(), 0);
+    const financeWorkspace = await financePage.goto(
+      app + "/app?organizationId=1&workspacePage=People&hcmPanel=bp",
+      { waitUntil: "domcontentloaded", timeout: 60000 },
+    );
+    assert.equal(financeWorkspace?.status(), 200);
+    const landing = financePage.getByRole("heading", { level: 1 }).first();
+    await landing.waitFor();
+    assert.notEqual(await landing.innerText(), "Employees",
+      "Bookkeeper deep link must not bypass hidden People workspace role pages");
     const financeMonitor = await financePage.goto(
       app + "/hcm/process-monitor?organizationId=1",
     );

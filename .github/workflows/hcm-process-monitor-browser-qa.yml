@@ -12,6 +12,8 @@ on:
       - 'src/app/hcm/command-center/**'
       - 'src/app/hcm/worker-360/**'
       - 'src/components/hcm-worker-360.tsx'
+      - 'src/components/linaw-workspace.tsx'
+      - 'src/lib/workspace-role-ui.ts'
       - 'tests/hcm-context-navigation.test.ts'
       - 'src/components/hcm-business-process-inbox.tsx'
       - 'scripts/hcm-process-monitor-synthetic-*.ts'

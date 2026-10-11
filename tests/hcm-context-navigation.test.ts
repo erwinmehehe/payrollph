@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildHcmNavigation, hcmDirectoryHref,
 } from "../src/lib/hcm-context-navigation";
+import { roleHasPeopleWorkspace } from "../src/lib/workspace-role-ui";
 
 const pilotEnv = {
   HCM_PEOPLE_HOME_ENABLED: "true",
@@ -45,8 +46,8 @@ test("only exact company/role/flags allow cross-module HCM links", () => {
     ["peopleHome", "processMonitor", "inbox", "directory"]);
   assert.deepEqual(links(19).map((link) => link.id), ["inbox", "directory"]);
   assert.deepEqual(links(17, "peopleHome", bookkeeper).map((link) => link.id),
-    ["peopleHome", "inbox", "directory"],
-    "Bookkeeper People Home access must not grant process monitoring.");
+    ["peopleHome"],
+    "Bookkeeper People Home does not imply People directory, HCM Inbox or Process Monitor access.");
   for (const role of ["employee", "manager", "payroll", "checker"]) {
     assert.deepEqual(links(17, "peopleHome", { role, companyWide: true }), []);
   }
@@ -62,6 +63,19 @@ test("only exact company/role/flags allow cross-module HCM links", () => {
   assert.deepEqual(links(17, "peopleHome", hr, {
     ...pilotEnv, HCM_PEOPLE_HOME_ENABLED: "false",
   }).map((link) => link.id), ["processMonitor", "inbox", "directory"]);
+});
+
+test("People directory links follow the workspace role page entitlement", () => {
+  for (const role of ["owner", "admin", "hr", "payroll"]) {
+    assert.equal(roleHasPeopleWorkspace(role), true, role);
+  }
+  for (const role of ["bookkeeper", "manager", "checker", "employee", "invalid"]) {
+    assert.equal(roleHasPeopleWorkspace(role), false, role);
+  }
+  assert.equal(roleHasPeopleWorkspace(null), false);
+  assert.deepEqual(links(17, "peopleHome", bookkeeper, {}).map((link) => link.id), []);
+  assert.deepEqual(links(17, "peopleHome", { role: "owner", companyWide: true }).map((link) => link.id),
+    ["peopleHome", "processMonitor", "inbox", "directory"]);
 });
 
 test("HCM links preserve selected employer and worker context, never a guessed worker", () => {
@@ -109,6 +123,9 @@ test("existing HCM server pages reuse scoped navigation without broadening permi
     assert.ok(source.includes("getAccess("));
   }
   assert.ok(home.includes("peopleHomeEnabledForOrganization(organizationId)"));
+  assert.ok(home.includes("canOpenSource(item.sourceUrl)"));
+  assert.ok(read("src/components/linaw-workspace.tsx")
+    .includes("roleHasPeopleWorkspace(initialData.access?.role)"));
   assert.ok(monitor.includes("monitorEnabledForEmployer(organizationId)"));
   assert.ok(worker.includes('HCM_WORKER_360_ENABLED !== "true"'));
   assert.ok(workerClient.includes("/app?organizationId="));
