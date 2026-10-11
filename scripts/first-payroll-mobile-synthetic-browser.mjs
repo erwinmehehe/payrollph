@@ -65,6 +65,12 @@ try {
     await page.locator(".people-layout .data-table")
       .getByText("AlphaPrivate Worker", { exact: true }).waitFor();
     assert.ok(!(await page.locator('[data-workspace-page="People"]').innerText()).includes("BetaPrivate"));
+    if (role === "owner") {
+      const inbox = await context.request.get(base + "/api/hcm/people-operations-inbox?organizationId=1");
+      assert.equal(inbox.status(), 200);
+      assert.equal((await inbox.json()).organizationId, 1, "People inbox must identify its authorized employer");
+      assert.equal(await page.getByText("The People Operations Inbox returned an unexpected employer scope.", { exact: true }).count(), 0);
+    }
     report.checkpoints.push(role + ": seven steps, blocked incomplete setup, phone fit and People handoff");
 
     if (role === "owner") {

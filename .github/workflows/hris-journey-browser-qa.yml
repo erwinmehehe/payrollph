@@ -19,6 +19,7 @@ on:
       - "src/components/workspace/approvals.tsx"
       - "src/app/api/provisioning/**"
       - "src/app/api/hcm/my-team/**"
+      - "src/app/api/hcm/people-operations-inbox/**"
       - "src/app/hcm/my-team/**"
       - "src/lib/access.ts"
       - "src/lib/hcm-my-team*.ts"
