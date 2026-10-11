@@ -1,6 +1,6 @@
 # Linaw WFM — Loyverse POS aggregate demand (Philippine-market candidate)
 
-**Draft engineering candidate; all flags OFF by default; no live merchant connected.** This read-only source integration is independent of unmerged WFM staffing planner #837, policy approval #843, non-Philippine Square sandbox prototype #847, and payout draft #813. It uses the already merged WFM demand import / issuance tables from #828, so adds **no migration** or payroll-specific write.
+**Source-only engineering candidate; all flags OFF by default; no live merchant connected.** The WFM staffing planner #837 is now merged. This read-only Loyverse adapter remains independent of pending policy approval #843, non-Philippine Square sandbox prototype #847, and payout draft #813. It uses the already merged WFM demand import / issuance tables from #828, so adds **no migration** or payroll-specific write.
 
 ## Provider and metric
 
@@ -57,7 +57,7 @@ Dedicated `.github/workflows/wfm-loyverse-pos-qa.yml` runs lint, TypeScript, sou
 
 To move beyond the draft, obtain: exact-head full repository CI; independent security/privacy source permission review; merchant OAuth authorization and verifiable store mapping; actual consented API-vs-export reconciliation on a staged merchant; BIR compliance assessment separate from payroll; controlled data-retention agreement; independently witnessed WFM-01–14 real-device QA (#691), additional DSP signoff (#840), a real employer's no-money shadow payroll (#579), and production gate #112. All are separate from synthetic green CI.
 
-**Release decision: source-only draft, pilot activation NO-GO; production scheduling and payroll/payout OFF.**
+**Release decision: source-only engineering work may merge after current-head CI and maintainer source review; pilot activation remains NO-GO. Production scheduling and payroll/payout remain OFF.**
 
 ## Independent receipt-count reconciliation helper
 
