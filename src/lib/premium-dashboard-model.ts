@@ -1,5 +1,5 @@
 import { dashboardPayrollSummary } from "@/lib/dashboard-presentation";
-import { isPreliminaryPayroll } from "@/lib/payroll-period-ui";
+import { isPreliminaryPayroll, manilaCalendarDate } from "@/lib/payroll-period-ui";
 import { buildOwnerReleaseSummary } from "@/lib/owner-release-summary";
 import type { DashboardData, PayrollRun } from "@/components/workspace/types";
 
@@ -139,7 +139,7 @@ export function buildPremiumDashboardModel(
     missingRecords,
     exceptions,
     issues,
-    scheduledDates: scheduledDates.slice(0, 4),
+    scheduledDates: scheduledDates.filter((item) => item.date >= manilaCalendarDate(now)).slice(0, 4),
     calculated: summary.calculated,
     preliminary: Boolean(run && isPreliminaryPayroll(run.periodEnd, summary.calculated, now)),
     gross: summary.gross,
