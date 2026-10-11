@@ -142,7 +142,7 @@ test("source routes are guarded, remain aggregation-only and never write roster 
   const get = readFileSync("src/app/api/workforce/demand-observations/outlook/route.ts", "utf8");
   const storage = readFileSync("src/lib/workforce-operational-demand-server.ts", "utf8");
   const schema = readFileSync("src/db/schema.ts", "utf8");
-  const sql = readFileSync("drizzle/0113_wfm_operational_demand_observations.sql", "utf8");
+  const sql = readFileSync("drizzle/0112_wfm_operational_demand_observations.sql", "utf8");
   assert.match(imp, /enforceSameOriginMutation\(request\)/);
   assert.match(imp, /requireSensitiveActionMfa\(user\)/);
   assert.match(imp, /PEOPLE_ADMIN_ROLES/);
