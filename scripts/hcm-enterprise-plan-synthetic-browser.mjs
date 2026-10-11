@@ -58,7 +58,12 @@ try {
     assert.ok(response.headers?.includes("no-store"));
   }
   assert.equal(await open(page, "/hcm/org-explorer?organizationId=1"), 200);
-  receipts.push("Active Enterprise company HR can open both pages and APIs");
+  const permittedHistory = await read(page,
+    "/api/hcm/position-history?organizationId=1&positionId=9999");
+  assert.equal(permittedHistory.status, 404,
+    "Authorized Enterprise HR must reach the source's own position-not-found check");
+  assert.equal(permittedHistory.body?.error, "Position not found in this employer.");
+  receipts.push("Active Enterprise HR reaches both pages, base APIs and source-scoped history API");
 
   for (const suffix of ["process-monitor", "org-explorer"]) {
     const api = await read(page, "/api/hcm/" + suffix + "?organizationId=2");
@@ -68,7 +73,13 @@ try {
     assert.ok(!JSON.stringify(api.body).includes("BetaPrivate"));
     assert.equal(await open(page, "/hcm/" + suffix + "?organizationId=2"), 404);
   }
-  receipts.push("Active Core company rejected on both direct API and page routes");
+  const coreHistory = await read(page,
+    "/api/hcm/position-history?organizationId=2&positionId=9999");
+  assert.equal(coreHistory.status, 402,
+    "Core HR cannot bypass the org explorer paywall through position history");
+  assert.equal(coreHistory.body?.code, "HCM_ENTERPRISE_PLAN_REQUIRED");
+  assert.ok(coreHistory.headers?.includes("no-store"));
+  receipts.push("Active Core denied on both pages and all three direct read APIs");
 
   const manager = await browser.newContext();
   await login(manager, "monitor-manager@example.test");
@@ -80,6 +91,10 @@ try {
     assert.ok(!JSON.stringify(api.body).includes("HCM_ENTERPRISE_PLAN_REQUIRED"));
     assert.equal(await open(managerPage, "/hcm/" + suffix + "?organizationId=1"), 404);
   }
+  const managerHistory = await read(managerPage,
+    "/api/hcm/position-history?organizationId=1&positionId=9999");
+  assert.equal(managerHistory.status, 403,
+    "Manager position-history access must fail before billing");
   receipts.push("Unprivileged manager cannot buy their way past existing roles");
   await manager.close();
 
@@ -90,6 +105,10 @@ try {
     const api = await read(anonymousPage, "/api/hcm/" + suffix + "?organizationId=1");
     assert.equal(api.status, 401, "Unauthenticated request must fail first");
   }
+  const anonymousHistory = await read(anonymousPage,
+    "/api/hcm/position-history?organizationId=1&positionId=9999");
+  assert.equal(anonymousHistory.status, 401,
+    "Anonymous position-history must fail before billing");
   await unauthenticated.close();
   receipts.push("Unauthenticated requests denied before billing");
   console.log(JSON.stringify({
