@@ -21,7 +21,9 @@ test("HR Home to Employee 360 to onboarding shares one selected employee and sou
   assert.ok(workspace.includes("setFocusEmployeeId(employeeId)"));
   assert.ok(people.includes('key={data.selectedOrganization.id + ":" + selected.id}'));
   assert.ok(workspace.includes("onOpenEmployee={openHrEmployee}"));
-  assert.ok(onboarding.includes("JSON.stringify({ id: task.id, organizationId, employeeId, done })"));
+  assert.ok(onboarding.includes('fetch("/api/provisioning"'));
+  assert.ok(onboarding.includes("payload.organizationId !== organizationId"));
+  assert.ok(onboarding.includes("payload.employeeId !== employeeId"));
   const groups = buildOnboardingChecklistGroups(
     [{id: worker, employeeNo: "TEST-23", firstName: "Sample", lastName: "Worker", status: "Active"}],
     [{id: 9, employeeId: worker, kind: "onboarding", title: "Test", owner: "HR", done: false},
