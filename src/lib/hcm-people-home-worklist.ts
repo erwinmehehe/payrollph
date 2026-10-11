@@ -105,7 +105,7 @@ async function assignedHcmDecisions(
       category: stepName,
       dueAt: recordedDate(item.dueAt),
       sourceUrl: "/app?organizationId=" + organizationId + "&workspacePage=People",
-      blockedByMakerChecker: ownRequest && item.stepType !== "todo",
+      blockedByMakerChecker: ownRequest && (item.stepType === "approval" || item.stepType === "review"),
     });
   }
 
