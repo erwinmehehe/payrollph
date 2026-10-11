@@ -28,7 +28,7 @@ export type Employee360ConnectedSnapshot = {
 };
 
 export type Employee360CardId =
-  | "employment" | "onboarding" | "documents" | "leave" | "performance" | "history";
+  | "employment" | "onboarding" | "documents" | "leave" | "performance" | "compensation" | "payroll" | "history";
 
 export type Employee360Card = {
   id: Employee360CardId;
@@ -127,11 +127,15 @@ export function buildEmployee360Overview({
     unavailableCard("documents", "Documents", resolvedState),
     leaveCard,
     unavailableCard("performance", "Performance", resolvedState),
+    unavailableCard("compensation", "Compensation", resolvedState),
+    unavailableCard("payroll", "Payroll evidence", resolvedState),
     unavailableCard("history", "Employment history", resolvedState),
   ];
 
   const onboarding = active.journey.stages.find((stage) => stage.id === "onboarding");
   const performance = active.journey.stages.find((stage) => stage.id === "performance");
+  const compensation = active.journey.stages.find((stage) => stage.id === "compensation");
+  const payroll = active.journey.stages.find((stage) => stage.id === "payroll");
   const policies = active.summary.pendingPolicyAcknowledgements;
   const documents = active.summary.documentComplianceRisks;
   const documentsFlagged = policies + documents;
@@ -167,6 +171,31 @@ export function buildEmployee360Overview({
       targetId: "employee-360-performance", available: true,
       tone: performance.state === "attention" ? "attention" : "neutral",
     } : unavailableCard("performance", "Performance", "unavailable"),
+    // Proposal evidence never authorizes a raise. When restricted, even the
+    // source description is withheld from the Employee 360 summary.
+    compensation?.state === "restricted"
+      ? unavailableCard("compensation", "Compensation", "restricted")
+      : compensation ? {
+          id: "compensation", title: "Compensation",
+          value: stageLabel(compensation.state),
+          detail: compensation.detail,
+          source: "Linked governed compensation proposal",
+          targetId: "employee-360-compensation", available: true,
+          tone: compensation.state === "attention" || compensation.state === "in_progress"
+            ? "attention" : "neutral",
+        } : unavailableCard("compensation", "Compensation", "unavailable"),
+    // Released payroll evidence is not disbursement or bank settlement.
+    payroll?.state === "restricted"
+      ? unavailableCard("payroll", "Payroll evidence", "restricted")
+      : payroll ? {
+          id: "payroll", title: "Payroll evidence",
+          value: stageLabel(payroll.state),
+          detail: payroll.detail,
+          source: "Authorized released payroll entry",
+          targetId: "employee-360-payroll", available: true,
+          tone: payroll.state === "attention" || payroll.state === "in_progress"
+            ? "attention" : "neutral",
+        } : unavailableCard("payroll", "Payroll evidence", "unavailable"),
     {
       id: "history", title: "Employment history",
       value: historyEvents + " events shown",
