@@ -72,7 +72,8 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
   const data = await getDashboardData(companyOrganizationId);
   const pilotFocusEnabled = pilotFocusEnabledForOrganization(companyOrganizationId);
   const access = data.access;
-  const canSeeMyTeam = !pilotFocusEnabled && process.env.NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true" &&
+  const canSeeMyTeam = !pilotFocusEnabled && process.env.HCM_MY_TEAM_ENABLED === "true" &&
+    process.env.NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true" &&
     !!access && (
       ["owner", "admin", "hr"].includes(access.role) ||
       (access.role === "manager" && !access.companyWide && access.orgUnitId !== null)
