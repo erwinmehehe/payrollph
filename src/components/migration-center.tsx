@@ -441,7 +441,7 @@ function MigrationCenterView({
         </div>
         <div className="audit-list" style={{ padding: "0 17px 17px" }}>
           {historyStatus === "loading" ? (
-            <p className="auth-copy">Loading this employer's recent migrations…</p>
+            <p className="auth-copy">Loading this employer&apos;s recent migrations…</p>
           ) : historyStatus === "unavailable" ? (
             <div>
               <p className="auth-copy">Migration history is unavailable. Do not assume a previous import failed or retry a submission without checking its result.</p>

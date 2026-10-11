@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createMigrationHistoryReader } from "../src/lib/migration-history-request-owner";
 
+type HistoryResponse = Pick<Response, "ok" | "json">;
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (reason: Error) => void;
@@ -10,7 +12,7 @@ function deferred<T>() {
 }
 
 function ok(batches: unknown[]) {
-  return { ok: true, json: async () => ({ batches }) } as Response;
+  return { ok: true, json: async () => ({ batches }) } as HistoryResponse;
 }
 
 test("history reads only the explicit employer and accepts a genuinely empty result", async () => {
@@ -32,8 +34,8 @@ test("history reads only the explicit employer and accepts a genuinely empty res
 });
 
 test("older response cannot overwrite a refreshed history when transport ignores abort", async () => {
-  const first = deferred<Response>();
-  const second = deferred<Response>();
+  const first = deferred<HistoryResponse>();
+  const second = deferred<HistoryResponse>();
   const signalList: AbortSignal[] = [];
   const results: unknown[] = [];
   let n = 0;
@@ -54,7 +56,7 @@ test("older response cannot overwrite a refreshed history when transport ignores
 });
 
 test("retiring an employer view blocks delayed successful responses and future refreshes", async () => {
-  const read = deferred<Response>();
+  const read = deferred<HistoryResponse>();
   const results: unknown[] = [];
   let reads = 0;
   const reader = createMigrationHistoryReader(8, async () => { reads++; return read.promise; }, (x) => results.push(x));
@@ -72,7 +74,7 @@ test("HTTP errors are unavailable, not 'no batches'", async () => {
   const results: unknown[] = [];
   const reader = createMigrationHistoryReader(9, async () => ({
     ok: false, json: async () => { throw Error("unexpected"); },
-  } as Response), (x) => results.push(x));
+  } as HistoryResponse), (x) => results.push(x));
   assert.equal(await reader.refresh(), false);
   assert.deepEqual(results, [{ state: "unavailable" }]);
 });
@@ -81,7 +83,7 @@ test("malformed or untrusted history payloads are not shown as an empty audit hi
   const payloads: unknown[] = [null, {}, { batches: "not a batch list" }];
   const results: unknown[] = [];
   const reader = createMigrationHistoryReader(20, async () =>
-    ({ ok: true, json: async () => payloads.shift() } as Response),
+    ({ ok: true, json: async () => payloads.shift() } as HistoryResponse),
   (x) => results.push(x));
   for (let i = 0; i < 3; i++) assert.equal(await reader.refresh(), false);
   assert.deepEqual(results, Array.from({ length: 3 }, () => ({ state: "unavailable" })));
@@ -92,7 +94,7 @@ test("transport failures report unavailable but retired transport failures never
   const reader = createMigrationHistoryReader(32, async () => { throw Error("disconnected"); }, (x) => results.push(x));
   assert.equal(await reader.refresh(), false);
   assert.deepEqual(results, [{ state: "unavailable" }]);
-  const delayed = deferred<Response>();
+  const delayed = deferred<HistoryResponse>();
   const staleReader = createMigrationHistoryReader(44, async () => delayed.promise, (x) => results.push(x));
   const old = staleReader.refresh();
   staleReader.retire();
