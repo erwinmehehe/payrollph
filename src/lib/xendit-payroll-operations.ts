@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, employees, payrollEntries, payrollRuns, payoutBatches, payoutProfiles } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
@@ -87,7 +87,40 @@ async function latestPassedXenditPreflight(run: PayrollRun) {
   }) ?? null;
 }
 
+/**
+ * Historical payout audit actions may predate the provider-wide payout ledger.
+ * An already uploaded bank file has an UNKNOWN external outcome until verified,
+ * so neither preflight nor submit may silently switch to Xendit.
+ */
+async function assertNoPriorPayrollDisbursement(run: PayrollRun) {
+  const disbursementActions = [
+    "Payroll payout completed manually",
+    "Payroll payout submitted via PayMongo",
+    "Payroll payout retry submitted via PayMongo",
+    "Payroll payout completed via PayMongo",
+    "PayMongo transfer webhook received",
+    "bank export generated",
+  ];
+  const historical = await db.select({
+    action: auditEvents.action,
+    metadata: auditEvents.metadata,
+  }).from(auditEvents).where(and(
+    eq(auditEvents.organizationId, run.organizationId),
+    inArray(auditEvents.action, disbursementActions),
+    sql`${auditEvents.metadata} ->> 'runId' = ${String(run.id)}`,
+  )).limit(10);
+  const unsafe = historical.some(event => {
+    if (event.action !== "bank export generated") return true;
+    const metadata = event.metadata as Record<string, unknown> | null;
+    return metadata?.kind === "bank" && metadata.dryRun !== true;
+  });
+  if (unsafe) {
+    throw new Error("XENDIT_PREVIOUS_PAYOUT_OR_BANK_FILE_UNCERTAIN: Existing manual, PayMongo, or final bank-file payout evidence must be independently reconciled. Never send salary again through a different provider.");
+  }
+}
+
 export async function preflightXenditPayroll(run: PayrollRun, actor: string) {
+  await assertNoPriorPayrollDisbursement(run);
   const readiness = xenditPayrollLiveReadiness({
     organizationId: run.organizationId, legalEntityId: run.legalEntityId,
   });
@@ -119,6 +152,7 @@ export async function preflightXenditPayroll(run: PayrollRun, actor: string) {
 }
 
 export async function submitXenditPayroll(run: PayrollRun, actor: string) {
+  await assertNoPriorPayrollDisbursement(run);
   if (run.status !== "Released" || !run.legalEntityId) throw new Error("A released legal-employer payroll is required.");
   const readiness = xenditPayrollLiveReadiness({
     organizationId: run.organizationId, legalEntityId: run.legalEntityId,
