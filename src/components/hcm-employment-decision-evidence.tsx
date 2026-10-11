@@ -405,7 +405,7 @@ export function HcmEmploymentDecisionEvidence({
                 <form onSubmit={submitManagerAttestation} style={{ marginBottom: 12 }}>
                   <div className="notice notice-blue" style={{ marginBottom: 10 }}>
                     <ShieldCheck size={15} />
-                    <span>Your attestation is bound to the worker's current reporting line and becomes immutable evidence for this decision. It does not approve the decision.</span>
+                    <span>Your attestation is bound to the worker&#39;s current reporting line and becomes immutable evidence for this decision. It does not approve the decision.</span>
                   </div>
                   <div className="setting-form">
                     <label>Manager recommendation
