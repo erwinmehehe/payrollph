@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit } from "@/lib/security-request";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, timePunches } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -11,6 +11,7 @@ import { attendanceMutationLock, loadActiveAttendanceLocks } from "@/lib/workfor
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import { evaluateGeofenceFix, geofencePilotEnabledForOrganization } from "@/lib/workforce-geofence";
 import { authorizedGeofenceSites } from "@/lib/workforce-geofence-server";
+import { eligiblePreviousWebBundyPunch, previousManilaWorkDate, resolveWebBundyPunchAnchor } from "@/lib/web-bundy-overnight-anchor";
 
 export const dynamic = "force-dynamic";
 
@@ -62,8 +63,13 @@ export async function GET(request: Request) {
   }
 
   const todayStr = manilaToday();
+  const yesterdayStr = previousManilaWorkDate(todayStr);
   const filter = employeeId > 0
-    ? and(eq(timePunches.organizationId, organizationId), eq(timePunches.employeeId, employeeId), eq(timePunches.workDate, todayStr))
+    ? and(
+        eq(timePunches.organizationId, organizationId),
+        eq(timePunches.employeeId, employeeId),
+        or(eq(timePunches.workDate, todayStr), eq(timePunches.workDate, yesterdayStr)),
+      )
     : and(eq(timePunches.organizationId, organizationId), eq(timePunches.workDate, todayStr));
 
   const todayPunches = await db.select({
@@ -75,13 +81,23 @@ export async function GET(request: Request) {
     .where(filter)
     .orderBy(desc(timePunches.id));
 
+  // An authorized worker may close a recent Web Bundy shift started yesterday.
+  // Never use a stale, closed or different-source punch as an active shift.
+  const currentRow = employeeId > 0 ? todayPunches.find(({ punch }) => punch.workDate === todayStr) : null;
+  const priorRow = employeeId > 0 ? todayPunches.find(({ punch }) => punch.workDate === yesterdayStr) : null;
+  const previousOpen = eligiblePreviousWebBundyPunch(priorRow?.punch ?? null, todayStr, new Date());
+  const visibleRows = employeeId > 0
+    ? currentRow ? [currentRow] : previousOpen && priorRow ? [priorRow] : []
+    : todayPunches;
+
   return Response.json({
     date: todayStr,
+    previousShiftNeedsReview: Boolean(priorRow?.punch.timeIn && !priorRow.punch.timeOut && !previousOpen),
     geofence: {
       required: geofencePilotEnabledForOrganization(organizationId),
       canClockWithLocation: user.role === "employee",
     },
-    punches: todayPunches.map(({ punch, employee }) => ({
+    punches: visibleRows.map(({ punch, employee }) => ({
       ...punch,
       employeeName: `${employee.firstName} ${employee.lastName}`,
       avatarInitials: employee.avatarInitials,
@@ -134,6 +150,33 @@ export async function POST(request: Request) {
 
   const todayStr = manilaToday();
   const now = new Date();
+  const yesterdayStr = previousManilaWorkDate(todayStr);
+  // Only a recent unclosed browser punch may remain on yesterday's workDate.
+  // Never guess that a biometric, stale or future-dated record is this shift.
+  const [todayPunch] = await db.select().from(timePunches).where(and(
+    eq(timePunches.organizationId, organizationId),
+    eq(timePunches.employeeId, employeeId),
+    eq(timePunches.workDate, todayStr),
+  )).limit(1);
+  const [previousPunch] = await db.select().from(timePunches).where(and(
+    eq(timePunches.organizationId, organizationId),
+    eq(timePunches.employeeId, employeeId),
+    eq(timePunches.workDate, yesterdayStr),
+  )).limit(1);
+  const anchor = resolveWebBundyPunchAnchor({
+    today: todayStr, now,
+    todayPunch: todayPunch ?? null,
+    previousPunch: previousPunch ?? null,
+    action: actionType as "clock_in" | "break_start" | "break_end" | "clock_out",
+  });
+  if (anchor.previousOpenRequiresClose) {
+    return Response.json({
+      code: "PREVIOUS_SHIFT_STILL_OPEN",
+      error: "An overnight shift remains open. Clock out or request an approved attendance correction before starting a new shift.",
+    }, { status: 409 });
+  }
+  const effectiveWorkDate = anchor.workDate;
+  const existingPunch = anchor.usePrevious ? previousPunch : todayPunch;
   const geofenceRequired = geofencePilotEnabledForOrganization(organizationId);
   // A team administrator cannot silently bypass an enforced employee self-clock.
   // Approved manual exceptions use the separate HR correction workflow.
@@ -154,16 +197,16 @@ export async function POST(request: Request) {
     });
     if (rateDenied) return rateDenied;
   }
-  const attendanceLock = attendanceMutationLock(
-    await loadActiveAttendanceLocks(organizationId),
-    todayStr,
-    "capture",
-  );
+  // An overnight completion must honor both the shift-start cutoff and the
+  // current-day capture lock. A locked previous period must never be mutated.
+  const locks = await loadActiveAttendanceLocks(organizationId);
+  const attendanceLock = attendanceMutationLock(locks, effectiveWorkDate, "capture")
+    ?? (effectiveWorkDate !== todayStr ? attendanceMutationLock(locks, todayStr, "capture") : null);
   if (attendanceLock) {
     return Response.json({
       error: attendanceLock.lockType === "payroll_cutoff"
-        ? "Attendance is frozen for the payroll cutoff covering today."
-        : "Attendance capture is locked for the period covering today.",
+        ? "Attendance is frozen for a payroll cutoff covering this punch."
+        : "Attendance capture is locked for a period covering this punch.",
       code: "ATTENDANCE_PERIOD_LOCKED",
       attendanceLockId: attendanceLock.id,
       lockType: attendanceLock.lockType,
@@ -177,7 +220,7 @@ export async function POST(request: Request) {
     accuracyBand: string;
   } | null = null;
   if (geofenceRequired && (actionType === "clock_in" || actionType === "clock_out")) {
-    const sites = await authorizedGeofenceSites(organizationId, employeeId, todayStr);
+    const sites = await authorizedGeofenceSites(organizationId, employeeId, effectiveWorkDate);
     const decision = evaluateGeofenceFix({ fix: body.geolocation, sites, now: now.getTime() });
     if (!decision.ok) {
       // Rejected checks must be reviewable without preserving the submitted
@@ -187,7 +230,7 @@ export async function POST(request: Request) {
         actor: user.name,
         action: "Web Bundy GPS verification rejected",
         resource: employee.employeeNo,
-        metadata: { employeeId, workDate: todayStr, code: decision.code },
+        metadata: { employeeId, workDate: effectiveWorkDate, code: decision.code },
       });
       return Response.json({ error: decision.error, code: decision.code }, { status: 422 });
     }
@@ -200,14 +243,6 @@ export async function POST(request: Request) {
     // The raw fix is deliberately not persisted to punches, audits, logs or exports.
     location = `Verified worksite #${decision.worksiteId}`;
   }
-
-  const [existingPunch] = await db.select().from(timePunches).where(
-    and(
-      eq(timePunches.organizationId, organizationId),
-      eq(timePunches.employeeId, employeeId),
-      eq(timePunches.workDate, todayStr),
-    ),
-  ).limit(1);
 
   if (actionType === "break_start") {
     if (!existingPunch?.timeIn || existingPunch.timeOut) {
@@ -226,14 +261,17 @@ export async function POST(request: Request) {
       actor: user.name,
       action: "Web Bundy Break START",
       resource: `${employee.firstName} ${employee.lastName}`,
-      metadata: { employeeId, workDate: todayStr, breakStart: now.toISOString(), ip },
+      metadata: { employeeId, workDate: effectiveWorkDate, breakStart: now.toISOString(), ip },
     });
     await markTimesheetsStaleForEmployeeDate({
       organizationId,
       employeeId,
-      workDate: todayStr,
+      workDate: effectiveWorkDate,
     });
-    const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
+    if (effectiveWorkDate !== todayStr) {
+      await markTimesheetsStaleForEmployeeDate({ organizationId, employeeId, workDate: todayStr });
+    }
+    const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, effectiveWorkDate);
     return Response.json({ ok: true, action: "break_start", punch: updated, attendanceExceptionSync });
   }
 
@@ -254,14 +292,17 @@ export async function POST(request: Request) {
       actor: user.name,
       action: "Web Bundy Break END",
       resource: `${employee.firstName} ${employee.lastName}`,
-      metadata: { employeeId, workDate: todayStr, breakEnd: now.toISOString(), ip },
+      metadata: { employeeId, workDate: effectiveWorkDate, breakEnd: now.toISOString(), ip },
     });
     await markTimesheetsStaleForEmployeeDate({
       organizationId,
       employeeId,
-      workDate: todayStr,
+      workDate: effectiveWorkDate,
     });
-    const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
+    if (effectiveWorkDate !== todayStr) {
+      await markTimesheetsStaleForEmployeeDate({ organizationId, employeeId, workDate: todayStr });
+    }
+    const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, effectiveWorkDate);
     return Response.json({ ok: true, action: "break_end", punch: updated, attendanceExceptionSync });
   }
 
@@ -292,7 +333,7 @@ export async function POST(request: Request) {
       : await db.insert(timePunches).values({
           organizationId,
           employeeId,
-          workDate: todayStr,
+          workDate: effectiveWorkDate,
           timeIn: now,
           timeOut: null,
           shiftStart: "09:00",
@@ -309,15 +350,18 @@ export async function POST(request: Request) {
       actor: user.name,
       action: "Web Bundy Clock IN",
       resource: `${employee.firstName} ${employee.lastName}`,
-      metadata: { employeeId, workDate: todayStr, timeIn: now.toISOString(), ip, ...(geofenceAudit ? { geofence: geofenceAudit } : {}) },
+      metadata: { employeeId, workDate: effectiveWorkDate, timeIn: now.toISOString(), ip, ...(geofenceAudit ? { geofence: geofenceAudit } : {}) },
     });
 
     await markTimesheetsStaleForEmployeeDate({
       organizationId,
       employeeId,
-      workDate: todayStr,
+      workDate: effectiveWorkDate,
     });
-    const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
+    if (effectiveWorkDate !== todayStr) {
+      await markTimesheetsStaleForEmployeeDate({ organizationId, employeeId, workDate: todayStr });
+    }
+    const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, effectiveWorkDate);
     return Response.json({ ok: true, action: "clock_in", punch, attendanceExceptionSync }, { status: existingPunch ? 200 : 201 });
   }
 
@@ -342,7 +386,7 @@ export async function POST(request: Request) {
     const [created] = await db.insert(timePunches).values({
       organizationId,
       employeeId,
-      workDate: todayStr,
+      workDate: effectiveWorkDate,
       timeIn: null,
       timeOut: now,
       shiftStart: "09:00",
@@ -359,15 +403,18 @@ export async function POST(request: Request) {
       actor: user.name,
       action: "Web Bundy Clock OUT without IN",
       resource: `${employee.firstName} ${employee.lastName}`,
-      metadata: { employeeId, workDate: todayStr, timeOut: now.toISOString(), ip, ...(geofenceAudit ? { geofence: geofenceAudit } : {}) },
+      metadata: { employeeId, workDate: effectiveWorkDate, timeOut: now.toISOString(), ip, ...(geofenceAudit ? { geofence: geofenceAudit } : {}) },
     });
 
     await markTimesheetsStaleForEmployeeDate({
       organizationId,
       employeeId,
-      workDate: todayStr,
+      workDate: effectiveWorkDate,
     });
-    const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
+    if (effectiveWorkDate !== todayStr) {
+      await markTimesheetsStaleForEmployeeDate({ organizationId, employeeId, workDate: todayStr });
+    }
+    const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, effectiveWorkDate);
     return Response.json({
       ok: true,
       action: "clock_out",
@@ -387,14 +434,23 @@ export async function POST(request: Request) {
     timeOut: now,
     status: "Complete",
     notes: (existingPunch.notes ? existingPunch.notes + " · " : "") + "Clocked out via Web Bundy",
-  }).where(eq(timePunches.id, existingPunch.id)).returning();
+  }).where(and(
+    eq(timePunches.id, existingPunch.id),
+    isNull(timePunches.timeOut),
+  )).returning();
+  if (!updated) {
+    return Response.json({
+      code: "ATTENDANCE_ALREADY_CLOCKED_OUT",
+      error: "Attendance has changed. Refresh the current punch before retrying.",
+    }, { status: 409 });
+  }
 
   await recordAuditEvent({
     organizationId,
     actor: user.name,
     action: "Web Bundy Clock OUT",
     resource: `${employee.firstName} ${employee.lastName}`,
-    metadata: { employeeId, workDate: todayStr, timeOut: now.toISOString(), ip, ...(geofenceAudit ? { geofence: geofenceAudit } : {}) },
+    metadata: { employeeId, workDate: effectiveWorkDate, timeOut: now.toISOString(), ip, ...(geofenceAudit ? { geofence: geofenceAudit } : {}) },
   });
 
   // Final clock-out changes payable hours. Submitted/approved timesheets must
@@ -402,8 +458,11 @@ export async function POST(request: Request) {
   await markTimesheetsStaleForEmployeeDate({
     organizationId,
     employeeId,
-    workDate: todayStr,
+    workDate: effectiveWorkDate,
   });
-  const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, todayStr);
+  if (effectiveWorkDate !== todayStr) {
+    await markTimesheetsStaleForEmployeeDate({ organizationId, employeeId, workDate: todayStr });
+  }
+  const attendanceExceptionSync = await syncAttendanceExceptionEvents(organizationId, employeeId, effectiveWorkDate);
   return Response.json({ ok: true, action: "clock_out", punch: updated, attendanceExceptionSync });
 }
