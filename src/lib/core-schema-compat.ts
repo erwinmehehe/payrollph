@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import { coreSchemaCompatibilityMode, verifyCoreSchemaReadOnly } from "@/lib/core-schema-readonly";
 import { pool } from "@/db";
 import { bankEncryptionConfigured, decryptBankAccount, encryptBankAccount, isEncryptedBankAccount } from "@/lib/bank-account-crypto";
 import {
@@ -173,13 +174,31 @@ export async function bankDataEncryptionReady() {
 }
 
 /**
- * Production on Vercel does not run drizzle db:push automatically.
- * Keep additive schema changes required by the current workspace idempotent so
- * older production databases can upgrade before Drizzle selects the new fields.
+ * Temporary compatibility DDL remains the legacy behavior until the DBA
+ * approves a target-specific migration adoption plan. When explicitly placed
+ * in read-only mode, dashboard/demo requests must not execute this DDL or
+ * opportunistic encryption backfills; they check release-critical catalog
+ * structure and fail closed. It is not proof of a full schema migration.
  */
 export async function ensureCoreCompatibilitySchema() {
+  // Reject typos or unsupported modes BEFORE considering cached readiness.
+  const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
   if (coreSchemaReady) return;
   if (coreSchemaInFlight) return coreSchemaInFlight;
+
+  if (mode === "read-only") {
+    coreSchemaInFlight = (async () => {
+      const client = await pool.connect();
+      try {
+        await verifyCoreSchemaReadOnly((sql, parameters) => client.query(sql, parameters));
+        coreSchemaReady = true;
+      } finally {
+        client.release();
+        coreSchemaInFlight = null;
+      }
+    })();
+    return coreSchemaInFlight;
+  }
 
   coreSchemaInFlight = (async () => {
     const client = await pool.connect();
