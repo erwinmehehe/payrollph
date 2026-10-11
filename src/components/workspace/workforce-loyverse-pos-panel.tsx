@@ -134,7 +134,7 @@ export function WorkforceLoyversePosPanel({organizationId,worksites,canManage}:{
           <label style={{display:"flex",gap:8,padding:"0 18px 14px"}}>
             <input type="checkbox" checked={ack} onChange={e=>setAck(e.target.checked)}/>
             I am authorized to use the merchant-consented POS source and acknowledge
-            that the selected day's scanned source history may receive later corrections.
+            that scanned source history for the selected date may receive later corrections.
           </label>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",padding:"0 18px 16px"}}>
             <button type="button" className="secondary-button"
