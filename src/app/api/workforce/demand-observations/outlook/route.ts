@@ -43,12 +43,15 @@ export async function GET(request: Request) {
   try {
     const [site] = await db.select({
       id: worksites.id, organizationId: worksites.organizationId,
-      orgUnitId: worksites.orgUnitId, active: worksites.active,
+      orgUnitId: worksites.orgUnitId, active: worksites.active, timezone: worksites.timezone,
     }).from(worksites).where(and(
       eq(worksites.organizationId, organizationId), eq(worksites.id, worksiteId),
     )).limit(1);
     if (!site || !operationalDemandSiteAuthorized(access, site)) {
       return Response.json({ error: "Worksite unavailable within your manager scope." }, { status: 403 });
+    }
+    if (site.timezone !== "Asia/Manila") {
+      return Response.json({ error: "Only Philippine worksite timezone is supported by this pilot." }, { status: 409 });
     }
     const today = phWorkDateAt();
     const midnight = Date.parse(today + "T00:00:00Z") - 8 * 3600_000;
