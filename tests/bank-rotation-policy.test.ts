@@ -4,11 +4,11 @@ import { readFileSync } from "node:fs";
 import { decryptBankAccount, encryptBankAccount } from "../src/lib/bank-account-crypto";
 import { bankRotationPlan } from "../scripts/lib/bank-rotation-policy";
 
-const first = { BANK_DATA_ENCRYPTION_KEY: "a".repeat(64) } as NodeJS.ProcessEnv;
-const second = { BANK_DATA_ENCRYPTION_KEY: "b".repeat(64) } as NodeJS.ProcessEnv;
+const first = { BANK_DATA_ENCRYPTION_KEY: "a".repeat(64) } as unknown as NodeJS.ProcessEnv;
+const second = { BANK_DATA_ENCRYPTION_KEY: "b".repeat(64) } as unknown as NodeJS.ProcessEnv;
 const rotating = {
   ...second, BANK_DATA_ENCRYPTION_KEY_PREVIOUS: first.BANK_DATA_ENCRYPTION_KEY,
-} as NodeJS.ProcessEnv;
+} as unknown as NodeJS.ProcessEnv;
 const plain = "SYNTHETIC-ACCOUNT-12345";
 
 test("rotation skips values already authenticated by the current key", () => {
@@ -38,7 +38,7 @@ test("malformed, plaintext, absent previous key and TOTP-only current fail close
   assert.throws(() => bankRotationPlan(old, {
     TOTP_ENCRYPTION_KEY: second.BANK_DATA_ENCRYPTION_KEY,
     BANK_DATA_ENCRYPTION_KEY_PREVIOUS: first.BANK_DATA_ENCRYPTION_KEY,
-  } as NodeJS.ProcessEnv), /dedicated current bank encryption key/);
+  } as unknown as NodeJS.ProcessEnv), /dedicated current bank encryption key/);
 });
 
 test("bank rotation scans all four stores with bounded pages and compare-and-swap writes", () => {
