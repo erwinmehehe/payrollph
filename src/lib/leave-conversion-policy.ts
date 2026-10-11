@@ -55,3 +55,23 @@ export function validateLeaveConversionDays(days: unknown): days is number {
   return typeof days === "number" && Number.isFinite(days)
     && days > 0 && days <= 366 && Math.round(days * 10) === days * 10;
 }
+
+/**
+ * Separate tax-control release latch. An approved leave-day cap cannot attest
+ * to correct Philippine withholding treatment. Operators may include an
+ * organization only after the applicable classification has been reviewed.
+ * This is configuration evidence, not a substitute for the signed review.
+ */
+export function leaveConversionTaxReviewAcknowledged(
+  organizationId: number,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) return false;
+  return (env.LEAVE_CONVERSION_TAX_REVIEWED_ORG_IDS ?? "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => /^[1-9]\\d*$/.test(id))
+    .map(Number)
+    .filter(Number.isSafeInteger)
+    .includes(organizationId);
+}
