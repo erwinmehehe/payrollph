@@ -145,3 +145,60 @@ test('named arrow-function legacy helper is discovered and source-guarded', () =
   assert.equal(findings[0].owner, 'ensureCoreSchema');
   assert.equal(findings[0].state, 'early-readonly-exit');
 });
+
+
+test('read-only branch with only a conditional return cannot hide a legacy writer', () => {
+  const code = `async function ensureUnsafe() {
+    const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+    if (mode === "read-only") { if (featureEnabled) return; }
+    await client.query("CREATE TABLE employees_unsafe(id integer)");
+  }`;
+  const findings = auditSource(code);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].state, 'unguarded');
+});
+
+test('direct strict parser and fail-closed throw protect backfill helpers', () => {
+  const code = `async function backfillGovernmentIds() {
+    if (coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE) === "read-only") {
+      throw new Error("READONLY_BACKFILL_FORBIDDEN");
+    }
+    await client.query("UPDATE employees SET tin = 'encrypted'");
+  }`;
+  const findings = auditSource(code);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'IMPLICIT_BACKFILL');
+  assert.equal(findings[0].state, 'early-readonly-exit');
+});
+
+test('an early branch containing schema DDL is still unsafe', () => {
+  const code = `async function ensureUnsafe() {
+    const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+    if (mode === "read-only") {
+      await client.query("DROP TABLE payroll_entries");
+      return;
+    }
+    await client.query("CREATE TABLE unsafe(id integer)");
+  }`;
+  const findings = auditSource(code);
+  assert.equal(findings.length, 2);
+  assert.ok(findings.every(f => f.state === 'unguarded'));
+});
+
+test('a fake mode binding or parser in a comment does not pass the source guard', () => {
+  for (const code of [
+    `async function ensureFake() {
+      const mode = "read-only";
+      // coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+      if (mode === "read-only") return;
+      await client.query("CREATE TABLE unsafe(id integer)");
+    }`,
+    `async function ensureLate() {
+      if (mode === "read-only") return;
+      const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+      await client.query("CREATE TABLE unsafe(id integer)");
+    }`,
+  ]) {
+    assert.equal(auditSource(code)[0].state, 'unguarded');
+  }
+});
