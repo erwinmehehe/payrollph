@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, expenseClaims, expenseReportItems } from "@/db/schema";
+import { auditEvents, employees, expenseClaims, expenseReportItems } from "@/db/schema";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
@@ -178,31 +178,38 @@ export async function PATCH(request: Request) {
   if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
   const scope = assertScope(access, employee.orgUnitId);
   if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
-  const [reported] = await db.select({ id: expenseReportItems.id }).from(expenseReportItems)
-    .where(and(eq(expenseReportItems.organizationId, existing.organizationId), eq(expenseReportItems.claimId, id))).limit(1);
-  if (reported) return Response.json({
-    error: "This claim belongs to an expense report. Approve or reject the entire report in Spend management.",
-  }, { status: 409 });
-  if (existing.submittedByUserId === user.id) {
-    return Response.json({ error: "You cannot approve or reject a claim you submitted." }, { status: 403 });
+  const decided = await db.transaction(async tx => {
+    // This lock pairs with expense report submission's claim-row locks.
+    // Checking report membership outside this transaction would permit a
+    // concurrent single-claim approval after the report was committed.
+    await tx.execute(sql`select id from expense_claims where organization_id = ${existing.organizationId} and id = ${id} for update`);
+    const [fresh] = await tx.select().from(expenseClaims).where(and(
+      eq(expenseClaims.id, id), eq(expenseClaims.organizationId, existing.organizationId),
+    )).limit(1);
+    const [reported] = await tx.select({ id: expenseReportItems.id }).from(expenseReportItems)
+      .where(and(eq(expenseReportItems.organizationId, existing.organizationId), eq(expenseReportItems.claimId, id))).limit(1);
+    if (reported) throw new Error("CLAIM_IN_REPORT");
+    if (fresh?.submittedByUserId === user.id) throw new Error("CLAIM_SELF_REVIEW");
+    if (!fresh || fresh.status !== "pending") throw new Error("CLAIM_STALE");
+    const [row] = await tx.update(expenseClaims).set({ status, decidedBy: user.name }).where(and(
+      eq(expenseClaims.id, id), eq(expenseClaims.organizationId, existing.organizationId),
+      eq(expenseClaims.status, "pending"),
+    )).returning();
+    if (!row) throw new Error("CLAIM_STALE");
+    await tx.insert(auditEvents).values({
+      organizationId: existing.organizationId, actor: user.name, action: `Expense claim ${status}`,
+      resource: `${existing.category} ${existing.amount}`, metadata: { claimId: id, employeeId: existing.employeeId, actorUserId: user.id },
+    });
+    return row;
+  }).catch(error => error instanceof Error ? error : new Error("CLAIM_STALE"));
+  if (decided instanceof Error) {
+    const message = decided.message === "CLAIM_IN_REPORT"
+      ? "This claim belongs to an expense report. Decide the report in Spend management."
+      : decided.message === "CLAIM_SELF_REVIEW"
+        ? "You cannot approve or reject a claim you submitted."
+        : "This claim already changed, or is no longer pending. Refresh before deciding.";
+    return Response.json({ error: message }, { status: decided.message === "CLAIM_SELF_REVIEW" ? 403 : 409 });
   }
-    if (existing.status !== "pending") {
-    return Response.json({ error: `This claim is already ${existing.status} and cannot be decided again.` }, { status: 409 });
-  }
 
-  const [row] = await db.update(expenseClaims)
-    .set({ status, decidedBy: user.name })
-    .where(and(eq(expenseClaims.id, id), eq(expenseClaims.status, "pending")))
-    .returning();
-  if (!row) return Response.json({ error: "Claim changed before the decision was saved. Refresh and retry." }, { status: 409 });
-
-  await recordAuditEvent({
-    organizationId: existing.organizationId,
-    actor: user.name,
-    action: `Expense claim ${status}`,
-    resource: `${existing.category} ${existing.amount}`,
-    metadata: { claimId: id, employeeId: existing.employeeId },
-  });
-
-  return Response.json(row);
+  return Response.json(decided);
 }
