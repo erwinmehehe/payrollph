@@ -110,8 +110,19 @@ export async function POST(request: Request) {
   // Two concurrent requests for the same employee/type/year cannot both spend
   // the same leave days; unrelated employees continue independently.
   const result = await db.transaction(async (tx) => {
+    // Snapshot the employee's payable rate under the same transaction as the
+    // conversion reservation. An outside read can go stale during salary edits.
+    const [lockedEmployee] = await tx.select().from(employees)
+      .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))
+      .for("share");
+    if (!lockedEmployee) {
+      return { error: "Employee changed during leave conversion. Refresh and retry.", code: "LEAVE_CONVERSION_EMPLOYEE_CHANGED" } as const;
+    }
+    // Policy edits and deactivation must serialize against an accepted
+    // conversion rather than silently changing its cap mid-transaction.
     const policies = await tx.select().from(leavePolicies)
-      .where(and(eq(leavePolicies.organizationId, organizationId), eq(leavePolicies.active, true)));
+      .where(and(eq(leavePolicies.organizationId, organizationId), eq(leavePolicies.active, true)))
+      .for("share");
     const matching = policies.filter((row) => row.leaveType.toLowerCase() === leaveType.toLowerCase());
     if (matching.length !== 1) {
       return { error: "One active leave policy is required for cash conversion.", code: "LEAVE_POLICY_AMBIGUOUS_OR_MISSING" } as const;
@@ -154,7 +165,7 @@ export async function POST(request: Request) {
       } as const;
     }
 
-    const dailyRate = Number((Number(employee.basicRate) / 22).toFixed(2));
+    const dailyRate = Number((Number(lockedEmployee.basicRate) / 22).toFixed(2));
     if (!Number.isFinite(dailyRate) || dailyRate <= 0) {
       return { error: "Employee daily rate cannot be verified.", code: "LEAVE_CONVERSION_PAY_RATE_INVALID" } as const;
     }
@@ -177,7 +188,7 @@ export async function POST(request: Request) {
 
     await tx.insert(auditEvents).values({
       organizationId, actor: user.name, action: "Leave credits approved for cash conversion",
-      resource: `${employee.firstName} ${employee.lastName} (${daysConverted} days = PHP ${cashAmount.toFixed(2)})`,
+      resource: `${lockedEmployee.firstName} ${lockedEmployee.lastName} (${daysConverted} days = PHP ${cashAmount.toFixed(2)})`,
       metadata: {
         conversionId: created.id, leaveBalanceId: balance.id,
         year, daysConverted, availableBefore: available, reservedBefore: reserved,
