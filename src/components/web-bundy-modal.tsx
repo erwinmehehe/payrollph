@@ -295,7 +295,7 @@ function WebBundyView({
               {!policy.canClockWithLocation && " Team administrators cannot clock for someone else in this pilot; employees must use their own account."}
             </span>
           </div>
-        )
+        )}
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
           <button className="primary-button" disabled={busy || !policyReady || !canClockIn} onClick={() => handlePunch("clock_in")} style={{ height: 42, background: "var(--green)", fontSize: 13 }}>
