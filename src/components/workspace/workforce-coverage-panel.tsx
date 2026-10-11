@@ -12,6 +12,7 @@ import { WorkforcePlanningPreviewPanel } from "./workforce-planning-preview-pane
 import { WorkforceLaborCalibrationPanel } from "./workforce-labor-calibration-panel";
 import { WorkforceOperationalDemandPanel } from "./workforce-operational-demand-panel";
 import { WorkforceIssuedDemandPanel } from "./workforce-issued-demand-panel";
+import { WorkforceDemandStaffingPanel } from "./workforce-demand-staffing-panel";
 import { WorkforceDemandOutlookPanel } from "./workforce-demand-outlook-panel";
 import { previewWorkforceRecovery } from "@/lib/workforce-planning-preview";
 
@@ -731,6 +732,26 @@ export function WorkforceCoveragePanel({
           worksites={payload.worksites}
           canManage={canManage && data.access?.companyWide === true
             && ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role)}
+        />
+      )}
+
+      {payload && process.env.NEXT_PUBLIC_WFM_DEMAND_STAFFING_ENABLED === "true" &&
+        process.env.NEXT_PUBLIC_WFM_ISSUED_DEMAND_FORECASTS_ENABLED === "true" && (
+        <WorkforceDemandStaffingPanel
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
+          shifts={payload.shifts}
+          jobProfiles={payload.jobProfiles}
+          coverage={payload.coverage}
+          laborCostVisible={payload.laborVariance.costVisible}
+          laborRows={payload.laborVariance.rows}
+          recoveryOptions={payload.proactiveSuggestions}
+          guardrailBlockers={payload.guardrailReadiness.blockingIssueCount}
+          rosterStatus={payload.rosterReadiness.status}
+          windowStart={startDate}
+          windowEnd={endDate}
+          dynamicGroupCode={dynamicGroupCode}
         />
       )}
 

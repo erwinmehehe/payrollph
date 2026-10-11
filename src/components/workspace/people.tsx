@@ -499,7 +499,7 @@ export function PeopleView({
       )}
 
       {canManageLifecycle && (
-        <HcmBusinessProcessAdmin organizationId={data.selectedOrganization.id} />
+        <HcmBusinessProcessAdmin key={data.selectedOrganization.id} organizationId={data.selectedOrganization.id} />
       )}
 
       {canViewLifecycleNotifications && (
