@@ -21,13 +21,9 @@ export default async function HcmCommandCenter({
 
   const { organizationId: requestedOrganizationId } = await searchParams;
   const organizationId = explicitHcmEmployerId(requestedOrganizationId);
-  if (!organizationId) {
-    return <main className="mx-auto max-w-3xl px-6 py-12 text-slate-900">
-      <h1 className="text-2xl font-bold">Select an employer</h1>
-      <p className="mt-3 text-slate-600">Open your workspace and select the employer whose People Home you want to view. No employer has been chosen for this page.</p>
-      <Link href="/app" className="mt-5 inline-block rounded-lg border px-4 py-2 font-semibold text-emerald-900">Open workspace</Link>
-    </main>;
-  }
+  // An unselected employer is never a valid HCM pilot context, even for a
+  // signed-in user. Do not render any People Home UI when flags are disabled.
+  if (!organizationId) notFound();
 
   // Even a valid employer URL cannot bypass the independently controlled pilot allowlist.
   if (!peopleHomeEnabledForOrganization(organizationId)) notFound();
