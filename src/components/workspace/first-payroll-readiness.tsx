@@ -70,7 +70,7 @@ export function FirstPayrollReadinessCard({
           </li>
         ))}
       </ol>}
-      <div className="first-payroll-grid">
+      {!guided && <div className="first-payroll-grid">
         {readiness.items.map((item) => (
           <article className={item.ready ? "first-payroll-item is-ready" : "first-payroll-item"} key={item.key}>
             <div className="first-payroll-icon">
@@ -92,7 +92,7 @@ export function FirstPayrollReadinessCard({
             )}
           </article>
         ))}
-      </div>
+      </div>}
 
       <div className="first-payroll-footer">
         <div>
