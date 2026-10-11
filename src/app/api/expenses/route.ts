@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, expenseClaims } from "@/db/schema";
+import { employees, expenseClaims, expenseReportItems } from "@/db/schema";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
@@ -169,6 +169,11 @@ export async function PATCH(request: Request) {
   if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
   const scope = assertScope(access, employee.orgUnitId);
   if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+  const [reported] = await db.select({ id: expenseReportItems.id }).from(expenseReportItems)
+    .where(and(eq(expenseReportItems.organizationId, existing.organizationId), eq(expenseReportItems.claimId, id))).limit(1);
+  if (reported) return Response.json({
+    error: "This claim belongs to an expense report. Approve or reject the entire report in Spend management.",
+  }, { status: 409 });
   if (existing.status !== "pending") {
     return Response.json({ error: `This claim is already ${existing.status} and cannot be decided again.` }, { status: 409 });
   }
