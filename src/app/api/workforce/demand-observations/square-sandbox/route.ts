@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, workforceDemandImportBatches, worksites } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -73,6 +73,7 @@ export async function GET(request:Request){
       eq(auditEvents.organizationId,organizationId),
       eq(auditEvents.action,"WFM Square sandbox source checked"),
       eq(auditEvents.resource,"worksite:"+worksiteId),
+      sql`${auditEvents.metadata}->>'intervalMinutes' = ${String(intervalMinutes)}`,
     )).orderBy(desc(auditEvents.createdAt)).limit(1);
     return Response.json({
       readOnly:true,
