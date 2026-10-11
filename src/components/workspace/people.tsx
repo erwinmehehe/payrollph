@@ -1209,7 +1209,7 @@ function PersonDrawer({
           </div>
         </div>
 
-        <section id="employee-360-employment" className="card scroll-mt-4" style={{ margin: "0 0 16px", boxShadow: "none" }}>
+        <section id="employee-360-employment" tabIndex={-1} className="card scroll-mt-4" style={{ margin: "0 0 16px", boxShadow: "none" }}>
           <div className="card-header">
             <div>
               <div className="card-kicker">EMPLOYMENT DATES</div>
@@ -1377,7 +1377,7 @@ function PersonDrawer({
                       </Link>
                     </div>
                   )}
-                <div id="employee-360-performance" className="scroll-mt-4">
+                <div id="employee-360-performance" tabIndex={-1} className="scroll-mt-4">
                   <HcmWorkerJourneyPanel journey={connectedProfile.journey} onPage={onPage} />
                   <HcmWorkerJourneyActions journey={connectedProfile.journey} onPage={onPage} />
                 </div>
@@ -1564,7 +1564,7 @@ function PersonDrawer({
                   )}
                 </div>
 
-                <div id="employee-360-documents" className="module-grid two scroll-mt-4" style={{ marginTop: 14 }}>
+                <div id="employee-360-documents" tabIndex={-1} className="module-grid two scroll-mt-4" style={{ marginTop: 14 }}>
                   <div className="notice notice-slate" style={{ margin: 0 }}>
                     <BriefcaseBusiness size={15} className="i-purple" />
                     <span>
@@ -1595,7 +1595,7 @@ function PersonDrawer({
                   </div>
                 </div>
 
-                <div id="employee-360-history" className="scroll-mt-4" style={{ marginTop: 14 }}>
+                <div id="employee-360-history" tabIndex={-1} className="scroll-mt-4" style={{ marginTop: 14 }}>
                     <div className="card-kicker" style={{ marginBottom: 6 }}>WORKER HISTORY</div>
                     {connectedProfile.history.employmentEvents.length === 0 &&
                       connectedProfile.history.positionAssignments.length === 0 && (
@@ -1644,7 +1644,7 @@ function PersonDrawer({
                   </div>
                 )}
 
-                <div id="employee-360-onboarding" className="scroll-mt-4" style={{ marginTop: 14 }}>
+                <div id="employee-360-onboarding" tabIndex={-1} className="scroll-mt-4" style={{ marginTop: 14 }}>
                     <div className="card-kicker" style={{ marginBottom: 6 }}>LIFECYCLE TASKS</div>
                     {connectedProfile.lifecycle.tasks.length === 0 && (
                       <p className="text-xs text-slate-600">
@@ -2071,7 +2071,7 @@ function PersonDrawer({
             )}
           </div>
 
-          <div id="employee-360-leave" className="scroll-mt-4">
+          <div id="employee-360-leave" tabIndex={-1} className="scroll-mt-4">
             <p className="card-kicker">Leave &amp; lifecycle</p>
             {leave.length === 0 && checklist.length === 0 && (
               <p style={{ color: "var(--muted)", fontSize: 11.5 }}>No leave requests or open checklist items.</p>
