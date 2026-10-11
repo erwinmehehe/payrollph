@@ -6,6 +6,7 @@ import { automationOperationalCases, employees, hcmLifecycleNotificationTasks, o
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { canOpenPeopleHome, explicitHcmEmployerId } from "@/lib/hcm-people-home-scope";
+import { loadPeopleHomeWorklist } from "@/lib/hcm-people-home-worklist";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "People Home | Linaw HCM", robots: { index: false, follow: false } };
@@ -58,6 +59,34 @@ export default async function HcmCommandCenter({
     { label: "Open operational cases", value: cases[0]?.count ?? 0 },
   ];
 
+  const worklist = await loadPeopleHomeWorklist(organizationId, { id: user.id, name: user.name });
+  const sections = [
+    {
+      id: "my-decisions",
+      heading: "My HCM decisions",
+      description: "Only steps assigned to your identity or delegated role. Approval remains in its governed workflow.",
+      data: worklist.decisions,
+      sourceUrl: "/app?organizationId=" + organizationId + "&workspacePage=People",
+      sourceName: "HCM Inbox",
+    },
+    {
+      id: "people-followups",
+      heading: "People Ops follow-ups",
+      description: "HR source findings, not assigned approvals. Missing records can be legitimate.",
+      data: worklist.followUps,
+      sourceUrl: "/app?organizationId=" + organizationId + "&workspacePage=People",
+      sourceName: "People Operations Inbox",
+    },
+    {
+      id: "owned-cases",
+      heading: "Cases assigned to me",
+      description: "Operational cases with recorded ownership. Opening a case does not approve a transaction.",
+      data: worklist.ownedCases,
+      sourceUrl: "/hcm/work-items?organizationId=" + organizationId,
+      sourceName: "HR Work Queue",
+    },
+  ];
+
   return <main className="mx-auto max-w-7xl px-6 py-10 text-slate-900">
     <header className="mb-8">
       <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">People operations · {employer[0].name}</p>
@@ -74,24 +103,61 @@ export default async function HcmCommandCenter({
       </article>)}
     </div>
 
-    <section aria-label="Continue work in its source" className="mt-8 grid gap-4 lg:grid-cols-3">
-      <article className="rounded-xl border bg-white p-6">
-        <h2 className="text-xl font-semibold">My HCM decisions</h2>
-        <p className="mt-2 text-slate-600">Open People in the workspace to review business-process steps actually assigned to you. The source workflow controls all decisions.</p>
-        <Link className="mt-5 inline-block rounded-lg border px-4 py-2 font-semibold text-emerald-900" href={`/app?organizationId=${organizationId}`}>Open People workspace</Link>
-      </article>
-      <article className="rounded-xl border bg-white p-6">
-        <h2 className="text-xl font-semibold">People Ops follow-ups</h2>
-        <p className="mt-2 text-slate-600">Review employment, onboarding, positions and separation findings in the existing People Operations Inbox.</p>
-        <Link className="mt-5 inline-block rounded-lg border px-4 py-2 font-semibold text-emerald-900" href={`/app?organizationId=${organizationId}`}>Review People inbox</Link>
-      </article>
-      <article className="rounded-xl border bg-white p-6">
-        <h2 className="text-xl font-semibold">Operational cases</h2>
-        <p className="mt-2 text-slate-600">Assign, update and escalate cases in the governed HR Work Queue. An open case is not an assigned approval.</p>
-        <Link className="mt-5 inline-block rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white" href={`/hcm/work-items?organizationId=${organizationId}`}>Open HR Work Queue</Link>
-      </article>
+    <section className="mt-8" aria-labelledby="people-home-worklist">
+      <header>
+        <h2 id="people-home-worklist" className="text-2xl font-bold">My tasks and source follow-ups</h2>
+        <p className="mt-2 max-w-3xl text-sm text-slate-600">
+          Decisions, HR source reviews and owned cases are separate work categories. This is a read-only
+          view of the underlying modules, not a new approval queue or a complete workforce census.
+        </p>
+      </header>
+      <div className="mt-5 grid gap-4 lg:grid-cols-3">
+        {sections.map((section) => <article key={section.id} aria-labelledby={section.id} className="rounded-xl border bg-white p-5 shadow-sm">
+          <h3 id={section.id} className="text-lg font-semibold">{section.heading}</h3>
+          <p className="mt-2 min-h-12 text-sm text-slate-600">{section.description}</p>
+          {section.data.state === "unavailable" ? (
+            <p role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              Source unavailable. No items or approvals have been verified. Open the source workspace or retry later.
+            </p>
+          ) : (
+            <>
+              {section.data.total !== null && (
+                <p className="mt-3 text-sm font-semibold text-slate-700">
+                  {section.data.total} source follow-up{section.data.total === 1 ? "" : "s"} recorded
+                </p>
+              )}
+              {section.data.items.length === 0 && (
+                <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
+                  No matching items in this preview. The source workspace remains authoritative.
+                </p>
+              )}
+              <ul className="mt-3 space-y-3">
+                {section.data.items.map((item) => <li key={item.key} className="rounded-lg border border-slate-200 p-3">
+                  <p className="font-semibold text-slate-900">{item.title}</p>
+                  <p className="mt-1 text-xs text-slate-600">{item.category}</p>
+                  {item.dueAt && <p className="mt-1 text-xs text-slate-600">
+                    Source date: {new Date(item.dueAt).toLocaleDateString("en-PH", {
+                      timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric",
+                    })}
+                  </p>}
+                  {item.blockedByMakerChecker && <p className="mt-2 text-xs font-semibold text-amber-800">
+                    You initiated this request. A separate reviewer is required.
+                  </p>}
+                  <Link href={item.sourceUrl} className="mt-2 inline-block text-sm font-semibold text-emerald-800 underline">
+                    Open source workflow
+                  </Link>
+                </li>)}
+              </ul>
+              {section.data.hasMore && <p className="mt-3 text-xs text-slate-600">
+                Bounded preview only. Additional source items may exist; open the original inbox to review them.
+              </p>}
+            </>
+          )}
+          <Link className="mt-5 inline-block rounded-lg border border-emerald-800 px-4 py-2 text-sm font-semibold text-emerald-900"
+            href={section.sourceUrl}>Open {section.sourceName}</Link>
+        </article>)}
+      </div>
     </section>
-
     <div className="mt-8">
       <Link href={`/app?organizationId=${organizationId}`} className="text-sm font-semibold text-emerald-800 underline">Back to selected employer workspace</Link>
     </div>
