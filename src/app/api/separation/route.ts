@@ -31,7 +31,7 @@ import {
 } from "@/lib/access";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
-import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "@/lib/final-pay";
+import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, unresolvedFinalPayMandatoryShortfall } from "@/lib/final-pay";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
@@ -504,6 +504,15 @@ export async function POST(request: Request) {
       requestedLoanDeductions: result.requestedLoanDeductions,
       collectibleLoanDeductions: result.loanDeductions,
       deferredLoanBalance: result.deferredLoanBalance,
+      // Immutable per-recomputation evidence; these amounts remain unpaid
+      // until independently reconciled and must not disappear at net=0.
+      requestedTaxCollection: result.requestedTaxCollection,
+      appliedTaxCollection: result.appliedTaxCollection,
+      unpaidTaxWithholding: result.unpaidTaxWithholding,
+      appliedStatutoryDeductions: result.appliedStatutoryDeductions,
+      unpaidStatutoryDeductions: result.unpaidStatutoryDeductions,
+      unpaidMandatoryDeductions: result.unpaidMandatoryDeductions,
+      shortfallAllocationPolicy: "tax-first-provisional-review-required",
       annualization: result.annualization,
       specialPayTaxReviewed,
       separationPayTaxExempt,
@@ -1129,6 +1138,16 @@ export async function PATCH(request: Request) {
   }
 
   if (action === "approve" || action === "release") {
+    // Recompute this independent gate from protected numeric columns so a
+    // legacy snapshot lacking the new fields cannot silently bypass review.
+    const shortfall = unresolvedFinalPayMandatoryShortfall(sep);
+    if (shortfall === null || shortfall > 0) {
+      return Response.json({
+        code: "FINAL_PAY_MANDATORY_SHORTFALL_REVIEW_REQUIRED",
+        error: "Final pay does not cover all mandatory tax and statutory deductions. Reconcile the unpaid obligations with payroll and finance before approval or release.",
+        unpaidMandatoryDeductions: shortfall,
+      }, { status: 409 });
+    }
     if (!(sep.itCleared && sep.adminCleared && sep.financeCleared && sep.hrCleared)) {
       return Response.json({ error: "IT, Admin, Finance, and HR clearance must all be complete first." }, { status: 409 });
     }
@@ -1161,6 +1180,9 @@ export async function PATCH(request: Request) {
           )).limit(1);
           if (!fresh || fresh.status !== "draft") {
             throw new Error("FINAL_PAY_APPROVAL_CHANGED");
+          }
+          if (unresolvedFinalPayMandatoryShortfall(fresh) !== 0) {
+            throw new Error("FINAL_PAY_MANDATORY_SHORTFALL_REVIEW_REQUIRED");
           }
           // Stable actor IDs, never display names. Historical packages with
           // unknown preparers require a fresh evidence-backed recomputation.
@@ -1218,7 +1240,9 @@ export async function PATCH(request: Request) {
         if (code.startsWith("FINAL_PAY_")) {
           return Response.json({
             code,
-            error: code === "FINAL_PAY_MAKER_EVIDENCE_MISSING"
+            error: code === "FINAL_PAY_MANDATORY_SHORTFALL_REVIEW_REQUIRED"
+              ? "Mandatory tax or statutory deductions exceed the payable final amount. Recompute and reconcile the outstanding obligations before approval."
+              : code === "FINAL_PAY_MAKER_EVIDENCE_MISSING"
               ? "This legacy final-pay draft has no stable preparer identity. Recompute against verified source records before independent approval."
               : code === "FINAL_PAY_MAKER_CHECKER_REQUIRED"
                 ? "The employee final-pay preparer cannot approve their own computation."
@@ -1249,6 +1273,9 @@ export async function PATCH(request: Request) {
       )).limit(1);
       if (!fresh || fresh.status !== "approved") {
         throw new Error("Final-pay release state changed. Refresh and try again.");
+      }
+      if (unresolvedFinalPayMandatoryShortfall(fresh) !== 0) {
+        throw new Error("FINAL_PAY_MANDATORY_SHORTFALL_REVIEW_REQUIRED");
       }
       if (String(fresh.lastDay) > todayPh()) {
         throw new Error("The approved employee last day has not yet occurred. Do not mark the worker Separated or release final pay early.");
