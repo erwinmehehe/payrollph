@@ -16,7 +16,8 @@ import {
 type Variant = {
   missingTable?: string; missingColumn?: string; columnType?: string;
   missingDefault?: string; wrongDefault?: string; wrongIndexKeys?: string;
-  weakIndex?: string; wrongIndexTable?: string; missingConstraint?: boolean;
+  weakIndex?: string; wrongIndexTable?: string; wrongIndexDefinition?: string;
+  missingConstraint?: boolean;
   missingConstraintToken?: string; nullableColumn?: string;
   unvalidatedConstraintToken?: string; deferredConstraintToken?: string;
   weakenMakerChecker?: boolean; wrongCheckName?: boolean;
@@ -52,6 +53,11 @@ function simulate(spec: RequestSchemaSpec, variant: Variant = {}) {
         isValid: true, isReady: true,
         keys: i.name === variant.wrongIndexKeys ? ["organization_id"] : [...i.keys],
         predicate: i.predicateTokens?.length ? i.predicateTokens.join(" ") : null,
+        indexDefinition: i.name === variant.wrongIndexDefinition
+          ? "CREATE INDEX test ON public." + i.tableName +
+            " USING btree (" + i.keys.join(", ") + ")" // intentionally missing DESC
+          : "CREATE INDEX test ON public." + i.tableName +
+            " USING btree (" + (i.definitionTokens?.join(" ") ?? i.keys.join(", ")) + ")",
       })),
     };
     if (sql.includes("pg_catalog.pg_constraint")) return {
@@ -326,6 +332,8 @@ test("unverified request-time schemas cannot bypass catalog or constraint checks
       { missingColumn: spec.columns[0].name },
       { columnType: spec.columns.find(c => c.type)?.name },
       ...(spec.indexes.length ? [{ wrongIndexKeys: spec.indexes[0].name }] : []),
+      ...(spec.indexes.some(i => i.definitionTokens?.length)
+        ? [{ wrongIndexDefinition: spec.indexes.find(i => i.definitionTokens?.length)?.name }] : []),
       ...(spec.constraints.length ? [{ missingConstraint: true }] : []),
       ...(spec.columns.some(c => c.defaultTextLiteral !== undefined)
         ? [{ wrongDefault: spec.columns.find(c => c.defaultTextLiteral !== undefined)?.name }] : []),
