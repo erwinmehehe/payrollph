@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { essText, type EssLanguage } from "@/lib/ess-language";
 import { ChevronDown, ChevronUp, FileSearch, LoaderCircle, ShieldCheck } from "lucide-react";
 
 type ExplainLine = {
@@ -49,12 +50,13 @@ const peso = (value: number) =>
     maximumFractionDigits: 2,
   }).format(value);
 
-function signedPeso(value: number) {
-  if (Math.abs(value) < 0.005) return "No net change";
+function signedPeso(value: number, language: EssLanguage) {
+  if (Math.abs(value) < 0.005) return essText(language, "No net change");
   return `${value > 0 ? "+" : "-"}${peso(Math.abs(value))}`;
 }
 
-export function EmployeeExplainPay({ entryId, period }: { entryId: number; period: string }) {
+export function EmployeeExplainPay({ entryId, period, language = "en" }: { entryId: number; period: string; language?: EssLanguage }) {
+  const t = (label: string) => essText(language, label);
   const [open, setOpen] = useState(false);
   const [payload, setPayload] = useState<ExplainPayload | null>(null);
   const [busy, setBusy] = useState(false);
@@ -76,12 +78,12 @@ export function EmployeeExplainPay({ entryId, period }: { entryId: number; perio
       const response = await fetch(`/api/self/payslips/${entryId}/explain`, { cache: "no-store" });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setError(body.error ?? "We could not explain this payslip.");
+        setError(body.error ?? t("We could not explain this payslip."));
         return;
       }
       setPayload(body as ExplainPayload);
     } catch {
-      setError("We could not load the explanation because the server could not be reached.");
+      setError(t("We could not load the explanation because the server could not be reached."));
     } finally {
       setBusy(false);
     }
@@ -105,7 +107,7 @@ export function EmployeeExplainPay({ entryId, period }: { entryId: number; perio
         aria-controls={`employee-pay-explanation-${entryId}`}
       >
         <FileSearch size={14} />
-        Why did my pay change?
+        {t("Why did my pay change?")}
         {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
       </button>
 
@@ -118,7 +120,7 @@ export function EmployeeExplainPay({ entryId, period }: { entryId: number; perio
           {busy && (
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <LoaderCircle size={15} className="i-blue" />
-              <span>Comparing this payslip with your previous released pay...</span>
+              <span>{t("Comparing this payslip with your previous released pay...")}</span>
             </div>
           )}
 
@@ -127,10 +129,10 @@ export function EmployeeExplainPay({ entryId, period }: { entryId: number; perio
           {payload && explanation && (
             <>
               <div>
-                <div className="card-kicker">EXPLAIN MY PAY</div>
+                <div className="card-kicker">{t("EXPLAIN MY PAY")}</div>
                 <strong style={{ display: "block", marginTop: 4 }}>{period}</strong>
                 <p style={{ margin: "5px 0 0", color: "var(--muted)", lineHeight: 1.5 }}>
-                  This uses the stored payroll calculation and compares it with your previous released cutoff. It does not recalculate your pay in the browser.
+                  {t("This uses the stored payroll calculation and compares it with your previous released cutoff. It does not recalculate your pay in the browser.")}
                 </p>
               </div>
 
@@ -139,31 +141,31 @@ export function EmployeeExplainPay({ entryId, period }: { entryId: number; perio
                   <ShieldCheck size={14} />
                   <span>
                     {netDelta == null
-                      ? "Your previous released pay is available, but no net-pay comparison was produced."
+                      ? t("Your previous released pay is available, but no net-pay comparison was produced.")
                       : netDelta === 0
-                        ? `Your net pay is unchanged from ${payload.previousRun.periodLabel}.`
-                        : `Your net pay is ${peso(Math.abs(netDelta))} ${netDelta > 0 ? "higher" : "lower"} than ${payload.previousRun.periodLabel}.`}
+                        ? `${t("Your net pay is unchanged from")} ${payload.previousRun.periodLabel}.`
+                        : `${t("Your net pay is")} ${peso(Math.abs(netDelta))} ${t(netDelta > 0 ? "higher" : "lower")} ${t("than")} ${payload.previousRun.periodLabel}.`}
                   </span>
                 </div>
               ) : (
                 <div className="notice notice-blue">
                   <ShieldCheck size={14} />
-                  <span>This is the first released payroll in your available history, so there is no earlier cutoff to compare yet.</span>
+                  <span>{t("This is the first released payroll in your available history, so there is no earlier cutoff to compare yet.")}</span>
                 </div>
               )}
 
               <div className="employee-pay-totals">
                 <div>
-                  <span>Current net</span>
+                  <span>{t("Current net")}</span>
                   <strong>{peso(explanation.currentNet)}</strong>
                 </div>
                 <div>
-                  <span>Previous net</span>
-                  <strong>{explanation.previousNet == null ? "No prior pay" : peso(explanation.previousNet)}</strong>
+                  <span>{t("Previous net")}</span>
+                  <strong>{explanation.previousNet == null ? t("No prior pay") : peso(explanation.previousNet)}</strong>
                 </div>
                 <div>
-                  <span>Net change</span>
-                  <strong>{netDelta == null ? "Not available" : signedPeso(netDelta)}</strong>
+                  <span>{t("Net change")}</span>
+                  <strong>{netDelta == null ? t("Not available") : signedPeso(netDelta, language)}</strong>
                 </div>
               </div>
 
@@ -183,7 +185,7 @@ export function EmployeeExplainPay({ entryId, period }: { entryId: number; perio
                       <strong style={{ display: "block" }}>{line.label}</strong>
                       <small style={{ display: "block", color: "var(--muted)", marginTop: 2 }}>
                         {line.previous == null
-                          ? `Current: ${peso(line.current)}`
+                          ? `${t("Current:")} ${peso(line.current)}`
                           : `${peso(line.previous)} → ${peso(line.current)}`}
                       </small>
                       <p style={{ margin: "5px 0 0", color: "var(--muted)", lineHeight: 1.45 }}>
@@ -192,10 +194,10 @@ export function EmployeeExplainPay({ entryId, period }: { entryId: number; perio
                     </div>
                     <div style={{ textAlign: "right" }}>
                       <strong className={(line.netEffectDelta ?? 0) < 0 ? "red-number" : (line.netEffectDelta ?? 0) > 0 ? "green-number" : ""}>
-                        {line.netEffectDelta == null ? "Current pay" : signedPeso(line.netEffectDelta)}
+                        {line.netEffectDelta == null ? t("Current pay") : signedPeso(line.netEffectDelta, language)}
                       </strong>
                       <small style={{ display: "block", color: "var(--muted)", marginTop: 2 }}>
-                        {line.netEffectDelta == null ? line.code : "effect on net"}
+                        {line.netEffectDelta == null ? line.code : t("effect on net")}
                       </small>
                     </div>
                   </div>
@@ -209,12 +211,12 @@ export function EmployeeExplainPay({ entryId, period }: { entryId: number; perio
                   onClick={() => setShowAll((current) => !current)}
                   style={{ justifySelf: "start" }}
                 >
-                  {showAll ? "Show main changes" : `Show all ${candidateLines.length} pay components`}
+                  {showAll ? t("Show main changes") : `${t("Show all")} ${candidateLines.length} ${t("pay components")}`}
                 </button>
               )}
 
               <div className="employee-rule-note">
-                <ShieldCheck size={12} /> Explanation from stored payroll data · rule version {payload.run.ruleVersion}
+                <ShieldCheck size={12} /> {t("Explanation from stored payroll data · rule version")} {payload.run.ruleVersion}
               </div>
             </>
           )}

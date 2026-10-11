@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import {analyzeMigrationChanges,parseDiff} from "../scripts/check-sql-migration-history.mjs";
 const base=["drizzle/baseline.sql","drizzle/0021_a.sql","drizzle/0021_b.sql","drizzle/0099_latest.sql"];
 test("historic collisions remain visible but accepted without changes",()=>{
@@ -94,4 +94,27 @@ test("HCM loan 0103 alone stays blocked until its predecessors have landed", () 
     "drizzle/0101_reviewed_payroll_underpayments.sql",
     "drizzle/0102_final_pay_maker_checker.sql"];
   assert.deepEqual(analyzeMigrationChanges(prerequisites, [loan]).errors, []);
+});
+
+test("current main claims migrations added after the PR fork; stale merge-base reservations fail closed", () => {
+  const forkBase = [...base, "drizzle/0100_compensation_automation_intents.sql"];
+  const incoming = [{status: "A", path: "drizzle/0101_provider_events.sql"}];
+  // This would pass if we checked the original fork point.
+  assert.deepEqual(analyzeMigrationChanges(forkBase, incoming).errors, []);
+  // Another PR has already merged a different 0101, which makes the candidate unsafe.
+  const currentMain = [...forkBase, "drizzle/0101_separation_maker_checker.sql"];
+  const afterConcurrentMerge = analyzeMigrationChanges(currentMain, incoming);
+  assert.match(afterConcurrentMerge.errors.join("\n"), /New migration number conflicts with existing history/);
+  // The integration script must inspect current main; the merge base is still
+  // retained only to identify additions on the PR branch.
+  const script = readFileSync("scripts/check-sql-migration-history.mjs", "utf8");
+  assert.ok(script.includes('const historic=git("ls-tree","-r","--name-only",currentBase,"--","drizzle")'));
+  assert.ok(script.includes('const changes=parseDiff(git("diff","--name-status","--no-renames","-z",mergeBase,head,"--","drizzle"))'));
+});
+
+test("current main's highest migration, not the fork point, determines the next consecutive number", () => {
+  const main = [...base, "drizzle/0100_a.sql", "drizzle/0101_b.sql"];
+  const pending = [{status:"A", path:"drizzle/0103_new.sql"}];
+  assert.match(analyzeMigrationChanges(main,pending).errors.join("\n"), /expected drizzle\/0102_/);
+  assert.deepEqual(analyzeMigrationChanges(main,[{status:"A", path:"drizzle/0102_new.sql"}]).errors,[]);
 });
