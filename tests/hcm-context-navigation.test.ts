@@ -19,7 +19,7 @@ const pilotEnv = {
 } as const;
 const hr = { role: "hr", companyWide: true };
 const bookkeeper = { role: "bookkeeper", companyWide: true };
-function links(org = 17, current: "peopleHome" | "processMonitor" | "worker360" | "actionCenter" | "orgExplorer" = "peopleHome",
+function links(org = 17, current: "peopleHome" | "processMonitor" | "worker360" | "payrollReview" | "actionCenter" | "orgExplorer" = "peopleHome",
   access = hr, env: Record<string, string> = pilotEnv, employeeId: number | null = null) {
   return buildHcmNavigation({
     organizationId: org, access, current, employeeId,
@@ -126,6 +126,46 @@ test("HCM links preserve selected employer and worker context, never a guessed w
   }, 209).every((link) => link.id !== "worker360"));
 });
 
+test("payroll input evidence links preserve worker context and honor role, employer and pilot flags", () => {
+  const reviewEnv = {
+    ...pilotEnv,
+    HCM_HIRE_PAYROLL_REVIEW_ENABLED: "true",
+    NEXT_PUBLIC_HCM_HIRE_PAYROLL_REVIEW_ENABLED: "true",
+    HCM_HIRE_PAYROLL_REVIEW_ORG_IDS: "17,18",
+  };
+  const review = links(17, "payrollReview", hr, reviewEnv, 209)
+    .find((link) => link.id === "payrollReview");
+  assert.equal(review?.href,
+    "/hcm/hire-payroll-review?organizationId=17&employeeId=209");
+  assert.equal(review?.current, true);
+  assert.equal(links(18, "worker360", hr, reviewEnv, 310)
+    .find((link) => link.id === "payrollReview")?.href,
+    "/hcm/hire-payroll-review?organizationId=18&employeeId=310");
+
+  const noLink = (org: number, access: { role: string; companyWide: boolean },
+    env: Record<string, string>, worker: number | null) =>
+    !links(org, "worker360", access, env, worker)
+      .some((link) => link.id === "payrollReview");
+  assert.ok(noLink(19, hr, reviewEnv, 209));
+  assert.ok(noLink(17, hr, reviewEnv, null));
+  assert.ok(noLink(17, hr, reviewEnv, -3));
+  assert.ok(noLink(17, { role: "manager", companyWide: true }, reviewEnv, 209));
+  assert.ok(noLink(17, { role: "bookkeeper", companyWide: true }, reviewEnv, 209));
+  assert.ok(noLink(17, { role: "hr", companyWide: false }, reviewEnv, 209));
+  assert.ok(noLink(17, hr, {
+    ...reviewEnv, HCM_HIRE_PAYROLL_REVIEW_ENABLED: "false",
+  }, 209));
+  assert.ok(noLink(17, hr, {
+    ...reviewEnv, NEXT_PUBLIC_HCM_HIRE_PAYROLL_REVIEW_ENABLED: "false",
+  }, 209));
+  assert.ok(noLink(17, hr, {
+    ...reviewEnv, HCM_HIRE_PAYROLL_REVIEW_ORG_IDS: "017",
+  }, 209));
+  assert.ok(noLink(17, hr, {
+    ...reviewEnv, PILOT_FOCUS_NAV_ENABLED: "true", PILOT_FOCUS_ORG_IDS: "17",
+  }, 209));
+});
+
 test("HCM current-page links cannot bypass disabled public discovery flags", () => {
   const monitorOff = { ...pilotEnv, NEXT_PUBLIC_HCM_PROCESS_MONITOR_ENABLED: "false" };
   assert.ok(!links(17, "processMonitor", hr, monitorOff)
@@ -148,6 +188,7 @@ test("existing HCM server pages reuse scoped navigation without broadening permi
   const monitor = read("src/app/hcm/process-monitor/page.tsx");
   const worker = read("src/app/hcm/worker-360/page.tsx");
   const workerClient = read("src/components/hcm-worker-360.tsx");
+  const payrollReviewPage = read("src/app/hcm/hire-payroll-review/page.tsx");
   const component = read("src/components/hcm-context-navigation.tsx");
   for (const source of [home, actionCenter, monitor, worker]) {
     assert.ok(source.includes("HcmContextNavigation"));
@@ -168,6 +209,10 @@ test("existing HCM server pages reuse scoped navigation without broadening permi
   assert.ok(!links(17, "actionCenter", bookkeeper).some(link => link.id === "actionCenter"));
   assert.ok(worker.includes('HCM_WORKER_360_ENABLED !== "true"'));
   assert.ok(workerClient.includes("/app?organizationId="));
+  assert.ok(payrollReviewPage.includes("<HcmContextNavigation"));
+  assert.ok(payrollReviewPage.includes('current="payrollReview"'));
+  assert.ok(payrollReviewPage.includes("assertOrganizationRole("));
+  assert.ok(payrollReviewPage.includes("hirePayrollReviewEnabledForEmployer(organizationId)"));
   assert.ok(component.includes('aria-label="HCM workspace navigation"'));
   assert.ok(component.includes('aria-current={link.current ? "page"'));
   assert.ok(!component.includes("db."));

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { PayrollUnderpaymentPanel } from "@/components/payroll-underpayment-panel";
 import { PayrollOverpaymentWorkbench } from "@/components/payroll-overpayment-workbench";
 import { PayrollOverpaymentPreviewPanel } from "@/components/payroll-overpayment-preview-panel";
+import { summarizeCompensationCycleBudget } from "@/lib/hcm-compensation-cycle-budget-preview";
 import {
   BadgeDollarSign,
   CalendarDays,
@@ -110,6 +111,17 @@ const peso = (value: string | number | null) =>
         style: "currency",
         currency: "PHP",
         maximumFractionDigits: 0,
+      }).format(Number(value));
+
+// Preserve centavo precision in budget review amounts. This is display-only.
+const budgetPeso = (value: string | number | null) =>
+  value == null
+    ? "—"
+    : new Intl.NumberFormat("en-PH", {
+        style: "currency",
+        currency: "PHP",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       }).format(Number(value));
 
 function pct(value: number | null) {
@@ -243,20 +255,12 @@ export function CompensationPanel({
   }
 
   const activeCycle = cycles.find((cycle) => cycle.status === "active");
-  const committedSpend = useMemo(
-    () =>
-      proposals
-        .filter((proposal) =>
-          proposal.cycleId === activeCycle?.id
-          && ["scheduled", "applied"].includes(proposal.status),
-        )
-        .reduce(
-          (sum, proposal) =>
-            sum + Math.max(0, Number(proposal.proposedAnnual) - Number(proposal.currentAnnual)),
-          0,
-        ),
-    [proposals, activeCycle?.id],
+  const budgetPreview = useMemo(
+    () => summarizeCompensationCycleBudget(activeCycle ?? null, proposals),
+    [activeCycle, proposals],
   );
+  const committedSpend = budgetPreview?.state === "available"
+    ? budgetPreview.committedAnnual : null;
   const selectedEmployeeId = Number(proposalForm.employeeId);
   const selectedEmployee = employees.find((employee) => employee.id === selectedEmployeeId) ?? null;
   const selectedPromotionOptions = promotions.filter(
@@ -304,12 +308,16 @@ export function CompensationPanel({
         </article>
         <article className="stat-card">
           <span>{access?.companyWide ? "Committed budget" : "Visible committed increases"}</span>
-          <strong>{peso(committedSpend)}</strong>
+          <strong>{budgetPeso(committedSpend)}</strong>
           <small>{!activeCycle
             ? "no active cycle"
-            : access?.companyWide
-              ? `${peso(Math.max(0, Number(activeCycle.budgetPool) - committedSpend))} remaining of ${peso(activeCycle.budgetPool)} pool`
-              : "Only proposals in your assigned scope are shown"}
+            : budgetPreview?.state !== "available"
+              ? "Budget preview unavailable. Refresh the authoritative source."
+              : access?.companyWide
+                ? budgetPreview.overCommittedAnnual > 0
+                  ? `${budgetPeso(budgetPreview.overCommittedAnnual)} over the recorded budget; review source controls`
+                  : `${budgetPeso(budgetPreview.remainingAnnual)} remaining of ${budgetPeso(activeCycle.budgetPool)} pool`
+                : "Only proposals in your assigned scope are shown"}
           </small>
         </article>
         <article className="stat-card">
@@ -318,6 +326,21 @@ export function CompensationPanel({
           <small>{componentAssignments.filter((row) => row.status === "pending_approval").length} pending approval</small>
         </article>
       </section>
+      {activeCycle && budgetPreview?.state === "available" && access?.companyWide && (
+        <div className="notice notice-blue" role="status" style={{ marginBottom: 16 }}>
+          <ShieldCheck size={15} />
+          <span>
+            <strong>Budget review preview:</strong>{" "}
+            {budgetPreview.pendingCount} proposal{budgetPreview.pendingCount === 1 ? "" : "s"} awaiting independent review, not committed.
+            {" "}Positive annual increase exposure: {budgetPeso(budgetPreview.pendingAnnual)}.
+            {budgetPreview.potentialOverBudgetAnnual > 0 && (
+              <> If all proposed increases proceeded, the combined amount would exceed
+                the recorded pool by {budgetPeso(budgetPreview.potentialOverBudgetAnnual)}.</>
+            )}
+            {" "}Values reflect only this source snapshot. The server rechecks budget before any governed pay change.
+          </span>
+        </div>
+      )}
 
       <section className="module-grid three">
         <article className="card">

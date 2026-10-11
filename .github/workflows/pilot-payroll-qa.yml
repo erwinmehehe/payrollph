@@ -12,6 +12,10 @@ on:
       - ui/ess-mobile-ux
     paths:
       - "src/app/api/employees/route.ts"
+      - "src/app/api/provisioning/**"
+      - "src/app/api/web-bundy/**"
+      - "src/app/api/compliance/filing-validations/**"
+      - "src/lib/filing-evidence*.ts"
       - "src/app/api/invitations/**"
       - "src/app/api/payroll-runs/**"
       - "src/app/api/compliance/bank-validations/**"
@@ -32,6 +36,8 @@ on:
       - "src/lib/payout-**"
       - "src/lib/treasury-**"
       - "src/lib/exporters.ts"
+      - "src/lib/filing-evidence-store.ts"
+      - "tests/filing-evidence-lifecycle.test.ts"
       - "src/lib/payroll-**"
       - "src/lib/workforce-**"
       - "src/app/api/workforce/**"
@@ -39,6 +45,7 @@ on:
       - "src/lib/roles.ts"
       - "src/db/**"
       - "scripts/pilot-payroll-qa.ts"
+      - "scripts/first-payroll-mobile-synthetic-*"
       - "tests/*bank*.test.ts"
       - "tests/*paymongo*.test.ts"
       - "tests/*payout*.test.ts"
@@ -70,6 +77,11 @@ jobs:
       APP_BASE_URL: http://127.0.0.1:3000
       TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
       DEMO_MODE: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      WFM_GEOFENCE_PILOT_ENABLED: "false"
+      OPENAI_API_KEY: ""
       WORKER_TOKEN: ci-worker-token-00000000000000000000000000000000
       READINESS_TOKEN: ci-readiness-token-0000000000000000000000000000
       SETUP_TOKEN: ci-setup-token-0000000000000000000000000000000
@@ -124,6 +136,10 @@ jobs:
 
       - name: Authenticate synthetic bank envelopes across all four stores
         run: npx tsx scripts/verify-bank-account-envelopes.ts
+
+      # Keep the first-employer fixture intact: it binds its policy to ID 1.
+      - name: Verify filing month boundaries and missing-ID rejection
+        run: node --import tsx --test tests/filing-evidence-lifecycle.test.ts
 
       - name: Show server log on failure
         if: failure()
