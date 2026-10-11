@@ -12,7 +12,6 @@ import { CompensationPanel } from "@/components/compensation-panel";
 import { HcmDocumentsPanel } from "@/components/hcm-documents-panel";
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
-import { SaasOnboardingQuickstart } from "@/components/saas-onboarding-quickstart";
 import { HrisHomeShortcuts } from "@/components/hris-home-shortcuts";
 import { HrisOnboardingChecklist } from "@/components/hris-onboarding-checklist";
 import { DisciplinePanel } from "@/components/discipline-panel";
@@ -403,15 +402,6 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
 
         {page === "Overview" && (
           <>
-            {isSelfServeCustomer && data.payrollRuns.length === 0 && (
-              <SaasOnboardingQuickstart
-                companyName={data.selectedOrganization.name}
-                employees={data.employees.length}
-                runs={data.payrollRuns.length}
-                onPage={setPage}
-                onAddEmployee={() => setNewHireOpen(true)}
-              />
-            )}
             {hrisShortcuts.length > 0 && (
               <HrisHomeShortcuts actions={hrisShortcuts} onPage={setPage} />
             )}
@@ -436,10 +426,10 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
                 readiness={data.firstPayrollReadiness}
-                onPage={(targetPage) => {
-                  if (targetPage === "Settings") setSettingsInitialTab("team");
-                  setPage(targetPage);
-                }}
+                guided={isSelfServeCustomer}
+                allowedPages={availablePages}
+                onSettings={setSettingsInitialTab}
+                onPage={setPage}
                 onNewRun={() => setNewPayrollOpen(true)}
               />
             )}
