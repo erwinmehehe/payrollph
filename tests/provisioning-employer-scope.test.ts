@@ -73,7 +73,7 @@ test("all source call sites send explicitly bound employer and employee IDs", ()
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const path = join(dir, entry.name);
       if (entry.isDirectory()) scan(path);
-      else if (entry.isFile() && /\\.(tsx?|jsx?)$/.test(entry.name)) {
+      else if (entry.isFile() && [".ts", ".tsx", ".js", ".jsx"].some((ext) => entry.name.endsWith(ext))) {
         const content = readFileSync(path, "utf8");
         if (content.includes("/api/provisioning") && content.includes("fetch(")) {
           callers.push({ path, content });
@@ -84,7 +84,7 @@ test("all source call sites send explicitly bound employer and employee IDs", ()
   scan("src");
   assert.ok(callers.length > 0, "At least one onboarding client should use provisioning");
   for (const caller of callers) {
-    const matches = caller.content.match(/fetch\\(\\s*["'`]\\/api\\/provisioning/g) ?? [];
+    const matches = caller.content.match(/fetch\(\s*["'\x60]\/api\/provisioning/g) ?? [];
     for (const match of matches) {
       assert.ok(caller.content.includes(
         'JSON.stringify({ id: task.id, organizationId, employeeId, done })',
