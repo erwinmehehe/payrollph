@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/db";
-import { and, eq, ne, sql } from "drizzle-orm";
-import { automationOperationalCases, employees, hcmLifecycleNotificationTasks, organizations } from "@/db/schema";
+import { eq, sql } from "drizzle-orm";
+import { employees, organizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { canOpenPeopleHome, explicitHcmEmployerId, peopleHomeEnabledForOrganization } from "@/lib/hcm-people-home-scope";
@@ -36,46 +36,38 @@ export default async function HcmCommandCenter({
   const access = denied ? null : await getAccess(user.id, organizationId);
   if (denied || !canOpenPeopleHome(access)) notFound();
 
-  // HR counts are source records, not wages, payroll-readiness or assigned approvals.
-  // Decisions remain in their original permission-checked source workflows.
-  const [employer, headcount, lifecycle, cases] = await Promise.all([
+  // Exact headcount remains distinct from bounded, incomplete work previews.
+  const [employer, headcount] = await Promise.all([
     db.select({ name: organizations.name }).from(organizations)
       .where(eq(organizations.id, organizationId)).limit(1),
     db.select({ count: sql<number>`count(*)::int` }).from(employees)
       .where(eq(employees.organizationId, organizationId)),
-    db.select({ count: sql<number>`count(*)::int` }).from(hcmLifecycleNotificationTasks)
-      .where(and(
-        eq(hcmLifecycleNotificationTasks.organizationId, organizationId),
-        ne(hcmLifecycleNotificationTasks.status, "resolved"),
-      )),
-    db.select({ count: sql<number>`count(*)::int` }).from(automationOperationalCases)
-      .where(and(
-        eq(automationOperationalCases.organizationId, organizationId),
-        ne(automationOperationalCases.status, "resolved"),
-      )),
   ]);
   if (!employer[0]) notFound();
 
+  const worklist = await loadPeopleHomeWorklist(organizationId, { id: user.id, name: user.name });
+  const previewLabel = (section: typeof worklist.decisions) =>
+    section.state === "unavailable" ? "Unavailable" : String(section.items.length) + " shown";
   const summary = [
-    { label: "Employee records", value: headcount[0]?.count ?? 0 },
-    { label: "Unresolved lifecycle follow-ups", value: lifecycle[0]?.count ?? 0 },
-    { label: "Open operational cases", value: cases[0]?.count ?? 0 },
+    { label: "Employee records", value: String(headcount[0]?.count ?? 0) },
+    { label: "My HCM decision preview", value: previewLabel(worklist.decisions) },
+    { label: "People follow-up preview", value: previewLabel(worklist.followUps) },
+    { label: "My case preview", value: previewLabel(worklist.ownedCases) },
   ];
 
-  const worklist = await loadPeopleHomeWorklist(organizationId, { id: user.id, name: user.name });
   const sections = [
     {
       id: "my-decisions",
       heading: "My HCM decisions",
       description: "Only steps assigned to your identity or delegated role. Approval remains in its governed workflow.",
       data: worklist.decisions,
-      sourceUrl: "/app?organizationId=" + organizationId + "&workspacePage=People",
+      sourceUrl: "/app?organizationId=" + organizationId + "&workspacePage=People&hcmPanel=bp",
       sourceName: "HCM Inbox",
     },
     {
       id: "people-followups",
       heading: "People Ops follow-ups",
-      description: "HR source findings, not assigned approvals. Missing records can be legitimate.",
+      description: "Selected lifecycle notifications and provisioning checklists only; other People Ops sources remain in the full inbox.",
       data: worklist.followUps,
       sourceUrl: "/app?organizationId=" + organizationId + "&workspacePage=People",
       sourceName: "People Operations Inbox",
@@ -99,7 +91,7 @@ export default async function HcmCommandCenter({
       </p>
     </header>
 
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {summary.map((item) => <article key={item.label} className="rounded-xl border bg-white p-5 shadow-sm">
         <p className="text-sm text-slate-600">{item.label}</p>
         <p className="mt-2 text-3xl font-bold">{item.value}</p>
@@ -124,11 +116,6 @@ export default async function HcmCommandCenter({
             </p>
           ) : (
             <>
-              {section.data.total !== null && (
-                <p className="mt-3 text-sm font-semibold text-slate-700">
-                  {section.data.total} source follow-up{section.data.total === 1 ? "" : "s"} recorded
-                </p>
-              )}
               {section.data.items.length === 0 && (
                 <p className="mt-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
                   No matching items in this preview. The source workspace remains authoritative.
@@ -139,9 +126,16 @@ export default async function HcmCommandCenter({
                   <p className="font-semibold text-slate-900">{item.title}</p>
                   <p className="mt-1 text-xs text-slate-600">{item.category}</p>
                   {item.dueAt && <p className="mt-1 text-xs text-slate-600">
-                    Source date: {new Date(item.dueAt).toLocaleDateString("en-PH", {
-                      timeZone: "Asia/Manila", year: "numeric", month: "short", day: "numeric",
+                    Workflow deadline: {new Date(item.dueAt).toLocaleString("en-PH", {
+                      timeZone: "Asia/Manila", year: "numeric", month: "short",
+                      day: "numeric", hour: "numeric", minute: "2-digit",
                     })}
+                  </p>}
+                  {item.sourceDate && <p className="mt-1 text-xs text-slate-600">
+                    Source milestone: {item.sourceDate} · verify against its own workflow, not an SLA
+                  </p>}
+                  {!item.dueAt && !item.sourceDate && <p className="mt-1 text-xs text-slate-500">
+                    No dated deadline recorded
                   </p>}
                   {item.blockedByMakerChecker && <p className="mt-2 text-xs font-semibold text-amber-800">
                     You initiated this request. A separate reviewer is required.
@@ -151,8 +145,8 @@ export default async function HcmCommandCenter({
                   </Link>
                 </li>)}
               </ul>
-              {section.data.hasMore && <p className="mt-3 text-xs text-slate-600">
-                Bounded preview only. Additional source items may exist; open the original inbox to review them.
+              {(section.data.hasMore || section.data.partial) && <p className="mt-3 text-xs text-slate-600">
+                Partial, bounded preview. Other work, including additional source categories or assignees beyond the scan limit, may exist. Open the authoritative inbox for a complete review.
               </p>}
             </>
           )}
