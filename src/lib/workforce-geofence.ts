@@ -63,11 +63,13 @@ export function permittedGeofenceWorksiteIds(input: {
 }): number[] {
   const active = (row: { effectiveFrom: string; effectiveUntil?: string | null }) =>
     row.effectiveFrom <= input.date && (!row.effectiveUntil || row.effectiveUntil >= input.date);
+  // Resolve the latest effective primary decision first. An explicit denial
+  // must not cause us to fall back to a stale, earlier primary allow.
   const primary = input.assignments
-    .filter((row) => active(row) && row.decision === "allow")
+    .filter(active)
     .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom) || b.id - a.id)[0];
   const allowed = new Set<number>();
-  if (primary) allowed.add(primary.worksiteId);
+  if (primary?.decision === "allow") allowed.add(primary.worksiteId);
   for (const row of input.authorizations.filter(active)) {
     if (row.decision === "allow") allowed.add(row.worksiteId);
   }
