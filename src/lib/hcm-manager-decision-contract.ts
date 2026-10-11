@@ -2,6 +2,24 @@
  * Read-only decision queue. Approval policy and source record remain authoritative:
  * no client action or this response grants decision authority.
  */
+/**
+ * Server-only rollout: the feature flag AND an exact positive employer ID
+ * must be present. A global flag never exposes the queue for every tenant.
+ */
+export function managerDecisionEnabledForEmployer(
+  organizationId: number,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
+      env.HCM_MANAGER_DECISION_INBOX_ENABLED !== "true") return false;
+  return (env.HCM_MANAGER_DECISION_INBOX_ORG_IDS ?? "").split(",")
+    .some((part) => {
+      const id = part.trim();
+      return /^[1-9]\\d*$/.test(id) &&
+        Number.isSafeInteger(Number(id)) && Number(id) === organizationId;
+    });
+}
+
 export const DECISION_SOURCES = ["hcm", "leave", "overtime"] as const;
 export type DecisionSource = (typeof DECISION_SOURCES)[number];
 export type ManagerDecisionScope =
