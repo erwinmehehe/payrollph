@@ -1,4 +1,5 @@
 import { computeAnnualWithholdingTax } from "@/lib/payroll-rules";
+import { round2 } from "@/lib/round";
 
 export const ANNUALIZATION_RULE_VERSION = "PH-2026.03";
 
@@ -89,7 +90,7 @@ export type AnnualizationResult = {
   ruleVersion: string;
 };
 
-const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+
 
 /**
  * Year-end annualization (BIR substituted filing basis).

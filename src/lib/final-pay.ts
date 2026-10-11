@@ -1,8 +1,10 @@
 import { annualize } from "@/lib/annualization";
+import { round2 } from "@/lib/round";
+import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
 
 export type FinalPayLine = { code?: string; label?: string; amount?: string | number; notes?: string[] };
 
-const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+
 
 export function readBasicAndThirteenth(lineItems: unknown) {
   const lines = Array.isArray(lineItems) ? lineItems as FinalPayLine[] : [];
@@ -51,6 +53,25 @@ export function readBasicAndThirteenth(lineItems: unknown) {
     deMinimisPaid: round2(deMinimisPaid),
     deMinimisExcess: round2(deMinimisExcess),
   };
+}
+
+/**
+ * Actual SIL/convertible-leave encashment used by the Separation API.
+ * Daily rate is already resolved from the employee's governed pay basis.
+ * This is a gross benefit; tax treatment must still be reviewed separately.
+ */
+export function calculateLeaveMonetizationPay(unusedLeaveCredits: number, dailyRate: number): number {
+  if (!Number.isFinite(unusedLeaveCredits) || unusedLeaveCredits < 0) {
+    throw new Error("Convertible unused leave credits must be a finite non-negative number.");
+  }
+  if (!Number.isFinite(dailyRate) || dailyRate <= 0) {
+    throw new Error("Daily pay rate must be a positive finite number.");
+  }
+  const amount = unusedLeaveCredits * dailyRate;
+  if (!Number.isFinite(amount) || amount > 1_000_000_000) {
+    throw new Error("Convertible leave calculation exceeds the supported monetary range.");
+  }
+  return round2(amount);
 }
 
 export function finalPayDueDate(lastDay: string) {
@@ -132,10 +153,22 @@ export function computeFinalPay(input: {
       + Math.max(0, input.retirementPay)
       + Math.max(0, input.otherBenefits),
   );
-  const preLoanNet = round2(Math.max(
-    0,
-    grossFinalPay + taxAdjustment - finalStatutoryDeductions,
-  ));
+  // Mandatory collection can exceed the payable final-pay balance. Never
+  // silently discard the difference when net pay is floored to zero.
+  // Tax-first allocation is an auditable *provisional* accounting order, not
+  // a legal conclusion; packages with any shortfall are blocked from approval
+  // until a Philippine payroll reviewer reconciles the liabilities.
+  const availableBeforeMandatoryDeductions = round2(
+    grossFinalPay + Math.max(0, taxAdjustment),
+  );
+  const requestedTaxCollection = round2(Math.max(0, -taxAdjustment));
+  const appliedTaxCollection = round2(Math.min(availableBeforeMandatoryDeductions, requestedTaxCollection));
+  const unpaidTaxWithholding = round2(Math.max(0, requestedTaxCollection - appliedTaxCollection));
+  const remainingAfterTax = round2(Math.max(0, availableBeforeMandatoryDeductions - appliedTaxCollection));
+  const appliedStatutoryDeductions = round2(Math.min(remainingAfterTax, finalStatutoryDeductions));
+  const unpaidStatutoryDeductions = round2(Math.max(0, finalStatutoryDeductions - appliedStatutoryDeductions));
+  const unpaidMandatoryDeductions = round2(unpaidTaxWithholding + unpaidStatutoryDeductions);
+  const preLoanNet = round2(Math.max(0, remainingAfterTax - appliedStatutoryDeductions));
   const requestedLoanDeductions = round2(Math.max(0, input.loanDeductions));
   const loanDeductions = round2(Math.min(preLoanNet, requestedLoanDeductions));
   const deferredLoanBalance = round2(Math.max(0, requestedLoanDeductions - loanDeductions));
@@ -157,9 +190,38 @@ export function computeFinalPay(input: {
     retirementPay: round2(Math.max(0, input.retirementPay)),
     otherBenefits: round2(Math.max(0, input.otherBenefits)),
     finalStatutoryDeductions,
+    availableBeforeMandatoryDeductions,
+    requestedTaxCollection,
+    appliedTaxCollection,
+    unpaidTaxWithholding,
+    appliedStatutoryDeductions,
+    unpaidStatutoryDeductions,
+    unpaidMandatoryDeductions,
     requestedLoanDeductions,
     loanDeductions,
     deferredLoanBalance,
     netFinalPay,
   };
+}
+
+
+/**
+ * Source-of-truth release preflight for both new and legacy separation records.
+ * Do not rely solely on optional JSON snapshots: historical rows may predate
+ * shortfall evidence. Non-finite/negative mandatory source values fail closed.
+ */
+export function unresolvedFinalPayMandatoryShortfall(input: {
+  grossFinalPay: unknown;
+  taxAdjustment: unknown;
+  finalStatutoryDeductions: unknown;
+}): number | null {
+  const grossCents = storedMoneyCentavos(input.grossFinalPay);
+  const taxCents = storedMoneyCentavos(input.taxAdjustment);
+  const statutoryCents = storedMoneyCentavos(input.finalStatutoryDeductions);
+  if (grossCents === null || taxCents === null || statutoryCents === null
+    || grossCents < 0 || statutoryCents < 0) return null;
+  // Use exact centavo integers; also reject overflow in intermediate sums.
+  const shortfallCents = statutoryCents - grossCents - taxCents;
+  if (!Number.isSafeInteger(shortfallCents)) return null;
+  return Math.max(0, shortfallCents) / 100;
 }

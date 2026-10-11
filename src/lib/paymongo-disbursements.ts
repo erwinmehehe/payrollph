@@ -3,6 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, payrollEntries, payrollRuns } from "@/db/schema";
 import { decryptBankAccount } from "@/lib/bank-account-crypto";
+import { assertReleasedPayoutTotals, frozenReleasedPayrollPayment } from "@/lib/payroll-payout-snapshot";
 import { paymongoAuthorization } from "@/lib/paymongo";
 
 /**
@@ -384,6 +385,9 @@ export async function createPaymongoBatchDisbursement(
 export async function loadPayrollPayoutRows(runId: number): Promise<PayrollPayoutRow[]> {
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) throw new Error("Payroll run not found.");
+  if (run.status !== "Released") {
+    throw new Error(`PAYOUT_RELEASE_REQUIRED: run is ${run.status}. No payout was attempted.`);
+  }
 
   const entries = await db
     .select({ entry: payrollEntries, employee: employees })
@@ -392,14 +396,40 @@ export async function loadPayrollPayoutRows(runId: number): Promise<PayrollPayou
     .where(eq(payrollEntries.payrollRunId, runId))
     .orderBy(asc(employees.id));
 
-  return entries.map(({ entry, employee }) => ({
-    employeeNo: employee.employeeNo,
-    employeeName: `${employee.firstName} ${employee.lastName}`,
-    accountNumber: decryptBankAccount(employee.bankAccount) ?? "",
-    bankName: employee.bankCode ?? "",
-    amountCents: Math.round(Number(entry.netPay) * 100),
-    referenceNumber: `PAY-${run.id}-${employee.employeeNo}`,
-  }));
+  const rows = entries.map(({ entry, employee }) => {
+    if (employee.organizationId !== run.organizationId) {
+      throw new Error("PAYOUT_TENANT_MISMATCH: payroll contains an employee from another workspace. No payout was attempted.");
+    }
+    const frozen = frozenReleasedPayrollPayment({
+      entryId: entry.id,
+      trace: entry.trace,
+      current: {
+        employeeNo: employee.employeeNo,
+        bankAccount: employee.bankAccount,
+        bankCode: employee.bankCode,
+        mobile: employee.mobile,
+      },
+    });
+    const amount = Number(entry.netPay);
+    if (!Number.isFinite(amount) || amount < 0
+      || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.001) {
+      throw new Error(`PAYOUT_INVALID_AMOUNT: entry #${entry.id} has invalid centavo precision. No payout was attempted.`);
+    }
+    return {
+      employeeNo: frozen.employeeNo,
+      employeeName: frozen.employeeName,
+      accountNumber: decryptBankAccount(frozen.bankAccount) ?? "",
+      bankName: frozen.bankCode ?? "",
+      amountCents: Math.round(amount * 100),
+      referenceNumber: `PAY-${run.id}-${frozen.employeeNo}`,
+    };
+  });
+  assertReleasedPayoutTotals({
+    expectedEmployeeCount: run.employeeCount,
+    expectedNetPay: run.netPay,
+    amountsCents: rows.map((row) => row.amountCents),
+  });
+  return rows;
 }
 
 export async function createPaymongoPayrollDisbursement(runId: number): Promise<BatchDisbursementResult> {

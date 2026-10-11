@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "../src/lib/final-pay";
+import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "../src/lib/final-pay";
+import { readFileSync } from "node:fs";
 
 test("13th-month base uses basic earnings and effective-dated retro only", () => {
   const parsed = readBasicAndThirteenth([
@@ -117,4 +118,49 @@ test("MWE final pay keeps taxable supplementary compensation taxable", () => {
 
   assert.ok(result.annualization.taxableIncome > 250000);
   assert.ok(result.annualization.taxDue > 0);
+});
+
+
+test("SIL leave encashment computes actual gross pesos using the resolved daily rate", () => {
+  // Real separation source calculates leave credits * employee daily rate.
+  const monthlyRate = 26_400;
+  const dailyRate = monthlyRate / 22; // employee's configured workday divisor
+  assert.equal(dailyRate, 1200);
+  assert.equal(calculateLeaveMonetizationPay(3.5, dailyRate), 4200);
+  assert.equal(calculateLeaveMonetizationPay(0, dailyRate), 0);
+  assert.equal(calculateLeaveMonetizationPay(2.5, 1452.75), 3631.88);
+  assert.throws(() => calculateLeaveMonetizationPay(-1, dailyRate), /non-negative/);
+  assert.throws(() => calculateLeaveMonetizationPay(1, NaN), /finite/);
+  const route = readFileSync("src/app/api/separation/route.ts", "utf8");
+  assert.match(route, /calculateLeaveMonetizationPay\(unusedLeaveCredits, sources\.resolvedPayProfile\.dailyRate\)/);
+});
+
+test("final-pay annual tax handoff pins exact refundable withholding", () => {
+  const result = computeFinalPay({
+    releasedBasicYtd: 240000, historicalBasicYtd: 0, unpaidBasicSalary: 0,
+    thirteenthPaidYtd: 20000, grossCompensationYtd: 240000,
+    statutoryContributionsYtd: 0, taxWithheldYtd: 1000,
+    mwe: false, leaveMonetizationPay: 0, separationPay: 0,
+    retirementPay: 0, otherBenefits: 0, loanDeductions: 0,
+  });
+  // Below the ₱250k annual taxable threshold: the ₱1,000 already withheld is refunded.
+  assert.equal(result.annualization.taxableIncome, 240000);
+  assert.equal(result.annualization.taxDue, 0);
+  assert.equal(result.taxAdjustment, 1000);
+  assert.equal(result.netFinalPay, 1000);
+});
+
+test("final-pay annual tax handoff pins amount owed, not just finite tax", () => {
+  const result = computeFinalPay({
+    releasedBasicYtd: 300000, historicalBasicYtd: 0, unpaidBasicSalary: 0,
+    thirteenthPaidYtd: 25000, grossCompensationYtd: 300000,
+    statutoryContributionsYtd: 0, taxWithheldYtd: 0,
+    mwe: false, leaveMonetizationPay: 0, separationPay: 0,
+    retirementPay: 0, otherBenefits: 0, loanDeductions: 0,
+  });
+  // TRAIN 2023+ annual bracket: 15% of taxable excess over ₱250,000.
+  assert.equal(result.annualization.taxableIncome, 300000);
+  assert.equal(result.annualization.taxDue, 7500);
+  assert.equal(result.taxAdjustment, -7500);
+  assert.equal(result.netFinalPay, 0);
 });

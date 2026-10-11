@@ -1,7 +1,7 @@
 # Database schema
 
 Nothing in the app creates its own tables, so a fresh database needs the schema
-applied before the first request. There are three files here and they are not a
+applied before the first request. The SQL files here are not a
 single ordered sequence, so read this before running anything.
 
 ## A fresh database
@@ -13,13 +13,13 @@ DATABASE_URL="postgresql://..." npm run db:push
 `db:push` reads `src/db/schema.ts` and creates everything it finds there, which
 is the whole current schema. **Check that it actually created tables**: push has
 been seen to report success and create nothing against a non-standard Postgres.
-Expect 167 tables. If it creates nothing, apply `baseline.sql` instead, which is
-the same schema as plain SQL and can be pasted into the Neon or Supabase SQL
-editor without any tooling.
+Compare the created tables with `src/db/schema.ts`; the count changes as features
+are added. Do not use the historical `baseline.sql` as a replacement for the
+current schema. It omits tables and columns introduced after it was generated.
 
 ## The files
 
-- `baseline.sql` is the complete current schema, 167 tables, generated from
+- `baseline.sql` is a historical schema snapshot generated from an older
   `src/db/schema.ts`. It is deliberately unnumbered: it is a starting point for
   an empty database, not the next step in the numbered sequence below.
 - `0001_payroll_periods_rbac.sql` and `0002_final_pay_reconciliation.sql` are

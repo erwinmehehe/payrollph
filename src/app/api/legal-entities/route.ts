@@ -368,7 +368,7 @@ export async function PATCH(request: Request) {
         ? null
         : accountInput
           ? encryptBankAccount(accountInput)
-          : existing.disbursementAccount;
+          : encryptBankAccount(existing.disbursementAccount);
       if (Boolean(nextBankCode) !== Boolean(nextAccount)) {
         return Response.json({
           error: "Disbursement bank code and account must be configured together.",

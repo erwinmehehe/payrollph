@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { holidayMultiplier } from "../src/lib/payroll-rules";
-import { holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, wageOrderFor, WAGE_ORDERS } from "../src/lib/wage-orders";
+import { FORTHCOMING_WAGE_ORDERS, REGION_VII_WAGE_TIERS, ROVII27_EFFECTIVE_ON, holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, wageOrderFor, WAGE_ORDERS } from "../src/lib/wage-orders";
 
 test("NCR screening reference uses the current official Oct 2026 high tier", () => {
   const order = wageOrderFor("NCR");
@@ -83,4 +83,39 @@ test("employee creation validates wage regions at the API boundary before payrol
   assert.ok(source.includes("region: wageRegion"));
   assert.ok(!source.includes('region: String(body.region ?? "NCR")'));
   assert.equal(wageOrderFor(" iv-b ").region, "IV-B");
+});
+
+
+test("official ROVII-27 Class A and Class B rates activate only on 14 October 2026", () => {
+  assert.equal(ROVII27_EFFECTIVE_ON, "2026-10-14");
+  assert.equal(REGION_VII_WAGE_TIERS.length, 2);
+  assert.deepEqual(REGION_VII_WAGE_TIERS.map((item) =>
+    [item.wageClass, item.oldDailyRate, item.newDailyRate]), [
+    ["A", 540, 582], ["B", 500, 542],
+  ]);
+  assert.equal(FORTHCOMING_WAGE_ORDERS.length, 1, "region-only screening uses Class A maximum");
+  for (const [wageClass, before, after] of [["A", 540, 582], ["B", 500, 542]] as const) {
+    assert.equal(wageOrderFor("VII", "2026-10-13", wageClass).dailyRate, before);
+    assert.equal(wageOrderFor("VII", "2026-10-14", wageClass).dailyRate, after);
+    assert.equal(wageOrderFor("VII", "2026-10-15", wageClass).wageOrder, "WO-ROVII-27");
+  }
+  assert.equal(wageOrderFor("VII", "2026-10-10").dailyRate, 540);
+  assert.equal(wageOrderFor("VII", "2026-10-14").dailyRate, 582);
+  assert.equal(wageOrderFor("VII").dailyRate, 540, "undated generic screens preserve baseline");
+  assert.equal(wageOrderFor("NCR", "2026-10-14").dailyRate, 755);
+  assert.throws(() => wageOrderFor("VII", "2026-02-29"), /Invalid wage screening calendar date/);
+  assert.throws(() => wageOrderFor("NCR", "2026-10-14", "B"), /only be selected for Region VII/);
+  assert.throws(() => wageOrderFor("VII", "2026-10-14", "C" as never), /Invalid Region VII wage class/);
+});
+
+test("Class B screen does not use the higher Class A threshold after effectivity", () => {
+  const monthly = 550 * 22;
+  assert.equal(isBelowMinimum(monthly, "VII", 22, "2026-10-13", "A").below, false);
+  assert.equal(isBelowMinimum(monthly, "VII", 22, "2026-10-14", "A").below, true);
+  assert.equal(isBelowMinimum(monthly, "VII", 22, "2026-10-14", "B").below, false);
+  assert.equal(isBelowMinimum(monthly, "VII", 22, "2026-10-14").below, true,
+    "unknown locality stays conservative, not an automatic legal wage assignment");
+  const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
+  assert.ok(engine.includes('isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth, input.payDate)'),
+    "payroll warning must use pay date, not today's unpublished or future rate");
 });

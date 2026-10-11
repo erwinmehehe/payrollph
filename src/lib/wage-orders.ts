@@ -52,20 +52,91 @@ export const WAGE_ORDERS: WageOrder[] = [
   { region: "BARMM", dailyRate: 436, wageOrder: "WO-BARMM-05", effectiveOn: "2026-08-06", verified: true },
 ];
 
-export function wageOrderFor(region: string) {
+/**
+ * NWPC ROVII-27: published 2026-09-28, effective 2026-10-14.
+ * Class A covers Expanded Metro Cebu; Class B covers other covered cities
+ * and municipalities including Negros Oriental and Siquijor.
+ * Reference: https://nwpc.dole.gov.ph/central-visayas-workers-set-to-receive-%E2%82%B142-minimum-wage-increase-wage-review-in-other-regions-ongoing/
+ *
+ * The general regional screen still uses the highest (Class A) rate when the
+ * exact locality is not established. It is a conservative REVIEW FLAG only,
+ * never a salary adjustment or a claim about the employee's legal wage tier.
+ */
+export type RegionVIIWageClass = "A" | "B";
+export const REGION_VII_WAGE_TIERS = [
+  {
+    wageClass: "A",
+    geography: "Expanded Metro Cebu: Carcar, Cebu, Danao, Lapu-Lapu, Mandaue, Naga, Talisay, Compostela, Consolacion, Cordova, Liloan, Minglanilla, San Fernando",
+    oldDailyRate: 540,
+    newDailyRate: 582,
+  },
+  {
+    wageClass: "B",
+    geography: "Other covered cities and municipalities, including Negros Oriental and Siquijor",
+    oldDailyRate: 500,
+    newDailyRate: 542,
+  },
+] as const;
+export const ROVII27_EFFECTIVE_ON = "2026-10-14";
+export const ROVII27_SOURCE_URL =
+  "https://nwpc.dole.gov.ph/central-visayas-workers-set-to-receive-%E2%82%B142-minimum-wage-increase-wage-review-in-other-regions-ongoing/";
+
+export const FORTHCOMING_WAGE_ORDERS: WageOrder[] = [
+  { region: "VII", dailyRate: REGION_VII_WAGE_TIERS[0].newDailyRate,
+    wageOrder: "WO-ROVII-27", effectiveOn: ROVII27_EFFECTIVE_ON, verified: true },
+];
+
+function verifiedWageDate(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    throw new Error("Wage screening as-of date must use YYYY-MM-DD.");
+  }
+  const date = new Date(value + "T00:00:00Z");
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    throw new Error("Invalid wage screening calendar date.");
+  }
+  return value;
+}
+
+/**
+ * Exact Region VII wage-class resolution is opt-in and requires explicit
+ * employer classification; region-only callers retain the highest tier as an
+ * advisory screening reference. No rates take effect before 2026-10-14.
+ */
+export function wageOrderFor(region: string, asOfDate?: string, wageClass?: RegionVIIWageClass): WageOrder {
   const normalized = region.trim().toUpperCase();
   const order = WAGE_ORDERS.find((row) => row.region === normalized);
   if (!order) {
     throw new Error(`Unknown Philippine wage region "${region}". Select a supported NWPC region instead of assuming NCR.`);
   }
-  return order;
+  const date = asOfDate === undefined ? null : verifiedWageDate(asOfDate);
+  if (wageClass !== undefined) {
+    if (normalized !== "VII") {
+      throw new Error("Wage Class A/B may only be selected for Region VII.");
+    }
+    const tier = REGION_VII_WAGE_TIERS.find((item) => item.wageClass === wageClass);
+    if (!tier) throw new Error("Invalid Region VII wage class; choose A or B.");
+    const active = date !== null && date >= ROVII27_EFFECTIVE_ON;
+    return {
+      region: "VII",
+      dailyRate: active ? tier.newDailyRate : tier.oldDailyRate,
+      wageOrder: active ? "WO-ROVII-27" : "WO-ROVII-26",
+      effectiveOn: active ? ROVII27_EFFECTIVE_ON : "2025-10-04",
+      verified: true,
+    };
+  }
+  if (date === null) return order;
+  const applicable = FORTHCOMING_WAGE_ORDERS
+    .filter((item) => item.region === normalized && item.effectiveOn <= date)
+    .sort((a, b) => b.effectiveOn.localeCompare(a.effectiveOn))[0];
+  return applicable ?? order;
 }
 
-export function isBelowMinimum(monthlyBasic: number, region: string, daysPerMonth = 22) {
+export function isBelowMinimum(monthlyBasic: number, region: string, daysPerMonth = 22,
+  asOfDate?: string, wageClass?: RegionVIIWageClass) {
   if (!Number.isFinite(monthlyBasic) || monthlyBasic < 0 || !Number.isFinite(daysPerMonth) || daysPerMonth <= 0) {
     throw new Error("Wage screening requires a non-negative monthly rate and positive working days per month.");
   }
-  const order = wageOrderFor(region);
+  const order = wageOrderFor(region, asOfDate, wageClass);
   const impliedDaily = monthlyBasic / daysPerMonth;
   return {
     below: impliedDaily + 0.005 < order.dailyRate,

@@ -1,4 +1,5 @@
-import { and, asc, eq, gte, inArray, isNull, lt, lte, or } from "drizzle-orm";
+import { roundedBasicPayBuckets, roundedGrossFromBuckets, statutoryTrueUpDecision } from "@/lib/payroll-money";
+import { and, asc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
   calamityAdvisories,
@@ -29,6 +30,7 @@ import {
   payrollEntries,
   historicalPayrollEntries,
   payrollJobs,
+  payrollMonthClosures,
   payrollRuns,
   payslips,
   scheduleOverrides,
@@ -41,6 +43,7 @@ import {
   yearEndAdjustments,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { sealPayrollPaymentBankAccount } from "@/lib/payroll-snapshot-sealing";
 import { validPayrollLoanSchedule } from "@/lib/payroll-loan-approval";
 import {
   computeCutoffStatutoryDeduction,
@@ -264,29 +267,69 @@ export async function enqueuePayrollRun(runId: number, chunkSize = DEFAULT_CHUNK
   }
   const totalChunks = Math.max(1, Math.ceil(employeeRows.length / chunkSize));
 
-  await db.delete(payrollJobs).where(eq(payrollJobs.payrollRunId, runId));
-  await db.delete(payrollEntries).where(eq(payrollEntries.payrollRunId, runId));
+  // Any direct caller (API, worker, integration, script) must preserve final
+  // payroll. The HTTP route check alone is not a financial integrity boundary.
+  // Hold the payroll-run row lock across the guard AND all destructive writes.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT id FROM payroll_runs WHERE id = ${runId} FOR UPDATE`);
+    const [lockedRun] = await tx.select().from(payrollRuns)
+      .where(eq(payrollRuns.id, runId)).limit(1);
+    if (!lockedRun) throw new Error("Payroll run not found.");
+    if (!["Draft", "Failed", "Needs review", "Recalculating"].includes(lockedRun.status)) {
+      throw new Error(`PAYROLL_RECALCULATION_NOT_ALLOWED: run is ${lockedRun.status}. Approved, releasing, released and already queued payrolls cannot be overwritten.`);
+    }
+    if (lockedRun.organizationId !== run.organizationId
+      || lockedRun.legalEntityId !== run.legalEntityId
+      || lockedRun.scopeOrgUnitId !== run.scopeOrgUnitId
+      || String(lockedRun.payDate) !== String(run.payDate)
+      || String(lockedRun.periodStart) !== String(run.periodStart)
+      || String(lockedRun.periodEnd) !== String(run.periodEnd)) {
+      throw new Error("PAYROLL_RECALCULATION_SOURCE_CHANGED");
+    }
 
-  await db.update(payrollRuns).set({
-    status: "Queued",
-    employeeCount: employeeRows.length,
-    grossPay: "0",
-    netPay: "0",
-    exceptions: 0,
-    processedChunks: 0,
-    totalChunks,
-    ruleVersion: PAYROLL_RULE_VERSION,
-  }).where(eq(payrollRuns.id, runId));
+    // Certification is irreversible for original payroll history: retroactive
+    // changes require a separate, reviewed adjustment rather than rewriting
+    // this period. With no legal-entity identity, conservatively block if ANY
+    // employer in this tenant has certified the pay month.
+    const closureConditions = and(
+      eq(payrollMonthClosures.organizationId, lockedRun.organizationId),
+      eq(payrollMonthClosures.applicableMonth, String(lockedRun.payDate).slice(0, 7)),
+      eq(payrollMonthClosures.status, "certified"),
+      lockedRun.legalEntityId == null
+        ? undefined
+        : eq(payrollMonthClosures.legalEntityId, lockedRun.legalEntityId),
+    );
+    const [certifiedClosure] = await tx.select({ id: payrollMonthClosures.id })
+      .from(payrollMonthClosures).where(closureConditions).limit(1);
+    if (certifiedClosure) {
+      throw new Error("PAYROLL_MONTH_CERTIFIED_IMMUTABLE: a signed month-close exists. Use a separately approved correction instead.");
+    }
 
-  await db.insert(payrollJobs).values({
-    payrollRunId: runId,
-    organizationId: run.organizationId,
-    status: "queued",
-    chunkIndex: 0,
-    chunkSize,
-    attempts: 0,
+    await tx.delete(payrollJobs).where(eq(payrollJobs.payrollRunId, runId));
+    await tx.delete(payrollEntries).where(eq(payrollEntries.payrollRunId, runId));
+
+    const [queued] = await tx.update(payrollRuns).set({
+      status: "Queued",
+      employeeCount: employeeRows.length,
+      grossPay: "0",
+      netPay: "0",
+      exceptions: 0,
+      processedChunks: 0,
+      totalChunks,
+      ruleVersion: PAYROLL_RULE_VERSION,
+    }).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, lockedRun.status)))
+      .returning({ id: payrollRuns.id });
+    if (!queued) throw new Error("PAYROLL_RECALCULATION_CLAIM_LOST");
+
+    await tx.insert(payrollJobs).values({
+      payrollRunId: runId,
+      organizationId: lockedRun.organizationId,
+      status: "queued",
+      chunkIndex: 0,
+      chunkSize,
+      attempts: 0,
+    });
   });
-
   await recordAuditEvent({
     organizationId: run.organizationId,
     actor: "System",
@@ -487,6 +530,11 @@ async function processPayrollChunk(input: {
     );
   }
   const chunk = allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
+  // Authenticate all account snapshots before writing any payroll entry for this chunk.
+  const sealedPaymentBankAccounts = new Map<number, string | null>();
+  for (const employee of chunk) {
+    sealedPaymentBankAccounts.set(employee.id, sealPayrollPaymentBankAccount(employee.bankAccount));
+  }
   const chunkIds = chunk.map((employee) => employee.id);
   const payProfileRows = chunkIds.length
     ? await db.select().from(employeePayProfiles).where(inArray(employeePayProfiles.employeeId, chunkIds))
@@ -1593,7 +1641,8 @@ async function processPayrollChunk(input: {
           middleName: employee.middleName,
           lastName: employee.lastName,
           email: employee.email,
-          bankAccount: employee.bankAccount,
+          // The payment snapshot must never copy unsealed legacy plaintext.
+          bankAccount: sealedPaymentBankAccounts.get(employee.id) ?? null,
           bankCode: employee.bankCode,
           mobile: employee.mobile,
         },
@@ -2691,7 +2740,8 @@ function calculateEmployeePay(input: {
   // calendar days inside the cutoff. Daily/hourly portions come from the
   // punch date's effective rate, so a mid-cutoff change never rewrites earlier
   // worked time.
-  const baseBasicPay = semiMonthlyBasic + workedBasicPay + unworkedHolidayPay;
+  const basicPayBuckets = roundedBasicPayBuckets(semiMonthlyBasic + workedBasicPay, unworkedHolidayPay);
+  const baseBasicPay = basicPayBuckets.total;
 
   const approvedLeave = input.approvedLeave ?? [];
   const invalidPreEmploymentLeave = approvedLeave.find((leave) => leave.startDate < employeeStartDate);
@@ -2768,7 +2818,7 @@ function calculateEmployeePay(input: {
   }));
   const leaveAdjustmentTotal = leaveLines.reduce((sum, line) => sum + Number(line.amount), 0);
 
-  const wageCheck = isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth);
+  const wageCheck = isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth, input.payDate);
   const mweResolution = resolveMweClassification(
     input.mweClassifications ?? [],
     input.payDate,
@@ -3096,24 +3146,25 @@ function calculateEmployeePay(input: {
     })
     .sort((a, b) => a.governmentPriority - b.governmentPriority || a.id - b.id);
 
-  const gross = Math.max(
-    0,
-    baseBasicPay
-      + leaveAdjustmentTotal
-      + overtimePay
-      + nightDiffPay
-      + nightDifferentialPremiumPay
-      + calamityPay
-      + holidayPremium
-      + holidayRestDayPremiumPay
-      + overtimePremiumPay
-      + companyPremiumPay
-      + retroTotal
-      + expenseTotal
-      + supplementaryTotal
-      + deMinimisTotal
-      + conversionTotal,
-  );
+  // Payroll trace and payslip show centavo-rounded earning buckets;
+  // reconcile gross to precisely those printed values.
+  const gross = roundedGrossFromBuckets([
+    baseBasicPay,
+    leaveAdjustmentTotal,
+    overtimePay,
+    nightDiffPay,
+    nightDifferentialPremiumPay,
+    calamityPay,
+    holidayPremium,
+    holidayRestDayPremiumPay,
+    overtimePremiumPay,
+    companyPremiumPay,
+    retroTotal,
+    expenseTotal,
+    supplementaryTotal,
+    deMinimisTotal,
+    conversionTotal,
+  ]);
 
   // SSS uses total actual remuneration; Pag-IBIG monthly compensation includes
   // basic salary and allowances. First cutoffs retain the product's 50/50
@@ -3154,11 +3205,18 @@ function calculateEmployeePay(input: {
     pagIbigEmployer: 0,
   };
   const newHireInCurrentCutoff = employeeStartDate >= input.periodStart;
-  const hasPriorMonthStatutory =
-    priorStatutory.sssRemuneration > 0 || priorStatutory.pagIbigCompensation > 0;
-  const canTrueUpActualMonth =
-    Boolean(input.isFinalCutoffOfMonth)
-    && (hasPriorMonthStatutory || newHireInCurrentCutoff);
+  // A zero-earnings earlier cutoff is still valid ledger evidence. Missing
+  // prior evidence on the final cutoff must flag an approval-blocking exception.
+  const priorCutoffPresent = input.priorStatutory != null;
+  const trueUp = statutoryTrueUpDecision({
+    isFinalCutoffOfMonth: Boolean(input.isFinalCutoffOfMonth),
+    priorCutoffPresent,
+    newHireInCurrentCutoff,
+  });
+  if (trueUp.missingPriorInput) {
+    flags.push("STATUTORY_TRUE_UP_INPUT_MISSING: Final cutoff lacks prior-month statutory ledger input. Reconcile the released first cutoff before payroll approval.");
+  }
+  const canTrueUpActualMonth = trueUp.canTrueUp;
 
   const statutoryMonthlySssCompensation = roundToCents(
     canTrueUpActualMonth
@@ -3201,7 +3259,7 @@ function calculateEmployeePay(input: {
     priorStatutory.pagIbigVoluntaryEmployee,
   );
   const statutoryReconciliationMode = canTrueUpActualMonth
-    ? (hasPriorMonthStatutory ? "month-final-ledger-true-up" : "new-hire-final-cutoff-actual")
+    ? (priorCutoffPresent ? "month-final-ledger-true-up" : "new-hire-final-cutoff-actual")
     : timing === "first_cutoff"
       ? "first-cutoff-full"
       : timing === "second_cutoff"
@@ -3342,8 +3400,8 @@ function calculateEmployeePay(input: {
   const status = flags.length > 0 ? "Exception" : "Ready";
 
   const lineItems = [
-    { code: "BASIC", label: "Basic / worked pay", amount: money(baseBasicPay - unworkedHolidayPay) },
-    { code: "HOLIDAY_UNWORKED", label: "Unworked regular-holiday pay", amount: money(unworkedHolidayPay), notes: holidayNotes.filter((note) => note.includes("unworked entitlement")) },
+    { code: "BASIC", label: "Basic / worked pay", amount: money(basicPayBuckets.worked) },
+    { code: "HOLIDAY_UNWORKED", label: "Unworked regular-holiday pay", amount: money(basicPayBuckets.unworkedHoliday), notes: holidayNotes.filter((note) => note.includes("unworked entitlement")) },
     ...leaveLines,
     { code: "OT", label: "Overtime", amount: money(overtimePay) },
     ...overtimePremiumLines,
