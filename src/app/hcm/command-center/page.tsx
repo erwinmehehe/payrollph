@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HcmContextNavigation } from "@/components/hcm-context-navigation";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/db";
 import { eq, sql } from "drizzle-orm";
@@ -79,7 +80,8 @@ export default async function HcmCommandCenter({
   ];
 
   return <main className="mx-auto max-w-7xl px-6 py-10 text-slate-900">
-    <header className="mb-8">
+    <HcmContextNavigation organizationId={organizationId} access={access} current="peopleHome" />
+    <header className="mb-8 mt-8">
       <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">People operations · {employer[0].name}</p>
       <h1 className="mt-2 text-3xl font-bold">People Home</h1>
       <p className="mt-2 max-w-3xl text-slate-600">

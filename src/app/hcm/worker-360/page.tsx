@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { Worker360Client } from "@/components/hcm-worker-360";
+import { HcmContextNavigation } from "@/components/hcm-context-navigation";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { philippineWorker360Date } from "@/lib/hcm-worker-360-projection";
@@ -40,10 +41,18 @@ export default async function Worker360Page({
   if (denied || !access?.companyWide || !["owner", "admin", "hr"].includes(access.role)) notFound();
 
   return (
-    <Worker360Client
-      organizationId={organizationId}
-      employeeId={employeeId}
-      initialAsOfDate={philippineWorker360Date()}
-    />
+    <>
+      <div className="bg-slate-50 px-4 pt-6 sm:px-8">
+        <div className="mx-auto max-w-6xl">
+          <HcmContextNavigation organizationId={organizationId} access={access}
+            current="worker360" employeeId={employeeId} />
+        </div>
+      </div>
+      <Worker360Client
+        organizationId={organizationId}
+        employeeId={employeeId}
+        initialAsOfDate={philippineWorker360Date()}
+      />
+    </>
   );
 }

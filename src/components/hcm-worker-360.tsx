@@ -83,7 +83,7 @@ export function Worker360Client({
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-8">
       <div className="mx-auto max-w-6xl">
-        <Link href="/app" className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 underline-offset-4 hover:underline">
+        <Link href={"/app?organizationId=" + organizationId + "&workspacePage=People"} className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 underline-offset-4 hover:underline">
           <ArrowLeft aria-hidden="true" size={16} /> Return to People workspace
         </Link>
         <header className="mt-7 flex flex-wrap items-start justify-between gap-4">
