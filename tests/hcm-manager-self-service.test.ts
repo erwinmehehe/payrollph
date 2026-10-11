@@ -64,7 +64,10 @@ test("My Team actions are navigation only, not another HR approval endpoint", ()
   assert.ok(actionCenter.includes("myTeamWorkflowHref(organizationId, action.page)"));
   assert.ok(actionCenter.includes("Only actually assigned requests can be approved or declined."));
   assert.ok(actionCenter.includes("All counts are limited to this directory page"));
-  assert.ok(team.includes("<HcmMyTeamActionCenter organizationId={organizationId} summary={data.summary} />"));
+  assert.ok(actionCenter.includes('actions.filter((action) => !(pilotFocusEnabled && action.page === "Workforce"))'));
+  const myTeamPage = readFileSync("src/app/hcm/my-team/page.tsx", "utf8");
+  assert.ok(myTeamPage.includes("pilotFocusEnabledForOrganization(organizationId)"));
+  assert.ok(team.includes("pilotFocusEnabled={pilotFocusEnabled}"));
   assert.ok(team.includes("pendingAttendanceCorrectionsThisPage"));
   assert.ok(team.includes("incompletePunchRecordsThisPage"));
   assert.ok(team.includes("data.organizationId !== organizationId"));
