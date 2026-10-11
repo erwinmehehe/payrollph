@@ -10,6 +10,8 @@ import { buildWfmManagerActionQueue, phWorkDateAt } from "@/lib/workforce-manage
 import { WorkforceLiveFloor } from "./workforce-live-floor";
 import { WorkforcePlanningPreviewPanel } from "./workforce-planning-preview-panel";
 import { WorkforceLaborCalibrationPanel } from "./workforce-labor-calibration-panel";
+import { WorkforceOperationalDemandPanel } from "./workforce-operational-demand-panel";
+import { WorkforceIssuedDemandPanel } from "./workforce-issued-demand-panel";
 import { WorkforceDemandOutlookPanel } from "./workforce-demand-outlook-panel";
 import { previewWorkforceRecovery } from "@/lib/workforce-planning-preview";
 
@@ -711,6 +713,26 @@ export function WorkforceCoveragePanel({
         <Metric label="Open shifts" value={String((payload?.openShifts ?? []).filter((row) => row.status === "open").length)} hint="coverage recovery" icon={<UsersRound size={16} />} tone="blue" />
         <Metric label="Pending claims" value={String(pendingClaims)} hint="manager decision needed" icon={<UsersRound size={16} />} tone={pendingClaims ? "amber" : "slate"} />
       </section>
+
+      {payload && process.env.NEXT_PUBLIC_WFM_OPERATIONAL_DEMAND_ENABLED === "true" && (
+        <WorkforceOperationalDemandPanel
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
+          canManage={canManage && data.access?.companyWide === true
+            && ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role)}
+        />
+      )}
+
+      {payload && process.env.NEXT_PUBLIC_WFM_ISSUED_DEMAND_FORECASTS_ENABLED === "true" && (
+        <WorkforceIssuedDemandPanel
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
+          canManage={canManage && data.access?.companyWide === true
+            && ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role)}
+        />
+      )}
 
       {payload && <WorkforceLaborCalibrationPanel
         labor={payload.laborVariance}

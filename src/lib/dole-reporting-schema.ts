@@ -1,9 +1,40 @@
 import { pool } from "@/db";
+import type { PoolClient } from "pg";
+import { coreSchemaCompatibilityMode } from "@/lib/core-schema-readonly";
+import { doleReportingSchemaSpec, verifyRequestSchemaReadOnly } from "@/lib/request-schema-readonly";
 
 let ready = false;
 let inFlight: Promise<void> | null = null;
+let readOnlyReady = false;
+let readOnlyInFlight: Promise<void> | null = null;
 
 export async function ensureDoleReportingSchema() {
+  // In a reviewed read-only cutover, opening a compliance dashboard must not
+  // create tables, rewrite indexes, or backfill evidence from other employers.
+  const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+  if (mode === "read-only") {
+    if (readOnlyReady) return;
+    if (readOnlyInFlight) return readOnlyInFlight;
+    readOnlyInFlight = (async () => {
+      let client: PoolClient | null = null;
+      let verified = false;
+      try {
+        client = await pool.connect();
+        const connected = client;
+        await verifyRequestSchemaReadOnly(
+          (sql, args) => connected.query(sql, args),
+          doleReportingSchemaSpec,
+        );
+        verified = true;
+        readOnlyReady = true;
+      } finally {
+        // A failed catalog check or ROLLBACK invalidates the transaction.
+        client?.release(!verified);
+        readOnlyInFlight = null;
+      }
+    })();
+    return readOnlyInFlight;
+  }
   if (ready) return;
   if (inFlight) return inFlight;
 
