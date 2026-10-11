@@ -1,0 +1,243 @@
+import { createHmac } from "node:crypto";
+import { and, desc, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { auditEvents, employees, payrollEntries, payrollRuns, payoutBatches } from "@/db/schema";
+import { recordAuditEvent } from "@/lib/audit";
+import { loadPayrollPayoutRows } from "@/lib/paymongo-disbursements";
+import { prepareInitialPayoutBatch } from "@/lib/payout-ledger";
+import { xenditPayrollLiveReadiness } from "@/lib/payroll-payout-provider";
+import {
+  buildXenditPayrollPayout, createXenditPayrollPayout, getXenditPayrollPayout,
+  type XenditPayrollPayee,
+} from "@/lib/xendit-payroll-payouts";
+import {
+  xenditPayoutLedger, claimNextXenditPayout, markXenditPayoutUnknown,
+  recordXenditPayoutObservation,
+} from "@/lib/xendit-payout-ledger";
+import { latestApprovedPayoutDestinationChangeForRun } from "@/lib/payout-destination-controls";
+
+type PayrollRun = typeof payrollRuns.$inferSelect;
+
+async function xenditFrozenPayroll(run: PayrollRun) {
+  if (run.status !== "Released") throw new Error("Xendit payouts require a released payroll run.");
+  if (!run.legalEntityId) throw new Error("Select the actual legal employer before Xendit payout.");
+  const [payees, staff, entries] = await Promise.all([
+    loadPayrollPayoutRows(run.id),
+    db.select().from(employees).where(eq(employees.organizationId, run.organizationId)),
+    db.select({ id: payrollEntries.id, employeeId: payrollEntries.employeeId,
+      netPay: payrollEntries.netPay }).from(payrollEntries)
+      .where(eq(payrollEntries.payrollRunId, run.id)),
+  ]);
+  const byNo = new Map(staff.map((e) => [e.employeeNo, e]));
+  const entryById = new Map(entries.map((e) => [e.employeeId, e]));
+  const rows: Array<{ payee: XenditPayrollPayee; employeeId: number; payrollEntryId: number }> = [];
+  for (const row of payees) {
+    if (row.amountCents === 0) continue;
+    const employee = byNo.get(row.employeeNo);
+    const entry = employee ? entryById.get(employee.id) : undefined;
+    if (!employee || !entry || employee.organizationId !== run.organizationId
+      || Number(entry.netPay) * 100 !== row.amountCents) {
+      throw new Error("XENDIT_RELEASED_EMPLOYEE_IDENTITY_OR_AMOUNT_MISMATCH");
+    }
+    const payee: XenditPayrollPayee = {
+      ...row, firstName: employee.firstName, lastName: employee.lastName,
+    };
+    // No network call. Route, name, currency and minor units must validate
+    // before any transfer in the run is claimed.
+    buildXenditPayrollPayout(payee);
+    rows.push({ payee, employeeId: employee.id, payrollEntryId: entry.id });
+  }
+  if (!rows.length) throw new Error("No positive-net-pay employees to disburse.");
+  if (rows.reduce((total, row) => total + row.payee.amountCents, 0) !== Math.round(Number(run.netPay) * 100)) {
+    throw new Error("XENDIT_RELEASED_PAYROLL_TOTAL_MISMATCH");
+  }
+  const secret = process.env.XENDIT_PAYOUT_SECRET_KEY?.trim();
+  if (!secret) throw new Error("Xendit payroll MONEY-OUT key is required even for payout preflight.");
+  const businessId = process.env.XENDIT_PAYOUT_BUSINESS_ID?.trim();
+  if (!businessId) throw new Error("Xendit payout business ID is required.");
+  const fingerprint = createHmac("sha256", secret)
+    .update(JSON.stringify({
+      organizationId: run.organizationId, legalEntityId: run.legalEntityId,
+      runId: run.id, businessId,
+      rows: rows.map(({ payee, employeeId, payrollEntryId }) => ({
+        employeeId, payrollEntryId, payee,
+      })),
+    })).digest("hex");
+  return { rows, businessId, fingerprint };
+}
+
+async function latestPassedXenditPreflight(run: PayrollRun) {
+  const events = await db.select().from(auditEvents).where(and(
+    eq(auditEvents.organizationId, run.organizationId),
+    eq(auditEvents.action, "Xendit payroll preflight passed"),
+  )).orderBy(desc(auditEvents.id)).limit(250);
+  return events.find((event) => {
+    if (!event.metadata || typeof event.metadata !== "object") return false;
+    return Number((event.metadata as Record<string, unknown>).runId) === run.id;
+  }) ?? null;
+}
+
+export async function preflightXenditPayroll(run: PayrollRun, actor: string) {
+  const readiness = xenditPayrollLiveReadiness({
+    organizationId: run.organizationId, legalEntityId: run.legalEntityId,
+  });
+  const frozen = await xenditFrozenPayroll(run);
+  const existing = await db.select().from(payoutBatches).where(and(
+    eq(payoutBatches.organizationId, run.organizationId),
+    eq(payoutBatches.payrollRunId, run.id),
+  )).limit(1);
+  if (existing[0] && existing[0].provider !== "xendit") {
+    throw new Error("This payroll has already been staged for a different payment provider.");
+  }
+  const ready = readiness.ready;
+  await recordAuditEvent({
+    organizationId: run.organizationId, actor,
+    action: ready ? "Xendit payroll preflight passed" : "Xendit payroll preflight blocked",
+    resource: run.periodLabel,
+    metadata: {
+      runId: run.id, legalEntityId: run.legalEntityId,
+      businessId: frozen.businessId, fingerprint: frozen.fingerprint,
+      transferCount: frozen.rows.length,
+      amountCents: frozen.rows.reduce((sum, row) => sum + row.payee.amountCents, 0),
+      moneyMovedByLinaw: false,
+      ...(ready ? {} : { blockers: readiness.blockers }),
+    },
+  });
+  return { ready, provider: "xendit" as const, transferCount: frozen.rows.length,
+    totalAmountCents: frozen.rows.reduce((sum, row) => sum + row.payee.amountCents, 0),
+    blockers: readiness.blockers, moneyMoved: false };
+}
+
+export async function submitXenditPayroll(run: PayrollRun, actor: string) {
+  if (run.status !== "Released" || !run.legalEntityId) throw new Error("A released legal-employer payroll is required.");
+  const readiness = xenditPayrollLiveReadiness({
+    organizationId: run.organizationId, legalEntityId: run.legalEntityId,
+  });
+  if (!readiness.ready) throw new Error(`Xendit live payout is disabled: ${readiness.blockers.join(" ")}`);
+  const lastPreflight = await latestPassedXenditPreflight(run);
+  if (!lastPreflight) throw new Error("Complete the authorized no-money Xendit preflight first.");
+  const frozen = await xenditFrozenPayroll(run);
+  const preflightMeta = lastPreflight.metadata as Record<string, unknown>;
+  if (preflightMeta.fingerprint !== frozen.fingerprint
+    || preflightMeta.businessId !== frozen.businessId
+    || preflightMeta.legalEntityId !== run.legalEntityId) {
+    throw new Error("Frozen payout destinations, amount or legal employer changed since preflight.");
+  }
+  if (await latestApprovedPayoutDestinationChangeForRun({
+    organizationId: run.organizationId, runId: run.id, after: lastPreflight.createdAt,
+  })) throw new Error("Payout destination changed after preflight. Revalidate before sending.");
+
+  const initial = await xenditPayoutLedger(run.organizationId, run.id);
+  if (!initial) {
+    await prepareInitialPayoutBatch({
+      organizationId: run.organizationId, payrollRunId: run.id, provider: "xendit",
+      intents: frozen.rows.map(({ payee, employeeId, payrollEntryId }) => ({
+        employeeId, payrollEntryId, referenceNumber: payee.referenceNumber,
+        amountCents: payee.amountCents,
+      })),
+    });
+  }
+  const submitted: string[] = [];
+  for (let number = 0; number < 3; number += 1) {
+    const claimed = await claimNextXenditPayout({
+      organizationId: run.organizationId, payrollRunId: run.id,
+    });
+    if (!claimed) break;
+    const owner = frozen.rows.find((r) => r.payee.referenceNumber === claimed.referenceNumber);
+    if (!owner || owner.payee.amountCents !== claimed.amountCents || owner.payrollEntryId !== claimed.payrollEntryId) {
+      await markXenditPayoutUnknown({
+        organizationId: run.organizationId, payrollRunId: run.id,
+        referenceNumber: claimed.referenceNumber,
+      });
+      throw new Error("Xendit instruction no longer matches frozen payroll. Reconciliation required.");
+    }
+    try {
+      const provider = await createXenditPayrollPayout(owner.payee, {
+        organizationId: run.organizationId, payrollRunId: run.id,
+        businessId: frozen.businessId,
+      });
+      await recordXenditPayoutObservation({
+        organizationId: run.organizationId, payrollRunId: run.id,
+        referenceNumber: claimed.referenceNumber,
+        amountCents: claimed.amountCents, providerPayoutId: provider.payoutId,
+        providerBusinessId: provider.businessId, expectedBusinessId: frozen.businessId,
+        providerStatus: provider.status,
+      });
+      submitted.push(claimed.referenceNumber);
+    } catch {
+      await markXenditPayoutUnknown({
+        organizationId: run.organizationId, payrollRunId: run.id,
+        referenceNumber: claimed.referenceNumber,
+      });
+      // This may already have moved money: never automatically retry.
+      throw new Error(`Xendit payout outcome for ${claimed.referenceNumber} is uncertain. STOP: check Xendit by reference and reconcile the provider payout ID before continuing.`);
+    }
+  }
+  const ledger = await xenditPayoutLedger(run.organizationId, run.id);
+  await recordAuditEvent({
+    organizationId: run.organizationId, actor,
+    action: "Payroll payout submitted via Xendit",
+    resource: run.periodLabel,
+    metadata: { runId: run.id, submittedReferences: submitted, transferCount: submitted.length,
+      provider: "xendit", moneyMovedByLinaw: submitted.length > 0 },
+  });
+  return { submitted, ledger, complete: ledger?.counts.prepared === 0 && ledger?.counts.unknown === 0 };
+}
+
+export async function reconcileXenditPayroll(run: PayrollRun, actor: string) {
+  const businessId = process.env.XENDIT_PAYOUT_BUSINESS_ID?.trim();
+  if (!businessId) throw new Error("Xendit payout business ID is not configured.");
+  const ledger = await xenditPayoutLedger(run.organizationId, run.id);
+  if (!ledger) throw new Error("No Xendit payout ledger for this run.");
+  const queryable = ledger.rows.filter((row) => row.providerPayoutId
+    && ["submitted", "succeeded", "failed", "reversed"].includes(row.status));
+  const updated: string[] = [];
+  for (const row of queryable.slice(0, 10)) {
+    const provider = await getXenditPayrollPayout(row.providerPayoutId!, {
+      referenceNumber: row.referenceNumber, amountCents: row.amountCents, businessId,
+    });
+    await recordXenditPayoutObservation({
+      organizationId: run.organizationId, payrollRunId: run.id,
+      referenceNumber: row.referenceNumber, amountCents: row.amountCents,
+      providerPayoutId: provider.payoutId, providerBusinessId: provider.businessId,
+      expectedBusinessId: businessId, providerStatus: provider.status,
+    });
+    updated.push(row.referenceNumber);
+  }
+  await recordAuditEvent({
+    organizationId: run.organizationId, actor, action: "Xendit payout provider reconciled",
+    resource: run.periodLabel, metadata: { runId: run.id, checked: updated.length,
+      moneyMovedByLinaw: false },
+  });
+  return { checked: updated.length, ledger: await xenditPayoutLedger(run.organizationId, run.id) };
+}
+
+export async function resolveUnknownXenditPayroll(input: {
+  run: PayrollRun; actor: string; referenceNumber: string; payoutId: string;
+}) {
+  const businessId = process.env.XENDIT_PAYOUT_BUSINESS_ID?.trim();
+  if (!businessId) throw new Error("Xendit payout business ID is not configured.");
+  const ledger = await xenditPayoutLedger(input.run.organizationId, input.run.id);
+  const row = ledger?.rows.find((r) => r.referenceNumber === input.referenceNumber);
+  if (!row || row.status !== "reconciliation_required" || row.providerPayoutId) {
+    throw new Error("Only an unresolved, unlinked Xendit payout can be manually matched.");
+  }
+  // This is read-only at the provider. A missing ID must never trigger a new payout.
+  const provider = await getXenditPayrollPayout(input.payoutId, {
+    referenceNumber: row.referenceNumber, amountCents: row.amountCents, businessId,
+  });
+  await recordXenditPayoutObservation({
+    organizationId: input.run.organizationId, payrollRunId: input.run.id,
+    referenceNumber: row.referenceNumber, amountCents: row.amountCents,
+    providerPayoutId: provider.payoutId, providerBusinessId: provider.businessId,
+    expectedBusinessId: businessId, providerStatus: provider.status,
+  });
+  await recordAuditEvent({
+    organizationId: input.run.organizationId, actor: input.actor,
+    action: "Xendit unknown payout linked after provider read-only verification",
+    resource: input.run.periodLabel,
+    metadata: { runId: input.run.id, referenceNumber: row.referenceNumber,
+      providerPayoutId: provider.payoutId, settlementVerified: provider.status === "SUCCEEDED" },
+  });
+  return await xenditPayoutLedger(input.run.organizationId, input.run.id);
+}
