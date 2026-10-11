@@ -81,6 +81,11 @@ try {
   assert.equal(worker.body?.tenantId, 1);
   assert.equal(worker.body?.employeeId, 1);
   assert.ok(worker.headers?.includes("no-store"));
+  const enterpriseInbox = await read(page,
+    "/api/hcm/business-processes/inbox?organizationId=1");
+  assert.equal(enterpriseInbox.status, 200);
+  assert.equal(enterpriseInbox.body?.meta?.companyHistoryAvailable, true,
+    "Enrolled Enterprise HR may view company-wide process history");
   receipts.push("Enterprise HR can open advanced Action Center and Worker 360 views");
 
   for (const suffix of ["process-monitor", "org-explorer"]) {
@@ -117,6 +122,10 @@ try {
   assert.equal(coreInbox.status, 200,
     "Core HR must retain source-governed assigned HCM inbox access");
   assert.ok(coreInbox.headers?.includes("no-store"));
+  assert.equal(coreInbox.body?.meta?.companyHistoryAvailable, false,
+    "Core HR must not receive the Enterprise-only company-wide history projection");
+  assert.deepEqual(coreInbox.body?.recent, coreInbox.body?.submitted,
+    "Core recent history may include only the actor's own source-governed submissions");
   receipts.push("Core HR denied advanced views but retains assigned HCM inbox access");
 
   const manager = await browser.newContext();
