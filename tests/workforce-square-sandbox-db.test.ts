@@ -110,7 +110,8 @@ test("isolated Postgres imports only aggregate counts, preserves older correctio
     assert.ok(!raw.includes("card_details")&&!raw.includes("synthetic0")&&
       !raw.includes("customer")&&!raw.includes("fictional-sandbox-token"));
   }finally {
-    await db.delete(auditEvents).where(eq(auditEvents.organizationId,org.id));
+    // Immutable audit rows are removed only through the documented
+    // cascade when the isolated synthetic organization is deleted below.
     await db.delete(workforceDemandObservationRevisions).where(
       eq(workforceDemandObservationRevisions.organizationId,org.id));
     await db.delete(workforceDemandImportBatches).where(
