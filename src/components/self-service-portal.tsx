@@ -755,54 +755,54 @@ export function SelfServicePortal() {
             </article>
           )}
 
-          <EmployeeTakeHomeEstimator />
+          <EmployeeTakeHomeEstimator language={language} />
 
           <article className="employee-list-card">
             <div className="employee-list-card-head">
               <div>
-                <span className="card-kicker">MANDATORY CONTRIBUTIONS</span>
-                <h3>Remittance and agency posting</h3>
+                <span className="card-kicker">{t("MANDATORY CONTRIBUTIONS")}</span>
+                <h3>{t("Remittance and agency posting")}</h3>
               </div>
               <button
                 className="secondary-button"
                 onClick={() => setContributionIssueContext({ memberId: null })}
               >
-                Report issue
+                {t("Report issue")}
               </button>
             </div>
             {data.contributions.length === 0 ? (
               <div className="employee-empty-row">
-                No employer remittance reconciliation has been published to your account yet. Your payslip still shows what was deducted.
+                {t("No employer remittance reconciliation has been published to your account yet. Your payslip still shows what was deducted.")}
               </div>
             ) : data.contributions.slice(0, 12).map((row, index) => (
               <div className="employee-pay-row" key={row.agency + "-" + row.applicableMonth + "-" + index}>
                 <div className="employee-pay-row-main" style={{ cursor: "default" }}>
                   <div>
                     <strong>{row.agency} · {row.applicableMonth}</strong>
-                    <span>Deducted {peso(row.employeeShare)} · employer {peso(row.employerShare)}</span>
+                    <span>{t("Deducted")} {peso(row.employeeShare)} · {t("employer")} {peso(row.employerShare)}</span>
                   </div>
                   <div className="employee-pay-row-amount">
                     <strong>{peso(row.totalContribution)}</strong>
-                    <span>total contribution</span>
+                    <span>{t("total contribution")}</span>
                   </div>
                   <span className={"employee-status-pill " + statusTone(row.postingStatus)}>
                     {row.postingStatus === "confirmed"
-                      ? "Agency posting confirmed"
+                      ? t("Agency posting confirmed")
                       : row.postingStatus === "exception"
-                        ? "Posting exception"
+                        ? t("Posting exception")
                         : row.paymentStatus === "open"
-                          ? "Employer payment pending"
-                          : "Payment recorded · posting pending"}
+                          ? t("Employer payment pending")
+                          : t("Payment recorded · posting pending")}
                   </span>
                 </div>
                 <div className="employee-pay-row-detail" style={{ display: "grid" }}>
-                  <div><span>Employer payment</span><strong>{row.paymentStatus}</strong></div>
-                  <div><span>Agency posting</span><strong>{row.postingStatus}</strong></div>
-                  {row.postedAmount && <div><span>Amount posted</span><strong>{peso(row.postedAmount)}</strong></div>}
-                  {row.postingReference && <div><span>Posting reference</span><strong>{row.postingReference}</strong></div>}
+                  <div><span>{t("Employer payment")}</span><strong>{row.paymentStatus}</strong></div>
+                  <div><span>{t("Agency posting")}</span><strong>{row.postingStatus}</strong></div>
+                  {row.postedAmount && <div><span>{t("Amount posted")}</span><strong>{peso(row.postedAmount)}</strong></div>}
+                  {row.postingReference && <div><span>{t("Posting reference")}</span><strong>{row.postingReference}</strong></div>}
                   {row.postingEvidenceSource && (
                     <div>
-                      <span>Posting evidence source</span>
+                      <span>{t("Posting evidence source")}</span>
                       <strong>
                         {row.postingEvidenceSource}
                         {row.postingEvidenceHashSha256
@@ -811,18 +811,18 @@ export function SelfServicePortal() {
                       </strong>
                     </div>
                   )}
-                  {row.exceptionNote && <div><span>Issue</span><strong>{row.exceptionNote}</strong></div>}
+                  {row.exceptionNote && <div><span>{t("Issue")}</span><strong>{row.exceptionNote}</strong></div>}
                   <div>
-                    <span>Evidence</span>
+                    <span>{t("Evidence")}</span>
                     <a
                       className="secondary-button"
                       href={`/api/self/contribution-evidence?agency=${encodeURIComponent(row.agency)}&month=${encodeURIComponent(row.applicableMonth)}`}
                     >
-                      <Download size={13} /> Download evidence
+                      <Download size={13} /> {t("Download evidence")}
                     </a>
                   </div>
                   <div>
-                    <span>Something wrong?</span>
+                    <span>{t("Something wrong?")}</span>
                     <button
                       className="secondary-button"
                       onClick={() => setContributionIssueContext({
@@ -831,27 +831,27 @@ export function SelfServicePortal() {
                         applicableMonth: row.applicableMonth,
                       })}
                     >
-                      Report this record
+                      {t("Report this record")}
                     </button>
                   </div>
                 </div>
               </div>
             ))}
             <div className="employee-rule-note">
-              <ShieldCheck size={12} /> “Deducted” comes from released payroll. “Payment recorded” is employer evidence. “Agency posting confirmed” is the final reconciliation state.
+              <ShieldCheck size={12} /> {t("“Deducted” comes from released payroll. “Payment recorded” is employer evidence. “Agency posting confirmed” is the final reconciliation state.")}
             </div>
           </article>
 
           <article className="employee-list-card">
             <div className="employee-list-card-head">
               <div>
-                <span className="card-kicker">SSS / PAG-IBIG LOANS</span>
-                <h3>Government loan remittance</h3>
+                <span className="card-kicker">{t("SSS / PAG-IBIG LOANS")}</span>
+                <h3>{t("Government loan remittance")}</h3>
               </div>
             </div>
             {data.governmentLoanRemittances.length === 0 ? (
               <div className="employee-empty-row">
-                No government-loan remittance reconciliation has been published to your account yet. Your released payslip remains the record of any loan deduction.
+                {t("No government-loan remittance reconciliation has been published to your account yet. Your released payslip remains the record of any loan deduction.")}
               </div>
             ) : data.governmentLoanRemittances.slice(0, 12).map((row) => (
               <div className="employee-pay-row" key={row.memberId}>
@@ -862,42 +862,42 @@ export function SelfServicePortal() {
                   </div>
                   <div className="employee-pay-row-amount">
                     <strong>{peso(row.deductedAmount)}</strong>
-                    <span>deducted from payroll</span>
+                    <span>{t("deducted from payroll")}</span>
                   </div>
                   <span className={"employee-status-pill " + statusTone(row.postingStatus)}>
                     {row.postingStatus === "confirmed"
-                      ? "Loan posting confirmed"
+                      ? t("Loan posting confirmed")
                       : row.postingStatus === "exception"
-                        ? "Posting exception"
+                        ? t("Posting exception")
                         : row.paymentStatus === "open"
-                          ? "Employer payment pending"
-                          : "Payment recorded · posting pending"}
+                          ? t("Employer payment pending")
+                          : t("Payment recorded · posting pending")}
                   </span>
                 </div>
                 <div className="employee-pay-row-detail" style={{ display: "grid" }}>
-                  <div><span>Employer payment</span><strong>{row.paymentStatus}</strong></div>
-                  <div><span>Agency loan posting</span><strong>{row.postingStatus}</strong></div>
-                  <div><span>Control due date</span><strong>{row.dueDate}</strong></div>
-                  {row.postedAmount && <div><span>Amount posted</span><strong>{peso(row.postedAmount)}</strong></div>}
-                  {row.postingReference && <div><span>Posting reference</span><strong>{row.postingReference}</strong></div>}
-                  {row.exceptionNote && <div><span>Issue</span><strong>{row.exceptionNote}</strong></div>}
+                  <div><span>{t("Employer payment")}</span><strong>{row.paymentStatus}</strong></div>
+                  <div><span>{t("Agency loan posting")}</span><strong>{row.postingStatus}</strong></div>
+                  <div><span>{t("Control due date")}</span><strong>{row.dueDate}</strong></div>
+                  {row.postedAmount && <div><span>{t("Amount posted")}</span><strong>{peso(row.postedAmount)}</strong></div>}
+                  {row.postingReference && <div><span>{t("Posting reference")}</span><strong>{row.postingReference}</strong></div>}
+                  {row.exceptionNote && <div><span>{t("Issue")}</span><strong>{row.exceptionNote}</strong></div>}
                 </div>
               </div>
             ))}
             <div className="employee-rule-note">
-              <ShieldCheck size={12} /> A payroll loan deduction is not shown as reconciled until employer payment is recorded and the matching SSS/Pag-IBIG loan posting is confirmed.
+              <ShieldCheck size={12} /> {t("A payroll loan deduction is not shown as reconciled until employer payment is recorded and the matching SSS/Pag-IBIG loan posting is confirmed.")}
             </div>
           </article>
 
           <article className="employee-list-card">
             <div className="employee-list-card-head">
               <div>
-                <span className="card-kicker">CONTRIBUTION CASES</span>
-                <h3>Your reported issues</h3>
+                <span className="card-kicker">{t("CONTRIBUTION CASES")}</span>
+                <h3>{t("Your reported issues")}</h3>
               </div>
             </div>
             {data.contributionIssues.length === 0 ? (
-              <div className="employee-empty-row">No contribution issues reported.</div>
+              <div className="employee-empty-row">{t("No contribution issues reported.")}</div>
             ) : data.contributionIssues.slice(0, 12).map((issue) => (
               <div className="employee-pay-row" key={issue.id}>
                 <div className="employee-pay-row-main" style={{ cursor: "default" }}>
@@ -906,26 +906,26 @@ export function SelfServicePortal() {
                     <span>{issue.issueType.replaceAll("_", " ")}</span>
                   </div>
                   <span className={"employee-status-pill " + statusTone(issue.status)}>
-                    {issue.status === "in_review" ? "In review" : issue.status}
+                    {issue.status === "in_review" ? t("In review") : issue.status}
                   </span>
                 </div>
                 <div className="employee-pay-row-detail" style={{ display: "grid" }}>
-                  <div><span>Your report</span><strong>{issue.description}</strong></div>
-                  {issue.assignedToName && <div><span>Reviewing</span><strong>{issue.assignedToName}</strong></div>}
+                  <div><span>{t("Your report")}</span><strong>{issue.description}</strong></div>
+                  {issue.assignedToName && <div><span>{t("Reviewing")}</span><strong>{issue.assignedToName}</strong></div>}
                   {issue.status !== "resolved" && (
                     <div>
-                      <span>PayrollPH service target</span>
+                      <span>{t("PayrollPH service target")}</span>
                       <strong>
                         {issue.service.targetLabel} by {issue.service.targetDate ?? "complete"}
                         {issue.service.overdue ? " · overdue" : ""}
                       </strong>
                     </div>
                   )}
-                  {issue.resolutionOutcome && <div><span>Outcome</span><strong>{issue.resolutionOutcome.replaceAll("_", " ")}</strong></div>}
-                  {issue.resolutionNote && <div><span>Payroll response</span><strong>{issue.resolutionNote}</strong></div>}
+                  {issue.resolutionOutcome && <div><span>{t("Outcome")}</span><strong>{issue.resolutionOutcome.replaceAll("_", " ")}</strong></div>}
+                  {issue.resolutionNote && <div><span>{t("Payroll response")}</span><strong>{issue.resolutionNote}</strong></div>}
                   {issue.events.length > 0 && (
                     <div style={{ gridColumn: "1 / -1", display: "grid", gap: 6 }}>
-                      <span>Case timeline</span>
+                      <span>{t("Case timeline")}</span>
                       {issue.events.slice(0, 5).reverse().map((event) => (
                         <div key={event.id} className="employee-rule-note">
                           <History size={12} />
@@ -938,12 +938,12 @@ export function SelfServicePortal() {
                     </div>
                   )}
                   <div>
-                    <span>Evidence packet</span>
+                    <span>{t("Evidence packet")}</span>
                     <a
                       className="secondary-button"
                       href={`/api/self/contribution-evidence?agency=${encodeURIComponent(issue.agency)}&month=${encodeURIComponent(issue.applicableMonth)}`}
                     >
-                      <Download size={13} /> Download case evidence
+                      <Download size={13} /> {t("Download case evidence")}
                     </a>
                   </div>
                 </div>
@@ -952,7 +952,7 @@ export function SelfServicePortal() {
           </article>
           {data.contributionIssues.some((issue) => issue.status !== "resolved") && (
             <div className="employee-rule-note">
-              <Clock size={12} /> Internal service targets are not statutory or agency deadlines. They are PayrollPH follow-up targets so your report does not sit unattended.
+              <Clock size={12} /> {t("Internal service targets are not statutory or agency deadlines. They are PayrollPH follow-up targets so your report does not sit unattended.")}
             </div>
           )}
 
@@ -1132,6 +1132,7 @@ export function SelfServicePortal() {
 
       {contributionIssueContext && (
         <EmployeeContributionIssueModal
+          language={language}
           memberId={contributionIssueContext.memberId}
           initialAgency={contributionIssueContext.agency}
           initialMonth={contributionIssueContext.applicableMonth}
