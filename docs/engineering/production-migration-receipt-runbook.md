@@ -33,3 +33,29 @@ This branch also includes the optional `CORE_SCHEMA_COMPATIBILITY_MODE=read-only
 After the DBA completes the journal, original-host identification, a restored-clone rehearsal, critical schema inventory (PR #784), encryption checks and an approved release plan, test read-only mode against the isolated clone. It opens a **REPEATABLE READ, READ ONLY** transaction and checks release-critical tables, columns, unique index signatures, audit function and audit mutation trigger. Missing structures throw `CORE_SCHEMA_READONLY_PRECONDITION_FAILED`: dashboard/demo traffic fails instead of issuing any compatibility DDL or automatic bank/government-ID backfill. It then rolls back without persistent writes.
 
 **Limitations:** This structural check covers only the explicit critical-object subset in `src/lib/production-schema-inventory.ts`; it does not certify the complete application schema, historical migrations or other runtime schema helpers (`ensureLeavePayrollSchema()`, etc.). Do not enable this mode on real production until those independent mutation paths, operational fallbacks and user-facing failure behavior have been reviewed. Flipping back to `legacy` may resume database writes and requires its own change approval. This source PR does not change Vercel environment variables, operate on live data, or retire the legacy code.
+
+
+## Leave timing and pay-profile request-path cutover
+
+The same opt-in `CORE_SCHEMA_COMPATIBILITY_MODE=read-only` now also covers
+`ensureLeavePayrollSchema()` and `ensureEmployeePayProfileSchema()`. Both
+check PostgreSQL catalog metadata inside a rollback-only read-only
+transaction, including critical typed columns, expected indexes/uniqueness,
+leave status/timing and financial profile foreign-key constraints. Failed
+preflight discards the pooled connection rather than returning an
+untrusted transaction to the pool. The prior automatic table creation and
+column upgrades remain the legacy default only.
+
+`ensureEmployeePayProfiles(organizationId)` is a separate data backfill:
+in read-only mode it does **not** insert missing employee pay profiles.
+It instead uses a tenant-scoped, read-only existence query and fails with
+`READONLY_PAY_PROFILES_REQUIRE_REVIEWED_BACKFILL` if any employee lacks a
+profile. A DBA-approved conversion, with payroll reconciliation and
+appropriate employer authorization, must address such rows before switching.
+
+These guards are **structural subset preflights**, not a complete schema
+or migration proof, and they do not disable other legacy request-time DDL
+helpers (e.g. payroll month-close, DOLE reporting). The release flag must
+remain unset in production until all remaining writers have been
+enumerated and retired or independently guarded. Do not use this setting
+to avoid migrating an incompatible or unverified production database.
