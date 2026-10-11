@@ -4,6 +4,12 @@
 
 This is the next isolated implementation of issue #838. It follows the already-merged operational-demand import / issued forecasting foundation in #828 and runs independently of open PRs #837 (planner), #843 (approved policies) and #813 (Xendit payout).
 
+## Philippine market limitation
+
+Square's own [International Development guidance](https://developer.squareup.com/docs/international-development) states that card-processing seller accounts and Square Sandbox are supported only in its listed regions, **not the Philippines**. Developers in the Philippines may build integration code, but a Philippine employer must not treat this sandbox adapter as a live domestic POS integration or attempt unsupported cross-border seller processing.
+
+This sandbox-only connector is a **contract / aggregation engineering pilot**. For an actual Philippine business source, choose a provider with legal PH merchant support and consented APIs (or an explicitly validated authenticated export), and implement its own authorization, correction semantics and source mapping before any live pilot. The rest of WFM stays read-only.
+
 ## Provider semantics — verified against Square documentation
 
 Square Payments [List payments](https://developer.squareup.com/reference/square/payments-api/list-payments) is `GET /v2/payments`, using merchant-authorized `PAYMENTS_READ` scope. Version **2026-09-16** is pinned. It supports `begin_time`, `end_time`, `location_id`, `limit` (maximum 100) and opaque `cursor`; response is eventually consistent. Our metric is **completed Square payment objects by `payment.created_at` at the configured Square sandbox location**. This is **not** orders, visitors, net sales, refunds, shift demand, or a guaranteed POS-only count: Square Payments may include activity from other channels. Do not use this signal as a staffing need without an approved productivity policy.
