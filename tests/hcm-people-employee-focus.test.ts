@@ -12,6 +12,7 @@ const selected = {
   selectedOrganizationId: 17,
   access: { role: "hr", companyWide: true },
   authorizedEmployees: [{ id: 23 }, { id: 24 }],
+  serverAuthorized: true,
   demoMode: false,
 };
 
@@ -34,6 +35,7 @@ test("only an authorized company-wide People operator with a visible worker can 
   assert.equal(resolvePeopleEmployeeFocus({ ...selected, access: { role: "owner", companyWide: true } }), 23);
   assert.equal(resolvePeopleEmployeeFocus({ ...selected, access: { role: "admin", companyWide: true } }), 23);
   assert.equal(resolvePeopleEmployeeFocus({ ...selected, demoMode: true }), null);
+  assert.equal(resolvePeopleEmployeeFocus({ ...selected, serverAuthorized: false }), null);
 });
 
 test("tenant switch, stale roster and malformed URLs cannot select a worker", () => {
@@ -89,6 +91,11 @@ test("People Home uses SQL-qualified worker identities and delegates actions to 
   assert.match(workspace, /requestedOrganizationId: searchParams\.get\("organizationId"\)/);
   assert.match(workspace, /requestedEmployeeId: searchParams\.get\("focusEmployeeId"\)/);
   assert.ok(workspace.includes("focusEmployeeId={focusEmployeeId}"));
+  assert.ok(workspace.includes("serverAuthorized: allowPeopleFocus"));
+  const app = readFileSync("src/app/app/page.tsx", "utf8");
+  assert.ok(app.includes("peopleHomeEnabledForOrganization(companyOrganizationId)"));
+  assert.ok(app.includes("assertOrganizationRole(user.id, companyOrganizationId, PEOPLE_ADMIN_ROLES)"));
+  assert.ok(app.includes("allowPeopleFocus={allowPeopleFocus}"));
   assert.ok(workspace.includes("data.employees.some((employee) => employee.id === employeeId)"));
   const page = readFileSync("src/app/hcm/command-center/page.tsx", "utf8");
   assert.ok(page.includes("Open worker in People"));
