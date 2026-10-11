@@ -494,6 +494,35 @@ async function main() {
   (report.lifecycle as string[]).push("wfm-attendance-correction-approved-four-eyes");
   (report.lifecycle as string[]).push("wfm-attendance-exception-resolution-evidence-recorded");
 
+  await expectOk(owner, "/api/workforce/timesheets", { method: "POST", json: {
+    organizationId, action: "update_policy", active: true, enforcementMode: "block",
+  } });
+  const blockedRun = await payroll.json("/api/payroll-runs", { method: "POST", json: {
+    organizationId, periodStart: "2026-09-16", periodEnd: "2026-09-30", payDate: "2026-10-05", processNow: true,
+  } });
+  assert.equal(blockedRun.response.status, 422);
+  assert.equal(blockedRun.payload.code, "TIMESHEET_APPROVAL_REQUIRED");
+  const [secondEmployeeUser] = await db.insert(users).values({
+    email: "second.employee.pilot@linaw.test", name: "Synthetic second employee",
+    passwordHash: hashPassword(credentials.employee), role: "employee",
+    employeeId: created[1].id, totpEnabled: false, backupCodes: [],
+  }).returning();
+  await db.insert(userOrganizations).values({ userId: secondEmployeeUser.id, organizationId, role: "employee" });
+  const secondEmployee = await login(secondEmployeeUser.email, credentials.employee);
+  for (const [index, client] of [employee, secondEmployee].entries()) {
+    const submitted = await expectOk(client, "/api/workforce/timesheets", { method: "POST", json: {
+      organizationId, action: "submit", employeeId: created[index].id,
+      periodStart: "2026-09-16", periodEnd: "2026-09-30",
+    } });
+    const approved = await expectOk(owner, "/api/workforce/timesheets", { method: "POST", json: {
+      organizationId, action: "decide", timesheetId: submitted.timesheet.id,
+      decision: "approved", decisionNote: "Synthetic CI review of corrected attendance; no employer attestation.",
+    } });
+    assert.equal(approved.timesheet.status, "approved");
+    assert.notEqual(approved.timesheet.submittedByUserId, approved.timesheet.decidedByUserId);
+  }
+  (report.lifecycle as string[]).push("timesheet-gate-blocked-payroll-until-distinct-test-actor-approval");
+
   const runPayload = await expectOk(payroll, "/api/payroll-runs", {
     method: "POST",
     json: { organizationId, periodStart: "2026-09-16", periodEnd: "2026-09-30", payDate: "2026-10-05", processNow: true },
@@ -502,6 +531,7 @@ async function main() {
   assert.ok(runId > 0);
   assert.ok(["Needs review", "Processed"].includes(String(runPayload.run?.status)));
   assert.equal(Number(runPayload.run?.exceptions), 0, "Pilot calculation must have zero engine exceptions.");
+  assert.equal(runPayload.timesheetGate?.gate?.allowed ?? runPayload.timesheetGate?.allowed, true);
   report.runId = runId;
   (report.lifecycle as string[]).push("payroll-calculated");
 

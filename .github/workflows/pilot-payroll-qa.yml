@@ -122,6 +122,9 @@ jobs:
       - name: Run fresh tenant payroll pilot
         run: npx tsx scripts/pilot-payroll-qa.ts
 
+      - name: Authenticate synthetic bank envelopes across all four stores
+        run: npx tsx scripts/verify-bank-account-envelopes.ts
+
       - name: Show server log on failure
         if: failure()
         run: cat /tmp/payrollph-pilot.log || true
