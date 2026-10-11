@@ -50,7 +50,7 @@ test("valid current punches are preserved, no timestamp conversions in scope gua
 });
 
 test("malformed punch payload cannot silently enable clock-in", () => {
-  for (const bad of [undefined, null, {}, "broken", [{ timeIn: 123 }], [null], [1]]) {
+  for (const bad of [undefined, null, {}, "broken", [{ timeIn: 123 }], [{ timeIn: "not-an-instant" }], [null], [1]]) {
     assert.equal(isWebBundyPunchList(bad), false);
   }
   assert.equal(isWebBundyPunchList([]), true);

@@ -39,7 +39,8 @@ export function isWebBundyPunchList(value: unknown): value is WebBundyPunch[] {
     typeof row === "object" && row !== null &&
     fields.every((field) => {
       const value = (row as Record<string, unknown>)[field];
-      return value === undefined || value === null || typeof value === "string";
+      return value === undefined || value === null ||
+        (typeof value === "string" && Number.isFinite(Date.parse(value)));
     }),
   );
 }

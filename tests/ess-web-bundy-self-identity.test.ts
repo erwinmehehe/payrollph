@@ -30,6 +30,11 @@ test("Web Bundy renders a linked employee's clock controls but waits for authori
   // new clock-in until the current employer/employee GET returns successfully.
   assert.match(linked, /Clock IN/);
   assert.match(linked, /<button[^>]+class="primary-button"[^>]*disabled=""/);
+  const missingEmployer = renderToStaticMarkup(createElement(WebBundyModal, {
+    ...props, organizationId: 0, employeeId: 11,
+  }));
+  assert.match(missingEmployer, /Employer identity is not linked/);
+  assert.match(missingEmployer, /<button[^>]+class="primary-button"[^>]*disabled=""/);
 });
 
 test("the server continues to replace any employee-provided ID with the authenticated session identity", () => {

@@ -69,12 +69,17 @@ function WebBundyView({
 
   const [nonce, setNonce] = useState(0);
   const reloadPunches = useCallback(() => setNonce((current) => current + 1), []);
-  const readKey = webBundyReadKey(organizationId, selectedEmployeeId, nonce);
-  const visible = visibleWebBundyState(readKey, readState);
-  const historyReady = selectedEmployeeId !== null && visible.status === "ready";
+  const validEmployer = Number.isSafeInteger(organizationId) && organizationId > 0;
+  const readKey = validEmployer
+    ? webBundyReadKey(organizationId, selectedEmployeeId, nonce)
+    : "employer-not-linked";
+  const visible = validEmployer
+    ? visibleWebBundyState(readKey, readState)
+    : { status: "unavailable" as const, punches: [] };
+  const historyReady = validEmployer && selectedEmployeeId !== null && visible.status === "ready";
 
   useEffect(() => {
-    if (!selectedEmployeeId) return;
+    if (!selectedEmployeeId || !validEmployer) return;
     const controller = new AbortController();
     let alive = true;
 
@@ -102,7 +107,7 @@ function WebBundyView({
       alive = false;
       controller.abort();
     };
-  }, [organizationId, selectedEmployeeId, readKey]);
+  }, [organizationId, selectedEmployeeId, readKey, validEmployer]);
 
   async function handlePunch(actionType: "clock_in" | "break_start" | "break_end" | "clock_out") {
     if (!selectedEmployeeId || !historyReady) {
@@ -228,8 +233,10 @@ function WebBundyView({
         )}
         {selectedEmployeeId && visible.status === "unavailable" && (
           <div className="notice notice-amber" role="alert">
-            <span>{t("Attendance history could not be confirmed. Do not retry a punch until its status is known.")}</span>
-            <button type="button" className="secondary-button" onClick={reloadPunches}>{t("Retry attendance check")}</button>
+            <span>{validEmployer
+              ? t("Attendance history could not be confirmed. Do not retry a punch until its status is known.")
+              : t("Employer identity is not linked. Attendance cannot be recorded.")}</span>
+            {validEmployer && <button type="button" className="secondary-button" onClick={reloadPunches}>{t("Retry attendance check")}</button>}
           </div>
         )}
         {message && <div className="notice notice-green" style={{ margin: "10px 0" }}><Check size={16} className="i-green" /><span>{message}</span></div>}
