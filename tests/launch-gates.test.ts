@@ -169,9 +169,16 @@ test("production bank migration refuses to encrypt with a key that does not matc
 
   assert.ok(pilotStatus.includes("bankEncryptionKeyFingerprint"));
   assert.ok(pilotStatus.includes("bankEncryptionFingerprint"));
-  assert.ok(workflow.includes("Prove runner key matches live production"));
-  assert.ok(workflow.includes('if [ "$local_fp" != "$live_fp" ]'));
-  assert.ok(workflow.includes("Refusing to touch bank data"));
+  // Fail closed before any production-bank DB access unless runner credentials,
+  // the exact live deployment and its effective key fingerprint all agree.
+  assert.ok(workflow.includes("Verify dedicated runner key and exact live production build before DB access"));
+  assert.ok(workflow.includes('bankEncryptionKeySource() !== "dedicated"'));
+  assert.ok(workflow.includes('.deploymentSha == $sha'));
+  assert.ok(workflow.includes('.deploymentEnvironment == "production"'));
+  assert.ok(workflow.includes('.bankEncryptionFingerprint == $fp'));
+  assert.ok(workflow.includes("Live deployment SHA, environment or dedicated bank key fingerprint mismatch. Nothing was queried."));
+  assert.ok(workflow.includes("BANK_BACKFILL_ROLE: audit"));
+  assert.ok(workflow.includes("BANK_BACKFILL_ROLE: apply"));
   assert.ok(workflow.includes("scripts/encrypt-bank-accounts.ts --apply"));
   assert.ok(workflow.includes("Verify zero plaintext bank data remains"));
   assert.ok(prepare.includes("ALTER TABLE employees ALTER COLUMN bank_account TYPE varchar(160)"));
