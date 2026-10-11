@@ -14,6 +14,7 @@ import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { SaasOnboardingQuickstart } from "@/components/saas-onboarding-quickstart";
 import { HrisHomeShortcuts } from "@/components/hris-home-shortcuts";
+import { HrisOnboardingChecklist } from "@/components/hris-onboarding-checklist";
 import { DisciplinePanel } from "@/components/discipline-panel";
 import { LoansPanel } from "@/components/loans-panel";
 import { LegalEntitiesPanel } from "@/components/legal-entities-panel";
@@ -559,7 +560,28 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         {page === "De minimis" && <DeMinimisPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Expenses" && <ExpensesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Earned wage" && <EwaPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
-        {page === "Recruitment" && <RecruitmentPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Recruitment" && (
+          <>
+            {availablePages.includes("Recruitment") &&
+              ["owner", "admin", "hr"].includes(effectiveRole ?? "") && (
+                <HrisOnboardingChecklist
+                  key={data.selectedOrganization.id}
+                  organizationId={data.selectedOrganization.id}
+                  employees={data.employees}
+                  provisioning={data.provisioning}
+                  onRefresh={async () => { await refresh(data.selectedOrganization.id); }}
+                  onOpenEmployee={openHrEmployee}
+                  onOpenDocuments={availablePages.includes("Documents") ? () => setPage("Documents") : undefined}
+                />
+              )}
+            <RecruitmentPanel
+              key={data.selectedOrganization.id}
+              organizationId={data.selectedOrganization.id}
+              setNotice={noticeAdapter}
+              onHired={async () => { await refresh(data.selectedOrganization.id); }}
+            />
+          </>
+        )}
         {page === "Performance" && <PerformancePanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Discipline" && <DisciplinePanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Separation" && <SeparationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
