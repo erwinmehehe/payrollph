@@ -138,11 +138,12 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
                   <td>{peso(c.amount)}</td>
                   <td><span className={`status status-${c.status}`}>{c.status}</span></td>
                   <td>
-                    {c.status === "pending" && (
+                    {c.status === "pending" && !c.inExpenseReport && (
                       <button className="icon-button" title="Approve" onClick={() => decide(c.id, "approved")}>
                         <CheckCircle2 size={15} className="i-green" />
                       </button>
                     )}
+                    {c.inExpenseReport && <small>Decide in expense report</small>}
                   </td>
                 </tr>
               );

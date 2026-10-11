@@ -33,6 +33,12 @@ export function Worker360Client({
   employeeId: number;
   initialAsOfDate: string;
 }) {
+  return <ScopedWorker360 key={`${organizationId}:${employeeId}`} organizationId={organizationId} employeeId={employeeId} initialAsOfDate={initialAsOfDate}/>;
+}
+
+function ScopedWorker360({ organizationId, employeeId, initialAsOfDate }: {
+  organizationId: number; employeeId: number; initialAsOfDate: string;
+}) {
   const [asOfDate, setAsOfDate] = useState(initialAsOfDate);
   const [revision, setRevision] = useState(0);
   const [load, setLoad] = useState<Load | null>(null);
@@ -42,7 +48,7 @@ export function Worker360Client({
   useEffect(() => {
     if (!validDate) return;
     const controller = new AbortController();
-    setLoad({ key: scope, status: "loading", data: null, error: "" });
+    // Scope mismatch hides the previous response before this effect runs.
     const url = new URLSearchParams({
       organizationId: String(organizationId),
       employeeId: String(employeeId),
@@ -111,7 +117,7 @@ export function Worker360Client({
               type="date"
               required
               value={asOfDate}
-              onChange={(event) => setAsOfDate(event.target.value)}
+              onChange={(event) => { setAsOfDate(event.target.value); setRevision((value) => value + 1); }}
               className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
               aria-invalid={!validDate}
             />

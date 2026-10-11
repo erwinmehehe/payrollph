@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Building2, CalendarDays, MapPin, Plus, RefreshCcw, Save, UserRound } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
+import { useScopedAsyncResource } from "./use-scoped-async-resource";
+import { resolveScopedOption, type ScopedOptionSelection } from "@/lib/scoped-option-selection";
 
 type Worksite = {
   id: number;
@@ -16,6 +18,10 @@ type Worksite = {
   province: string | null;
   cityMunicipality: string | null;
   addressLine1: string | null;
+  geofenceLatitude: string | null;
+  geofenceLongitude: string | null;
+  geofenceRadiusM: number | null;
+  geofenceConfigured: boolean;
   active: boolean;
 };
 
@@ -40,6 +46,7 @@ type HolidayRow = {
 
 type Payload = {
   worksites: Worksite[];
+  geofencePilotEnabled: boolean;
   assignments: WorksiteAssignment[];
   arrangements: Array<{ id: number; employeeId: number; mode: string; effectiveFrom: string; effectiveUntil: string | null }>;
   authorizations: Array<{ id: number; employeeId: number; worksiteId: number; decision: "allow" | "deny"; effectiveFrom: string; effectiveUntil: string | null }>;
@@ -65,8 +72,6 @@ export function WorkforceWorksitesPanel({
   const canManageHolidayCalendar =
     data.access?.companyWide === true
     && ["owner", "admin", "bookkeeper", "hr", "payroll"].includes(data.access.role ?? "");
-  const [payload, setPayload] = useState<Payload | null>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
 
   const [code, setCode] = useState("MAIN");
@@ -77,9 +82,15 @@ export function WorkforceWorksitesPanel({
   const [province, setProvince] = useState("");
   const [cityMunicipality, setCityMunicipality] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
+  const [geofenceSelection, setGeofenceSelection] = useState<ScopedOptionSelection | null>(null);
+  const [geoLatitude, setGeoLatitude] = useState("");
+  const [geoLongitude, setGeoLongitude] = useState("");
+  const [geoRadius, setGeoRadius] = useState("200");
+  const [geofenceReason, setGeofenceReason] = useState("Approved field attendance boundary");
 
-  const [employeeId, setEmployeeId] = useState(data.employees[0]?.id ?? 0);
-  const [worksiteId, setWorksiteId] = useState("");
+  const [employeeSelection, setEmployeeSelection] = useState<ScopedOptionSelection | null>(null);
+  const employeeId = Number(resolveScopedOption(employeeSelection, organizationId, data.employees));
+  const [worksiteSelection, setWorksiteSelection] = useState<ScopedOptionSelection | null>(null);
   const [effectiveFrom, setEffectiveFrom] = useState(localToday());
   const [effectiveUntil, setEffectiveUntil] = useState("");
   const [reason, setReason] = useState("Primary worksite assignment");
@@ -89,65 +100,52 @@ export function WorkforceWorksitesPanel({
   const [restrictionReason, setRestrictionReason] = useState("Restricted worksite access");
   const canGovernArrangements = canManage && ["owner", "admin", "bookkeeper", "hr"].includes(data.access?.role ?? "");
 
-  const [holidayWorksiteId, setHolidayWorksiteId] = useState("");
+  const [holidaySelection, setHolidaySelection] = useState<ScopedOptionSelection | null>(null);
   const [holidayDate, setHolidayDate] = useState(localToday());
   const [holidayName, setHolidayName] = useState("");
   const [holidayKind, setHolidayKind] = useState<"regular" | "special">("special");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const worksiteResponse = await fetch(
-        `/api/workforce/worksites?organizationId=${organizationId}`,
-        { cache: "no-store" },
+  const fetchWorksites = useCallback(async (signal: AbortSignal) => {
+    const worksiteResponse = await fetch(
+      `/api/workforce/worksites?organizationId=${organizationId}`,
+      { cache: "no-store", signal },
+    );
+    const worksiteBody = await worksiteResponse.json().catch(() => ({}));
+    if (!worksiteResponse.ok) {
+      throw new Error(worksiteBody.error ?? "Could not load worksites.");
+    }
+
+    let holidayRows: HolidayRow[] = [];
+    if (canManageHolidayCalendar) {
+      const holidayResponse = await fetch(
+        `/api/holidays?organizationId=${organizationId}`,
+        { cache: "no-store", signal },
       );
-      const worksiteBody = await worksiteResponse.json().catch(() => ({}));
-      if (!worksiteResponse.ok) {
-        throw new Error(worksiteBody.error ?? "Could not load worksites.");
+      const holidayBody = await holidayResponse.json().catch(() => ({}));
+      if (!holidayResponse.ok) {
+        throw new Error(holidayBody.error ?? "Could not load local holidays.");
       }
-
-      let holidayRows: HolidayRow[] = [];
-      if (canManageHolidayCalendar) {
-        const holidayResponse = await fetch(
-          `/api/holidays?organizationId=${organizationId}`,
-          { cache: "no-store" },
-        );
-        const holidayBody = await holidayResponse.json().catch(() => ({}));
-        if (!holidayResponse.ok) {
-          throw new Error(holidayBody.error ?? "Could not load local holidays.");
-        }
-        holidayRows = Array.isArray(holidayBody.holidays) ? holidayBody.holidays : [];
-      }
-
-      setPayload({
-        ...(worksiteBody as Omit<Payload, "holidays">),
-        holidays: holidayRows,
-      });
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not load worksites.", "err");
-    } finally {
-      setLoading(false);
+      holidayRows = Array.isArray(holidayBody.holidays) ? holidayBody.holidays : [];
     }
-  }, [canManageHolidayCalendar, notify, organizationId]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    const firstActive = payload?.worksites.find((site) => site.active);
-    if (!worksiteId && firstActive) {
-      setWorksiteId(String(firstActive.id));
-    }
-    if (!holidayWorksiteId && firstActive) {
-      setHolidayWorksiteId(String(firstActive.id));
-    }
-  }, [holidayWorksiteId, payload, worksiteId]);
+    return {
+      ...(worksiteBody as Omit<Payload, "holidays">),
+      holidays: holidayRows,
+    };
+  }, [canManageHolidayCalendar, organizationId]);
+  const scopeKey = JSON.stringify([organizationId, canManageHolidayCalendar]);
+  const onLoadError = useCallback((error: Error) => notify(error.message, "err"), [notify]);
+  const { data: payload, error: loadError, loading, reload: load } =
+    useScopedAsyncResource(scopeKey, fetchWorksites, onLoadError);
 
   const activeWorksites = useMemo(
     () => (payload?.worksites ?? []).filter((site) => site.active),
     [payload],
   );
+
+  const worksiteId = resolveScopedOption(worksiteSelection, organizationId, activeWorksites);
+  const geofenceWorksiteId = resolveScopedOption(geofenceSelection, organizationId, activeWorksites);
+  const holidayWorksiteId = resolveScopedOption(holidaySelection, organizationId, activeWorksites);
 
   const currentAssignments = useMemo(() => {
     const today = localToday();
@@ -208,6 +206,22 @@ export function WorkforceWorksitesPanel({
     }
   }
 
+  async function configureGeofence(disable = false) {
+    if (!geofenceWorksiteId || geofenceReason.trim().length < 10) {
+      notify("Select a worksite and enter a reason (at least ten characters).", "err");
+      return;
+    }
+    if (!disable && (!geoLatitude.trim() || !geoLongitude.trim() || !geoRadius.trim())) {
+      notify("Worksite centre coordinates and boundary radius are required.", "err");
+      return;
+    }
+    await mutate(disable ? "disable_geofence" : "configure_geofence", {
+      worksiteId: Number(geofenceWorksiteId),
+      reason: geofenceReason,
+      ...(!disable ? { latitude: Number(geoLatitude), longitude: Number(geoLongitude), radiusMeters: Number(geoRadius) } : {}),
+    }, disable ? "Site boundary disabled; HR review remains required where no other authorized site is configured." : "Site boundary configured and audited.");
+  }
+
   async function assignEmployee() {
     if (!employeeId || !worksiteId || !effectiveFrom || !reason.trim()) {
       notify("Employee, worksite, effective date and reason are required.", "err");
@@ -256,6 +270,7 @@ export function WorkforceWorksitesPanel({
 
   return (
     <article className="card" style={{ marginTop: 16 }}>
+      {loadError && <div className="notice notice-red" role="alert">{loadError.message}</div>}
       <div className="card-header">
         <div>
           <div className="card-kicker">Physical work locations</div>
@@ -335,13 +350,66 @@ export function WorkforceWorksitesPanel({
         </div>
       )}
 
+      {canManage && data.access?.companyWide && payload?.geofencePilotEnabled && activeWorksites.length > 0 && (
+        <section style={{ padding: "0 18px 18px" }} data-geofence-config>
+          <div className="card-kicker">PILOT GPS SELF-CLOCK BOUNDARIES</div>
+          <p className="field-help">
+            Employee location is checked only on clock IN/OUT and raw GPS fixes are not retained.
+            Denied or inaccurate positions must be reviewed through HR attendance procedures.
+          </p>
+          <div className="setting-form">
+            <label>Worksite
+              <select value={geofenceWorksiteId} onChange={(event) => {
+                const value = event.target.value;
+                setGeofenceSelection({ organizationId, value });
+                const site = activeWorksites.find((row) => String(row.id) === value);
+                setGeoLatitude(site?.geofenceLatitude ?? "");
+                setGeoLongitude(site?.geofenceLongitude ?? "");
+                setGeoRadius(String(site?.geofenceRadiusM ?? 200));
+              }}>
+                <option value="">Choose a worksite</option>
+                {activeWorksites.map((site) => (
+                  <option key={site.id} value={site.id}>{site.code} · {site.name}{site.geofenceConfigured ? " (configured)" : ""}</option>
+                ))}
+              </select>
+            </label>
+            <label>Centre latitude
+              <input type="number" inputMode="decimal" min="-90" max="90" step="0.0000001"
+                value={geoLatitude} onChange={(event) => setGeoLatitude(event.target.value)} />
+            </label>
+            <label>Centre longitude
+              <input type="number" inputMode="decimal" min="-180" max="180" step="0.0000001"
+                value={geoLongitude} onChange={(event) => setGeoLongitude(event.target.value)} />
+            </label>
+            <label>Radius in metres (100-2000)
+              <input type="number" inputMode="numeric" min="100" max="2000" step="1"
+                value={geoRadius} onChange={(event) => setGeoRadius(event.target.value)} />
+            </label>
+            <label>Configuration reason
+              <input value={geofenceReason} onChange={(event) => setGeofenceReason(event.target.value)} />
+            </label>
+          </div>
+          <div className="run-actions">
+            <button className="primary-button brand" disabled={saving !== null || !geofenceWorksiteId}
+              onClick={() => void configureGeofence()}>
+              <Save size={14} /> Save site boundary
+            </button>
+            <button className="secondary-button" disabled={saving !== null || !geofenceWorksiteId}
+              onClick={() => void configureGeofence(true)}>
+              Disable site boundary
+            </button>
+          </div>
+        </section>
+      )}
+
       {canManage && activeWorksites.length > 0 && (
         <div style={{ padding: "0 18px 18px" }}>
           <div className="card-kicker" style={{ marginBottom: 8 }}>Assign employee default worksite</div>
           <div className="setting-form">
             <label>
               Employee
-              <select value={employeeId || ""} onChange={(event) => setEmployeeId(Number(event.target.value))}>
+              <select value={employeeId || ""} onChange={(event) => setEmployeeSelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose an employee</option>
                 {data.employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employee.employeeNo} · {employee.firstName} {employee.lastName}
@@ -351,7 +419,8 @@ export function WorkforceWorksitesPanel({
             </label>
             <label>
               Worksite
-              <select value={worksiteId} onChange={(event) => setWorksiteId(event.target.value)}>
+              <select value={worksiteId} onChange={(event) => setWorksiteSelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose a worksite</option>
                 {activeWorksites.map((site) => (
                   <option key={site.id} value={site.id}>{site.code} · {site.name}</option>
                 ))}
@@ -378,7 +447,8 @@ export function WorkforceWorksitesPanel({
           </p>
           <div className="setting-form">
             <label>Worker
-              <select value={employeeId} onChange={(event) => setEmployeeId(Number(event.target.value))}>
+              <select value={employeeId || ""} onChange={(event) => setEmployeeSelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose an employee</option>
                 {data.employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.firstName} {employee.lastName}</option>
                 ))}
@@ -403,7 +473,8 @@ export function WorkforceWorksitesPanel({
           </div>
           <div className="setting-form" style={{ marginTop: 12 }}>
             <label>Authorize additional worksite
-              <select value={worksiteId} onChange={(event) => setWorksiteId(event.target.value)}>
+              <select value={worksiteId} onChange={(event) => setWorksiteSelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose a worksite</option>
                 {activeWorksites.map((site) => (
                   <option key={site.id} value={site.id}>{site.code} · {site.name}</option>
                 ))}
@@ -457,7 +528,8 @@ export function WorkforceWorksitesPanel({
           <div className="setting-form">
             <label>
               Worksite
-              <select value={holidayWorksiteId} onChange={(event) => setHolidayWorksiteId(event.target.value)}>
+              <select value={holidayWorksiteId} onChange={(event) => setHolidaySelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose a worksite</option>
                 {activeWorksites.map((site) => (
                   <option key={site.id} value={site.id}>{site.code} · {site.name}</option>
                 ))}

@@ -15,7 +15,7 @@ import { roleHasPeopleWorkspace } from "@/lib/workspace-role-ui";
  * read. Never infer an employee from an HR user's first membership.
  */
 export type HcmNavigationLocation =
-  | "peopleHome" | "processMonitor" | "worker360" | "inbox" | "directory";
+  | "peopleHome" | "processMonitor" | "worker360" | "actionCenter" | "orgExplorer" | "inbox" | "directory";
 
 export type HcmNavigationLink = {
   id: HcmNavigationLocation;
@@ -85,6 +85,27 @@ export function buildHcmNavigation(
       id: "worker360", label: "Worker 360",
       href: "/hcm/worker-360?organizationId=" + organizationId +
         "&employeeId=" + safeWorkerId,
+    });
+  }
+
+  if (canPeopleWorkspace && peopleHomeEnabledForOrganization(organizationId, env)) {
+    links.push({
+      id: "actionCenter", label: "Action Center",
+      href: "/hcm/action-center?organizationId=" + organizationId,
+    });
+  }
+
+  const orgExplorerEnabled = canPeopleWorkspace &&
+    env.HCM_ORG_EXPLORER_ENABLED === "true" &&
+    env.NEXT_PUBLIC_HCM_ORG_EXPLORER_ENABLED === "true" &&
+    (env.HCM_ORG_EXPLORER_ORG_IDS ?? "").split(",")
+      .some((part) => explicitHcmEmployerId(part.trim()) === organizationId) &&
+    (env.NEXT_PUBLIC_HCM_ORG_EXPLORER_ORG_IDS ?? "").split(",")
+      .some((part) => explicitHcmEmployerId(part.trim()) === organizationId);
+  if (orgExplorerEnabled) {
+    links.push({
+      id: "orgExplorer", label: "Org Explorer",
+      href: "/hcm/org-explorer?organizationId=" + organizationId,
     });
   }
 

@@ -21,11 +21,11 @@ test("missing, short or malformed cron secrets cannot turn on the scheduler", ()
   }
 });
 
-test("cron is scheduled separately and stays behind the explicit activation gate", () => {
+test("Hobby config omits unsupported cron while endpoint stays behind the explicit activation gate", () => {
   const config = JSON.parse(readFileSync("vercel.json", "utf8")) as {
-    crons: Array<{ path: string; schedule: string }>;
+    crons?: Array<{ path: string; schedule: string }>;
   };
-  assert.deepEqual(config.crons, [{ path: "/api/jobs/cron", schedule: "*/5 * * * *" }]);
+  assert.equal(config.crons, undefined, "Hobby must not register an unsupported five-minute cron");
   const route = readFileSync("src/app/api/jobs/cron/route.ts", "utf8");
   assert.ok(route.includes("cronAuthorization(request)"));
   const auth = route.indexOf('if (auth !== "authorized")');

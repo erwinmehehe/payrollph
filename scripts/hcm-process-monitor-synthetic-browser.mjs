@@ -102,10 +102,48 @@ async function main() {
     const homeNav = page.getByRole("navigation", { name: "HCM workspace navigation" });
     assert.equal(await homeNav.getByRole("link", { name: "People Home" })
       .getAttribute("aria-current"), "page");
-    assert.equal(await homeNav.getByRole("link", { name: "Process monitor" })
+    assert.equal(await homeNav.getByRole("link", { name: "Process monitor" }).count(), 0,
+      "Everyday People Home navigation must hide advanced destinations");
+    const advanced = page.locator("details").filter({
+      has: page.locator("summary", { hasText: "Advanced HCM tools" }),
+    }).first();
+    await advanced.waitFor();
+    assert.equal(await advanced.evaluate((element) => element.open), false,
+      "Enterprise HCM tools must be collapsed on entry");
+    await advanced.locator("summary").focus();
+    await page.keyboard.press("Enter");
+    assert.equal(await advanced.evaluate((element) => element.open), true,
+      "Keyboard must expand Workday-depth navigation");
+    assert.equal(await advanced.getByRole("link", { name: "Process monitor" })
       .getAttribute("href"), "/hcm/process-monitor?organizationId=1");
     await assertHcmSemantics(page, "People Home");
-    await homeNav.getByRole("link", { name: "Process monitor" }).focus();
+    assert.equal(await advanced.getByRole("link", { name: "Action Center" })
+      .getAttribute("href"), "/hcm/action-center?organizationId=1");
+    await advanced.getByRole("link", { name: "Action Center" }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("heading", { level: 1, name: "HCM Action Center" }).waitFor();
+    const actionNav = page.getByRole("navigation", { name: "HCM workspace navigation" });
+    assert.equal(await actionNav.getByRole("link", { name: "Action Center" })
+      .getAttribute("aria-current"), "page");
+    await page.getByRole("heading", { level: 2, name: "Governed HCM decisions" }).waitFor();
+    const inboxData = await browserGet(page,
+      "/api/hcm/business-processes/inbox?organizationId=1");
+    assert.equal(inboxData.status, 200, "Authorized HR can read employer-scoped HCM decisions");
+    assert.ok(inboxData.cacheControl?.includes("no-store"));
+    assert.equal(inboxData.data.meta.companyHistoryAvailable, true);
+    assert.ok(inboxData.data.myWork.every((item) =>
+      !Object.hasOwn(item, "sourceKey") && !Object.hasOwn(item, "definitionSnapshot")));
+    const inboxJson = JSON.stringify(inboxData.data);
+    for (const sourceSecret of ["AlphaPrivate test data", "BetaPrivate test data",
+      "AlphaPrivate salary detail", "sourceEvidence", "decisionNote"]) {
+      assert.ok(!inboxJson.includes(sourceSecret),
+        "Private source material must not cross HCM Inbox projection: " + sourceSecret);
+    }
+    const wrongCompanyInbox = await browserGet(page,
+      "/api/hcm/business-processes/inbox?organizationId=999");
+    assert.equal(wrongCompanyInbox.status, 403);
+    await assertHcmSemantics(page, "HCM Action Center");
+    await actionNav.getByRole("link", { name: "Process monitor" }).focus();
     await page.keyboard.press("Enter");
     await page.getByRole("heading", { level: 1, name: "Business Process Monitor" }).waitFor();
     await page.getByRole("navigation", { name: "HCM workspace navigation" })
@@ -251,8 +289,25 @@ async function main() {
     assert.equal(await financeNav.getByRole("link", { name: "Process monitor" }).count(), 0);
     assert.equal(await financeNav.getByRole("link", { name: "Worker 360" }).count(), 0);
     assert.equal(await financeNav.getByRole("link", { name: "HCM Inbox" }).count(), 0);
+    assert.equal(await financeNav.getByRole("link", { name: "Action Center" }).count(), 0);
+    // Use the authenticated browser, not Playwright's separate API request
+    // cookie policy for Secure localhost sessions.
+    const financeDeniedPage = await finance.newPage();
+    const bookkeeperActionCenter = await financeDeniedPage.goto(
+      app + "/hcm/action-center?organizationId=1",
+      { waitUntil: "domcontentloaded", timeout: 60000 },
+    );
+    assert.equal(bookkeeperActionCenter?.status(), 404,
+      "Bookkeeper must not open the company-wide HCM Action Center");
+    await financeDeniedPage.close();
     assert.equal(await financeNav.getByRole("link", { name: "People directory" }).count(), 0);
     assert.equal(await financePage.getByRole("link", { name: "Open HCM Inbox" }).count(), 0);
+    const financeInbox = await browserGet(financePage,
+      "/api/hcm/business-processes/inbox?organizationId=1");
+    assert.equal(financeInbox.status, 200);
+    assert.equal(financeInbox.data.meta.companyHistoryAvailable, false,
+      "Bookkeeper cannot read unrelated company-wide HCM history");
+    assert.deepEqual(financeInbox.data.recent, financeInbox.data.submitted);
     const financeWorker = await browserGet(financePage,
       "/api/hcm/worker-360?organizationId=1&employeeId=1");
     assert.equal(financeWorker.status, 403, "Bookkeeper cannot access Worker 360 API");

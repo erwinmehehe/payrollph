@@ -237,7 +237,16 @@ export function parseFilingOutcome(
 
   let submittedAt: Date | null = null;
   if (input.submittedAt !== undefined && input.submittedAt !== null && input.submittedAt !== "") {
-    const parsed = new Date(String(input.submittedAt));
+    const rawDate = String(input.submittedAt);
+    // JavaScript Date silently normalizes impossible dates such as 2026-02-30.
+    // Government acknowledgements must have a real ISO calendar day.
+    const shape = /^(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2}))?$/.exec(rawDate);
+    if (!shape) return { ok: false, error: "submittedAt is not a valid date; use ISO YYYY-MM-DD or an ISO timestamp." };
+    const calendarDay = new Date(Date.UTC(Number(shape[1]), Number(shape[2]) - 1, Number(shape[3])));
+    if (!Number.isFinite(calendarDay.getTime()) || calendarDay.toISOString().slice(0, 10) !== rawDate.slice(0, 10)) {
+      return { ok: false, error: "submittedAt is not a valid calendar date." };
+    }
+    const parsed = new Date(rawDate);
     if (Number.isNaN(parsed.getTime())) return { ok: false, error: "submittedAt is not a valid date." };
     if (parsed.getTime() > now.getTime() + ONE_DAY_MS) return { ok: false, error: "submittedAt cannot be in the future." };
     submittedAt = parsed;
@@ -286,8 +295,25 @@ export type FilingEvidenceRow = {
 };
 
 /**
- * True only when the agency accepted an upload of a file in the layout Linaw
- * produces today. This is the single definition readiness and the scorecard use.
+ * Accepted status alone is insufficient: legacy records may predate mandatory
+ * agency acknowledgement fields. An evidence row must have a real timestamp
+ * and nonblank agency-issued reference before influencing readiness.
+ *
+ * This verifies the RECORD is complete; it does not independently authenticate
+ * a government portal receipt. Employer acceptance is a separate pilot gate.
+ */
+export function hasRecordedAgencyAcknowledgement(row: FilingEvidenceRow): boolean {
+  return Boolean(
+    REFERENCE_PATTERN.test(row.agencyReference?.trim() ?? "")
+    && row.submittedAt instanceof Date
+    && Number.isFinite(row.submittedAt.getTime()),
+  );
+}
+
+/**
+ * An operator-recorded acceptance of the CURRENT worksheet file format.
+ * This does not independently authenticate the portal receipt or certify the
+ * import template, which remains subject to real-employer agency validation.
  */
 export function provesFileFormat(row: FilingEvidenceRow, definition: FilingFormDefinition): boolean {
   // 1604-C legacy evidence refers to a payroll-source CSV, not the prescribed
@@ -298,6 +324,7 @@ export function provesFileFormat(row: FilingEvidenceRow, definition: FilingFormD
     && row.form === definition.form
     && row.status === "accepted"
     && row.submissionMethod === "file_upload"
+    && hasRecordedAgencyAcknowledgement(row)
     && definition.submissionMethods.includes(row.submissionMethod as SubmissionMethod)
     && row.generatorVersion === definition.generatorVersion
   );
@@ -318,10 +345,10 @@ export function provesOperationalFiling(
     row.agency === definition.agency
     && row.form === definition.form
     && row.status === "accepted"
+    && hasRecordedAgencyAcknowledgement(row)
     && definition.submissionMethods.includes(row.submissionMethod as SubmissionMethod)
     && (row.submissionMethod === "file_upload" || row.submissionMethod === "manual_entry")
     && row.generatorVersion === definition.generatorVersion
-    && Boolean(row.agencyReference?.trim())
   );
 }
 

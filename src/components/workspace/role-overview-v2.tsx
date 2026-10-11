@@ -25,18 +25,20 @@ export function RoleOverviewV2({
   role,
   onPage,
   onNewRun,
+  onFocusEmployee,
 }: {
   data: DashboardData;
   currentRun?: PayrollRun;
   role: RoleOverviewV2Role;
   onPage: (page: string) => void;
   onNewRun: () => void;
+  onFocusEmployee?: (employeeId: number) => void;
 }) {
   const firstName = (data.user?.name ?? "there").split(" ")[0];
   if (role === "owner") return <OwnerWorkspace data={data} currentRun={currentRun} firstName={firstName} onPage={onPage} onNewRun={onNewRun} />;
   if (role === "payroll") return <PayrollWorkspace data={data} currentRun={currentRun} firstName={firstName} onPage={onPage} onNewRun={onNewRun} />;
   if (role === "checker") return <CheckerWorkspace data={data} currentRun={currentRun} firstName={firstName} onPage={onPage} />;
-  if (role === "hr") return <HrWorkspace data={data} currentRun={currentRun} firstName={firstName} onPage={onPage} />;
+  if (role === "hr") return <HrWorkspace data={data} currentRun={currentRun} firstName={firstName} onPage={onPage} onFocusEmployee={onFocusEmployee} />;
   return <BookkeeperWorkspace data={data} currentRun={currentRun} firstName={firstName} onPage={onPage} />;
 }
 
@@ -45,6 +47,7 @@ type CommonProps = {
   currentRun?: PayrollRun;
   firstName: string;
   onPage: (page: string) => void;
+  onFocusEmployee?: (employeeId: number) => void;
 };
 
 function OwnerWorkspace({ data, currentRun, firstName, onPage, onNewRun }: CommonProps & { onNewRun: () => void }) {
@@ -324,7 +327,7 @@ function CheckerWorkspace({ data, currentRun, firstName, onPage }: CommonProps) 
   );
 }
 
-function HrWorkspace({ data, currentRun, firstName, onPage }: CommonProps) {
+function HrWorkspace({ data, currentRun, firstName, onPage, onFocusEmployee }: CommonProps) {
   const { active: activePeople, missingBank, missingIds, attendance, provisioning, attention } = summarizePeopleRecords(data);
   const pendingLeave = (data.leaveRequests ?? []).filter((request) => request.status === "Pending");
   const ready = activePeople.length - attention.length;
@@ -405,7 +408,10 @@ function HrWorkspace({ data, currentRun, firstName, onPage }: CommonProps) {
                 <div className="mockup-table-row" key={employee.id}>
                   <PersonCell employee={employee} />
                   <div className="mockup-blocker-copy">{blockers.join(", ")}</div>
-                  <button type="button" onClick={() => onPage(target)}>{target === "Time & attendance" ? "Open attendance" : "Resolve"}</button>
+                  <button type="button" onClick={() => {
+                    if (target === "People" && onFocusEmployee) onFocusEmployee(employee.id);
+                    else onPage(target);
+                  }}>{target === "Time & attendance" ? "Open attendance" : "Open employee"}</button>
                 </div>
               );
             })}

@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, ArrowRight, Building2, CalendarClock, CheckCircle2,
-  ClipboardCheck, RefreshCcw, Search, ShieldCheck, UsersRound,
+  ClipboardCheck, Clock3, FileWarning, RefreshCcw, Search, ShieldCheck, UsersRound,
 } from "lucide-react";
 import { MY_TEAM_STATUSES, type MyTeamResponse, type MyTeamStatusFilter } from "@/lib/hcm-my-team-contract";
+import { HcmMyTeamActionCenter } from "@/components/hcm-my-team-action-center";
 
 type FetchState = {
   scopeKey: string;
@@ -32,7 +33,16 @@ function observedInManila(value: string) {
  * One employer at a time. Read-only team overview only:
  * approvals and staffing changes remain in the owning source workflows.
  */
-export function HcmMyTeamClient({ organizationId }: { organizationId: number }) {
+export function HcmMyTeamClient({
+  organizationId, pilotFocusEnabled = false,
+}: { organizationId: number; pilotFocusEnabled?: boolean }) {
+  return <ScopedMyTeam key={organizationId} organizationId={organizationId}
+    pilotFocusEnabled={pilotFocusEnabled} />;
+}
+
+function ScopedMyTeam({
+  organizationId, pilotFocusEnabled,
+}: { organizationId: number; pilotFocusEnabled: boolean }) {
   const [searchDraft, setSearchDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<MyTeamStatusFilter>("all");
@@ -45,7 +55,7 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
 
   useEffect(() => {
     const controller = new AbortController();
-    setStored({ scopeKey, status: "loading", value: null });
+    // A new scope has no completed response; loading is derived during render.
     const query = new URLSearchParams({
       organizationId: String(organizationId),
       cursor: String(cursor),
@@ -65,6 +75,12 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
           data.statusFilter !== statusFilter ||
           !["company", "unit"].includes(data.scope?.kind) ||
           !Array.isArray(data.items) || data.items.length > 25 ||
+          !data.summary ||
+          data.summary.employeeRecordsThisPage !== data.items.length ||
+          !Number.isSafeInteger(data.summary.pendingLeaveRecordsThisPage) ||
+          !Number.isSafeInteger(data.summary.pendingOvertimeRecordsThisPage) ||
+          !Number.isSafeInteger(data.summary.pendingAttendanceCorrectionsThisPage) ||
+          !Number.isSafeInteger(data.summary.incompletePunchRecordsThisPage) ||
           data.page?.size !== 25 || typeof data.page.hasMore !== "boolean" ||
           (data.page.hasMore && (
             typeof data.page.nextCursor !== "number" ||
@@ -73,8 +89,10 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
           )) ||
           data.items.some((item) =>
             !Number.isSafeInteger(item.id) || item.id <= cursor ||
-            !Number.isSafeInteger(item.pendingLeaveRecords) ||
-            !Number.isSafeInteger(item.pendingOvertimeRecords)
+            !Number.isSafeInteger(item.pendingLeaveRecords) || item.pendingLeaveRecords < 0 ||
+            !Number.isSafeInteger(item.pendingOvertimeRecords) || item.pendingOvertimeRecords < 0 ||
+            !Number.isSafeInteger(item.pendingAttendanceCorrections) || item.pendingAttendanceCorrections < 0 ||
+            !Number.isSafeInteger(item.incompletePunchRecords) || item.incompletePunchRecords < 0
           )) {
         throw new Error("My Team data did not match the selected employer or query.");
       }
@@ -91,13 +109,21 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
   const active = stored?.scopeKey === scopeKey ? stored : null;
   const data = active?.status === "ready" ? active.value : null;
   const hasPrevious = cursors.length > 1;
+  // This is only navigation discovery. The calendar verifies the employer,
+  // current unit, permission set and live server feature gate independently.
+  const canOpenLeaveCalendar =
+    process.env.NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ENABLED === "true" &&
+    (process.env.NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ORG_IDS ?? "").split(",")
+      .some((id) => id.trim() === String(organizationId));
 
   function applySearch() {
+    setRefreshCount((value) => value + 1);
     setSearchQuery(searchDraft.trim());
     setCursors([0]);
   }
 
   function clearFilters() {
+    setRefreshCount((value) => value + 1);
     setSearchDraft("");
     setSearchQuery("");
     setStatusFilter("all");
@@ -107,7 +133,7 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
   return (
     <main className="min-h-screen bg-slate-50 px-4 pb-14 pt-7 text-slate-900 sm:px-8">
       <div className="mx-auto max-w-6xl">
-        <Link href="/app" className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-emerald-800 hover:underline">
+        <Link href={"/app?organizationId=" + organizationId} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-emerald-800 hover:underline">
           <ArrowLeft aria-hidden="true" size={16} /> Back to workspace
         </Link>
 
@@ -133,6 +159,23 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
             </div>
           </div>
         </header>
+
+        {canOpenLeaveCalendar && data && (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Team Leave Calendar</p>
+              <p className="mt-1 text-xs text-slate-700">
+                Review approved and pending leave request date spans, not confirmed absences or shift coverage.
+              </p>
+            </div>
+            <Link
+              href={`/hcm/team-leave-calendar?organizationId=${organizationId}`}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900"
+            >
+              <CalendarClock size={16} aria-hidden="true" /> Open leave calendar
+            </Link>
+          </div>
+        )}
 
         <section aria-label="Scope information" className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex items-start gap-3">
@@ -166,7 +209,7 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
 
         {data && (
           <>
-            <section aria-label="Current page summary" className="mt-6 grid gap-3 sm:grid-cols-3">
+            <section aria-label="Current page summary" className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               {[
                 {
                   label: "Employee records / this page",
@@ -186,6 +229,18 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
                   hint: "Request count, not payroll hours",
                   Icon: ClipboardCheck,
                 },
+                {
+                  label: "Pending attendance corrections / this page",
+                  value: data.summary.pendingAttendanceCorrectionsThisPage,
+                  hint: "Requests awaiting a source decision",
+                  Icon: FileWarning,
+                },
+                {
+                  label: "Incomplete punch records / this page",
+                  value: data.summary.incompletePunchRecordsThisPage,
+                  hint: "May include ongoing shifts",
+                  Icon: Clock3,
+                },
               ].map((metric) => (
                 <article key={metric.label} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
                   <div className="flex items-center justify-between">
@@ -197,6 +252,8 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
                 </article>
               ))}
             </section>
+            <HcmMyTeamActionCenter organizationId={organizationId} summary={data.summary}
+              pilotFocusEnabled={pilotFocusEnabled} />
           </>
         )}
 
@@ -229,6 +286,7 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
               <label htmlFor="hcm-team-status" className="block text-xs font-semibold text-slate-700">Employment status</label>
               <select id="hcm-team-status" value={statusFilter}
                 onChange={(event) => {
+                  setRefreshCount((value) => value + 1);
                   setStatusFilter(event.target.value as MyTeamStatusFilter);
                   setCursors([0]);
                 }}
@@ -290,9 +348,16 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
                       <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700">
                         <ClipboardCheck size={14} aria-hidden="true" /> Pending overtime: {member.pendingOvertimeRecords}
                       </span>
-                      {member.pendingLeaveRecords === 0 && member.pendingOvertimeRecords === 0 && (
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700">
+                        <FileWarning size={14} aria-hidden="true" /> Pending attendance corrections: {member.pendingAttendanceCorrections}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-lg bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700">
+                        <Clock3 size={14} aria-hidden="true" /> Incomplete punches: {member.incompletePunchRecords}
+                      </span>
+                      {member.pendingLeaveRecords === 0 && member.pendingOvertimeRecords === 0 &&
+                        member.pendingAttendanceCorrections === 0 && member.incompletePunchRecords === 0 && (
                         <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900">
-                          <CheckCircle2 size={14} aria-hidden="true" /> No pending leave or overtime records returned
+                          <CheckCircle2 size={14} aria-hidden="true" /> No pending leave, overtime, correction or incomplete-punch records returned
                         </span>
                       )}
                     </div>
@@ -302,7 +367,7 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
 
               <nav aria-label="Team directory pages" className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
                 <button type="button" disabled={!hasPrevious}
-                  onClick={() => setCursors((history) => history.length > 1 ? history.slice(0, -1) : history)}
+                  onClick={() => { setCursors((history) => history.length > 1 ? history.slice(0, -1) : history); setRefreshCount((value) => value + 1); }}
                   className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40">
                   <ArrowLeft aria-hidden="true" size={16} /> Newer
                 </button>
@@ -310,7 +375,7 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
                 <button type="button"
                   disabled={!data.page.hasMore || data.page.nextCursor === null}
                   onClick={() => {
-                    if (data.page.nextCursor !== null) setCursors((history) => [...history, data.page.nextCursor!]);
+                    if (data.page.nextCursor !== null) { setCursors((history) => [...history, data.page.nextCursor!]); setRefreshCount((value) => value + 1); }
                   }}
                   className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40">
                   Older <ArrowRight aria-hidden="true" size={16} />

@@ -25,6 +25,7 @@ import {
   jobRequisitions,
   payrollEntries,
   payrollRuns,
+  performanceGoals,
   performanceReviews,
   hcmPolicyAssignments,
   hcmPolicyVersions,
@@ -744,6 +745,7 @@ export async function GET(request: Request) {
   const [
     linkedApplicantRows,
     latestReviewRows,
+    recentEmployeeGoalRows,
     latestCompensationRows,
     releasedPayrollRows,
   ] = await Promise.all([
@@ -769,6 +771,16 @@ export async function GET(request: Request) {
       eq(performanceReviews.organizationId, organizationId),
       eq(performanceReviews.employeeId, employeeId),
     )).orderBy(desc(performanceReviews.createdAt), desc(performanceReviews.id)).limit(1),
+    // A tiny, employer/worker-filtered preview; never fetch goal descriptions,
+    // ratings, private comments or full-history counts for the journey.
+    db.select({
+      id: performanceGoals.id,
+      status: performanceGoals.status,
+    }).from(performanceGoals).where(and(
+      eq(performanceGoals.organizationId, organizationId),
+      eq(performanceGoals.employeeId, employeeId),
+      eq(performanceGoals.scope, "employee"),
+    )).orderBy(desc(performanceGoals.id)).limit(21),
     compensationVisible
       ? db.select({
           id: compensationProposals.id,
@@ -805,6 +817,10 @@ export async function GET(request: Request) {
     onboarding: taskRows.filter((row) => row.kind === "onboarding"),
     offboarding: taskRows.filter((row) => row.kind === "offboarding"),
     latestPerformance: latestReviewRows[0] ?? null,
+    goalPreview: {
+      recent: recentEmployeeGoalRows.slice(0, 20),
+      hasMore: recentEmployeeGoalRows.length > 20,
+    },
     compensationVisible,
     latestCompensation: latestCompensationRows[0] ?? null,
     payrollVisible,
