@@ -2,26 +2,32 @@
 
 import { ArrowRight, Check, CircleAlert, ShieldCheck, UsersRound, WalletCards } from "lucide-react";
 import type { FirstPayrollReadiness as FirstPayrollReadinessState } from "@/lib/first-payroll-readiness";
+import { buildFirstPayrollJourney } from "@/lib/first-payroll-journey";
 
 export function FirstPayrollReadinessCard({
   readiness,
   onPage,
   onNewRun,
+  onSettings,
 }: {
   readiness: FirstPayrollReadinessState;
   onPage: (page: string) => void;
   onNewRun: () => void;
+  onSettings?: (tab: "organization" | "team") => void;
 }) {
-  if (readiness.firstPayrollReleased) return null;
+  // Keep the export/filing handoff visible after the first run is released.
+  // Once a second run exists, the employer has completed the initial journey.
+  if (readiness.firstPayrollReleased && readiness.payrollRunCount > 1) return null;
 
   const percent = Math.round((readiness.completed / readiness.total) * 100);
+  const journey = buildFirstPayrollJourney(readiness);
 
   return (
     <section className="first-payroll-card" aria-label="First payroll setup readiness">
       <div className="first-payroll-head">
         <div>
           <div className="first-payroll-kicker"><ShieldCheck size={14} /> FIRST PAYROLL</div>
-          <h2>{readiness.ready ? "Workspace setup complete." : "Complete first-payroll setup."}</h2>
+          <h2>{readiness.ready ? "Workspace setup complete." : "Your guided first payroll."}</h2>
           <p>
             {readiness.ready
               ? "Roster, payout details and assigned payroll/checker roles are configured. Payroll calculation and release still require separate checks."
@@ -39,6 +45,27 @@ export function FirstPayrollReadinessCard({
         <span style={{ width: `${percent}%` }} />
       </div>
 
+      <ol aria-label="Guided first payroll journey" className="grid gap-3 md:grid-cols-2" style={{ margin: "16px 0", padding: 0, listStyle: "none" }}>
+        {journey.map((step, index) => (
+          <li key={step.key} className="rounded-xl border p-4" style={{ borderColor: "var(--line)", background: "var(--canvas-subtle)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <strong>{index + 1}. {step.title}</strong>
+              <span className="text-xs" style={{ marginLeft: "auto", color: "var(--muted)" }}>
+                {step.state === "complete" ? "Setup recorded" : step.state === "review" ? "Human review needed" : step.state === "available" ? "Next action" : "Upcoming"}
+              </span>
+            </div>
+            <p style={{ fontSize: 12, margin: "8px 0" }}>{step.detail}</p>
+            {step.state !== "complete" && step.state !== "upcoming" && (
+              <button type="button" className="first-payroll-link" onClick={() => {
+                if (step.settingsTab && onSettings) onSettings(step.settingsTab);
+                onPage(step.page);
+              }}>
+                {step.actionLabel} <ArrowRight size={13} />
+              </button>
+            )}
+          </li>
+        ))}
+      </ol>
       <div className="first-payroll-grid">
         {readiness.items.map((item) => (
           <article className={item.ready ? "first-payroll-item is-ready" : "first-payroll-item"} key={item.key}>
@@ -50,7 +77,12 @@ export function FirstPayrollReadinessCard({
               <p>{item.detail}</p>
             </div>
             {!item.ready && (
-              <button className="first-payroll-link" onClick={() => onPage(item.actionPage)}>
+              <button className="first-payroll-link" onClick={() => {
+                if (item.actionPage === "Settings" && onSettings) {
+                  onSettings(item.key === "workspace" ? "organization" : "team");
+                }
+                onPage(item.actionPage);
+              }}>
                 {item.actionLabel} <ArrowRight size={13} />
               </button>
             )}
@@ -62,19 +94,25 @@ export function FirstPayrollReadinessCard({
         <div>
           <WalletCards size={17} />
           <span>
-            {readiness.ready
-              ? readiness.firstPayrollStarted
-                ? "Your first payroll run has started. Review calculations, exceptions and approval status in Payroll."
-                : "Setup checks are green. Review employee pay inputs, attendance and statutory deductions before calculating."
-              : "Finish the five setup checks before starting a payroll calculation."}
+            {readiness.firstPayrollReleased
+              ? "Your first payroll was released. Prepare payslips, filing worksheets and independently recorded government acknowledgements in Exports."
+              : readiness.ready
+                ? readiness.firstPayrollStarted
+                  ? "Your first payroll run has started. Review calculations, exceptions and approval status in Payroll."
+                  : "Setup checks are green. Review employee pay inputs, attendance and statutory deductions before calculating."
+                : "Finish the five setup checks before starting a payroll calculation."}
           </span>
         </div>
         {readiness.ready && (
           <button
             className="primary-button"
-            onClick={readiness.firstPayrollStarted ? () => onPage("Payroll") : onNewRun}
+            onClick={readiness.firstPayrollReleased
+              ? () => onPage("Exports")
+              : readiness.firstPayrollStarted ? () => onPage("Payroll") : onNewRun}
           >
-            {readiness.firstPayrollStarted ? "Open payroll" : "Start first payroll"} <ArrowRight size={15} />
+            {readiness.firstPayrollReleased
+              ? "Open exports"
+              : readiness.firstPayrollStarted ? "Open payroll" : "Start first payroll"} <ArrowRight size={15} />
           </button>
         )}
       </div>

@@ -12,7 +12,6 @@ import { CompensationPanel } from "@/components/compensation-panel";
 import { HcmDocumentsPanel } from "@/components/hcm-documents-panel";
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
-import { SaasOnboardingQuickstart } from "@/components/saas-onboarding-quickstart";
 import { HrisHomeShortcuts } from "@/components/hris-home-shortcuts";
 import { DisciplinePanel } from "@/components/discipline-panel";
 import { LoansPanel } from "@/components/loans-panel";
@@ -63,7 +62,7 @@ import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll,
 import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 
-export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean }) {
+export function LinawWorkspace({ initialData, pilotFocusEnabled = false }: { initialData: DashboardData; pilotFocusEnabled?: boolean }) {
   const searchParams = useSearchParams();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
@@ -401,15 +400,6 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
 
         {page === "Overview" && (
           <>
-            {isSelfServeCustomer && data.payrollRuns.length === 0 && (
-              <SaasOnboardingQuickstart
-                companyName={data.selectedOrganization.name}
-                employees={data.employees.length}
-                runs={data.payrollRuns.length}
-                onPage={setPage}
-                onAddEmployee={() => setNewHireOpen(true)}
-              />
-            )}
             {hrisShortcuts.length > 0 && (
               <HrisHomeShortcuts actions={hrisShortcuts} onPage={setPage} />
             )}
@@ -434,10 +424,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
                 readiness={data.firstPayrollReadiness}
-                onPage={(targetPage) => {
-                  if (targetPage === "Settings") setSettingsInitialTab("team");
-                  setPage(targetPage);
-                }}
+                onSettings={setSettingsInitialTab}
+                onPage={setPage}
                 onNewRun={() => setNewPayrollOpen(true)}
               />
             )}
