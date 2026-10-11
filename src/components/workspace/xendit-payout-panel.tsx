@@ -26,6 +26,7 @@ export function XenditPayoutPanel({
   const [message, setMessage] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
   const [payoutId, setPayoutId] = useState("");
+  const [reconcileCursor, setReconcileCursor] = useState(0);
 
   async function refresh() {
     const response = await fetch(`/api/payroll-runs/${runId}/xendit-payout`,
@@ -35,6 +36,7 @@ export function XenditPayoutPanel({
     setStatus(data as Status);
   }
   useEffect(() => {
+    setReconcileCursor(0);
     let active = true;
     const controller = new AbortController();
     void fetch(`/api/payroll-runs/${runId}/xendit-payout`,
@@ -97,20 +99,25 @@ export function XenditPayoutPanel({
     setMessage("");
     try {
       let checked = 0;
-      let cursor = 0;
+      let cursor = reconcileCursor;
       let hasMore = false;
-      for (let page = 0; page < 30; page += 1) {
+      for (let page = 0; page < 10; page += 1) {
         const result = await command("reconcile", { cursor });
         checked += Number(result.checked ?? 0);
         hasMore = result.hasMore === true;
-        if (!hasMore) break;
+        if (!hasMore) {
+          cursor = 0;
+          setReconcileCursor(0);
+          break;
+        }
         const next = Number(result.nextCursor);
         if (!Number.isSafeInteger(next) || next <= cursor) {
           throw new Error("Invalid reconciliation continuation; no transfers were retried.");
         }
         cursor = next;
+        setReconcileCursor(cursor);
       }
-      setMessage(`Checked ${checked} Xendit transfer(s). ${hasMore ? "More records remain; run refresh again to continue." : "All pages checked."} Reversed, failed or uncertain transfers require review.`);
+      setMessage(`Checked ${checked} Xendit transfer(s). ${hasMore ? "More records remain; click Refresh again to continue from the saved position." : "All pages checked."} Reversed, failed and uncertain transfers require review.`);
       await refresh(); await onRefresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Reconciliation failed."); }
     finally { setBusy(""); }
