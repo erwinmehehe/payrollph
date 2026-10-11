@@ -33,9 +33,11 @@ test("HCM command center is read-only and company-wide",()=>{
   assert.match(source,/peopleHomeEnabledForOrganization\(organizationId\)/);
   assert.match(source,/explicitHcmEmployerId/);
   assert.doesNotMatch(source,/primaryCompanyOrganizationId/);
-  assert.match(source,/hcmLifecycleNotificationTasks/);
-  assert.match(source,/automationOperationalCases/);
+  const projection=read("src/lib/hcm-people-home-worklist.ts");
+  assert.match(projection,/hcmLifecycleNotificationTasks/);
+  assert.match(projection,/assigned_owner_user_id/);
   assert.doesNotMatch(source,/db\.(insert|update|delete)\(/);
+  assert.doesNotMatch(projection,/db\.(insert|update|delete)\(/);
 });
 test("canonical sequential migration fields exist in Drizzle schema",()=>{
   const schema=read("src/db/schema.ts");

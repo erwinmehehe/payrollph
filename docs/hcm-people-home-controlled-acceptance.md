@@ -7,12 +7,16 @@ Status: source-only implementation on draft PR #755. Not production acceptance o
 - One employer context chosen by the authenticated user; no implicit first-employer fallback on People Home.
 - Three distinct read-only source previews:
   - My HCM decisions: currently pending steps whose recorded assignee matches the signed-in user or their legitimate delegated role using the existing decision resolver.
-  - People Ops follow-ups: evidence findings from the existing company-wide HR triage source. These are NOT assigned approvals.
+  - People Ops follow-ups: bounded samples of unresolved lifecycle notifications and incomplete onboarding/offboarding provisioning only. These are NOT assigned approvals and do NOT represent the complete HR triage source.
   - Cases assigned to me: unresolved operational cases with the user explicitly recorded as owner.
 - Decisions, HR source corrections and case updates remain in existing governed modules. No new action mutation, worker master, payroll rule, bank or schema migration is introduced.
-- HCM decision preview examines at most 30 source candidates, returning up to five authorized rows. It is a preview, **not** a guaranteed complete assigned-task total. People Ops and owned-case lists show up to five rows and explicit extra-item notices.
-- Source outages are rendered as unavailable, not an empty queue.
+- HCM decision preview examines at most 30 source candidates, batches membership/delegation checks in two tenant-qualified queries, and returns up to five authorized rows. People Ops reads at most seven lifecycle rows and seven provisioning rows; owned cases read at most six rows. The UI presents only five per group, never a complete count.
+- Source outages are rendered as unavailable, not an empty queue. Date-only lifecycle milestones are distinguished from true timed workflow deadlines. People Ops is always shown as a partial source sample.
 - Payroll amounts, bank accounts, statutory IDs, performance scores, private notes and employee identifying fields are excluded from the People Home task projection.
+
+## Activation gate
+
+Both `HCM_PEOPLE_HOME_ENABLED=true` and `NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED=true` AND a canonical numeric employer in `HCM_PEOPLE_HOME_ORG_IDS` are required. The server route returns 404 if any check fails. Keep all three settings OFF/empty in production until protected staging and the named approvals in #695 are complete.
 
 ## Release checks before merge or enablement
 

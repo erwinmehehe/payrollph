@@ -6,8 +6,9 @@ const read = (path: string) => readFileSync(path, "utf8");
 
 test("People Home aggregates only source-owned work, never creates approvals or pay changes", () => {
   const projection = read("src/lib/hcm-people-home-worklist.ts");
-  assert.match(projection, /loadPeopleOperationsInbox/);
-  assert.match(projection, /canDecide\(organizationId, item.assignee, user.name, user.id\)/);
+  assert.match(projection, /loadPeopleHomeAssigneePermissions/);
+  assert.ok(!projection.includes("loadPeopleOperationsInbox"), "People Home must not load unbounded People Ops sources");
+  assert.match(projection, /const permissions = await loadPeopleHomeAssigneePermissions/);
   assert.match(projection, /assigned_owner_user_id = \$2/);
   assert.match(projection, /Promise.allSettled/);
   assert.match(projection, /state: "unavailable"/);
@@ -37,10 +38,16 @@ test("People Home distinguishes source checks from user-assigned decisions", () 
   assert.match(page, /People Ops follow-ups/);
   assert.match(page, /Cases assigned to me/);
   assert.match(page, /Source unavailable/);
-  assert.match(projection, /Optional source check/);
+  assert.match(projection, /recordedSourceDate\(item.dueDate\)/);
+  assert.match(projection, /incompleteEvidence: true/);
   assert.match(projection, /items: items.slice\(0, VISIBLE\)/);
-  assert.match(projection, /hasMore: items.length > VISIBLE \|\| candidates.length > BP_CANDIDATE_LIMIT/);
+  assert.match(projection, /hasMore: items.length > VISIBLE \|\| partial/);
+  assert.match(projection, /limit\(FOLLOWUP_SOURCE_LIMIT \+ 1\)/);
+  assert.match(projection, /partial: true/);
   assert.match(page, /A separate reviewer is required/);
+  assert.match(page, /Other work, including additional source categories/);
+  assert.match(page, /Source milestone:/);
+  assert.match(page, /Workflow deadline:/);
   assert.ok(!page.includes("payrollRuns"));
 });
 
@@ -68,4 +75,28 @@ test("HCM home preserves source ownership and safe preview semantics", () => {
   assert.match(projection, /total: null/);
   assert.match(projection, /A bounded assignment-filtered preview is not a complete task count/);
   assert.ok(!projection.includes("status = 'approved'"));
+});
+
+
+test("All People Home query workloads are tenant-qualified, capped and private", () => {
+  const projection = read("src/lib/hcm-people-home-worklist.ts");
+  const batchedRoles = read("src/lib/delegation.ts");
+  assert.match(projection, /const BP_CANDIDATE_LIMIT = 30/);
+  assert.match(projection, /const FOLLOWUP_SOURCE_LIMIT = 6/);
+  assert.match(projection, /eq\(hcmLifecycleNotificationTasks.organizationId, organizationId\)/);
+  assert.match(projection, /eq\(provisioningTasks.organizationId, organizationId\)/);
+  assert.match(projection, /eq\(hcmBusinessProcessInstances.organizationId, organizationId\)/);
+  assert.match(projection, /eq\(hcmBusinessProcessInstanceSteps.organizationId, organizationId\)/);
+  assert.match(projection, /WHERE organization_id = \$1 AND assigned_owner_user_id = \$2/);
+  assert.match(projection, /LIMIT \$3/);
+  assert.match(batchedRoles, /eq\(approvalDelegations.organizationId, organizationId\)/);
+  assert.match(batchedRoles, /eq\(userOrganizations.organizationId, organizationId\)/);
+  assert.match(batchedRoles, /eq\(userOrganizations.active, true\)/);
+  assert.match(batchedRoles, /gte\(approvalDelegations.endsOn, onDate\)/);
+  assert.ok(!projection.includes("db.select().from("));
+  assert.ok(!projection.includes("loadEmploymentLifecycleReadiness"));
+  assert.ok(!projection.includes("employeeName"));
+  assert.ok(!projection.includes("netPay"));
+  assert.match(projection, /sourceDate: null/);
+  assert.match(projection, /total: null/);
 });

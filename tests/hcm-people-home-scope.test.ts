@@ -27,7 +27,9 @@ test("People Home cannot fall back to an employer or leak payroll data", () => {
   assert.match(page, /assertOrganizationRole\(user.id, organizationId, PEOPLE_ADMIN_ROLES\)/);
   assert.match(page, /canOpenPeopleHome\(access\)/);
   assert.match(page, /eq\(employees.organizationId, organizationId\)/);
-  assert.match(page, /eq\(automationOperationalCases.organizationId, organizationId\)/);
+  const projection = readFileSync("src/lib/hcm-people-home-worklist.ts", "utf8");
+  assert.match(projection, /assigned_owner_user_id = \$2/);
+  assert.match(projection, /eq\(hcmLifecycleNotificationTasks.organizationId, organizationId\)/);
   assert.ok(!page.includes("primaryCompanyOrganizationId"));
   assert.ok(!page.includes("payrollRuns"));
   assert.ok(!page.includes("db.update("));
