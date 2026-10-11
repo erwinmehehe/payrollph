@@ -146,7 +146,8 @@ test("daily triage stays in native People Inbox with source navigation and no wr
   assert.ok(ui.includes("Filter People Operations by responsible team"));
   assert.ok(ui.includes("onPage(row.page)"));
   assert.ok(ui.includes("controller.abort()"));
-  assert.ok(ui.includes("response?.organizationId === organizationId"));
+  assert.ok(ui.includes("JSON.stringify([organizationId, filters, refreshVersion])"));
+  assert.ok(ui.includes("response?.key === requestKey ? response : null"));
   assert.ok(!ui.includes('method: "POST"'));
   assert.ok(!ui.includes('method: "PATCH"'));
 });
