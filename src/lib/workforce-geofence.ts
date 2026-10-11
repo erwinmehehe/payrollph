@@ -71,7 +71,12 @@ export function permittedGeofenceWorksiteIds(input: {
   for (const row of input.authorizations.filter(active)) {
     if (row.decision === "allow") allowed.add(row.worksiteId);
   }
-  const denied = new Set(input.authorizations.filter((row) => active(row) && row.decision === "deny").map((row) => row.worksiteId));
+  // Either an explicit primary-assignment denial or an HCM authorization
+  // denial must override every active allow for the same worksite.
+  const denied = new Set([
+    ...input.assignments.filter((row) => active(row) && row.decision === "deny").map((row) => row.worksiteId),
+    ...input.authorizations.filter((row) => active(row) && row.decision === "deny").map((row) => row.worksiteId),
+  ]);
   return [...allowed].filter((id) => !denied.has(id));
 }
 
