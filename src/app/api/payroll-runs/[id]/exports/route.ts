@@ -272,7 +272,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       legalEntityId: run.legalEntityId,
     });
     return Response.json({
-      error: "Xendit is the selected payroll payout provider, but its reviewed payment submission and reconciliation workflow has not been activated. No money moved. Never reroute a released payroll to PayMongo automatically.",
+      error: "This legacy PayMongo payout endpoint is not fully configured for Xendit salary transfers. Use the treasury-protected Xendit payout workflow instead. No money moved, and Linaw will never reroute a released payroll to PayMongo automatically.",
       code: "XENDIT_DEFAULT_PAYROLL_PAYOUT_NOT_ACTIVATED",
       provider: "xendit",
       providerConfigured: readiness.ready,
