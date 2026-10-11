@@ -188,7 +188,10 @@ test("synthetic PostgreSQL SERIALIZABLE read/write conflict rolls back an obsole
 
 test("all three source-money decisions read from their own transaction and never retry themselves", () => {
   const api = readFileSync("src/app/api/separation/route.ts", "utf8");
-  const loader = api.slice(api.indexOf("async function loadFinalPaySources("),api.indexOf("function sameSnapshot("));
+  const loaderStart = api.indexOf("async function loadFinalPaySources(");
+  const loaderEnd = api.indexOf("export async function GET(", loaderStart);
+  assert.ok(loaderStart >= 0 && loaderEnd > loaderStart, "Source loader boundaries must be present.");
+  const loader = api.slice(loaderStart, loaderEnd);
   assert.ok(loader.includes('executor?: Pick<typeof db, "select">'));
   assert.ok(loader.includes("options.skipSchemaSetup"));
   assert.ok(loader.includes("const reader = options.executor ?? db"));
