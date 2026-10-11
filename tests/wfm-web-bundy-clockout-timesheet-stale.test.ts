@@ -91,7 +91,7 @@ test("every Web Bundy attendance mutation, including normal clock-out, invalidat
       : route.length;
     assert.ok(start >= 0 && end > start, labels[index]);
     const portion = route.slice(start, end);
-    assert.match(portion, /markTimesheetsStaleForEmployeeDate\(\{\s*organizationId,\s*employeeId,\s*workDate: todayStr/, labels[index]);
-    assert.match(portion, /syncAttendanceExceptionEvents\(organizationId, employeeId, todayStr\)/, labels[index]);
+    assert.match(portion, /markTimesheetsStaleForEmployeeDate\(\{\s*organizationId,\s*employeeId,\s*workDate: effectiveWorkDate/, labels[index]);
+    assert.match(portion, /syncAttendanceExceptionEvents\(organizationId, employeeId, effectiveWorkDate\)/, labels[index]);
   }
 });
