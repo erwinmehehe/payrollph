@@ -2,7 +2,7 @@
 
 import { AlertTriangle, ArrowRight, Check, Clock3, FileCheck2, ShieldCheck, WalletCards } from "lucide-react";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
-import { PAYROLL_WORKFLOW_STAGES, payrollRunPresentation } from "@/lib/payroll-workflow-presentation";
+import { payrollRunPresentation } from "@/lib/payroll-workflow-presentation";
 import type { DashboardData, PayrollRun, Task } from "./types";
 import { formatDate, money, Status } from "./ui";
 
