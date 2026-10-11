@@ -30,12 +30,19 @@ import {
   preflightPaymongoPayrollDisbursement,
 } from "@/lib/paymongo-disbursements";
 import { withPayrollPayoutSubmissionLock } from "@/lib/payout-submission-lock";
+import { withPayrollRunPayoutLock } from "@/lib/payroll-run-payout-lock";
 import { authorizeTreasuryOperation, type TreasuryEvidence } from "@/lib/treasury-controls";
 import { latestApprovedPayoutDestinationChangeForRun } from "@/lib/payout-destination-controls";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  return readPayrollExport(request, params, false);
+}
+
+async function readPayrollExport(
+  request: Request, params: Promise<{ id: string }>, payoutLockHeld: boolean,
+): Promise<Response> {
   const { id } = await params;
   const runId = Number(id);
   if (!Number.isInteger(runId)) return Response.json({ error: "Invalid run id" }, { status: 400 });
@@ -74,6 +81,27 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return Response.json({
       error: "The legacy per-run Alphalist extract does not reconcile year-end adjustments. Use Compliance → Year-End Annualization, run the BIR source preflight, and export from /api/year-end?format=alphalist. This remains source CSV, not an official .DAT.",
     }, { status: 409 });
+  }
+
+  // A final bank file may be uploaded outside Linaw. Serialize its
+  // generation and durable audit receipt with the first provider claim.
+  // Dry-run validation, payslips and accounting exports never take this lock.
+  if (kind === "bank" && !dryRun && !payoutLockHeld) {
+    try {
+      return await withPayrollRunPayoutLock(
+        run.organizationId, run.id,
+        () => readPayrollExport(request, params, true),
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("PAYOUT_") ||
+          error instanceof Error && error.message.startsWith("PAYROLL_PAYOUT_CLAIM_")) {
+        return Response.json({
+          error: "Another payout claim is in progress or its lock is uncertain. Do not generate a second salary file; reconcile the original operation.",
+          code: "PAYOUT_RUN_CLAIM_CONFLICT",
+        }, { status: 409 });
+      }
+      throw error;
+    }
   }
 
   const actor = user.name;
