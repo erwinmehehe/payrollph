@@ -96,8 +96,21 @@ export function XenditPayoutPanel({
     setBusy("reconcile");
     setMessage("");
     try {
-      const result = await command("reconcile");
-      setMessage(`Checked ${result.checked} Xendit transfer(s). Reversed, failed or ambiguous transfers require independent review.`);
+      let checked = 0;
+      let cursor = 0;
+      let hasMore = false;
+      for (let page = 0; page < 30; page += 1) {
+        const result = await command("reconcile", { cursor });
+        checked += Number(result.checked ?? 0);
+        hasMore = result.hasMore === true;
+        if (!hasMore) break;
+        const next = Number(result.nextCursor);
+        if (!Number.isSafeInteger(next) || next <= cursor) {
+          throw new Error("Invalid reconciliation continuation; no transfers were retried.");
+        }
+        cursor = next;
+      }
+      setMessage(`Checked ${checked} Xendit transfer(s). ${hasMore ? "More records remain; run refresh again to continue." : "All pages checked."} Reversed, failed or uncertain transfers require review.`);
       await refresh(); await onRefresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Reconciliation failed."); }
     finally { setBusy(""); }
