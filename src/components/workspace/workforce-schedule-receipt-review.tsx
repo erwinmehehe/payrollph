@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 import { RefreshCcw, ShieldCheck } from "lucide-react";
 import type { ManagerReceiptDay, ManagerReceiptSummary, ManagerReceiptAccount } from "@/lib/workforce-schedule-receipt-review";
 import { Status } from "./ui";
+import { useScopedAsyncResource } from "./use-scoped-async-resource";
 
 type ReceiptView = {
   employee: { employeeNo: string; name: string };
@@ -51,60 +52,32 @@ export function WorkforceScheduleReceiptReview({
   employee: Employee;
   onClose: () => void;
 }) {
-  const [refresh, setRefresh] = useState(0);
-  const [snapshot, setSnapshot] = useState<{ scope: string; value: ReceiptView } | null>(null);
-  const [failure, setFailure] = useState<{ scope: string; message: string } | null>(null);
-  const [loadingScope, setLoadingScope] = useState<string | null>(null);
-  const pending = useRef<AbortController | null>(null);
+  const { id, employeeNo, name } = employee;
   const scope = JSON.stringify([organizationId, employee.id, employee.employeeNo, employee.name]);
 
-  const load = useCallback(async () => {
-    pending.current?.abort();
-    const controller = new AbortController();
-    pending.current = controller;
-    setLoadingScope(scope);
-    setFailure(null);
-    try {
-      const params = new URLSearchParams({
-        organizationId: String(organizationId),
-        employeeId: String(employee.id),
-      });
-      const response = await fetch("/api/workforce/schedule-receipt-review?" + params, {
-        cache: "no-store", signal: controller.signal,
-      });
-      const body: unknown = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(response.status === 403
-          ? "People access or employee scope was denied."
-          : response.status === 404
-            ? "Schedule receipt review is unavailable for this employer."
-            : "Current schedule receipt status could not be verified.");
-      }
-      if (!validView(body, employee)) {
-        throw new Error("The receipt review source returned incomplete evidence.");
-      }
-      if (pending.current !== controller || controller.signal.aborted) return;
-      setSnapshot({ scope, value: body });
-      setFailure(null);
-    } catch (error) {
-      if (pending.current !== controller || controller.signal.aborted) return;
-      setSnapshot(null);
-      setFailure({ scope, message: error instanceof Error ? error.message : "Receipt review unavailable." });
-    } finally {
-      if (pending.current === controller && !controller.signal.aborted) {
-        setLoadingScope(null);
-      }
+  const load = useCallback(async (signal: AbortSignal) => {
+    const params = new URLSearchParams({
+      organizationId: String(organizationId),
+      employeeId: String(id),
+    });
+    const response = await fetch("/api/workforce/schedule-receipt-review?" + params, {
+      cache: "no-store", signal,
+    });
+    const body: unknown = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(response.status === 403
+        ? "People access or employee scope was denied."
+        : response.status === 404
+          ? "Schedule receipt review is unavailable for this employer."
+          : "Current schedule receipt status could not be verified.");
     }
-  }, [organizationId, employee.id, employee.employeeNo, employee.name, scope]);
-
-  useEffect(() => {
-    void load();
-    return () => pending.current?.abort();
-  }, [load, refresh]);
-
-  const value = snapshot?.scope === scope ? snapshot.value : null;
-  const error = failure?.scope === scope ? failure.message : "";
-  const busy = loadingScope === scope;
+    if (!validView(body, { id, employeeNo, name })) {
+      throw new Error("The receipt review source returned incomplete evidence.");
+    }
+    return body;
+  }, [organizationId, id, employeeNo, name]);
+  const { data: value, error: failure, loading: busy, reload } = useScopedAsyncResource(scope, load);
+  const error = failure?.message ?? "";
 
   return (
     <article className="card" data-wfm-manager-schedule-receipts style={{ marginTop: 16 }}>
@@ -115,7 +88,7 @@ export function WorkforceScheduleReceiptReview({
           <p>Current seven Philippine work dates. This is independent of the historical week selected in the roster above.</p>
         </div>
         <div className="run-actions" style={{ gap: 8 }}>
-          <button type="button" className="secondary-button" onClick={() => setRefresh(n => n + 1)}
+          <button type="button" className="secondary-button" onClick={() => void reload()}
             disabled={busy}><RefreshCcw size={15} aria-hidden="true" /> Refresh</button>
           <button type="button" className="secondary-button" onClick={onClose}>Close</button>
         </div>

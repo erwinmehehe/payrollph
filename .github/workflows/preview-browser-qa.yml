@@ -25,6 +25,7 @@ on:
       - "src/components/web-bundy-modal.tsx"
       - "src/lib/web-bundy-display-scope.ts"
       - "tests/web-bundy-display-scope.test.ts"
+      - "src/app/api/web-bundy/route.ts"
       - "scripts/verify-ess-web-bundy-synthetic.mjs"
       - "src/components/demo-sandbox-bar.tsx"
       - "src/app/page.tsx"

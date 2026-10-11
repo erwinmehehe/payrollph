@@ -10,6 +10,10 @@ on:
       - 'src/app/hcm/process-monitor/**'
       - 'src/lib/hcm-process-monitor*.ts'
       - 'src/lib/hcm-context-navigation.ts'
+      - 'src/lib/hcm-action-center.ts'
+      - 'src/app/hcm/action-center/**'
+      - 'src/app/api/hcm/business-processes/inbox/**'
+      - 'tests/hcm-action-center-v2.test.ts'
       - 'src/components/hcm-context-navigation.tsx'
       - 'src/app/hcm/command-center/**'
       - 'src/app/hcm/worker-360/**'
@@ -29,6 +33,10 @@ on:
       - 'src/app/hcm/process-monitor/**'
       - 'src/lib/hcm-process-monitor*.ts'
       - 'src/lib/hcm-context-navigation.ts'
+      - 'src/lib/hcm-action-center.ts'
+      - 'src/app/hcm/action-center/**'
+      - 'src/app/api/hcm/business-processes/inbox/**'
+      - 'tests/hcm-action-center-v2.test.ts'
       - 'src/components/hcm-context-navigation.tsx'
       - 'src/app/hcm/command-center/**'
       - 'src/app/hcm/worker-360/**'
@@ -103,7 +111,7 @@ jobs:
       # suite, so HCM regressions have an actionable, exact-commit signal.
       # Run after fixture creation: the browser fixture assumes employer IDs 1/2.
       - name: Verify monitor contract and two-employer PostgreSQL integration
-        run: npx tsx --test --test-concurrency=1 tests/hcm-process-monitor.test.ts tests/hcm-process-monitor-tenant-integration.test.ts tests/hcm-context-navigation.test.ts
+        run: npx tsx --test --test-concurrency=1 tests/hcm-process-monitor.test.ts tests/hcm-process-monitor-tenant-integration.test.ts tests/hcm-context-navigation.test.ts tests/hcm-action-center-v2.test.ts
       - name: Build local Next.js without external deployment
         run: npm run build
       - name: Install pinned local Chromium and automated accessibility rules

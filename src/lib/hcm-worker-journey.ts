@@ -63,6 +63,11 @@ export type WorkerJourneyInput = {
   onboarding: Array<{ done: boolean }>;
   offboarding: Array<{ done: boolean }>;
   latestPerformance: null | { id: number; status: string };
+  /** Bounded, non-sensitive source records. These do not prove appraisal or approval. */
+  goalPreview?: {
+    recent: Array<{ id: number; status: string }>;
+    hasMore: boolean;
+  };
   compensationVisible: boolean;
   latestCompensation: null | { id: number; status: string };
   payrollVisible: boolean;
@@ -131,14 +136,26 @@ export function buildHcmWorkerJourney(input: WorkerJourneyInput): HcmWorkerJourn
   }
 
   const review = input.latestPerformance;
+  const goals = input.goalPreview?.recent ?? [];
+  const firstGoal = goals[0] ?? null;
+  const completedGoals = goals.filter((goal) => goal.status === "completed").length;
+  const goalNote = firstGoal
+    ? `${completedGoals} of ${goals.length} sampled employee goals marked completed${input.goalPreview?.hasMore
+        ? "; additional goal records exist" : ""}. Goal status does not complete a performance review.`
+    : null;
   stages.push(!review
-    ? stage("performance", "Performance", "Performance", "not_recorded",
-        "No performance review is linked to this worker.")
+    ? firstGoal
+      ? stage("performance", "Performance", "Performance", "in_progress",
+          `Employee goals are recorded, but no performance review is linked. ${goalNote}`,
+          { source: "performance_goals", id: firstGoal.id })
+      : stage("performance", "Performance", "Performance", "not_recorded",
+          "No performance review is linked to this worker.")
     : stage("performance", "Performance", "Performance",
         review.status === "completed" ? "recorded" : "in_progress",
-        review.status === "completed"
+        (review.status === "completed"
           ? `Review #${review.id} is completed; no pay decision is implied.`
-          : `Latest review #${review.id} is ${review.status}; separate review governance still applies.`,
+          : `Latest review #${review.id} is ${review.status}; separate review governance still applies.`)
+          + (goalNote ? ` ${goalNote}` : ""),
         { source: "performance_reviews", id: review.id }));
 
   // Restrict even a stray supplied proposal when the caller lacks scope.

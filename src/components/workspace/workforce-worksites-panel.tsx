@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Building2, CalendarDays, MapPin, Plus, RefreshCcw, Save, UserRound } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
+import { useScopedAsyncResource } from "./use-scoped-async-resource";
+import { resolveScopedOption, type ScopedOptionSelection } from "@/lib/scoped-option-selection";
 
 type Worksite = {
   id: number;
@@ -65,8 +67,6 @@ export function WorkforceWorksitesPanel({
   const canManageHolidayCalendar =
     data.access?.companyWide === true
     && ["owner", "admin", "bookkeeper", "hr", "payroll"].includes(data.access.role ?? "");
-  const [payload, setPayload] = useState<Payload | null>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
 
   const [code, setCode] = useState("MAIN");
@@ -78,8 +78,9 @@ export function WorkforceWorksitesPanel({
   const [cityMunicipality, setCityMunicipality] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
 
-  const [employeeId, setEmployeeId] = useState(data.employees[0]?.id ?? 0);
-  const [worksiteId, setWorksiteId] = useState("");
+  const [employeeSelection, setEmployeeSelection] = useState<ScopedOptionSelection | null>(null);
+  const employeeId = Number(resolveScopedOption(employeeSelection, organizationId, data.employees));
+  const [worksiteSelection, setWorksiteSelection] = useState<ScopedOptionSelection | null>(null);
   const [effectiveFrom, setEffectiveFrom] = useState(localToday());
   const [effectiveUntil, setEffectiveUntil] = useState("");
   const [reason, setReason] = useState("Primary worksite assignment");
@@ -89,65 +90,51 @@ export function WorkforceWorksitesPanel({
   const [restrictionReason, setRestrictionReason] = useState("Restricted worksite access");
   const canGovernArrangements = canManage && ["owner", "admin", "bookkeeper", "hr"].includes(data.access?.role ?? "");
 
-  const [holidayWorksiteId, setHolidayWorksiteId] = useState("");
+  const [holidaySelection, setHolidaySelection] = useState<ScopedOptionSelection | null>(null);
   const [holidayDate, setHolidayDate] = useState(localToday());
   const [holidayName, setHolidayName] = useState("");
   const [holidayKind, setHolidayKind] = useState<"regular" | "special">("special");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const worksiteResponse = await fetch(
-        `/api/workforce/worksites?organizationId=${organizationId}`,
-        { cache: "no-store" },
+  const fetchWorksites = useCallback(async (signal: AbortSignal) => {
+    const worksiteResponse = await fetch(
+      `/api/workforce/worksites?organizationId=${organizationId}`,
+      { cache: "no-store", signal },
+    );
+    const worksiteBody = await worksiteResponse.json().catch(() => ({}));
+    if (!worksiteResponse.ok) {
+      throw new Error(worksiteBody.error ?? "Could not load worksites.");
+    }
+
+    let holidayRows: HolidayRow[] = [];
+    if (canManageHolidayCalendar) {
+      const holidayResponse = await fetch(
+        `/api/holidays?organizationId=${organizationId}`,
+        { cache: "no-store", signal },
       );
-      const worksiteBody = await worksiteResponse.json().catch(() => ({}));
-      if (!worksiteResponse.ok) {
-        throw new Error(worksiteBody.error ?? "Could not load worksites.");
+      const holidayBody = await holidayResponse.json().catch(() => ({}));
+      if (!holidayResponse.ok) {
+        throw new Error(holidayBody.error ?? "Could not load local holidays.");
       }
-
-      let holidayRows: HolidayRow[] = [];
-      if (canManageHolidayCalendar) {
-        const holidayResponse = await fetch(
-          `/api/holidays?organizationId=${organizationId}`,
-          { cache: "no-store" },
-        );
-        const holidayBody = await holidayResponse.json().catch(() => ({}));
-        if (!holidayResponse.ok) {
-          throw new Error(holidayBody.error ?? "Could not load local holidays.");
-        }
-        holidayRows = Array.isArray(holidayBody.holidays) ? holidayBody.holidays : [];
-      }
-
-      setPayload({
-        ...(worksiteBody as Omit<Payload, "holidays">),
-        holidays: holidayRows,
-      });
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not load worksites.", "err");
-    } finally {
-      setLoading(false);
+      holidayRows = Array.isArray(holidayBody.holidays) ? holidayBody.holidays : [];
     }
-  }, [canManageHolidayCalendar, notify, organizationId]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    const firstActive = payload?.worksites.find((site) => site.active);
-    if (!worksiteId && firstActive) {
-      setWorksiteId(String(firstActive.id));
-    }
-    if (!holidayWorksiteId && firstActive) {
-      setHolidayWorksiteId(String(firstActive.id));
-    }
-  }, [holidayWorksiteId, payload, worksiteId]);
+    return {
+      ...(worksiteBody as Omit<Payload, "holidays">),
+      holidays: holidayRows,
+    };
+  }, [canManageHolidayCalendar, organizationId]);
+  const scopeKey = JSON.stringify([organizationId, canManageHolidayCalendar]);
+  const onLoadError = useCallback((error: Error) => notify(error.message, "err"), [notify]);
+  const { data: payload, error: loadError, loading, reload: load } =
+    useScopedAsyncResource(scopeKey, fetchWorksites, onLoadError);
 
   const activeWorksites = useMemo(
     () => (payload?.worksites ?? []).filter((site) => site.active),
     [payload],
   );
+
+  const worksiteId = resolveScopedOption(worksiteSelection, organizationId, activeWorksites);
+  const holidayWorksiteId = resolveScopedOption(holidaySelection, organizationId, activeWorksites);
 
   const currentAssignments = useMemo(() => {
     const today = localToday();
@@ -256,6 +243,7 @@ export function WorkforceWorksitesPanel({
 
   return (
     <article className="card" style={{ marginTop: 16 }}>
+      {loadError && <div className="notice notice-red" role="alert">{loadError.message}</div>}
       <div className="card-header">
         <div>
           <div className="card-kicker">Physical work locations</div>
@@ -341,7 +329,8 @@ export function WorkforceWorksitesPanel({
           <div className="setting-form">
             <label>
               Employee
-              <select value={employeeId || ""} onChange={(event) => setEmployeeId(Number(event.target.value))}>
+              <select value={employeeId || ""} onChange={(event) => setEmployeeSelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose an employee</option>
                 {data.employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employee.employeeNo} · {employee.firstName} {employee.lastName}
@@ -351,7 +340,8 @@ export function WorkforceWorksitesPanel({
             </label>
             <label>
               Worksite
-              <select value={worksiteId} onChange={(event) => setWorksiteId(event.target.value)}>
+              <select value={worksiteId} onChange={(event) => setWorksiteSelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose a worksite</option>
                 {activeWorksites.map((site) => (
                   <option key={site.id} value={site.id}>{site.code} · {site.name}</option>
                 ))}
@@ -378,7 +368,8 @@ export function WorkforceWorksitesPanel({
           </p>
           <div className="setting-form">
             <label>Worker
-              <select value={employeeId} onChange={(event) => setEmployeeId(Number(event.target.value))}>
+              <select value={employeeId || ""} onChange={(event) => setEmployeeSelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose an employee</option>
                 {data.employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>{employee.employeeNo} · {employee.firstName} {employee.lastName}</option>
                 ))}
@@ -403,7 +394,8 @@ export function WorkforceWorksitesPanel({
           </div>
           <div className="setting-form" style={{ marginTop: 12 }}>
             <label>Authorize additional worksite
-              <select value={worksiteId} onChange={(event) => setWorksiteId(event.target.value)}>
+              <select value={worksiteId} onChange={(event) => setWorksiteSelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose a worksite</option>
                 {activeWorksites.map((site) => (
                   <option key={site.id} value={site.id}>{site.code} · {site.name}</option>
                 ))}
@@ -457,7 +449,8 @@ export function WorkforceWorksitesPanel({
           <div className="setting-form">
             <label>
               Worksite
-              <select value={holidayWorksiteId} onChange={(event) => setHolidayWorksiteId(event.target.value)}>
+              <select value={holidayWorksiteId} onChange={(event) => setHolidaySelection({ organizationId, value: event.target.value })}>
+                <option value="">Choose a worksite</option>
                 {activeWorksites.map((site) => (
                   <option key={site.id} value={site.id}>{site.code} · {site.name}</option>
                 ))}
