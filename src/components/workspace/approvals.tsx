@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check, ClipboardCheck, Clock3, Settings2, ShieldCheck, UserCheck, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Check, ClipboardCheck, Clock3, Settings2, ShieldCheck, UserCheck, X } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { CheckerVarianceCenter } from "./checker-variance";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
+import { manilaCalendarDate } from "@/lib/payroll-period-ui";
+import { decisionVisibleToViewer, viewerApprovalCounts } from "@/lib/workspace-approval-eligibility";
 import type { DashboardData, Notify, Task } from "./types";
 import { EmptyState, Metric, PageHeading, Segmented, Spinner, Status } from "./ui";
 
@@ -33,38 +35,66 @@ export function ApprovalsView({
   onRefresh: () => Promise<void>;
   notify: Notify;
 }) {
-  const [filter, setFilter] = useState<"pending" | "all">("pending");
+  const [filter, setFilter] = useState<"mine" | "pending" | "all">(canDecide ? "mine" : "pending");
   const [formOpen, setFormOpen] = useState(false);
   const [pendingId, setPendingId] = useState<number | null>(null);
-
+  const [decisionDraft, setDecisionDraft] = useState<{ id: number; status: "Approved" | "Declined" } | null>(null);
+  const confirmDialog = useRef<HTMLDialogElement>(null);
+  const today = manilaCalendarDate();
+  const role = data.access?.role ?? data.user?.role;
+  const actorName = data.user?.name;
   const delegations = data.delegations ?? [];
-  const activeDelegations = delegations.filter((row) => row.active);
+  const activeDelegations = delegations.filter((row) => row.active && row.startsOn <= today && row.endsOn >= today);
+  const assignment = { actorName, role, delegations, canDecide, today };
+  const counts = viewerApprovalCounts({ ...assignment, tasks: data.tasks });
+  const canDecideTask = (task: Task) => decisionVisibleToViewer({ ...assignment, task });
 
   const tasks = useMemo(
-    () => (filter === "pending" ? data.tasks.filter((task) => task.status === "Pending") : data.tasks),
-    [data.tasks, filter],
+    () => filter === "all" ? data.tasks
+      : filter === "pending" ? data.tasks.filter((task) => task.status === "Pending")
+      : data.tasks.filter((task) => decisionVisibleToViewer({
+          task, actorName, role, delegations, canDecide, today,
+        })),
+    [data.tasks, filter, actorName, role, delegations, canDecide, today],
   );
-
-  const pendingCount = data.tasks.filter((task) => task.status === "Pending").length;
-  const highCount = data.tasks.filter((task) => task.status === "Pending" && task.priority === "High").length;
+  const pendingCount = counts.pending;
+  const highCount = counts.high;
   const currentRun = data.payrollRuns.find((run) => run.status === "Pending approval") ?? data.payrollRuns.find((run) => run.status !== "Released") ?? data.payrollRuns[0];
   const payrollTask = currentRun
-    ? data.tasks
-        .filter((task) => task.detail.includes(`Payroll run #${currentRun.id}`))
-        .sort((a, b) => b.id - a.id)[0] ?? null
+    ? data.tasks.filter((task) => task.detail.includes("Payroll run #" + currentRun.id)).sort((a, b) => b.id - a.id)[0] ?? null
     : null;
   const handoffStages = currentRun
     ? buildPayrollHandoff(currentRun, { payrollExceptions: currentRun.exceptions, approvalTask: payrollTask })
     : [];
-  const handoffRole = handoffViewerRole(data.access?.role ?? data.user?.role);
-  const checkerMode = data.access?.role === "checker";
+  const handoffRole = handoffViewerRole(role);
+  const checkerMode = role === "checker";
 
-  async function decide(task: Task, status: "Approved" | "Declined") {
-    setPendingId(task.id);
+  const draftTask = decisionDraft ? data.tasks.find((task) => task.id === decisionDraft.id) : null;
+  const draftPermitted = Boolean(draftTask && canDecideTask(draftTask));
+  useEffect(() => {
+    const dialog = confirmDialog.current;
+    if (!dialog) return;
+    if (decisionDraft && !dialog.open) dialog.showModal();
+    else if (!decisionDraft && dialog.open) dialog.close();
+  }, [decisionDraft]);
+
+  function requestDecision(id: number, status: "Approved" | "Declined") {
+    const task = data.tasks.find((item) => item.id === id);
+    if (!task || !canDecideTask(task)) return;
+    setDecisionDraft({ id, status });
+  }
+
+  async function confirmDecision() {
+    if (!decisionDraft || !draftTask || !draftPermitted) {
+      setDecisionDraft(null);
+      return;
+    }
+    setPendingId(draftTask.id);
     try {
-      await onDecide(task.id, status);
+      await onDecide(draftTask.id, decisionDraft.status);
     } finally {
       setPendingId(null);
+      setDecisionDraft(null);
     }
   }
 
@@ -72,11 +102,11 @@ export function ApprovalsView({
     <>
       <PageHeading
         eyebrow="Approvals"
-        title="Decisions, with a clear trail."
+        title="Approvals, without the guesswork."
         copy={
           canDecide
-            ? "Every decision is permission-checked on the server against the assigned approver and any active delegation."
-            : "This role can review approval status and history, but decision controls stay with an assigned approver or checker."
+            ? "See requests assigned to you, review their details, and confirm each decision. The server checks your authorization."
+            : "Browse approval status and history. Only the assigned approver or a permitted delegate can make decisions."
         }
         actions={
           canManageDelegations ? (
@@ -103,8 +133,8 @@ export function ApprovalsView({
           run={currentRun}
           payrollTask={payrollTask}
           busy={busy}
-          canDecide={canDecide}
-          onDecide={onDecide}
+          canDecide={Boolean(payrollTask && canDecideTask(payrollTask))}
+          onDecide={async (id, status) => requestDecision(id, status)}
         />
       )}
 
