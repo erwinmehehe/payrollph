@@ -1,5 +1,6 @@
 import { annualize } from "@/lib/annualization";
 import { round2 } from "@/lib/round";
+import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
 
 export type FinalPayLine = { code?: string; label?: string; amount?: string | number; notes?: string[] };
 
@@ -203,19 +204,24 @@ export function computeFinalPay(input: {
   };
 }
 
+
 /**
  * Source-of-truth release preflight for both new and legacy separation records.
  * Do not rely solely on optional JSON snapshots: historical rows may predate
  * shortfall evidence. Non-finite/negative mandatory source values fail closed.
  */
 export function unresolvedFinalPayMandatoryShortfall(input: {
-  grossFinalPay: string | number;
-  taxAdjustment: string | number;
-  finalStatutoryDeductions: string | number;
+  grossFinalPay: unknown;
+  taxAdjustment: unknown;
+  finalStatutoryDeductions: unknown;
 }): number | null {
-  const gross = Number(input.grossFinalPay);
-  const adjustment = Number(input.taxAdjustment);
-  const statutory = Number(input.finalStatutoryDeductions);
-  if (![gross, adjustment, statutory].every(Number.isFinite) || gross < 0 || statutory < 0) return null;
-  return round2(Math.max(0, statutory - gross - adjustment));
+  const grossCents = storedMoneyCentavos(input.grossFinalPay);
+  const taxCents = storedMoneyCentavos(input.taxAdjustment);
+  const statutoryCents = storedMoneyCentavos(input.finalStatutoryDeductions);
+  if (grossCents === null || taxCents === null || statutoryCents === null
+    || grossCents < 0 || statutoryCents < 0) return null;
+  // Use exact centavo integers; also reject overflow in intermediate sums.
+  const shortfallCents = statutoryCents - grossCents - taxCents;
+  if (!Number.isSafeInteger(shortfallCents)) return null;
+  return Math.max(0, shortfallCents) / 100;
 }
