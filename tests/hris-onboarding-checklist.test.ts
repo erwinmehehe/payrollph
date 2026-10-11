@@ -71,6 +71,9 @@ test("onboarding action remains in authorized workspace and existing audited sou
   assert.ok(board.includes('payload.kind !== "onboarding"'));
   assert.ok(board.includes("window.confirm("));
   assert.ok(board.includes("await onRefresh()"));
+  assert.ok(board.includes("if (mutationInFlight.current || snapshotStale"));
+  assert.ok(board.includes("disabled={busyId !== null || snapshotStale}"));
+  assert.ok(board.includes("setSnapshotStale(true)"));
   assert.ok(board.includes("provisioning === undefined"));
   assert.ok(board.includes('role="alert"'));
   assert.ok(board.includes("This only records a checklist update"));
@@ -93,6 +96,8 @@ test("hire remains maker-checker-governed and refreshes onboarding after creatio
   assert.ok(hiring.indexOf("if (payload.approvalRequired)") < hiring.indexOf("await onHired?.()"));
   assert.ok(hiring.includes("Do not resubmit the hire."));
   assert.ok(hiring.includes("onHired?: () => Promise<void>"));
+  assert.ok(hiring.includes("const recruitmentReloaded = await load().catch(() => false)"));
+  assert.ok(hiring.includes("The hire request could not be confirmed."));
   assert.ok(hiring.includes('fetch("/api/recruitment/hire"'));
   assert.ok(route.includes("db.transaction"));
   assert.ok(route.includes("tx.insert(provisioningTasks)"));
