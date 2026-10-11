@@ -106,8 +106,6 @@ jobs:
 
       - run: npm ci
       - run: npm run db:push
-      - name: Verify filing month boundaries and missing-ID rejection before the journey
-        run: node --import tsx --test tests/filing-evidence-lifecycle.test.ts
       - run: npm run build
 
       - name: Start production build
@@ -129,6 +127,10 @@ jobs:
 
       - name: Authenticate synthetic bank envelopes across all four stores
         run: npx tsx scripts/verify-bank-account-envelopes.ts
+
+      # Keep the first-employer fixture intact: it binds its policy to ID 1.
+      - name: Verify filing month boundaries and missing-ID rejection
+        run: node --import tsx --test tests/filing-evidence-lifecycle.test.ts
 
       - name: Show server log on failure
         if: failure()
