@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ScheduleReceiptDay, ScheduleReceiptView } from "@/lib/workforce-schedule-receipt";
+import { summarizeEmployeeReceiptDays, visibleEmployeeReceiptDays } from "@/lib/workforce-schedule-receipt-presentation";
 import { validScheduleReceiptView, validScheduleReceiptConfirmation } from "@/lib/workforce-schedule-receipt-validation";
 
 function dateLabel(date: string) {
@@ -11,7 +12,7 @@ function dateLabel(date: string) {
 function timestamp(value: string) {
   return new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Manila" }).format(new Date(value));
 }
-export function EmployeeScheduleReceipts() {
+export function EmployeeScheduleReceipts({ compact = false }: { compact?: boolean } = {}) {
   const [view, setView] = useState<ScheduleReceiptView | null>(null);
   const [selected, setSelected] = useState<ScheduleReceiptDay | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -82,16 +83,20 @@ export function EmployeeScheduleReceipts() {
       if (write.current === controller) { write.current = null; if (!controller.signal.aborted) setSaving(false); }
     }
   }
-  return <article className="employee-list-card" data-employee-schedule-receipts>
+  const summary = view ? summarizeEmployeeReceiptDays(view.days) : null;
+  const displayedDays = view ? visibleEmployeeReceiptDays(view.days, compact) : [];
+  return <article className="employee-list-card" data-employee-schedule-receipts data-compact={compact ? "true" : "false"}>
     <div className="employee-list-card-head">
-      <div><span className="card-kicker">SCHEDULE RECEIPTS</span><h3>Confirm the schedule you have seen</h3></div>
+      <div><span className="card-kicker">SCHEDULE RECEIPTS</span><h3>{compact ? "Review current schedule changes" : "Confirm the schedule you have seen"}</h3></div>
       <button type="button" className="secondary-button" disabled={loading || saving} onClick={() => { setMessage(""); void load(); }}>Refresh receipts</button>
     </div>
     <p style={{ padding: "0 16px" }}>Receipt only: this is not a clock-in, an agreement to a pay change, or an absence finding. No email or text message is sent.</p>
     {disabled && <p role="status" style={{ padding: 16 }}>Schedule receipts are not currently available for this account. Return to your employee workspace or refresh to check again.</p>}
     {loading && <p role="status" style={{ padding: 16 }}>Loading your current schedule snapshots...</p>}
     {message && <div className="notice notice-slate" role="status" style={{ margin: 16 }}>{message}</div>}
-    {view?.days.map(day => <div className="employee-attendance-row" key={day.date}>
+    {summary && <p role="status" style={{ padding: "0 16px" }}>{summary.acknowledged} acknowledged · {summary.pending} awaiting acknowledgment · {summary.changed} changed · {summary.unavailable} unavailable. Counts cover your current seven days only.</p>}
+    {compact && summary?.requiresReview === 0 && summary.unavailable === 0 && <p role="status" style={{ padding: "0 16px" }}>No schedule acknowledgment needs attention in the current seven-day window.</p>}
+    {displayedDays.map(day => <div className="employee-attendance-row" key={day.date}>
       <div><strong>{dateLabel(day.date)}</strong><span>{day.state === "unavailable" ? "No complete published schedule"
         : day.state === "changed" ? "Schedule changed since your last acknowledgment"
         : day.state === "acknowledged" ? "Current snapshot acknowledged" : "Not yet acknowledged"}</span>
