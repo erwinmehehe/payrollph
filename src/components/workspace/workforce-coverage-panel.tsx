@@ -718,7 +718,8 @@ export function WorkforceCoveragePanel({
           key={organizationId}
           organizationId={organizationId}
           worksites={payload.worksites}
-          canManage={canManage}
+          canManage={canManage && data.access?.companyWide === true
+            && ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role)}
         />
       )}
 
