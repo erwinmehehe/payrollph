@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createMigrationHistoryReader } from "@/lib/migration-history-request-owner";
 import {
   ArrowRight,
   CheckCircle2,
@@ -75,7 +76,16 @@ function sourceLabel(source: string) {
   return MIGRATION_SOURCES.find((item) => item.id === source)?.label ?? source;
 }
 
-export function MigrationCenter({
+export function MigrationCenter(props: {
+  organizationId: number;
+  onImported?: () => Promise<void> | void;
+}) {
+  // Give each employer its own form, preview, file, history and pending mutation.
+  // A tenant switch must remove prior sensitive data before the next render.
+  return <MigrationCenterView key={props.organizationId} {...props} />;
+}
+
+function MigrationCenterView({
   organizationId,
   onImported,
 }: {
@@ -88,6 +98,9 @@ export function MigrationCenter({
   const [fileName, setFileName] = useState("");
   const [preview, setPreview] = useState<MigrationResult | null>(null);
   const [history, setHistory] = useState<Batch[]>([]);
+  const [historyStatus, setHistoryStatus] = useState<"loading" | "ready" | "unavailable">("loading");
+  const historyReader = useRef<ReturnType<typeof createMigrationHistoryReader> | null>(null);
+  const submitting = useRef(false);
   const [busy, setBusy] = useState(false);
   const [evidenceReference, setEvidenceReference] = useState("");
 
@@ -96,19 +109,28 @@ export function MigrationCenter({
     [source],
   );
 
-  async function loadHistory() {
-    const response = await fetch(`/api/migrations?organizationId=${organizationId}`, { cache: "no-store" });
-    if (!response.ok) return;
-    const payload = await response.json().catch(() => ({}));
-    setHistory(Array.isArray(payload.batches) ? payload.batches : []);
-  }
-
   useEffect(() => {
-    void loadHistory();
+    const reader = createMigrationHistoryReader(organizationId, fetch, (result) => {
+      if (result.state === "ready") {
+        setHistory(result.batches as Batch[]);
+        setHistoryStatus("ready");
+      } else {
+        setHistory([]);
+        setHistoryStatus("unavailable");
+      }
+    });
+    historyReader.current = reader;
+    void reader.refresh();
+    return () => {
+      reader.retire();
+      if (historyReader.current === reader) historyReader.current = null;
+    };
   }, [organizationId]);
 
   async function submit(dryRun: boolean) {
-    if (!file) return;
+    const reader = historyReader.current;
+    if (!file || !reader?.isCurrent() || submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     if (dryRun) setPreview(null);
     try {
@@ -125,13 +147,31 @@ export function MigrationCenter({
         body: form,
       });
       const payload = (await response.json().catch(() => ({}))) as MigrationResult;
+      // A mutation may finish on the server after this employer view is gone.
+      // Never display its result or refresh another tenant's workspace.
+      if (!reader.isCurrent()) return;
       setPreview(payload);
       if (response.ok && !dryRun) {
-        await loadHistory();
-        await onImported?.();
+        setHistoryStatus("loading");
+        await reader.refresh();
+        if (reader.isCurrent()) {
+          try {
+            await onImported?.();
+          } catch {
+            // Do not claim a completed migration failed because an optional
+            // parent refresh failed. The authoritative result is the server.
+          }
+        }
+      }
+    } catch {
+      if (reader.isCurrent()) {
+        setPreview({
+          error: "Unable to confirm the import request. Check migration history before retrying; the server may have completed it.",
+        });
       }
     } finally {
-      setBusy(false);
+      submitting.current = false;
+      if (reader.isCurrent()) setBusy(false);
     }
   }
 
@@ -400,7 +440,17 @@ export function MigrationCenter({
           </div>
         </div>
         <div className="audit-list" style={{ padding: "0 17px 17px" }}>
-          {history.length === 0 ? (
+          {historyStatus === "loading" ? (
+            <p className="auth-copy">Loading this employer&apos;s recent migrations…</p>
+          ) : historyStatus === "unavailable" ? (
+            <div>
+              <p className="auth-copy">Migration history is unavailable. Do not assume a previous import failed or retry a submission without checking its result.</p>
+              <button className="secondary-button" type="button" onClick={() => {
+                setHistoryStatus("loading");
+                void historyReader.current?.refresh();
+              }}>Retry loading history</button>
+            </div>
+          ) : history.length === 0 ? (
             <p className="auth-copy">No committed migration batches yet.</p>
           ) : history.slice(0, 10).map((batch) => (
             <div className="audit-row" key={batch.id}>

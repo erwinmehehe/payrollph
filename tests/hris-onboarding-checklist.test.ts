@@ -1,0 +1,105 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import { buildOnboardingChecklistGroups } from "../src/lib/hris-onboarding-checklist";
+
+const staff = [
+  { id: 17, employeeNo: "EMP-017", firstName: "Alex", lastName: "Rivera", status: "Active" },
+  { id: 18, employeeNo: "EMP-018", firstName: "Ben", lastName: "Santos", status: "Active" },
+  { id: 19, employeeNo: "EMP-019", firstName: "Cora", lastName: "Alonzo", status: "Active" },
+];
+
+function task(id: number, employeeId: number, done = false, kind = "onboarding") {
+  return { id, employeeId, kind, title: "Onboarding step " + id, owner: "People Ops", done };
+}
+
+test("onboarding projection counts only recorded task state, not certifications", () => {
+  const result = buildOnboardingChecklistGroups(staff, [
+    task(31, 17, true), task(32, 17),
+    task(41, 18, true), task(42, 18, true),
+    task(51, 19),
+  ]);
+  assert.deepEqual(result.map((group) => group.employee.id), [19, 17, 18]);
+  assert.deepEqual(result.map((group) => [group.recorded, group.markedDone, group.remaining]), [
+    [1, 0, 1], [2, 1, 1], [2, 2, 0],
+  ]);
+  assert.deepEqual(result.find((group) => group.employee.id === 17)?.tasks.map((entry) => entry.id), [32, 31]);
+  assert.ok(result.every((group) => group.tasks.every((entry) => entry.kind === "onboarding")));
+});
+
+test("employee-scoped grouping rejects orphan, duplicate and unrelated task rows", () => {
+  const source = [
+    task(71, 17), task(72, 20), // employee 20 is outside authorized roster
+    task(73, 18, false, "offboarding"),
+    task(71, 19), // duplicate id cannot count as another item
+    task(0, 17), task(-2, 17), task(74, 0), task(75, Number.NaN),
+  ];
+  const result = buildOnboardingChecklistGroups(staff.slice(0, 2), source);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].employee.id, 17);
+  assert.equal(result[0].recorded, 1);
+  assert.deepEqual(result[0].tasks.map((entry) => entry.id), [71]);
+  assert.equal(source[0].done, false, "Projection never mutates source tasks");
+});
+
+test("missing onboarding records are absent, not treated as complete", () => {
+  assert.deepEqual(buildOnboardingChecklistGroups(staff, []), []);
+  const result = buildOnboardingChecklistGroups(staff, [task(91, 17, true)]);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].remaining, 0);
+  assert.equal(result[0].markedDone, 1);
+  assert.equal(result.some((group) => group.employee.id === 18), false);
+});
+
+test("onboarding action remains in authorized workspace and existing audited source API", () => {
+  const board = readFileSync("src/components/hris-onboarding-checklist.tsx", "utf8");
+  const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
+  const route = readFileSync("src/app/api/provisioning/route.ts", "utf8");
+
+  assert.ok(workspace.includes('page === "Recruitment"'));
+  assert.ok(workspace.includes('availablePages.includes("Recruitment")'));
+  assert.ok(workspace.includes('["owner", "admin", "hr"].includes(effectiveRole ?? "")'));
+  assert.ok(workspace.includes("employees={data.employees}"));
+  assert.ok(workspace.includes("provisioning={data.provisioning}"));
+  assert.ok(workspace.includes("onOpenEmployee={openHrEmployee}"));
+  assert.ok(workspace.includes("onOpenDocuments={availablePages.includes(\"Documents\")"));
+  assert.ok(board.includes('fetch("/api/provisioning"'));
+  assert.ok(board.includes('method: "PATCH"'));
+  assert.ok(board.includes("JSON.stringify({ id: task.id, done })"));
+  assert.ok(board.includes("payload.organizationId !== organizationId"));
+  assert.ok(board.includes("payload.employeeId !== employeeId"));
+  assert.ok(board.includes('payload.kind !== "onboarding"'));
+  assert.ok(board.includes("window.confirm("));
+  assert.ok(board.includes("await onRefresh()"));
+  assert.ok(board.includes("if (mutationInFlight.current || snapshotStale"));
+  assert.ok(board.includes("disabled={busyId !== null || snapshotStale}"));
+  assert.ok(board.includes("setSnapshotStale(true)"));
+  assert.ok(board.includes("provisioning === undefined"));
+  assert.ok(board.includes('role="alert"'));
+  assert.ok(board.includes("This only records a checklist update"));
+  assert.ok(!board.includes('method: "POST"'));
+  assert.ok(!board.includes('method: "DELETE"'));
+  assert.ok(!board.includes('fetch("/api/recruitment/hire"'));
+
+  assert.ok(route.includes("enforceSameOriginMutation(request)"));
+  assert.ok(route.includes("assertOrganizationRole("));
+  assert.ok(route.includes("assertScope(access, employee.orgUnitId)"));
+  assert.ok(route.includes('action: done ? "Provisioning item completed" : "Provisioning item reopened"'));
+  assert.ok(route.includes("recordAuditEvent({"));
+});
+
+test("hire remains maker-checker-governed and refreshes onboarding after creation", () => {
+  const hiring = readFileSync("src/components/recruitment-panel.tsx", "utf8");
+  const route = readFileSync("src/app/api/recruitment/hire/route.ts", "utf8");
+  assert.ok(hiring.includes("if (payload.approvalRequired)"));
+  assert.ok(hiring.includes("No worker or payroll records were created"));
+  assert.ok(hiring.indexOf("if (payload.approvalRequired)") < hiring.indexOf("await onHired?.()"));
+  assert.ok(hiring.includes("Do not resubmit the hire."));
+  assert.ok(hiring.includes("onHired?: () => Promise<void>"));
+  assert.ok(hiring.includes("const recruitmentReloaded = await load().catch(() => false)"));
+  assert.ok(hiring.includes("The hire request could not be confirmed."));
+  assert.ok(hiring.includes('fetch("/api/recruitment/hire"'));
+  assert.ok(route.includes("db.transaction"));
+  assert.ok(route.includes("tx.insert(provisioningTasks)"));
+  assert.ok(route.includes('processType: "hire"'));
+});

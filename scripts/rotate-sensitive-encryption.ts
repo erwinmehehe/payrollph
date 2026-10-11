@@ -38,6 +38,15 @@ function verifyGov(value: string | null) {
 async function main() {
   const rotateBank = bankEncryptionConfigured() && bankEncryptionPreviousKeyConfigured();
   const rotateGov = governmentIdEncryptionConfigured() && governmentIdPreviousKeyConfigured();
+  // The legacy combined operator lacks two of the four bank stores and
+  // performs non-atomic whole-trace writes. Refuse all bank key rotation here
+  // BEFORE reading any data or writing even government identifiers.
+  if (rotateBank) {
+    throw new Error(
+      "Bank rotation in this legacy script is disabled. Use scripts/rotate-bank-envelopes.ts " +
+      "for the complete four-store guarded bank rotation, then run government-ID rotation separately.",
+    );
+  }
   if (!rotateBank && !rotateGov) {
     throw new Error(
       "Configure a current and previous encryption key for BANK_DATA_ENCRYPTION_KEY/PII_ENCRYPTION_KEY " +

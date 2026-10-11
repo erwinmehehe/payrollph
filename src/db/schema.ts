@@ -1725,6 +1725,7 @@ export const leaveBalances = pgTable("leave_balances", {
 
 export const expenseClaims = pgTable("expense_claims", {
   id: serial("id").primaryKey(),
+  submittedByUserId: integer("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   category: varchar("category", { length: 60 }).notNull(),
@@ -5544,3 +5545,118 @@ export const workforceRosterBatches = pgTable(
         or (${table.status} <> 'pending' and ${table.decidedAt} is not null and ${table.decidedByUserId} is not null)`),
   ],
 );
+
+
+/** Card metadata only. No PAN, CVV, card token, or bank credentials. */
+export const spendCards = pgTable("spend_cards", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").references(() => employees.id, { onDelete: "set null" }),
+  issuer: varchar("issuer", { length: 100 }).notNull(),
+  lastFour: varchar("last_four", { length: 4 }).notNull(),
+  reference: varchar("reference", { length: 120 }),
+  status: varchar("status", { length: 20 }).notNull().default("registered"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  index("spend_cards_org_idx").on(t.organizationId, t.employeeId),
+  uniqueIndex("spend_cards_ref_unique").on(t.organizationId, t.reference),
+  check("spend_card_last_four_check", sql`${t.lastFour} ~ '^[0-9]{4}$'`),
+  check("spend_card_state_check", sql`${t.status} in ('registered','closed')`),
+]);
+
+/** Employer-paid card charges stay entirely separate from payroll reimbursements. */
+export const spendCardTransactions = pgTable("spend_card_transactions", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  cardId: integer("card_id").notNull().references(() => spendCards.id, { onDelete: "restrict" }),
+  externalReference: varchar("external_reference", { length: 120 }).notNull(),
+  merchant: varchar("merchant", { length: 160 }).notNull(),
+  category: varchar("category", { length: 60 }).notNull().default("Other"),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  spentOn: date("spent_on").notNull(),
+  recordedByUserId: integer("recorded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("spend_card_transactions_dedupe").on(t.organizationId, t.cardId, t.externalReference),
+  index("spend_card_transactions_org_idx").on(t.organizationId, t.spentOn),
+  check("spend_card_tx_amount_check", sql`${t.amount} > 0`),
+]);
+
+/** Approval of a report atomically approves its employee-paid claims for payroll. */
+export const expenseReports = pgTable("expense_reports", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+  title: varchar("title", { length: 180 }).notNull(),
+  totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("submitted"),
+  submittedByUserId: integer("submitted_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  decisionNote: varchar("decision_note", { length: 240 }),
+}, t => [
+  index("expense_reports_queue_idx").on(t.organizationId, t.status, t.employeeId),
+  check("expense_report_amount_check", sql`${t.totalAmount} > 0`),
+  check("expense_report_state_check", sql`${t.status} in ('submitted','approved','rejected')`),
+  check("expense_report_maker_checker_check", sql`${t.decidedByUserId} is null or ${t.decidedByUserId} <> ${t.submittedByUserId}`),
+]);
+
+export const expenseReportItems = pgTable("expense_report_items", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  reportId: integer("report_id").notNull().references(() => expenseReports.id, { onDelete: "restrict" }),
+  claimId: integer("claim_id").notNull().references(() => expenseClaims.id, { onDelete: "restrict" }),
+}, t => [
+  uniqueIndex("expense_report_items_claim_unique").on(t.claimId),
+  index("expense_report_items_org_report_idx").on(t.organizationId, t.reportId),
+]);
+
+export const itApplications = pgTable("it_applications", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 120 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [uniqueIndex("it_applications_org_name_unique").on(t.organizationId, t.name)]);
+
+/** Human-confirmed application access, never an unverified remote provisioning claim. */
+export const itAccessGrants = pgTable("it_access_grants", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+  applicationId: integer("application_id").notNull().references(() => itApplications.id, { onDelete: "restrict" }),
+  state: varchar("state", { length: 24 }).notNull().default("grant_requested"),
+  requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  confirmedByUserId: integer("confirmed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("it_access_grants_unique").on(t.organizationId, t.employeeId, t.applicationId),
+  index("it_access_grants_queue_idx").on(t.organizationId, t.state),
+  check("it_access_grants_state_check", sql`${t.state} in ('grant_requested','active','revoke_requested','revoked')`),
+]);
+
+/** Custody rows point to existing assets; no duplicate device inventory. */
+export const itManagedDevices = pgTable("it_managed_devices", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  assetId: integer("asset_id").notNull().references(() => assets.id, { onDelete: "restrict" }),
+  employeeId: integer("employee_id").references(() => employees.id, { onDelete: "set null" }),
+  state: varchar("state", { length: 24 }).notNull().default("available"),
+  mdmProvider: varchar("mdm_provider", { length: 100 }),
+  mdmReference: varchar("mdm_reference", { length: 160 }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("it_managed_devices_asset_unique").on(t.assetId),
+  index("it_managed_devices_org_idx").on(t.organizationId, t.state),
+  check("it_managed_devices_state_check", sql`${t.state} in ('available','assigned','return_requested','returned','lost','retired')`),
+]);
+
+export const itDeviceEvents = pgTable("it_device_events", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  deviceId: integer("device_id").notNull().references(() => itManagedDevices.id, { onDelete: "restrict" }),
+  eventType: varchar("event_type", { length: 48 }).notNull(),
+  employeeId: integer("employee_id").references(() => employees.id, { onDelete: "set null" }),
+  actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [index("it_device_events_idx").on(t.organizationId, t.deviceId, t.createdAt)]);

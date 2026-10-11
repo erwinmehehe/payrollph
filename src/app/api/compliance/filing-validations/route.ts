@@ -6,6 +6,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { FILING_FORMS, findFilingForm } from "@/lib/filing-evidence";
+import { officialFilingGuidance } from "@/lib/ph-filing-portal-guidance";
 import { resolveComplianceLegalEntity } from "@/lib/legal-entity";
 import { listFilingValidations, recordGeneratedFiling } from "@/lib/filing-evidence-store";
 import { enforceSameOriginMutation } from "@/lib/security-request";
@@ -34,7 +35,10 @@ export async function GET(request: Request) {
       legalEntityId: requestedLegalEntityId || null,
     });
     return Response.json({
-      forms: FILING_FORMS,
+      forms: FILING_FORMS.map((definition) => ({
+        ...definition,
+        official: officialFilingGuidance(definition.agency, definition.form),
+      })),
       legalEntity: { id: legalEntity.id, code: legalEntity.code, displayName: legalEntity.displayName },
       records: await listFilingValidations(organizationId, legalEntity.id),
     });

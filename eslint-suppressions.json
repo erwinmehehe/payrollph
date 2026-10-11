@@ -114,11 +114,6 @@
       "count": 1
     }
   },
-  "src/components/migration-center.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/payroll-overpayment-preview-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -190,11 +185,6 @@
     }
   },
   "src/components/treasury-controls-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/web-bundy-modal.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
@@ -352,11 +342,6 @@
   "src/components/workspace/workforce-planner.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 4
-    }
-  },
-  "src/components/workspace/workforce-schedule-guardrails-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
     }
   }
 }

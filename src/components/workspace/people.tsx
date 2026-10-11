@@ -29,6 +29,8 @@ import { HcmLifecyclePolicyPanel } from "@/components/hcm-lifecycle-policy-panel
 import { HcmPeopleOperationsInbox } from "@/components/hcm-people-operations-inbox";
 import { HcmWorkerJourneyPanel } from "@/components/hcm-worker-journey-panel";
 import { HcmWorkerJourneyActions } from "@/components/hcm-worker-journey-actions";
+import { Employee360Overview } from "@/components/employee-360-overview";
+import { buildEmployee360Overview } from "@/lib/employee-360-overview";
 import type { HcmWorkerJourney } from "@/lib/hcm-worker-journey";
 import type { DashboardData, Employee } from "./types";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
@@ -720,6 +722,7 @@ export function PeopleView({
 
       {selected && (
         <PersonDrawer
+          key={data.selectedOrganization.id + ":" + selected.id}
           data={data}
           employee={selected}
           canManage={canManage}
@@ -1161,6 +1164,11 @@ function PersonDrawer({
   const pendingRetro = retroAdjustments.filter((retro) => retro.status === "pending");
   const pendingRetroTotal = pendingRetro.reduce((sum, retro) => sum + Number(retro.amount), 0);
   const entry = data.payrollEntries.find((item) => item.employeeId === employee.id);
+  // No zeros or "all clear" states are inferred while the connected HCM
+  // source is pending or unavailable. A keyed drawer isolates employee state.
+  const profileState = connectedLoading ? "loading"
+    : connectedProfile ? "ready"
+      : connectedError ? "unavailable" : "loading";
 
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={`${employee.firstName} ${employee.lastName}`} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
@@ -1184,6 +1192,18 @@ function PersonDrawer({
           </div>
         </div>
 
+        {canManage && (
+          <Employee360Overview
+            employeeNo={employee.employeeNo}
+            cards={buildEmployee360Overview({
+              employee,
+              leave,
+              profile: connectedProfile,
+              profileState,
+            })}
+          />
+        )}
+
         <div className="run-stats" style={{ margin: "16px 0" }}>
           <div>
             <span>{employee.payBasis === "daily" ? "Daily rate" : employee.payBasis === "hourly" ? "Hourly rate" : "Monthly rate"}</span>
@@ -1202,7 +1222,7 @@ function PersonDrawer({
           </div>
         </div>
 
-        <section className="card" style={{ margin: "0 0 16px", boxShadow: "none" }}>
+        <section id="employee-360-employment" tabIndex={-1} className="card scroll-mt-4" style={{ margin: "0 0 16px", boxShadow: "none" }}>
           <div className="card-header">
             <div>
               <div className="card-kicker">EMPLOYMENT DATES</div>
@@ -1370,8 +1390,10 @@ function PersonDrawer({
                       </Link>
                     </div>
                   )}
-                <HcmWorkerJourneyPanel journey={connectedProfile.journey} onPage={onPage} />
-                <HcmWorkerJourneyActions journey={connectedProfile.journey} onPage={onPage} />
+                <div id="employee-360-performance" tabIndex={-1} className="scroll-mt-4">
+                  <HcmWorkerJourneyPanel journey={connectedProfile.journey} onPage={onPage} />
+                  <HcmWorkerJourneyActions journey={connectedProfile.journey} onPage={onPage} />
+                </div>
 
                 <div style={{ marginTop: 14 }}>
                   <div className="card-header" style={{ padding: 0, marginBottom: 8 }}>
@@ -1555,7 +1577,7 @@ function PersonDrawer({
                   )}
                 </div>
 
-                <div className="module-grid two" style={{ marginTop: 14 }}>
+                <div id="employee-360-documents" tabIndex={-1} className="module-grid two scroll-mt-4" style={{ marginTop: 14 }}>
                   <div className="notice notice-slate" style={{ margin: 0 }}>
                     <BriefcaseBusiness size={15} className="i-purple" />
                     <span>
@@ -1586,9 +1608,14 @@ function PersonDrawer({
                   </div>
                 </div>
 
-                {(connectedProfile.history.employmentEvents.length > 0 || connectedProfile.history.positionAssignments.length > 0) && (
-                  <div style={{ marginTop: 14 }}>
+                <div id="employee-360-history" tabIndex={-1} className="scroll-mt-4" style={{ marginTop: 14 }}>
                     <div className="card-kicker" style={{ marginBottom: 6 }}>WORKER HISTORY</div>
+                    {connectedProfile.history.employmentEvents.length === 0 &&
+                      connectedProfile.history.positionAssignments.length === 0 && (
+                        <p className="text-xs text-slate-600">
+                          No linked history in this preview. Imported or older employment events may not be represented.
+                        </p>
+                      )}
                     {connectedProfile.history.employmentEvents.slice(0, 6).map((event) => (
                       <div className="payslip-line" key={`employment-event-${event.id}`} style={{ gridTemplateColumns: "1fr auto" }}>
                         <span>
@@ -1611,8 +1638,7 @@ function PersonDrawer({
                         <b>{formatDate(assignment.effectiveFrom)}{assignment.effectiveUntil ? ` → ${formatDate(assignment.effectiveUntil)}` : " → current"}</b>
                       </div>
                     ))}
-                  </div>
-                )}
+                </div>
 
                 {connectedProfile.identities.length > 0 && (
                   <div style={{ marginTop: 14 }}>
@@ -1631,9 +1657,13 @@ function PersonDrawer({
                   </div>
                 )}
 
-                {connectedProfile.lifecycle.tasks.length > 0 && (
-                  <div style={{ marginTop: 14 }}>
+                <div id="employee-360-onboarding" tabIndex={-1} className="scroll-mt-4" style={{ marginTop: 14 }}>
                     <div className="card-kicker" style={{ marginBottom: 6 }}>LIFECYCLE TASKS</div>
+                    {connectedProfile.lifecycle.tasks.length === 0 && (
+                      <p className="text-xs text-slate-600">
+                        No linked lifecycle tasks in this preview. This does not establish completed onboarding.
+                      </p>
+                    )}
                     {connectedProfile.lifecycle.tasks.slice(0, 5).map((task) => (
                       <div className="payslip-line" key={task.id} style={{ gridTemplateColumns: "1fr auto" }}>
                         <span>
@@ -1643,8 +1673,7 @@ function PersonDrawer({
                         <b>{task.done ? "Complete" : "Open"}</b>
                       </div>
                     ))}
-                  </div>
-                )}
+                </div>
 
                 {connectedProfile.lifecycle.separation && (
                   <div className="notice notice-amber" style={{ marginTop: 14 }}>
@@ -2055,7 +2084,7 @@ function PersonDrawer({
             )}
           </div>
 
-          <div>
+          <div id="employee-360-leave" tabIndex={-1} className="scroll-mt-4">
             <p className="card-kicker">Leave &amp; lifecycle</p>
             {leave.length === 0 && checklist.length === 0 && (
               <p style={{ color: "var(--muted)", fontSize: 11.5 }}>No leave requests or open checklist items.</p>
