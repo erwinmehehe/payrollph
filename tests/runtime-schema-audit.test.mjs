@@ -202,3 +202,47 @@ test('a fake mode binding or parser in a comment does not pass the source guard'
     assert.equal(auditSource(code)[0].state, 'unguarded');
   }
 });
+
+
+test('catalog verifier delegates only recognize imported reviewed callbacks', () => {
+  const verified = `import { verifyRequestSchemaReadOnly } from "@/lib/request-schema-readonly";
+  async function ensureAudited() {
+    const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+    if (mode === "read-only") {
+      await verifyRequestSchemaReadOnly((sql, args) => connected.query(sql, args), spec);
+      return;
+    }
+    await connected.query("ALTER TABLE employees ADD COLUMN score integer");
+  }`;
+  const findings = auditSource(verified);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'DDL');
+  assert.equal(findings[0].state, 'early-readonly-exit');
+
+  const fakeImport = verified.replace('import { verifyRequestSchemaReadOnly } from "@/lib/request-schema-readonly";', '');
+  const unknown = auditSource(fakeImport);
+  assert.equal(unknown.length, 2);
+  assert.ok(unknown.some(row => row.type === 'DYNAMIC_QUERY_REVIEW' && row.state === 'unguarded'));
+
+  const injectedWrite = verified.replace('connected.query(sql, args)', 'connected.query("DROP TABLE employee_records")');
+  assert.ok(auditSource(injectedWrite).some(row => row.type === 'DDL' && row.state === 'unguarded'));
+});
+
+test('try-finally read-only validation with mandatory return protects a later backfill', () => {
+  const code = `async function ensureEmployeePayProfiles() {
+    const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+    if (mode === "read-only") {
+      try {
+        await connected.query("SELECT 1");
+        return;
+      } finally {
+        connected.release();
+      }
+    }
+    await connected.query("INSERT INTO employee_pay_profiles SELECT * FROM employees");
+  }`;
+  const findings = auditSource(code);
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].type, 'IMPLICIT_BACKFILL');
+  assert.equal(findings[0].state, 'early-readonly-exit');
+});
