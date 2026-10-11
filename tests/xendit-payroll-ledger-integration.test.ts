@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { db } from "../src/db";
+import { eq } from "drizzle-orm";
 import { organizations, legalEntities, employees, payrollEntries, payrollRuns } from "../src/db/schema";
 import {
   preflightXenditPayroll, submitXenditPayroll, reconcileXenditPayroll,
@@ -154,6 +155,84 @@ test("Xendit transport timeout leaves a durable uncertain outcome; lookup cannot
     assert.equal(sends, 1);
   } finally {
     globalThis.fetch = originalFetch;
+    f.restore();
+  }
+});
+
+test("Xendit reconciliation advances across multiple provider pages without double-paying anyone", async () => {
+  const f = await fixture();
+  const previousFetch = globalThis.fetch;
+  let sends = 0;
+  const byPayoutId = new Map<string, string>();
+  try {
+    for (let number = 2; number <= 12; number += 1) {
+      const employeeNo = `E${String(number).padStart(3, "0")}`;
+      const firstName = `Person${number}`;
+      const [employee] = await db.insert(employees).values({
+        organizationId: f.org.id, legalEntityId: f.run.legalEntityId,
+        employeeNo, firstName, lastName: "Payroll", title: "Staff",
+        avatarInitials: "PP", basicRate: "35000.00",
+        bankAccount: `123456${String(number).padStart(4, "0")}`,
+        bankCode: "BDO", startDate: "2026-01-01",
+      }).returning();
+      await db.insert(payrollEntries).values({
+        payrollRunId: f.run.id, employeeId: employee.id,
+        grossPay: "20000.00", deductions: "4498.77", netPay: "15501.23",
+        trace: { payment: {
+          employeeName: `${firstName} Payroll`, employeeNo,
+          bankAccount: employee.bankAccount, bankCode: employee.bankCode,
+          mobile: employee.mobile,
+        } },
+      });
+    }
+    const [run] = await db.update(payrollRuns).set({
+      employeeCount: 12, grossPay: "240000.00", netPay: "186014.76",
+    }).where(eq(payrollRuns.id, f.run.id)).returning();
+
+    globalThis.fetch = async (url, init) => {
+      const uri = String(url);
+      if (uri === "https://api.xendit.co/v3/payouts" && init?.method === "POST") {
+        const sent = JSON.parse(String(init.body)) as {
+          reference_id: string; payout_details: { source_amount: number };
+        };
+        assert.equal(sent.payout_details.source_amount, 1550123);
+        sends += 1;
+        const payoutId = `po-00000000-0000-0000-0000-${String(sends).padStart(12, "0")}`;
+        byPayoutId.set(payoutId, sent.reference_id);
+        return Response.json({
+          payout_id: payoutId, reference_id: sent.reference_id,
+          source_currency: "PHP", source_amount: 1550123,
+          destination_currency: "PHP", business_id: f.businessId,
+          status: "ACCEPTED",
+        });
+      }
+      const payoutId = uri.split("/").at(-1) ?? "";
+      const reference = byPayoutId.get(payoutId);
+      if (!reference) throw new Error("Unexpected provider GET: " + uri);
+      return Response.json({
+        payout_id: payoutId, reference_id: reference,
+        source_currency: "PHP", source_amount: 1550123,
+        destination_currency: "PHP", business_id: f.businessId,
+        status: "SUCCEEDED",
+      });
+    };
+    assert.equal((await preflightXenditPayroll(run, "CI operator")).transferCount, 12);
+    for (let i = 0; i < 4; i += 1) {
+      await submitXenditPayroll(run, "CI operator");
+    }
+    assert.equal(sends, 12);
+    const first = await reconcileXenditPayroll(run, "CI checker");
+    assert.equal(first.checked, 10);
+    assert.equal(first.hasMore, true);
+    assert.ok(first.nextCursor > 0);
+    const second = await reconcileXenditPayroll(run, "CI checker", first.nextCursor);
+    assert.equal(second.checked, 2);
+    assert.equal(second.hasMore, false);
+    assert.equal(second.ledger?.counts.succeeded, 12);
+    assert.equal(second.ledger?.status, "settled");
+    assert.equal(sends, 12, "Status reads must never send additional salaries");
+  } finally {
+    globalThis.fetch = previousFetch;
     f.restore();
   }
 });
