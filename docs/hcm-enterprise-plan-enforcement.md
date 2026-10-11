@@ -1,6 +1,6 @@
 # Enterprise HCM direct-route gate — opt-in engineering pilot
 
-Status: **new PR, not production-enabled**. Protects Organization & Positions Explorer and Business Process Monitor, both read-only HCM capabilities, on **both** the rendered page and their JSON GET API.
+Status: **new PR, not production-enabled**. Protects Organization & Positions Explorer and Business Process Monitor on **both** rendered pages, and all three corresponding read-only GET APIs: `org-explorer`, **`position-history`**, and `process-monitor`.
 
 ## Preconditions and exact gate
 
@@ -31,7 +31,7 @@ This is a **defense-in-depth route-classification slice**, *not* a comprehensive
 
 - Exact-head CI with four payroll goldens, lint, typecheck, Next build and security checks.
 - Test enabled and disabled modes; exact employer A vs B; missing/expired/inactive subscription; wrong role/permission set; billing outage.
-- Synthetic browser/API negative tests for two employers and role-scoped actors. Human staging UAT remains separate.
+- Synthetic localhost PostgreSQL/Chromium browser/API test with *recorded* active Enterprise and Core subscriptions. It covers allowed Enterprise HR, denied Core HR, unauthorized manager, and anonymous cases for all three GET APIs and both pages. The existing default-off browser suite remains a separate instance. Human staging UAT remains separate.
 - DO NOT set these environment flags on real employers before isolated testing, billing review and explicit rollout approval.
 
 Rollback: unset `HCM_ENTERPRISE_PLAN_GATE_ENABLED`; no migrations, backfills, banks, payouts or government submissions.
