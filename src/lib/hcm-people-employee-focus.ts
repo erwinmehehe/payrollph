@@ -33,9 +33,10 @@ export function resolvePeopleEmployeeFocus(input: {
   selectedOrganizationId: number;
   access: { role: string; companyWide: boolean } | null | undefined;
   authorizedEmployees: readonly { id: number }[];
+  serverAuthorized: boolean;
   demoMode: boolean;
 }): number | null {
-  if (input.demoMode || input.requestedPage !== "People") return null;
+  if (!input.serverAuthorized || input.demoMode || input.requestedPage !== "People") return null;
   if (!canOpenPeopleHome(input.access) ||
       !roleCanManagePeople(input.access?.role) ||
       !roleHasPeopleWorkspace(input.access?.role)) return null;
