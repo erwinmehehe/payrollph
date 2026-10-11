@@ -61,6 +61,22 @@ async function main() {
     const page = await context.newPage();
     assert.equal(await visit(page), 200, "Signed-in HR monitor page must load");
     await page.getByRole("heading", { level: 1, name: "Business Process Monitor" }).waitFor();
+    const navigation = page.getByRole("navigation", { name: "HCM workspace navigation" });
+    assert.equal(await navigation.getByRole("link", { name: "People Home" })
+      .getAttribute("href"), "/hcm/command-center?organizationId=1");
+    assert.equal(await navigation.getByRole("link", { name: "Process monitor" })
+      .getAttribute("aria-current"), "page");
+    assert.equal(await navigation.getByRole("link", { name: "HCM Inbox" })
+      .getAttribute("href"), "/app?organizationId=1&workspacePage=People&hcmPanel=bp");
+    await navigation.getByRole("link", { name: "People Home" }).click();
+    await page.getByRole("heading", { level: 1, name: "People Home" }).waitFor();
+    const homeNav = page.getByRole("navigation", { name: "HCM workspace navigation" });
+    assert.equal(await homeNav.getByRole("link", { name: "People Home" })
+      .getAttribute("aria-current"), "page");
+    assert.equal(await homeNav.getByRole("link", { name: "Process monitor" })
+      .getAttribute("href"), "/hcm/process-monitor?organizationId=1");
+    await homeNav.getByRole("link", { name: "Process monitor" }).click();
+    await page.getByRole("heading", { level: 1, name: "Business Process Monitor" }).waitFor();
     const main = await page.locator("main").innerText();
     assert.ok(main.includes("Recorded workflows") && main.includes("Step timeline"));
     assert.equal(await page.locator("a[href*='processId=']").count(), 20);
@@ -95,6 +111,22 @@ async function main() {
     assert.equal(foreign.data.detail.state, "not_found");
     assert.equal(await visit(page, 0), 404);
     assert.equal(await visit(page, "abc"), 404);
+    const workerPage = await context.newPage();
+    const workerResponse = await workerPage.goto(
+      app + "/hcm/worker-360?organizationId=1&employeeId=1",
+      { waitUntil: "domcontentloaded", timeout: 60000 },
+    );
+    assert.equal(workerResponse?.status(), 200);
+    await workerPage.getByRole("heading", { level: 1, name: "Worker 360" }).waitFor();
+    const workerNav = workerPage.getByRole("navigation", { name: "HCM workspace navigation" });
+    assert.equal(await workerNav.getByRole("link", { name: "Worker 360" })
+      .getAttribute("aria-current"), "page");
+    assert.equal(await workerNav.getByRole("link", { name: "People Home" })
+      .getAttribute("href"), "/hcm/command-center?organizationId=1");
+    assert.equal(await workerPage.getByRole("link", { name: "Return to People workspace" })
+      .getAttribute("href"), "/app?organizationId=1&workspacePage=People");
+    await workerNav.getByRole("link", { name: "Process monitor" }).click();
+    await workerPage.getByRole("heading", { level: 1, name: "Business Process Monitor" }).waitFor();
     await context.close();
 
     const mobile = await browser.newContext({ viewport: { width: 375, height: 790 } });
@@ -112,6 +144,27 @@ async function main() {
     await phone.waitForURL("**/hcm/process-monitor?organizationId=1&status=approved");
     assert.equal(await phone.locator("a[href*='processId=']").count(), 1);
     await mobile.close();
+
+    // Company-wide bookkeeper can view People Home but cannot discover
+    // HR-only monitor or Worker 360 from its navigation.
+    const finance = await browser.newContext();
+    await login(finance, "monitor-bookkeeper@example.test");
+    const financePage = await finance.newPage();
+    const financeHome = await financePage.goto(
+      app + "/hcm/command-center?organizationId=1",
+    );
+    assert.equal(financeHome?.status(), 200);
+    await financePage.getByRole("heading", { level: 1, name: "People Home" }).waitFor();
+    const financeNav = financePage.getByRole("navigation", {
+      name: "HCM workspace navigation",
+    });
+    assert.equal(await financeNav.getByRole("link", { name: "Process monitor" }).count(), 0);
+    assert.equal(await financeNav.getByRole("link", { name: "Worker 360" }).count(), 0);
+    const financeMonitor = await financePage.goto(
+      app + "/hcm/process-monitor?organizationId=1",
+    );
+    assert.equal(financeMonitor?.status(), 404);
+    await finance.close();
 
     for (const email of [
       "monitor-manager@example.test", "monitor-payroll@example.test",
