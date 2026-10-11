@@ -17,7 +17,7 @@ test("every filing-evidence form has official portal instructions, without claim
 });
 
 test("official workflow references remain agency-specific and version proof remains independent", () => {
-  assert.match(officialFilingGuidance("SSS", "R-3")!.notes, /not an authorized/);
+  assert.match(officialFilingGuidance("SSS", "R-3")!.notes, /no verified agency import acceptance/);
   assert.match(officialFilingGuidance("PhilHealth", "RF-1")!.notes, /not upload-format certification/);
   assert.match(officialFilingGuidance("Pag-IBIG", "MCRF")!.workflow, /eSRS/);
   assert.match(officialFilingGuidance("BIR", "1601-C")!.notes, /No PayrollPH.*import capability/);
