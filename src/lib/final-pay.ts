@@ -1,5 +1,6 @@
 import { annualize } from "@/lib/annualization";
 import { round2 } from "@/lib/round";
+import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
 
 export type FinalPayLine = { code?: string; label?: string; amount?: string | number; notes?: string[] };
 
@@ -203,7 +204,6 @@ export function computeFinalPay(input: {
   };
 }
 
-import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
 
 /**
  * Source-of-truth release preflight for both new and legacy separation records.
