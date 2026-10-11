@@ -52,7 +52,16 @@ export async function GET(request: Request) {
     employees: staff.filter(e => visible.has(e.id)),
     cards: visibleCards,
     transactions: charges.filter(t => visibleCards.some(c => c.id === t.cardId)),
-    reports: visibleReports.map(r => ({ ...r, claimIds: items.filter(i => i.reportId === r.id).map(i => i.claimId) })),
+    reports: visibleReports.map(r => {
+      const claimIds = items.filter(i => i.reportId === r.id).map(i => i.claimId);
+      const states = claimIds.map(id => claims.find(c => c.id === id)?.status ?? "missing");
+      const reimbursementStatus = r.status !== "approved"
+        ? "not_payable"
+        : states.length > 0 && states.every(state => state === "paid")
+          ? "paid"
+          : states.some(state => state === "paid") ? "partially_paid" : "awaiting_payroll";
+      return { ...r, claimIds, reimbursementStatus };
+    }),
     unreportedClaims: claims.filter(c => visible.has(c.employeeId) && c.status === "pending" && !items.some(i => i.claimId === c.id)),
   });
 }
