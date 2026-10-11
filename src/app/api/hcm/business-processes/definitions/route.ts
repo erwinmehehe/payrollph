@@ -2,6 +2,7 @@ import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { hcmBusinessProcessDefinitions, orgUnits } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
@@ -49,6 +50,11 @@ export async function GET(request: Request) {
 
   const gate = await assertBusinessProcessAdmin(user.id, organizationId);
   if ("error" in gate) return gate.error;
+
+  // Advanced workflow DESIGNER only, not execution of assigned HCM decisions.
+  // The existing actor, company and permission boundary takes precedence.
+  const planDenied = await denyOptInEnterpriseHcmPlan(organizationId);
+  if (planDenied) return planDenied;
 
   const [definitions, supervisoryOrganizations] = await Promise.all([
     db.select().from(hcmBusinessProcessDefinitions)
@@ -103,6 +109,11 @@ export async function POST(request: Request) {
     windowMs: 5 * 60_000,
   });
   if (rateDenied) return rateDenied;
+
+  // Protect save, version, activate and deactivate equally. Keep the existing
+  // origin, session, role, MFA and sensitive-action rate limits first.
+  const planDenied = await denyOptInEnterpriseHcmPlan(organizationId);
+  if (planDenied) return planDenied;
 
   const action = String(body.action ?? "save").trim().toLowerCase();
   if (action === "set-active") {
