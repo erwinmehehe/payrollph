@@ -23,6 +23,20 @@ export function hcmOrgExplorerPositiveId(value: string | null): number | null {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
+/**
+ * Pilot activation is restricted to an explicit legal-employer allowlist.
+ * A global server flag alone never enables this sensitive organization map.
+ */
+export function hcmOrgExplorerEnabledForEmployer(
+  organizationId: number,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  if (!Number.isSafeInteger(organizationId) || organizationId < 1 ||
+    env.HCM_ORG_EXPLORER_ENABLED !== "true") return false;
+  return (env.HCM_ORG_EXPLORER_ORG_IDS ?? "").split(",")
+    .some((part) => hcmOrgExplorerPositiveId(part.trim()) === organizationId);
+}
+
 export function hcmOrgExplorerJson(data: unknown, status = 200): Response {
   return Response.json(data, {
     status,
