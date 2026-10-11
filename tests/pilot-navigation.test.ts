@@ -36,7 +36,7 @@ test("pilot flag originates on server and workspace filters existing role-allowe
   assert.ok(server.includes("pilotFocusEnabled={pilotFocusEnabled}"));
   assert.ok(workspace.includes("pilotCoreNavigationPages(roleAllowedPages)"));
   assert.ok(workspace.includes("!rolePages || rolePages.includes(name)"));
-  // Both the private server switch and the public UI switch must be enabled.
-  // Pilot focus mode must hide My Team even if those flags are set.
-  assert.match(server, /const canSeeMyTeam = !pilotFocusEnabled && process\.env\.HCM_MY_TEAM_ENABLED === "true" &&\s+process\.env\.NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true"/);
+  assert.ok(server.includes('const canSeeMyTeam = !pilotFocusEnabled && process.env.HCM_MY_TEAM_ENABLED === "true"'));
+  assert.ok(server.includes('process.env.NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true"'));
+  assert.ok(server.includes('access.role === "manager" && !access.companyWide && access.orgUnitId !== null'));
 });
