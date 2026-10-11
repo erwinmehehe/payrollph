@@ -54,12 +54,15 @@ test("Employer selection and links remain authoritative on deep links and switch
   assert.match(workspace, /window.location.assign\("\/app\?organizationId=" \+ id\)/);
   assert.match(workspace, /Number.isSafeInteger\(id\)/);
   assert.match(workspace, /pilotFocusEnabled/);
+  assert.match(workspace, /expandHcmInbox={searchParams.get\("hcmPanel"\) === "bp"}/);
+  const people = read("src/components/workspace/people.tsx");
+  assert.ok(people.includes("defaultOpen={expandHcmInbox}"));
   assert.ok(!workspace.includes("window.location.assign(\"/hcm/command-center\")"));
 });
 
 test("HCM home preserves source ownership and safe preview semantics", () => {
   const projection = read("src/lib/hcm-people-home-worklist.ts");
-  assert.match(projection, /sourceUrl: "\/app\?organizationId=" \+ organizationId \+ "&workspacePage=People"/);
+  assert.match(projection, /sourceUrl: "\/app\?organizationId=" \+ organizationId \+ "&workspacePage=People&hcmPanel=bp"/);
   assert.match(projection, /sourceUrl: "\/hcm\/work-items\?organizationId=" \+ organizationId/);
   assert.match(projection, /total: null/);
   assert.match(projection, /A bounded assignment-filtered preview is not a complete task count/);
