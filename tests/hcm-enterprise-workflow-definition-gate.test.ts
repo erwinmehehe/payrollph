@@ -24,6 +24,8 @@ test("definition reads check authenticated company-wide People admin before the 
   const query = read.indexOf("db.select().from(hcmBusinessProcessDefinitions)");
   assert.ok(login >= 0 && role > login && paid > role && query > paid);
   assert.ok(read.includes("if (planDenied) return planDenied;"));
+  assert.ok(route.includes('enrolledForPaidDesign && !["owner", "admin", "hr"].includes(access.role)'),
+    "A company-wide bookkeeper cannot edit enrolled Enterprise workflow definitions");
 });
 
 test("every definition write, enable/disable and version change checks MFA/rate then plan before SQL", () => {
