@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ArrowRight, Check, ClipboardCheck, Clock3, Settings2, ShieldCheck, UserCheck, X } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { CheckerVarianceCenter } from "./checker-variance";
@@ -49,14 +49,13 @@ export function ApprovalsView({
   const counts = viewerApprovalCounts({ ...assignment, tasks: data.tasks });
   const canDecideTask = (task: Task) => decisionVisibleToViewer({ ...assignment, task });
 
-  const tasks = useMemo(
-    () => filter === "all" ? data.tasks
-      : filter === "pending" ? data.tasks.filter((task) => task.status === "Pending")
-      : data.tasks.filter((task) => decisionVisibleToViewer({
-          task, actorName, role, delegations, canDecide, today,
-        })),
-    [data.tasks, filter, actorName, role, delegations, canDecide, today],
-  );
+  // This small, derived queue does not need manual memoization; keeping the
+  // filter direct avoids unstable empty delegation arrays as hook dependencies.
+  const tasks = filter === "all" ? data.tasks
+    : filter === "pending" ? data.tasks.filter((task) => task.status === "Pending")
+    : data.tasks.filter((task) => decisionVisibleToViewer({
+        task, actorName, role, delegations, canDecide, today,
+      }));
   const pendingCount = counts.pending;
   const highCount = counts.high;
   const currentRun = data.payrollRuns.find((run) => run.status === "Pending approval") ?? data.payrollRuns.find((run) => run.status !== "Released") ?? data.payrollRuns[0];
