@@ -73,7 +73,8 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
   // Fail closed before the dashboard loader: a manager with no assigned
   // organizational unit cannot use a company-wide fallback.
   const managerAccess = await getAccess(user.id, companyOrganizationId);
-  if (managerAccess?.role === "manager" && deriveMyTeamScope(managerAccess)?.kind !== "unit") {
+  if (!managerAccess ||
+      (managerAccess.role === "manager" && deriveMyTeamScope(managerAccess)?.kind !== "unit")) {
     notFound();
   }
   const data = await getDashboardData(companyOrganizationId);
