@@ -343,10 +343,5 @@
     "react-hooks/set-state-in-effect": {
       "count": 4
     }
-  },
-  "src/components/workspace/workforce-schedule-guardrails-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
   }
 }

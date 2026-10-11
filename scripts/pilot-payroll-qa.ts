@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../src/db";
-import { attendanceExceptionEvents, auditEvents, employees, leaveBalances, leaveConversions, leavePolicies, leaveRequests, payrollEntries, payrollRuns, separationRecords, timePunches, userOrganizations, users } from "../src/db/schema";
+import { attendanceExceptionEvents, auditEvents, employees, leaveBalances, leaveConversions, leavePolicies, leaveRequests, payrollEntries, payrollRuns, separationRecords, timePunches, userOrganizations, users, workforceTimesheets } from "../src/db/schema";
 import { hashPassword } from "../src/lib/crypto";
 import { isEncryptedBankAccount } from "../src/lib/bank-account-crypto";
 import { reconcileAttendanceExceptionEvents } from "../src/lib/workforce-attendance-exception-events";
@@ -527,6 +527,7 @@ async function main() {
   }).returning();
   await db.insert(userOrganizations).values({ userId: secondEmployeeUser.id, organizationId, role: "employee" });
   const secondEmployee = await login(secondEmployeeUser.email, credentials.employee);
+  const approvedTimesheetIds: number[] = [];
   for (const [index, client] of [employee, secondEmployee].entries()) {
     const submitted = await expectOk(client, "/api/workforce/timesheets", { method: "POST", json: {
       organizationId, action: "submit", employeeId: created[index].id,
@@ -538,8 +539,52 @@ async function main() {
     } });
     assert.equal(approved.timesheet.status, "approved");
     assert.notEqual(approved.timesheet.submittedByUserId, approved.timesheet.decidedByUserId);
+    approvedTimesheetIds.push(Number(approved.timesheet.id));
   }
   (report.lifecycle as string[]).push("timesheet-gate-blocked-payroll-until-distinct-test-actor-approval");
+
+  // Change time evidence after approval through the employee and manager APIs.
+  // Move a fictional break without changing its duration or expected wages.
+  const latePunch = insertedPunches.find((punch) => punch.employeeId === created[0].id && String(punch.workDate) === "2026-09-18");
+  assert.ok(latePunch?.id);
+  const lateRequest = await expectOk(employee, "/api/self/workforce", { method: "POST", json: {
+    action: "request_correction", punchId: latePunch.id,
+    proposedBreakStart: "2026-09-18T12:05:00+08:00", proposedBreakEnd: "2026-09-18T13:05:00+08:00",
+    reason: "Synthetic post-approval break-evidence correction; unchanged break duration",
+  } });
+  const lateDecision = await expectOk(owner, "/api/workforce/attendance-corrections", { method: "POST", json: {
+    organizationId, action: "decide_request", requestId: lateRequest.correction.id,
+    decision: "approved", decisionNote: "Distinct synthetic actor verifies updated evidence; no employer attestation",
+  } });
+  assert.ok(lateDecision.staleTimesheetIds.includes(approvedTimesheetIds[0]), "Approved time evidence must become stale after correction.");
+  const [staleTimesheet] = await db.select().from(workforceTimesheets).where(eq(workforceTimesheets.id, approvedTimesheetIds[0]));
+  const [unaffectedTimesheet] = await db.select().from(workforceTimesheets).where(eq(workforceTimesheets.id, approvedTimesheetIds[1]));
+  assert.equal(staleTimesheet.status, "stale");
+  assert.equal(unaffectedTimesheet.status, "approved", "Another worker's approval must remain intact.");
+  const staleRun = await payroll.json("/api/payroll-runs", { method: "POST", json: {
+    organizationId, periodStart: "2026-09-16", periodEnd: "2026-09-30", payDate: "2026-10-05", processNow: true,
+  } });
+  assert.equal(staleRun.response.status, 422);
+  assert.equal(staleRun.payload.code, "TIMESHEET_APPROVAL_REQUIRED");
+  const staleApproval = await owner.json("/api/workforce/timesheets", { method: "POST", json: {
+    organizationId, action: "decide", timesheetId: staleTimesheet.id, decision: "approved",
+  } });
+  assert.equal(staleApproval.response.status, 409, "An old stale version cannot be reapproved.");
+  const resubmitted = await expectOk(employee, "/api/workforce/timesheets", { method: "POST", json: {
+    organizationId, action: "submit", employeeId: created[0].id, periodStart: "2026-09-16", periodEnd: "2026-09-30",
+  } });
+  assert.equal(resubmitted.timesheet.version, staleTimesheet.version + 1);
+  assert.notEqual(resubmitted.timesheet.snapshotHash, staleTimesheet.snapshotHash);
+  const reapproved = await expectOk(owner, "/api/workforce/timesheets", { method: "POST", json: {
+    organizationId, action: "decide", timesheetId: resubmitted.timesheet.id, decision: "approved",
+    decisionNote: "Synthetic independent reapproval after corrected break evidence",
+  } });
+  assert.equal(reapproved.timesheet.status, "approved");
+  assert.notEqual(reapproved.timesheet.submittedByUserId, reapproved.timesheet.decidedByUserId);
+  report.postApprovalCorrection = { result: "passed", staleApprovalBlocked: true, payrollBlockedUntilReapproval: true,
+    priorTimesheetId: staleTimesheet.id, replacementTimesheetId: reapproved.timesheet.id,
+    version: reapproved.timesheet.version, unaffectedWorkerApprovalPreserved: true, distinctTestActors: true };
+  (report.lifecycle as string[]).push("post-approval-correction-stales-timesheet-and-requires-new-version-approval");
 
   const runPayload = await expectOk(payroll, "/api/payroll-runs", {
     method: "POST",
@@ -664,6 +709,24 @@ async function main() {
 
   const [finalRun] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.organizationId, organizationId))).limit(1);
   assert.equal(finalRun?.status, "Released");
+
+  const afterReleaseRequest = await expectOk(employee, "/api/self/workforce", { method: "POST", json: {
+    action: "request_correction", punchId: latePunch.id,
+    proposedBreakStart: "2026-09-18T12:10:00+08:00", proposedBreakEnd: "2026-09-18T13:10:00+08:00",
+    reason: "Synthetic immutable-payroll negative case; must use a later adjustment",
+  } });
+  const afterReleaseDecision = await owner.json("/api/workforce/attendance-corrections", { method: "POST", json: {
+    organizationId, action: "decide_request", requestId: afterReleaseRequest.correction.id,
+    decision: "approved", decisionNote: "Synthetic denial proof; no historical payroll rewrite permitted",
+  } });
+  assert.equal(afterReleaseDecision.response.status, 409);
+  assert.match(afterReleaseDecision.payload.error, /immutable payroll run/i);
+  const [unchangedPunch] = await db.select().from(timePunches).where(eq(timePunches.id, latePunch.id));
+  assert.equal(unchangedPunch.breakStart?.toISOString(), "2026-09-18T04:05:00.000Z");
+  const [unchangedApproval] = await db.select().from(workforceTimesheets).where(eq(workforceTimesheets.id, reapproved.timesheet.id));
+  assert.equal(unchangedApproval.status, "approved");
+  report.immutableAttendance = { result: "passed", correctionDeniedAfterRelease: true, punchAndApprovalUnchanged: true };
+  (report.lifecycle as string[]).push("released-payroll-blocks-historical-attendance-rewrite");
 
   if (process.env.SYNTHETIC_SEPARATION_QA === "true") {
     await verifySyntheticSeparation(owner, payroll, organizationId);
