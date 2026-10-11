@@ -36,6 +36,14 @@ type FilingForm = {
   evidenceMode: "file-format" | "operational";
   submissionMethods: Array<"file_upload" | "manual_entry">;
   requiresFinalCutoff?: boolean;
+  official?: {
+    workflow: string;
+    officialInstructionsUrl: string;
+    officialPortalUrl: string;
+    acceptanceEvidence: string;
+    worksheetStatus: "reconciliation-only";
+    notes: string;
+  } | null;
   copy: {
     title: string;
     agencyLabel: string;
@@ -128,6 +136,7 @@ export function FilingEvidencePanel({
   const currentVersion = definition?.generatorVersion;
   const copy = definition?.copy;
   const agencyLabel = copy?.agencyLabel ?? agency;
+  const official = definition?.official;
   const retiredBirAlphalistSource = agency === "BIR" && form === "1604-C";
   const allowedMethods = definition?.submissionMethods?.length
     ? definition.submissionMethods
@@ -298,6 +307,19 @@ export function FilingEvidencePanel({
             {copy?.manualEntryNote} {copy?.unconfirmedNote}
           </span>
         </div>
+
+        {official && (
+          <section className="notice notice-slate" data-official-filing-path style={{ margin: 0, display: "block" }}>
+            <strong>Official agency submission: {official.workflow}</strong>
+            <p style={{ fontSize: 12, margin: "6px 0" }}>
+              {official.notes} The government acceptance evidence to retain is: {official.acceptanceEvidence}
+            </p>
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+              <a href={official.officialInstructionsUrl} target="_blank" rel="noopener noreferrer">Official filing instructions</a>
+              <a href={official.officialPortalUrl} target="_blank" rel="noopener noreferrer">Open agency website</a>
+            </div>
+          </section>
+        )}
 
         {copy?.scopeNote && (
           <div className="notice notice-amber" style={{ margin: 0 }}>
