@@ -1,6 +1,7 @@
 
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { ExpensesPanel } from "@/components/wallet-panel";
 
 type Employee = { id: number; firstName: string; lastName: string };
 type Claim = { id: number; employeeId: number; description: string; amount: string; incurredOn: string; category: string };
@@ -52,6 +53,7 @@ export function SpendOperationsPanel({ organizationId, setNotice }: { organizati
   return <section style={{ display: "grid", gap: 16 }}>
     <header><h2>Spend management</h2><p>Track employer cards and charges separately from employee-paid expenses reimbursed in payroll. These cards are records, not issued payment instruments.</p></header>
     {error && <p role="alert" style={{ color: "#b42318" }}>{error}</p>}
+    <ExpensesPanel organizationId={organizationId} setNotice={setNotice} />
     <div className="card" style={{ padding: 18 }}>
       <h3>Corporate card register</h3>
       <form onSubmit={async e => { e.preventDefault(); if (await write("POST", { action: "card", issuer, lastFour, employeeId: cardEmployeeId || null })) { setIssuer(""); setLastFour(""); } }} style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
