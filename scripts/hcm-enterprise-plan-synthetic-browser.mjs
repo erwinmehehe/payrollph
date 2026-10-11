@@ -63,7 +63,13 @@ try {
   assert.equal(permittedHistory.status, 404,
     "Authorized Enterprise HR must reach the source's own position-not-found check");
   assert.equal(permittedHistory.body?.error, "Position not found in this employer.");
-  receipts.push("Active Enterprise HR reaches both pages, base APIs and source-scoped history API");
+  assert.equal(await open(page, "/hcm/command-center?organizationId=1"), 200);
+  assert.equal(await page.locator("summary").filter({ hasText: "Advanced HCM tools" }).count(), 1,
+    "Entitled Enterprise HR must discover the collapsed advanced section");
+  assert.equal(await open(page, "/hcm/command-center?organizationId=2"), 200);
+  assert.equal(await page.locator("summary").filter({ hasText: "Advanced HCM tools" }).count(), 0,
+    "Core HR must not discover advanced paid routes");
+  receipts.push("Active Enterprise HR sees advanced navigation; Core HR does not");
 
   for (const suffix of ["process-monitor", "org-explorer"]) {
     const api = await read(page, "/api/hcm/" + suffix + "?organizationId=2");
