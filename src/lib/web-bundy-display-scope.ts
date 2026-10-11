@@ -2,6 +2,7 @@
  * Server authorization and immutable payroll locks remain authoritative.
  */
 export type WebBundyPunch = {
+  workDate?: string;
   timeIn?: string | null;
   breakStart?: string | null;
   breakEnd?: string | null;
@@ -12,6 +13,7 @@ export type WebBundyReadState = {
   key: string;
   status: "ready" | "unavailable";
   punches: WebBundyPunch[];
+  previousShiftNeedsReview?: boolean;
 };
 
 /** The nonce invalidates cached state when the same employee is reselected. */
@@ -37,6 +39,9 @@ export function isWebBundyPunchList(value: unknown): value is WebBundyPunch[] {
   const fields = ["timeIn", "breakStart", "breakEnd", "timeOut"] as const;
   return value.every((row: unknown) =>
     typeof row === "object" && row !== null &&
+    ((row as Record<string, unknown>).workDate === undefined ||
+      (typeof (row as Record<string, unknown>).workDate === "string" &&
+       /^\d{4}-\d{2}-\d{2}$/.test((row as { workDate: string }).workDate))) &&
     fields.every((field) => {
       const value = (row as Record<string, unknown>)[field];
       return value === undefined || value === null ||
