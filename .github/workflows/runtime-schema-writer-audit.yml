@@ -39,8 +39,10 @@ jobs:
         run: |
           set -uo pipefail
           mkdir -p qa-artifacts
-          node scripts/audit-runtime-schema-writers.mjs --strict src > qa-artifacts/runtime-schema-inventory.json
-          status=$?
+          # GitHub runs bash with -e; explicitly capture a strict failure so
+          # operators still receive the source locations instead of an empty log.
+          status=0
+          node scripts/audit-runtime-schema-writers.mjs --strict src > qa-artifacts/runtime-schema-inventory.json || status=$?
           node --input-type=module -e '
             import { readFileSync } from "node:fs";
             const report = JSON.parse(readFileSync("qa-artifacts/runtime-schema-inventory.json", "utf8"));
