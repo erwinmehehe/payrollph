@@ -29,9 +29,11 @@ test("app server uses the shared gate, preserving billing redirects for subscrib
   // The duplicate self-serve quickstart was retired in favor of the
   // unified, role-filtered First Payroll readiness journey. The server-side
   // subscription redirect above is still mandatory for self-serve companies.
-  assert.ok(page.includes("<LinawWorkspace initialData={data} pilotFocusEnabled={pilotFocusEnabled} />"));
+  assert.ok(page.includes("isSelfServeCustomer={isSelfServe}"));
+  assert.ok(page.includes('billing.status === "pending_payment"'));
   const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
   assert.ok(workspace.includes("<FirstPayrollReadinessCard"));
+  assert.ok(workspace.includes("guided={isSelfServeCustomer}"));
   assert.ok(!workspace.includes("<SaasOnboardingQuickstart"));
   assert.ok(!page.includes("db.select({ organizationId: saasSignupVerifications.organizationId })"));
 });
