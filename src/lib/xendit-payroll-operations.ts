@@ -1,7 +1,7 @@
 import { createHmac } from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, employees, payrollEntries, payrollRuns, payoutBatches } from "@/db/schema";
+import { auditEvents, employees, payrollEntries, payrollRuns, payoutBatches, payoutProfiles } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { payoutCentsFromNetPay } from "@/lib/payout-ledger-rules";
 import { loadPayrollPayoutRows } from "@/lib/paymongo-disbursements";
@@ -22,6 +22,15 @@ type PayrollRun = typeof payrollRuns.$inferSelect;
 async function xenditFrozenPayroll(run: PayrollRun) {
   if (run.status !== "Released") throw new Error("Xendit payouts require a released payroll run.");
   if (!run.legalEntityId) throw new Error("Select the actual legal employer before Xendit payout.");
+  const [configuredProfile] = await db.select({
+    defaultMethod: payoutProfiles.defaultMethod, active: payoutProfiles.active,
+  }).from(payoutProfiles).where(and(
+    eq(payoutProfiles.organizationId, run.organizationId),
+    eq(payoutProfiles.legalEntityId, run.legalEntityId),
+  )).limit(1);
+  if (configuredProfile?.active && configuredProfile.defaultMethod !== "xendit") {
+    throw new Error("This legal employer explicitly selected another active payout method. Switch its approved profile to Xendit before preflighting salary.");
+  }
   const [payees, staff, entries] = await Promise.all([
     loadPayrollPayoutRows(run.id),
     db.select().from(employees).where(eq(employees.organizationId, run.organizationId)),
