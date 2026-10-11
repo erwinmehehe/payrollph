@@ -10,9 +10,9 @@ test("protected verifier secret cannot leak into dependency installation or job-
   for (const yaml of [readinessWorkflow, rbacWorkflow]) {
     assert.ok(!yaml.split("    steps:")[0].includes("PRODUCTION_READINESS_TOKEN:"),
       "Production verifier must not be scoped to all steps.");
-    assert.match(yaml, /PRODUCTION_READINESS_TOKEN: \\$\\{\\{ secrets\\.PRODUCTION_READINESS_TOKEN \\}\\}/);
+    assert.ok(yaml.includes('PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}'));
     assert.match(yaml, /Production verification blocked|Production RBAC verification blocked/);
-    assert.match(yaml, /if \\[ "\\$\\{#PRODUCTION_READINESS_TOKEN\\}" -lt 32 \\]/);
+    assert.ok(yaml.includes('if [ "${#PRODUCTION_READINESS_TOKEN}" -lt 32 ]; then'));
   }
   assert.ok(readinessWorkflow.indexOf("Preflight protected production verification") < readinessWorkflow.indexOf("- run: npm ci"),
     "Stop before installing dependencies when release credential is absent.");
