@@ -1,0 +1,74 @@
+name: WFM Loyverse PH POS Aggregate Source QA
+
+on:
+  pull_request:
+    paths:
+      - "src/lib/workforce-loyverse-pos.ts"
+      - "src/app/api/workforce/demand-observations/loyverse/**"
+      - "src/components/workspace/workforce-loyverse-pos-panel.tsx"
+      - "src/components/workspace/workforce-coverage-panel.tsx"
+      - "tests/workforce-loyverse-pos*.test.ts"
+      - "tests/fixtures/wfm-loyverse-pos-browser.jsx"
+      - "scripts/wfm-loyverse-pos-browser.mjs"
+      - ".github/workflows/wfm-loyverse-pos-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  loyverse-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Lint and TypeScript
+        run: |
+          npm run lint
+          npx tsc --noEmit
+      - name: Initialize disposable PG16 and generated test encryption only
+        shell: bash
+        run: |
+          echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          npm run db:push
+      - name: Source pagination, PH late sync, privacy, two-tenant correction tests
+        run: npx tsx --test --test-concurrency=1 tests/workforce-loyverse-pos.test.ts tests/workforce-loyverse-pos-db.test.ts
+      - name: Source size
+        run: npm run source:size:check
+      - name: Next production build
+        run: npm run build
+      - name: Install ephemeral Chromium dependencies
+        run: npm install --no-save --ignore-scripts playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - name: Synthetic 375px admin and manager browser signoff
+        run: node scripts/wfm-loyverse-pos-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wfm-loyverse-pos-synthetic-qa
+          path: qa-artifacts/
+          retention-days: 7
