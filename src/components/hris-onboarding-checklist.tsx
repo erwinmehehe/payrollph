@@ -100,7 +100,7 @@ export function HrisOnboardingChecklist({
       const response = await fetch("/api/provisioning", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: task.id, done }),
+        body: JSON.stringify({ id: task.id, organizationId, employeeId, done }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Could not update the checklist item.");
