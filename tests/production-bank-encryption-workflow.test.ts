@@ -77,7 +77,7 @@ test("dry-run cannot prepare database columns and apply validates the key first"
 });
 
 test("readiness requires one valid report, the matching key, and no bank blocker", () => {
-  const script = scripts.find((value) => value.includes("Production bank-data encryption readiness is green."));
+  const script = scripts.find((value) => value.includes("Bank encryption gate verified; no payroll or payout activation is implied."));
   assert.ok(script);
   // Only this literal verification block is replayed. Shell functions replace
   // BOTH external commands; jq operates on synthetic stdin, never live data.
@@ -117,7 +117,7 @@ test("readiness requires one valid report, the matching key, and no bank blocker
   ]) {
     const result = check(invalid);
     assert.notEqual(result.status, 0, "invalid readiness evidence must fail");
-    assert.doesNotMatch(result.stdout, /readiness is green/);
+    assert.doesNotMatch(result.stdout, /Bank encryption gate verified/);
   }
   assert.notEqual(check(JSON.stringify(report), 22).status, 0, "HTTP failure must not pass");
 });
