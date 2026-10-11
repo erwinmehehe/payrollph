@@ -258,3 +258,26 @@ test("ambiguous claimed provider response cannot be retried as a fresh payout ba
     }), /PAYOUT_BATCH_ALREADY_PREPARED/);
   } finally { await cleanup(source.orgId); }
 });
+
+test("ambiguous reconciliation aborts atomically if a linked transfer lost submitting state", async () => {
+  const source = await fixture();
+  try {
+    const staged = await prepareInitialPayoutBatch({
+      organizationId: source.orgId, payrollRunId: source.runId, intents: source.intents,
+    });
+    await claimPreparedPayoutBatch({ organizationId: source.orgId, batchId: staged.batchId });
+    const [link] = await db.select().from(payoutBatchTransfers)
+      .where(eq(payoutBatchTransfers.payoutBatchId, staged.batchId)).limit(1);
+    await db.update(payoutBatchTransfers).set({ status: "prepared" })
+      .where(eq(payoutBatchTransfers.id, link.id));
+    await assert.rejects(markPayoutBatchForReconciliation({
+      organizationId: source.orgId, batchId: staged.batchId,
+    }), /PAYOUT_RECONCILIATION_LINK_MISMATCH/);
+    const [batch] = await db.select().from(payoutBatches)
+      .where(eq(payoutBatches.id, staged.batchId));
+    assert.equal(batch.status, "submitting", "failed reconciliation must roll back batch status");
+    const transfers = await db.select().from(payoutTransfers)
+      .where(eq(payoutTransfers.organizationId, source.orgId));
+    assert.ok(transfers.every((x) => x.status === "submitting"), "no partial employee reconciliation");
+  } finally { await cleanup(source.orgId); }
+});
