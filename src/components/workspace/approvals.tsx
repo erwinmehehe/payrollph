@@ -139,9 +139,9 @@ export function ApprovalsView({
       )}
 
       <section className="stats-grid">
-        <Metric label="Pending" value={String(pendingCount)} hint="awaiting a decision" icon={<ClipboardCheck size={16} className="i-amber" />} tone={pendingCount ? "amber" : "mint"} />
+        <Metric label="Assigned to me" value={String(counts.mine)} hint="awaiting your review" icon={<ClipboardCheck size={16} className="i-amber" />} tone={pendingCount ? "amber" : "mint"} />
         <Metric label="High priority" value={String(highCount)} hint="flagged for today" icon={<Clock3 size={16} className="i-cyan" />} tone={highCount ? "red" : "slate"} />
-        <Metric label="Decided" value={String(data.tasks.length - pendingCount)} hint="recorded in the audit trail" icon={<Check size={16} className="i-green" />} tone="mint" />
+        <Metric label="Decided" value={String(counts.decided)} hint="recorded in the audit trail" icon={<Check size={16} className="i-green" />} tone="mint" />
         <Metric
           label="Active delegations"
           value={String(activeDelegations.length)}
@@ -183,60 +183,70 @@ export function ApprovalsView({
         />
       )}
 
-      <div className="table-toolbar" style={{ border: 0, padding: "0 0 14px" }}>
+      <div className="p2-approval-toolbar">
+        <div className="p2-approval-toolbar-copy">
+          <span className="p2-overline">DECISION CENTER</span>
+          <h2>Requests and decisions</h2>
+          <p>Only tasks assigned to your identity or role show decision actions.</p>
+        </div>
         <Segmented
           label="Approval filter"
           value={filter}
           onChange={setFilter}
           options={[
-            { value: "pending", label: `Pending (${pendingCount})` },
-            { value: "all", label: `All (${data.tasks.length})` },
+            { value: "mine", label: "Assigned to me (" + counts.mine + ")" },
+            { value: "pending", label: "All pending (" + pendingCount + ")" },
+            { value: "all", label: "History (" + data.tasks.length + ")" },
           ]}
         />
       </div>
-
-      <article className="card">
+      <article className="card p2-approval-queue">
         <div className="approval-list">
           {tasks.length === 0 && (
-            <EmptyState icon={<Check size={20} className="i-green" />} title={filter === "pending" ? "Nothing waiting on you" : "No approval tasks"}>
-              {filter === "pending"
-                ? "Every task on this client has a recorded decision."
-                : "Approval tasks are created by payroll runs, leave requests and lifecycle checklists."}
+            <EmptyState icon={<Check size={20} className="i-green" />} title={filter === "mine" ? "No decisions assigned to you" : filter === "pending" ? "No pending approvals" : "No approval tasks"}>
+              {filter === "mine"
+                ? "No pending task matches your name or role. Switch to All pending to track other requests."
+                : filter === "pending"
+                  ? "Every approval in this workspace has a recorded decision."
+                  : "Approval tasks are created by payroll runs, leave requests and lifecycle checklists."}
             </EmptyState>
           )}
 
           {tasks.map((task) => (
-            <div className="approval-content" key={task.id}>
+            <div className="approval-content p2-approval-row" key={task.id}>
               <span className={`approval-symbol ${task.priority === "High" ? "" : ""}`} aria-hidden>
                 <ClipboardCheck size={17} className="i-amber" />
               </span>
               <div>
-                <div className="card-kicker">{task.priority === "High" ? "Priority review" : "Pending decision"}</div>
+                <div className="card-kicker">{task.status !== "Pending" ? "Decision recorded" : task.priority === "High" ? "Priority review" : "Awaiting decision"}</div>
                 <strong>{task.title}</strong>
                 <p>{task.detail}</p>
                 <div className="approval-meta">
                   <span>
-                    <UserCheck size={12} className="i-purple" /> Approver <strong style={{ fontSize: 10.5 }}>{approverLabel(task.approver)}</strong>
+                    <UserCheck size={12} className="i-purple" /> Approver <strong style={{ fontSize: 12 }}>{approverLabel(task.approver)}</strong>
                   </span>
                   <span>
                     <Clock3 size={12} className="i-cyan" /> {task.dueLabel}
                   </span>
-                  {activeDelegations.some((row) => row.fromApprover === task.approver) && (
+                  {activeDelegations.some((row) => row.fromApprover.trim().toLowerCase() === task.approver.trim().toLowerCase()) && (
                     <span className="status status-delegated">Delegated</span>
                   )}
                 </div>
               </div>
-              {task.status === "Pending" && canDecide ? (
-                <div className="approval-actions">
-                  <button className="decline-button" disabled={busy && pendingId === task.id} onClick={() => decide(task, "Declined")}>
+              {canDecideTask(task) ? (
+                <div className="approval-actions p2-approval-actions">
+                  <button type="button" className="decline-button" disabled={busy || pendingId != null} onClick={() => requestDecision(task.id, "Declined")}>
                     Decline
                   </button>
-                  <button className="primary-button brand" disabled={busy && pendingId === task.id} onClick={() => decide(task, "Approved")}>
-                    {busy && pendingId === task.id ? <Spinner label="Saving" /> : <Check size={14} className="i-green" />} Approve
+                  <button type="button" className="primary-button brand" disabled={busy || pendingId != null} onClick={() => requestDecision(task.id, "Approved")}>
+                    {busy && pendingId === task.id ? <Spinner label="Saving" /> : <Check size={14} />} Review & approve
                   </button>
                 </div>
               ) : (
-                <Status value={task.status} />
+                <div className="p2-approval-readonly">
+                  <Status value={task.status} />
+                  {task.status === "Pending" && <span>Awaiting assigned approver</span>}
+                </div>
               )}
             </div>
           ))}
