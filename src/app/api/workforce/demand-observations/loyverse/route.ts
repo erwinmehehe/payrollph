@@ -171,6 +171,8 @@ export async function POST(request:Request) {
         countedSales:aggregate.countedSales,
         scannedReceipts:aggregate.scannedReceipts,
         scannedPages:aggregate.pages,
+        scope:{organizationId:scoped.organizationId,worksiteId:scoped.worksiteId},
+        intervalCounts:aggregate.counts,
         changedIntervals:prepared.changed,unchangedIntervals:prepared.unchanged,
         observedAsOf:aggregate.observedAsOf,boundary:aggregate.boundary,
       },{headers});
