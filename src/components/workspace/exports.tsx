@@ -316,7 +316,7 @@ export function ExportsView({
       <div className="notice notice-blue">
         <Info size={15} className="i-blue" />
         <span>
-          Xendit is Linaw&apos;s default selected payroll payout rail. Live Xendit transfers remain blocked pending end-to-end submission and settlement acceptance. Bank files below are an
+          Xendit is Linaw&apos;s default selected payroll payout rail. Live Xendit submissions require employer approval and completed acceptance testing. Bank files below are an
           optional fallback and stay fail-closed until their exact bank-provided template has passed UAT. Government worksheets
           remain draft-only until agency acceptance evidence is recorded. See <a className="link-button" href="/api/readiness">/api/readiness</a>.
         </span>
@@ -553,43 +553,6 @@ export function ExportsView({
                     </div>
                   )}
                 </section>
-
-                {payoutState.reconciliation.provider !== "PayMongo" && payoutState.payout.method !== "bank-file" && (
-                  <div className="notice notice-amber" data-xendit-default-payout-pending style={{ marginBottom: 12 }}>
-                    <AlertTriangle size={15} className="i-amber" />
-                    <span><strong>Default provider: Xendit.</strong> The payout adapter is staged, but live submissions and settlement reconciliation are not yet enabled. No payroll funds can move through Xendit from this screen.</span>
-                  </div>
-                )}
-                {false && payoutState.reconciliation.provider !== "PayMongo" && payoutState.payout.method !== "bank-file" && (
-                  <div className="payout-confirm" data-paymongo-primary-actions>
-                    <div>
-                      <strong>Primary payout: PayMongo</strong>
-                      <p className="field-help">
-                        Preflight is read-only. It checks the final released payroll, employee bank mappings and available wallet funds without creating a transfer.
-                      </p>
-                    </div>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <button
-                        className="secondary-button"
-                        disabled={preflightingPayout || submittingPayout}
-                        onClick={() => void runPaymongoPreflight()}
-                      >
-                        <ShieldCheck size={14} />
-                        {preflightingPayout ? "Checking PayMongo…" : "Run PayMongo preflight"}
-                      </button>
-                      {canRecordManualPayout && payoutState.payout.status === "ready" && payoutState.payout.method === "PayMongo" && (
-                        <button
-                          className="primary-button brand"
-                          disabled={preflightingPayout || submittingPayout}
-                          onClick={() => void submitPaymongoPayout()}
-                        >
-                          <Banknote size={14} />
-                          {submittingPayout ? "Submitting payout…" : "Submit via PayMongo"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
 
                 {payoutState.reconciliation.provider === "PayMongo" && (
                   <div data-payout-reconciliation style={{ marginTop: 14, display: "grid", gap: 12 }}>
