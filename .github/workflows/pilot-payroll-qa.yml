@@ -12,6 +12,10 @@ on:
       - ui/ess-mobile-ux
     paths:
       - "src/app/api/employees/route.ts"
+      - "src/app/api/provisioning/**"
+      - "src/app/api/web-bundy/**"
+      - "src/app/api/compliance/filing-validations/**"
+      - "src/lib/filing-evidence*.ts"
       - "src/app/api/invitations/**"
       - "src/app/api/payroll-runs/**"
       - "src/app/api/compliance/bank-validations/**"
@@ -73,6 +77,11 @@ jobs:
       APP_BASE_URL: http://127.0.0.1:3000
       TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
       DEMO_MODE: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      WFM_GEOFENCE_PILOT_ENABLED: "false"
+      OPENAI_API_KEY: ""
       WORKER_TOKEN: ci-worker-token-00000000000000000000000000000000
       READINESS_TOKEN: ci-readiness-token-0000000000000000000000000000
       SETUP_TOKEN: ci-setup-token-0000000000000000000000000000000

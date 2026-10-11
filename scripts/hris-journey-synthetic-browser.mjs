@@ -77,11 +77,18 @@ try {
   const browserErrors = [];
   page.on("pageerror", error => browserErrors.push(error.message));
 
-  await checkpoint(page, "HR Home and role-filtered navigation", async () => {
+  await checkpoint(page, "HR Home and one-step scoped employee quick-find", async () => {
     await workspace(page, 1);
     await page.getByRole("heading", { name: "People operations" }).waitFor();
-    await page.getByRole("button", { name: "Open Employee directory" }).click();
+    const quickFind = page.getByRole("searchbox", { name: "Find an employee" });
+    await quickFind.fill("BetaPrivate");
+    await page.getByText("No matching employee in your authorized directory.").waitFor();
+    await quickFind.fill("AlphaPrivate Worker");
+    await page.getByRole("button", { name: /Open employee AlphaPrivate Worker,/ }).click();
     await page.locator('[data-workspace-page="People"]').waitFor({ timeout: 60000 });
+    const selected = page.getByRole("dialog", { name: "AlphaPrivate Worker" });
+    await selected.waitFor();
+    await selected.getByRole("button", { name: "Close" }).click();
   });
 
   await checkpoint(page, "Employee 360 identifies the selected authorized worker", async () => {

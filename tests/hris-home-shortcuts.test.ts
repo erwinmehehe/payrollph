@@ -44,7 +44,9 @@ test("HR dashboard only navigates to the exact selected, authorized employee", (
   const v2 = readFileSync("src/components/workspace/role-overview-v2.tsx", "utf8");
   const people = readFileSync("src/components/workspace/people.tsx", "utf8");
   assert.ok(workspace.includes("hrisHomeShortcutsForRole(effectiveRole, availablePages)"));
-  assert.ok(workspace.includes("<HrisHomeShortcuts actions={hrisShortcuts} onPage={setPage} />"));
+  assert.ok(workspace.includes("<HrisHomeShortcuts"));
+  assert.ok(workspace.includes("actions={hrisShortcuts}"));
+  assert.ok(workspace.includes("onOpenEmployee={canUsePeopleOps ? openHrEmployee : undefined}"));
   assert.ok(workspace.includes("canUsePeopleOps"));
   assert.ok(workspace.includes("data.employees.some((employee) => employee.id === employeeId)"));
   assert.ok(workspace.includes("setFocusEmployeeId(employeeId)"));

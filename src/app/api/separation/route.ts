@@ -8,6 +8,7 @@ import {
   itAccessGrants,
   itManagedDevices,
   employeeLoans,
+  employeePayRetroAdjustments,
   employeePayProfiles,
   employees,
   historicalPayrollEntries,
@@ -37,7 +38,7 @@ import {
 } from "@/lib/access";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
-import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, unresolvedFinalPayMandatoryShortfall } from "@/lib/final-pay";
+import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, retroSourceTaxYear, unresolvedFinalPayMandatoryShortfall } from "@/lib/final-pay";
 import { reviewFinalPayLoans, matchesRecordedFinalPayLoanReview } from "@/lib/final-pay-loan-authority";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
@@ -132,6 +133,37 @@ async function loadFinalPaySources(input: {
       lte(payrollRuns.periodEnd, input.lastDay),
     ));
 
+  // Trace every settled RETRO-* line to the original released payroll run.
+  // Text labels and settlement dates are not authoritative tax-year evidence.
+  const retroIds = new Set<number>();
+  for (const row of released) {
+    if (!Array.isArray(row.lineItems)) continue;
+    for (const item of row.lineItems) {
+      const code = String((item as { code?: unknown } | null)?.code ?? "").toUpperCase();
+      const match = /^RETRO-(\d+)$/.exec(code);
+      if (match) retroIds.add(Number(match[1]));
+    }
+  }
+  const retroSourcePeriods = retroIds.size
+    ? await reader.select({
+        id: employeePayRetroAdjustments.id,
+        sourcePeriodStart: payrollRuns.periodStart,
+        sourcePeriodEnd: payrollRuns.periodEnd,
+      })
+      .from(employeePayRetroAdjustments)
+      .innerJoin(payrollRuns, eq(employeePayRetroAdjustments.sourcePayrollRunId, payrollRuns.id))
+      .where(and(
+        eq(employeePayRetroAdjustments.organizationId, input.organizationId),
+        eq(employeePayRetroAdjustments.employeeId, input.employeeId),
+        eq(payrollRuns.organizationId, input.organizationId),
+        inArray(employeePayRetroAdjustments.id, [...retroIds]),
+      ))
+    : [];
+  const retroSourceYearById = new Map(retroSourcePeriods.map((row) => [
+    row.id,
+    retroSourceTaxYear(String(row.sourcePeriodStart), String(row.sourcePeriodEnd)),
+  ]));
+
   const crossing = await reader.select({ id: payrollRuns.id, periodLabel: payrollRuns.periodLabel })
     .from(payrollEntries)
     .innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
@@ -194,7 +226,7 @@ async function loadFinalPaySources(input: {
   };
 
   for (const row of released) {
-    const parsed = readBasicAndThirteenth(row.lineItems);
+    const parsed = readBasicAndThirteenth(row.lineItems, { taxYear, sourceYearByAdjustmentId: retroSourceYearById });
     releasedBasicYtd += parsed.basic;
     thirteenthPaidYtd += parsed.thirteenthPaid;
     statutoryContributionsYtd += parsed.contributions;
@@ -230,6 +262,7 @@ async function loadFinalPaySources(input: {
     released,
     historical,
     loans,
+    retroSourcePeriods,
     totals: {
       releasedBasicYtd: Number(money(releasedBasicYtd)),
       thirteenthPaidYtd: Number(money(thirteenthPaidYtd)),
