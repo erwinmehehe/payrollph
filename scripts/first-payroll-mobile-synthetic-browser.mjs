@@ -25,6 +25,12 @@ const titles = [
 ];
 const browser = await chromium.launch({ headless: true });
 let page;
+async function browserGet(path) {
+  return page.evaluate(async path => {
+    const response = await fetch(path, { credentials: "same-origin", cache: "no-store" });
+    return { status: response.status, body: await response.json() };
+  }, path);
+}
 try {
   for (const [role, email] of [
     ["owner", "first-payroll-owner@example.test"], ["payroll", "hcm-payroll@example.test"],
@@ -66,9 +72,9 @@ try {
       .getByText("AlphaPrivate Worker", { exact: true }).waitFor();
     assert.ok(!(await page.locator('[data-workspace-page="People"]').innerText()).includes("BetaPrivate"));
     if (role === "owner") {
-      const inbox = await context.request.get(base + "/api/hcm/people-operations-inbox?organizationId=1");
-      assert.equal(inbox.status(), 200);
-      assert.equal((await inbox.json()).organizationId, 1, "People inbox must identify its authorized employer");
+      const inbox = await browserGet("/api/hcm/people-operations-inbox?organizationId=1");
+      assert.equal(inbox.status, 200);
+      assert.equal(inbox.body.organizationId, 1, "People inbox must identify its authorized employer");
       assert.equal(await page.getByText("The People Operations Inbox returned an unexpected employer scope.", { exact: true }).count(), 0);
     }
     report.checkpoints.push(role + ": seven steps, blocked incomplete setup, phone fit and People handoff");
@@ -88,8 +94,8 @@ try {
       await page.getByRole("list", { name: "Guided first payroll journey" }).waitFor({ timeout: 60000 });
       report.checkpoints.push("owner: UI employer switch resets guide mode and roster counts in both directions");
     } else {
-      const denied = await context.request.get(base + "/api/dashboard?organizationId=2");
-      assert.equal(denied.status(), 403, "Payroll role must not read unassigned employer");
+      const denied = await browserGet("/api/dashboard?organizationId=2");
+      assert.equal(denied.status, 403, "Payroll role must not read unassigned employer");
       report.checkpoints.push("payroll: second-employer API access denied");
     }
     assert.deepEqual(errors, []);
