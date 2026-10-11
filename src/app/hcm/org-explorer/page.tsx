@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { HcmOrgExplorerClient } from "@/components/hcm-org-explorer";
 import { getSessionUser } from "@/lib/auth";
-import { denyHcmOrgExplorer, hcmOrgExplorerPositiveId } from "@/lib/hcm-org-explorer-access";
+import { denyHcmOrgExplorer, hcmOrgExplorerEnabledForEmployer, hcmOrgExplorerPositiveId } from "@/lib/hcm-org-explorer-access";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -24,6 +24,7 @@ export default async function HcmOrgExplorerPage({
     typeof params.organizationId === "string" ? params.organizationId : null,
   );
   if (!organizationId) notFound();
+  if (!hcmOrgExplorerEnabledForEmployer(organizationId)) notFound();
 
   const denied = await denyHcmOrgExplorer(user.id, organizationId);
   if (denied) notFound();
