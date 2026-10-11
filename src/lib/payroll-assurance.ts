@@ -268,6 +268,24 @@ export function evaluatePayrollAssurance(
       });
     }
 
+    // A mandatory shortfall is NEVER an acknowledgeable exception. Even a
+    // zero-gross worker has a material statutory/tax liability if any amount
+    // was left uncollected. The trace amount is checked independently of flags.
+    const mandatoryUncollected = traceNumber(entry, "mandatoryUncollected");
+    const mandatoryShortfallFlag = flags.find((flag) => flag.startsWith("PAYROLL_MANDATORY_SHORTFALL:"));
+    const shortfallTrace = traceInputsOf(entry).find((line) => line.startsWith("mandatoryUncollected="));
+    if (mandatoryShortfallFlag || (shortfallTrace && (mandatoryUncollected === null || mandatoryUncollected > 0))) {
+      findings.push({
+        code: "MANDATORY_DEDUCTIONS_UNCOLLECTED",
+        severity: "high",
+        blocking: true,
+        title: "Mandatory deductions could not be fully collected",
+        detail: "Withholding, statutory contributions or attendance deductions exceed the payable balance. Reconcile the requested and applied amounts before payroll approval or release.",
+        employeeId: entry.employeeId,
+        current: mandatoryUncollected ?? undefined,
+      });
+    }
+
     // Unlike a routine reviewable engine warning, an invalid loan schedule
     // must not be waived with acknowledgeExceptions: gross-to-net excluded a
     // required deduction and the employer must repair source data, then recalculate.

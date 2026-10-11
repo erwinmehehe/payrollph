@@ -1,4 +1,5 @@
 import { roundedBasicPayBuckets, roundedGrossFromBuckets, statutoryTrueUpDecision } from "@/lib/payroll-money";
+import { allocateMandatoryDeductions } from "@/lib/payroll-mandatory-shortfall";
 import { and, asc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
@@ -3309,22 +3310,26 @@ function calculateEmployeePay(input: {
   // loans may use only the disposable pay left after those mandatory items.
   // An EWA is recovered all-or-nothing because its ledger has no partial
   // balance field; skipped recovery remains approved for a later payroll.
-  const coreDeductions = roundToCents(
-    sss
-      + philhealth
-      + pagibigMandatory
-      + withholding
-      + yearEndTaxAdjustment
-      + tardinessDeduction
-      + undertimeDeduction,
-  );
-  if (coreDeductions > gross + 0.005) {
+  const mandatory = allocateMandatoryDeductions(gross, {
+    sss,
+    philHealth: philhealth,
+    pagIbig: pagibigMandatory,
+    withholding,
+    yearEndTaxAdjustment,
+    tardiness: tardinessDeduction,
+    undertime: undertimeDeduction,
+  });
+  // Do not claim that requested statutory/tax amounts were actually withheld
+  // when gross pay is insufficient. The provisional priority above is NOT a
+  // legal approval to partially remit or release the affected payroll.
+  const coreDeductions = mandatory.appliedTotal;
+  if (mandatory.totalUncollected > 0) {
     flags.push(
-      `Mandatory/statutory and attendance deductions exceed gross pay by ₱${(coreDeductions - gross).toFixed(2)}; payroll requires reviewer correction before release.`,
+      `PAYROLL_MANDATORY_SHORTFALL: Mandatory/statutory and attendance deductions exceed gross pay by ₱${mandatory.totalUncollected.toFixed(2)}. The unpaid liabilities require correction and independent reconciliation; payroll release is blocked.`,
     );
   }
 
-  let disposablePay = roundToCents(Math.max(0, gross - coreDeductions));
+  let disposablePay = mandatory.disposableBeforeOptional;
 
   const pagibigVoluntary = roundToCents(Math.min(requestedPagIbigVoluntary, disposablePay));
   disposablePay = roundToCents(Math.max(0, disposablePay - pagibigVoluntary));
@@ -3413,18 +3418,18 @@ function calculateEmployeePay(input: {
     { code: "CALAMITY", label: "Calamity / hazard premium", amount: money(calamityPay), notes: calamityNotes },
     ...retroLines.map(({ amountNum: _amountNum, ...line }) => line),
     ...conversionLines.map(({ amountNum: _amountNum, taxExempt: _taxExempt, ...c }) => c),
-    { code: "SSS", label: "SSS contribution", amount: money(-sss) },
-    { code: "PHIC", label: "PhilHealth contribution", amount: money(-philhealth) },
-    { code: "HDMF", label: "Pag-IBIG mandatory contribution", amount: money(-pagibigMandatory) },
+    { code: "SSS", label: "SSS contribution", amount: money(-mandatory.applied.sss) },
+    { code: "PHIC", label: "PhilHealth contribution", amount: money(-mandatory.applied.philHealth) },
+    { code: "HDMF", label: "Pag-IBIG mandatory contribution", amount: money(-mandatory.applied.pagIbig) },
     { code: "HDMF_VOL", label: "Pag-IBIG voluntary contribution", amount: money(-pagibigVoluntary) },
-    { code: "WHT", label: "Withholding tax", amount: money(-withholding) },
+    { code: "WHT", label: "Withholding tax", amount: money(-mandatory.applied.withholding) },
     {
       code: input.yearEndTaxAdjustment ? `YE-TAX-${input.yearEndTaxAdjustment.id}` : "YE-TAX",
       label:
         yearEndTaxAdjustment < 0
           ? `BIR year-end tax refund (${input.yearEndTaxAdjustment?.taxYear ?? ""})`
           : `BIR year-end tax collection (${input.yearEndTaxAdjustment?.taxYear ?? ""})`,
-      amount: money(-yearEndTaxAdjustment),
+      amount: money(-mandatory.applied.yearEndTaxAdjustment),
       notes: input.yearEndTaxAdjustment
         ? [
             `Annual tax due minus tax withheld: ₱${yearEndTaxAdjustment.toFixed(2)}`,
@@ -3432,8 +3437,8 @@ function calculateEmployeePay(input: {
           ]
         : [],
     },
-    { code: "LATE", label: "Tardiness", amount: money(-tardinessDeduction) },
-    { code: "UT", label: "Undertime", amount: money(-undertimeDeduction) },
+    { code: "LATE", label: "Tardiness", amount: money(-mandatory.applied.tardiness) },
+    { code: "UT", label: "Undertime", amount: money(-mandatory.applied.undertime) },
     ...expenseLines,
     ...supplementaryLines.map(({
       amountNum: _amountNum,
@@ -3451,7 +3456,20 @@ function calculateEmployeePay(input: {
       amount: money(line.amount),
       notes: [line.basis, `Requested this cutoff: ₱${line.requestedDeduction.toFixed(2)}`],
     })),
-  ].filter((item) => Number(item.amount) !== 0);
+    ...(mandatory.totalUncollected > 0 ? [{
+      code: "UNPAID_MANDATORY",
+      label: `Uncollected mandatory deductions: PHP ${money(mandatory.totalUncollected)} (release blocked)`,
+      amount: "0.00",
+      notes: [
+        "Not an earning, refund or loan: excluded from gross and net.",
+        "Requested tax, government contributions and attendance amounts may differ from actual applied deductions.",
+        ...Object.entries(mandatory.uncollected)
+          .filter(([, amount]) => amount > 0)
+          .map(([name, amount]) => `${name}: PHP ${money(amount)} uncollected`),
+        "Requires payroll/finance review before any actual withholding, remittance or pay release.",
+      ],
+    }] : []),
+  ].filter((item) => Number(item.amount) !== 0 || item.code === "UNPAID_MANDATORY");
 
   const resolvedWorkforceTrace = workforceScheduleTrace(input.resolvedSchedules);
   const appliedPayPolicyTrace = new Map<number, ReturnType<typeof payPolicyTrace>[number]>();
@@ -3644,6 +3662,15 @@ function calculateEmployeePay(input: {
       `pagIbigRuleVersion=${input.statutoryRuleVersions.pagIbig}`,
       `yearEndTaxAdjustmentId=${input.yearEndTaxAdjustment?.id ?? ""}`,
       `yearEndTaxAdjustment=${money(yearEndTaxAdjustment)}`,
+      `mandatoryRequested=${money(mandatory.requestedTotal)}`,
+      `mandatoryApplied=${money(mandatory.appliedTotal)}`,
+      `mandatoryUncollected=${money(mandatory.totalUncollected)}`,
+      `uncollectedSss=${money(mandatory.uncollected.sss)}`,
+      `uncollectedPhilHealth=${money(mandatory.uncollected.philHealth)}`,
+      `uncollectedPagIbig=${money(mandatory.uncollected.pagIbig)}`,
+      `uncollectedWithholding=${money(mandatory.uncollected.withholding)}`,
+      `uncollectedYearEndTax=${money(mandatory.uncollected.yearEndTaxAdjustment)}`,
+      `uncollectedAttendance=${money(mandatory.uncollected.tardiness + mandatory.uncollected.undertime)}`,
       `yearEndTaxYear=${input.yearEndTaxAdjustment?.taxYear ?? ""}`,
       `region=${input.employee.region ?? "NCR"}`,
       `mwe=${treatAsMwe}`,
@@ -3674,7 +3701,12 @@ function calculateEmployeePay(input: {
     net,
     lineItems,
     ruleVersion: PAYROLL_RULE_VERSION,
-    notes: [...holidayNotes, ...calamityNotes, ...leaveNotes, ...punchNotes],
+    notes: [...holidayNotes, ...calamityNotes, ...leaveNotes, ...punchNotes,
+      ...(mandatory.totalUncollected > 0 ? [
+        `UNPAID MANDATORY DEDUCTIONS: PHP ${money(mandatory.totalUncollected)} (not withheld; release blocked).`,
+        "Amounts on this exception payslip are provisional and require payroll/finance review.",
+      ] : []),
+    ],
   });
 
   return { gross, deductions, net, status, lineItems, trace, payslipText };
