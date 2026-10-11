@@ -1,5 +1,5 @@
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { itAccessGrants, itDeviceEvents, itManagedDevices, employees, auditEvents } from "@/db/schema";
 
