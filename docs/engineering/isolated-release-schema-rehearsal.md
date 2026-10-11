@@ -30,3 +30,9 @@ This is **not** a rehearsal of all 124 legacy SQL files, **not** a sanitized pro
 Before changing production, a DBA must independently acquire and restore an appropriately sanitized production-like copy into an isolated, access-controlled environment, inventory the real applied migration receipts and hashes, execute the **separately approved** adoption plan on that copy, and witness backup/rollback and security isolation. Any production restore must stay outside public GitHub CI and this test. A clean synthetic rehearsal does not waive P0-2 bank-encryption, P0-4 migrations or payroll/release approvals.
 
 Related: master audit #744; draft migration receipts/read-only cutover #805; read-only production schema inventory #784 (merged).
+
+## Failure-injection and disposable-database safety
+
+A second CI execution supplies `--inject-failure`, applies the first reviewed migration and creates an additional synthetic table, then deliberately executes invalid foreign-key DDL. PostgreSQL must reject that statement and roll back **all** objects and seed rows. The script verifies the generated schema no longer exists before reporting success. A separate sanitized failure report marks production approval and clone verification as false.
+
+Before either rehearsal opens a transaction, it also refuses a nominal `app_db` target that already contains public application tables or non-system schemas. Matching a localhost URL and an environment flag is insufficient to prove that a database is disposable.

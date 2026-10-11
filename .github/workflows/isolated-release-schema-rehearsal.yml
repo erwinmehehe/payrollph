@@ -65,5 +65,9 @@ jobs:
         run: node --test tests/isolated-migration-target.test.mjs
       - name: Apply critical migration bundle twice to synthetic schema, then roll back
         run: npx tsx scripts/rehearse-critical-release-migrations.mjs
+      - name: Inject SQL failure after DDL and verify zero persistence
+        run: npx tsx scripts/rehearse-critical-release-migrations.mjs --inject-failure
       - name: Print sanitized synthetic evidence (no employer, bank or database credentials)
-        run: cat qa-artifacts/release-schema-rehearsal.json
+        run: |
+          cat qa-artifacts/release-schema-rehearsal.json
+          cat qa-artifacts/release-schema-failure-rehearsal.json

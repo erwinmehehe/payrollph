@@ -31,7 +31,10 @@ const migrations = [
 
 const syntheticBankMarker = "SYNTHETIC-NOT-A-REAL-BANK-ACCOUNT";
 const schema = "release_qa_" + randomBytes(8).toString("hex");
+const injectFailure = process.argv.length === 3 && process.argv[2] === "--inject-failure";
+let expectedFailureObserved = false;
 const accepted = {
+  disposableDatabaseEmpty: false,
   releaseObjectsVerified: false,
   uniqueConstraintsVerified: false,
   auditProtectionVerified: false,
@@ -214,6 +217,9 @@ async function exerciseConstraintsAndAudit() {
 async function main() {
   // Fail before even creating a database client for a remote or non-CI target.
   const connectionString = assertIsolatedMigrationTarget(process.env);
+  if (process.argv.length !== 2 && !injectFailure) {
+    throw new Error("REHEARSAL_UNRECOGNIZED_MODE");
+  }
   const source = migrations.map(path => ({
     path,
     content: readFileSync(path, "utf8"),
@@ -237,6 +243,25 @@ async function main() {
       db?.version >= 160000 && db?.version < 170000,
     "REHEARSAL_POSTGRES16_DISPOSABLE_IDENTITY_FAILED");
 
+    // Localhost alone does not establish that this is an empty CI-only
+    // database. Refuse even a locally forwarded or accidentally reused
+    // app_db when it contains application tables or custom schemas.
+    const occupancy = await client.query(`
+      SELECT
+        EXISTS (
+          SELECT 1 FROM pg_catalog.pg_class c
+          JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'public' AND c.relkind IN ('r','p','m','f')
+        ) OR EXISTS (
+          SELECT 1 FROM pg_catalog.pg_namespace n
+          WHERE n.nspname NOT IN ('public','pg_catalog','information_schema')
+            AND n.nspname NOT LIKE 'pg_%'
+        ) AS occupied
+    `);
+    assert.equal(occupancy.rows[0]?.occupied, false,
+      "REHEARSAL_DISPOSABLE_DATABASE_NOT_EMPTY");
+    accepted.disposableDatabaseEmpty = true;
+
     await client.query("BEGIN");
     transactionOpen = true;
     await client.query("SET LOCAL statement_timeout = '10000ms'");
@@ -245,15 +270,35 @@ async function main() {
     await client.query('SET LOCAL search_path TO "' + schema + '", pg_catalog');
 
     await seedSyntheticPredecessors();
-    // This is an integrated test of SELECTED late migrations, not the
-    // historical 124-file chain or an inferred production migration order.
-    for (let pass = 0; pass < 2; pass += 1) {
-      for (const migration of source) await client.query(migration.content);
-      await inspectReleaseObjects();
+    if (injectFailure) {
+      // Rehearse failure AFTER successful DDL, not only a trivial failure
+      // before a transaction. PostgreSQL must roll back the migration, probe
+      // table and synthetic seed rows together.
+      await client.query(source[0].content);
+      await client.query("CREATE TABLE intentional_mid_migration_probe (id integer PRIMARY KEY)");
+      try {
+        await client.query(
+          "ALTER TABLE intentional_mid_migration_probe ADD CONSTRAINT " +
+          "invalid_reference FOREIGN KEY(id) REFERENCES nonexistent_release_table(id)",
+        );
+      } catch (error) {
+        if (error?.code !== "42P01") throw new Error("REHEARSAL_UNEXPECTED_FAILURE_TYPE");
+        expectedFailureObserved = true;
+      }
+      if (!expectedFailureObserved) {
+        throw new Error("REHEARSAL_FAILURE_INJECTION_DID_NOT_TRIGGER");
+      }
+    } else {
+      // This is an integrated test of SELECTED late migrations, not the
+      // historical 124-file chain or an inferred production migration order.
+      for (let pass = 0; pass < 2; pass += 1) {
+        for (const migration of source) await client.query(migration.content);
+        await inspectReleaseObjects();
+      }
+      accepted.migrationsReplayedTwice = true;
+      accepted.releaseObjectsVerified = true;
+      await exerciseConstraintsAndAudit();
     }
-    accepted.migrationsReplayedTwice = true;
-    accepted.releaseObjectsVerified = true;
-    await exerciseConstraintsAndAudit();
   } finally {
     if (transactionOpen && connected) {
       try {
@@ -282,17 +327,25 @@ async function main() {
       try { await client.end(); } catch { failed = true; }
     }
   }
-  if (failed || !Object.values(accepted).every(Boolean)) {
+  if (failed || (injectFailure
+    ? !expectedFailureObserved || !accepted.rollbackVerified || !accepted.disposableDatabaseEmpty
+    : !Object.values(accepted).every(Boolean))) {
     throw new Error("REHEARSAL_INCOMPLETE");
   }
   mkdirSync("qa-artifacts", { recursive: true });
-  writeFileSync("qa-artifacts/release-schema-rehearsal.json", JSON.stringify({
+  const evidenceFile = injectFailure
+    ? "qa-artifacts/release-schema-failure-rehearsal.json"
+    : "qa-artifacts/release-schema-rehearsal.json";
+  writeFileSync(evidenceFile, JSON.stringify({
     schemaVersion: 1,
-    kind: "synthetic-postgresql16-critical-migration-bundle-rehearsal",
+    kind: injectFailure
+      ? "synthetic-postgresql16-mid-migration-failure-rollback"
+      : "synthetic-postgresql16-critical-migration-bundle-rehearsal",
     mode: "isolated-ci-only",
     sourceFiles: source.map(item => item.path),
     sourceDigest: digest.digest("hex"),
     ...accepted,
+    expectedFailureObserved,
     syntheticDataOnly: true,
     realEmployerDataAccessed: false,
     productionCloneRehearsed: false,
@@ -300,7 +353,9 @@ async function main() {
     databaseChangesCommitted: false,
     productionReleaseApproved: false,
   }, null, 2) + "\n");
-  console.log("Critical migrations passed the synthetic PostgreSQL 16 rollback-only rehearsal.");
+  console.log(injectFailure
+    ? "Intentional mid-migration SQL failure rolled back all synthetic changes."
+    : "Critical migrations passed the synthetic PostgreSQL 16 rollback-only rehearsal.");
 }
 
 try {

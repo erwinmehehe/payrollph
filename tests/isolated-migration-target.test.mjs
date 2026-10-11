@@ -64,6 +64,9 @@ test("rehearsal runs selected late migrations together, tests rejection paths, a
     "seal_audit_events(100)",
     "REHEARSAL_AUDIT_CHAIN_INTEGRITY_MISMATCH",
     "syntheticBankFieldPreserved",
+    "REHEARSAL_DISPOSABLE_DATABASE_NOT_EMPTY",
+    "expectedFailureObserved",
+    "--inject-failure",
     "ROLLBACK",
     "WHERE nspname = $1",
     "productionCloneRehearsed: false",
@@ -86,6 +89,8 @@ test("isolated migration workflow has local Postgres16 only and zero production 
   assert.match(workflow, /postgresql:\/\/postgres:postgres@127\.0\.0\.1:5432\/app_db/);
   assert.match(workflow, /node --test tests\/isolated-migration-target\.test\.mjs/);
   assert.match(workflow, /npx tsx scripts\/rehearse-critical-release-migrations\.mjs/);
+  assert.match(workflow, /npx tsx scripts\/rehearse-critical-release-migrations\.mjs --inject-failure/);
+  assert.match(workflow, /cat qa-artifacts\/release-schema-failure-rehearsal\.json/);
   assert.match(workflow, /persist-credentials: false/);
   assert.doesNotMatch(workflow, /secrets\.|environment: production|DATABASE_URL_UNPOOLED|--prod|db:push|db:migrate/);
 });
