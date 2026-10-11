@@ -22,7 +22,6 @@ export function XenditPayoutPanel({
   runId, onRefresh,
 }: { runId: number; onRefresh: () => Promise<void> }) {
   const [status, setStatus] = useState<Status | null>(null);
-  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [referenceNumber, setReferenceNumber] = useState("");
