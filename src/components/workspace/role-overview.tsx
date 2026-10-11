@@ -40,12 +40,14 @@ export function RoleOverviewView({
   role,
   onPage,
   onNewRun,
+  onFocusEmployee,
 }: {
   data: DashboardData;
   currentRun?: PayrollRun;
   role: WorkspaceDashboardRole;
   onPage: (page: string) => void;
   onNewRun: () => void;
+  onFocusEmployee?: (employeeId: number) => void;
 }) {
   if (role === "owner" || role === "payroll") {
     return <PremiumDashboard data={data} currentRun={currentRun} role={role} onPage={onPage} onNewRun={onNewRun} />;
@@ -60,6 +62,7 @@ export function RoleOverviewView({
       role={role}
       onPage={onPage}
       onNewRun={onNewRun}
+      onFocusEmployee={onFocusEmployee}
     />
   );
 }
