@@ -58,8 +58,9 @@ import type { DashboardData, PayrollReleaseReceipt, PricingPlan } from "@/compon
 import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
+import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 
-export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean }) {
+export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean }) {
   const searchParams = useSearchParams();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
@@ -97,14 +98,17 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
   const effectiveRole = demoRole ?? data.access?.role ?? data.user?.role ?? null;
   const rolePages = demoRole ? demoRolePages(demoRole) : workspacePagesForRole(effectiveRole);
   const primaryPages = workspacePrimaryPagesForRole(effectiveRole);
-  const availablePages = useMemo(
-    () =>
-      NAVIGATION.flatMap((group) => group.items)
-        .map((item) => item.name)
-        .filter((name) => !(isFreelancer && FREELANCER_HIDDEN.has(name)))
-        .filter((name) => !rolePages || rolePages.includes(name)),
-    [isFreelancer, rolePages],
-  );
+  const availablePages = useMemo(() => {
+    const roleAllowedPages = NAVIGATION.flatMap((group) => group.items)
+      .map((item) => item.name)
+      .filter((name) => !(isFreelancer && FREELANCER_HIDDEN.has(name)))
+      .filter((name) => !rolePages || rolePages.includes(name));
+    // Keep the pilot menu small without ever granting access outside the
+    // already calculated role/plan navigation entitlement.
+    return pilotFocusEnabled && !isFreelancer && !demoRole
+      ? pilotCoreNavigationPages(roleAllowedPages)
+      : roleAllowedPages;
+  }, [isFreelancer, rolePages, pilotFocusEnabled, demoRole]);
 
   const notifications = useMemo(
     () => buildNotifications(data, effectiveRole).filter((item) => !item.page || availablePages.includes(item.page)),

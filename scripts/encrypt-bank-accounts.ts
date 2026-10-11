@@ -1,7 +1,8 @@
 import "dotenv/config";
-import { eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { db, pool } from "../src/db";
-import { employees, payrollEntries } from "../src/db/schema";
+import { replaceEmployeeBankAccount, replacePayrollSnapshotBankAccount } from "./lib/bank-backfill-writes";
+import { employeePayoutChangeRequests, employees, legalEntities, payrollEntries } from "../src/db/schema";
 import {
   bankEncryptionConfigured,
   decryptBankAccount,
@@ -24,15 +25,15 @@ import {
  *   3. Run this once without flags. It only reports what it would change.
  *   4. Run it again with --apply.
  *
- * It also encrypts the copy of the account number that every payroll entry
- * keeps in its payment snapshot (payroll_entries.trace.payment). Without that,
- * old runs would still hold the plaintext number even after the employee row
- * was protected. The release guard compares by decrypted value, so re-sealing
- * a snapshot does not make it look "changed".
+ * It also encrypts payroll payment snapshots, legacy proposed payout-destination
+ * accounts, and legal-entity disbursement accounts. Otherwise an operator
+ * could see "zero plaintext" on employees while those other tables still
+ * retain copies. The release guard compares by decrypted value.
  *
- * Safe to re-run: already-encrypted rows are skipped, and every row is
- * decrypted again after writing and compared to the original before the script
- * moves on, so a bad key cannot silently destroy an account number.
+ * Already-encrypted rows are skipped. Each newly sealed value must pass a
+ * decrypt/compare check BEFORE writing. Each write also compares the original
+ * account to reject stale scan results. Snapshot updates patch only the bank
+ * account field, preserving concurrent changes to unrelated payroll evidence.
  *
  * Usage:
  *   npx tsx scripts/encrypt-bank-accounts.ts            # dry run
@@ -71,6 +72,17 @@ async function main() {
 
   const pending = rows.filter((row) => row.bankAccount?.trim() && !isEncryptedBankAccount(row.bankAccount));
   const alreadyEncrypted = rows.filter((row) => isEncryptedBankAccount(row.bankAccount)).length;
+  const legalLegacy = await db.select({
+    id: legalEntities.id, bankAccount: legalEntities.disbursementAccount,
+  }).from(legalEntities).where(sql`${legalEntities.disbursementAccount} is not null
+    and ${legalEntities.disbursementAccount} <> ''
+    and ${legalEntities.disbursementAccount} not like 'enc:v1:%'`);
+
+  const proposedLegacy = await db.select({
+    id: employeePayoutChangeRequests.id, bankAccount: employeePayoutChangeRequests.proposedBankAccount,
+  }).from(employeePayoutChangeRequests).where(sql`${employeePayoutChangeRequests.proposedBankAccount} is not null
+    and ${employeePayoutChangeRequests.proposedBankAccount} <> ''
+    and ${employeePayoutChangeRequests.proposedBankAccount} not like 'enc:v1:%'`);
 
   console.log(
     `${rows.length} employee(s) have a bank account. ${alreadyEncrypted} already encrypted, ${pending.length} to encrypt.`,
@@ -84,6 +96,8 @@ async function main() {
                  and ${payrollEntries.trace} #>> '{payment,bankAccount}' <> ''
                  and ${payrollEntries.trace} #>> '{payment,bankAccount}' not like 'enc:v1:%'`);
     console.log(`${snapshotCount} payroll payment snapshot(s) also hold a plaintext account number.`);
+    console.log(`${legalLegacy.length} legal entity disbursement account(s) hold plaintext.`);
+    console.log(`${proposedLegacy.length} payout change request(s) hold plaintext.`);
     console.log("Dry run, nothing written. Re-run with --apply to encrypt.");
     return;
   }
@@ -99,7 +113,9 @@ async function main() {
     if (decryptBankAccount(sealed) !== plain) {
       throw new Error(`Round-trip check failed for employee ${row.employeeNo}. Stopped after ${done} row(s).`);
     }
-    await db.update(employees).set({ bankAccount: sealed }).where(eq(employees.id, row.id));
+    await replaceEmployeeBankAccount(pool, {
+      id: row.id, original: row.bankAccount!, encrypted: sealed,
+    });
     done += 1;
   }
 
@@ -126,13 +142,46 @@ async function main() {
     if (!sealed || decryptBankAccount(sealed) !== plain) {
       throw new Error(`Snapshot round-trip failed for payroll entry ${row.id}. Stopped after ${sealedSnapshots} snapshot(s).`);
     }
-    await db
-      .update(payrollEntries)
-      .set({ trace: { ...trace, payment: { ...trace.payment, bankAccount: sealed } } })
-      .where(eq(payrollEntries.id, row.id));
+    await replacePayrollSnapshotBankAccount(pool, {
+      id: row.id, original: trace.payment!.bankAccount!, encrypted: sealed,
+    });
     sealedSnapshots += 1;
   }
   console.log(`Encrypted ${sealedSnapshots} payroll payment snapshot(s).`);
+  // The other two recorded account fields may still contain legacy plaintext.
+  // Compare-and-swap prevents overwriting edits made during the operator run.
+  let legalSealed = 0;
+  for (const row of legalLegacy) {
+    const plain = row.bankAccount?.trim();
+    if (!plain) continue;
+    const sealed = encryptBankAccount(plain);
+    if (!sealed || decryptBankAccount(sealed) !== plain) {
+      throw new Error("Legal-entity account round-trip failed. Stop before continuing.");
+    }
+    const updated = await db.update(legalEntities).set({ disbursementAccount: sealed })
+      .where(and(eq(legalEntities.id, row.id), eq(legalEntities.disbursementAccount, row.bankAccount!)))
+      .returning({ id: legalEntities.id });
+    if (updated.length !== 1) throw new Error("Legal-entity account changed during backfill; repeat dry-run.");
+    legalSealed += 1;
+  }
+  console.log(`Encrypted ${legalSealed} legal entity disbursement account(s).`);
+
+  let proposedSealed = 0;
+  for (const row of proposedLegacy) {
+    const plain = row.bankAccount?.trim();
+    if (!plain) continue;
+    const sealed = encryptBankAccount(plain);
+    if (!sealed || decryptBankAccount(sealed) !== plain) {
+      throw new Error("Payout-change account round-trip failed. Stop before continuing.");
+    }
+    const updated = await db.update(employeePayoutChangeRequests).set({ proposedBankAccount: sealed })
+      .where(and(eq(employeePayoutChangeRequests.id, row.id),
+        eq(employeePayoutChangeRequests.proposedBankAccount, row.bankAccount!)))
+      .returning({ id: employeePayoutChangeRequests.id });
+    if (updated.length !== 1) throw new Error("Payout-change account changed during backfill; repeat dry-run.");
+    proposedSealed += 1;
+  }
+  console.log(`Encrypted ${proposedSealed} payout change request account(s).`);
 }
 
 main()

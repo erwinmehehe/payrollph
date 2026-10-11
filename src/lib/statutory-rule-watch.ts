@@ -5,7 +5,7 @@ import {
   SSS_RULE_PACKS,
   type EffectiveRulePack,
 } from "@/lib/ph-statutory-rule-packs";
-import { WAGE_ORDERS } from "@/lib/wage-orders";
+import { FORTHCOMING_WAGE_ORDERS, REGION_VII_WAGE_TIERS, WAGE_ORDERS } from "@/lib/wage-orders";
 
 /**
  * Published statutory changes that are known but not yet loaded into the rule
@@ -18,15 +18,7 @@ export const KNOWN_PENDING_RULE_CHANGES: ReadonlyArray<{
   scope: string;
   effectiveOn: string;
   note: string;
-}> = [
-  {
-    family: "wage-orders",
-    reference: "WO-ROVII-27",
-    scope: "Region VII",
-    effectiveOn: "2026-10-14",
-    note: "Published Region VII wage order; the registry still carries WO-ROVII-26 until the new rates are verified and loaded.",
-  },
-];
+}> = []; // ROVII-27 is now verified and effective-dated in the wage registry.
 
 /** Dates the team last confirmed each family against the official agency source; null means not recorded. */
 export const RULE_FAMILY_LAST_VERIFIED: Record<RuleWatchFamily, string | null> = {
@@ -35,7 +27,7 @@ export const RULE_FAMILY_LAST_VERIFIED: Record<RuleWatchFamily, string | null> =
   pagibig: null,
   "bir-withholding": null,
   // From the WAGE_ORDERS registry header: verified against NWPC/RTWPB pages.
-  "wage-orders": "2026-10-03",
+  "wage-orders": "2026-10-10",
 };
 
 export type RuleWatchFamily = "sss" | "philhealth" | "pagibig" | "bir-withholding" | "wage-orders";
@@ -130,6 +122,26 @@ export function buildStatutoryRuleWatch(today: string): RuleWatchItem[] {
       lastVerifiedOn: RULE_FAMILY_LAST_VERIFIED["wage-orders"],
     }, today),
   ];
+
+  // A published rate that is already verified and loaded must not remain
+  // "update-overdue" when its effective date arrives. Surface it as a scheduled
+  // change before effectivity; after effectivity the dated registry is live.
+  for (const order of FORTHCOMING_WAGE_ORDERS) {
+    const daysUntil = dayNumber(order.effectiveOn) - dayNumber(today);
+    if (daysUntil <= 0 || daysUntil > UPCOMING_WINDOW_DAYS) continue;
+    const tiers = order.region === "VII"
+      ? REGION_VII_WAGE_TIERS.map((tier) => `Class ${tier.wageClass}: ₱${tier.newDailyRate}/day`).join("; ")
+      : `highest regional advisory: ₱${order.dailyRate}/day`;
+    items.push({
+      family: "wage-orders",
+      label: `${LABELS["wage-orders"]} · Region ${order.region}`,
+      status: "change-upcoming",
+      currentVersion: `scheduled ${order.wageOrder}`,
+      sourceDocument: order.wageOrder,
+      lastVerifiedOn: RULE_FAMILY_LAST_VERIFIED["wage-orders"],
+      detail: `${order.wageOrder} is verified and loaded for automatic pay-date screening from ${order.effectiveOn} (in ${daysUntil} day${daysUntil === 1 ? "" : "s"}). ${tiers}. A locality/establishment review is still required; this does not automatically raise salaries.`,
+    });
+  }
 
   for (const change of KNOWN_PENDING_RULE_CHANGES) {
     const daysUntil = dayNumber(change.effectiveOn) - dayNumber(today);

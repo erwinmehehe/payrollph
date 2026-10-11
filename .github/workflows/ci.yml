@@ -38,6 +38,12 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      # The app now fails closed on every nonempty bank write without a key.
+      # Isolated synthetic CI uses a fresh random key that is never persisted.
+      - name: Provision ephemeral bank key for isolated CI only
+        shell: bash
+        run: |
+          echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - name: Block high and critical runtime dependency vulnerabilities
         run: npm audit --omit=dev --audit-level=high
       - name: Report high and critical development dependency vulnerabilities

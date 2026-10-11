@@ -1,8 +1,9 @@
 import { annualize } from "@/lib/annualization";
+import { round2 } from "@/lib/round";
 
 export type FinalPayLine = { code?: string; label?: string; amount?: string | number; notes?: string[] };
 
-const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+
 
 export function readBasicAndThirteenth(lineItems: unknown) {
   const lines = Array.isArray(lineItems) ? lineItems as FinalPayLine[] : [];
@@ -51,6 +52,25 @@ export function readBasicAndThirteenth(lineItems: unknown) {
     deMinimisPaid: round2(deMinimisPaid),
     deMinimisExcess: round2(deMinimisExcess),
   };
+}
+
+/**
+ * Actual SIL/convertible-leave encashment used by the Separation API.
+ * Daily rate is already resolved from the employee's governed pay basis.
+ * This is a gross benefit; tax treatment must still be reviewed separately.
+ */
+export function calculateLeaveMonetizationPay(unusedLeaveCredits: number, dailyRate: number): number {
+  if (!Number.isFinite(unusedLeaveCredits) || unusedLeaveCredits < 0) {
+    throw new Error("Convertible unused leave credits must be a finite non-negative number.");
+  }
+  if (!Number.isFinite(dailyRate) || dailyRate <= 0) {
+    throw new Error("Daily pay rate must be a positive finite number.");
+  }
+  const amount = unusedLeaveCredits * dailyRate;
+  if (!Number.isFinite(amount) || amount > 1_000_000_000) {
+    throw new Error("Convertible leave calculation exceeds the supported monetary range.");
+  }
+  return round2(amount);
 }
 
 export function finalPayDueDate(lastDay: string) {
