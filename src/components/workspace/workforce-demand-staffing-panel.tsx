@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { RefreshCcw, ShieldCheck, TrendingUp } from "lucide-react";
 import type { IssuedDemandSnapshot } from "@/lib/workforce-issued-demand-evidence";
 import {
@@ -126,7 +126,7 @@ export function WorkforceDemandStaffingPanel({
   const configured = productivity.trim() !== "" && serviceTarget.trim() !== "" &&
     Number.isFinite(product) && product >= 0.01 && product <= 1_000_000 &&
     Number.isFinite(target) && target > 0 && target <= 100 && acknowledged;
-  const planning = useMemo(() => {
+  const planning = (() => {
     if (!configured || !selected?.snapshot || !shift || dynamicGroupCode) return null;
     try {
       const evidence = buildDemandStaffingShiftEvidence({
@@ -146,8 +146,7 @@ export function WorkforceDemandStaffingPanel({
       return {evidence:null,base:null,high:null,
         issue:cause instanceof Error ? cause.message : "Demand staffing evidence requires review."};
     }
-  }, [organizationId, worksiteId, shift, jobProfileId, selected, windowStart, windowEnd,
-      product, target, configured, coverage, laborCostVisible, laborRows, dynamicGroupCode]);
+  })();
   const base = planning?.base;
   const high = planning?.high;
   const unknown = base?.rows.filter(row => row.gapWorkers === null).length ?? 0;
