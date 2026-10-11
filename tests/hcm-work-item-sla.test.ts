@@ -29,11 +29,15 @@ test("SLA escalation requires a secret, locks rows, and queues deduplicated noti
 });
 test("HCM command center is read-only and company-wide",()=>{
   const source=read("src/app/hcm/command-center/page.tsx");
-  assert.match(source,/companyWide/);
-  assert.match(source,/primaryCompanyOrganizationId/);
-  assert.match(source,/hcmLifecycleNotificationTasks/);
-  assert.match(source,/automationOperationalCases/);
+  assert.match(source,/canOpenPeopleHome\(access\)/);
+  assert.match(source,/peopleHomeEnabledForOrganization\(organizationId\)/);
+  assert.match(source,/explicitHcmEmployerId/);
+  assert.doesNotMatch(source,/primaryCompanyOrganizationId/);
+  const projection=read("src/lib/hcm-people-home-worklist.ts");
+  assert.match(projection,/hcmLifecycleNotificationTasks/);
+  assert.match(projection,/assigned_owner_user_id/);
   assert.doesNotMatch(source,/db\.(insert|update|delete)\(/);
+  assert.doesNotMatch(projection,/db\.(insert|update|delete)\(/);
 });
 test("canonical sequential migration fields exist in Drizzle schema",()=>{
   const schema=read("src/db/schema.ts");

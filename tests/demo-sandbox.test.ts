@@ -96,13 +96,22 @@ test("real workspace action controls follow server role families", () => {
   assert.equal(roleCanManageDelegations("payroll"), false);
 });
 
-test("payroll approvals render as review-only instead of exposing forbidden decision controls", () => {
+test("approval decisions require a pending, assigned task and server-side authority", () => {
   const approvals = read("src/components/workspace/approvals.tsx");
+  const assignment = read("src/lib/workspace-approval-eligibility.ts");
+  const handler = read("src/app/api/approvals/[id]/route.ts");
   const workspace = read("src/components/linaw-workspace.tsx");
 
-  assert.ok(approvals.includes("canDecide"), "approvals view needs an explicit decision capability");
+  assert.ok(approvals.includes("canDecide"), "approvals view needs an explicit role decision capability");
   assert.ok(approvals.includes("canManageDelegations"), "delegation controls need a separate capability");
-  assert.ok(approvals.includes('task.status === "Pending" && canDecide'), "pending decision buttons must be capability-gated");
+  assert.ok(approvals.includes("canDecideTask(task)"), "decision actions must check assignment for each task");
+  assert.ok(approvals.includes("decisionVisibleToViewer"), "UI decisions must reuse task assignment eligibility");
+  assert.ok(assignment.includes('input.task.status === "Pending"'), "a decided task must not offer approval actions");
+  assert.ok(assignment.includes("assignedToViewer(input.task.approver"), "role alone must not grant a named approver task");
+  assert.ok(approvals.includes("draftPermitted"), "confirmation must recheck the draft decision's eligibility");
+  assert.ok(approvals.includes("!draftPermitted"), "confirmation must be disabled if task eligibility changes");
+  assert.ok(handler.includes("canDecide(task.organizationId, task.approver, actor, sessionUser.id)"),
+    "the approvals API must remain the authoritative authorization gate");
   assert.ok(workspace.includes("roleCanDecideApprovals(effectiveRole)"), "workspace must derive approval controls from the real role");
   assert.ok(workspace.includes("workspacePagesForRole(effectiveRole)"), "real user navigation must be role-scoped");
 });
@@ -547,15 +556,17 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   assert.ok(shell.includes("primaryPages"), "workspace shell must receive a role-specific primary navigation set");
   assert.ok(shell.includes("secondaryItems"), "secondary features must remain reachable outside the primary navigation");
   assert.ok(shell.includes("nav-more-toggle"), "secondary features must be grouped under More instead of deleted");
-  assert.deepEqual(ROLE_PRIMARY_PAGES.owner, ["Overview", "Payroll", "Analytics", "People", "Settings"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.hr, ["Overview", "People"]);
+  assert.ok(shell.includes("<LinawMark />"), "premium shell must preserve the approved Linaw logo");
+  assert.ok(shell.includes("sidebar-settings-link"), "settings must remain available without cluttering primary navigation");
+  assert.deepEqual(ROLE_PRIMARY_PAGES.owner, ["Overview", "Payroll", "People", "Time & attendance", "Leave", "Approvals", "Analytics"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.hr, ["Overview", "People", "Time & attendance", "Leave", "Approvals", "Analytics"]);
   for (const page of ["Planning", "Compensation", "Workforce", "Time & attendance", "Leave", "Recruitment", "Performance"]) {
     assert.ok(REAL_ROLE_PAGE_ACCESS.hr?.includes(page), `HR secondary page ${page} must remain accessible under More`);
   }
-  assert.deepEqual(ROLE_PRIMARY_PAGES.payroll, ["Overview", "Payroll", "Time & attendance", "People"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.checker, ["Overview", "Audit trail"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.bookkeeper, ["Overview", "Exports", "Compliance", "Readiness", "Analytics"]);
-  assert.ok(shell.includes("Search employees, payroll, reports"), "top search should use the mockup wording");
+  assert.deepEqual(ROLE_PRIMARY_PAGES.payroll, ["Overview", "Payroll", "People", "Time & attendance", "Approvals", "Analytics"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.checker, ["Overview", "Approvals", "Audit trail"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.bookkeeper, ["Overview", "Payroll", "Exports", "Compliance", "Analytics", "Audit trail"]);
+  assert.ok(shell.includes("Search pages, people, and actions"), "top search should accurately describe available search targets");
   assert.ok(dashboard.includes("mockup-owner-release"), "owner dashboard must render the approved release card");
   assert.ok(dashboard.includes("mockup-four-step"), "payroll dashboard must render the approved workflow stepper");
   assert.ok(dashboard.includes("mockup-checker-summary"), "checker dashboard must render the approved comparison summary");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   Check,
   CheckCircle2,
@@ -157,6 +158,13 @@ export function HcmBusinessProcessInbox({
 
   const processRows = tab === "submitted" ? payload?.submitted ?? [] : payload?.recent ?? [];
 
+  // The link is discoverability only: the monitor rechecks permissions and
+  // the server-only employer allowlist before reading any HCM source record.
+  const monitorVisible =
+    process.env.NEXT_PUBLIC_HCM_PROCESS_MONITOR_ENABLED === "true" &&
+    (process.env.NEXT_PUBLIC_HCM_PROCESS_MONITOR_ORG_IDS ?? "")
+      .split(",").some((value) => value.trim() === String(organizationId));
+
   return (
     <section className="card" style={{ marginBottom: 18 }}>
       <div className="card-header">
@@ -168,9 +176,17 @@ export function HcmBusinessProcessInbox({
             process version, assignment and decision history.
           </p>
         </div>
-        <button className="secondary-button" onClick={() => void load()} disabled={loading}>
-          <RefreshCw size={14} /> Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {monitorVisible && (
+            <Link className="secondary-button"
+              href={"/hcm/process-monitor?organizationId=" + organizationId}>
+              Monitor workflows
+            </Link>
+          )}
+          <button className="secondary-button" onClick={() => void load()} disabled={loading}>
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
       </div>
 
       {error && (

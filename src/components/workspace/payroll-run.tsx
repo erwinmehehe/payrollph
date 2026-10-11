@@ -31,6 +31,7 @@ import { StatutoryRemittanceCorrectionsPanel } from "./statutory-remittance-corr
 import { StatutoryContributionIssueCasesPanel } from "./statutory-contribution-issue-cases-panel";
 import { StatutoryRemittanceMonthClose } from "./statutory-remittance-month-close";
 import { OwnerPayrollRelease } from "./owner-payroll-release";
+import { PayrollPhaseTwoOverview } from "./payroll-phase-two-overview";
 import { ExplainPayDrawer } from "./explain-pay-drawer";
 import {
   Battery,
@@ -411,6 +412,25 @@ export function PayrollRunView({
         }
       />
 
+      <PayrollPhaseTwoOverview
+        run={run}
+        task={relatedTask}
+        events={data.auditEvents}
+        checklist={releaseChecklist?.items ?? null}
+        role={data.access?.role ?? data.user?.role ?? ""}
+        canOpenExports={availablePages.includes("Exports")}
+        onContinue={() => {
+          const target = payrollOfficerMode || ownerMode ? "phase-two-role-workflow" : "payroll-workspace";
+          document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+        onReviewExceptions={() => {
+          setOnlyExceptions(true);
+          document.getElementById("payroll-register")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }}
+        onOpenApprovals={() => onPage("Approvals")}
+        onOpenExports={() => onPage("Exports")}
+      />
+
       {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
         <PayrollConnectedImpactPanel runId={run.id} onPage={onPage} allowedPages={availablePages} />
       )}
@@ -427,6 +447,7 @@ export function PayrollRunView({
       )}
 
       {payrollOfficerMode && (
+        <div id="phase-two-role-workflow" className="p2-role-controls">
         <PayrollOfficerWorkspace
           data={data}
           run={run}
@@ -451,6 +472,7 @@ export function PayrollRunView({
             document.getElementById("payroll-register")?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
         />
+        </div>
       )}
 
       {["owner", "admin", "bookkeeper", "payroll"].includes(data.access?.role ?? "") && (
@@ -494,6 +516,7 @@ export function PayrollRunView({
       )}
 
       {ownerMode && (
+        <div id="phase-two-role-workflow" className="p2-role-controls">
         <OwnerPayrollRelease
           data={data}
           run={run}
@@ -507,6 +530,7 @@ export function PayrollRunView({
             document.getElementById("payroll-assurance")?.scrollIntoView({ behavior: "smooth", block: "start" });
           }}
         />
+        </div>
       )}
 
       {visibleReleaseReceipt?.runId === run.id && (
@@ -610,7 +634,7 @@ export function PayrollRunView({
         </section>
       )}
 
-      <section className="payroll-workspace">
+      <section className="payroll-workspace" id="payroll-workspace">
         <article className="card run-list flush">
           <div className="card-header">
             <div>

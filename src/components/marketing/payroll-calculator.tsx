@@ -106,7 +106,7 @@ export function PayrollCalculator({ slug }: { slug: CalculatorSlug }) {
             </label>
             <label className="flex items-center gap-2 text-[13px] font-medium text-[#34394F]">
               <input type="checkbox" checked={restDay} onChange={(e) => setRestDay(e.target.checked)} />
-              This is also the employee's rest day
+              This is also the employee&#39;s rest day
             </label>
           </>
         ) : null}

@@ -327,7 +327,7 @@ export function WorkforcePlanner({
     if (ok) setAssignmentPatternId("");
   }
 
-  function useExistingPatternAsTemplate(pattern: PatternRow) {
+  function applyExistingPatternTemplate(pattern: PatternRow) {
     if (!catalog) return;
     const result = buildRotationTemplateDraft({
       pattern, patterns: catalog.patterns, days: catalog.patternDays,
@@ -661,7 +661,7 @@ export function WorkforcePlanner({
                   <b>{pattern.code} · {pattern.name}</b>
                   <small style={{ display: "block", color: "var(--muted)" }}>{pattern.cycleDays}-day cycle</small>
                   <button type="button" className="secondary-button"
-                    onClick={() => useExistingPatternAsTemplate(pattern)} disabled={saving !== null}
+                    onClick={() => applyExistingPatternTemplate(pattern)} disabled={saving !== null}
                     aria-label={`Use ${pattern.name} as a new rotation template`}>
                     Use as template
                   </button>

@@ -9,6 +9,9 @@ function asRecord(value: unknown): JsonRecord | null {
 }
 
 function safeEqualHex(left: string, right: string) {
+  // Buffer.from(..., "hex") silently truncates invalid trailing characters.
+  // Require an exact SHA-256 hex digest before constant-time comparison.
+  if (!/^[a-f0-9]{64}$/i.test(left) || !/^[a-f0-9]{64}$/i.test(right)) return false;
   try {
     const a = Buffer.from(left, "hex");
     const b = Buffer.from(right, "hex");
@@ -46,9 +49,21 @@ export function verifyPaymongoWebhookSignature(input: {
     .update(`${timestamp}.${input.payload}`)
     .digest("hex");
 
-  return [parts.get("li"), parts.get("te")]
-    .filter((value): value is string => Boolean(value))
-    .some((candidate) => safeEqualHex(candidate, expected));
+  // PayMongo specifies different signature slots for live and test events.
+  // Select the slot from the signed raw payload, never accept whichever
+  // environment signature happens to match.
+  let livemode: boolean;
+  try {
+    const envelope = asRecord(JSON.parse(input.payload) as unknown);
+    const event = asRecord(envelope?.data) ?? envelope;
+    const attributes = asRecord(event?.attributes);
+    if (!attributes || typeof attributes.livemode !== "boolean") return false;
+    livemode = attributes.livemode;
+  } catch {
+    return false;
+  }
+  const candidate = parts.get(livemode ? "li" : "te");
+  return Boolean(candidate && safeEqualHex(candidate, expected));
 }
 
 export type PaymongoTransferWebhookEvent = {
@@ -94,10 +109,15 @@ export function normalizePaymongoTransferWebhook(payload: unknown): PaymongoTran
   const referenceNumber = typeof attributes.reference_number === "string"
     ? attributes.reference_number
     : null;
-  const amountCents = Number(attributes.amount);
+  // Never coerce null/booleans/strings into money amounts. A missing amount
+  // must not become an apparent zero-cent settlement receipt.
+  const amountCents = typeof attributes.amount === "number" ? attributes.amount : Number.NaN;
   const match = referenceNumber?.match(/^PAY-(\d+)-(.+)$/);
+  const runId = match ? Number(match[1]) : Number.NaN;
 
-  if (!transferId || !referenceNumber || !match || !Number.isInteger(amountCents) || amountCents < 0) {
+  if (!transferId || !referenceNumber || !match
+    || !Number.isSafeInteger(runId) || runId <= 0
+    || !Number.isSafeInteger(amountCents) || amountCents <= 0) {
     return null;
   }
 
@@ -106,12 +126,22 @@ export function normalizePaymongoTransferWebhook(payload: unknown): PaymongoTran
   const resourceStatus = typeof attributes.status === "string" ? attributes.status.toLowerCase() : null;
   if (resourceStatus && resourceStatus !== status) return null;
 
-  const createdAt = Number(eventAttributes.created_at);
+  const rawCreatedAt = eventAttributes.created_at;
+  const createdAt = typeof rawCreatedAt === "number"
+    ? rawCreatedAt
+    : typeof rawCreatedAt === "string" && /^\d{1,12}$/.test(rawCreatedAt)
+      ? Number(rawCreatedAt)
+      : Number.NaN;
+  const occurredAtMs = createdAt * 1000;
+  // An extreme but finite timestamp can still overflow Date.toISOString().
+  const occurredAt = Number.isFinite(occurredAtMs) && Math.abs(occurredAtMs) <= 8_640_000_000_000_000
+    ? new Date(occurredAtMs).toISOString()
+    : new Date().toISOString();
   return {
     eventId: event.id,
     eventType,
     liveMode: eventAttributes.livemode === true,
-    runId: Number(match[1]),
+    runId,
     employeeNo: match[2],
     transferId,
     batchTransactionId: typeof attributes.batch_transaction_id === "string" && attributes.batch_transaction_id
@@ -130,8 +160,6 @@ export function normalizePaymongoTransferWebhook(payload: unknown): PaymongoTran
     providerErrorCode: typeof attributes.provider_error_code === "string" && attributes.provider_error_code
       ? attributes.provider_error_code
       : null,
-    occurredAt: Number.isFinite(createdAt)
-      ? new Date(createdAt * 1000).toISOString()
-      : new Date().toISOString(),
+    occurredAt,
   };
 }

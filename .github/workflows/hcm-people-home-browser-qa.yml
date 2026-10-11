@@ -1,0 +1,99 @@
+name: HCM People Home Browser QA (Synthetic Only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/hcm/command-center/**"
+      - "src/lib/hcm-people-home-*.ts"
+      - "src/lib/delegation.ts"
+      - "src/components/linaw-workspace.tsx"
+      - "src/components/workspace/people.tsx"
+      - "scripts/hcm-people-home-synthetic-*.ts"
+      - "scripts/hcm-people-home-synthetic-*.mjs"
+      - ".github/workflows/hcm-people-home-browser-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      HCM_PEOPLE_HOME_ACCEPTANCE_MODE: synthetic-postgres-only
+      HCM_PEOPLE_HOME_ACCEPTANCE_URL: http://127.0.0.1:3000
+      HCM_PEOPLE_HOME_ENABLED: "true"
+      NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED: "true"
+      HCM_PEOPLE_HOME_ORG_IDS: "1,2"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "false"
+      OPENAI_API_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+      TOTP_ENCRYPTION_KEY: "4444444444444444444444444444444444444444444444444444444444444444"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Ephemeral encryption key
+        shell: bash
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - name: Seed disposable test database only
+        run: npx tsx scripts/hcm-people-home-synthetic-fixture.ts
+      - name: Build local app with synthetic flags
+        run: npm run build
+      - name: Install pinned Chromium
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Start local app
+        shell: bash
+        run: |
+          nohup npm start -- -H 127.0.0.1 > /tmp/hcm-home-ci.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl -fsS "http://127.0.0.1:3000/login" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Isolated app failed to start"
+          exit 1
+      - name: Start isolated feature-OFF app
+        shell: bash
+        env:
+          HCM_PEOPLE_HOME_ENABLED: "false"
+          APP_BASE_URL: http://127.0.0.1:3001
+          TRUSTED_APP_ORIGINS: http://127.0.0.1:3001
+        run: |
+          nohup npm start -- -p 3001 -H 127.0.0.1 > /tmp/hcm-home-off-ci.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl -fsS "http://127.0.0.1:3001/login" >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Local disabled instance failed"
+          exit 1
+      - name: Verify actual protected HCM UI in isolated Chromium
+        run: node scripts/hcm-people-home-synthetic-browser.mjs

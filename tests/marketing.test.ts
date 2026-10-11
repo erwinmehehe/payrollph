@@ -182,7 +182,7 @@ test("role sandbox uses six real identities and provisions checker and bookkeepe
   assert.ok(workspace.includes("onSwitchRole={demoRole ?"), "persona switching must only appear in demo sessions");
 });
 
-test("HR demo keeps the same compact shell when navigating from Today to People", () => {
+test("HR demo retains the premium shell and scoped primary navigation between Today and People", () => {
   const shell = read("src/components/workspace/shell.tsx");
   const css = read("src/app/workspace-theme.css");
   const people = read("src/components/workspace/people.tsx");
@@ -192,7 +192,10 @@ test("HR demo keeps the same compact shell when navigating from Today to People"
   assert.ok(css.includes(".app-shell[data-demo-role] .sidebar"), "demo module pages must retain the light sidebar shell");
   assert.ok(css.includes(".app-shell[data-demo-role] .topbar"), "demo module pages must retain the compact top bar");
   assert.ok(css.includes(".app-shell[data-demo-role] .demo-sandbox"), "demo tools must not create a second page chrome after navigation");
-  assert.ok(roles.includes('hr: ["Overview", "People"]'), "HR primary navigation must stay focused on Today and People with the rest under More");
+  assert.ok(roles.includes('hr: ["Overview", "People", "Time & attendance", "Leave", "Approvals", "Analytics"]'),
+    "HR premium sidebar must show the approved six primary modules");
+  assert.ok(shell.includes('.filter((item) => !visiblePages || visiblePages.includes(item.name))'),
+    "Premium navigation must not add destinations outside existing role permissions");
   assert.ok(!people.includes("HrPayrollReadinessCenter"), "People must not repeat the Today payroll-readiness dashboard");
   assert.ok(people.includes('title="Employees"'), "HR employees must present the employee directory as its own destination");
 });

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Clock, Coffee, LogIn, LogOut, MapPin, PlayCircle, X } from "lucide-react";
 import { essText, type EssLanguage } from "@/lib/ess-language";
+import { philippineClockDate, philippineClockTime } from "@/lib/philippine-clock-display";
 
 type BundyEmployee = {
   id: number;
@@ -48,8 +49,8 @@ export function WebBundyModal({
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      setTime(now.toLocaleTimeString("en-PH", { hour12: true, hour: "2-digit", minute: "2-digit", second: "2-digit" }));
-      setDate(now.toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" }));
+      setTime(philippineClockTime(now));
+      setDate(philippineClockDate(now));
     };
     updateTime();
     const interval = setInterval(updateTime, 1000);
@@ -132,7 +133,7 @@ export function WebBundyModal({
   return (
     <div className="modal-backdrop linaw-dialog" role="presentation">
       <section className="modal" role="dialog" aria-modal="true" aria-label="Web Bundy Time Clock">
-        <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        <button className="modal-close" type="button" aria-label={t("Close time clock")} onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Clock size={22} className="i-cyan" /></div>
         <div className="card-kicker">{t("WEB & TEAM TIME CLOCK")}</div>
         <h2>{language === "fil" ? `${displayName} · ${t("attendance")}` : <>{displayName}&apos;s attendance</>}</h2>
@@ -171,7 +172,7 @@ export function WebBundyModal({
           <div style={{ background: "var(--canvas-subtle)", padding: 12, borderRadius: 10, marginBottom: 14, fontSize: 11.5 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
               <span>{t("Clock IN:")}</span>
-              <strong>{todayPunch.timeIn ? new Date(todayPunch.timeIn).toLocaleTimeString("en-PH") : t("Not recorded")}</strong>
+              <strong>{todayPunch.timeIn ? philippineClockTime(new Date(todayPunch.timeIn)) : t("Not recorded")}</strong>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
               <span>{t("Break:")}</span>
@@ -179,13 +180,13 @@ export function WebBundyModal({
                 {breakActive
                   ? t("In progress")
                   : todayPunch.breakStart && todayPunch.breakEnd
-                    ? `${new Date(todayPunch.breakStart).toLocaleTimeString("en-PH")}–${new Date(todayPunch.breakEnd).toLocaleTimeString("en-PH")}`
+                    ? `${philippineClockTime(new Date(todayPunch.breakStart))}–${philippineClockTime(new Date(todayPunch.breakEnd))}`
                     : t("Not recorded")}
               </strong>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span>{t("Clock OUT:")}</span>
-              <strong>{todayPunch.timeOut ? new Date(todayPunch.timeOut).toLocaleTimeString("en-PH") : t("In progress")}</strong>
+              <strong>{todayPunch.timeOut ? philippineClockTime(new Date(todayPunch.timeOut)) : t("In progress")}</strong>
             </div>
           </div>
         )}
