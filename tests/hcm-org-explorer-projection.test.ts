@@ -45,6 +45,8 @@ test("cycles and descendants of cycles do not create a bogus org chart", () => {
   const p = projectOrgExplorer(nodes, []);
   assert.equal(p.integrity, "needs_review");
   assert.ok(p.units.every((x) => x.relationship === "cycle"));
+  assert.ok(p.units.every((x) => x.parentId === null),
+    "cyclic ancestor links must not be exposed as usable hierarchy edges");
 });
 
 test("orphan positions are counted separately and do not claim vacancies", () => {
