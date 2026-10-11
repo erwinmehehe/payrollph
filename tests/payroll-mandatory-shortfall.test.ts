@@ -142,3 +142,42 @@ test("payroll release and checklist use unwaivable blocking assurance before ack
   assert.ok(checklist.includes("nonBankBlockers.length === 0"));
   assert.ok(checklist.includes("acknowledgeable: nonBankBlockers.length === 0"));
 });
+
+
+test("1,500 deterministic centavo stress cases reconcile even with partial refunds", () => {
+  let seed = 0x4178b30d;
+  const next = (max: number) => {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    return seed % (max + 1);
+  };
+  const fields: Array<keyof Parameters<typeof allocateMandatoryDeductions>[1]> =
+    ["sss", "philHealth", "pagIbig", "withholding",
+     "yearEndTaxAdjustment", "tardiness", "undertime"];
+  const asCents = (number: number) => Math.round(number * 100);
+  for (let i = 0; i < 1500; i++) {
+    const gross = next(900000) / 100;
+    const demands = due({
+      sss: next(30000) / 100,
+      philHealth: next(30000) / 100,
+      pagIbig: next(30000) / 100,
+      withholding: next(400000) / 100,
+      yearEndTaxAdjustment: (i % 3 === 0 ? -1 : 1) * next(300000) / 100,
+      tardiness: next(15000) / 100,
+      undertime: next(15000) / 100,
+    });
+    const result = allocateMandatoryDeductions(gross, demands);
+    assert.equal(asCents(result.requestedTotal),
+      asCents(result.appliedTotal) + asCents(result.totalUncollected),
+      "Requested != applied + uncollected in case " + i);
+    assert.equal(asCents(gross),
+      asCents(result.appliedTotal) + asCents(result.disposableBeforeOptional),
+      "Gross != applied + disposable in case " + i);
+    for (const field of fields) {
+      assert.equal(asCents(demands[field]),
+        asCents(result.applied[field]) + asCents(result.uncollected[field]),
+        field + " must foot to the centavo in case " + i);
+      assert.ok(result.uncollected[field] >= 0);
+    }
+    assert.ok(result.disposableBeforeOptional >= 0);
+  }
+});
