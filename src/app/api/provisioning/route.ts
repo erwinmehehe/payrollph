@@ -1,10 +1,11 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, provisioningTasks } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { ensureLifecycleProvisioning } from "@/lib/provisioning";
+import { parseScopedProvisioningMutation } from "@/lib/scoped-provisioning-mutation";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
@@ -54,11 +55,21 @@ export async function PATCH(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
   const body = await request.json().catch(() => ({}));
-  const id = Number(body.id);
-  const done = Boolean(body.done);
-  if (!Number.isInteger(id)) return Response.json({ error: "id is required." }, { status: 400 });
+  const mutation = parseScopedProvisioningMutation(body);
+  if (!mutation) return Response.json({
+    error: "Positive numeric task, employer, and worker IDs plus a boolean done value are required.",
+  }, { status: 400 });
+  const { id, organizationId, employeeId, done } = mutation;
 
-  const [target] = await db.select({ organizationId: provisioningTasks.organizationId, employeeId: provisioningTasks.employeeId }).from(provisioningTasks).where(eq(provisioningTasks.id, id)).limit(1);
+  // A task ID alone must never select an employer or a different worker.
+  const [target] = await db.select({
+    organizationId: provisioningTasks.organizationId,
+    employeeId: provisioningTasks.employeeId,
+  }).from(provisioningTasks).where(and(
+    eq(provisioningTasks.id, id),
+    eq(provisioningTasks.organizationId, organizationId),
+    eq(provisioningTasks.employeeId, employeeId),
+  )).limit(1);
   if (!target) return Response.json({ error: "Task not found." }, { status: 404 });
   const deniedTask = await assertOrganizationRole(
     user.id,
@@ -71,7 +82,7 @@ export async function PATCH(request: Request) {
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   if (target.employeeId != null) {
     const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees)
-      .where(eq(employees.id, target.employeeId))
+      .where(and(eq(employees.id, target.employeeId), eq(employees.organizationId, organizationId)))
       .limit(1);
     if (!employee) return Response.json({ error: "Employee not found for this provisioning task." }, { status: 404 });
     const scope = assertScope(access, employee.orgUnitId);
@@ -84,7 +95,11 @@ export async function PATCH(request: Request) {
     done,
     completedAt: done ? new Date() : null,
     completedBy: done ? user.name : null,
-  }).where(eq(provisioningTasks.id, id)).returning();
+  }).where(and(
+    eq(provisioningTasks.id, id),
+    eq(provisioningTasks.organizationId, organizationId),
+    eq(provisioningTasks.employeeId, employeeId),
+  )).returning();
 
   if (!row) return Response.json({ error: "Task not found." }, { status: 404 });
 
