@@ -114,6 +114,22 @@ async function main() {
     assert.equal(await actionNav.getByRole("link", { name: "Action Center" })
       .getAttribute("aria-current"), "page");
     await page.getByRole("heading", { level: 2, name: "Governed HCM decisions" }).waitFor();
+    const inboxData = await browserGet(page,
+      "/api/hcm/business-processes/inbox?organizationId=1");
+    assert.equal(inboxData.status, 200, "Authorized HR can read employer-scoped HCM decisions");
+    assert.ok(inboxData.cacheControl?.includes("no-store"));
+    assert.equal(inboxData.data.meta.companyHistoryAvailable, true);
+    assert.ok(inboxData.data.myWork.every((item) =>
+      !Object.hasOwn(item, "sourceKey") && !Object.hasOwn(item, "definitionSnapshot")));
+    const inboxJson = JSON.stringify(inboxData.data);
+    for (const sourceSecret of ["AlphaPrivate test data", "BetaPrivate test data",
+      "AlphaPrivate salary detail", "sourceEvidence", "decisionNote"]) {
+      assert.ok(!inboxJson.includes(sourceSecret),
+        "Private source material must not cross HCM Inbox projection: " + sourceSecret);
+    }
+    const wrongCompanyInbox = await browserGet(page,
+      "/api/hcm/business-processes/inbox?organizationId=999");
+    assert.equal(wrongCompanyInbox.status, 403);
     await assertHcmSemantics(page, "HCM Action Center");
     await actionNav.getByRole("link", { name: "Process monitor" }).focus();
     await page.keyboard.press("Enter");
@@ -274,6 +290,12 @@ async function main() {
     await financeDeniedPage.close();
     assert.equal(await financeNav.getByRole("link", { name: "People directory" }).count(), 0);
     assert.equal(await financePage.getByRole("link", { name: "Open HCM Inbox" }).count(), 0);
+    const financeInbox = await browserGet(financePage,
+      "/api/hcm/business-processes/inbox?organizationId=1");
+    assert.equal(financeInbox.status, 200);
+    assert.equal(financeInbox.data.meta.companyHistoryAvailable, false,
+      "Bookkeeper cannot read unrelated company-wide HCM history");
+    assert.deepEqual(financeInbox.data.recent, financeInbox.data.submitted);
     const financeWorker = await browserGet(financePage,
       "/api/hcm/worker-360?organizationId=1&employeeId=1");
     assert.equal(financeWorker.status, 403, "Bookkeeper cannot access Worker 360 API");
