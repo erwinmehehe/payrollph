@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import type { Pool } from "pg";
 import {
   leaveSchemaSpec, payBasisSchemaSpec,
   payrollMonthCloseSchemaSpec, doleReportingSchemaSpec, separationSchemaSpec,
+  marketingLeadSchemaSpec, workforceAttendanceSchemaSpec,
+  migrationSchemaSpec, outboxDeliverySchemaSpec, statutoryCorrectionSchemaSpec,
+  statutoryMonthCloseSchemaSpec, verifyRequestSchemaReadOnlyFromPool,
   verifyRequestSchemaReadOnly,
   type RequestSchemaSpec,
   type RequestCatalogQuery,
@@ -294,4 +298,85 @@ test("separation read-only failure and ROLLBACK errors propagate, and legacy DDL
     "legacy rollback failure must discard the possibly open pooled transaction");
   assert.ok(source.includes("separationSchemaPromise = null"),
     "failed legacy connection or DDL should be retried after remediation");
+});
+
+
+const newlyGuardedSpecs: RequestSchemaSpec[] = [
+  marketingLeadSchemaSpec, workforceAttendanceSchemaSpec, migrationSchemaSpec,
+  outboxDeliverySchemaSpec, statutoryCorrectionSchemaSpec, statutoryMonthCloseSchemaSpec,
+];
+
+test("remaining request-time schema catalog checks are read-only and rollback cleanly", async () => {
+  for (const spec of newlyGuardedSpecs) {
+    const { query, calls } = simulate(spec);
+    await verifyRequestSchemaReadOnly(query, spec);
+    assert.equal(calls[0], "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY", spec.label);
+    assert.equal(calls.at(-1), "ROLLBACK", spec.label);
+    assert.ok(calls.some(sql => sql.includes("pg_catalog.pg_attribute")), spec.label);
+    for (const sql of calls) {
+      assert.doesNotMatch(sql, /\\b(?:CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|TRUNCATE|COMMIT)\\b/i);
+    }
+  }
+});
+
+test("unverified request-time schemas cannot bypass catalog or constraint checks", async () => {
+  for (const spec of newlyGuardedSpecs) {
+    const scenarios: Variant[] = [
+      { missingTable: spec.tables[0] },
+      { missingColumn: spec.columns[0].name },
+      { columnType: spec.columns.find(c => c.type)?.name },
+      ...(spec.indexes.length ? [{ wrongIndexKeys: spec.indexes[0].name }] : []),
+      ...(spec.constraints.length ? [{ missingConstraint: true }] : []),
+      ...(spec.columns.some(c => c.defaultTextLiteral !== undefined)
+        ? [{ wrongDefault: spec.columns.find(c => c.defaultTextLiteral !== undefined)?.name }] : []),
+    ];
+    for (const scenario of scenarios) {
+      const { query, calls } = simulate(spec, scenario);
+      await assert.rejects(
+        () => verifyRequestSchemaReadOnly(query, spec),
+        /REQUEST_SCHEMA_READONLY_.*_INCOMPATIBLE/,
+        spec.label + " " + JSON.stringify(scenario),
+      );
+      assert.equal(calls.at(-1), "ROLLBACK");
+    }
+  }
+});
+
+test("six additional legacy schema helpers refuse DDL and unreviewed backfill in read-only mode", () => {
+  for (const path of [
+    "src/lib/marketing-leads.ts",
+    "src/lib/workforce-attendance-control-schema.ts",
+    "src/lib/migration-schema.ts",
+    "src/lib/outbox-schema.ts",
+    "src/lib/statutory-remittance-correction-schema.ts",
+    "src/lib/statutory-remittance-month-close-schema.ts",
+  ]) {
+    const source = readFileSync(path, "utf8");
+    assert.ok(source.includes("coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE)"), path);
+    assert.ok(source.includes('if (mode === "read-only")'), path);
+    assert.ok(source.includes("verifyRequestSchemaReadOnlyFromPool(pool,"), path);
+    assert.ok(source.indexOf('if (mode === "read-only")') < source.indexOf('await client.query("BEGIN")'), path);
+    assert.ok(source.includes("client.release(!safeToReuse)"), path);
+  }
+});
+
+test("pooled catalog preflight discards failed or unrolled-back connections", async () => {
+  for (const outcome of ["pass", "schema-missing", "rollback-failed"]) {
+    const discarded: boolean[] = [];
+    const { query } = simulate(migrationSchemaSpec,
+      outcome === "schema-missing" ? { missingTable: "historical_payroll_entries" }
+        : outcome === "rollback-failed" ? { rollbackFails: true } : {});
+    const fakePool = {
+      connect: async () => ({
+        query,
+        release(discard: boolean) { discarded.push(discard); },
+      }),
+    } as unknown as Pool;
+    if (outcome === "pass") {
+      await verifyRequestSchemaReadOnlyFromPool(fakePool, migrationSchemaSpec);
+    } else {
+      await assert.rejects(() => verifyRequestSchemaReadOnlyFromPool(fakePool, migrationSchemaSpec));
+    }
+    assert.deepEqual(discarded, [outcome !== "pass"], outcome);
+  }
 });
