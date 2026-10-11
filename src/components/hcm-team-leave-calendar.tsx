@@ -14,7 +14,7 @@ import {
 
 type LoadState = {
   requestKey: string;
-  status: "loading" | "ready" | "unavailable";
+  status: "ready" | "unavailable";
   payload: TeamLeaveMonthResponse | null;
 };
 
@@ -62,7 +62,6 @@ export function HcmTeamLeaveCalendar({
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoaded({ requestKey, status: "loading", payload: null });
 
     const params = new URLSearchParams({
       organizationId: String(organizationId),
@@ -122,7 +121,7 @@ export function HcmTeamLeaveCalendar({
   return (
     <main className="min-h-screen bg-slate-50 px-4 pb-16 pt-6 text-slate-900 sm:px-7">
       <div className="mx-auto max-w-6xl">
-        <Link href="/app"
+        <Link href={`/app?organizationId=${organizationId}&workspacePage=Approvals`}
           className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-emerald-800 hover:underline">
           <ArrowLeft size={16} aria-hidden="true" /> Back to workspace
         </Link>
@@ -198,7 +197,7 @@ export function HcmTeamLeaveCalendar({
             </nav>
           </div>
 
-          {(!active || active.status === "loading") && (
+          {!active && (
             <div role="status" aria-live="polite" className="mt-5 rounded-xl bg-slate-50 p-8 text-sm text-slate-600">
               Loading current employer leave records and verifying your team scope…
             </div>
