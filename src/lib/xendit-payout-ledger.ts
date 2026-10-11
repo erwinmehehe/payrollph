@@ -8,7 +8,6 @@ import { xenditPayoutState } from "@/lib/xendit-payroll-payouts";
 
 type Link = typeof payoutBatchTransfers.$inferSelect;
 type Transfer = typeof payoutTransfers.$inferSelect;
-type Batch = typeof payoutBatches.$inferSelect;
 type PayoutStatus = "prepared" | "submitting" | "submitted" |
   "succeeded" | "failed" | "reversed" | "reconciliation_required" | "cancelled";
 
