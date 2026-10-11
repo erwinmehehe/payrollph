@@ -407,7 +407,17 @@ export function ExportsView({
           )}
 
           {run.status === "Released" && treasuryStatusEligible && (
-            <XenditPayoutPanel key={run.id} runId={run.id} onRefresh={onRefresh} />
+            <XenditPayoutPanel
+                key={run.id}
+                runId={run.id}
+                onRefresh={onRefresh}
+                onPaymongoPreflight={runPaymongoPreflight}
+                onPaymongoSubmit={submitPaymongoPayout}
+                canSubmitPaymongo={payoutState?.payout.method === "PayMongo" && payoutState.payout.status === "ready"}
+                allowPaymongoActions={payoutState?.payout.status !== "submitted" && payoutState?.payout.status !== "completed"}
+                paymongoPreflighting={preflightingPayout}
+                paymongoSubmitting={submittingPayout}
+              />
           )}
 
           {run.status === "Released" && payoutState &&
@@ -749,7 +759,7 @@ export function ExportsView({
                   Bank-file fallback <Status value="Optional" />
                 </h3>
                 <p>
-                  Use only when PayMongo is unavailable or the employer explicitly uses its corporate-bank upload flow.
+                  Use only when the selected payout provider is unavailable or the employer explicitly uses its corporate-bank upload flow.
                   Proprietary formats require the exact bank-provided mapping and recorded portal UAT; Linaw will not guess one.
                 </p>
                 <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
