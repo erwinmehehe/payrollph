@@ -164,6 +164,7 @@ type LeaveRequest = {
 
 type Payload = {
   employee: {
+    id: number;
     employeeNo: string;
     firstName: string;
     lastName: string;
