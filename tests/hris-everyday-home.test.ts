@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { hrisHomeShortcutsForRole } from "../src/lib/hris-home-shortcuts";
+import { enterpriseHcmPlanGateEnabled, evaluateEnterpriseHcmPlan } from "../src/lib/hcm-enterprise-plan-policy";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -51,4 +52,28 @@ test("secondary shortcuts and employee search still inherit authorization", () =
   assert.ok(workspace.includes('data.employees.some((employee) => employee.id === employeeId)'));
   const app = read("src/app/app/page.tsx");
   assert.ok(app.includes('data.selectedOrganization.id'));
+});
+
+test("People Home does not lead enrolled Core HR into a paid Action Center dead end", () => {
+  const optedIn = { HCM_ENTERPRISE_PLAN_GATE_ENABLED: "true", HCM_ENTERPRISE_PLAN_GATE_ORG_IDS: "17" };
+  const enterprise = {
+    plan: "Enterprise", active: true, status: "active",
+    features: ["advanced-hcm-discovery"],
+  };
+  assert.equal(enterpriseHcmPlanGateEnabled(17, optedIn), true);
+  assert.equal(enterpriseHcmPlanGateEnabled(18, optedIn), false);
+  assert.equal(evaluateEnterpriseHcmPlan(17, enterprise, optedIn), "allowed");
+  assert.equal(evaluateEnterpriseHcmPlan(17,
+    { ...enterprise, plan: "Core", features: [] }, optedIn), "enterprise-required");
+  assert.equal(evaluateEnterpriseHcmPlan(17, null, optedIn), "entitlements-unavailable");
+  assert.equal(evaluateEnterpriseHcmPlan(18, null, optedIn), "not-enforced");
+  const page = read("src/app/hcm/command-center/page.tsx");
+  const authorize = page.indexOf("assertOrganizationRole(");
+  const showLink = page.indexOf("enterpriseHcmPlanGateEnabled(organizationId, process.env)");
+  assert.ok(authorize >= 0 && showLink > authorize);
+  assert.ok(page.includes("let actionCenterAvailable = !enterpriseHcmPlanGateEnabled(organizationId, process.env);"));
+  assert.ok(page.includes('if (planDecision === "allowed") actionCenterAvailable = true;'));
+  assert.ok(page.includes("{hasPeopleWorkspace && actionCenterAvailable && ("));
+  assert.ok(page.includes("Open HCM Action Center"));
+  assert.ok(page.includes("My HCM decisions"), "Assigned source work must remain on the everyday home");
 });
