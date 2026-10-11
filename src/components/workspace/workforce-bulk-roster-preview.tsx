@@ -63,7 +63,8 @@ export function WorkforceBulkRosterPreview({
   const stageAcknowledged = stageIntent?.scope === scope && stageIntent.acknowledged;
   useEffect(() => { activeScope.current = scope; }, [scope]);
   // A prior employer/week/page can never contribute selected worker IDs or shift IDs.
-  const selectedIds = selection?.scope === scope ? selection.ids : [];
+  const selectedIds = useMemo(() => selection?.scope === scope ? selection.ids : [],
+    [selection, scope]);
   const shiftChoice = shiftSelection?.scope === scope ? shiftSelection.value : "";
 
   const load = useCallback(async () => {
@@ -118,8 +119,10 @@ export function WorkforceBulkRosterPreview({
   const visible = enabled && snapshot?.scope === scope ? snapshot.data : null;
   const currentFailure = enabled && failure?.scope === scope ? failure.message : null;
   const today = phWorkDateAt();
-  const futureDates = visible?.weekDates.filter(date => date > today) ?? [];
-  const chosenDate = futureDates.includes(workDate) ? workDate : futureDates[0] ?? "";
+  const { futureDates, chosenDate } = useMemo(() => {
+    const futureDates = visible?.weekDates.filter(date => date > today) ?? [];
+    return { futureDates, chosenDate: futureDates.includes(workDate) ? workDate : futureDates[0] ?? "" };
+  }, [visible?.weekDates, today, workDate]);
   const chosenShift = visible?.shifts.find(s => String(s.id) === shiftChoice) ?? null;
 
   const preview = useMemo(() => {

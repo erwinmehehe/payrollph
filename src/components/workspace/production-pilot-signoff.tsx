@@ -27,10 +27,11 @@ export function ProductionPilotSignoffCard({
   onRefresh: () => Promise<void>;
 }) {
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
-  const releasedRuns = data.payrollRuns
+  const releasedRuns = useMemo(() => data.payrollRuns
     .filter((run) => run.status === "Released")
-    .sort((a, b) => b.id - a.id);
-  const releasedRun = releasedRuns.find((run) => run.id === selectedRunId) ?? releasedRuns[0];
+    .sort((a, b) => b.id - a.id), [data.payrollRuns]);
+  const releasedRun = useMemo(() => releasedRuns.find((run) => run.id === selectedRunId) ?? releasedRuns[0],
+    [releasedRuns, selectedRunId]);
   const existing = useMemo(
     () => data.auditEvents.find((event) => {
       if (event.action !== "Production payroll pilot signed off") return false;
