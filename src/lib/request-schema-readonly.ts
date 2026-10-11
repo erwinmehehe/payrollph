@@ -16,6 +16,8 @@ export type RequestSchemaIndex = {
 };
 export type RequestSchemaConstraint = {
   tableName: string; kind: "f" | "c" | "u" | "p"; tokens: readonly string[];
+  name?: string;
+  exactCheckDefinition?: string;
 };
 export type RequestSchemaSpec = {
   label: "leave" | "pay-basis" | "month-close" | "dole-reporting" | "separation";
@@ -30,6 +32,13 @@ export type RequestCatalogQuery = (sql: string, args?: unknown[]) =>
 
 const norm = (s: string) => s.toLowerCase().replace(/"/g, "")
   .replace(/\bpublic\./g, "").replace(/\s+/g, "");
+
+function checkDefinitionShape(value: string): string {
+  // pg_get_constraintdef may add redundant parentheses/whitespace across
+  // supported PostgreSQL versions; no added OR TRUE or weakened comparison
+  // may pass even if it contains the expected column names.
+  return norm(value).replace(/[()]/g, "");
+}
 
 function isNumericZeroDefault(value: unknown): boolean {
   if (typeof value !== "string") return false;
@@ -103,7 +112,7 @@ export async function verifyRequestSchemaReadOnly(
       [spec.indexes.map(row => row.name)],
     );
     const constraints = await query(
-      "SELECT t.relname AS \"tableName\", con.contype::text AS kind, " +
+      "SELECT t.relname AS \"tableName\", con.conname AS name, con.contype::text AS kind, " +
       "con.convalidated AS \"isValidated\", " +
       "con.condeferrable AS \"isDeferrable\", " +
       "pg_catalog.pg_get_constraintdef(con.oid) AS definition " +
@@ -148,6 +157,9 @@ export async function verifyRequestSchemaReadOnly(
       constraints.rows.some(row => row.tableName === expected.tableName &&
         row.kind === expected.kind && row.isValidated === true &&
         row.isDeferrable === false && typeof row.definition === "string" &&
+        (expected.name === undefined || row.name === expected.name) &&
+        (expected.exactCheckDefinition === undefined ||
+          checkDefinitionShape(row.definition) === checkDefinitionShape(expected.exactCheckDefinition)) &&
         expected.tokens.every(token => norm(String(row.definition)).includes(norm(token)))),
     );
     if (!soundTables || !soundColumns || !soundIndexes || !soundConstraints) {
@@ -349,6 +361,9 @@ export const separationSchemaSpec: RequestSchemaSpec = {
     { tableName: "separation_records", kind: "f",
       tokens: ["foreignkey(released_by_user_id)", "referencesusers(id)", "ondeletesetnull"] },
     { tableName: "separation_records", kind: "c",
+      name: "separation_review_identity_separation_check",
+      exactCheckDefinition:
+        "CHECK (prepared_by_user_id IS NULL OR approved_by_user_id IS NULL OR prepared_by_user_id <> approved_by_user_id)",
       tokens: ["prepared_by_user_id", "approved_by_user_id", "<>"] },
   ],
 };

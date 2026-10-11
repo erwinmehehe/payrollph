@@ -15,6 +15,7 @@ type Variant = {
   weakIndex?: string; wrongIndexTable?: string; missingConstraint?: boolean;
   missingConstraintToken?: string; nullableColumn?: string;
   unvalidatedConstraintToken?: string; deferredConstraintToken?: string;
+  weakenMakerChecker?: boolean; wrongCheckName?: boolean;
   transactionReadOnly?: boolean; failAt?: string; rollbackFails?: boolean;
 };
 
@@ -54,11 +55,14 @@ function simulate(spec: RequestSchemaSpec, variant: Variant = {}) {
         .filter(c => !variant.missingConstraintToken || !c.tokens.some(t => t.includes(variant.missingConstraintToken!)))
         .map(c => ({
           tableName: c.tableName, kind: c.kind,
+          name: variant.wrongCheckName && c.exactCheckDefinition ? "unreviewed_check" : c.name,
           isValidated: !variant.unvalidatedConstraintToken ||
             !c.tokens.some(t => t.includes(variant.unvalidatedConstraintToken!)),
           isDeferrable: Boolean(variant.deferredConstraintToken &&
             c.tokens.some(t => t.includes(variant.deferredConstraintToken!))),
-          definition: c.tokens.join(" "),
+          definition: c.exactCheckDefinition
+            ? c.exactCheckDefinition + (variant.weakenMakerChecker ? " OR TRUE" : "")
+            : c.tokens.join(" "),
         })),
     };
     if (sql.includes("pg_catalog.pg_class")) return {
@@ -256,6 +260,8 @@ test("separation final-pay blocks missing/incorrect amounts, JSON snapshots and 
     { unvalidatedConstraintToken: "<>" },
     { unvalidatedConstraintToken: "approved_by_user_id" },
     { deferredConstraintToken: "prepared_by_user_id" },
+    { weakenMakerChecker: true },
+    { wrongCheckName: true },
   ];
   for (const c of cases) {
     const { query, calls } = simulate(separationSchemaSpec, c);
