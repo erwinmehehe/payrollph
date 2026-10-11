@@ -3,6 +3,7 @@ import { HcmContextNavigation } from "@/components/hcm-context-navigation";
 import { buildHcmNavigation, type HcmNavigationLink } from "@/lib/hcm-context-navigation";
 import { advancedHcmLinks } from "@/lib/hcm-advanced-discovery";
 import { getEntitlements } from "@/lib/billing";
+import { evaluateEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-policy";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/db";
 import { eq, sql } from "drizzle-orm";
@@ -53,11 +54,16 @@ export default async function HcmCommandCenter({
   let advancedLinks: HcmNavigationLink[] = [];
   try {
     const entitlements = await getEntitlements(organizationId);
-    advancedLinks = advancedHcmLinks(
-      access,
-      entitlements,
-      buildHcmNavigation({ organizationId, access, current: "peopleHome" }),
+    const planDecision = evaluateEnterpriseHcmPlan(
+      organizationId, entitlements, process.env,
     );
+    if (planDecision === "allowed" || planDecision === "not-enforced") {
+      advancedLinks = advancedHcmLinks(
+        access,
+        entitlements,
+        buildHcmNavigation({ organizationId, access, current: "peopleHome" }),
+      );
+    }
   } catch {
     // A billing outage must not hide the ordinary HR workspace or expose depth.
   }

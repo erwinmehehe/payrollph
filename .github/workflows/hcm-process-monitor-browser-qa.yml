@@ -8,6 +8,12 @@ on:
     paths:
       - 'src/app/api/hcm/process-monitor/**'
       - 'src/app/hcm/process-monitor/**'
+      - 'src/app/api/hcm/org-explorer/**'
+      - 'src/app/api/hcm/position-history/**'
+      - 'src/app/hcm/org-explorer/**'
+      - 'src/lib/hcm-enterprise-plan-*.ts'
+      - 'tests/hcm-enterprise-plan-policy.test.ts'
+      - 'scripts/hcm-enterprise-plan-synthetic-browser.mjs'
       - 'src/lib/hcm-process-monitor*.ts'
       - 'src/lib/hcm-context-navigation.ts'
       - 'src/lib/hcm-action-center.ts'
@@ -31,6 +37,12 @@ on:
     paths:
       - 'src/app/api/hcm/process-monitor/**'
       - 'src/app/hcm/process-monitor/**'
+      - 'src/app/api/hcm/org-explorer/**'
+      - 'src/app/api/hcm/position-history/**'
+      - 'src/app/hcm/org-explorer/**'
+      - 'src/lib/hcm-enterprise-plan-*.ts'
+      - 'tests/hcm-enterprise-plan-policy.test.ts'
+      - 'scripts/hcm-enterprise-plan-synthetic-browser.mjs'
       - 'src/lib/hcm-process-monitor*.ts'
       - 'src/lib/hcm-context-navigation.ts'
       - 'src/lib/hcm-action-center.ts'
@@ -143,5 +155,36 @@ jobs:
           done
           echo 'Local disabled monitor unavailable'
           exit 1
+      # Separate app instance: do not change the default-off pilot experience.
+      # Only fictional employers 1/2 in disposable localhost PostgreSQL.
+      - name: Start local opt-in Enterprise HCM gate instance
+        shell: bash
+        env:
+          HCM_ENTERPRISE_PLAN_GATE_ENABLED: 'true'
+          HCM_ENTERPRISE_PLAN_GATE_ORG_IDS: '1,2'
+          HCM_ORG_EXPLORER_ENABLED: 'true'
+          HCM_ORG_EXPLORER_ORG_IDS: '1,2'
+          APP_BASE_URL: http://127.0.0.1:3002
+          TRUSTED_APP_ORIGINS: http://127.0.0.1:3002
+        run: |
+          nohup npm start -- -p 3002 -H 127.0.0.1 > /tmp/hcm-enterprise-gate.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl -fsS 'http://127.0.0.1:3002/login' >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo 'Local opt-in HCM gate instance unavailable'
+          exit 1
+      - name: Browser QA — active Enterprise vs Core direct HCM pages and APIs
+        env:
+          HCM_ENTERPRISE_PLAN_GATE_ENABLED: 'true'
+          HCM_ENTERPRISE_PLAN_GATE_ORG_IDS: '1,2'
+        run: node scripts/hcm-enterprise-plan-synthetic-browser.mjs
+
+      # Both browser journeys use separate local app instances but the same
+      # disposable PostgreSQL rate-limit store. Preserve the real production
+      # 10-login/minute limit by resetting only the synthetic IP bucket after
+      # the first suite, never by changing authentication or bypassing checks.
+      - name: Reset synthetic-only shared login bucket between browser suites
+        run: npx tsx scripts/hcm-monitor-reset-login-bucket.ts
       - name: Browser QA — HCM navigation/role/tenant/a11y/reflow/default-off
         run: node scripts/hcm-process-monitor-synthetic-browser.mjs

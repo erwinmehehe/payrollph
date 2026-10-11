@@ -268,6 +268,53 @@ export function evaluatePayrollAssurance(
       });
     }
 
+    // A mandatory shortfall is NEVER acknowledgeable. Cross-check the printed
+    // liability marker, engine flags, and all three centavo-exact trace totals.
+    // This also catches malformed/missing/duplicated trace fields rather than
+    // treating an absent or forged "mandatoryUncollected=0" as proof of safety.
+    const inputs = traceInputsOf(entry);
+    const tracesFor = (key: string) => inputs
+      .filter((line) => line.startsWith(`${key}=`))
+      .map((line) => line.slice(key.length + 1));
+    const requestedTrace = tracesFor("mandatoryRequested");
+    const appliedTrace = tracesFor("mandatoryApplied");
+    const shortfallTrace = tracesFor("mandatoryUncollected");
+    const parseCents = (raw: string | undefined, allowNegative: boolean): number | null => {
+      if (raw === undefined || !(allowNegative ? /^-?\d+(?:\.\d{1,2})?$/ : /^\d+(?:\.\d{1,2})?$/).test(raw)) return null;
+      const centsAmount = Math.round(Number(raw) * 100);
+      return Number.isSafeInteger(centsAmount) ? centsAmount : null;
+    };
+    const requestedCents = requestedTrace.length === 1 ? parseCents(requestedTrace[0], true) : null;
+    const appliedCents = appliedTrace.length === 1 ? parseCents(appliedTrace[0], true) : null;
+    const uncollectedCents = shortfallTrace.length === 1 ? parseCents(shortfallTrace[0], false) : null;
+    const hasSummary = requestedTrace.length > 0 || appliedTrace.length > 0;
+    const unreliableTrace = hasSummary && (
+      requestedCents === null || appliedCents === null || uncollectedCents === null
+      || requestedCents - appliedCents !== uncollectedCents
+    );
+    const invalidShortfallTrace = shortfallTrace.length > 1
+      || (shortfallTrace.length === 1 && uncollectedCents === null);
+    const mandatoryShortfallFlag = flags.some((flag) =>
+      flag.startsWith("PAYROLL_MANDATORY_SHORTFALL:")
+      || flag.startsWith("Mandatory/statutory and attendance deductions exceed gross pay")
+    );
+    const unpaidLine = Array.isArray(entry.lineItems) && entry.lineItems.some((raw) =>
+      raw && typeof raw === "object" && "code" in raw
+      && String(raw.code).toUpperCase() === "UNPAID_MANDATORY"
+    );
+    if (mandatoryShortfallFlag || unpaidLine || unreliableTrace || invalidShortfallTrace
+      || (uncollectedCents !== null && uncollectedCents > 0)) {
+      findings.push({
+        code: "MANDATORY_DEDUCTIONS_UNCOLLECTED",
+        severity: "high",
+        blocking: true,
+        title: "Mandatory deductions are uncollected or cannot be reconciled",
+        detail: "Tax, statutory or attendance amounts remain unpaid, or their trace evidence is inconsistent. Correct the source payroll and recalculate; exception acknowledgment cannot bypass release blocking.",
+        employeeId: entry.employeeId,
+        current: uncollectedCents === null ? undefined : uncollectedCents / 100,
+      });
+    }
+
     // Unlike a routine reviewable engine warning, an invalid loan schedule
     // must not be waived with acknowledgeExceptions: gross-to-net excluded a
     // required deduction and the employer must repair source data, then recalculate.

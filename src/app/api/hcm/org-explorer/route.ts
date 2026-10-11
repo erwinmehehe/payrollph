@@ -1,4 +1,5 @@
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
 import {
   denyHcmOrgExplorer, hcmOrgExplorerEnabledForEmployer, hcmOrgExplorerJson, hcmOrgExplorerPositiveId,
 } from "@/lib/hcm-org-explorer-access";
@@ -23,6 +24,8 @@ export async function GET(request: Request) {
 
   const denied = await denyHcmOrgExplorer(user.id, organizationId);
   if (denied) return hcmOrgExplorerJson({ error: "Workspace access denied." }, denied.status);
+  const enterpriseDenied = await denyOptInEnterpriseHcmPlan(organizationId);
+  if (enterpriseDenied) return enterpriseDenied;
 
   try {
     return hcmOrgExplorerJson(await loadHcmOrgExplorer(organizationId));

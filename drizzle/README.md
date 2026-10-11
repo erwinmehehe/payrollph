@@ -1,14 +1,19 @@
 # Database schema
 
-Nothing in the app creates its own tables, so a fresh database needs the schema
-applied before the first request. The SQL files here are not a
-single ordered sequence, so read this before running anything.
+**Production release warning:** the application currently still executes
+compatibility DDL and backfills through `src/lib/core-schema-compat.ts`.
+That is a separate unresolved P0-4 risk, not a supported migration executor.
+The SQL files here are not a single ordered sequence; read this before running anything.
+A DBA must reconcile production history before disabling runtime writers.
 
-## A fresh database
+## A fresh **disposable development or CI** database
 
 ```
-DATABASE_URL="postgresql://..." npm run db:push
+DATABASE_URL="postgresql://localhost/..." npm run db:push
 ```
+
+**Never use `db:push` against production to repair drift.** Use the DBA-reviewed
+schema and receipt protocol for staging and production.
 
 `db:push` reads `src/db/schema.ts` and creates everything it finds there, which
 is the whole current schema. **Check that it actually created tables**: push has
@@ -160,3 +165,11 @@ plan. Neither schema compatibility nor CI supplies payroll GA authorization.
 ## Provider webhook event inbox (0110)
 
 `0110_provider_events_inbox.sql` follows the 0109 tamper-evident audit-chain migration. It creates the `provider_events` table with a unique `(provider,event_id)` index and organization/run foreign keys. Apply via a controlled, journaled staging/production SQL release after verifying 0109 and a backup/rollback plan. It is **not** applied by the source merge. Signed PayMongo webhooks return a retryable 503 if the inbox transaction cannot persist an event, including when the schema is missing. Test concurrent replays before activating live PayMongo payouts.
+
+## Receipt audit before production migration
+
+The protected read-only receipt audit in
+`docs/engineering/production-migration-receipt-runbook.md` hashes every numbered
+file by full path, preserves legacy duplicate prefixes, and checks separately
+reviewed DBA receipts. It never runs this historical SQL. The unnumbered
+`baseline.sql` and any previous `db:push` state need independent adoption proof.

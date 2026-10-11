@@ -1,7 +1,12 @@
 import { pool } from "@/db";
+import type { PoolClient } from "pg";
+import { coreSchemaCompatibilityMode } from "@/lib/core-schema-readonly";
+import { leaveSchemaSpec, verifyRequestSchemaReadOnly } from "@/lib/request-schema-readonly";
 
 let ready = false;
 let inFlight: Promise<void> | null = null;
+let readOnlyReady = false;
+let readOnlyInFlight: Promise<void> | null = null;
 
 /**
  * Vercel deployments do not run drizzle db:push against the connected
@@ -10,6 +15,31 @@ let inFlight: Promise<void> | null = null;
  * new columns.
  */
 export async function ensureLeavePayrollSchema() {
+  // In release-safe mode never acquire the legacy DDL advisory lock, create
+  // leave tables, or silently "repair" historical leave payroll evidence.
+  const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+  if (mode === "read-only") {
+    if (readOnlyReady) return;
+    if (readOnlyInFlight) return readOnlyInFlight;
+    readOnlyInFlight = (async () => {
+      let client: PoolClient | null = null;
+      let verified = false;
+      try {
+        client = await pool.connect();
+        const connected = client;
+        await verifyRequestSchemaReadOnly(
+          (sql, args) => connected.query(sql, args),
+          leaveSchemaSpec,
+        );
+        verified = true;
+        readOnlyReady = true;
+      } finally {
+        client?.release(!verified);
+        readOnlyInFlight = null;
+      }
+    })();
+    return readOnlyInFlight;
+  }
   if (ready) return;
   if (inFlight) return inFlight;
 

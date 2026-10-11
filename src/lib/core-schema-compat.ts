@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import { coreSchemaCompatibilityMode, verifyCoreSchemaReadOnly } from "@/lib/core-schema-readonly";
 import { pool } from "@/db";
 import { bankEncryptionConfigured, decryptBankAccount, encryptBankAccount, isEncryptedBankAccount } from "@/lib/bank-account-crypto";
 import {
@@ -10,8 +11,14 @@ import {
 
 let coreSchemaReady = false;
 let coreSchemaInFlight: Promise<void> | null = null;
+let coreSchemaReadOnlyReady = false;
+let coreSchemaReadOnlyInFlight: Promise<void> | null = null;
 
 async function backfillBankDataEncryption(client: PoolClient) {
+  // Guard the helper itself in case a future caller bypasses the core gate.
+  if (coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE) === "read-only") {
+    throw new Error("CORE_SCHEMA_READONLY_BANK_BACKFILL_FORBIDDEN");
+  }
   if (!bankEncryptionConfigured()) return { employees: 0, snapshots: 0 };
 
   const employeeRows = await client.query<{ id: number; bank_account: string }>(`
@@ -72,6 +79,9 @@ async function backfillBankDataEncryption(client: PoolClient) {
 
 
 async function backfillGovernmentIdEncryption(client: PoolClient) {
+  if (coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE) === "read-only") {
+    throw new Error("CORE_SCHEMA_READONLY_GOVERNMENT_ID_BACKFILL_FORBIDDEN");
+  }
   if (!governmentIdEncryptionConfigured()) return { employees: 0, contractors: 0 };
 
   const employeeRows = await client.query<{
@@ -173,18 +183,51 @@ export async function bankDataEncryptionReady() {
 }
 
 /**
- * Production on Vercel does not run drizzle db:push automatically.
- * Keep additive schema changes required by the current workspace idempotent so
- * older production databases can upgrade before Drizzle selects the new fields.
+ * Temporary compatibility DDL remains the legacy behavior until the DBA
+ * approves a target-specific migration adoption plan. When explicitly placed
+ * in read-only mode, dashboard/demo requests must not execute this DDL or
+ * opportunistic encryption backfills; they check release-critical catalog
+ * structure and fail closed. It is not proof of a full schema migration.
  */
 export async function ensureCoreCompatibilitySchema() {
+  // Reject typos or unsupported modes BEFORE considering cached readiness.
+  const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+  if (mode === "read-only") {
+    if (coreSchemaReadOnlyReady) return;
+    if (coreSchemaReadOnlyInFlight) return coreSchemaReadOnlyInFlight;
+    // Dynamic mode switches during a legacy DDL transaction are unsafe.
+    if (coreSchemaInFlight) {
+      throw new Error("CORE_SCHEMA_LEGACY_MIGRATION_INFLIGHT");
+    }
+    coreSchemaReadOnlyInFlight = (async () => {
+      let client: PoolClient | null = null;
+      let verifiedAndRolledBack = false;
+      try {
+        client = await pool.connect();
+        const connected = client;
+        await verifyCoreSchemaReadOnly((sql, parameters) => connected.query(sql, parameters));
+        verifiedAndRolledBack = true;
+        coreSchemaReadOnlyReady = true;
+      } finally {
+        // Failed catalog inspection or rollback must never return a
+        // possibly open transaction to the shared pool.
+        client?.release(!verifiedAndRolledBack);
+        coreSchemaReadOnlyInFlight = null;
+      }
+    })();
+    return coreSchemaReadOnlyInFlight;
+  }
+
   if (coreSchemaReady) return;
   if (coreSchemaInFlight) return coreSchemaInFlight;
-
   coreSchemaInFlight = (async () => {
-    const client = await pool.connect();
+    let client: PoolClient | null = null;
+    let transactionOpen = false;
+    let safeToReuse = false;
     try {
+      client = await pool.connect();
       await client.query("BEGIN");
+      transactionOpen = true;
       await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_core_schema_compat_v19'))");
 
       await client.query(`
@@ -2622,12 +2665,22 @@ CREATE INDEX IF NOT EXISTS compliance_action_assignee_idx
       `);
 
       await client.query("COMMIT");
+      transactionOpen = false;
+      safeToReuse = true;
       coreSchemaReady = true;
     } catch (error) {
-      try { await client.query("ROLLBACK"); } catch { /* no-op */ }
+      if (transactionOpen && client) {
+        try {
+          await client.query("ROLLBACK");
+          transactionOpen = false;
+          safeToReuse = true;
+        } catch {
+          // An unclosed transaction must never return to the shared pool.
+        }
+      }
       throw error;
     } finally {
-      client.release();
+      client?.release(!safeToReuse);
       coreSchemaInFlight = null;
     }
   })();
