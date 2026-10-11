@@ -121,7 +121,7 @@ export function HcmTeamLeaveCalendar({
   return (
     <main className="min-h-screen bg-slate-50 px-4 pb-16 pt-6 text-slate-900 sm:px-7">
       <div className="mx-auto max-w-6xl">
-        <Link href={`/app?organizationId=${organizationId}&workspacePage=Approvals`}
+        <Link href={`/hcm/my-team?organizationId=${organizationId}`}
           className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-emerald-800 hover:underline">
           <ArrowLeft size={16} aria-hidden="true" /> Back to workspace
         </Link>
