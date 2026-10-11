@@ -11,7 +11,7 @@ on:
       - "src/components/workspace/workforce-operational-demand-panel.tsx"
       - "src/components/workspace/workforce-coverage-panel.tsx"
       - "src/db/schema.ts"
-      - "drizzle/0113_wfm_operational_demand_observations.sql"
+      - "drizzle/0112_wfm_operational_demand_observations.sql"
       - "tests/workforce-operational-demand*.test.ts"
       - ".github/workflows/wfm-operational-demand-observations-qa.yml"
   workflow_dispatch:
