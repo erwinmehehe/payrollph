@@ -137,7 +137,6 @@ export async function GET(request: Request) {
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  await ensureLeavePayrollSchema();
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
@@ -168,6 +167,9 @@ export async function GET(request: Request) {
   } else if (!access.companyWide && access.orgUnitId) {
     scopeConditions.push(eq(employees.orgUnitId, access.orgUnitId));
   }
+
+  // A non-member or disallowed role must not trigger legacy schema writers.
+  await ensureLeavePayrollSchema();
 
   // Read only worker display fields; not sensitive HRIS columns.
   const rows = await db.select({
@@ -206,7 +208,6 @@ export async function POST(request: Request) {
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  await ensureLeavePayrollSchema();
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -222,6 +223,14 @@ export async function POST(request: Request) {
   if (access.role === "manager" && deriveMyTeamScope(access)?.kind !== "unit") {
     return Response.json({ error: "A manager must have an assigned organizational unit." }, { status: 403 });
   }
+  // All leave actions are restricted before any request-time compatibility DDL.
+  if (access.role !== "employee" && !roleAllowed(access.role, LEAVE_ADMIN_ROLES)) {
+    return Response.json({ error: "Your role cannot manage leave requests." }, { status: 403 });
+  }
+  if (access.role === "employee" && !user.employeeId) {
+    return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
+  }
+  await ensureLeavePayrollSchema();
 
   if (action === "revise_intervals") {
     const leaveId = Number(body.leaveId);
