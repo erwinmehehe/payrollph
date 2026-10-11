@@ -1,7 +1,7 @@
 import { assertOrganizationRole, getAccess, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import {
-  currentPhilippineMonth, deriveTeamLeaveScope, isPermittedTeamLeaveMonth,
+  currentPhilippineMonth, deriveTeamLeaveScope, teamLeaveEnabledForEmployer, isPermittedTeamLeaveMonth,
 } from "@/lib/hcm-team-leave-calendar-contract";
 import {
   loadTeamLeaveMonth, TeamLeaveInvalidMonthError, TeamLeaveScopeError,
@@ -34,11 +34,15 @@ export async function GET(request: Request) {
   if (!organizationId || !isPermittedTeamLeaveMonth(month, now)) {
     return respond({ error: "Valid employer and current/upcoming month required." }, 400);
   }
+  if (!teamLeaveEnabledForEmployer(organizationId)) {
+    return respond({ error: "Not found." }, 404);
+  }
+
   const denied = await assertOrganizationRole(
     user.id, organizationId, WORKFORCE_MANAGER_ROLES,
     "Workforce manager or People oversight access is required.",
   );
-  if (denied) return denied;
+  if (denied) return respond({ error: "Workspace access denied." }, denied.status);
   const access = await getAccess(user.id, organizationId);
   const scope = deriveTeamLeaveScope(access);
   if (!scope) {
