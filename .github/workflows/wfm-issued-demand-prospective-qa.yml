@@ -11,7 +11,7 @@ on:
       - "src/components/workspace/workforce-issued-demand-panel.tsx"
       - "src/components/workspace/workforce-coverage-panel.tsx"
       - "src/db/schema.ts"
-      - "drizzle/0114_wfm_issued_demand_forecasts.sql"
+      - "drizzle/0113_wfm_issued_demand_forecasts.sql"
       - "tests/workforce-issued-demand*.test.ts"
       - ".github/workflows/wfm-issued-demand-prospective-qa.yml"
   workflow_dispatch:
