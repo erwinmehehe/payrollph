@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { FirstPayrollReadinessCard } from "../src/components/workspace/first-payroll-readiness";
 import { buildFirstPayrollReadiness } from "../src/lib/first-payroll-readiness";
 import { buildFirstPayrollJourney } from "../src/lib/first-payroll-journey";
 
@@ -46,4 +49,22 @@ test("the first released payroll still presents the export handoff before ongoin
   const ui = readFileSync("src/components/workspace/first-payroll-readiness.tsx", "utf8");
   assert.ok(ui.includes("readiness.firstPayrollReleased && readiness.payrollRunCount > 1"));
   assert.ok(ui.includes('"Open exports"'));
+});
+
+test("self-serve owners receive a single guided journey without duplicate setup tiles", () => {
+  const readiness = buildFirstPayrollReadiness({ ...base, payrollStatuses: [] });
+  const props = {
+    readiness, allowedPages: ["Settings", "People", "Time & attendance", "Payroll", "Approvals", "Exports"],
+    onPage: () => {}, onNewRun: () => {},
+  };
+  const guided = renderToStaticMarkup(createElement(FirstPayrollReadinessCard, { ...props, guided: true }));
+  const legacy = renderToStaticMarkup(createElement(FirstPayrollReadinessCard, { ...props, guided: false }));
+  assert.match(guided, /Guided first payroll journey/);
+  assert.doesNotMatch(guided, /class="first-payroll-grid"/);
+  assert.match(legacy, /class="first-payroll-grid"/);
+  assert.doesNotMatch(legacy, /Guided first payroll journey/);
+  const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
+  const page = readFileSync("src/app/app/page.tsx", "utf8");
+  assert.ok(page.includes("isSelfServeCustomer={isSelfServe}"));
+  assert.ok(workspace.includes("guided={isSelfServeCustomer}"));
 });
