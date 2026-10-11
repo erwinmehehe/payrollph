@@ -180,5 +180,11 @@ jobs:
           HCM_ENTERPRISE_PLAN_GATE_ORG_IDS: '1,2'
         run: node scripts/hcm-enterprise-plan-synthetic-browser.mjs
 
+      # Both browser journeys use separate local app instances but the same
+      # disposable PostgreSQL rate-limit store. Preserve the real production
+      # 10-login/minute limit by resetting only the synthetic IP bucket after
+      # the first suite, never by changing authentication or bypassing checks.
+      - name: Reset synthetic-only shared login bucket between browser suites
+        run: npx tsx scripts/hcm-monitor-reset-login-bucket.ts
       - name: Browser QA — HCM navigation/role/tenant/a11y/reflow/default-off
         run: node scripts/hcm-process-monitor-synthetic-browser.mjs
