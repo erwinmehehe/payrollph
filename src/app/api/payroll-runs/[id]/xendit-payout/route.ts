@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
