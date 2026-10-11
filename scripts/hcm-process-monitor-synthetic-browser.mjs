@@ -109,6 +109,15 @@ async function main() {
       "/api/hcm/process-monitor?organizationId=1&processId=" + beta.data.items[0].id);
     assert.equal(foreign.status, 200, "Foreign process lookup must produce safe not_found detail");
     assert.equal(foreign.data.detail.state, "not_found");
+    // Switching between two permitted employers must never retain links
+    // to the previously selected employer.
+    assert.equal(await visit(page, 2), 200);
+    const betaNav = page.getByRole("navigation", { name: "HCM workspace navigation" });
+    assert.equal(await betaNav.getByRole("link", { name: "People Home" })
+      .getAttribute("href"), "/hcm/command-center?organizationId=2");
+    assert.equal(await betaNav.getByRole("link", { name: "Process monitor" })
+      .getAttribute("href"), "/hcm/process-monitor?organizationId=2");
+    assert.ok((await betaNav.locator("a").all()).length >= 3);
     assert.equal(await visit(page, 0), 404);
     assert.equal(await visit(page, "abc"), 404);
     const workerPage = await context.newPage();
