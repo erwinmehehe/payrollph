@@ -844,7 +844,7 @@ jobs:
             // Phase 2: these checks are read-only except for opening/cancelling
             // the confirmation modal. The GitHub runner uses seeded demo Postgres.
             if (persona.id === "owner") {
-              const ownerPayroll = page.locator("aside .nav-item").filter({ hasText: /^Payroll$/ }).first();
+              const ownerPayroll = page.locator('aside .nav-item[data-nav-name="Payroll"]').first();
               check((await ownerPayroll.count()) === 1, "Phase 2 Owner: payroll navigation is missing");
               await ownerPayroll.click();
               await page.waitForTimeout(200);
