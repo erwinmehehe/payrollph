@@ -127,8 +127,9 @@ export function buildDemandStaffingShiftEvidence(input: {
 
   const slots: DemandStaffingSlot[] = [], evidence: DemandStaffingSourceRow[] = [];
   const start = input.windowStart > s.horizonStartPh ? input.windowStart : s.horizonStartPh;
-  const end = input.windowEnd < nextDay(new Date(Date.parse(endHorizon + "T00:00:00Z") - DAY).toISOString().slice(0, 10))
-    ? input.windowEnd : new Date(Date.parse(endHorizon + "T00:00:00Z") - DAY).toISOString().slice(0, 10);
+  const lastForecastDate = new Date(Date.parse(endHorizon + "T00:00:00Z") - DAY)
+    .toISOString().slice(0, 10);
+  const end = input.windowEnd < lastForecastDate ? input.windowEnd : lastForecastDate;
   if (end < start) return {
     slots: [], evidence: [],
     boundary: "Forecast dates do not overlap the selected roster window. Change the coverage date range.",
