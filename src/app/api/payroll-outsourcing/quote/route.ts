@@ -73,8 +73,9 @@ export async function POST(request: Request) {
       sourcePath: "/payroll-outsourcing",
       attribution: marketingConsentEvidence(),
     });
-  } catch (error) {
-    console.error("marketing-lead: could not persist payroll outsourcing request", error);
+  } catch {
+    // Provider errors can embed enquiry contact fields. Keep logs PII-free.
+    console.error("marketing-lead: could not persist payroll outsourcing request");
     return Response.json(
       { error: "We could not record your request right now. Please try again shortly." },
       { status: 503 },
@@ -85,8 +86,8 @@ export async function POST(request: Request) {
   try {
     const notification = await notifyMarketingLead(lead.id);
     status = notification.status;
-  } catch (error) {
-    console.error("marketing-lead: notification failed after durable outsourcing capture", error);
+  } catch {
+    console.error("marketing-lead: notification failed after durable outsourcing capture");
     status = "failed";
     await updateMarketingLeadNotification({ id: lead.id, status }).catch(() => {});
   }
