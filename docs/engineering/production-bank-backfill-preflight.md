@@ -20,3 +20,12 @@ Because encrypted values cannot be recovered without the original key, preserve 
 ## Configuration observation
 
 Vercel variable metadata may list keys without confirming values. Confirm that any database variable scoped to Preview uses a **separate synthetic-data** database, never Production. In particular, inspect the target of `DATABASE_URL_UNPOOLED` if configured for both environments; do not print or copy its value into this repository or an issue.
+
+
+## Four-store bank key rotation
+
+Legacy `scripts/rotate-sensitive-encryption.ts` is intentionally **disabled for bank rotation** because its old implementation rewrapped only employees and payroll snapshots and overwrote the whole snapshot JSON without compare-and-swap. Government-ID rotation remains a separate task.
+
+The replacement `scripts/rotate-bank-envelopes.ts` handles all four bank stores with 500-row keyset pagination and original-value compare-and-swap. It requires an authorized dedicated current bank key, a separate previous decryption key and the exact DBA-reviewed database name. First run **without `--apply`** to verify that every stored nonempty value authenticates either under the current key or the approved previous key; plaintext and forged envelopes stop the run. `--apply` also requires `BANK_ROTATION_APPROVAL_REF` and literal `BANK_ROTATION_CONFIRMATION=APPLY_APPROVED_BANK_ROTATION`. The first pass validates every record before any writes; the second pass rewraps old-key-only ciphertext.
+
+**Required operator proof after apply:** run `scripts/verify-bank-account-envelopes.ts` using the current bank key, verify zero plaintext/unreadable values across all four stores, reconcile old-key counts, and only then remove the previous key under change control. A live rotation can be partially completed after a concurrency error; do not roll back by blindly restoring old ciphertext. This script does not replace controlled backup/restore acceptance or independent approver sign-off.
