@@ -1,6 +1,6 @@
-# HCM Organization & Positions Explorer — read-only staging acceptance
+# HCM Organization & Positions Explorer — read-only source acceptance
 
-**Status: draft code only.** This is not a compliance certification, real-employer UAT, or approval to deploy. Related issue #709; Worker 360 dependency is tracked separately in #700 / PR #701.
+**Status: pre-client source integration.** This is not a compliance certification, real-employer UAT, or approval to enable production. Related issues: #709, #700 and #734. Existing Worker 360 source has since merged as #701.
 
 ## Source and architecture
 
@@ -14,9 +14,9 @@
 
 ## Default-OFF activation and rollback
 
-- Server-only HCM_ORG_EXPLORER_ENABLED=true gates the GET APIs and the server-rendered page.
-- Build-time public NEXT_PUBLIC_HCM_ORG_EXPLORER_ENABLED=true shows the People workspace shortcut to authorized HR operators only; the client flag **is not** an authorization mechanism.
-- Both flags remain unset for production. A release owner may set them in protected synthetic staging only after reviewed permissions and query plans. Turn off the server flag and redeploy to disable access; hiding the navigation alone is insufficient.
+- Server-only `HCM_ORG_EXPLORER_ENABLED=true` **and** the exact legal employer ID in `HCM_ORG_EXPLORER_ORG_IDS` are required for either GET API or the server-rendered page. Absent or malformed allowlists deny access.
+- Build-time `NEXT_PUBLIC_HCM_ORG_EXPLORER_ENABLED=true` and exact employer ID in `NEXT_PUBLIC_HCM_ORG_EXPLORER_ORG_IDS` show the People workspace shortcut to company-wide HR operators only. Client visibility never replaces server authorization.
+- All flags and allowlists remain unset in production. Pre-client source code may merge after exact-head CI and maintainer review **without** a dedicated staging project. Later real-employer feature activation requires separate HR/privacy/security/QA release reviews and operator sign-off. Turn off the server flag and redeploy to disable data access; hiding navigation alone is insufficient.
 - No SQL migrations, worker writes, position writes, BP actions, payroll calculations, payout, or bank functionality.
 
 ## Security / correct-account scenarios
@@ -38,15 +38,20 @@
 | Mobile / keyboard / zoom / screen-reader | Semantic headings, labelled interactive units, selected state, loading/error/preview states |
 | Payroll and HCM business-process operations | No changes to payment or governed mutation paths |
 
-## Review gates
+## Pre-client source integration gates
 
-- [ ] Exact-head TypeScript, unit/static regression suite, Next build, lint, security/CodeQL, payroll isolation and SQL history controls pass.
-- [ ] HR/HCM reviewer validates supervisory unit vs administrative unit and position reference semantics.
-- [ ] Security reviewer validates tenancy, role, custom deny, field scope and employer-switch race handling.
-- [ ] DBA reviews bounded query plans, active effective-date filters, join by same organization and source index usage.
-- [ ] QA performs two synthetic-employer protected staging test scripts, invalid IDs, orphaned/cyclic relationships, full-preview ceilings and failed source responses.
-- [ ] Accessibility/mobile screen review, release flag rollback rehearsal, recorded independent UAT and release-owner sign-off.
-- [ ] Only then consider production rollout, separately from payroll provider or real employer acceptance.
+- [ ] Exact-head TypeScript, unit/regression suites, Next build, lint, CodeQL, payroll isolation and SQL history controls pass.
+- [ ] Maintainer diff review of tenant predicates, 250/500 record caps, 50+1 history cap, absence of salary/PII, immutable read-only routes, employer allowlist and request cancellation.
+- [ ] Synthetic two-employer QA, invalid ID and unauthorized role tests. No real employee data or production database needed.
+
+## Separate real-employer activation gates — not required for source merge
+
+- [ ] HR reviewer validates supervisory versus administrative units and position reference semantics.
+- [ ] Security/privacy reviewer checks session/deny-only overrides, role downgrade, field minimization and employer switching.
+- [ ] Data reviewer checks bounded plans, filters, joins and indexes against a realistic authorized dataset.
+- [ ] QA verifies two employer contexts, errors, capped previews, accessible keyboard/mobile operation and screen reader labels.
+- [ ] Release owner records deployment SHA, exact employer allowlist, rollback rehearsal and permission to enable.
+- [ ] Production operational privacy and payroll release readiness are assessed separately; code merge never means employer activation.
 
 ## Follow-on
 
