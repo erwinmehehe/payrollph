@@ -1,20 +1,29 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { db, pool } from "@/db";
-import { hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps } from "@/db/schema";
-import { canDecide } from "@/lib/delegation";
-import { loadPeopleOperationsInbox } from "@/lib/hcm-people-operations-inbox-server";
+import {
+  hcmBusinessProcessInstances,
+  hcmBusinessProcessInstanceSteps,
+  hcmLifecycleNotificationTasks,
+  provisioningTasks,
+} from "@/db/schema";
+import { loadPeopleHomeAssigneePermissions } from "@/lib/delegation";
 
 /**
- * A privacy-minimized read projection. Source modules retain all decisions and
- * writes. No employee identifiers, salaries, notes, bank data or government
- * numbers leave this projection.
+ * Source-minimized, server-only People Home projection. It provides previews,
+ * never decisions or complete census counts. No source free text is selected.
  */
 export type PeopleHomeItem = {
   key: string;
+  source: "hcm_business_process" | "lifecycle_notification" | "provisioning" | "operational_case";
+  sourceId: number;
+  tenantId: number;
   title: string;
   category: string;
+  status: "pending" | "review" | "follow_up" | "source_check" | "open" | "acknowledged";
   dueAt: string | null;
+  sourceDate: string | null;
   sourceUrl: string;
+  incompleteEvidence: boolean;
   blockedByMakerChecker?: boolean;
 };
 
@@ -22,6 +31,7 @@ export type PeopleHomeSection = {
   state: "ready" | "unavailable";
   items: PeopleHomeItem[];
   hasMore: boolean;
+  partial: boolean;
   total: number | null;
 };
 
@@ -33,6 +43,7 @@ export type PeopleHomeWorklist = {
 
 const VISIBLE = 5;
 const BP_CANDIDATE_LIMIT = 30;
+const FOLLOWUP_SOURCE_LIMIT = 6;
 
 const PROCESS_LABELS: Record<string, string> = {
   change_job: "Change job",
@@ -45,32 +56,28 @@ const PROCESS_LABELS: Record<string, string> = {
   close_position: "Close position",
 };
 
-const FOLLOWUP_LABELS: Record<string, string> = {
-  employment: "Employment terms",
-  onboarding: "Onboarding",
-  position: "Position assignment",
-  performance: "Performance cycle",
-  separation: "Separation",
-};
-
 function missing(): PeopleHomeSection {
-  return { state: "unavailable", items: [], hasMore: false, total: null };
+  return { state: "unavailable", items: [], hasMore: false, partial: true, total: null };
 }
 
-function recordedDate(value: Date | string | null | undefined): string | null {
+function recordedInstant(value: Date | string | null | undefined): string | null {
   if (!value) return null;
-  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
   const date = value instanceof Date ? value : new Date(value);
   return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+
+function recordedSourceDate(value: string | null | undefined): string | null {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(value + "T00:00:00Z");
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value
+    ? value : null;
 }
 
 async function assignedHcmDecisions(
   organizationId: number,
   user: { id: number; name: string },
 ): Promise<PeopleHomeSection> {
-  // Candidate ceiling is deliberate: assignment is checked by the same
-  // authoritative canDecide resolver as the existing HCM BP inbox. Never
-  // claim this preview is a complete census when that ceiling is hit.
+  // Bounded candidate scan with no names, private evidence, or snapshots.
   const candidates = await db.select({
     id: hcmBusinessProcessInstanceSteps.id,
     stepType: hcmBusinessProcessInstanceSteps.stepType,
@@ -79,10 +86,8 @@ async function assignedHcmDecisions(
     processType: hcmBusinessProcessInstances.processType,
     initiatedByUserId: hcmBusinessProcessInstances.initiatedByUserId,
   }).from(hcmBusinessProcessInstanceSteps)
-    .innerJoin(
-      hcmBusinessProcessInstances,
-      eq(hcmBusinessProcessInstanceSteps.instanceId, hcmBusinessProcessInstances.id),
-    )
+    .innerJoin(hcmBusinessProcessInstances,
+      eq(hcmBusinessProcessInstanceSteps.instanceId, hcmBusinessProcessInstances.id))
     .where(and(
       eq(hcmBusinessProcessInstanceSteps.organizationId, organizationId),
       eq(hcmBusinessProcessInstances.organizationId, organizationId),
@@ -92,51 +97,114 @@ async function assignedHcmDecisions(
     .orderBy(hcmBusinessProcessInstanceSteps.dueAt, hcmBusinessProcessInstanceSteps.id)
     .limit(BP_CANDIDATE_LIMIT + 1);
 
+  const scanned = candidates.slice(0, BP_CANDIDATE_LIMIT);
+  const permissions = await loadPeopleHomeAssigneePermissions(
+    organizationId, Array.from(new Set(scanned.map((item) => item.assignee))), user,
+  );
   const items: PeopleHomeItem[] = [];
-  for (const item of candidates.slice(0, BP_CANDIDATE_LIMIT)) {
-    const decision = await canDecide(organizationId, item.assignee, user.name, user.id);
-    if (!decision.permitted) continue;
-    const ownRequest = item.initiatedByUserId === user.id;
-    const stepName = item.stepType === "approval" ? "Approval" :
-      item.stepType === "review" ? "Review" : "To-do";
+  for (const item of scanned) {
+    if (!permissions.get(item.assignee)) continue;
+    const makerBlocked = item.initiatedByUserId === user.id &&
+      (item.stepType === "approval" || item.stepType === "review");
     items.push({
       key: "bp:" + item.id,
+      source: "hcm_business_process",
+      sourceId: item.id,
+      tenantId: organizationId,
       title: PROCESS_LABELS[item.processType] ?? "HCM business process",
-      category: stepName,
-      dueAt: recordedDate(item.dueAt),
+      category: item.stepType === "approval" ? "Approval" :
+        item.stepType === "review" ? "Review" : "To-do",
+      status: item.stepType === "review" ? "review" : "pending",
+      dueAt: recordedInstant(item.dueAt),
+      sourceDate: null,
       sourceUrl: "/app?organizationId=" + organizationId + "&workspacePage=People&hcmPanel=bp",
-      blockedByMakerChecker: ownRequest && (item.stepType === "approval" || item.stepType === "review"),
+      incompleteEvidence: false,
+      blockedByMakerChecker: makerBlocked,
     });
   }
-
+  const partial = candidates.length > BP_CANDIDATE_LIMIT;
   return {
     state: "ready",
     items: items.slice(0, VISIBLE),
-    hasMore: items.length > VISIBLE || candidates.length > BP_CANDIDATE_LIMIT,
+    hasMore: items.length > VISIBLE || partial,
+    partial,
     // A bounded assignment-filtered preview is not a complete task count.
     total: null,
   };
 }
 
+/**
+ * Only outstanding lifecycle notifications and unfinished provisioning rows.
+ * Other People Ops categories are not queried here; use the authoritative
+ * People Operations Inbox for all employment/performance/separation findings.
+ * Each source read is independently capped before constructing the preview.
+ */
 async function peopleOpsFollowUps(organizationId: number): Promise<PeopleHomeSection> {
-  // Reuse the established People Ops source/evidence interpretation. Never
-  // treat a source check as a decision assigned to this user.
-  const evidence = await loadPeopleOperationsInbox(organizationId, {
-    page: 1,
-    pageSize: VISIBLE + 1,
-  });
+  const [lifecycle, provisioning] = await Promise.all([
+    db.select({
+      id: hcmLifecycleNotificationTasks.id,
+      dueDate: hcmLifecycleNotificationTasks.dueDate,
+      severity: hcmLifecycleNotificationTasks.severity,
+    }).from(hcmLifecycleNotificationTasks)
+      .where(and(
+        eq(hcmLifecycleNotificationTasks.organizationId, organizationId),
+        ne(hcmLifecycleNotificationTasks.status, "resolved"),
+      ))
+      .orderBy(hcmLifecycleNotificationTasks.dueDate, hcmLifecycleNotificationTasks.id)
+      .limit(FOLLOWUP_SOURCE_LIMIT + 1),
+    db.select({
+      id: provisioningTasks.id,
+      kind: provisioningTasks.kind,
+    }).from(provisioningTasks)
+      .where(and(
+        eq(provisioningTasks.organizationId, organizationId),
+        eq(provisioningTasks.done, false),
+        inArray(provisioningTasks.kind, ["onboarding", "offboarding"]),
+      ))
+      .orderBy(provisioningTasks.id)
+      .limit(FOLLOWUP_SOURCE_LIMIT + 1),
+  ]);
+
+  const rows: PeopleHomeItem[] = [
+    ...lifecycle.slice(0, FOLLOWUP_SOURCE_LIMIT).map((item) => ({
+      key: "lifecycle:" + item.id,
+      source: "lifecycle_notification" as const,
+      sourceId: item.id,
+      tenantId: organizationId,
+      title: "Employment lifecycle follow-up",
+      category: item.severity === "critical" ? "Needs source review" : "Follow up",
+      status: (item.severity === "critical" ? "review" : "follow_up") as "review" | "follow_up",
+      dueAt: null,
+      sourceDate: recordedSourceDate(item.dueDate),
+      sourceUrl: "/app?organizationId=" + organizationId + "&workspacePage=People",
+      incompleteEvidence: true,
+    })),
+    ...provisioning.slice(0, FOLLOWUP_SOURCE_LIMIT).map((item) => ({
+      key: "provisioning:" + item.id,
+      source: "provisioning" as const,
+      sourceId: item.id,
+      tenantId: organizationId,
+      title: item.kind === "offboarding" ? "Offboarding checklist" : "Onboarding checklist",
+      category: "Follow up",
+      status: "follow_up" as const,
+      dueAt: null,
+      sourceDate: null,
+      sourceUrl: "/app?organizationId=" + organizationId + "&workspacePage=People",
+      incompleteEvidence: true,
+    })),
+  ];
+  rows.sort((a, b) =>
+    (a.sourceDate ?? "9999-12-31").localeCompare(b.sourceDate ?? "9999-12-31") ||
+    a.key.localeCompare(b.key));
+
+  // Always partial: other People Operations Inbox categories are out of scope.
   return {
     state: "ready",
-    items: evidence.rows.slice(0, VISIBLE).map((item) => ({
-      key: "followup:" + item.id,
-      title: FOLLOWUP_LABELS[item.category] ?? "HR source review",
-      category: item.priority === "review" ? "Needs source review" :
-        item.priority === "follow_up" ? "Follow up" : "Optional source check",
-      dueAt: recordedDate(item.dueDate),
-      sourceUrl: "/app?organizationId=" + organizationId + "&workspacePage=People",
-    })),
-    hasMore: evidence.filteredTotal > VISIBLE,
-    total: evidence.summary.total,
+    items: rows.slice(0, VISIBLE),
+    hasMore: rows.length > VISIBLE ||
+      lifecycle.length > FOLLOWUP_SOURCE_LIMIT || provisioning.length > FOLLOWUP_SOURCE_LIMIT,
+    partial: true,
+    total: null,
   };
 }
 
@@ -144,42 +212,51 @@ async function myOwnedCases(
   organizationId: number,
   userId: number,
 ): Promise<PeopleHomeSection> {
-  // Only case ownership for the signed-in actor. Titles/details from the
-  // operational case source are deliberately not projected to a homepage.
   const result = await pool.query(
     "SELECT id, status, sla_due_at AS \"dueAt\" FROM automation_operational_cases " +
-    "WHERE organization_id = $1 AND assigned_owner_user_id = $2 AND status <> 'resolved' " +
+    "WHERE organization_id = $1 AND assigned_owner_user_id = $2 " +
+    "AND status IN ('open', 'acknowledged') " +
     "ORDER BY sla_due_at ASC NULLS LAST, id DESC LIMIT $3",
     [organizationId, userId, VISIBLE + 1],
   );
   return {
     state: "ready",
-    items: result.rows.slice(0, VISIBLE).map((item: { id: number; status: string; dueAt: Date | string | null }) => ({
-      key: "case:" + item.id,
-      title: "Assigned operational case",
-      category: item.status === "acknowledged" ? "Acknowledged" : "Open",
-      dueAt: recordedDate(item.dueAt),
-      sourceUrl: "/hcm/work-items?organizationId=" + organizationId,
-    })),
+    items: result.rows.slice(0, VISIBLE).map(
+      (item: { id: number; status: string; dueAt: Date | string | null }) => ({
+        key: "case:" + item.id,
+        source: "operational_case" as const,
+        sourceId: item.id,
+        tenantId: organizationId,
+        title: "Assigned operational case",
+        category: item.status === "acknowledged" ? "Acknowledged" : "Open",
+        status: item.status === "acknowledged" ? "acknowledged" as const : "open" as const,
+        dueAt: recordedInstant(item.dueAt),
+        sourceDate: null,
+        sourceUrl: "/hcm/work-items?organizationId=" + organizationId,
+        incompleteEvidence: false,
+      }),
+    ),
     hasMore: result.rows.length > VISIBLE,
+    partial: result.rows.length > VISIBLE,
     total: null,
   };
 }
 
+/** Caller must first enforce session, employer, People-admin RBAC and pilot flag. */
 export async function loadPeopleHomeWorklist(
   organizationId: number,
   user: { id: number; name: string },
 ): Promise<PeopleHomeWorklist> {
-  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) {
-    throw new Error("Valid HCM employer is required.");
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
+      !Number.isSafeInteger(user.id) || user.id <= 0) {
+    throw new Error("Valid HCM employer and actor are required.");
   }
   const [decisions, followUps, ownedCases] = await Promise.allSettled([
     assignedHcmDecisions(organizationId, user),
     peopleOpsFollowUps(organizationId),
     myOwnedCases(organizationId, user.id),
   ]);
-
-  // A source outage is never an empty or compliant queue.
+  // An unavailable source can never be an empty/complete work queue.
   return {
     decisions: decisions.status === "fulfilled" ? decisions.value : missing(),
     followUps: followUps.status === "fulfilled" ? followUps.value : missing(),
