@@ -85,7 +85,7 @@ test("review-only planner switches an adjacent-shift candidate to an eligible re
 test("Coverage UI only treats configured BLOCKING rest policy as a draft hard constraint", () => {
   const src = readFileSync("src/components/workspace/workforce-coverage-panel.tsx", "utf8");
   assert.ok(src.includes('policy.enforcementMode === "block"'));
-  assert.ok(src.includes("minimumRestMinutes: payload?.guardrailReadiness?.policy.active"));
+  assert.ok(src.includes("minimumRestMinutes: blockingMinimumRestMinutes"));
   assert.ok(src.includes("WorkforceLaborCalibrationPanel"));
   assert.ok(src.includes("addDays(planningToday, -14)"));
 });
