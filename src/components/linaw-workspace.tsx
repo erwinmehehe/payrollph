@@ -62,6 +62,7 @@ import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId 
 import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, roleHasPeopleWorkspace, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
 import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
+import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean }) {
   const searchParams = useSearchParams();
@@ -73,11 +74,21 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       ? requestedDemoRole
       : null;
   const demoInfo = demoRoleInfo(demoRole);
+  const requestedWorkspacePage = searchParams.get("workspacePage");
+  const linkedTeamWorkflowPage = requestedMyTeamWorkspacePage({
+    requestedPage: requestedWorkspacePage,
+    role: initialData.access?.role ?? initialData.user?.role,
+    companyWide: initialData.access?.companyWide,
+    accountType: initialData.selectedOrganization.accountType,
+    rolePages: workspacePagesForRole(initialData.access?.role ?? initialData.user?.role),
+    pilotFocusEnabled,
+    demoMode: Boolean(demoRole),
+  });
   const initialPage = demoInfo?.landingPage ??
     (searchParams.get("workspacePage") === "People" &&
       canOpenPeopleHome(initialData.access) &&
       roleHasPeopleWorkspace(initialData.access?.role)
-      ? "People" : "Overview");
+      ? "People" : linkedTeamWorkflowPage ?? "Overview");
   const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
