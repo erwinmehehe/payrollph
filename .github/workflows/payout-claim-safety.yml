@@ -1,0 +1,68 @@
+name: Payroll Payout Claim Safety (Isolated CI)
+
+on:
+  pull_request:
+    paths:
+      - "src/lib/payroll-run-payout-lock.ts"
+      - "src/lib/payout-ledger.ts"
+      - "src/lib/xendit-payroll-operations.ts"
+      - "src/lib/xendit-payout-ledger.ts"
+      - "src/app/api/payroll-runs/**"
+      - "tests/payroll-run-payout-lock.test.ts"
+      - "tests/xendit-payroll-ledger-integration.test.ts"
+      - ".github/workflows/payout-claim-safety.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  payout-claim:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout without persisting credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Configure synthetic CI bank encryption key
+        shell: bash
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Push schema only to disposable localhost PostgreSQL 16
+        run: npm run db:push
+      - name: Prove per-run concurrency and prevent cross-rail duplicate payouts
+        run: >
+          npx tsx --test --test-concurrency=1
+          tests/payroll-run-payout-lock.test.ts
+          tests/xendit-payroll-ledger-integration.test.ts
+          tests/payroll-lifecycle-safety.test.ts
+      - name: Verify TypeScript on exact PR head
+        run: npx tsc --noEmit
