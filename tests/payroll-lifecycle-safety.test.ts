@@ -213,7 +213,7 @@ test("payout completion UX uses a gated Xendit default and preserves historical 
 });
 
 
-test("release receipt starts at PayMongo preflight and keeps bank files optional", () => {
+test("release receipt records selected payout provider and keeps bank files optional", () => {
   const releaseRoute = read("src/app/api/payroll-runs/[id]/release/route.ts");
   const payrollView = read("src/components/workspace/payroll-run.tsx");
   const types = read("src/components/workspace/types.ts");
@@ -221,7 +221,8 @@ test("release receipt starts at PayMongo preflight and keeps bank files optional
   assert.ok(releaseRoute.includes('status: "waiting" as const'));
   assert.ok(releaseRoute.includes('status: "awaiting-preflight" as const'));
   assert.ok(releaseRoute.includes("Optional fallback: no final bank file has been generated."));
-  assert.ok(releaseRoute.includes("PayMongo is the primary payout rail"));
+  assert.ok(releaseRoute.includes('configuredPayrollPayoutProvider() === "xendit"'));
+  assert.ok(releaseRoute.includes('method: configuredPayrollPayoutProvider() === "xendit" ? "Xendit" : "PayMongo"'));
   assert.ok(payrollView.includes('data-payout-status={visibleReleaseReceipt.payout.status}'));
   assert.ok(types.includes('"awaiting-preflight" | "ready" | "submitted" | "completed"'));
 });
