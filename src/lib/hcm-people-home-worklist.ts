@@ -104,7 +104,7 @@ async function assignedHcmDecisions(
       title: PROCESS_LABELS[item.processType] ?? "HCM business process",
       category: stepName,
       dueAt: recordedDate(item.dueAt),
-      sourceUrl: "/app?organizationId=" + organizationId + "&workspacePage=People",
+      sourceUrl: "/app?organizationId=" + organizationId + "&workspacePage=People&hcmPanel=bp",
       blockedByMakerChecker: ownRequest && (item.stepType === "approval" || item.stepType === "review"),
     });
   }
