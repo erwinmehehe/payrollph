@@ -3,18 +3,10 @@ import { db } from "@/db";
 import { employees, userOrganizations, users } from "@/db/schema";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { readScheduleReceiptView } from "@/lib/workforce-schedule-receipt-server";
-import { receiptPilotAllowed, validReceiptId } from "@/lib/workforce-schedule-receipt";
-import { scheduleReviewSignals } from "@/lib/workforce-schedule-review-reminders";
+import { receiptPilotAllowed } from "@/lib/workforce-schedule-receipt";
+import { explicitReminderEmployerIds, scheduleReviewSignals } from "@/lib/workforce-schedule-review-reminders";
 
 const MAX_ACCOUNT_ROWS = 200;
-
-function explicitEmployerAllowlist(value: string | undefined): number[] | null {
-  if (!value || value.length > 240) return null;
-  const parts = value.split(",").map(part => part.trim());
-  if (!parts.length || parts.length > 20 || parts.some(part => !/^[1-9][0-9]{0,9}$/.test(part))) return null;
-  const numbers = parts.map(Number);
-  return numbers.every(validReceiptId) && new Set(numbers).size === numbers.length ? numbers : null;
-}
 
 /**
  * Hourly, optional read of authoritative employee schedule receipts. Reuses
@@ -30,7 +22,7 @@ export async function emitWorkforceScheduleReviewReminders(now: Date = new Date(
   if (!Number.isFinite(now.getTime())) {
     return { skipped: true as const, reason: "invalid-clock" };
   }
-  const allowlist = explicitEmployerAllowlist(process.env.WFM_SCHEDULE_REVIEW_REMINDERS_ORG_IDS);
+  const allowlist = explicitReminderEmployerIds(process.env.WFM_SCHEDULE_REVIEW_REMINDERS_ORG_IDS);
   if (!allowlist || allowlist.some(orgId => !receiptPilotAllowed(orgId,
     process.env.WFM_SCHEDULE_RECEIPTS_ENABLED,
     process.env.WFM_SCHEDULE_RECEIPTS_ALLOWED_ORGANIZATION_IDS))) {
