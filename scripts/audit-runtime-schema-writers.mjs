@@ -81,11 +81,42 @@ function namedFunction(node) {
   return null;
 }
 
-function containsReturn(node) {
-  if (ts.isReturnStatement(node)) return true;
-  // A nested callback's return must not count as the enclosing function's exit.
-  if (ts.isFunctionLike(node)) return false;
-  return ts.forEachChild(node, containsReturn) || false;
+function alwaysExits(node) {
+  if (ts.isReturnStatement(node) || ts.isThrowStatement(node)) return true;
+  if (ts.isBlock(node)) return node.statements.some(alwaysExits);
+  if (ts.isIfStatement(node)) {
+    return Boolean(node.elseStatement)
+      && alwaysExits(node.thenStatement)
+      && alwaysExits(node.elseStatement);
+  }
+  // A nested callback, loop or conditional-only return is not proof
+  // that this read-only branch cannot fall through into DDL.
+  return false;
+}
+
+function unwrap(node) {
+  while (ts.isParenthesizedExpression(node)) node = node.expression;
+  return node;
+}
+
+function isStrictModeCall(node, sourceFile) {
+  node = node && unwrap(node);
+  return node && ts.isCallExpression(node)
+    && node.expression.getText(sourceFile) === 'coreSchemaCompatibilityMode'
+    && node.arguments.length === 1
+    && node.arguments[0].getText(sourceFile).replace(/\s+/g, '') ===
+      'process.env.CORE_SCHEMA_COMPATIBILITY_MODE';
+}
+
+function isStrictReadOnlyGuard(node, sourceFile, verifiedModeBinding) {
+  node = unwrap(node);
+  if (!ts.isBinaryExpression(node) ||
+      node.operatorToken.kind !== ts.SyntaxKind.EqualsEqualsEqualsToken) return false;
+  const left = unwrap(node.left), right = unwrap(node.right);
+  const isReadOnly = value => ts.isStringLiteral(value) && value.text === 'read-only';
+  const isMode = value => isStrictModeCall(value, sourceFile)
+    || (verifiedModeBinding && ts.isIdentifier(value) && value.text === 'mode');
+  return (isReadOnly(left) && isMode(right)) || (isReadOnly(right) && isMode(left));
 }
 
 function classifyGuard(functionNode, sourceFile, firstMutation) {
@@ -95,30 +126,30 @@ function classifyGuard(functionNode, sourceFile, firstMutation) {
   if (!body || !ts.isBlock(body)) {
     return { state: 'unguarded', evidence: 'no inspectable function body' };
   }
-  const source = body.getText(sourceFile);
-  if (!source.includes('CORE_SCHEMA_COMPATIBILITY_MODE') ||
-      !source.includes('coreSchemaCompatibilityMode')) {
-    return { state: 'unguarded', evidence: 'no strict core compatibility-mode parser' };
-  }
-  const parserAt = source.indexOf('coreSchemaCompatibilityMode(');
-  if (parserAt === -1) return { state: 'unguarded', evidence: 'compatibility parser is not called' };
+  let verifiedModeBinding = false;
   for (const stmt of body.statements) {
-    if (!ts.isIfStatement(stmt) || stmt.getStart(sourceFile) >= firstMutation) continue;
-    if (body.getStart(sourceFile) + parserAt > stmt.getStart(sourceFile)) continue;
-    const condition = stmt.expression.getText(sourceFile).replace(/\s+/g, '');
-    if (!/mode===['"]read-only['"]/.test(condition) &&
-        !/['"]read-only['"]===mode/.test(condition)) continue;
-    if (!containsReturn(stmt.thenStatement)) continue;
-    // We only claim a source-level early exit, not the completeness of
-    // structural verification or the identity of the DB connection.
+    // A mutation inside the putative guard is not protected by that guard.
+    if (stmt.getStart(sourceFile) >= firstMutation) break;
+    if (ts.isVariableStatement(stmt)) {
+      verifiedModeBinding = stmt.declarationList.declarations.some(decl =>
+        ts.isIdentifier(decl.name) && decl.name.text === 'mode'
+        && isStrictModeCall(decl.initializer, sourceFile)
+      ) || verifiedModeBinding;
+      continue;
+    }
+    if (!ts.isIfStatement(stmt) || stmt.getEnd() > firstMutation) continue;
+    if (!isStrictReadOnlyGuard(stmt.expression, sourceFile, verifiedModeBinding)) continue;
+    if (!alwaysExits(stmt.thenStatement)) continue;
+    // This is source-level control-flow evidence, not proof that the
+    // read-only catalog verifier itself has correct semantics.
     return {
       state: 'early-readonly-exit',
       evidence: /verify\w+SchemaReadOnly/.test(stmt.thenStatement.getText(sourceFile))
-        ? 'early read-only catalog branch with return'
-        : 'early read-only branch with return; nested writes still require review',
+        ? 'early read-only catalog branch with guaranteed exit'
+        : 'early read-only fail-closed exit; nested writes still require review',
     };
   }
-  return { state: 'unguarded', evidence: 'no early read-only exit before mutation' };
+  return { state: 'unguarded', evidence: 'no guaranteed read-only exit before mutation' };
 }
 
 /** Scan a single TS/JS source file without evaluating code or connecting to DB. */
