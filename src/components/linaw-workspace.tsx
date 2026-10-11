@@ -151,8 +151,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
 
   function changeOrganization(id: number) {
     if (!Number.isSafeInteger(id) || id <= 0 || id === data.selectedOrganization.id) return;
-    // Re-evaluate server-side membership, subscription and tenant-specific
-    // pilot flags on every employer change; stale header links cannot survive.
+    // Always re-evaluate server-side access when changing employer.
     window.location.assign("/app?organizationId=" + id);
   }
 
@@ -476,6 +475,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         {page === "Compensation" && <CompensationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Workforce" && (
           <WorkforcePlanner
+            key={[data.user?.id, data.selectedOrganization.id, data.access?.role, data.access?.companyWide, data.access?.orgUnitName].join(":")}
             data={data}
             notify={notify}
             canManage={canManageTime}

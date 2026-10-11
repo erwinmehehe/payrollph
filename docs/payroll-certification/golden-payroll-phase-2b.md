@@ -32,3 +32,11 @@ qa-artifacts/golden-payroll-phase2b-reconciliation.json
 ## Certification boundary
 
 Phase 2B is engineering evidence. It does not replace independent CPA/payroll-practitioner sign-off, real parallel payroll cycles, government portal/file acceptance, or proprietary bank UAT.
+
+## October 10, 2026: proposed centavo correction (M-1)
+
+**Review pending — this is not a self-certified tax change.** In the Golden Phase 2B mid-cutoff-hire case, a PHP 44,000/month employee starting September 8 earns 8/15 of a PHP 22,000 cutoff: PHP 11,733.3333 before rounding, **PHP 11,733.33 payable**. Mandatory employee contributions total PHP 1,237.50. The declared taxable centavos are therefore PHP 10,495.83.
+
+The application's effective September 2026 BIR table specifies 15% on the portion over PHP 10,417. The actual calculation is `(10495.83 - 10417) * 0.15 = 11.8245` and withholding rounds to **PHP 11.82**, giving deductions PHP 1,249.32 and net PHP 10,484.01. The old fixtures' PHP 11.83, PHP 1,249.33 and PHP 10,484.00 came from carrying the unpayable 0.003333-peso prorating fraction into the tax function.
+
+The draft PR proposes explicit replacement values and **zero-tolerance centavo comparison only for this case**. An independent Philippine payroll reviewer must verify the centavo-first tax treatment and official rules. If independently rejected, fix the calculation and golden test together with written evidence, never silently restore a false expectation or widen tolerance.

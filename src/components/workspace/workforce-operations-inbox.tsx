@@ -43,7 +43,7 @@ export function WorkforceOperationsInbox({
   onOpenAttendance,
 }: {
   organizationId: number;
-  onOpenTab: (tab: "timesheets" | "coverage") => void;
+  onOpenTab: (tab: "timesheets" | "coverage", period?: { periodStart: string; periodEnd: string }) => void;
   onOpenAttendance: () => void;
 }) {
   const [today] = useState(() => phWorkDateAt());
@@ -136,7 +136,7 @@ export function WorkforceOperationsInbox({
             <div className="policy-lines" style={{ padding: "0 18px 18px" }}>
               {signals.map(item => <div key={item.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div><Status value={item.priority === "urgent" ? "Urgent" : "Review"}/> <strong>{item.count} · {item.label}</strong></div>
-                <button type="button" className="secondary-button" onClick={() => item.destination === "attendance" ? onOpenAttendance() : onOpenTab("timesheets")}>
+                <button type="button" className="secondary-button" onClick={() => item.destination === "attendance" ? onOpenAttendance() : onOpenTab("timesheets", { periodStart, periodEnd })}>
                   Open source review →
                 </button>
               </div>)}
