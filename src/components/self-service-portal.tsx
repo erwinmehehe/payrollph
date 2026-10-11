@@ -164,6 +164,7 @@ type LeaveRequest = {
 
 type Payload = {
   employee: {
+    id: number;
     employeeNo: string;
     firstName: string;
     lastName: string;
@@ -1176,6 +1177,7 @@ export function SelfServicePortal() {
 
           {webBundyOpen && (
             <WebBundyModal
+              employeeId={data.employee.id}
               language={language}
               organizationId={data.employer?.id ?? 0}
               employeeName={data.employee.firstName + " " + data.employee.lastName}
