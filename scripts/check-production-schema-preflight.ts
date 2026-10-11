@@ -10,9 +10,9 @@ import {
 } from "../src/lib/production-schema-inventory";
 
 /**
- * Protected-operator production preflight. Uses pg_catalog/INFORMATION_SCHEMA
- * only. BEGIN READ ONLY prohibits writes even if the supplied DB role has
- * broader permissions. Prefer a dedicated least-privilege catalog reader.
+ * Protected-operator production preflight. Uses PostgreSQL catalog metadata
+ * only. BEGIN READ ONLY prohibits writes; the role/privilege guard also
+ * requires a separate catalog-only account with no payroll-row access.
  */
 async function main() {
   const connectionString = process.env.PRODUCTION_DATABASE_URL;

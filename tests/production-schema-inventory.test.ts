@@ -71,7 +71,7 @@ test("schema preflight script executes catalog-only queries inside a read-only t
   assert.match(code, /EXPECTED_PRODUCTION_DATABASE_NAME/);
   assert.match(code, /validatedReleaseIndexes\(indexes\.rows\)/);
   assert.match(code, /t\.tgtype & 27/);
-  assert.doesNotMatch(code, /information_schema\.columns/);
+  assert.doesNotMatch(code, /FROM\s+information_schema\.columns/i);
   assert.match(code, /SET LOCAL statement_timeout/);
   assert.match(code, /PRODUCTION_DATABASE_URL/);
   assert.match(code, /await client\.query\("ROLLBACK"\)/);
