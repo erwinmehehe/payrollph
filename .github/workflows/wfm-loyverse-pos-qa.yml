@@ -10,6 +10,8 @@ on:
       - "tests/workforce-loyverse-pos*.test.ts"
       - "tests/fixtures/wfm-loyverse-pos-browser.jsx"
       - "scripts/wfm-loyverse-pos-browser.mjs"
+      - "scripts/wfm-loyverse-reconcile.mjs"
+      - "tests/workforce-loyverse-reconcile.test.mjs"
       - ".github/workflows/wfm-loyverse-pos-qa.yml"
   workflow_dispatch:
 
@@ -57,6 +59,8 @@ jobs:
           npm run db:push
       - name: Source pagination, PH late sync, privacy, two-tenant correction tests
         run: npx tsx --test --test-concurrency=1 tests/workforce-loyverse-pos.test.ts tests/workforce-loyverse-pos-db.test.ts
+      - name: Exact-bin independent-export reconciliation synthetic QA
+        run: node --test tests/workforce-loyverse-reconcile.test.mjs
       - name: Source size
         run: npm run source:size:check
       - name: Next production build
