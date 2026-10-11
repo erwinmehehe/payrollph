@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { assets, employees } from "@/db/schema";
+import { assets, employees, itManagedDevices } from "@/db/schema";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 
@@ -121,6 +121,12 @@ export async function PATCH(request: Request) {
     if (!currentEmployee || !currentScope.ok) return Response.json({ error: "Asset is outside your assigned unit." }, { status: 403 });
   }
 
+  const [tracked] = await db.select({ id: itManagedDevices.id }).from(itManagedDevices)
+    .where(and(eq(itManagedDevices.organizationId, target.organizationId), eq(itManagedDevices.assetId, id))).limit(1);
+  if (tracked) return Response.json({
+    error: "This asset is managed by IT Operations. Make custody changes there.",
+  }, { status: 409 });
+
   const updates: Partial<typeof assets.$inferInsert> = {};
   if (body.type !== undefined) updates.type = String(body.type).slice(0, 50);
   if (body.name !== undefined) updates.name = String(body.name).slice(0, 200);
@@ -183,6 +189,12 @@ export async function DELETE(request: Request) {
     const scope = assertScope(access, employee?.orgUnitId ?? null);
     if (!employee || !scope.ok) return Response.json({ error: "Asset is outside your assigned unit." }, { status: 403 });
   }
+
+  const [tracked] = await db.select({ id: itManagedDevices.id }).from(itManagedDevices)
+    .where(and(eq(itManagedDevices.organizationId, target.organizationId), eq(itManagedDevices.assetId, id))).limit(1);
+  if (tracked) return Response.json({
+    error: "This asset is managed by IT Operations. Make custody changes there.",
+  }, { status: 409 });
 
   await db.delete(assets).where(eq(assets.id, id));
   return Response.json({ success: true });
