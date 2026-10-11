@@ -13,6 +13,7 @@ import { WorkforceLaborCalibrationPanel } from "./workforce-labor-calibration-pa
 import { WorkforceOperationalDemandPanel } from "./workforce-operational-demand-panel";
 import { WorkforceIssuedDemandPanel } from "./workforce-issued-demand-panel";
 import { WorkforceDemandStaffingPanel } from "./workforce-demand-staffing-panel";
+import { WorkforceDemandStaffingPolicyAdmin } from "./workforce-demand-staffing-policy-admin";
 import { WorkforceDemandOutlookPanel } from "./workforce-demand-outlook-panel";
 import { previewWorkforceRecovery } from "@/lib/workforce-planning-preview";
 
@@ -735,6 +736,19 @@ export function WorkforceCoveragePanel({
         />
       )}
 
+      {payload && canManage && data.access?.companyWide === true &&
+        ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role) &&
+        process.env.NEXT_PUBLIC_WFM_DEMAND_STAFFING_ENABLED === "true" &&
+        process.env.NEXT_PUBLIC_WFM_ISSUED_DEMAND_FORECASTS_ENABLED === "true" &&
+        process.env.NEXT_PUBLIC_WFM_DEMAND_STAFFING_POLICIES_ENABLED === "true" && (
+        <WorkforceDemandStaffingPolicyAdmin
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
+          jobProfiles={payload.jobProfiles}
+        />
+      )}
+
       {payload && process.env.NEXT_PUBLIC_WFM_DEMAND_STAFFING_ENABLED === "true" &&
         process.env.NEXT_PUBLIC_WFM_ISSUED_DEMAND_FORECASTS_ENABLED === "true" && (
         <WorkforceDemandStaffingPanel
@@ -747,6 +761,7 @@ export function WorkforceCoveragePanel({
           laborCostVisible={payload.laborVariance.costVisible}
           laborRows={payload.laborVariance.rows}
           recoveryOptions={payload.proactiveSuggestions}
+          policiesEnabled={process.env.NEXT_PUBLIC_WFM_DEMAND_STAFFING_POLICIES_ENABLED === "true"}
           guardrailBlockers={payload.guardrailReadiness.blockingIssueCount}
           rosterStatus={payload.rosterReadiness.status}
           windowStart={startDate}
