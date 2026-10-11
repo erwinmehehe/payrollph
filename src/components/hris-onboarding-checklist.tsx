@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowRight, ClipboardCheck, FileCheck2, RefreshCw, Search, UsersRound,
@@ -26,6 +27,7 @@ export function HrisOnboardingChecklist({
   onRefresh,
   onOpenEmployee,
   onOpenDocuments,
+  allowHirePayrollReview = false,
 }: {
   organizationId: number;
   employees: readonly OnboardingEmployee[];
@@ -33,6 +35,7 @@ export function HrisOnboardingChecklist({
   onRefresh: () => Promise<void>;
   onOpenEmployee: (employeeId: number) => void;
   onOpenDocuments?: () => void;
+  allowHirePayrollReview?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [show, setShow] = useState<"open" | "all">("open");
@@ -224,10 +227,23 @@ export function HrisOnboardingChecklist({
                       <p className="text-xs text-slate-600">{group.employee.employeeNo} · {group.employee.status}</p>
                     </div>
                   </div>
-                  <button type="button" onClick={() => onOpenEmployee(group.employee.id)}
-                    className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-emerald-800 underline-offset-2 hover:underline">
-                    Employee record <ArrowRight size={14} aria-hidden="true"/>
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button type="button" onClick={() => onOpenEmployee(group.employee.id)}
+                      className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-emerald-800 underline-offset-2 hover:underline">
+                      Employee record <ArrowRight size={14} aria-hidden="true"/>
+                    </button>
+                    {allowHirePayrollReview && (
+                      <Link
+                        href={"/hcm/hire-payroll-review?organizationId=" + organizationId +
+                          "&employeeId=" + group.employee.id}
+                        className="inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-emerald-800 underline-offset-2 hover:underline focus-visible:underline"
+                        aria-label={"Review recorded payroll input evidence for " +
+                          group.employee.firstName + " " + group.employee.lastName}
+                      >
+                        Review payroll inputs <ArrowRight size={14} aria-hidden="true"/>
+                      </Link>
+                    )}
+                  </div>
                 </div>
                 <div className="mt-4 flex items-center justify-between text-xs text-slate-600">
                   <span>{group.markedDone} of {group.recorded} recorded tasks marked complete</span>

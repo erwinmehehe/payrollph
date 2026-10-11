@@ -16,7 +16,8 @@ test("mixed-role employer sessions use selected employer membership for all leav
     assert.ok(!section.includes('user.role === "employee"'));
     assert.ok(!section.includes('user.role !== "employee"'));
   }
-  assert.equal((route.match(/access\.role === "employee"/g) ?? []).length, 3);
+  // Includes the early employee-profile validation before schema initialization.
+  assert.equal((route.match(/access\.role === "employee"/g) ?? []).length, 4);
   assert.ok((route.match(/access\.role !== "employee"/g) ?? []).length >= 4);
   assert.ok(route.includes("eq(employees.organizationId, organizationId)"));
   assert.ok(route.includes("eq(leaveRequests.organizationId, organizationId)"));
@@ -31,8 +32,11 @@ test("employee membership remains self-service only; manager membership does not
     route.indexOf("export async function POST("));
   const post = route.slice(route.indexOf("export async function POST("));
   assert.match(get, /if \(access\.role === "employee"\)\s*\{/);
-  assert.match(get, /employeeIds = \[user\.employeeId\]/);
+  assert.match(get, /scopeConditions\.push\(eq\(leaveRequests\.employeeId, user\.employeeId\)\)/);
   assert.match(get, /eq\(employees\.organizationId, organizationId\)/);
+  assert.match(get, /where\(and\(\.\.\.scopeConditions\)\)/);
+  assert.ok(!get.includes("rows.filter("), "Team scope must be enforced by SQL before any row is returned.");
+  assert.ok(!get.includes("employee: employees"), "Leave list must avoid reading private worker columns.");
   assert.match(post, /if \(access\.role === "employee"\)/);
   assert.match(post, /user\.employeeId !== leave\.employeeId/);
   assert.match(post, /employeeId = user\.employeeId/);

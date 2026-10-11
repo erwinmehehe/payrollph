@@ -1,9 +1,39 @@
 import { pool } from "@/db";
+import type { PoolClient } from "pg";
+import { coreSchemaCompatibilityMode } from "@/lib/core-schema-readonly";
+import { payBasisSchemaSpec, verifyRequestSchemaReadOnly } from "@/lib/request-schema-readonly";
 
 let schemaReady = false;
 let schemaInFlight: Promise<void> | null = null;
+let readOnlyReady = false;
+let readOnlyInFlight: Promise<void> | null = null;
 
 export async function ensureEmployeePayProfileSchema() {
+  // Even payroll workers must not issue schema DDL in an explicitly
+  // reviewed read-only cutover mode. Do not cache legacy readiness here.
+  const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+  if (mode === "read-only") {
+    if (readOnlyReady) return;
+    if (readOnlyInFlight) return readOnlyInFlight;
+    readOnlyInFlight = (async () => {
+      let client: PoolClient | null = null;
+      let verified = false;
+      try {
+        client = await pool.connect();
+        const connected = client;
+        await verifyRequestSchemaReadOnly(
+          (sql, args) => connected.query(sql, args),
+          payBasisSchemaSpec,
+        );
+        verified = true;
+        readOnlyReady = true;
+      } finally {
+        client?.release(!verified);
+        readOnlyInFlight = null;
+      }
+    })();
+    return readOnlyInFlight;
+  }
   if (schemaReady) return;
   if (schemaInFlight) return schemaInFlight;
 
@@ -84,7 +114,51 @@ export async function ensureEmployeePayProfileSchema() {
  * stored monthly amount. Newly-created employees write a profile directly.
  */
 export async function ensureEmployeePayProfiles(organizationId: number) {
+  const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
   await ensureEmployeePayProfileSchema();
+  if (mode === "read-only") {
+    if (!Number.isSafeInteger(organizationId) || organizationId <= 0) {
+      throw new Error("READONLY_PAY_PROFILE_INVALID_TENANT");
+    }
+    let client: PoolClient | null = null;
+    let transactionOpen = false;
+    let rolledBack = false;
+    try {
+      client = await pool.connect();
+      await client.query("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY");
+      transactionOpen = true;
+      // Tenant-scoped existence check, not a silent write or conversion.
+      // Missing profiles require a separately approved DBA data backfill.
+      const result = await client.query<{ missing: boolean }>(
+        `SELECT EXISTS (
+          SELECT 1 FROM employees e
+          LEFT JOIN employee_pay_profiles p
+            ON p.employee_id = e.id AND p.organization_id = e.organization_id
+          WHERE e.organization_id = $1 AND p.id IS NULL
+        ) AS missing`,
+        [organizationId],
+      );
+      await client.query("ROLLBACK");
+      transactionOpen = false;
+      rolledBack = true;
+      if (result.rows.length !== 1 || result.rows[0].missing !== false) {
+        throw new Error("READONLY_PAY_PROFILES_REQUIRE_REVIEWED_BACKFILL");
+      }
+      return;
+    } finally {
+      if (transactionOpen && client) {
+        try {
+          await client.query("ROLLBACK");
+          rolledBack = true;
+        } catch {
+          rolledBack = false;
+        }
+      }
+      // A failed connection/ROLLBACK must not return an open transaction
+      // to the pool, even if the original query failed first.
+      client?.release(!rolledBack);
+    }
+  }
   const client = await pool.connect();
   try {
     await client.query(
