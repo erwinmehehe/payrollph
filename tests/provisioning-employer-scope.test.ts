@@ -35,7 +35,7 @@ test("provisioning PATCH checks employer and worker in selection, worker read, a
   const parseAt = patch.indexOf("const mutation = parseScopedProvisioningMutation(body)");
   const lookupAt = patch.indexOf("const [target] = await db.select(");
   const deniedAt = patch.indexOf("assertOrganizationRole(");
-  const writeAt = patch.indexOf("db.update(provisioningTasks)");
+  const writeAt = patch.indexOf("tx.update(provisioningTasks)");
   assert.ok(parseAt >= 0 && lookupAt > parseAt && deniedAt > lookupAt && writeAt > deniedAt);
   const taskLookup = patch.slice(lookupAt, deniedAt);
   for (const condition of [
@@ -85,6 +85,24 @@ test("offboarding checklist cannot bypass IT app revocation or asset recovery", 
   ]) {
     assert.ok(patch.includes(expected), "Missing original offboarding safety gate: " + expected);
   }
+});
+
+test("task updates lock employee scope and recheck it before writing", () => {
+  const source = readFileSync("src/app/api/provisioning/route.ts", "utf8");
+  const patch = source.slice(source.indexOf("export async function PATCH("));
+  const precheck = patch.indexOf("assertScope(access, employee.orgUnitId)");
+  const begin = patch.indexOf("const result = await db.transaction(async (tx) => {");
+  const lock = patch.indexOf("for share");
+  const lockedEmployee = patch.indexOf("const [freshEmployee] = await tx.select(");
+  const rescope = patch.indexOf("assertScope(access, freshEmployee.orgUnitId)");
+  const write = patch.indexOf("tx.update(provisioningTasks)");
+  assert.ok(precheck >= 0 && begin > precheck && lock > begin &&
+    lockedEmployee > lock && rescope > lockedEmployee && write > rescope);
+  assert.ok(patch.includes("where id = ${employeeId} and organization_id = ${organizationId} for share"));
+  assert.ok(patch.includes("eq(employees.organizationId, organizationId)"));
+  assert.ok(patch.includes("code: \"PROVISIONING_WORKER_UNIT_CHANGED\""));
+  assert.ok(patch.includes("status: 409"));
+  assert.ok(patch.includes("recordAuditEvent({"));
 });
 
 test("provisioning callers using PATCH must send tenant and employee context", () => {
