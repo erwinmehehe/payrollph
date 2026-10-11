@@ -39,6 +39,7 @@ on:
       - "src/lib/roles.ts"
       - "src/db/**"
       - "scripts/pilot-payroll-qa.ts"
+      - "scripts/first-payroll-mobile-synthetic-*"
       - "tests/*bank*.test.ts"
       - "tests/*paymongo*.test.ts"
       - "tests/*payout*.test.ts"

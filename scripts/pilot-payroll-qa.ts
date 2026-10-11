@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../src/db";
@@ -25,6 +25,11 @@ const report: Record<string, unknown> = {
   tenant: "fresh-non-demo",
   lifecycle: [],
   externalReadinessBlockers: [],
+  independentOperatorAccepted: false,
+  realEmployerReconciled: false,
+  agencyAccepted: false,
+  physicalDeviceAccepted: false,
+  boundary: "Synthetic employee-record creation, onboarding, scheduling, historical attendance, timesheet approval, payroll review/release and draft filing evidence. Historical punches are seeded; recruitment conversion and physical clock capture remain separate gates.",
 };
 
 class ApiClient {
@@ -149,6 +154,12 @@ async function verifySyntheticSeparation(owner: ApiClient, maker: ApiClient, org
 }
 
 async function main() {
+  assert.equal(base, "http://127.0.0.1:3000", "Synthetic journey may only use the isolated localhost app.");
+  const database = new URL(process.env.DATABASE_URL ?? "");
+  assert.ok(["127.0.0.1", "localhost"].includes(database.hostname));
+  assert.equal(database.pathname, "/app_db");
+  assert.equal(process.env.PAYMONGO_SECRET_KEY ?? "", "");
+  assert.equal(process.env.OPENAI_API_KEY ?? "", "");
   assert.ok(setupToken && readinessToken, "Pilot QA tokens must be configured.");
   mkdirSync("qa-artifacts", { recursive: true });
 
@@ -196,6 +207,29 @@ async function main() {
     created.push({ id: Number(payload.employee.id), employeeNo: String(payload.employee.employeeNo) });
   }
   (report.lifecycle as string[]).push("employees-created-with-payout-details");
+
+  // Exercise the same onboarding source used by Recruitment and Employee 360.
+  // These are fictional checklist assertions, not witnessed employer reviews.
+  const onboarding = await expectOk(owner, `/api/provisioning?organizationId=${organizationId}`);
+  let completedOnboardingTasks = 0;
+  for (const person of created) {
+    const record = onboarding.employees.find((item: any) => Number(item.employeeId) === person.id);
+    assert.ok(record?.onboarding?.length > 0, "Created worker needs source onboarding tasks.");
+    for (const task of record.onboarding) {
+      await expectOk(owner, "/api/provisioning", { method: "PATCH", json: {
+        organizationId, employeeId: person.id, id: task.id, done: true,
+      } });
+      completedOnboardingTasks++;
+    }
+  }
+  const completedOnboarding = await expectOk(owner, `/api/provisioning?organizationId=${organizationId}`);
+  for (const person of created) {
+    const record = completedOnboarding.employees.find((item: any) => Number(item.employeeId) === person.id);
+    assert.ok(record.onboarding.every((task: any) => task.done === true));
+  }
+  report.onboardingEvidence = { workers: created.length, completedTasks: completedOnboardingTasks,
+    witnessedOperatorReview: false };
+  (report.lifecycle as string[]).push("same-worker-onboarding-completed-through-scoped-source-api");
 
   // The zero-leak synthetic CI suite tests a FINAL semi-monthly cutoff.
   // Therefore it needs an earlier RELEASED cutoff ledger for the same month
@@ -671,6 +705,38 @@ async function main() {
   assert.equal(release.receipt?.bankExport?.status, "waiting");
   assert.ok(Number(release.receipt?.payslips?.available) >= 2);
   (report.lifecycle as string[]).push("owner-released-payroll");
+
+  // Complete the preparation handoff without recording any agency outcome.
+  const filingEvidence = [];
+  for (const [agency, form] of [["SSS", "R-3"], ["BIR", "1601-C"],
+    ["PhilHealth", "RF-1"], ["Pag-IBIG", "MCRF"]]) {
+    const generated = await expectOk(owner, "/api/compliance/filing-validations", {
+      method: "POST", json: { organizationId, runId, agency, form },
+    });
+    const record = generated.record;
+    assert.ok(record.id > 0);
+    assert.equal(Number(record.payrollRunId), runId);
+    assert.equal(Number(record.organizationId), organizationId);
+    assert.equal(record.status, "generated", "Generating a worksheet must not create agency acceptance.");
+    assert.equal(record.agencyReference, null);
+    const download = await owner.request(`/api/compliance/filing-validations/${record.id}/file?organizationId=${organizationId}`);
+    assert.equal(download.status, 200);
+    const bytes = Buffer.from(await download.arrayBuffer());
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    assert.equal(digest, record.fileSha256);
+    assert.equal(download.headers.get("x-filing-sha256"), digest);
+    const duplicate = await expectOk(owner, "/api/compliance/filing-validations", {
+      method: "POST", json: { organizationId, runId, agency, form },
+    });
+    assert.equal(Number(duplicate.record.id), Number(record.id));
+    assert.equal(duplicate.created, false);
+    const employeeDenied = await employee.request(`/api/compliance/filing-validations/${record.id}/file?organizationId=${organizationId}`);
+    assert.equal(employeeDenied.status, 403);
+    filingEvidence.push({ agency, form, fileSha256: digest, generatorVersion: record.generatorVersion,
+      sourceRunBound: true, downloadHashVerified: true, agencyAccepted: false });
+  }
+  report.draftFilingEvidence = filingEvidence;
+  (report.lifecycle as string[]).push("released-run-draft-filing-worksheets-hash-verified-no-agency-submission");
 
   const preflight = await owner.request(`/api/payroll-runs/${runId}/exports`, {
     method: "POST",

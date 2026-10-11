@@ -6,6 +6,12 @@ The owner and payroll officer each verify seven ordered guide steps, the People 
 
 The fixture inserts fictional subscription state directly into the disposable database. It does not test payment collection, sign-up email delivery, or a billing provider. No payroll run is created, approved or released by this test. Chromium viewport emulation is not physical-device acceptance.
 
+The initial browser run exposed an unrelated People Operations Inbox response-contract bug: the authorized API omitted `organizationId`, so its client refused to render the data. The route now returns the already authorized employer ID alongside its paginated payload. The owner browser check verifies that response binding; tenant and role checks remain authoritative.
+
+The companion Production Pilot Payroll QA now exercises source onboarding completion for the same fictional workers and prepares/downloads four draft government worksheets after payroll record release. It checks file hashes, repeat-generation identity and employee-role denial, leaving every filing record in `generated` status. The WFM 14-scenario workflow is triggered alongside the mobile and payroll scripts. Its thirteen automated groups do not complete the fourteen independent UAT scenarios.
+
+The payroll harness uses employee-record creation and seeded historical punches. It does not prove recruitment candidate conversion, physical clock capture or an operator completing the whole nine-stage journey without help. Keep those gaps explicit until a protected staging operator run supplies evidence.
+
 ## Evidence and next operator test
 
 The workflow retains `first-payroll-mobile-synthetic.json`, with the source SHA, passed checkpoints and explicit false values for independent operator, physical device, real employer and production acceptance. A failed assertion retains a fictional-data screenshot. A missing artifact is not a pass.
