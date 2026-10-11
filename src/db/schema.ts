@@ -1150,7 +1150,7 @@ export const payoutBatches = pgTable(
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "restrict" }),
     payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "restrict" }),
-    provider: varchar("provider", { length: 24 }).notNull().default("paymongo"),
+    provider: varchar("provider", { length: 24 }).notNull().default("xendit"),
     idempotencyKey: varchar("idempotency_key", { length: 160 }).notNull(),
     requestHash: varchar("request_hash", { length: 64 }).notNull(),
     transferCount: integer("transfer_count").notNull(),
@@ -1169,7 +1169,7 @@ export const payoutBatches = pgTable(
     index("payout_batches_org_run_status_idx").on(table.organizationId, table.payrollRunId, table.status),
     check("payout_batches_positive_total_check", sql`${table.transferCount} > 0 and ${table.totalAmountCents} > 0`),
     check("payout_batches_status_check", sql`${table.status} in ('prepared','submitting','submitted','reconciliation_required','settled','failed','cancelled')`),
-    check("payout_batches_provider_check", sql`${table.provider} = 'paymongo'`),
+    check("payout_batches_provider_check", sql`${table.provider} in ('paymongo','xendit')`),
   ],
 );
 
@@ -1193,7 +1193,7 @@ export const payoutTransfers = pgTable(
     uniqueIndex("payout_transfers_entry_unique").on(table.payrollEntryId),
     index("payout_transfers_org_status_idx").on(table.organizationId, table.status),
     check("payout_transfers_positive_amount_check", sql`${table.amountCents} > 0`),
-    check("payout_transfers_status_check", sql`${table.status} in ('prepared','submitting','submitted','succeeded','failed','reconciliation_required','cancelled')`),
+    check("payout_transfers_status_check", sql`${table.status} in ('prepared','submitting','submitted','succeeded','failed','reversed','reconciliation_required','cancelled')`),
   ],
 );
 
@@ -1214,7 +1214,7 @@ export const payoutBatchTransfers = pgTable(
     uniqueIndex("payout_batch_transfers_provider_transfer_unique").on(table.providerTransferId)
       .where(sql`${table.providerTransferId} is not null`),
     index("payout_batch_transfers_org_batch_idx").on(table.organizationId, table.payoutBatchId),
-    check("payout_batch_transfers_status_check", sql`${table.status} in ('prepared','submitting','submitted','succeeded','failed','reconciliation_required','cancelled')`),
+    check("payout_batch_transfers_status_check", sql`${table.status} in ('prepared','submitting','submitted','succeeded','failed','reversed','reconciliation_required','cancelled')`),
   ],
 );
 
@@ -1313,7 +1313,7 @@ export const payoutProfiles = pgTable(
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
     legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "cascade" }),
     bankTemplateId: integer("bank_template_id").references(() => bankTemplates.id, { onDelete: "set null" }),
-    defaultMethod: varchar("default_method", { length: 24 }).notNull().default("bank_file"),
+    defaultMethod: varchar("default_method", { length: 24 }).notNull().default("xendit"),
     bankProduct: varchar("bank_product", { length: 120 }),
     sourceAccountType: varchar("source_account_type", { length: 32 }),
     companyCode: varchar("company_code", { length: 80 }),
@@ -1335,7 +1335,7 @@ export const payoutProfiles = pgTable(
     index("payout_profiles_org_active_idx").on(table.organizationId, table.active),
     check(
       "payout_profiles_default_method_check",
-      sql`${table.defaultMethod} IN ('bank_file','paymongo','manual')`,
+      sql`${table.defaultMethod} IN ('bank_file','paymongo','xendit','manual')`,
     ),
     check(
       "payout_profiles_max_amount_check",
