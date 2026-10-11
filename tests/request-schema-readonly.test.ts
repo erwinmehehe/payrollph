@@ -14,6 +14,7 @@ type Variant = {
   missingDefault?: string; wrongDefault?: string; wrongIndexKeys?: string;
   weakIndex?: string; wrongIndexTable?: string; missingConstraint?: boolean;
   missingConstraintToken?: string; nullableColumn?: string;
+  unvalidatedConstraintToken?: string; deferredConstraintToken?: string;
   transactionReadOnly?: boolean; failAt?: string; rollbackFails?: boolean;
 };
 
@@ -32,7 +33,9 @@ function simulate(spec: RequestSchemaSpec, variant: Variant = {}) {
         type: c.name === variant.columnType ? "text" : c.type,
         notNull: c.name === variant.nullableColumn ? !c.notNull : c.notNull,
         columnDefault: c.name === variant.missingDefault ? null
-          : c.name === variant.wrongDefault ? "'not_" + c.defaultTextLiteral + "'::character varying"
+          : c.name === variant.wrongDefault
+            ? c.defaultNumericZero ? "'100'::numeric" : "'not_" + c.defaultTextLiteral + "'::character varying"
+          : c.defaultNumericZero ? "'0'::numeric"
           : c.defaultTextLiteral !== undefined ? "'" + c.defaultTextLiteral + "'::character varying"
           : c.defaultTokens?.join(" ") ?? null,
       })),
@@ -50,8 +53,13 @@ function simulate(spec: RequestSchemaSpec, variant: Variant = {}) {
       rows: spec.constraints.slice(variant.missingConstraint ? 1 : 0)
         .filter(c => !variant.missingConstraintToken || !c.tokens.some(t => t.includes(variant.missingConstraintToken!)))
         .map(c => ({
-        tableName: c.tableName, kind: c.kind, definition: c.tokens.join(" "),
-      })),
+          tableName: c.tableName, kind: c.kind,
+          isValidated: !variant.unvalidatedConstraintToken ||
+            !c.tokens.some(t => t.includes(variant.unvalidatedConstraintToken!)),
+          isDeferrable: Boolean(variant.deferredConstraintToken &&
+            c.tokens.some(t => t.includes(variant.deferredConstraintToken!))),
+          definition: c.tokens.join(" "),
+        })),
     };
     if (sql.includes("pg_catalog.pg_class")) return {
       rows: spec.tables.filter(table => table !== variant.missingTable).map(name => ({ name })),
@@ -236,12 +244,18 @@ test("separation final-pay blocks missing/incorrect amounts, JSON snapshots and 
     { nullableColumn: "separation_records.gross_final_pay" },
     { nullableColumn: "separation_records.prepared_by_user_id" },
     { missingDefault: "separation_records.computation_snapshot" },
+    { missingDefault: "separation_records.thirteenth_entitlement" },
+    { wrongDefault: "separation_records.thirteenth_entitlement" },
+    { wrongDefault: "separation_records.basic_salary_earned_ytd" },
     { weakIndex: "separation_records_org_status_idx" },
     { wrongIndexKeys: "separation_records_org_status_idx" },
     { missingConstraintToken: "prepared_by_user_id" },
     { missingConstraintToken: "approved_by_user_id" },
     { missingConstraintToken: "released_by_user_id" },
     { missingConstraintToken: "<>" },
+    { unvalidatedConstraintToken: "<>" },
+    { unvalidatedConstraintToken: "approved_by_user_id" },
+    { deferredConstraintToken: "prepared_by_user_id" },
   ];
   for (const c of cases) {
     const { query, calls } = simulate(separationSchemaSpec, c);

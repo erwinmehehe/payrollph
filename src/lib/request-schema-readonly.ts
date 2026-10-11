@@ -8,6 +8,7 @@ export type RequestSchemaColumn = {
   name: string; type?: string; notNull?: boolean;
   defaultTokens?: readonly string[];
   defaultTextLiteral?: string;
+  defaultNumericZero?: true;
 };
 export type RequestSchemaIndex = {
   name: string; tableName: string; keys: readonly string[];
@@ -29,6 +30,11 @@ export type RequestCatalogQuery = (sql: string, args?: unknown[]) =>
 
 const norm = (s: string) => s.toLowerCase().replace(/"/g, "")
   .replace(/\bpublic\./g, "").replace(/\s+/g, "");
+
+function isNumericZeroDefault(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  return /^(?:'0(?:\.0+)?'|0(?:\.0+)?)(?:::numeric(?:\(\d+,\d+\))?)?$/.test(norm(value));
+}
 
 function safeIndex(actual: Record<string, unknown>, expected: RequestSchemaIndex) {
   const keys = actual.keys;
@@ -98,6 +104,8 @@ export async function verifyRequestSchemaReadOnly(
     );
     const constraints = await query(
       "SELECT t.relname AS \"tableName\", con.contype::text AS kind, " +
+      "con.convalidated AS \"isValidated\", " +
+      "con.condeferrable AS \"isDeferrable\", " +
       "pg_catalog.pg_get_constraintdef(con.oid) AS definition " +
       "FROM pg_catalog.pg_constraint con " +
       "JOIN pg_catalog.pg_class t ON t.oid = con.conrelid " +
@@ -128,7 +136,9 @@ export async function verifyRequestSchemaReadOnly(
               "'" + required.defaultTextLiteral + "'",
               "'" + required.defaultTextLiteral + "'::text",
               "'" + required.defaultTextLiteral + "'::charactervarying",
-            ].includes(norm(actual.columnDefault))));
+            ].includes(norm(actual.columnDefault))))
+        && (required.defaultNumericZero === undefined ||
+          isNumericZeroDefault(actual.columnDefault));
     });
     const soundIndexes = spec.indexes.every(expected => {
       const actual = indexMap.get(expected.name);
@@ -136,7 +146,8 @@ export async function verifyRequestSchemaReadOnly(
     });
     const soundConstraints = spec.constraints.every(expected =>
       constraints.rows.some(row => row.tableName === expected.tableName &&
-        row.kind === expected.kind && typeof row.definition === "string" &&
+        row.kind === expected.kind && row.isValidated === true &&
+        row.isDeferrable === false && typeof row.definition === "string" &&
         expected.tokens.every(token => norm(String(row.definition)).includes(norm(token)))),
     );
     if (!soundTables || !soundColumns || !soundIndexes || !soundConstraints) {
@@ -301,16 +312,16 @@ export const separationSchemaSpec: RequestSchemaSpec = {
   columns: [
     { name: "separation_records.organization_id", type: "integer", notNull: true },
     { name: "separation_records.employee_id", type: "integer", notNull: true },
-    { name: "separation_records.thirteenth_entitlement", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
-    { name: "separation_records.thirteenth_paid_ytd", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
-    { name: "separation_records.basic_salary_earned_ytd", type: "numeric(14,2)", notNull: true, defaultTokens: ["0"] },
-    { name: "separation_records.historical_basic_salary_earned", type: "numeric(14,2)", notNull: true, defaultTokens: ["0"] },
-    { name: "separation_records.unpaid_basic_salary", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
-    { name: "separation_records.separation_pay", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
-    { name: "separation_records.retirement_pay", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
-    { name: "separation_records.other_benefits", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
-    { name: "separation_records.final_statutory_deductions", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
-    { name: "separation_records.gross_final_pay", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
+    { name: "separation_records.thirteenth_entitlement", type: "numeric(12,2)", notNull: true, defaultNumericZero: true },
+    { name: "separation_records.thirteenth_paid_ytd", type: "numeric(12,2)", notNull: true, defaultNumericZero: true },
+    { name: "separation_records.basic_salary_earned_ytd", type: "numeric(14,2)", notNull: true, defaultNumericZero: true },
+    { name: "separation_records.historical_basic_salary_earned", type: "numeric(14,2)", notNull: true, defaultNumericZero: true },
+    { name: "separation_records.unpaid_basic_salary", type: "numeric(12,2)", notNull: true, defaultNumericZero: true },
+    { name: "separation_records.separation_pay", type: "numeric(12,2)", notNull: true, defaultNumericZero: true },
+    { name: "separation_records.retirement_pay", type: "numeric(12,2)", notNull: true, defaultNumericZero: true },
+    { name: "separation_records.other_benefits", type: "numeric(12,2)", notNull: true, defaultNumericZero: true },
+    { name: "separation_records.final_statutory_deductions", type: "numeric(12,2)", notNull: true, defaultNumericZero: true },
+    { name: "separation_records.gross_final_pay", type: "numeric(12,2)", notNull: true, defaultNumericZero: true },
     { name: "separation_records.final_pay_due_date", type: "date", notNull: false },
     { name: "separation_records.computation_snapshot", type: "jsonb", notNull: true, defaultTokens: ["{}", "jsonb"] },
     { name: "separation_records.approved_at", type: "timestamp with time zone", notNull: false },
