@@ -9,6 +9,7 @@ import { planSmartRecoveryDraft, type RecoveryMode } from "@/lib/workforce-recov
 import { buildWfmManagerActionQueue, phWorkDateAt } from "@/lib/workforce-manager-actions";
 import { WorkforceLiveFloor } from "./workforce-live-floor";
 import { WorkforcePlanningPreviewPanel } from "./workforce-planning-preview-panel";
+import { WorkforceLaborCalibrationPanel } from "./workforce-labor-calibration-panel";
 import { previewWorkforceRecovery } from "@/lib/workforce-planning-preview";
 
 type Shift = {
@@ -561,6 +562,9 @@ export function WorkforceCoveragePanel({
     // Draft-only company planning guidance; configurable governed policy is the source of truth.
     maxProjectedMinutesInWindow: 96 * 60,
     maxConsecutiveWorkingDays: 6,
+    minimumRestMinutes: payload?.guardrailReadiness?.policy.active
+      && payload?.guardrailReadiness?.policy.enforcementMode === "block"
+      ? payload.guardrailReadiness.policy.minimumRestMinutes : undefined,
     requirements: futureCoverage
       .filter((row) => row.gap > 0)
       .map((row) => {
@@ -591,7 +595,7 @@ export function WorkforceCoveragePanel({
           })),
         };
       }),
-  }), [futureCoverage, payload?.shifts, proactiveByRequirement, simulateHighRisk]);
+  }), [futureCoverage, payload?.shifts, payload?.guardrailReadiness?.policy, proactiveByRequirement, simulateHighRisk]);
 
   const simulation = useMemo(() => planSmartRecoveryDraft({
     ...draftInputs, mode: recoveryMode,
@@ -705,6 +709,13 @@ export function WorkforceCoveragePanel({
         <Metric label="Open shifts" value={String((payload?.openShifts ?? []).filter((row) => row.status === "open").length)} hint="coverage recovery" icon={<UsersRound size={16} />} tone="blue" />
         <Metric label="Pending claims" value={String(pendingClaims)} hint="manager decision needed" icon={<UsersRound size={16} />} tone={pendingClaims ? "amber" : "slate"} />
       </section>
+
+      {payload && <WorkforceLaborCalibrationPanel
+        labor={payload.laborVariance}
+        today={planningToday}
+        loading={loading}
+        onReviewHistory={() => setStartDate(addDays(planningToday, -14))}
+      />}
 
       <WorkforceLiveFloor organizationId={organizationId} />
 
