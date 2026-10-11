@@ -746,6 +746,7 @@ export function WorkforceCoveragePanel({
           coverage={payload.coverage}
           laborCostVisible={payload.laborVariance.costVisible}
           laborRows={payload.laborVariance.rows}
+          recoveryOptions={payload.proactiveSuggestions}
           guardrailBlockers={payload.guardrailReadiness.blockingIssueCount}
           rosterStatus={payload.rosterReadiness.status}
           windowStart={startDate}
