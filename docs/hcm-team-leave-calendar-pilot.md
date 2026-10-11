@@ -1,6 +1,6 @@
-# Linaw HCM — Team Leave Calendar pilot acceptance
+# Linaw HCM — Team Leave Calendar source acceptance
 
-**Status: draft code only, read-only, default OFF, not a staffing or payroll source.**
+**Status: pre-client draft source only, read-only, default OFF, not a staffing or payroll source.** Reintegrated from deferred PR #731 without overlapping the Manager Decision Inbox branch.
 
 ## Operator experience
 
@@ -12,9 +12,9 @@ This calendar does **not** show leave type, leave reason, precise start/end cloc
 
 ## Permissions and flags
 
-- Server-only HCM_TEAM_LEAVE_CALENDAR_ENABLED=true gates both GET /api/hcm/team-leave-calendar and /hcm/team-leave-calendar. When absent the endpoint is 404.
-- NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ENABLED=true controls an optional navigation link in the existing Approvals workspace. It cannot authorize any request.
-- Both flags default OFF. No production changes or deployment are made in this PR. Disabling server flag and redeploying is the security rollback; hiding a link alone is not.
+- Server-only `HCM_TEAM_LEAVE_CALENDAR_ENABLED=true` **and** an exact employer ID in `HCM_TEAM_LEAVE_CALENDAR_ORG_IDS` are both required on the GET route and server page. Missing or malformed allowlist entries fail closed; no wildcard.
+- Public `NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ENABLED=true` plus an ID in `NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ORG_IDS` controls the My Team navigation shortcut only. It grants no server access and does not modify Approvals.
+- All flags and allowlists default OFF. No production changes or deployments. Disabling the server flag and redeploying blocks source reads; hiding a link alone does not.
 - Authenticated user and explicit positive organizationId are required. No default employer is inferred from the session.
 - Membership, organization session policy and deny-only workforce.manage permission are rechecked through the existing WORKFORCE_MANAGER_ROLES gate before reading source records.
 - Manager requires a **specific, currently active/effective organizational unit**. Unitless or company-wide manager access is denied. Owner/admin/hr members use only their explicitly assigned company-wide/exact-unit scope. Bookkeeper, payroll, checker and employee roles are denied.
@@ -61,9 +61,12 @@ Witness protocol (authorized staging operator, isolated synthetic employees only
 No staging deployment identity, actual UI witness, flag rehearsal, or human HR/security
 signoff is supplied; **none may be inferred from a successful CI run**.
 
-## Release NO-GO checklist
+## Pre-client source integration gate
 
 - [ ] Exact-head TypeScript, Node tests, synthetic two-employer PostgreSQL fixtures, build, CodeQL, security HTTP, payroll isolation and DR checks pass.
+- [ ] Maintainer reviews exact-head original source diffs, employer allowlist, no-store read paths, privacy minimization and 401-row fail-closed response. A dedicated remote staging project is optional for source integration.
+
+## Separate live-employer feature-activation NO-GO checklist
 - [ ] Independent HR verifies request status and real half-day/timed leave representation; the UI must not imply staffing availability or absence hour totals.
 - [ ] Security tests company-wide manager, unitless manager, inactive/suspended member, scoped HR, deny-only permission, manager reassignment, inactive org unit, broken foreign-tenant reference, direct URL guessing and session-policy downgrade.
 - [ ] Two-employer fixtures with overlapping employee numbers, mixed Approved/Pending/Declined, crossing-month requests, precise leave and 401-record overflow.
