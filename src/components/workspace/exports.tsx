@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { FilingEvidencePanel } from "./filing-evidence";
+import { XenditPayoutPanel } from "./xendit-payout-panel";
 import { Bir1601cRemittancePanel } from "./bir-1601c-remittance-panel";
 import { BookkeeperPayrollClose } from "./bookkeeper-payroll-close";
 import { ManagedPayrollControlRoom } from "./managed-payroll-control-room";
@@ -405,7 +406,12 @@ export function ExportsView({
             />
           )}
 
-          {run.status === "Released" && payoutState && (
+          {run.status === "Released" && treasuryStatusEligible && (
+            <XenditPayoutPanel runId={run.id} onRefresh={onRefresh} />
+          )}
+
+          {run.status === "Released" && payoutState &&
+            (payoutState.reconciliation.provider === "PayMongo" || payoutState.payout.method === "bank-file") && (
             <article className="card" data-payout-operations style={{ marginBottom: 16 }}>
               <div className="card-header">
                 <div>
