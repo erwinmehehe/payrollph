@@ -105,7 +105,17 @@ async function main() {
     assert.equal(await homeNav.getByRole("link", { name: "Process monitor" })
       .getAttribute("href"), "/hcm/process-monitor?organizationId=1");
     await assertHcmSemantics(page, "People Home");
-    await homeNav.getByRole("link", { name: "Process monitor" }).focus();
+    assert.equal(await homeNav.getByRole("link", { name: "Action Center" })
+      .getAttribute("href"), "/hcm/action-center?organizationId=1");
+    await homeNav.getByRole("link", { name: "Action Center" }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("heading", { level: 1, name: "HCM Action Center" }).waitFor();
+    const actionNav = page.getByRole("navigation", { name: "HCM workspace navigation" });
+    assert.equal(await actionNav.getByRole("link", { name: "Action Center" })
+      .getAttribute("aria-current"), "page");
+    await page.getByRole("heading", { level: 2, name: "Governed HCM decisions" }).waitFor();
+    await assertHcmSemantics(page, "HCM Action Center");
+    await actionNav.getByRole("link", { name: "Process monitor" }).focus();
     await page.keyboard.press("Enter");
     await page.getByRole("heading", { level: 1, name: "Business Process Monitor" }).waitFor();
     await page.getByRole("navigation", { name: "HCM workspace navigation" })
@@ -251,6 +261,10 @@ async function main() {
     assert.equal(await financeNav.getByRole("link", { name: "Process monitor" }).count(), 0);
     assert.equal(await financeNav.getByRole("link", { name: "Worker 360" }).count(), 0);
     assert.equal(await financeNav.getByRole("link", { name: "HCM Inbox" }).count(), 0);
+    assert.equal(await financeNav.getByRole("link", { name: "Action Center" }).count(), 0);
+    const bookkeeperActionCenter = await finance.request.get(
+      app + "/hcm/action-center?organizationId=1");
+    assert.equal(bookkeeperActionCenter.status(), 404);
     assert.equal(await financeNav.getByRole("link", { name: "People directory" }).count(), 0);
     assert.equal(await financePage.getByRole("link", { name: "Open HCM Inbox" }).count(), 0);
     const financeWorker = await browserGet(financePage,

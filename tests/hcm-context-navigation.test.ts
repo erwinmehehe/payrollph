@@ -19,7 +19,7 @@ const pilotEnv = {
 } as const;
 const hr = { role: "hr", companyWide: true };
 const bookkeeper = { role: "bookkeeper", companyWide: true };
-function links(org = 17, current: "peopleHome" | "processMonitor" | "worker360" = "peopleHome",
+function links(org = 17, current: "peopleHome" | "processMonitor" | "worker360" | "actionCenter" = "peopleHome",
   access = hr, env: Record<string, string> = pilotEnv, employeeId: number | null = null) {
   return buildHcmNavigation({
     organizationId: org, access, current, employeeId,
@@ -41,9 +41,9 @@ test("HCM navigation is entirely off by default and cannot infer an employer or 
 
 test("only exact company/role/flags allow cross-module HCM links", () => {
   assert.deepEqual(links().map((link) => link.id),
-    ["peopleHome", "processMonitor", "inbox", "directory"]);
+    ["peopleHome", "processMonitor", "actionCenter", "inbox", "directory"]);
   assert.deepEqual(links(18).map((link) => link.id),
-    ["peopleHome", "processMonitor", "inbox", "directory"]);
+    ["peopleHome", "processMonitor", "actionCenter", "inbox", "directory"]);
   assert.deepEqual(links(19).map((link) => link.id), ["inbox", "directory"]);
   assert.deepEqual(links(17, "peopleHome", bookkeeper).map((link) => link.id),
     ["peopleHome"],
@@ -53,13 +53,13 @@ test("only exact company/role/flags allow cross-module HCM links", () => {
   }
   assert.deepEqual(links(17, "peopleHome", hr, {
     ...pilotEnv, HCM_PROCESS_MONITOR_ORG_IDS: "018,19",
-  }).map((link) => link.id), ["peopleHome", "inbox", "directory"]);
+  }).map((link) => link.id), ["peopleHome", "actionCenter", "inbox", "directory"]);
   assert.deepEqual(links(17, "peopleHome", hr, {
     ...pilotEnv, NEXT_PUBLIC_HCM_PROCESS_MONITOR_ORG_IDS: "018,19",
-  }).map((link) => link.id), ["peopleHome", "inbox", "directory"]);
+  }).map((link) => link.id), ["peopleHome", "actionCenter", "inbox", "directory"]);
   assert.deepEqual(links(17, "peopleHome", hr, {
     ...pilotEnv, NEXT_PUBLIC_HCM_PROCESS_MONITOR_ENABLED: "false",
-  }).map((link) => link.id), ["peopleHome", "inbox", "directory"]);
+  }).map((link) => link.id), ["peopleHome", "actionCenter", "inbox", "directory"]);
   assert.deepEqual(links(17, "peopleHome", hr, {
     ...pilotEnv, HCM_PEOPLE_HOME_ENABLED: "false",
   }).map((link) => link.id), ["processMonitor", "inbox", "directory"]);
@@ -75,7 +75,7 @@ test("People directory links follow the workspace role page entitlement", () => 
   assert.equal(roleHasPeopleWorkspace(null), false);
   assert.deepEqual(links(17, "peopleHome", bookkeeper, {}).map((link) => link.id), []);
   assert.deepEqual(links(17, "peopleHome", { role: "owner", companyWide: true }).map((link) => link.id),
-    ["peopleHome", "processMonitor", "inbox", "directory"]);
+    ["peopleHome", "processMonitor", "actionCenter", "inbox", "directory"]);
 });
 
 test("HCM links preserve selected employer and worker context, never a guessed worker", () => {
@@ -85,6 +85,8 @@ test("HCM links preserve selected employer and worker context, never a guessed w
   assert.equal(worker?.current, true);
   assert.ok(menu.find((link) => link.id === "peopleHome")?.href.endsWith("organizationId=18"));
   assert.ok(menu.find((link) => link.id === "processMonitor")?.href.endsWith("organizationId=18"));
+  assert.equal(menu.find((link) => link.id === "actionCenter")?.href,
+    "/hcm/action-center?organizationId=18");
   assert.ok(menu.every((link) => !link.href.includes("organizationId=17")));
   assert.ok(menu.every((link) => !link.href.includes("employeeId=") || link.id === "worker360"));
   assert.ok(links(18, "worker360", hr, pilotEnv, null).every((link) => link.id !== "worker360"));
@@ -112,11 +114,12 @@ test("HCM current-page links cannot bypass disabled public discovery flags", () 
 test("existing HCM server pages reuse scoped navigation without broadening permissions", () => {
   const read = (path: string) => readFileSync(path, "utf8");
   const home = read("src/app/hcm/command-center/page.tsx");
+  const actionCenter = read("src/app/hcm/action-center/page.tsx");
   const monitor = read("src/app/hcm/process-monitor/page.tsx");
   const worker = read("src/app/hcm/worker-360/page.tsx");
   const workerClient = read("src/components/hcm-worker-360.tsx");
   const component = read("src/components/hcm-context-navigation.tsx");
-  for (const source of [home, monitor, worker]) {
+  for (const source of [home, actionCenter, monitor, worker]) {
     assert.ok(source.includes("HcmContextNavigation"));
     assert.ok(source.includes("assertOrganizationRole"));
     assert.ok(source.includes("getSessionUser()"));
@@ -124,9 +127,15 @@ test("existing HCM server pages reuse scoped navigation without broadening permi
   }
   assert.ok(home.includes("peopleHomeEnabledForOrganization(organizationId)"));
   assert.ok(home.includes("canOpenSource(item.sourceUrl)"));
+  assert.ok(actionCenter.includes("peopleHomeEnabledForOrganization(organizationId)"));
+  assert.ok(actionCenter.includes("roleHasPeopleWorkspace(access?.role)"));
+  assert.ok(actionCenter.includes("<HcmBusinessProcessInbox"));
+  assert.ok(actionCenter.includes('current="actionCenter"'));
   assert.ok(read("src/components/linaw-workspace.tsx")
     .includes("roleHasPeopleWorkspace(initialData.access?.role)"));
   assert.ok(monitor.includes("monitorEnabledForEmployer(organizationId)"));
+  assert.ok(links(17, "actionCenter").find(link => link.id === "actionCenter")?.current);
+  assert.ok(!links(17, "actionCenter", bookkeeper).some(link => link.id === "actionCenter"));
   assert.ok(worker.includes('HCM_WORKER_360_ENABLED !== "true"'));
   assert.ok(workerClient.includes("/app?organizationId="));
   assert.ok(component.includes('aria-label="HCM workspace navigation"'));
