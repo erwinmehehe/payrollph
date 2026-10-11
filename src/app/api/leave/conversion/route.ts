@@ -60,7 +60,7 @@ export async function POST(request: Request) {
   const organizationId = Number(body.organizationId);
   const employeeId = Number(body.employeeId);
   const leaveType = String(body.leaveType ?? "Vacation leave").trim();
-  const daysConverted = Number(body.daysConverted);
+  const daysConverted: unknown = body.daysConverted;
   const manilaYear = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", year: "numeric" }).format(new Date()));
   const year = Number(body.year ?? manilaYear);
 
