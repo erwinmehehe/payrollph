@@ -1,0 +1,32 @@
+name: WFM Historical Demand Outlook Browser QA
+on:
+  pull_request:
+    paths:
+      - "src/components/workspace/workforce-demand-outlook-panel.tsx"
+      - "src/components/workspace/workforce-coverage-panel.tsx"
+      - "tests/fixtures/wfm-demand-outlook-browser.jsx"
+      - "scripts/wfm-demand-outlook-browser.mjs"
+      - ".github/workflows/wfm-demand-outlook-browser.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  demand-outlook-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --ignore-scripts playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/wfm-demand-outlook-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wfm-historical-demand-outlook-browser
+          path: qa-artifacts/
+          retention-days: 7

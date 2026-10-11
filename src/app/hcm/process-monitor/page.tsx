@@ -3,6 +3,7 @@ import { HcmContextNavigation } from "@/components/hcm-context-navigation";
 import { notFound, redirect } from "next/navigation";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
 import {
   MONITOR_FILTERS, canonicalHcmId, canReadHcmProcessMonitor,
   monitorEnabledForEmployer, validMonitorFilter,
@@ -130,6 +131,8 @@ export default async function HcmProcessMonitorPage({
   const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES);
   const access = denied ? null : await getAccess(user.id, organizationId);
   if (denied || !canReadHcmProcessMonitor(access)) notFound();
+  const enterpriseDenied = await denyOptInEnterpriseHcmPlan(organizationId);
+  if (enterpriseDenied) notFound();
 
   let source: Awaited<ReturnType<typeof loadHcmProcessMonitor>> | null = null;
   try {

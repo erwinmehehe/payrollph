@@ -11,6 +11,13 @@ await mkdir("qa-artifacts", { recursive: true });
 await build({
   entryPoints: ["tests/fixtures/hcm-request-lifecycle.jsx"], bundle: true,
   outfile: "qa-artifacts/hcm-request-lifecycle.js", platform: "browser", jsx: "automatic",
+  // This standalone esbuild fixture is intentionally NOT a Next.js build.
+  // Supply public calendar flags as default OFF rather than leaving browser
+  // code with an unbound Node process object.
+  define: {
+    "process.env.NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ENABLED": JSON.stringify("false"),
+    "process.env.NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ORG_IDS": JSON.stringify(""),
+  },
   plugins: [{ name: "read-only-link-fixture", setup(builder) {
     builder.onResolve({ filter: /^next\/link$/ }, () => ({ path: "link", namespace: "fixture" }));
     builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: "import React from 'react'; export default function Link(props) { return React.createElement('a', props); }", resolveDir: process.cwd() }));
@@ -29,7 +36,12 @@ const errors = [];
 page.on("pageerror", error => errors.push(error.message));
 const base = `http://127.0.0.1:${server.address().port}`;
 async function requestId(fragment, method = "GET") {
-  await page.waitForFunction(({ fragment, method }) => window.pending.some(r => !r.done && !r.options.signal?.aborted && r.url.includes(fragment) && (r.options.method ?? "GET") === method), { fragment, method });
+  try {
+    await page.waitForFunction(({ fragment, method }) => window.pending.some(r => !r.done && !r.options.signal?.aborted && r.url.includes(fragment) && (r.options.method ?? "GET") === method), { fragment, method });
+  } catch (error) {
+    // Previous failures hid the actual component exception behind a timeout.
+    throw new Error(`Expected pending ${method} ${fragment}; browser errors: ${errors.join(" | ") || "none"}`, { cause: error });
+  }
   return page.evaluate(({ fragment, method }) => window.pending.findLastIndex(r => !r.done && !r.options.signal?.aborted && r.url.includes(fragment) && (r.options.method ?? "GET") === method), { fragment, method });
 }
 async function complete(id, body, status = 200) { await page.evaluate(({id,body,status}) => window.complete(id,body,status), {id,body,status}); }
@@ -88,7 +100,7 @@ try {
   const staleTeam = await requestId("my-team?organizationId=1");
   await page.evaluate(() => window.renderView("team", {organizationId:2}));
   await complete(staleTeam, {error:"STALE_TEAM_ERROR"}, 403);
-  await complete(await requestId("my-team?organizationId=2"), {organizationId:2,query:"",statusFilter:"all",scope:{kind:"company"},items:[],page:{size:25,hasMore:false,nextCursor:null},summary:{employeeRecordsThisPage:0,pendingLeaveRecordsThisPage:0,pendingOvertimeRecordsThisPage:0},observedAt:"2026-10-11T00:00:00Z"});
+  await complete(await requestId("my-team?organizationId=2"), {organizationId:2,query:"",statusFilter:"all",scope:{kind:"company"},items:[],page:{size:25,hasMore:false,nextCursor:null},summary:{employeeRecordsThisPage:0,pendingLeaveRecordsThisPage:0,pendingOvertimeRecordsThisPage:0,pendingAttendanceCorrectionsThisPage:0,incompletePunchRecordsThisPage:0},observedAt:"2026-10-11T00:00:00Z"});
   await visible("Employee records / this page");
   // Revisiting a tenant while the intervening tenant's request is still pending
   // must not reuse the retired tenant's completed response.
@@ -97,7 +109,7 @@ try {
   await page.evaluate(() => window.renderView("team", {organizationId:2}));
   await absent("Employee records / this page");
   await complete(interveningTeam, {error:"RETIRED_TEAM_ERROR"}, 403);
-  await complete(await requestId("my-team?organizationId=2"), {organizationId:2,query:"",statusFilter:"all",scope:{kind:"company"},items:[],page:{size:25,hasMore:false,nextCursor:null},summary:{employeeRecordsThisPage:0,pendingLeaveRecordsThisPage:0,pendingOvertimeRecordsThisPage:0},observedAt:"2026-10-11T00:00:00Z"});
+  await complete(await requestId("my-team?organizationId=2"), {organizationId:2,query:"",statusFilter:"all",scope:{kind:"company"},items:[],page:{size:25,hasMore:false,nextCursor:null},summary:{employeeRecordsThisPage:0,pendingLeaveRecordsThisPage:0,pendingOvertimeRecordsThisPage:0,pendingAttendanceCorrectionsThisPage:0,incompletePunchRecordsThisPage:0},observedAt:"2026-10-11T00:00:00Z"});
   await visible("Employee records / this page");
   await page.getByRole("button",{name:"Refresh",exact:true}).click();
   await absent("Employee records / this page");

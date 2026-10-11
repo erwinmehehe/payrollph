@@ -58,6 +58,8 @@ export type RecoveryDraft = {
   avoidedConsecutiveStreak: number;
   missingWorkloadEvidence: number;
   limitedToFiftyClaims: boolean;
+  /** Only proposed-shift rest conflicts; authoritative published-shift policy still runs on the server. */
+  avoidedProposedRestViolations?: number;
 };
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -114,6 +116,28 @@ export function recoveryProposalConflict(
   return null;
 }
 
+/** Compare real adjacent shift boundaries for the same worker. */
+export function recoveryProposedRestConflict(
+  selected: readonly RecoveryProposal[],
+  proposal: RecoveryProposal,
+  minimumRestMinutes: number,
+): boolean {
+  if (!Number.isSafeInteger(minimumRestMinutes) || minimumRestMinutes < 0 || minimumRestMinutes > 1440) return true;
+  const next = recoveryShiftInterval(proposal);
+  if (!next) return true;
+  for (const previous of selected) {
+    if (previous.employeeId !== proposal.employeeId) continue;
+    const original = recoveryShiftInterval(previous);
+    if (!original) return true;
+    const gap = next.start >= original.end
+      ? next.start - original.end
+      : original.start >= next.end
+        ? original.start - next.end : -1;
+    if (gap < minimumRestMinutes * 60_000) return true;
+  }
+  return false;
+}
+
 /**
  * Scarcity-first matching to keep single-qualified-worker roles from losing
  * their only candidate to a flexible requirement. This is a deterministic
@@ -126,13 +150,17 @@ export function planSmartRecoveryDraft(input: {
   /** Employer planning defaults, not statutory rules. */
   maxProjectedMinutesInWindow?: number;
   maxConsecutiveWorkingDays?: number;
+  /** Optional blocking company policy; advisory rules are not silently treated as hard legal floors. */
+  minimumRestMinutes?: number;
 }): RecoveryDraft {
   const mode: RecoveryMode = input.mode === "balanced" ? "balanced" : "coverage";
   const allowHigh = Boolean(input.allowHighWorkloadRisk);
   const enforceMinutes = input.maxProjectedMinutesInWindow !== undefined;
   const enforceDays = input.maxConsecutiveWorkingDays !== undefined;
+  const enforceRest = input.minimumRestMinutes !== undefined && input.minimumRestMinutes > 0;
   if ((enforceMinutes && (!Number.isSafeInteger(input.maxProjectedMinutesInWindow) || input.maxProjectedMinutesInWindow! <= 0)) ||
-      (enforceDays && (!Number.isSafeInteger(input.maxConsecutiveWorkingDays) || input.maxConsecutiveWorkingDays! < 1 || input.maxConsecutiveWorkingDays! > 14))) {
+      (enforceDays && (!Number.isSafeInteger(input.maxConsecutiveWorkingDays) || input.maxConsecutiveWorkingDays! < 1 || input.maxConsecutiveWorkingDays! > 14)) ||
+      (input.minimumRestMinutes !== undefined && (!Number.isSafeInteger(input.minimumRestMinutes) || input.minimumRestMinutes < 0 || input.minimumRestMinutes > 1440))) {
     throw new Error("Invalid company planning cap; review the WFM policy configuration.");
   }
   const open = input.requirements.filter(row =>
@@ -160,6 +188,7 @@ export function planSmartRecoveryDraft(input: {
   let avoidedConflictingAssignments = 0;
   let avoidedProjectedOverload = 0;
   let avoidedConsecutiveStreak = 0;
+  let avoidedProposedRestViolations = 0;
   let missingWorkloadEvidence = 0;
   const priorDate = (value: string) => {
     const day = new Date(value + "T00:00:00Z");
@@ -195,6 +224,10 @@ export function planSmartRecoveryDraft(input: {
         };
         if (recoveryProposalConflict([...chosen, proposal])) {
           avoidedConflictingAssignments++;
+          continue;
+        }
+        if (enforceRest && recoveryProposedRestConflict(chosen, proposal, input.minimumRestMinutes!)) {
+          avoidedProposedRestViolations++;
           continue;
         }
         if (!Number.isSafeInteger(candidate.scheduledMinutesInWindow) || candidate.scheduledMinutesInWindow < 0) {
@@ -264,6 +297,7 @@ export function planSmartRecoveryDraft(input: {
     avoidedConflictingAssignments,
     avoidedProjectedOverload,
     avoidedConsecutiveStreak,
+    avoidedProposedRestViolations,
     missingWorkloadEvidence,
     limitedToFiftyClaims: fills.length >= MAX_DRAFT_CLAIMS && baselineGap > fills.length,
   };

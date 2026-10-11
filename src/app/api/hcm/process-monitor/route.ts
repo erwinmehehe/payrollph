@@ -1,5 +1,6 @@
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
 import {
   canonicalHcmId, canReadHcmProcessMonitor,
   monitorEnabledForEmployer, validMonitorFilter,
@@ -40,6 +41,9 @@ export async function GET(request: Request) {
     // No permission-set name, cross-tenant resource count or HR actor details.
     return respond({ error: "Company-wide People monitoring access required." }, denied?.status ?? 403);
   }
+
+  const enterpriseDenied = await denyOptInEnterpriseHcmPlan(organizationId);
+  if (enterpriseDenied) return enterpriseDenied;
 
   try {
     return respond(await loadHcmProcessMonitor({

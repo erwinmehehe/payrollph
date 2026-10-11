@@ -1,0 +1,47 @@
+name: WFM Sprint Candidate Source QA
+on:
+  push:
+    branches:
+      - feat/wfm-opt-in-schedule-review-reminders-20261011
+      - feat/wfm-calibrated-staffing-rest-guard-20261011
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  wfm-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run db:push
+      - run: npx tsc --noEmit
+      - run: npm run source:size:check
+      - name: Test schedule reminders and governed Automation Studio
+        if: contains(github.ref_name, 'schedule-review-reminders')
+        run: npx tsx --test --test-concurrency=1 tests/workforce-schedule-review-reminders.test.ts tests/automation-studio-templates.test.ts tests/automation-temporal-sla-triggers.test.ts
+      - name: Test calibration/rest safety and existing recovery
+        if: contains(github.ref_name, 'calibrated-staffing-rest-guard')
+        run: npx tsx --test --test-concurrency=1 tests/workforce-calibration-rest-optimization.test.ts tests/workforce-recovery-draft.test.ts tests/workforce-planning-preview.test.ts
+      - run: npm run build
