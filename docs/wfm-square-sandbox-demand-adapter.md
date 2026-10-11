@@ -2,7 +2,7 @@
 
 **Engineering pilot only; default OFF; one fictional merchant/location; no live seller, money movement, staff assignments or payroll modifications.**
 
-This is the development-only implementation of issue #838. It builds on the already-merged operational-demand and staffing-planner foundation (#828 and #837), and is stacked on #843's approved staffing policies solely for code integration. The Square connector adds no new database migration. Xendit payout #813 remains independent.
+This is the development-only implementation of issue #838. It builds on the already-merged operational-demand and staffing-planner foundation (#828 and #837), and remains independent of #843's approved staffing policies for code integration. The Square connector adds no new database migration. Xendit payout #813 remains independent.
 
 ## Philippine market limitation
 
