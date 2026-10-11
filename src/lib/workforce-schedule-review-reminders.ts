@@ -47,7 +47,12 @@ export function scheduleReviewSignals(input: {
     if ((day.state !== "changed" && day.state !== "pending")
       || !day.snapshot || !day.snapshotHash || !HASH.test(day.snapshotHash)
       || day.snapshot.date !== day.date) continue;
-    if (day.state === "pending") {
+    // Approved overrides represent a published schedule change even when the
+    // worker has not acknowledged an earlier version. Notify source changes
+    // once per content hash; ordinary untouched shifts wait for the due window.
+    const isPublishedChange = day.state === "changed"
+      || (day.state === "pending" && day.snapshot.source === "override");
+    if (day.state === "pending" && !isPublishedChange) {
       // A recorded rest day is not a pending shift; no reminder is due.
       if (day.snapshot.isRestDay || day.snapshot.segments.length === 0) continue;
       const starts = day.snapshot.segments.map(segment =>
@@ -57,7 +62,7 @@ export function scheduleReviewSignals(input: {
       const minutesUntilStart = (soonest - now.getTime()) / 60_000;
       if (minutesUntilStart < 0 || minutesUntilStart > 1_440) continue;
     }
-    const reason = day.state === "changed" ? "published_change" : "upcoming_unacknowledged";
+    const reason = isPublishedChange ? "published_change" : "upcoming_unacknowledged";
     events.push({
       organizationId, employeeId, userId, workDate: day.date, reason,
       snapshotHash: day.snapshotHash,
