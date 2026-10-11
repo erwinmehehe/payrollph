@@ -135,9 +135,18 @@ export async function assertMembership(userId: number, organizationId: number): 
   if (!row) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
   // Enforce the same manager unit gate for APIs that use membership directly
   // instead of resolving access through getAccess().
-  if (row.role === "manager" &&
-      (!Number.isSafeInteger(row.orgUnitId) || !row.orgUnitId || row.orgUnitId <= 0)) {
-    return Response.json({ error: "An assigned organizational unit is required for manager access." }, { status: 403 });
+  if (row.role === "manager") {
+    if (!Number.isSafeInteger(row.orgUnitId) || !row.orgUnitId || row.orgUnitId <= 0) {
+      return Response.json({ error: "An assigned organizational unit is required for manager access." }, { status: 403 });
+    }
+    const [unit] = await db.select({ id: orgUnits.id }).from(orgUnits).where(and(
+      eq(orgUnits.id, row.orgUnitId),
+      eq(orgUnits.organizationId, organizationId),
+      eq(orgUnits.active, true),
+    )).limit(1);
+    if (!unit) {
+      return Response.json({ error: "The assigned manager unit is not active in this employer." }, { status: 403 });
+    }
   }
   return assertOrganizationSessionPolicy(userId, organizationId);
 }
