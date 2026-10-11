@@ -163,6 +163,9 @@ function WebBundyView({
           return;
         }
       }
+      // The worker may close the modal while the browser is waiting for a
+      // foreground GPS permission decision. Never clock after unmount.
+      if (!mounted.current) return;
       const res = await fetch("/api/web-bundy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
