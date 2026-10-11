@@ -18,19 +18,21 @@ This connects the already-source-governed People Home (merged #755), Worker 360,
 - Browser QA: local PostgreSQL 16 in GitHub Actions, two fictional employers IDs 1/2, one fictional worker and fictional HR/bookkeeper/manager/payroll/checker/employee/scoped HR/custom-denied HR accounts. HR completes Monitor → People Home → Monitor using keyboard activation, follows HCM Inbox into the expanded authoritative People panel, and loads the fictional Worker 360 source before returning to Monitor. Links retain employer/worker; changing the employer updates every destination; finance users see only allowed navigation. Monitor and Worker 360 are checked at a 375px viewport, Worker 360 is checked for 320 CSS-pixel reflow, and the three HCM pages undergo a pinned axe-core semantic-rules audit. The Worker 360 API is checked for no-store, wrong-employer worker denial, finance-role denial and rate minimization. A disabled server process proves both Monitor and Worker 360 page/API kill switches.
 - Source labels, worker identity, private notes and pay amounts are never added to the navigation. It contains no database queries, mutations, payroll/release decisions, or third-party calls.
 
-## Protected staging status and evidence boundary (October 11, 2026)
+## Pre-client HCM integration policy — no staging prerequisite (October 11, 2026)
 
-- **NO-GO: protected remote staging is not established.** Direct connected Vercel project inspection shows no custom environments. The current project's sensitive `DATABASE_URL` and `DATABASE_URL_UNPOOLED` entries both target Preview **and** Production; Vercel Authentication alone does not isolate their data.
-- No deployment on PR #773's exact SHA in the existing Vercel project has been verified. The repository already has `.github/workflows/hcm-staging-isolation.yml` and `docs/hcm-staging-isolation-runbook.md`, but the protected manual attestation cannot be claimed until a separate project, new synthetic-only PostgreSQL database and approved read-only verifier are provisioned.
-- Isolated GitHub Actions synthetic browser QA proves only the source-built candidate and fictional tenants, **not** protected Vercel staging, manual 200% browser zoom, screen-reader behavior or human acceptance. Automated axe-core semantic checks are a subset, not a complete WCAG audit.
-- Required human evidence (unfilled): staging operator / exact deployment SHA / separate DB attestation / HR reviewer / privacy-security reviewer / keyboard + 200% zoom + screen reader observations / rollback owner and result. Do not fill these from CI bot runs.
-- Keep all HCM production flags OFF and this PR draft until protected staging evidence and operator decision are recorded; see #695, #733, #734, #112 and #744.
+**Decision:** A dedicated Vercel staging project, a separate remote staging database, the optional `hcm-staging-isolation` attestation, and protected remote UAT are **not required** to review, merge or locally verify this HCM integration while no employers are using the product.
 
-## Release conditions
+- Use exact-commit GitHub CI, TypeScript, CodeQL/security/payroll-isolation, and automated browser checks backed by disposable local PostgreSQL with fictional employers. These are the engineering merge gates, not a staging deployment.
+- The authorized maintainer checks the changed diff, retains feature flags and confirms negative role/tenant cases, deep links, privacy minimization, keyboard/mobile behavior and default-off route/API behavior. Recheck after every source commit.
+- Manual screen-reader, 200% zoom and HR/privacy review are valuable improvements before onboarding live employers; they are not pre-client source-merge gates. Do not fabricate completion of those checks.
+- If remote preview testing is ever desired, **do not run the synthetic fixture against an existing external database**. The existing Vercel project's Preview and Production database variable targets overlap; a separate synthetic database would then be required for that optional remote test, not for merging code.
+- Real employer data, payroll releases, bank credentials, provider transfers and schema/backfill operations have their own safeguards. This policy does not authorize those operations.
 
-1. Verify exact-head TypeScript, full CI, isolated HCM browser QA, security, CodeQL, and payout/payroll isolation. A historical green run does not cover a later commit.
-2. Independently verify keyboard, screen-reader, 200% zoom, disabled flags and real employer switching in a protected synthetic environment, **before** enabling an organization.
-3. Obtain independent People/HR and privacy/security reviewer sign-off. Keep finance release, bank encryption and production routing gates from #112, #695 and #744 separate.
-4. Do not enable `HCM_PEOPLE_HOME_ENABLED`, `HCM_PROCESS_MONITOR_ENABLED`, or `HCM_WORKER_360_ENABLED` in live production merely because a navigation PR merged.
+## Source integration acceptance
+
+1. Confirm the **current PR head** passes TypeScript, full CI, isolated HCM browser QA, security/CodeQL, and payout/payroll isolation. Old-head success is not evidence for a newer head.
+2. Maintainer verifies employer/worker scope, denied-role boundaries, safe source data, navigation behavior, and feature-off recovery in disposable synthetic tests. No dedicated staging deployment or independent staging sign-off is needed.
+3. Once checks and diff review pass, source may be merged under the repository's change-risk policy; external GitHub review is not mandatory unless a separate requirement genuinely applies.
+4. Keep HCM activation explicitly controlled. Merging does not by itself authorize enabling these features against real employers or modifying live payroll/payouts.
 
 This milestone is navigation integration only; existing HCM modules, authority and workflow decisions remain unchanged.
