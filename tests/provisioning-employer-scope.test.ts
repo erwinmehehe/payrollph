@@ -71,7 +71,7 @@ test("offboarding checklist cannot bypass IT app revocation or asset recovery", 
   const route = readFileSync("src/app/api/provisioning/route.ts", "utf8");
   const patch = route.slice(route.indexOf("export async function PATCH("));
   const itGuard = patch.indexOf('if (done && target.kind === "offboarding")');
-  const write = patch.indexOf("db.update(provisioningTasks)");
+  const write = patch.indexOf("tx.update(provisioningTasks)");
   assert.ok(itGuard > 0 && itGuard < write, "IT evidence must be checked before task completion");
   for (const expected of [
     'target.title.startsWith("Revoke email")',
