@@ -25,6 +25,11 @@ export async function getAccess(userId: number, organizationId: number): Promise
   )).limit(1);
 
   if (!membership) return null;
+  // A manager without a supervisor-unit assignment is NOT a company-wide
+  // administrator. Fail closed for every route that resolves effective access.
+  if (membership.role === "manager" &&
+      (!Number.isSafeInteger(membership.orgUnitId) || !membership.orgUnitId ||
+        membership.orgUnitId <= 0)) return null;
 
   let orgUnitName: string | null = null;
   if (membership.orgUnitId) {
