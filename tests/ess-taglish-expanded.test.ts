@@ -26,7 +26,7 @@ test("English remains the default, Taglish is opt-in and unsupported languages s
 
 test("take-home estimator changes explanatory UI labels without modifying currency or contribution calculation", () => {
   const english = renderToStaticMarkup(createElement(EmployeeTakeHomeEstimator));
-  const taglish = renderToStaticMarkup(createElement(EmployeeTakeHomeEstimator, { language: "fil" }));
+  const taglish = renderToStaticMarkup(createElement(EmployeeTakeHomeEstimator, { language: "fil" as const }));
   assert.match(english, /What if my pay changes\?/);
   assert.match(taglish, /Paano kung magbago ang sahod ko\?/);
   assert.match(taglish, /Nilo-load ang kasalukuyang pay baseline mo/);
@@ -40,7 +40,7 @@ test("take-home estimator changes explanatory UI labels without modifying curren
 test("contribution reporting translates form labels but keeps agency names and stable issue values", () => {
   const props = { memberId: null, onClose: noop, onSubmitted: noop };
   const english = renderToStaticMarkup(createElement(EmployeeContributionIssueModal, props));
-  const taglish = renderToStaticMarkup(createElement(EmployeeContributionIssueModal, { ...props, language: "fil" }));
+  const taglish = renderToStaticMarkup(createElement(EmployeeContributionIssueModal, { ...props, language: "fil" as const }));
   assert.match(english, /Report a contribution problem/);
   assert.match(taglish, /Mag-report ng problema sa contribution/);
   assert.match(taglish, /Buwan na sakop/);
@@ -58,7 +58,7 @@ test("contribution reporting translates form labels but keeps agency names and s
 test("Web Bundy remains English by default, keeps clock API actions and Philippine time unchanged", () => {
   const props = { organizationId: 18, employeeId: 5, employeeName: "Sample Employee", onClose: noop, onPunchSuccess: noop };
   const english = renderToStaticMarkup(createElement(WebBundyModal, props));
-  const taglish = renderToStaticMarkup(createElement(WebBundyModal, { ...props, language: "fil" }));
+  const taglish = renderToStaticMarkup(createElement(WebBundyModal, { ...props, language: "fil" as const }));
   assert.match(english, /Sample Employee.*attendance/);
   assert.match(taglish, /Role-controlled ang browser time clock/);
   assert.match(taglish, /Time IN/);
