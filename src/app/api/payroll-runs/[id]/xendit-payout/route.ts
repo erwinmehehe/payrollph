@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { payrollRuns } from "@/db/schema";
+import { payoutBatches, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { assertOrganizationUnitAccess } from "@/lib/access";
@@ -64,10 +64,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if ("response" in checked) return checked.response;
   const { run } = checked;
   try {
-    const ledger = await xenditPayoutLedger(run.organizationId, run.id);
+    const [existing] = await db.select({ provider: payoutBatches.provider })
+      .from(payoutBatches).where(and(
+        eq(payoutBatches.organizationId, run.organizationId),
+        eq(payoutBatches.payrollRunId, run.id),
+      )).limit(1);
+    // A historical PayMongo batch belongs to its original provider. Do not
+    // present it as a broken Xendit ledger or offer cross-provider retry.
+    const ledger = existing?.provider === "paymongo"
+      ? null : await xenditPayoutLedger(run.organizationId, run.id);
     return Response.json({
       provider: "xendit",
       selectedProvider: configuredPayrollPayoutProvider(),
+      claimedProvider: existing?.provider ?? null,
       readiness: xenditPayrollLiveReadiness({
         organizationId: run.organizationId, legalEntityId: run.legalEntityId,
       }),
@@ -89,8 +98,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if ("response" in checked) return checked.response;
   const { run, user } = checked;
   if (configuredPayrollPayoutProvider() !== "xendit") {
-    return Response.json({ error: "Xendit is not the selected payroll payment provider." },
-      { status: 409 });
+    // A previously submitted Xendit payroll may still require *read-only*
+    // reconciliation after configuration changes. Never allow new sends.
+    const isExistingReadOnly = (action === "reconcile" || action === "resolve-unknown")
+      && Boolean(await xenditPayoutLedger(run.organizationId, run.id).catch(() => null));
+    if (!isExistingReadOnly) {
+      return Response.json({ error: "Xendit is not the selected payroll payment provider." },
+        { status: 409 });
+    }
   }
   try {
     if (action === "preflight") {
