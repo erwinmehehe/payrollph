@@ -822,6 +822,22 @@ jobs:
                 check((await page.locator(".demo-sandbox:visible").count()) === 0, "HR: secondary module reintroduced the bulky demo tools strip");
                 // People was already exercised above. This verifies the promoted Time route
                 // while the More group retains access to advanced Planning features.
+                // HR can review workspace approvals, but the synthetic fixture
+                // assigns all pending decisions to Mariel (Checker). HR must
+                // see their status without receiving decision controls.
+                const hrApprovalNav = demoSidebar.locator(".nav-item").filter({ hasText: /^Approvals/ }).first();
+                check((await hrApprovalNav.count()) === 1, "Phase 2 HR: Approvals navigation missing");
+                await hrApprovalNav.click();
+                const hrApprovalQueue = page.locator(".p2-approval-queue");
+                await hrApprovalQueue.waitFor({ state: "visible", timeout: 30000 });
+                const hrPending = page.getByRole("group", { name: "Approval filter" }).getByRole("button", { name: /All pending/ });
+                await hrPending.click();
+                const hrApprovalRows = hrApprovalQueue.locator(".p2-approval-row");
+                check((await hrApprovalRows.count()) >= 1, "Phase 2 HR: seeded pending approval tasks missing");
+                check((await hrApprovalRows.locator(".p2-approval-actions").count()) === 0, "Phase 2 HR: unrelated tasks expose approval actions");
+                check((await hrApprovalRows.locator(".p2-approval-readonly").count()) === (await hrApprovalRows.count()), "Phase 2 HR: unrelated tasks must all be read-only");
+                await page.screenshot({ path: outDir + "/phase2-hr-approvals-readonly-desktop-1440.png", fullPage: true });
+
               }
             }
 
@@ -883,7 +899,7 @@ jobs:
                 await approve.click();
                 const confirmation = page.getByRole("dialog", { name: "Confirm approval" });
                 check((await confirmation.count()) === 1, "Phase 2 Checker: approval must show explicit confirmation");
-                check((await confirmation.getByText("Server", { exact: false }).count()) >= 1, "Phase 2 Checker: guard explanation is missing");
+                check((await confirmation.innerText()).toLowerCase().includes("server"), "Phase 2 Checker: guard explanation is missing");
                 await confirmation.getByRole("button", { name: "Cancel" }).click();
                 check((await page.locator("dialog.p2-approval-confirm[open]").count()) === 0, "Phase 2 Checker: cancel must close without deciding");
                 const decline = page.getByRole("button", { name: "Decline", exact: true }).first();
@@ -896,7 +912,10 @@ jobs:
               }
               await filters.getByRole("button", { name: /All pending/ }).click();
               check((await page.locator(".p2-approval-row").count()) >= 1, "Phase 2 Checker: pending task history missing");
-              check((await page.locator(".p2-approval-row .p2-approval-readonly").count()) >= 1, "Phase 2 Checker: nonassigned tasks should remain read-only");
+              const shown = await page.locator(".p2-approval-row").count();
+              const actionable = await page.locator(".p2-approval-row .p2-approval-actions").count();
+              const readonly = await page.locator(".p2-approval-row .p2-approval-readonly").count();
+              check(actionable + readonly === shown, "Phase 2 Checker: every task must be either actionable or read-only");
               await page.screenshot({ path: outDir + "/phase2-checker-approvals-desktop-1440.png", fullPage: true });
               for (const viewport of [{ width: 768, height: 1024 }, { width: 390, height: 844 }]) {
                 await page.setViewportSize(viewport);
