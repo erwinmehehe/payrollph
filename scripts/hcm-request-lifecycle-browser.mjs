@@ -51,6 +51,15 @@ try {
   await complete(currentHistory, {events:[]});
   await visible("No history recorded.");
   assert.ok(!(await page.locator("body").innerText()).includes("STALE HISTORY"));
+  // A retired editor inside the same tenant must not close a newly opened case.
+  await page.getByRole("button", {name:"Save changes"}).click();
+  const retiredEditorSave = await requestId("/api/hcm/work-items", "PATCH");
+  await page.getByRole("button", {name:"Cancel",exact:true}).click();
+  await page.getByRole("button", {name:"Assign / SLA"}).first().click();
+  await complete(retiredEditorSave, {});
+  await page.getByRole("heading",{name:"Assign #11",exact:true}).waitFor();
+  await complete(await requestId("caseId=11"), {events:[]});
+  await visible("No history recorded.");
   await page.getByRole("button", {name:"Save changes"}).click();
   const oldSave = await requestId("/api/hcm/work-items", "PATCH");
   await page.getByRole("spinbutton", {name:"Organization ID"}).fill("2");

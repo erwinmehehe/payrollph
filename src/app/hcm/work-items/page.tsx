@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Item = { id:number; title:string; detail:string; caseType:string; status:string; ownerTeam:string; ownerUserId:number|null; ownerName:string|null; dueAt:string|null; escalateAt:string|null; escalationLevel:number; overdue:boolean };
 type Owner = { id:number; name:string };
@@ -39,6 +39,7 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
   const [escalate,setEscalate] = useState("");
   const [error,setError] = useState("");
   const [saving,setSaving] = useState(false);
+  const editorGeneration = useRef(0);
   const [historyRead,setHistoryRead] = useState<{caseId:number; events:History[]; error:string}|null>(null);
   const validOrganization = Number.isSafeInteger(Number(organizationId)) && Number(organizationId) > 0;
   const activeQueue = queue?.revision === revision ? queue : null;
@@ -87,12 +88,15 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
   },[organizationId,selectedId]);
 
   function edit(item:Item) {
+    editorGeneration.current += 1;
+    setSaving(false);
     setSelected(item); setTeam(teams.includes(item.ownerTeam) ? item.ownerTeam : teams[0]); setOwnerId(item.ownerUserId?.toString() ?? "");
     setDue(localInput(item.dueAt)); setEscalate(localInput(item.escalateAt)); setError("");
     setHistoryRead(null);
   }
   async function save() {
     if (!selected) return;
+    const generation = editorGeneration.current;
     setSaving(true); setError("");
     try {
       if (escalate && (!due || new Date(escalate).getTime() < new Date(due).getTime())) throw new Error("Escalation must be at or after the SLA deadline.");
@@ -100,10 +104,11 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
         organizationId:Number(organizationId),id:selected.id,ownerTeam:team,ownerUserId:ownerId?Number(ownerId):null,dueAt:iso(due),escalateAt:iso(escalate)
       })});
       const data=await response.json();
+      if (generation !== editorGeneration.current) return;
       if(!response.ok) throw new Error(data.error??"Unable to save");
       setSelected(null); refresh();
-    } catch(e) {setError(e instanceof Error?e.message:"Unable to save");}
-    finally {setSaving(false);}
+    } catch(e) {if(generation === editorGeneration.current) setError(e instanceof Error?e.message:"Unable to save");}
+    finally {if(generation === editorGeneration.current) setSaving(false);}
   }
   const overdue = items.filter(i=>i.overdue).length;
   const unassigned = items.filter(i=>!i.ownerUserId).length;
@@ -135,7 +140,7 @@ function ScopedWorkQueue({organizationId, filter}: {organizationId:string; filte
       </div>
       <div className="mt-4 max-h-40 overflow-y-auto border-t pt-3"><h3 className="text-sm font-bold">Ownership and SLA history</h3>
         {!activeHistory?<p role="status" className="mt-2 text-xs text-slate-500">Loading history…</p>:activeHistory.error?<p role="alert" className="mt-2 text-xs text-rose-700">{activeHistory.error}</p>:history.length===0?<p className="mt-2 text-xs text-slate-500">No history recorded.</p>:<ul className="mt-2 space-y-2 text-xs">{history.map(event=><li key={event.id} className="flex justify-between gap-2"><span>{event.eventType.replaceAll("_"," ")} · {event.actorName??"Scheduler"}</span><time>{new Date(event.createdAt).toLocaleString("en-PH",{timeZone:"Asia/Manila"})}</time></li>)}</ul>}
-      </div><div className="mt-5 flex justify-end gap-2"><button className="rounded border px-4 py-2" onClick={()=>{setSelected(null);setError("");}}>Cancel</button><button disabled={saving} className="rounded bg-emerald-800 px-4 py-2 text-white disabled:opacity-50" onClick={()=>void save()}>{saving?"Saving...":"Save changes"}</button></div>
+      </div><div className="mt-5 flex justify-end gap-2"><button className="rounded border px-4 py-2" onClick={()=>{editorGeneration.current+=1;setSelected(null);setError("");setSaving(false);}}>Cancel</button><button disabled={saving} className="rounded bg-emerald-800 px-4 py-2 text-white disabled:opacity-50" onClick={()=>void save()}>{saving?"Saving...":"Save changes"}</button></div>
     </section></div>}
   </>;
 }
