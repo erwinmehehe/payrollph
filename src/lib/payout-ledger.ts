@@ -251,7 +251,7 @@ export async function markPayoutBatchForReconciliation(input: {
       eq(payoutBatches.id, input.batchId),
       eq(payoutBatches.organizationId, input.organizationId),
       eq(payoutBatches.status, "submitting"),
-    )).returning({ id: payoutBatches.id });
+    )).returning({ id: payoutBatches.id, transferCount: payoutBatches.transferCount });
     if (!batch) return false;
     const links = await tx.update(payoutBatchTransfers).set({
       status: "reconciliation_required", updatedAt: new Date(),
@@ -260,14 +260,16 @@ export async function markPayoutBatchForReconciliation(input: {
       eq(payoutBatchTransfers.payoutBatchId, input.batchId),
       eq(payoutBatchTransfers.status, "submitting"),
     )).returning({ payoutTransferId: payoutBatchTransfers.payoutTransferId });
+    if (links.length !== batch.transferCount) throw new Error("PAYOUT_RECONCILIATION_LINK_MISMATCH");
     for (const item of links) {
-      await tx.update(payoutTransfers).set({
+      const [updated] = await tx.update(payoutTransfers).set({
         status: "reconciliation_required", updatedAt: new Date(),
       }).where(and(
         eq(payoutTransfers.organizationId, input.organizationId),
         eq(payoutTransfers.id, item.payoutTransferId),
         eq(payoutTransfers.status, "submitting"),
-      ));
+      )).returning({ id: payoutTransfers.id });
+      if (!updated) throw new Error("PAYOUT_RECONCILIATION_TRANSFER_STATE_MISMATCH");
     }
     await tx.insert(auditEvents).values({
       organizationId: input.organizationId,
