@@ -80,13 +80,13 @@ test("leave submit/revision fail closed on cross-unit employee moves, including 
   const post = source.slice(source.indexOf("export async function POST("));
   assert.match(post, /assertMembership\(user\.id, organizationId\)/);
   assert.match(post, /deriveMyTeamScope\(access\)\?\.kind !== "unit"/);
-  assert.match(post, /user\.role !== "employee" && !access\.companyWide && employee\.orgUnitId !== access\.orgUnitId/);
-  assert.match(post, /user\.role !== "employee" && !access\.companyWide &&\s+freshWorker\.orgUnitId !== access\.orgUnitId/);
-  assert.match(post, /user\.role !== "employee" && !access\.companyWide &&\s+freshEmployee\.orgUnitId !== access\.orgUnitId/);
+  assert.match(post, /access\.role !== "employee" && !access\.companyWide && employee\.orgUnitId !== access\.orgUnitId/);
+  assert.match(post, /access\.role !== "employee" && !access\.companyWide &&\s+freshWorker\.orgUnitId !== access\.orgUnitId/);
+  assert.match(post, /access\.role !== "employee" && !access\.companyWide &&\s+freshEmployee\.orgUnitId !== access\.orgUnitId/);
   assert.match(post, /throw new Error\("LEAVE_SCOPE_CHANGED"\)/);
   assert.match(post, /return "scope_changed" as const/);
   assert.match(post, /if \(created === "scope_changed"\)/);
   assert.match(post, /status: 409/);
   assert.ok(!post.includes('access.role === "manager" && !access.companyWide && access.orgUnitId && employee.orgUnitId !== access.orgUnitId'));
-  assert.match(post, /if \(user\.role === "employee"\)/);
+  assert.match(post, /if \(access\.role === "employee"\)/);
 });
