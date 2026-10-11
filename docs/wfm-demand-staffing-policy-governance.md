@@ -47,8 +47,7 @@ These flags must not be activated in production merely because GitHub CI passes;
 
 ## Migration release order
 
-- Main highest numbered source migration as inspected: `0111_wfm_geofenced_web_bundy.sql`.
-- Source-only WFM #828: `0112_wfm_operational_demand_observations.sql`, then `0113_wfm_issued_demand_forecasts.sql`.
+- Main contains `0111_wfm_geofenced_web_bundy.sql`, followed by the merged WFM #828 source migrations `0112_wfm_operational_demand_observations.sql` and `0113_wfm_issued_demand_forecasts.sql`. Source availability does **not** prove those SQL changes were applied to any particular deployed database.
 - **This WFM proposal**: `0114_wfm_demand_staffing_policies.sql` (two new tables and indexes).
 - Separately unmerged payout #813 reserves **`0115_xendit_payout_provider.sql`** and remains isolated. **Do not merge, activate, or move money merely to satisfy WFM sequencing.**
 
@@ -58,6 +57,6 @@ There is no ordered Drizzle migration journal. Source merges **do not** apply sc
 
 Focus: `npm run lint`, `npx tsc --noEmit`, isolated PostgreSQL 16 tests `tests/workforce-demand-staffing-policy.test.ts` and `tests/workforce-demand-staffing-policy-db.test.ts`, Next production build and browser `node scripts/wfm-staffing-policy-browser.mjs` with a 375px synthetic manager/maker/checker fixture.
 
-Independent operational signoff remains **unexecuted**: #840 DSP-01–10 read-only planner acceptance, #691 WFM-01–14 human real-device acceptance, #579 actual employer **no-money** employee-by-employee payroll reconciliation, and #112 production environment/security proof. No real merchant POS adapter or independently provider-certified freshness has been implemented yet (#838).
+Independent operational signoff remains **unexecuted**: #840 DSP-01–10 read-only planner acceptance, #691 WFM-01–14 human real-device acceptance, #579 actual employer **no-money** employee-by-employee payroll reconciliation, and #112 production environment/security proof. The separate demand-source proposals in #847 and #854 are unmerged, and no live Philippine merchant feed or independently provider-certified freshness has been accepted (#838).
 
 **Pilot release decision: NO-GO until staged database/security and authorized human evidence. Automatic scheduling and payout remain OFF.**
