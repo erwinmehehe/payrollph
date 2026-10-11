@@ -66,7 +66,7 @@ async function main() {
           JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
           WHERE n.nspname = 'public'
             AND c.relname = ANY(ARRAY['employees', 'payroll_entries', 'payroll_runs', 'separation_records'])
-            AND pg_catalog.has_table_privilege(current_user, c.oid, 'SELECT')
+            AND pg_catalog.has_any_column_privilege(current_user, c.oid, 'SELECT')
         ) AS "canReadPayrollRows"
     `, [expectedDatabase, [...requiredReleaseTables]]);
     if (!identity.rows[0]?.databaseMatches || !identity.rows[0]?.readOnly

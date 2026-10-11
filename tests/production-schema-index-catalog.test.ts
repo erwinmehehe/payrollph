@@ -29,6 +29,12 @@ test("PostgreSQL 16 catalog reports real unique-index keys and invalid shape cha
     await client.query('CREATE SCHEMA "' + schema + '"');
     await client.query('CREATE TABLE "' + schema + '".provider_events (id integer, provider varchar(32), event_id varchar(180))');
     await client.query('CREATE UNIQUE INDEX provider_events_provider_event_id_unique ON "' + schema + '".provider_events (provider, event_id)');
+    await client.query(`CREATE TABLE "${schema}".saas_billing_checkouts (organization_id integer, status varchar(24))`);
+    await client.query(`CREATE UNIQUE INDEX saas_billing_one_open_checkout ON "${schema}".saas_billing_checkouts (organization_id) WHERE status IN ('creating','awaiting_payment','review_required')`);
+    await client.query(`CREATE TABLE "${schema}".audit_events (organization_id integer, chain_seq bigint)`);
+    await client.query(`CREATE UNIQUE INDEX audit_events_chain_seq_unique ON "${schema}".audit_events ((coalesce(organization_id, 0)), chain_seq) WHERE chain_seq IS NOT NULL`);
+    await client.query(`CREATE TABLE "${schema}".compensation_automation_intents (organization_id integer, "trigger" varchar(64), event_key varchar(240))`);
+    await client.query(`CREATE UNIQUE INDEX comp_automation_intent_key_unique ON "${schema}".compensation_automation_intents (organization_id, "trigger", event_key)`);
     const read = async () => {
       const result = await client.query<ReleaseIndexMetadata>(
         releaseIndexCatalogSql, [[...requiredReleaseIndexes], schema],
@@ -36,21 +42,29 @@ test("PostgreSQL 16 catalog reports real unique-index keys and invalid shape cha
       return result.rows;
     };
     const healthy = await read();
-    assert.equal(healthy.length, 1);
-    assert.deepEqual(healthy[0].keys, ["provider", "event_id"]);
-    assert.ok(healthy[0].isUnique && healthy[0].isValid && healthy[0].isReady);
-    assert.ok(validatedReleaseIndexes(healthy).includes("provider_events_provider_event_id_unique"));
+    assert.equal(healthy.length, requiredReleaseIndexes.length);
+    const provider = healthy.find((row) => row.name === "provider_events_provider_event_id_unique");
+    assert.deepEqual(provider?.keys, ["provider", "event_id"]);
+    assert.ok(provider?.isUnique && provider.isValid && provider.isReady);
+    assert.deepEqual(validatedReleaseIndexes(healthy), [...requiredReleaseIndexes],
+      "Every 0100/0106/0109/0110 unique-index signature must pass against real pg_catalog output");
 
     await client.query('DROP INDEX "' + schema + '".provider_events_provider_event_id_unique');
     await client.query('CREATE INDEX provider_events_provider_event_id_unique ON "' + schema + '".provider_events (provider, event_id)');
     const weak = await read();
-    assert.ok(!weak[0].isUnique);
+    assert.equal(weak.find((row) => row.name === "provider_events_provider_event_id_unique")?.isUnique, false);
     assert.ok(!validatedReleaseIndexes(weak).includes("provider_events_provider_event_id_unique"));
 
     await client.query('DROP INDEX "' + schema + '".provider_events_provider_event_id_unique');
     await client.query('CREATE UNIQUE INDEX provider_events_provider_event_id_unique ON "' + schema + '".provider_events (provider, id)');
     const wrongKey = await read();
     assert.ok(!validatedReleaseIndexes(wrongKey).includes("provider_events_provider_event_id_unique"));
+
+    await client.query('DROP INDEX "' + schema + '".saas_billing_one_open_checkout');
+    await client.query(`CREATE UNIQUE INDEX saas_billing_one_open_checkout ON "${schema}".saas_billing_checkouts (organization_id) WHERE status IN ('creating')`);
+    const narrowed = await read();
+    assert.ok(!validatedReleaseIndexes(narrowed).includes("saas_billing_one_open_checkout"),
+      "An incomplete billing status predicate must not pass the release canary");
   } finally {
     if (tx) await client.query("ROLLBACK");
     await client.end();
