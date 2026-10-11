@@ -24,3 +24,12 @@ Every output contains `productionReleaseApproved: false`. A clean receipt review
 - `src/lib/core-schema-compat.ts` currently executes runtime compatibility DDL and data backfills from application paths. Those writers must be retired under a separate, DBA-approved, regression-tested change **after** confirming target schema readiness. This PR deliberately does not alter them.
 - CI `db:push` is acceptable **only** against its disposable Postgres 16 fixture and does not certify the production migration sequence.
 - Coordinate with the merged read-only schema preflight PR #784 and the still-draft P0-2 bank-encryption review PR #800. These source controls do not authorize a production deployment, bank write or real payroll release.
+
+
+## Staged removal of core runtime DDL (source gate only)
+
+This branch also includes the optional `CORE_SCHEMA_COMPATIBILITY_MODE=read-only` setting in `ensureCoreCompatibilitySchema()`. This is a **migration cutover switch**, not approval to deploy. The default remains `legacy` to avoid breaking the currently unreconciled production database. Unsupported/typo modes fail closed rather than selecting legacy implicitly.
+
+After the DBA completes the journal, original-host identification, a restored-clone rehearsal, critical schema inventory (PR #784), encryption checks and an approved release plan, test read-only mode against the isolated clone. It opens a **REPEATABLE READ, READ ONLY** transaction and checks release-critical tables, columns, unique index signatures, audit function and audit mutation trigger. Missing structures throw `CORE_SCHEMA_READONLY_PRECONDITION_FAILED`: dashboard/demo traffic fails instead of issuing any compatibility DDL or automatic bank/government-ID backfill. It then rolls back without persistent writes.
+
+**Limitations:** This structural check covers only the explicit critical-object subset in `src/lib/production-schema-inventory.ts`; it does not certify the complete application schema, historical migrations or other runtime schema helpers (`ensureLeavePayrollSchema()`, etc.). Do not enable this mode on real production until those independent mutation paths, operational fallbacks and user-facing failure behavior have been reviewed. Flipping back to `legacy` may resume database writes and requires its own change approval. This source PR does not change Vercel environment variables, operate on live data, or retire the legacy code.
