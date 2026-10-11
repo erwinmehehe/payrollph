@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   readLoyversePosDay,prepareLoyverseRevisions,parseLoyverseSyncRequest,
   loyverseReceiptWindow,LoyverseSourceError,LOYVERSE_WFM_SOURCE,
+  recordLoyverseScanConfirmation,
 } from "../src/lib/workforce-loyverse-pos";
 
 const now=new Date("2026-10-12T00:00:00.000Z");
@@ -107,4 +109,41 @@ test("rate-limited provider cannot become a complete zero-demand day",async()=>{
   const bad=(async()=>Response.json({},{status:429})) as typeof fetch;
   await assert.rejects(readLoyversePosDay({...conf,request:bad}),
     (e:unknown)=>e instanceof LoyverseSourceError&&e.code==="SOURCE_RATE_LIMITED");
+});
+test("provider-created and business-event timestamps require explicit ISO timezone", async()=>{
+  const good=ticket("ZONED","2026-09-20T09:00:00+08:00",
+    "2026-09-20T09:00:00+08:00");
+  for(const field of ["created_at","receipt_date","cancelled_at"] as const){
+    const bad={...good,[field]:"2026-09-20T09:00:00"};
+    await assert.rejects(readLoyversePosDay({...conf,
+      request:pages([{receipts:[bad]}])}),
+    (e:unknown)=>e instanceof LoyverseSourceError&&e.code==="SOURCE_REVIEW",
+    field+" without a timezone must not create an ambiguous PH work interval");
+  }
+});
+test("a failed scan-freshness receipt cannot misreport a committed aggregate as rejected",async()=>{
+  let attempted=0;
+  assert.equal(await recordLoyverseScanConfirmation(async()=>{attempted++;}),true);
+  assert.equal(await recordLoyverseScanConfirmation(async()=>{
+    attempted++;throw Error("fictional audit write unavailable");
+  }),false);
+  assert.equal(attempted,2);
+  const route=readFileSync(
+    "src/app/api/workforce/demand-observations/loyverse/route.ts","utf8");
+  const get=route.slice(route.indexOf("export async function GET("),
+    route.indexOf("export async function POST("));
+  const post=route.slice(route.indexOf("export async function POST("));
+  assert.ok(get.indexOf("const access=await getAccess(")>=0);
+  assert.ok(get.indexOf("const access=await getAccess(")<get.indexOf("loyverseConnection("),
+    "GET must deny unauthorized tenants before disclosing connector configuration");
+  assert.ok(post.indexOf("const access=await getAccess(")<post.indexOf("loyverseConnection("),
+    "POST must authorize employer and worksite before checking merchant configuration");
+  assert.ok(post.indexOf("writeOperationalDemandImport(")<
+    post.indexOf("recordLoyverseScanConfirmation("));
+  assert.ok(post.includes("sourceAuditRecorded:scanAuditRecorded"));
+  assert.ok(post.includes("scan-freshness audit failed"));
+  const panel=readFileSync(
+    "src/components/workspace/workforce-loyverse-pos-panel.tsx","utf8");
+  assert.ok(panel.includes("result.sourceAuditRecorded===false"));
+  assert.ok(panel.includes("aggregate import was recorded"));
 });
