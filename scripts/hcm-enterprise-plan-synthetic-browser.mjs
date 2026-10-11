@@ -157,6 +157,22 @@ try {
   receipts.push("Unprivileged manager cannot buy their way past existing roles");
   await manager.close();
 
+  const bookkeeper = await browser.newContext();
+  await login(bookkeeper, "monitor-bookkeeper@example.test");
+  const bookkeeperPage = await bookkeeper.newPage();
+  await bookkeeperPage.goto(url + "/login", { waitUntil: "domcontentloaded" });
+  const bookkeeperDefinitions = await read(bookkeeperPage,
+    "/api/hcm/business-processes/definitions?organizationId=1");
+  assert.equal(bookkeeperDefinitions.status, 403,
+    "Enterprise subscription never grants a bookkeeper workflow designer privileges");
+  const bookkeeperWrite = await write(bookkeeperPage,
+    "/api/hcm/business-processes/definitions",
+    { organizationId: 1, action: "unsupported-synthetic-qa" });
+  assert.equal(bookkeeperWrite.status, 403,
+    "Enrolled bookkeeper cannot revise source approver rules");
+  await bookkeeper.close();
+  receipts.push("Bookkeeper is denied Enterprise workflow design even in a paid employer");
+
   const unauthenticated = await browser.newContext();
   const anonymousPage = await unauthenticated.newPage();
   await anonymousPage.goto(url + "/login", { waitUntil: "domcontentloaded" });
