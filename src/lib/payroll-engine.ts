@@ -1,4 +1,4 @@
-import { roundedGrossFromBuckets, statutoryTrueUpDecision } from "@/lib/payroll-money";
+import { roundedBasicPayBuckets, roundedGrossFromBuckets, statutoryTrueUpDecision } from "@/lib/payroll-money";
 import { and, asc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
 import {
@@ -2740,7 +2740,8 @@ function calculateEmployeePay(input: {
   // calendar days inside the cutoff. Daily/hourly portions come from the
   // punch date's effective rate, so a mid-cutoff change never rewrites earlier
   // worked time.
-  const baseBasicPay = roundToCents(semiMonthlyBasic + workedBasicPay) + roundToCents(unworkedHolidayPay);
+  const basicPayBuckets = roundedBasicPayBuckets(semiMonthlyBasic + workedBasicPay, unworkedHolidayPay);
+  const baseBasicPay = basicPayBuckets.total;
 
   const approvedLeave = input.approvedLeave ?? [];
   const invalidPreEmploymentLeave = approvedLeave.find((leave) => leave.startDate < employeeStartDate);
@@ -3399,8 +3400,8 @@ function calculateEmployeePay(input: {
   const status = flags.length > 0 ? "Exception" : "Ready";
 
   const lineItems = [
-    { code: "BASIC", label: "Basic / worked pay", amount: money(baseBasicPay - unworkedHolidayPay) },
-    { code: "HOLIDAY_UNWORKED", label: "Unworked regular-holiday pay", amount: money(unworkedHolidayPay), notes: holidayNotes.filter((note) => note.includes("unworked entitlement")) },
+    { code: "BASIC", label: "Basic / worked pay", amount: money(basicPayBuckets.worked) },
+    { code: "HOLIDAY_UNWORKED", label: "Unworked regular-holiday pay", amount: money(basicPayBuckets.unworkedHoliday), notes: holidayNotes.filter((note) => note.includes("unworked entitlement")) },
     ...leaveLines,
     { code: "OT", label: "Overtime", amount: money(overtimePay) },
     ...overtimePremiumLines,

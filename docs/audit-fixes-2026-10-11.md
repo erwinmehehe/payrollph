@@ -4,6 +4,7 @@ This integration combines draft branches #743 (centavo payroll rounding and prio
 
 Additional fixes:
 
+- Basic and unworked-holiday payslip lines reuse their separately rounded components, including half-cent holiday values, rather than subtracting raw fractions from rounded gross.
 - Migration calendar dates use explicit UTC parts with Gregorian validation. Numeric MM/DD and DD/MM inputs are supported when unambiguous; ambiguous inputs must be converted to YYYY-MM-DD. Named month dates are supported. No host-timezone parsing or timestamp-to-date conversion.
 - ESLint is pinned to the compatible 9.39.5 release and lint is mandatory in CI. `eslint-suppressions.json` records 142 pre-existing errors as a counted, per-file/per-rule baseline. It is visible cleanup debt, not a claim of zero lint violations. New errors fail lint; CI must never regenerate the baseline. Generated QA artifacts are ignored.
 - CI runs tests and golden suites with TZ=Asia/Manila.

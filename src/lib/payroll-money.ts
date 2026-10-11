@@ -19,6 +19,17 @@ export function roundedGrossFromBuckets(buckets: readonly number[]): number {
   return Math.max(0, totalCentavos) / 100;
 }
 
+/** Keep the displayed split rather than subtracting a raw holiday fraction. */
+export function roundedBasicPayBuckets(workedPay: number, unworkedHolidayPay: number) {
+  const round = (amount: number) => {
+    const cents = Math.round((amount + Number.EPSILON) * 100);
+    if (!Number.isFinite(amount) || !Number.isSafeInteger(cents)) throw new Error("Basic pay exceeds the safe centavo range.");
+    return cents / 100;
+  };
+  const worked = round(workedPay), unworkedHoliday = round(unworkedHolidayPay);
+  return { worked, unworkedHoliday, total: roundedGrossFromBuckets([worked, unworkedHoliday]) };
+}
+
 /** The prior-cutoff ledger may contain all zeroes and must still be used. */
 export function statutoryTrueUpDecision(input: {
   isFinalCutoffOfMonth: boolean;

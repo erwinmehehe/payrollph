@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { roundedGrossFromBuckets, statutoryTrueUpDecision } from "../src/lib/payroll-money";
+import { roundedBasicPayBuckets, roundedGrossFromBuckets, statutoryTrueUpDecision } from "../src/lib/payroll-money";
 import { computeSemiMonthlyWithholdingTax } from "../src/lib/payroll-rules";
 
 test("rounded gross matches displayed overtime and holiday premium cents", () => {
@@ -72,4 +72,14 @@ test("payroll gross cannot overflow Number's exactly representable centavos", ()
     /safe centavo range/,
   );
   assert.equal(roundedGrossFromBuckets([2500.05, -0.01]), 2500.04);
+});
+
+test("basic pay and unworked holiday retain their displayed components at half-cent boundaries", () => {
+  const buckets = roundedBasicPayBuckets(100, 17.045);
+  assert.deepEqual(buckets, { worked: 100, unworkedHoliday: 17.05, total: 117.05 });
+  for (const holiday of [17.044, 17.045, 17.046, 0.005]) {
+    const result = roundedBasicPayBuckets(100.005, holiday);
+    assert.equal(Math.round(result.total * 100), Math.round(result.worked * 100) + Math.round(result.unworkedHoliday * 100));
+  }
+  assert.throws(() => roundedBasicPayBuckets(Infinity, 1));
 });
