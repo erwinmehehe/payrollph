@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents, jobProfiles, workforceDemandStaffingPolicies,
@@ -239,7 +239,7 @@ export async function transitionStaffingPolicy(input: {
         await addEvent(tx,{
           organizationId:previous.organizationId,policyId:previous.id,actorUserId,
           action:"superseded",at,policySha256:previous.contentSha256,
-          priorPolicyId:row.id,decisionNote:"Replaced by independently approved version",
+          priorPolicyId:null,decisionNote:"Replaced by newly approved policy #" + row.id,
         });
       }
     }
@@ -284,7 +284,7 @@ export async function readStaffingPolicies(input: {
   const decisions=ids.length?await db.select().from(workforceDemandStaffingPolicyEvents)
     .where(and(eq(workforceDemandStaffingPolicyEvents.organizationId,input.organizationId),
       eq(workforceDemandStaffingPolicyEvents.action,"approved"),
-      sql`${workforceDemandStaffingPolicyEvents.policyId} in (${sql.join(ids.map(id=>sql`${id}`),sql`,`)})`,
+      inArray(workforceDemandStaffingPolicyEvents.policyId, ids),
     )):[];
   const byPolicy=new Map(decisions.map(event=>[event.policyId,event]));
   return rows.map(row=>{
