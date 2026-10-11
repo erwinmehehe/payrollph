@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { findFilingForm, FILING_FORMS, parseFilingOutcome } from "../src/lib/filing-evidence";
 import { officialFilingGuidance, PH_FILING_PORTALS } from "../src/lib/ph-filing-portal-guidance";
 
@@ -36,4 +37,12 @@ test("receipt dates reject impossible and non-ISO calendar input", () => {
   for (const submittedAt of ["2026-02-30", "2026-13-01", "2026-00-01", "10/10/2026", "2026-10-11Tbad"]) {
     assert.equal(parseFilingOutcome({ ...input, submittedAt }, now).ok, false, submittedAt);
   }
+});
+
+test("agency acceptance never exposes internal verification and SQL errors to a client", () => {
+  const route = readFileSync("src/app/api/compliance/filing-validations/[id]/route.ts", "utf8");
+  assert.ok(route.includes("Filing acceptance could not be verified against the released source."));
+  assert.ok(route.includes("Refresh and regenerate the filing evidence before retrying."));
+  assert.ok(!route.includes("error instanceof Error ? error.message"));
+  assert.ok(route.includes("recordFilingOutcome({ organizationId, id"));
 });
