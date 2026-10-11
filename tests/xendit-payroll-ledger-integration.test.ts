@@ -114,7 +114,8 @@ test("Xendit stages, sends, and reconciles exactly one immutable employee payout
     assert.equal(reconciled.ledger?.counts.succeeded, 1);
     assert.equal(reconciled.ledger?.status, "settled");
     assert.equal((await xenditPayoutLedger(f.org.id, f.run.id))?.rows[0]?.providerPayoutId, payoutId);
-    await assert.rejects(submitXenditPayroll(f.run, "CI synthetic operator"), /XENDIT_BATCH_NOT_PREPARED/);
+    const again = await submitXenditPayroll(f.run, "CI synthetic operator");
+    assert.equal(again.submitted.length, 0);
     assert.equal(sends, 1, "A second request must never send salary again.");
   } finally {
     globalThis.fetch = originalFetch;
