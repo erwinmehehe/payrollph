@@ -35,12 +35,21 @@ async function signIn(context, email) {
   assert.equal(response.status(), 200, "Synthetic sign-in denied: " + email);
 }
 
-async function httpMutation(context, path, data) {
-  return context.request.patch(base + path, {
-    data,
-    headers: { origin: base, "sec-fetch-site": "same-origin" },
-    failOnStatusCode: false,
-  });
+/** Call actual APIs from the same authenticated browser origin as the HR UI. */
+async function browserRequest(page, path, method = "GET", data = null) {
+  return page.evaluate(async ({ path, method, data }) => {
+    const response = await fetch(path, {
+      method,
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: method === "GET" ? undefined : { "Content-Type": "application/json" },
+      body: method === "GET" ? undefined : JSON.stringify(data),
+    });
+    return {
+      status: response.status,
+      body: await response.json().catch(() => null),
+    };
+  }, { path, method, data });
 }
 
 async function workspace(page, orgId) {
@@ -92,31 +101,33 @@ try {
     await page.getByRole("button", { name: "Open Hire & onboard" }).click();
     await page.getByRole("heading", { name: "Onboarding checklist" }).waitFor();
     await page.getByText("AlphaPrivate note", { exact: true }).waitFor();
-    const before = await hr.request.get(base + "/api/provisioning?organizationId=1");
-    assert.equal(before.status(), 200);
-    const payload = await before.json();
+    const before = await browserRequest(page, "/api/provisioning?organizationId=1");
+    assert.equal(before.status, 200,
+      "Authenticated browser provision read failed: " + before.status);
+    const payload = before.body;
     const owner = payload.employees.find(row => row.name === "AlphaPrivate Worker");
     assert.ok(owner, "Onboarding must stay attached to the selected employee");
     const item = owner.onboarding.find(task => task.title === "AlphaPrivate note");
     assert.ok(item && item.id > 0, "Expected synthetic onboarding task");
 
     // A request from the wrong employer or worker cannot mutate the task.
-    const wrong = await httpMutation(hr, "/api/provisioning", {
+    const wrong = await browserRequest(page, "/api/provisioning", "PATCH", {
       id: item.id, organizationId: 2, employeeId: owner.employeeId, done: true,
     });
-    assert.equal(wrong.status(), 404);
-    const malformed = await httpMutation(hr, "/api/provisioning", {
+    assert.equal(wrong.status, 404);
+    const malformed = await browserRequest(page, "/api/provisioning", "PATCH", {
       id: item.id, organizationId: 1, employeeId: owner.employeeId, done: "true",
     });
-    assert.equal(malformed.status(), 400);
+    assert.equal(malformed.status, 400);
 
     page.once("dialog", async dialog => { await dialog.accept(); });
     await page.getByRole("checkbox", {
       name: "Mark complete: AlphaPrivate note for AlphaPrivate Worker",
     }).click();
     await page.getByText("Checklist item marked complete in the source workflow.").waitFor({ timeout: 60000 });
-    const after = await hr.request.get(base + "/api/provisioning?organizationId=1");
-    const latest = await after.json();
+    const after = await browserRequest(page, "/api/provisioning?organizationId=1");
+    assert.equal(after.status, 200);
+    const latest = after.body;
     assert.equal(latest.employees.find(row => row.employeeId === owner.employeeId)
       .onboarding.find(task => task.id === item.id).done, true);
   });
@@ -139,9 +150,9 @@ try {
     await mp.getByRole("heading", { name: "Team action center" }).waitFor();
     await mp.getByText("AlphaPrivate Worker", { exact: true }).waitFor();
     assert.ok(!(await mp.locator("main").innerText()).includes("BetaPrivate"));
-    const data = await manager.request.get(base + "/api/hcm/my-team?organizationId=1");
-    assert.equal(data.status(), 200);
-    const body = await data.json();
+    const data = await browserRequest(mp, "/api/hcm/my-team?organizationId=1");
+    assert.equal(data.status, 200);
+    const body = data.body;
     assert.equal(body.scope.kind, "unit");
     assert.ok(body.items.some(item => item.name === "AlphaPrivate Worker"));
     assert.ok(!JSON.stringify(body).includes("99000.00"));
@@ -157,24 +168,24 @@ try {
     await record.getByRole("button", { name: "Review & approve" }).click();
     await mp.getByRole("button", { name: "Confirm approval", exact: true }).click();
     await mp.getByText("Approval approved and recorded in the audit trail.").waitFor({ timeout: 60000 });
-    const dashboard = await manager.request.get(base + "/api/dashboard?organizationId=1");
-    assert.equal(dashboard.status(), 200);
-    const data = await dashboard.json();
+    const dashboard = await browserRequest(mp, "/api/dashboard?organizationId=1");
+    assert.equal(dashboard.status, 200);
+    const data = dashboard.body;
     assert.equal(data.tasks.find(task => task.title === "Synthetic manager HR review")?.status, "Approved");
     assert.ok(!JSON.stringify(data.tasks).includes("BetaPrivate approval"));
   });
 
   await checkpoint(mp, "Manager cannot reach another employer's HRIS", async () => {
-    const response = await manager.request.get(base + "/api/hcm/my-team?organizationId=2", {
-      failOnStatusCode: false,
-    });
-    assert.equal(response.status(), 403);
+    const response = await browserRequest(mp, "/api/hcm/my-team?organizationId=2");
+    assert.equal(response.status, 403);
   });
 
   const unitless = await browser.newContext();
   await signIn(unitless, "hris-unitless@example.test");
-  const denied = await unitless.request.get(base + "/api/hcm/my-team?organizationId=1");
-  assert.equal(denied.status(), 403, "Unitless manager must fail closed");
+  const unitlessPage = await unitless.newPage();
+  await unitlessPage.goto(base + "/login", { waitUntil: "domcontentloaded" });
+  const denied = await browserRequest(unitlessPage, "/api/hcm/my-team?organizationId=1");
+  assert.equal(denied.status, 403, "Unitless manager must fail closed");
   checkpoints.push("Unitless manager fail-closed");
   await unitless.close();
 
