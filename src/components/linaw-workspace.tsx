@@ -85,11 +85,24 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
     pilotFocusEnabled,
     demoMode: Boolean(demoRole),
   });
+  // Only the separately authorized hire-to-payroll view may deep-link
+  // back to these two existing HR pages. Never grant navigation outside
+  // role/plan, selected-employer, demo and pilot-focus restrictions.
+  const allowedHirePayrollPages = workspacePagesForRole(initialData.access?.role);
+  const linkedHirePayrollPage =
+    allowHirePayrollReview && !pilotFocusEnabled && !demoRole &&
+    initialData.access?.companyWide &&
+    ["owner", "admin", "hr"].includes(initialData.access.role) &&
+    initialData.selectedOrganization.accountType !== "freelancer" &&
+    (requestedWorkspacePage === "Recruitment" ||
+      requestedWorkspacePage === "Time & attendance") &&
+    (!allowedHirePayrollPages || allowedHirePayrollPages.includes(requestedWorkspacePage))
+      ? requestedWorkspacePage : null;
   const initialPage = demoInfo?.landingPage ??
     (searchParams.get("workspacePage") === "People" &&
       canOpenPeopleHome(initialData.access) &&
       roleHasPeopleWorkspace(initialData.access?.role)
-      ? "People" : linkedTeamWorkflowPage ?? "Overview");
+      ? "People" : linkedTeamWorkflowPage ?? linkedHirePayrollPage ?? "Overview");
   const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
