@@ -20,7 +20,7 @@ const SOURCES: Array<{
 ];
 type LoadState = {
   key: string;
-  status: "loading" | "ready" | "error";
+  status: "ready" | "error";
   payload: ManagerDecisionPage | null;
 };
 
@@ -67,7 +67,6 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoaded({ key: requestKey, status: "loading", payload: null });
     const params = new URLSearchParams({
       organizationId: String(organizationId), source,
     });
@@ -118,7 +117,7 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
   return (
     <main className="min-h-screen bg-slate-50 px-4 pb-16 pt-6 text-slate-900 sm:px-8">
       <div className="mx-auto max-w-6xl">
-        <Link href="/app"
+        <Link href={`/app?organizationId=${organizationId}&workspacePage=Approvals`}
           className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-emerald-800 hover:underline">
           <ArrowLeft size={16} aria-hidden="true" /> Back to workspace
         </Link>
@@ -185,7 +184,7 @@ export function HcmManagerDecisionInbox({ organizationId }: { organizationId: nu
         </div>
 
         <section id="manager-decision-results" role="tabpanel" aria-labelledby={"manager-decision-tab-" + source}>
-          {(!active || active.status === "loading") && (
+          {!active && (
             <div role="status" aria-live="polite"
               className="mt-5 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
               Checking current assignments and delegation evidence…
