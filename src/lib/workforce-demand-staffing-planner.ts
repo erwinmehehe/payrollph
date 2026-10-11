@@ -10,7 +10,9 @@ export type DemandStaffingSlot = {
   predictedCount: number | null;
   lowerScenarioCount: number | null;
   upperScenarioCount: number | null;
-  scheduledHeadcount: number;
+  scheduledHeadcount: number | null;
+  /** Each forecast count represents this many PH-local activity minutes. */
+  demandIntervalMinutes?: 15 | 30 | 60;
   availableEligibleHeadcount: number | null;
   eligibleSkillEvidenceComplete: boolean;
   restAndAvailabilityEvidenceComplete: boolean;
@@ -27,7 +29,7 @@ export type DemandStaffingRow = {
   requiredWorkers: number | null;
   lowScenarioWorkers: number | null;
   highScenarioWorkers: number | null;
-  scheduledWorkers: number;
+  scheduledWorkers: number | null;
   gapWorkers: number | null;
   feasibleDraftAdds: number | null;
   uncoveredWorkers: number | null;
@@ -53,8 +55,10 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const limit = (n: number) => Number.isFinite(n) && n >= 0 && n <= 1_000_000;
 const rounded = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-const count = (n: number, perHour: number, minutes: number, servicePercent: number) =>
-  Math.ceil((n * servicePercent / 100) / (perHour * minutes / 60));
+const count = (n: number, perHour: number, minutes: number, servicePercent: number) => {
+  const workers = Math.ceil((n * servicePercent / 100) / (perHour * minutes / 60));
+  return Number.isSafeInteger(workers) && workers >= 0 && workers <= 10000 ? workers : null;
+};
 
 export function previewDemandToStaffing(slots: readonly DemandStaffingSlot[]): DemandStaffingResult {
   if (!Array.isArray(slots) || slots.length < 1 || slots.length > 672) {
@@ -67,8 +71,9 @@ export function previewDemandToStaffing(slots: readonly DemandStaffingSlot[]): D
     if (!DATE.test(s.workDate) || !Number.isFinite(dateTime) ||
       new Date(dateTime).toISOString().slice(0, 10) !== s.workDate ||
       !TIME.test(s.startTime) || seen.has(key) ||
-      !Number.isSafeInteger(s.scheduledHeadcount) || s.scheduledHeadcount < 0 ||
-      s.scheduledHeadcount > 10000 ||
+      (s.scheduledHeadcount !== null && (!Number.isSafeInteger(s.scheduledHeadcount) ||
+        s.scheduledHeadcount < 0 || s.scheduledHeadcount > 10000)) ||
+      (s.demandIntervalMinutes !== undefined && ![15, 30, 60].includes(s.demandIntervalMinutes)) ||
       ![s.predictedCount, s.lowerScenarioCount, s.upperScenarioCount].every(x =>
         x === null || (Number.isSafeInteger(x) && limit(x))) ||
       !Number.isFinite(s.productiveUnitsPerWorkerHour) ||
@@ -89,6 +94,7 @@ export function previewDemandToStaffing(slots: readonly DemandStaffingSlot[]): D
     }
     seen.add(key);
     const reasons: string[] = [];
+    if (s.scheduledHeadcount === null) reasons.push("missing_roster_evidence");
     if (s.predictedCount === null || s.lowerScenarioCount === null ||
       s.upperScenarioCount === null) reasons.push("missing_forecast");
     if (s.predictedCount !== null && s.lowerScenarioCount !== null &&
@@ -103,28 +109,33 @@ export function previewDemandToStaffing(slots: readonly DemandStaffingSlot[]): D
       s.overtimeRateMultiplier === null) reasons.push("overtime_cost_evidence_missing");
     const forecastUsable = !reasons.some(reason =>
       reason === "missing_forecast" || reason === "invalid_scenario_range");
+    const countMinutes = s.demandIntervalMinutes ?? s.paidMinutesPerWorker;
     const required = forecastUsable
       ? count(s.predictedCount!, s.productiveUnitsPerWorkerHour,
-        s.paidMinutesPerWorker, s.serviceTargetCoveragePercent) : null;
-    const gap = required === null ? null : Math.max(0, required - s.scheduledHeadcount);
+        countMinutes, s.serviceTargetCoveragePercent) : null;
+    if (forecastUsable && required === null) reasons.push("staffing_estimate_unbounded");
+    const gap = required === null || s.scheduledHeadcount === null
+      ? null : Math.max(0, required - s.scheduledHeadcount);
     const eligible = s.eligibleSkillEvidenceComplete &&
       s.restAndAvailabilityEvidenceComplete && s.availableEligibleHeadcount !== null;
     // These are theoretical capacity counts only, not worker selection or shift drafts.
     const adds = gap === null || !eligible ? null : Math.min(gap, s.availableEligibleHeadcount!);
     const laborHours = s.paidMinutesPerWorker / 60;
-    const base = adds === null || s.hourlyBaseCostPhp === null
-      ? null : rounded(adds * laborHours * s.hourlyBaseCostPhp);
-    const overtime = adds === null || s.hourlyBaseCostPhp === null ||
+    // Independent of candidate eligibility: estimated cost of the missing
+    // *worker positions*, not wages committed to any specific employee.
+    const base = gap === null || s.hourlyBaseCostPhp === null
+      ? null : rounded(gap * laborHours * s.hourlyBaseCostPhp);
+    const overtime = gap === null || s.hourlyBaseCostPhp === null ||
       s.overtimeHoursPerAddedWorker === null || s.overtimeRateMultiplier === null
-      ? null : rounded(adds * s.hourlyBaseCostPhp *
+      ? null : rounded(gap * s.hourlyBaseCostPhp *
         s.overtimeHoursPerAddedWorker * s.overtimeRateMultiplier);
     return {
       workDate: s.workDate, startTime: s.startTime,
       requiredWorkers: required,
       lowScenarioWorkers: forecastUsable ? count(s.lowerScenarioCount!, s.productiveUnitsPerWorkerHour,
-        s.paidMinutesPerWorker, s.serviceTargetCoveragePercent) : null,
+        countMinutes, s.serviceTargetCoveragePercent) : null,
       highScenarioWorkers: forecastUsable ? count(s.upperScenarioCount!, s.productiveUnitsPerWorkerHour,
-        s.paidMinutesPerWorker, s.serviceTargetCoveragePercent) : null,
+        countMinutes, s.serviceTargetCoveragePercent) : null,
       scheduledWorkers: s.scheduledHeadcount, gapWorkers: gap,
       feasibleDraftAdds: adds, uncoveredWorkers: gap === null || adds === null ? null : gap - adds,
       estimatedAddedBaseCostPhp: base, estimatedAddedOvertimeCostPhp: overtime,
@@ -144,6 +155,6 @@ export function previewDemandToStaffing(slots: readonly DemandStaffingSlot[]): D
       estimatedBaseCostPhp: sum("estimatedAddedBaseCostPhp"),
       estimatedOvertimeCostPhp: sum("estimatedAddedOvertimeCostPhp"),
     },
-    boundary: "Illustrative manager-reviewed staffing scenario only. Productivity, service target, skill, rest, availability and pay rates must be independently approved. Does not assign named workers, validate published schedules, calculate statutory premiums, change payroll or publish shifts.",
+    boundary: "Illustrative manager-reviewed staffing scenario only. Productivity, service target, skill, rest, availability and pay rates must be independently approved. Peak-interval staffing estimates and gap-cost illustrations are not statutory payroll calculations. Does not assign named workers, validate published schedules, calculate statutory premiums, change payroll or publish shifts.",
   };
 }
