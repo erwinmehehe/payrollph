@@ -8,9 +8,6 @@ import {
   type DemandStaffingCostRow, type DemandStaffingShift,
 } from "@/lib/workforce-demand-staffing-evidence";
 import { previewDemandToStaffing } from "@/lib/workforce-demand-staffing-planner";
-import {
-  resolveApprovedStaffingPolicy, type ApprovedStaffingPolicy,
-} from "@/lib/workforce-demand-staffing-policy";
 
 type Site = {id: number; name: string; code: string; active: boolean};
 type Shift = DemandStaffingShift & {name: string; code: string};
@@ -36,14 +33,6 @@ type ForecastResponse = {
   scope: { organizationId: number; worksiteId: number };
   issued: Issued[];
 };
-type PolicyResponse = {
-  readOnly:true;
-  scope:{
-    organizationId:number;worksiteId:number;jobProfileId:number|null;
-    metricKind:string;intervalMinutes:number;
-  };
-  policies:ApprovedStaffingPolicy[];
-};
 const peso = new Intl.NumberFormat("en-PH", {
   style: "currency", currency: "PHP", minimumFractionDigits: 2,
 });
@@ -58,7 +47,7 @@ const money = (count: number | null) => count == null ? "Unavailable" : peso.for
  */
 export function WorkforceDemandStaffingPanel({
   organizationId, worksites, shifts, jobProfiles, coverage, laborCostVisible,
-  laborRows, recoveryOptions, policiesEnabled, guardrailBlockers, rosterStatus, windowStart, windowEnd,
+  laborRows, recoveryOptions, guardrailBlockers, rosterStatus, windowStart, windowEnd,
   dynamicGroupCode,
 }: {
   organizationId: number;
@@ -66,7 +55,6 @@ export function WorkforceDemandStaffingPanel({
   coverage: DemandStaffingCoverage[];
   laborCostVisible: boolean; laborRows: DemandStaffingCostRow[];
   recoveryOptions: RecoveryOption[];
-  policiesEnabled: boolean;
   guardrailBlockers: number; rosterStatus: string;
   windowStart: string; windowEnd: string; dynamicGroupCode: string;
 }) {
@@ -75,10 +63,6 @@ export function WorkforceDemandStaffingPanel({
   const [chosenRole, setChosenRole] = useState<string | null>(null);
   const [chosenIssue, setChosenIssue] = useState<number | null>(null);
   const [productivity, setProductivity] = useState("");
-  const [policyMode, setPolicyMode] = useState<"what_if"|"approved">("what_if");
-  const [policySource, setPolicySource] = useState<{key:string;response:PolicyResponse}|null>(null);
-  const [policyError, setPolicyError] = useState<{key:string;message:string}|null>(null);
-  const [policyLoading, setPolicyLoading] = useState<string|null>(null);
   const [serviceTarget, setServiceTarget] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
   const [reviewed, setReviewed] = useState(false);
@@ -137,65 +121,9 @@ export function WorkforceDemandStaffingPanel({
 
   const issued = loaded?.key === scopeKey ? loaded.value.issued : [];
   const selected = issued.find(v => v.id === chosenIssue) ?? issued[0] ?? null;
-  const metricKind = selected?.snapshot?.scope.metricKind;
-  const intervalMinutes = selected?.snapshot?.scope.intervalMinutes;
-  const policyKey = [organizationId,worksiteId,roleKey,selected?.id??0,
-    metricKind??"-",intervalMinutes??0,refresh].join(":");
-  useEffect(() => {
-    if (!policiesEnabled || policyMode !== "approved" || !selected?.snapshot ||
-      !metricKind || !intervalMinutes || !worksiteId) return;
-    const controller=new AbortController();
-    async function load() {
-      setPolicyLoading(policyKey);
-      try {
-        const query=new URLSearchParams({
-          organizationId:String(organizationId),worksiteId:String(worksiteId),
-          jobProfileId:roleKey,metricKind:String(metricKind),
-          intervalMinutes:String(intervalMinutes),
-        });
-        const response=await fetch("/api/workforce/demand-staffing/policies?"+query,{
-          cache:"no-store",signal:controller.signal,
-        });
-        const result=await response.json().catch(()=>({})) as Partial<PolicyResponse>&{error?:string};
-        if (!response.ok || result.readOnly !== true ||
-          result.scope?.organizationId!==organizationId ||
-          result.scope?.worksiteId!==worksiteId ||
-          result.scope?.jobProfileId!==jobProfileId ||
-          result.scope?.metricKind!==metricKind ||
-          result.scope?.intervalMinutes!==intervalMinutes ||
-          !Array.isArray(result.policies)) {
-          throw new Error(result.error??"Approved policy scope differs from the selected forecast.");
-        }
-        if(!controller.signal.aborted) {
-          setPolicySource({key:policyKey,response:result as PolicyResponse});
-          setPolicyError(null);
-        }
-      }catch(cause) {
-        if(!controller.signal.aborted) {
-          setPolicyError({key:policyKey,message:cause instanceof Error?
-            cause.message:"Approved staffing policy unavailable."});
-        }
-      }finally {if(!controller.signal.aborted)setPolicyLoading(null);}
-    }
-    void load();
-    return()=>controller.abort();
-  },[policiesEnabled,policyMode,organizationId,worksiteId,selected,roleKey,jobProfileId,
-     metricKind,intervalMinutes,policyKey]);
-  const approvedResolution = policiesEnabled && policyMode==="approved" &&
-    policySource?.key===policyKey && selected?.snapshot && metricKind && intervalMinutes
-    ? resolveApprovedStaffingPolicy({
-      policies:policySource.response.policies,
-      organizationId,worksiteId,jobProfileId,metricKind,intervalMinutes,
-      from:windowStart,until:windowEnd,
-    }) : null;
-  const approvedPolicy=approvedResolution?.status==="approved"?
-    approvedResolution.policy:null;
-  const product = policyMode==="approved"?
-    approvedPolicy?.productiveUnitsPerWorkerHour??Number.NaN:Number(productivity);
-  const target = policyMode==="approved"?
-    approvedPolicy?.serviceTargetCoveragePercent??Number.NaN:Number(serviceTarget);
-  const configured = (policyMode==="approved"?
-    !!approvedPolicy:productivity.trim() !== "" && serviceTarget.trim() !== "") &&
+  const product = Number(productivity);
+  const target = Number(serviceTarget);
+  const configured = productivity.trim() !== "" && serviceTarget.trim() !== "" &&
     Number.isFinite(product) && product >= 0.01 && product <= 1_000_000 &&
     Number.isFinite(target) && target > 0 && target <= 100 && acknowledged;
   const planning = (() => {
@@ -255,16 +183,6 @@ export function WorkforceDemandStaffingPanel({
           Clear the Dynamic Group filter above before forecasting against the full worksite roster.
           A filtered roster cannot be compared to site-wide demand.
         </div>}
-        {policiesEnabled && <div className="setting-form" style={{padding:"0 18px 14px"}}>
-          <label>Planning assumption source
-            <select aria-label="Demand planner assumption source" value={policyMode}
-              onChange={e=>{setPolicyMode(e.target.value as "what_if"|"approved");
-                setReviewed(false);setAcknowledged(false);}}>
-              <option value="what_if">Hypothetical manager what-if (not approved policy)</option>
-              <option value="approved">Independently approved effective-dated policy</option>
-            </select>
-          </label>
-        </div>}
         <div className="setting-form" style={{padding:"0 18px 14px"}}>
           <label>Worksite
             <select aria-label="Demand planner worksite" value={worksiteId || ""}
@@ -294,7 +212,6 @@ export function WorkforceDemandStaffingPanel({
               </option>)}
             </select>
           </label>
-          {policyMode==="what_if" && <>
           <label>Productive activities per worker-hour
             <input aria-label="Hypothetical productive activities per worker-hour"
               type="number" min="0.01" step="0.25" max="1000000"
@@ -307,39 +224,12 @@ export function WorkforceDemandStaffingPanel({
               value={serviceTarget} placeholder="Enter 1–100"
               onChange={e=>{setServiceTarget(e.target.value);setReviewed(false);}}/>
           </label>
-          </>}
         </div>
-        {policyMode==="approved" && <>
-          {policyLoading===policyKey&&<p role="status" className="id" style={{padding:"0 18px"}}>
-            Loading independently approved policy…</p>}
-          {policyError?.key===policyKey&&<div className="notice notice-amber"
-            role="alert" style={{margin:"0 18px 16px"}}>{policyError.message}</div>}
-          {approvedResolution?.status==="no_approved_policy"&&
-            <div className="notice notice-amber" role="alert" style={{margin:"0 18px 16px"}}>
-              No approved staffing policy exists for this exact site, role, activity metric,
-              forecast interval and date window. No policy default will be assumed.
-            </div>}
-          {approvedResolution?.status==="source_review"&&
-            <div className="notice notice-amber" role="alert" style={{margin:"0 18px 16px"}}>
-              Policy provenance or effective-date coverage needs independent review.
-              No approved policy assumption can be used.
-            </div>}
-          {approvedPolicy&&<div className="notice notice-slate"
-            data-wfm-approved-policy style={{margin:"0 18px 16px"}}>
-            <span>Approved planning rule <strong>#{approvedPolicy.id} v{approvedPolicy.version}</strong>:
-              {" "}{approvedPolicy.productiveUnitsPerWorkerHour} activities per worker-hour,
-              {" "}{approvedPolicy.serviceTargetCoveragePercent}% target.
-              Effective {approvedPolicy.effectiveFrom} through {approvedPolicy.effectiveUntil}.
-              Receipt {approvedPolicy.approvalReceiptSha256.slice(0,12)}… .
-              This does not approve a named employee, overtime, payroll or schedule publication.</span>
-          </div>}
-        </>}
         <label style={{display:"flex",alignItems:"start",gap:8,margin:"0 18px 16px"}}>
           <input type="checkbox" checked={acknowledged}
             onChange={e=>{setAcknowledged(e.target.checked);setReviewed(false);}}/>
-          {policyMode==="approved"?
-            "I reviewed the effective-dated policy receipt; it is not authority to approve headcount, pay rates, overtime, or publish schedules.":
-            "These are hypothetical what-if productivity and service assumptions only. I have not approved headcount targets, pay rates, overtime or any schedule change."}
+          These are what-if productivity and service assumptions only. I have not approved
+          headcount targets, pay rates, overtime or any schedule change.
         </label>
         {loading === scopeKey && <p role="status" style={{padding:"0 18px"}}>Loading scoped issued forecasts…</p>}
         {error?.key === scopeKey && <div className="notice notice-amber" role="alert"
@@ -359,9 +249,8 @@ export function WorkforceDemandStaffingPanel({
           coverage window. Establish and review the staffing baseline first.
         </div>}
         {!configured && <p className="id" style={{padding:"0 18px 16px"}}>
-          {policyMode==="approved"?
-            "Choose a valid approved exact-scope policy and acknowledge its evidence to compare scenarios. Missing approvals stay blocked.":
-            "Enter both hypothetical assumptions and acknowledge the boundary to compare rosters. No default productivity or service standard is assumed."}
+          Enter both hypothetical assumptions and acknowledge the boundary to compare rosters.
+          No default productivity or service standard is assumed.
         </p>}
         {planning?.issue && <div className="notice notice-amber" role="alert"
           style={{margin:"0 18px 16px"}}>{planning.issue}</div>}
@@ -442,8 +331,6 @@ export function WorkforceDemandStaffingPanel({
           <p className="id" style={{padding:"10px 18px 8px"}}>
             Worksite: {site?.code} · Shift: {shift?.name} · Role: {roleLabel(roleKey)}
             {" "}· Forecast: #{selected?.id} · Source hash: {selected?.snapshotSha256.slice(0,12)}…
-            {" "}· Assumptions: {approvedPolicy?
-              "approved policy #"+approvedPolicy.id+" v"+approvedPolicy.version:"manual what-if"}
             {" "}· Missing evidence: {reasons.join(", ") || "none"}. Numbers are not additive
             across overlapping shifts or a substitute for worker-level qualification checks.
             Existing recovery options are ranked only for *recorded* gaps, capped at five,
