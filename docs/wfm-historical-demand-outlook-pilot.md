@@ -12,6 +12,16 @@
 - A too-large source (>2,000 requirement rows in six months), duplicate/contradictory key, invalid count/date/scope, or >40 distinct shift/job cohorts **fails closed** with an explicit source-review status, not a partial result.
 - The client guards against aborted/out-of-order fetch results and rejects responses from another employer/worksite; no save/publish/approve/edit endpoint or payroll modification is introduced.
 
+## Safe opt-in rollout
+
+This capability remains **OFF for every employer by default**. A separately authorized pilot must configure **all three** flags:
+
+- `WFM_HISTORICAL_OUTLOOK_ENABLED=true` — server-side kill switch.
+- `WFM_HISTORICAL_OUTLOOK_ALLOWED_ORGANIZATION_IDS=<exact comma-separated IDs>` — strictly validated employer allowlist. An empty, wildcard, malformed or duplicate list denies access.
+- `NEXT_PUBLIC_WFM_HISTORICAL_OUTLOOK_ENABLED=true` — controls whether the manager Coverage screen displays the panel; **it is not a permission mechanism**.
+
+The authenticated server also enforces the exact employer membership and active worksite/unit scope on every request, even if someone bypasses the browser display flag. Feature switches are not set by this PR; no live employer is enabled.
+
 ## Source limitation that must remain visible
 
 `staffing_requirements` represents *manager-entered planned staffing headcount*, and can be edited later. It is **not** observed customer visits, sales/POS receipts, orders, patient arrivals, forecasts frozen as-of issuance, nor measured actual required staffing. The walk-forward validation is a useful *technical check of planner consistency*, but without immutable point-in-time source snapshots its WAPE is **not out-of-sample operational demand accuracy**. Missing plan dates do not prove there was no work. A day/shift/role having no sufficient history remains unknown, not zero.
