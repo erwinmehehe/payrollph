@@ -172,6 +172,45 @@ try {
     { organizationId: ownOrganizationId, employeeId: ownEmployeeId, actionType: "clock_out" });
   checked(afterOut.status === 409, "Duplicate clock-out fails closed");
 
+  // A legitimate missing-IN attendance exception may produce a clock-out-only
+  // record. A later IN or second OUT must not mutate it into negative paid
+  // time or attempt another INSERT for the same employer/employee/workDate.
+  await client.query(
+    "DELETE FROM time_punches WHERE id=$1 AND organization_id=$2 AND employee_id=$3 AND work_date=$4",
+    [punchId, ownOrganizationId, ownEmployeeId, ownWorkDate],
+  );
+  punchId = null;
+  const noInClockOut = await call("/api/web-bundy", "POST", sessionCookie,
+    { organizationId: ownOrganizationId, employeeId: spoofEmployeeId, actionType: "clock_out" });
+  checked(noInClockOut.status === 201
+    && noInClockOut.payload?.punch?.employeeId === ownEmployeeId
+    && noInClockOut.payload.punch.timeIn === null
+    && Boolean(noInClockOut.payload.punch.timeOut),
+    "An explicit first clock-out without IN is recorded as an incomplete correction case");
+  punchId = noInClockOut.payload.punch.id;
+
+  const impossibleClockIn = await call("/api/web-bundy", "POST", sessionCookie,
+    { organizationId: ownOrganizationId, employeeId: spoofEmployeeId, actionType: "clock_in" });
+  checked(impossibleClockIn.status === 409
+    && impossibleClockIn.payload?.code === "ATTENDANCE_CORRECTION_REQUIRED",
+    "Late clock-in cannot invert an existing clock-out-only record");
+
+  const duplicatedOrphanOut = await call("/api/web-bundy", "POST", sessionCookie,
+    { organizationId: ownOrganizationId, employeeId: spoofEmployeeId, actionType: "clock_out" });
+  checked(duplicatedOrphanOut.status === 409
+    && duplicatedOrphanOut.payload?.code === "ATTENDANCE_ALREADY_CLOCKED_OUT",
+    "Second clock-out without IN is refused without duplicate insertion");
+
+  const orphanStored = await client.query(
+    "SELECT time_in AS \"timeIn\", time_out AS \"timeOut\" FROM time_punches " +
+    "WHERE id=$1 AND organization_id=$2 AND employee_id=$3 AND work_date=$4",
+    [punchId, ownOrganizationId, ownEmployeeId, ownWorkDate],
+  );
+  checked(orphanStored.rowCount === 1
+    && orphanStored.rows[0].timeIn === null
+    && orphanStored.rows[0].timeOut !== null,
+    "Rejected orphan-out retries preserve exactly one time-order-safe source record");
+
   checked(await payrollDigest(ownOrganizationId) === payrollBefore,
     "Released payroll totals remain immutable after clock-in, break and clock-out");
 
