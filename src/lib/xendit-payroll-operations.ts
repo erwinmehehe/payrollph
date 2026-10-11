@@ -194,15 +194,19 @@ export async function submitXenditPayroll(run: PayrollRun, actor: string) {
   return { submitted, ledger, complete: ledger?.counts.prepared === 0 && ledger?.counts.unknown === 0 };
 }
 
-export async function reconcileXenditPayroll(run: PayrollRun, actor: string) {
+export async function reconcileXenditPayroll(run: PayrollRun, actor: string, cursor = 0) {
+  if (!Number.isSafeInteger(cursor) || cursor < 0) throw new Error("Invalid reconciliation cursor.");
   const businessId = process.env.XENDIT_PAYOUT_BUSINESS_ID?.trim();
   if (!businessId) throw new Error("Xendit payout business ID is not configured.");
   const ledger = await xenditPayoutLedger(run.organizationId, run.id);
   if (!ledger) throw new Error("No Xendit payout ledger for this run.");
   const queryable = ledger.rows.filter((row) => row.providerPayoutId
     && ["submitted", "succeeded", "failed", "reversed"].includes(row.status));
+  const page = queryable.filter((row) => row.transferId > cursor).slice(0, 10);
+  const nextCursor = page.at(-1)?.transferId ?? cursor;
+  const hasMore = queryable.some((row) => row.transferId > nextCursor);
   const updated: string[] = [];
-  for (const row of queryable.slice(0, 10)) {
+  for (const row of page) {
     const provider = await getXenditPayrollPayout(row.providerPayoutId!, {
       referenceNumber: row.referenceNumber, amountCents: row.amountCents, businessId,
     });
@@ -219,7 +223,8 @@ export async function reconcileXenditPayroll(run: PayrollRun, actor: string) {
     resource: run.periodLabel, metadata: { runId: run.id, checked: updated.length,
       moneyMovedByLinaw: false },
   });
-  return { checked: updated.length, ledger: await xenditPayoutLedger(run.organizationId, run.id) };
+  return { checked: updated.length, nextCursor, hasMore,
+    ledger: await xenditPayoutLedger(run.organizationId, run.id) };
 }
 
 export async function resolveUnknownXenditPayroll(input: {
