@@ -717,6 +717,8 @@ async function main() {
     assert.ok(record.id > 0);
     assert.equal(Number(record.payrollRunId), runId);
     assert.equal(Number(record.organizationId), organizationId);
+    assert.equal(record.applicableMonth, agency === "BIR" ? "2026-10" : "2026-09",
+      "Filing metadata must match its source month, including next-month pay dates");
     assert.equal(record.status, "generated", "Generating a worksheet must not create agency acceptance.");
     assert.equal(record.agencyReference, null);
     const download = await owner.request(`/api/compliance/filing-validations/${record.id}/file?organizationId=${organizationId}`);

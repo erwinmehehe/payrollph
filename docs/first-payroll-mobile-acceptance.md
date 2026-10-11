@@ -12,6 +12,8 @@ The companion Production Pilot Payroll QA now exercises source onboarding comple
 
 The payroll harness uses employee-record creation and seeded historical punches. It does not prove recruitment candidate conversion, physical clock capture or an operator completing the whole nine-stage journey without help. Keep those gaps explicit until a protected staging operator run supplies evidence.
 
+The extended September-cutoff/October-pay-date run exposed a filing metadata mismatch: BIR 1601-C generated an October worksheet, while its recording path expected September. The recording path now uses the pay month already selected by the generator for 1601-C. Contribution worksheets continue using the cutoff month. The HTTP journey asserts both month bindings and exact downloaded hashes; it never records agency acceptance.
+
 ## Evidence and next operator test
 
 The workflow retains `first-payroll-mobile-synthetic.json`, with the source SHA, passed checkpoints and explicit false values for independent operator, physical device, real employer and production acceptance. A failed assertion retains a fictional-data screenshot. A missing artifact is not a pass.
