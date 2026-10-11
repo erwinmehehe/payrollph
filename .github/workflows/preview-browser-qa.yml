@@ -442,7 +442,7 @@ jobs:
           }
 
           const personas = [
-            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Owner workspace", taskPage: "Home", dashboardRole: "owner" },
+            { id: "owner", label: "Owner", short: "Owner", person: "Andrea Lim", landing: "Owner workspace", taskPage: "Dashboard", dashboardRole: "owner" },
             { id: "hr", label: "HR Admin", short: "HR Admin", person: "Aira Villanueva", landing: "Your team at a glance", taskPage: "Employees", dashboardRole: "hr" },
             { id: "payroll", label: "Payroll Officer", short: "Payroll", person: "Paolo Cruz", landing: "Payroll officer workspace", taskPage: "Payroll", dashboardRole: "payroll" },
             { id: "checker", label: "Checker", short: "Checker", person: "Mariel Santos", landing: "Payroll review", taskPage: "Reviews", dashboardRole: "checker" },
