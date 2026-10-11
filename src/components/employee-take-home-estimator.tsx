@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Calculator, LoaderCircle, ShieldCheck } from "lucide-react";
 import { estimateMonthlyTakeHome, type TakeHomeEstimate } from "@/lib/take-home-estimate";
+import { essText, type EssLanguage } from "@/lib/ess-language";
 
 type Baseline = { monthlyBasic: number; payBasis: string; mwe: boolean };
 type BaselinePayload = { asOf: string; baseline: Baseline; estimate: TakeHomeEstimate; note: string };
@@ -16,7 +17,8 @@ function numberInput(value: string) {
   return trimmed === "" ? 0 : Number(trimmed);
 }
 
-export function EmployeeTakeHomeEstimator() {
+export function EmployeeTakeHomeEstimator({ language = "en" }: { language?: EssLanguage } = {}) {
+  const t = (text: string) => essText(language, text);
   const [payload, setPayload] = useState<BaselinePayload | null>(null);
   const [error, setError] = useState("");
   const [basic, setBasic] = useState("");
@@ -66,8 +68,8 @@ export function EmployeeTakeHomeEstimator() {
     <article className="employee-list-card">
       <div className="employee-list-card-head">
         <div>
-          <span className="card-kicker">TAKE-HOME ESTIMATOR</span>
-          <h3>What if my pay changes?</h3>
+          <span className="card-kicker">{t("TAKE-HOME ESTIMATOR")}</span>
+          <h3>{t("What if my pay changes?")}</h3>
         </div>
         <Calculator size={18} aria-hidden="true" />
       </div>
@@ -75,33 +77,32 @@ export function EmployeeTakeHomeEstimator() {
       {!payload && !error && (
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "13px 14px" }}>
           <LoaderCircle size={15} className="i-blue" />
-          <span>Loading your current pay baseline...</span>
+          <span>{t("Loading your current pay baseline...")}</span>
         </div>
       )}
-      {error && <div className="notice notice-amber" style={{ margin: "13px 14px" }}><span>{error}</span></div>}
+      {error && <div className="notice notice-amber" style={{ margin: "13px 14px" }}><span>{t(error)}</span></div>}
 
       {payload && current && (
         <div style={{ display: "grid", gap: 12, padding: "13px 14px" }}>
           <p style={{ margin: 0, color: "var(--muted)", lineHeight: 1.5 }}>
-            Try a raise or a new allowance and see the monthly effect after SSS, PhilHealth, Pag-IBIG and withholding tax.
-            Everything is calculated on this device; nothing you type is sent or saved.
+            {t("Try a raise or a new allowance and see the monthly effect after SSS, PhilHealth, Pag-IBIG and withholding tax. Everything is calculated on this device; nothing you type is sent or saved.")}
           </p>
 
           <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" }}>
             <label className="field">
-              <span>Monthly basic salary</span>
+              <span>{t("Monthly basic salary")}</span>
               <input inputMode="decimal" value={basic} onChange={(event) => setBasic(event.target.value)} />
             </label>
             <label className="field">
-              <span>Taxable allowances / month</span>
+              <span>{t("Taxable allowances / month")}</span>
               <input inputMode="decimal" value={taxableAllowances} onChange={(event) => setTaxableAllowances(event.target.value)} />
             </label>
             <label className="field">
-              <span>De minimis / month</span>
+              <span>{t("De minimis / month")}</span>
               <input inputMode="decimal" value={deMinimis} onChange={(event) => setDeMinimis(event.target.value)} />
             </label>
             <label className="field">
-              <span>Voluntary Pag-IBIG / month</span>
+              <span>{t("Voluntary Pag-IBIG / month")}</span>
               <input inputMode="decimal" value={voluntaryPagIbig} onChange={(event) => setVoluntaryPagIbig(event.target.value)} />
             </label>
           </div>
@@ -109,16 +110,16 @@ export function EmployeeTakeHomeEstimator() {
           {scenario ? (
             <>
               <div className="employee-pay-totals">
-                <div><span>Current estimate</span><strong>{peso(current.netPay)}</strong></div>
-                <div><span>Scenario estimate</span><strong>{peso(scenario.netPay)}</strong></div>
+                <div><span>{t("Current estimate")}</span><strong>{peso(current.netPay)}</strong></div>
+                <div><span>{t("Scenario estimate")}</span><strong>{peso(scenario.netPay)}</strong></div>
                 <div>
-                  <span>Monthly change</span>
+                  <span>{t("Monthly change")}</span>
                   <strong className={delta < 0 ? "red-number" : delta > 0 ? "green-number" : ""}>{signedPeso(delta)}</strong>
                 </div>
               </div>
               <div style={{ display: "grid", gap: 6 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                  <span>Gross pay</span>
+                  <span>{t("Gross pay")}</span>
                   <strong>{peso(scenario.gross)}</strong>
                 </div>
                 {[
@@ -129,18 +130,18 @@ export function EmployeeTakeHomeEstimator() {
                   ["Withholding tax", -scenario.withholdingTax],
                 ].map(([label, value]) => (
                   <div key={label as string} style={{ display: "flex", justifyContent: "space-between", gap: 12, borderTop: "1px solid var(--line)", paddingTop: 6 }}>
-                    <span>{label}</span>
+                    <span>{t(label as string)}</span>
                     <strong className={(value as number) < 0 ? "red-number" : ""}>{signedPeso(value as number)}</strong>
                   </div>
                 ))}
               </div>
             </>
           ) : (
-            <div className="notice notice-amber"><span>Enter amounts from 0 to 100,000,000.</span></div>
+            <div className="notice notice-amber"><span>{t("Enter amounts from 0 to 100,000,000.")}</span></div>
           )}
 
           <div className="employee-rule-note">
-            <ShieldCheck size={12} /> {payload.note}{payload.baseline.mwe ? " You are classified as a minimum wage earner, so only supplementary taxable pay is taxed." : ""}
+            <ShieldCheck size={12} /> {payload.note}{payload.baseline.mwe ? " " + t("You are classified as a minimum wage earner, so only supplementary taxable pay is taxed.") : ""}
           </div>
         </div>
       )}
