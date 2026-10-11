@@ -71,6 +71,18 @@ try {
     "Core HR must not discover advanced paid routes");
   receipts.push("Active Enterprise HR sees advanced navigation; Core HR does not");
 
+  // These are advanced READ surfaces, not the employee's everyday ESS view.
+  assert.equal(await open(page, "/hcm/action-center?organizationId=1"), 200,
+    "Company-wide Enterprise HR can open advanced HCM Action Center");
+  assert.equal(await open(page, "/hcm/worker-360?organizationId=1&employeeId=1"), 200,
+    "Company-wide Enterprise HR can open historical Worker 360");
+  const worker = await read(page, "/api/hcm/worker-360?organizationId=1&employeeId=1");
+  assert.equal(worker.status, 200, "Enterprise HR can read authorized historical worker");
+  assert.equal(worker.body?.tenantId, 1);
+  assert.equal(worker.body?.employeeId, 1);
+  assert.ok(worker.headers?.includes("no-store"));
+  receipts.push("Enterprise HR can open advanced Action Center and Worker 360 views");
+
   for (const suffix of ["process-monitor", "org-explorer"]) {
     const api = await read(page, "/api/hcm/" + suffix + "?organizationId=2");
     assert.equal(api.status, 402, "Core company must not read " + suffix);
@@ -85,7 +97,27 @@ try {
     "Core HR cannot bypass the org explorer paywall through position history");
   assert.equal(coreHistory.body?.code, "HCM_ENTERPRISE_PLAN_REQUIRED");
   assert.ok(coreHistory.headers?.includes("no-store"));
-  receipts.push("Active Core denied on both pages and all three direct read APIs");
+  for (const path of [
+    "/hcm/action-center?organizationId=2",
+    "/hcm/worker-360?organizationId=2&employeeId=1",
+  ]) {
+    assert.equal(await open(page, path), 404,
+      "Core employer cannot open advanced HCM page: " + path);
+  }
+  const coreWorker = await read(page,
+    "/api/hcm/worker-360?organizationId=2&employeeId=1");
+  assert.equal(coreWorker.status, 402,
+    "Core HR cannot bypass the Worker 360 paywall using the direct JSON API");
+  assert.equal(coreWorker.body?.code, "HCM_ENTERPRISE_PLAN_REQUIRED");
+  assert.ok(coreWorker.headers?.includes("no-store"));
+  // A shared source API is intentionally NOT part of the paid advanced-view
+  // gate; assigned inbox actions remain available to ordinary HR roles.
+  const coreInbox = await read(page,
+    "/api/hcm/business-processes/inbox?organizationId=2");
+  assert.equal(coreInbox.status, 200,
+    "Core HR must retain source-governed assigned HCM inbox access");
+  assert.ok(coreInbox.headers?.includes("no-store"));
+  receipts.push("Core HR denied advanced views but retains assigned HCM inbox access");
 
   const manager = await browser.newContext();
   await login(manager, "monitor-manager@example.test");
@@ -101,6 +133,17 @@ try {
     "/api/hcm/position-history?organizationId=1&positionId=9999");
   assert.equal(managerHistory.status, 403,
     "Manager position-history access must fail before billing");
+  for (const path of [
+    "/hcm/action-center?organizationId=1",
+    "/hcm/worker-360?organizationId=1&employeeId=1",
+  ]) {
+    assert.equal(await open(managerPage, path), 404,
+      "A manager cannot acquire HR history access through a paid employer");
+  }
+  const managerWorker = await read(managerPage,
+    "/api/hcm/worker-360?organizationId=1&employeeId=1");
+  assert.equal(managerWorker.status, 403, "Manager must fail before the plan gate");
+  assert.ok(!JSON.stringify(managerWorker.body).includes("HCM_ENTERPRISE_PLAN_REQUIRED"));
   receipts.push("Unprivileged manager cannot buy their way past existing roles");
   await manager.close();
 
@@ -115,6 +158,10 @@ try {
     "/api/hcm/position-history?organizationId=1&positionId=9999");
   assert.equal(anonymousHistory.status, 401,
     "Anonymous position-history must fail before billing");
+  const anonymousWorker = await read(anonymousPage,
+    "/api/hcm/worker-360?organizationId=1&employeeId=1");
+  assert.equal(anonymousWorker.status, 401,
+    "Anonymous Worker 360 API request must fail before billing");
   await unauthenticated.close();
   receipts.push("Unauthenticated requests denied before billing");
   console.log(JSON.stringify({
