@@ -29,8 +29,10 @@ test("SLA escalation requires a secret, locks rows, and queues deduplicated noti
 });
 test("HCM command center is read-only and company-wide",()=>{
   const source=read("src/app/hcm/command-center/page.tsx");
-  assert.match(source,/companyWide/);
-  assert.match(source,/primaryCompanyOrganizationId/);
+  assert.match(source,/canOpenPeopleHome\(access\)/);
+  assert.match(source,/peopleHomeEnabledForOrganization\(organizationId\)/);
+  assert.match(source,/explicitHcmEmployerId/);
+  assert.doesNotMatch(source,/primaryCompanyOrganizationId/);
   assert.match(source,/hcmLifecycleNotificationTasks/);
   assert.match(source,/automationOperationalCases/);
   assert.doesNotMatch(source,/db\.(insert|update|delete)\(/);

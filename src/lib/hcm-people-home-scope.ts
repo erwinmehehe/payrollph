@@ -17,3 +17,20 @@ export function canOpenPeopleHome(
     ["owner", "admin", "bookkeeper", "hr"].includes(access.role),
   );
 }
+
+/**
+ * Default-off, server-verified AND public-build-gated, employer-allowlisted pilot.
+ * A flag by itself can never activate another legal employer's People Home.
+ */
+export function peopleHomeEnabledForOrganization(
+  organizationId: number,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0) return false;
+  if (env.HCM_PEOPLE_HOME_ENABLED !== "true" ||
+      env.NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED !== "true") return false;
+  return (env.HCM_PEOPLE_HOME_ORG_IDS ?? "").split(",")
+    .map((value) => value.trim())
+    .some((value) => /^[1-9]\d*$/.test(value) &&
+      Number.isSafeInteger(Number(value)) && Number(value) === organizationId);
+}

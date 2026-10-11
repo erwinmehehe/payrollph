@@ -6,7 +6,7 @@ import { SelfServicePortal } from "@/components/self-service-portal";
 import { getSessionUser } from "@/lib/auth";
 import { getDashboardData } from "@/lib/dashboard-data";
 import { getAccess, primaryCompanyOrganizationId, primaryEmployeeOrganizationId } from "@/lib/access";
-import { explicitHcmEmployerId, canOpenPeopleHome } from "@/lib/hcm-people-home-scope";
+import { explicitHcmEmployerId, canOpenPeopleHome, peopleHomeEnabledForOrganization } from "@/lib/hcm-people-home-scope";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { subscriptions } from "@/db/schema";
@@ -87,7 +87,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
           My Team
         </Link>
       )}
-      {!pilotFocusEnabled && canOpenPeopleHome(access) && (<Link href={`/hcm/command-center?organizationId=${data.selectedOrganization.id}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>) }
+      {!pilotFocusEnabled && peopleHomeEnabledForOrganization(data.selectedOrganization.id) && canOpenPeopleHome(access) && (<Link href={`/hcm/command-center?organizationId=${data.selectedOrganization.id}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>) }
     </div>
     <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} pilotFocusEnabled={pilotFocusEnabled} />
   </>;

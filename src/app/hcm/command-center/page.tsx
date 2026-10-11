@@ -5,7 +5,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { automationOperationalCases, employees, hcmLifecycleNotificationTasks, organizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
-import { canOpenPeopleHome, explicitHcmEmployerId } from "@/lib/hcm-people-home-scope";
+import { canOpenPeopleHome, explicitHcmEmployerId, peopleHomeEnabledForOrganization } from "@/lib/hcm-people-home-scope";
 import { loadPeopleHomeWorklist } from "@/lib/hcm-people-home-worklist";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +28,9 @@ export default async function HcmCommandCenter({
       <Link href="/app" className="mt-5 inline-block rounded-lg border px-4 py-2 font-semibold text-emerald-900">Open workspace</Link>
     </main>;
   }
+
+  // Even a valid employer URL cannot bypass the independently controlled pilot allowlist.
+  if (!peopleHomeEnabledForOrganization(organizationId)) notFound();
 
   const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES);
   const access = denied ? null : await getAccess(user.id, organizationId);
