@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, ClipboardCheck, Clock3, Settings2, ShieldCheck, UserCheck, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, ClipboardCheck, Clock3, Settings2, ShieldCheck, UserCheck, X } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { CheckerVarianceCenter } from "./checker-variance";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
@@ -128,16 +128,6 @@ export function ApprovalsView({
         />
       )}
 
-      {checkerMode && currentRun && (
-        <CheckerVarianceCenter
-          run={currentRun}
-          payrollTask={payrollTask}
-          busy={busy}
-          canDecide={Boolean(payrollTask && canDecideTask(payrollTask))}
-          onDecide={async (id, status) => requestDecision(id, status)}
-        />
-      )}
-
       <section className="stats-grid">
         <Metric label="Assigned to me" value={String(counts.mine)} hint="awaiting your review" icon={<ClipboardCheck size={16} className="i-amber" />} tone={pendingCount ? "amber" : "mint"} />
         <Metric label="High priority" value={String(highCount)} hint="flagged for today" icon={<Clock3 size={16} className="i-cyan" />} tone={highCount ? "red" : "slate"} />
@@ -233,7 +223,17 @@ export function ApprovalsView({
                   )}
                 </div>
               </div>
-              {canDecideTask(task) ? (
+              {checkerMode && payrollTask?.id === task.id && canDecideTask(task) ? (
+                <div className="approval-actions p2-approval-actions">
+                  <button
+                    type="button"
+                    className="primary-button brand"
+                    onClick={() => document.getElementById("p2-checker-evidence")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  >
+                    <ArrowRight size={15} /> Review payroll evidence
+                  </button>
+                </div>
+              ) : canDecideTask(task) ? (
                 <div className="approval-actions p2-approval-actions">
                   <button type="button" className="decline-button" disabled={busy || pendingId != null} onClick={() => requestDecision(task.id, "Declined")}>
                     Decline
@@ -252,6 +252,18 @@ export function ApprovalsView({
           ))}
         </div>
       </article>
+
+      {checkerMode && currentRun && (
+        <section className="p2-checker-evidence" id="p2-checker-evidence" aria-label="Payroll approval evidence">
+          <CheckerVarianceCenter
+            run={currentRun}
+            payrollTask={payrollTask}
+            busy={busy}
+            canDecide={Boolean(payrollTask && canDecideTask(payrollTask))}
+            onDecide={async (id, status) => requestDecision(id, status)}
+          />
+        </section>
+      )}
 
       <dialog
         ref={confirmDialog}
