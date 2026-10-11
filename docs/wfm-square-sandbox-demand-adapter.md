@@ -2,7 +2,7 @@
 
 **Engineering pilot only; default OFF; one fictional merchant/location; no live seller, money movement, staff assignments or payroll modifications.**
 
-This is the next isolated implementation of issue #838. It follows the already-merged operational-demand import / issued forecasting foundation in #828 and runs independently of open PRs #837 (planner), #843 (approved policies) and #813 (Xendit payout).
+This is the development-only implementation of issue #838. It builds on the already-merged operational-demand and staffing-planner foundation (#828 and #837), and is stacked on #843's approved staffing policies solely for code integration. The Square connector adds no new database migration. Xendit payout #813 remains independent.
 
 ## Philippine market limitation
 
@@ -22,7 +22,7 @@ Square warns that payments and updates are eventually consistent, with delayed o
 
 The feature requires an environment provisioned by a consenting sandbox app owner. Do **not** enter a real seller's production token. No provider credential, OAuth token, customer/payment ID, amount, card number, order ID, raw provider JSON or team member data should be committed, logged, stored in aggregate tables, or returned to browsers. A real OAuth merchant-connection flow and credential rotation/revocation remains a separate prerequisite for a live pilot.
 
-All flags default OFF. Configure in an isolated test environment:
+All flags default OFF. Configure in a disposable development/CI test environment:
 
 ```text
 WFM_OPERATIONAL_DEMAND_ENABLED=true
@@ -79,4 +79,6 @@ node scripts/wfm-square-sandbox-browser.mjs
 
 Second command requires Playwright Chromium installation. No source secret or live Square account is necessary for either synthetic test.
 
-**Pilot release decision: NO-GO** until exact-head CI passes; security/merchant-ownership review, OAuth/revocation and provider aggregate reconciliation are independently approved; actual staging source is tested with owner consent; #691 WFM UAT and #579 no-money shadow payroll remain separately verified. Xendit payout #813 remains independent and disabled.
+**Development source merge:** no separate staging environment is required. Merge only after exact-head synthetic CI, SQL-history, security, tenant-isolation and browser checks pass; leave all provider flags OFF.
+
+**Real merchant activation: NO-GO** until security/merchant-ownership review, supported-region merchant OAuth consent/revocation, independent provider aggregate reconciliation, and authorized real-device WFM UAT (#691) are completed. Real-employer no-money shadow payroll (#579) is a separate operational release gate. A fictional Square contract test is not Philippine merchant processing permission. Xendit payout #813 remains independent and disabled.
