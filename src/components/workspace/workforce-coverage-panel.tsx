@@ -719,7 +719,7 @@ export function WorkforceCoveragePanel({
         onReviewHistory={() => setStartDate(addDays(planningToday, -14))}
       />}
 
-      {payload && (
+      {payload && process.env.NEXT_PUBLIC_WFM_HISTORICAL_OUTLOOK_ENABLED === "true" && (
         <WorkforceDemandOutlookPanel
           key={organizationId}
           organizationId={organizationId}
