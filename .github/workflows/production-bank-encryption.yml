@@ -1,16 +1,35 @@
 name: Production Bank Encryption
 
+# Manual only: this workflow can mutate live bank destination ciphertext.
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Dry-run only, or apply encryption after all guards pass
+        description: Read-only inventory, or DBA-approved apply
         required: true
         default: dry-run
         type: choice
         options:
           - dry-run
           - apply
+      reviewed_sha:
+        description: Exact reviewed 40-character main SHA, also required to be deployed live
+        required: true
+        type: string
+      expected_database_name:
+        description: DBA-verified PostgreSQL database name, never a connection string
+        required: true
+        type: string
+      approval_ref:
+        description: DBA/security change-control reference (required for apply)
+        required: false
+        default: ""
+        type: string
+      apply_confirmation:
+        description: For apply, enter APPLY_APPROVED_BANK_BACKFILL exactly
+        required: false
+        default: "NO"
+        type: string
 
 permissions:
   contents: read
@@ -21,86 +40,138 @@ concurrency:
 
 jobs:
   encrypt-bank-data:
+    if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: ${{ github.ref == 'refs/heads/main' }}
     environment: production
     env:
-      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-      BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
-      TOTP_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_TOTP_ENCRYPTION_KEY }}
+      REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+      EXPECTED_PRODUCTION_DATABASE_NAME: ${{ inputs.expected_database_name }}
+      BACKFILL_MODE: ${{ inputs.mode }}
+      APPROVAL_REF: ${{ inputs.approval_ref }}
+      APPLY_CONFIRMATION: ${{ inputs.apply_confirmation }}
       PRODUCTION_BASE_URL: https://erwinmehehe-payrollph.vercel.app
-      PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Pin reviewed source and operator authorization before dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$REVIEWED_SHA" != "$GITHUB_SHA" ]; then
+            echo "Reviewed SHA must match the exact main workflow commit. Refusing bank access."
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_PRODUCTION_DATABASE_NAME" =~ ^[A-Za-z0-9_]{1,63}$ ]]; then
+            echo "A DBA-reviewed PostgreSQL database name is required. Refusing bank access."
+            exit 1
+          fi
+          if [ "$BACKFILL_MODE" = "apply" ]; then
+            if [ "$APPLY_CONFIRMATION" != "APPLY_APPROVED_BANK_BACKFILL" ] || [[ ! "$APPROVAL_REF" =~ ^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,120}$ ]]; then
+              echo "Apply requires explicit confirmation and an approved change-control reference."
+              exit 1
+            fi
+          elif [ "$BACKFILL_MODE" != "dry-run" ]; then
+            echo "Unsupported backfill mode."
+            exit 1
+          fi
+          echo "Reviewed source and requested operation match; no bank records accessed."
 
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
           cache: npm
 
+      # IMPORTANT: no production secrets in the job environment or npm ci.
       - run: npm ci
 
-      - name: Validate required production secrets
+      - name: Verify dedicated runner key and exact live production build before DB access
         shell: bash
+        env:
+          BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
+          PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "${DATABASE_URL:-}" ]; then
-            echo "Missing dedicated PRODUCTION_DATABASE_URL secret."
+          if [ -z "${BANK_DATA_ENCRYPTION_KEY:-}" ] || [ -z "${PRODUCTION_READINESS_TOKEN:-}" ]; then
+            echo "Dedicated bank key or private readiness token is absent. No bank records accessed."
             exit 1
           fi
-          if [ -z "${BANK_DATA_ENCRYPTION_KEY:-}" ] && [ -z "${TOTP_ENCRYPTION_KEY:-}" ]; then
-            echo "Missing production bank encryption key material."
+          npx tsx -e '
+            import { bankEncryptionKeySource } from "./src/lib/bank-account-crypto";
+            if (bankEncryptionKeySource() !== "dedicated") {
+              console.error("A valid dedicated bank key is mandatory for this production workflow.");
+              process.exit(1);
+            }
+          '
+          local_fp=$(npx tsx -e '
+            import { bankEncryptionKeyFingerprint } from "./src/lib/bank-account-crypto";
+            const fingerprint = bankEncryptionKeyFingerprint();
+            if (!fingerprint) process.exit(2);
+            process.stdout.write(fingerprint);
+          ')
+          body=$(curl --fail --silent --show-error --max-time 20 \
+            -H "x-readiness-token: ${PRODUCTION_READINESS_TOKEN}" \
+            "${PRODUCTION_BASE_URL%/}/api/readiness/pilot-status")
+          if ! printf '%s' "$body" | jq -se --arg fp "$local_fp" --arg sha "$REVIEWED_SHA" '
+            length == 1 and (.[0] |
+              type == "object" and
+              .deploymentSha == $sha and
+              .deploymentEnvironment == "production" and
+              .bankEncryptionFingerprint == $fp and
+              (.criticalBlockers | type == "array") and
+              (.criticalBlockers | all(type == "string")) and
+              (.criticalBlockers | index("readiness-internal-error") == null))
+          ' >/dev/null; then
+            echo "Live deployment SHA, environment or dedicated bank key fingerprint mismatch. Nothing was queried."
             exit 1
           fi
-          if [ -z "${PRODUCTION_READINESS_TOKEN:-}" ]; then
-            echo "Missing PRODUCTION_READINESS_TOKEN for private production readiness probe."
-            exit 1
-          fi
-          echo "Required database, bank encryption and readiness secret material is present."
+          echo "The reviewed main commit is live in production with the same effective bank key."
 
-      - name: Prove runner key matches live production
-        id: key_match
-        shell: bash
-        run: |
-          set -euo pipefail
-          local_fp=$(npx tsx -e 'import { bankEncryptionKeyFingerprint } from "./src/lib/bank-account-crypto"; const fp = bankEncryptionKeyFingerprint(); if (!fp) process.exit(2); console.log(fp);')
-          body=$(curl --fail --silent --show-error --max-time 20 -H "x-readiness-token: ${PRODUCTION_READINESS_TOKEN}" "${PRODUCTION_BASE_URL%/}/api/readiness/pilot-status")
-          live_fp=$(printf '%s' "$body" | jq -r '.bankEncryptionFingerprint // empty')
+      - name: Verify exact database/schema and read-only audit role (dry-run)
+        if: ${{ inputs.mode == 'dry-run' }}
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_BANK_AUDIT_DATABASE_URL }}
+          BANK_BACKFILL_ROLE: audit
+        run: npx tsx scripts/check-bank-backfill-preflight.ts
 
-          if [ -z "$live_fp" ]; then
-            echo "Live production does not report a bank-encryption fingerprint."
-            echo "Configure the production encryption key first and wait for that deployment to become live."
-            exit 1
-          fi
-
-          if [ "$local_fp" != "$live_fp" ]; then
-            echo "Encryption-key fingerprint mismatch. Refusing to touch bank data."
-            exit 1
-          fi
-
-          echo "Live production and this runner use the same bank-encryption key fingerprint."
-
-      - name: Prepare bank-account column safely
+      - name: Verify exact database/schema before approved apply
         if: ${{ inputs.mode == 'apply' }}
-        run: npx tsx scripts/prepare-bank-encryption.ts
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          BANK_BACKFILL_ROLE: apply
+        run: npx tsx scripts/check-bank-backfill-preflight.ts
 
-      - name: Dry-run legacy plaintext scan
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx tsx scripts/encrypt-bank-accounts.ts | tee /tmp/bank-encryption-dry-run.txt
+      - name: Read-only four-store legacy account inventory
+        if: ${{ inputs.mode == 'dry-run' }}
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_BANK_AUDIT_DATABASE_URL }}
+          BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
+        run: npx tsx scripts/encrypt-bank-accounts.ts
 
+      - name: Recheck all four stores immediately before approved apply
+        if: ${{ inputs.mode == 'apply' }}
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
+        run: npx tsx scripts/encrypt-bank-accounts.ts
+
+      # Schema migrations and column widening are strictly DBA-controlled.
+      # No ALTER, drizzle push or implicit schema repair is run here.
       - name: Encrypt legacy bank data
         if: ${{ inputs.mode == 'apply' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx tsx scripts/encrypt-bank-accounts.ts --apply
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
+        run: npx tsx scripts/encrypt-bank-accounts.ts --apply
 
       - name: Verify zero plaintext bank data remains
         if: ${{ inputs.mode == 'apply' }}
         shell: bash
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
         run: |
           set -euo pipefail
           npx tsx scripts/encrypt-bank-accounts.ts | tee /tmp/bank-encryption-verify.txt
@@ -108,32 +179,40 @@ jobs:
           grep -Eq '^0 payroll payment snapshot\(s\) also hold a plaintext account number\.$' /tmp/bank-encryption-verify.txt
           grep -Fqx '0 legal entity disbursement account(s) hold plaintext.' /tmp/bank-encryption-verify.txt
           grep -Fqx '0 payout change request(s) hold plaintext.' /tmp/bank-encryption-verify.txt
-          echo "Legacy employee, payroll snapshot, legal-entity, and payout-change bank accounts are encrypted."
+          echo "All four stores have zero identified plaintext bank destinations."
 
-      # A forged enc:v1: prefix, corrupt GCM tag or previous-key-only envelope
-      # must never satisfy the production backfill completion gate.
       - name: Authenticate every bank envelope with the current key
         if: ${{ inputs.mode == 'apply' }}
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
         run: npx tsx scripts/verify-bank-account-envelopes.ts
 
       - name: Verify live readiness sees encrypted bank data
         if: ${{ inputs.mode == 'apply' }}
         shell: bash
+        env:
+          PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
+          BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
         run: |
           set -euo pipefail
-          body=$(curl --fail --silent --show-error --max-time 20 -H "x-readiness-token: ${PRODUCTION_READINESS_TOKEN}" "${PRODUCTION_BASE_URL%/}/api/readiness/pilot-status")
-          local_fp=$(npx tsx -e 'import { bankEncryptionKeyFingerprint } from "./src/lib/bank-account-crypto"; const fp = bankEncryptionKeyFingerprint(); if (!fp) process.exit(2); console.log(fp);')
-          if ! printf '%s' "$body" | jq -se --arg fp "$local_fp" '
+          body=$(curl --fail --silent --show-error --max-time 20 \
+            -H "x-readiness-token: ${PRODUCTION_READINESS_TOKEN}" \
+            "${PRODUCTION_BASE_URL%/}/api/readiness/pilot-status")
+          local_fp=$(npx tsx -e 'import { bankEncryptionKeyFingerprint } from "./src/lib/bank-account-crypto"; const fp = bankEncryptionKeyFingerprint(); if (!fp) process.exit(2); process.stdout.write(fp);')
+          if ! printf '%s' "$body" | jq -se --arg fp "$local_fp" --arg sha "$REVIEWED_SHA" '
             length == 1 and (.[0] |
               type == "object" and
-              (.bankEncryptionFingerprint | type == "string" and length > 0) and
+              .deploymentSha == $sha and
+              .deploymentEnvironment == "production" and
               .bankEncryptionFingerprint == $fp and
               (.criticalBlockers | type == "array") and
               (.criticalBlockers | all(type == "string")) and
-              (.criticalBlockers | index("bank-data-encryption") == null))
+              (.criticalBlockers | index("bank-data-encryption") == null) and
+              (.criticalBlockers | index("readiness-internal-error") == null))
           ' >/dev/null; then
-            echo "Production bank-encryption readiness is missing, malformed, blocked or uses a different key."
+            echo "Live bank readiness does not match the reviewed production deployment and key."
             exit 1
           fi
           printf '%s' "$body" | jq '{status, criticalBlockers, launchBlockers, deploymentSha}'
-          echo "Production bank-data encryption readiness is green."
+          echo "Bank encryption gate verified; no payroll or payout activation is implied."
