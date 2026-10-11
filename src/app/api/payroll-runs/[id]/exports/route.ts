@@ -9,6 +9,7 @@ import {
   payslips,
   payrollEntries,
   payrollRuns,
+  payoutBatches,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
@@ -243,6 +244,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
   if (!run) return Response.json({ error: "Payroll run not found" }, { status: 404 });
+  const [existingXenditBatch] = await db.select({ provider: payoutBatches.provider })
+    .from(payoutBatches)
+    .where(and(eq(payoutBatches.organizationId, run.organizationId),
+      eq(payoutBatches.payrollRunId, run.id))).limit(1);
+  if (existingXenditBatch?.provider === "xendit") {
+    return Response.json({
+      error: "This payroll run has an Xendit payout ledger. PayMongo submission and manual bank-file payout confirmation are blocked to prevent duplicate salaries. Reconcile the original Xendit payments.",
+      code: "XENDIT_PAYOUT_LEDGER_ALREADY_EXISTS",
+    }, { status: 409 });
+  }
   const body = await request.json().catch(() => ({}));
   const mode =
     body.mode === "preflight"
