@@ -11,6 +11,7 @@ import { WorkforceLiveFloor } from "./workforce-live-floor";
 import { WorkforcePlanningPreviewPanel } from "./workforce-planning-preview-panel";
 import { WorkforceLaborCalibrationPanel } from "./workforce-labor-calibration-panel";
 import { WorkforceOperationalDemandPanel } from "./workforce-operational-demand-panel";
+import { WorkforceSquareSandboxPanel } from "./workforce-square-sandbox-panel";
 import { WorkforceIssuedDemandPanel } from "./workforce-issued-demand-panel";
 import { WorkforceDemandOutlookPanel } from "./workforce-demand-outlook-panel";
 import { previewWorkforceRecovery } from "@/lib/workforce-planning-preview";
@@ -721,6 +722,17 @@ export function WorkforceCoveragePanel({
           worksites={payload.worksites}
           canManage={canManage && data.access?.companyWide === true
             && ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role)}
+        />
+      )}
+
+      {payload && canManage && data.access?.companyWide === true &&
+        ["owner","admin","bookkeeper","hr"].includes(data.access.role) &&
+        process.env.NEXT_PUBLIC_WFM_OPERATIONAL_DEMAND_ENABLED === "true" &&
+        process.env.NEXT_PUBLIC_WFM_SQUARE_SANDBOX_ENABLED === "true" && (
+        <WorkforceSquareSandboxPanel
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
         />
       )}
 
