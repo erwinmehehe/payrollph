@@ -45,6 +45,7 @@ test("opted-in route requires verified active Enterprise feature and subscriptio
 test("both read-only APIs and pages enforce the same check after actor/tenant authorization", () => {
   const sources = [
     ["src/app/api/hcm/org-explorer/route.ts", "denyHcmOrgExplorer(user.id, organizationId)"],
+    ["src/app/api/hcm/position-history/route.ts", "denyHcmOrgExplorer(user.id, organizationId)"],
     ["src/app/api/hcm/process-monitor/route.ts", "assertOrganizationRole(user.id, organizationId"],
     ["src/app/hcm/org-explorer/page.tsx", "denyHcmOrgExplorer(user.id, organizationId)"],
     ["src/app/hcm/process-monitor/page.tsx", "assertOrganizationRole(user.id, organizationId"],
@@ -57,6 +58,10 @@ test("both read-only APIs and pages enforce the same check after actor/tenant au
     assert.ok(gates > authorizes, "Billing check must not bypass actor/tenant authorization: " + path);
     assert.equal(code.split("denyOptInEnterpriseHcmPlan(organizationId)").length - 1, 1);
   }
+  // Position history is an independent network endpoint used by the explorer,
+  // not a subresource automatically covered by the explorer's route guard.
+  const explorer = readFileSync("src/components/hcm-org-explorer.tsx", "utf8");
+  assert.ok(explorer.includes('"/api/hcm/position-history?"'));
 });
 
 test("non-opted employers cause no billing query; billing outages fail closed for opted-in employers", async () => {
