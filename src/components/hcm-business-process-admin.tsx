@@ -63,6 +63,7 @@ export function HcmBusinessProcessAdmin({ organizationId }: { organizationId: nu
   const [steps, setSteps] = useState<Step[]>(defaultSteps());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [view, setView] = useState<"checking" | "ready" | "restricted" | "error">("checking");
 
   const load = useCallback(async () => {
     setError("");
@@ -71,8 +72,20 @@ export function HcmBusinessProcessAdmin({ organizationId }: { organizationId: nu
       { cache: "no-store" },
     );
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error ?? "Could not load HCM business-process definitions.");
+    // The API is authoritative for both role and plan. Never render paid
+    // configuration inputs while an enrolled employer is denied by billing.
+    if ((response.status === 402 && data.code === "HCM_ENTERPRISE_PLAN_REQUIRED") ||
+        (response.status === 503 && data.code === "HCM_ENTITLEMENTS_UNAVAILABLE")) {
+      setPayload(null);
+      setView("restricted");
+      return;
+    }
+    if (!response.ok) {
+      setView("error");
+      throw new Error(data.error ?? "Could not load HCM business-process definitions.");
+    }
     setPayload(data as Payload);
+    setView("ready");
   }, [organizationId]);
 
   useEffect(() => {
@@ -166,6 +179,20 @@ export function HcmBusinessProcessAdmin({ organizationId }: { organizationId: nu
     } finally {
       setBusy(false);
     }
+  }
+
+  if (view === "checking" || view === "restricted") return null;
+  if (view === "error" && !payload) {
+    return (
+      <section className="card" aria-label="HCM process configuration unavailable" style={{ marginBottom: 18 }}>
+        <div className="card-body">
+          <p role="alert">{error || "Business-process configuration is unavailable."}</p>
+          <button className="secondary-button" onClick={() => void load()} disabled={busy}>
+            <RefreshCw size={14} /> Retry loading workflow configuration
+          </button>
+        </div>
+      </section>
+    );
   }
 
   return (
