@@ -22,6 +22,7 @@ on:
       - "src/components/workspace/**"
       - "src/components/linaw-workspace.tsx"
       - "src/components/self-service-portal.tsx"
+      - "src/app/api/web-bundy/route.ts"
       - "scripts/verify-ess-web-bundy-synthetic.mjs"
       - "src/components/demo-sandbox-bar.tsx"
       - "src/app/page.tsx"
