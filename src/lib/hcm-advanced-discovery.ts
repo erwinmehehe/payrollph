@@ -1,4 +1,4 @@
-import { hasFeature, type Entitlements } from "./billing-matrix";
+import type { Entitlements } from "./billing-matrix";
 import type { HcmNavigationLink } from "./hcm-context-navigation";
 
 /**
@@ -12,7 +12,7 @@ export function canDiscoverAdvancedHcm(
 ): boolean {
   if (!access?.companyWide || !["owner", "admin", "hr"].includes(access.role)) return false;
   if (!entitlements?.active || entitlements.plan !== "Enterprise") return false;
-  return hasFeature(entitlements as Entitlements, "advanced-hcm-discovery");
+  return entitlements.features.includes("advanced-hcm-discovery");
 }
 
 const ADVANCED_IDS = new Set<HcmNavigationLink["id"]>([
