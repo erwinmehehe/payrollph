@@ -3,6 +3,7 @@ import { HcmOrgExplorerClient } from "@/components/hcm-org-explorer";
 import { HcmContextNavigation } from "@/components/hcm-context-navigation";
 import { getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
 import { denyHcmOrgExplorer, hcmOrgExplorerEnabledForEmployer, hcmOrgExplorerPositiveId } from "@/lib/hcm-org-explorer-access";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,8 @@ export default async function HcmOrgExplorerPage({
 
   const access = await getAccess(user.id, organizationId);
   if (!access) notFound();
+  const enterpriseDenied = await denyOptInEnterpriseHcmPlan(organizationId);
+  if (enterpriseDenied) notFound();
 
   return <>
     <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-8">
