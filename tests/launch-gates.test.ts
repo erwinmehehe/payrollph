@@ -182,7 +182,9 @@ test("production document uploads are opt-in and cannot weaken malware safety", 
   const documents = readFileSync("src/app/api/documents/route.ts", "utf8");
   const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
 
-  assert.ok(storage.includes("DOCUMENT_UPLOADS_ENABLED"));
+  const flagRegistry = readFileSync("src/lib/critical-release-flags.ts", "utf8");
+  assert.ok(flagRegistry.includes('env: "DOCUMENT_UPLOADS_ENABLED"'));
+  assert.ok(storage.includes('criticalReleaseFlagEnabled("documentUploads")'));
   assert.ok(storage.includes('process.env.NODE_ENV !== "production"'));
   assert.ok(documents.includes('code: "DOCUMENT_UPLOADS_DISABLED"'));
   assert.ok(documents.includes("documentUploadsEnabled()"));
