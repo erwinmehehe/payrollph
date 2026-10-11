@@ -37,7 +37,7 @@ export function PayrollPhaseTwoOverview({
   const action =
     view.released && canOpenExports ? { label: "Open payout & exports", run: onOpenExports }
     : view.released ? { label: "View payout details", run: onContinue }
-    : role === "owner" ? { label: "Review release controls", run: onContinue }
+    : role === "owner" ? { label: view.currentStage === "release" ? "Review release controls" : "Review payroll checks", run: onContinue }
     : role === "payroll" ? { label: "Continue payroll checks", run: onContinue }
     : { label: "Open run controls", run: onContinue };
 
