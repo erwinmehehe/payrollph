@@ -23,6 +23,12 @@ test("final bank files, PayMongo and Xendit stage under the same per-run claim l
   const xendit = readFileSync("src/lib/xendit-payroll-operations.ts", "utf8");
   const staging = readFileSync("src/lib/payout-ledger.ts", "utf8");
   assert.ok(exportRoute.includes("() => readPayrollExport(request, params, true)"));
+  assert.ok(exportRoute.includes("FINAL_BANK_FILE_ALREADY_ISSUED"),
+    "The issued bank file must never be silently reissued.");
+  assert.ok(exportRoute.includes("PAYROLL_PREVIOUS_FINAL_BANK_FILE_OR_MANUAL_PAYMENT"),
+    "PayMongo must not submit after final bank-file evidence.");
+  assert.ok(exportRoute.includes("PAYROLL_PAYOUT_CLAIMED_BY_XENDIT"),
+    "PayMongo must not cross-claim an Xendit payout ledger.");
   assert.ok(exportRoute.includes("return await withPayrollRunPayoutLock(run.organizationId, run.id, async () => {"));
   assert.ok(xendit.includes("await withPayrollRunPayoutLock(run.organizationId, run.id, async () => {"));
   assert.ok(xendit.includes("await assertNoPriorPayrollDisbursement(run);"));
