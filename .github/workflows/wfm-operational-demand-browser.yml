@@ -1,0 +1,32 @@
+name: WFM Operational Demand Browser QA
+on:
+  pull_request:
+    paths:
+      - "src/components/workspace/workforce-operational-demand-panel.tsx"
+      - "src/components/workspace/workforce-coverage-panel.tsx"
+      - "tests/fixtures/wfm-operational-demand-browser.jsx"
+      - "scripts/wfm-operational-demand-browser.mjs"
+      - ".github/workflows/wfm-operational-demand-browser.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --ignore-scripts playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/wfm-operational-demand-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wfm-operational-demand-chromium
+          path: qa-artifacts/
+          retention-days: 7
