@@ -232,11 +232,19 @@ export function PremiumDashboard({ data, currentRun: run, role, onPage, onNewRun
               <div><strong>{view.pendingApprovals} pending approvals</strong><small>Workspace-wide queue, not necessarily assigned to you</small></div>
               <button type="button" aria-label="Open approvals" onClick={() => onPage("Approvals")}><ChevronRight size={18} /></button>
             </div>
-            <div className="pd-summary-line">
-              <span className="pd-summary-icon leave" aria-hidden><CalendarDays size={18} /></span>
-              <div><strong>{view.pendingLeave} pending leave requests</strong><small>Requests awaiting a recorded decision</small></div>
-              <button type="button" aria-label="Open leave requests" onClick={() => onPage("Leave")}><ChevronRight size={18} /></button>
-            </div>
+            {role === "owner" ? (
+              <div className="pd-summary-line">
+                <span className="pd-summary-icon leave" aria-hidden><CalendarDays size={18} /></span>
+                <div><strong>{view.pendingLeave} pending leave requests</strong><small>Requests awaiting a recorded decision</small></div>
+                <button type="button" aria-label="Open leave requests" onClick={() => onPage("Leave")}><ChevronRight size={18} /></button>
+              </div>
+            ) : (
+              <div className="pd-summary-line">
+                <span className="pd-summary-icon leave" aria-hidden><Clock3 size={18} /></span>
+                <div><strong>{view.attendanceEmployees} employees with time entries to review</strong><small>Within the selected payroll period</small></div>
+                <button type="button" aria-label="Open time and attendance" onClick={() => onPage("Time & attendance")}><ChevronRight size={18} /></button>
+              </div>
+            )>
           </section>
 
           <section className="pd-card pd-dates" aria-labelledby="pd-dates-title">
