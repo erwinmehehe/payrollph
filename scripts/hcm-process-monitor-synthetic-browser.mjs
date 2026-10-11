@@ -31,6 +31,19 @@ async function visit(page, tenant = 1, query = "") {
   return response.status();
 }
 
+/** Make authenticated GETs from the real browser origin, not Playwright's
+ * separate API request cookie policy for Secure localhost sessions. */
+async function browserGet(page, path) {
+  return page.evaluate(async (path) => {
+    const response = await fetch(path, { credentials: "same-origin", cache: "no-store" });
+    return {
+      status: response.status,
+      cacheControl: response.headers.get("cache-control"),
+      data: await response.json(),
+    };
+  }, path);
+}
+
 async function main() {
   requireLocalSynthetic();
   const browser = await chromium.launch({ headless: true });
@@ -46,7 +59,7 @@ async function main() {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await login(context, "monitor-hr@example.test");
     const page = await context.newPage();
-    assert.equal(await visit(page), 200);
+    assert.equal(await visit(page), 200, "Signed-in HR monitor page must load");
     await page.getByRole("heading", { level: 1, name: "Business Process Monitor" }).waitFor();
     const main = await page.locator("main").innerText();
     assert.ok(main.includes("Recorded workflows") && main.includes("Step timeline"));
@@ -68,20 +81,18 @@ async function main() {
     await page.waitForURL("**/hcm/process-monitor?organizationId=1&cursor=*");
     assert.equal(await page.locator("a[href*='processId=']").count(), 3);
 
-    const filtered = await context.request.get(app + "/api/hcm/process-monitor?organizationId=1&status=approved");
-    assert.equal(filtered.status(), 200);
-    assert.equal(filtered.headers()["cache-control"], "private, no-store");
-    const filteredBody = await filtered.json();
-    assert.equal(filteredBody.items.length, 1);
-    assert.equal(filteredBody.items[0].typeLabel, "Hire");
-    const beta = await context.request.get(app + "/api/hcm/process-monitor?organizationId=2");
-    assert.equal(beta.status(), 200);
-    const betaBody = await beta.json();
-    assert.equal(betaBody.items.length, 1);
-    const foreign = await context.request.get(app +
-      "/api/hcm/process-monitor?organizationId=1&processId=" + betaBody.items[0].id);
-    assert.equal(foreign.status(), 200);
-    assert.equal((await foreign.json()).detail.state, "not_found");
+    const filtered = await browserGet(page, "/api/hcm/process-monitor?organizationId=1&status=approved");
+    assert.equal(filtered.status, 200, "Authenticated status-filter API must load");
+    assert.equal(filtered.cacheControl, "private, no-store");
+    assert.equal(filtered.data.items.length, 1);
+    assert.equal(filtered.data.items[0].typeLabel, "Hire");
+    const beta = await browserGet(page, "/api/hcm/process-monitor?organizationId=2");
+    assert.equal(beta.status, 200, "HR must be able to switch to the second authorized employer");
+    assert.equal(beta.data.items.length, 1);
+    const foreign = await browserGet(page,
+      "/api/hcm/process-monitor?organizationId=1&processId=" + beta.data.items[0].id);
+    assert.equal(foreign.status, 200, "Foreign process lookup must produce safe not_found detail");
+    assert.equal(foreign.data.detail.state, "not_found");
     assert.equal(await visit(page, 0), 404);
     assert.equal(await visit(page, "abc"), 404);
     await context.close();
@@ -89,7 +100,7 @@ async function main() {
     const mobile = await browser.newContext({ viewport: { width: 375, height: 790 } });
     await login(mobile, "monitor-hr@example.test");
     const phone = await mobile.newPage();
-    assert.equal(await visit(phone), 200);
+    assert.equal(await visit(phone), 200, "Authenticated mobile HR page must load");
     const widths = await phone.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
       content: document.documentElement.scrollWidth,
@@ -111,8 +122,8 @@ async function main() {
       await login(role, email);
       const protectedPage = await role.newPage();
       assert.equal(await visit(protectedPage, 1), 404, email + " must be denied");
-      const response = await role.request.get(app + "/api/hcm/process-monitor?organizationId=1");
-      assert.equal(response.status(), 403, email + " must not read source");
+      const response = await browserGet(protectedPage, "/api/hcm/process-monitor?organizationId=1");
+      assert.equal(response.status, 403, email + " must not read source");
       await role.close();
     }
 
