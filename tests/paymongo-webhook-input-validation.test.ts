@@ -53,6 +53,12 @@ test("extreme event timestamp cannot throw or inject an invalid settlement date"
   assert.ok(parsedDate >= before && parsedDate <= Date.now() + 1000);
 });
 
+test("canonical numeric-string provider timestamp remains auditable", () => {
+  const result = normalizePaymongoTransferWebhook(eventWith(200, "PAY-77-E-001", "1790812800"));
+  assert.ok(result);
+  assert.equal(result.occurredAt, new Date(1790812800 * 1000).toISOString());
+});
+
 test("signature verifier refuses a correct digest with nonhex garbage suffix", () => {
   const payload = '{"data":{"id":"evt_guardrail"}}';
   const timestamp = "1790812800";
