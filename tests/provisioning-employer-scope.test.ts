@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import { parseScopedProvisioningMutation } from "../src/lib/scoped-provisioning-mutation";
 
@@ -61,4 +62,33 @@ test("checklist submits the selected employer and employee before mutation", () 
   assert.ok(board.includes("setSnapshotStale(true)"));
   assert.ok(board.includes("mutationInFlight.current"));
   assert.ok(board.includes("await onRefresh()"));
+});
+
+test("all source call sites send explicitly bound employer and employee IDs", () => {
+  // Search the checked-out application source (not a hand-maintained list).
+  // If another client calls this endpoint, this test must force a contract
+  // review before a rollout can silently break that client.
+  const callers: Array<{ path: string; content: string }> = [];
+  function scan(dir: string) {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) scan(path);
+      else if (entry.isFile() && /\\.(tsx?|jsx?)$/.test(entry.name)) {
+        const content = readFileSync(path, "utf8");
+        if (content.includes("/api/provisioning") && content.includes("fetch(")) {
+          callers.push({ path, content });
+        }
+      }
+    }
+  }
+  scan("src");
+  assert.ok(callers.length > 0, "At least one onboarding client should use provisioning");
+  for (const caller of callers) {
+    const matches = caller.content.match(/fetch\\(\\s*["'`]\\/api\\/provisioning/g) ?? [];
+    for (const match of matches) {
+      assert.ok(caller.content.includes(
+        'JSON.stringify({ id: task.id, organizationId, employeeId, done })',
+      ), "Review the new employer/worker mutation contract for " + caller.path + ": " + match);
+    }
+  }
 });
