@@ -10,9 +10,14 @@ export type RetroSourceAttribution = {
   sourceYearByAdjustmentId: ReadonlyMap<number, number | null>;
 };
 
-/** A source cutoff crossing calendar years needs payroll review, not a guessed year. */
+/** A malformed, impossible or cross-year source cutoff needs payroll review, not a guessed year. */
 export function retroSourceTaxYear(periodStart: string, periodEnd: string): number | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(periodStart) || !/^\d{4}-\d{2}-\d{2}$/.test(periodEnd)
+  const validDate = (date: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+    const utc = new Date(`${date}T00:00:00Z`);
+    return Number.isFinite(utc.getTime()) && utc.toISOString().slice(0, 10) === date;
+  };
+  if (!validDate(periodStart) || !validDate(periodEnd)
     || periodStart > periodEnd || periodStart.slice(0, 4) !== periodEnd.slice(0, 4)) return null;
   return Number(periodEnd.slice(0, 4));
 }
@@ -29,9 +34,16 @@ export function readBasicAndThirteenth(lineItems: unknown, attribution?: RetroSo
   let deMinimisExcess = 0;
 
   for (const line of lines) {
-    const amount = Number(line.amount ?? 0);
-    if (!Number.isFinite(amount)) continue;
     const code = String(line.code ?? "").toUpperCase();
+    const amount = Number(line.amount ?? 0);
+    // A malformed retro amount must not silently vanish from final-pay
+    // 13th-month reconciliation. Existing non-retro tolerances are unchanged.
+    if (code.startsWith("RETRO-") && (line.amount == null
+      || (typeof line.amount !== "number" && typeof line.amount !== "string")
+      || String(line.amount).trim() === "" || !Number.isFinite(amount))) {
+      throw new Error("FINAL_PAY_RETRO_AMOUNT_INVALID: Review the settled payroll adjustment " + code + ".");
+    }
+    if (!Number.isFinite(amount)) continue;
     const label = String(line.label ?? "").toLowerCase();
 
     // A retro settlement paid in this tax year can correct BASIC pay earned
