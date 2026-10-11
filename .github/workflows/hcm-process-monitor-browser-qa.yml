@@ -85,9 +85,9 @@ jobs:
         run: npx tsx --test --test-concurrency=1 tests/hcm-process-monitor.test.ts tests/hcm-process-monitor-tenant-integration.test.ts tests/hcm-context-navigation.test.ts
       - name: Build local Next.js without external deployment
         run: npm run build
-      - name: Install pinned local Chromium
+      - name: Install pinned local Chromium and automated accessibility rules
         run: |
-          npm install --no-save --ignore-scripts playwright@1.55.0
+          npm install --no-save --ignore-scripts playwright@1.55.0 axe-core@4.10.3
           npx playwright install --with-deps chromium
       - name: Start local app
         shell: bash
@@ -103,6 +103,7 @@ jobs:
         shell: bash
         env:
           HCM_PROCESS_MONITOR_ENABLED: 'false'
+          HCM_WORKER_360_ENABLED: 'false'
           APP_BASE_URL: http://127.0.0.1:3001
           TRUSTED_APP_ORIGINS: http://127.0.0.1:3001
         run: |
@@ -113,5 +114,5 @@ jobs:
           done
           echo 'Local disabled monitor unavailable'
           exit 1
-      - name: Browser QA — HCM navigation/role/tenant/paging/mobile/default-off
+      - name: Browser QA — HCM navigation/role/tenant/a11y/reflow/default-off
         run: node scripts/hcm-process-monitor-synthetic-browser.mjs

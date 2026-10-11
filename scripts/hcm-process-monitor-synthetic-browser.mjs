@@ -1,5 +1,31 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { chromium } from "playwright";
+
+const require = createRequire(import.meta.url);
+const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+
+/** Automated semantic checks complement, but do not replace, human screen-reader QA.
+ * Output rule identifiers/counts only; never serialize payroll/worker DOM contents.
+ */
+async function assertHcmSemantics(page, label) {
+  await page.addScriptTag({ content: axeSource });
+  const violations = await page.evaluate(async () => {
+    const result = await window.axe.run(document, {
+      runOnly: { type: "rule", values: [
+        "aria-valid-attr", "aria-valid-attr-value", "button-name", "link-name",
+        "label", "duplicate-id", "document-title", "html-has-lang",
+        "landmark-one-main",
+      ] },
+    });
+    return result.violations.map(({ id, impact, nodes }) => ({
+      id, impact, count: nodes.length,
+    }));
+  });
+  assert.deepEqual(violations, [], label + " semantic accessibility failures");
+}
+
 
 const app = "http://127.0.0.1:3000";
 const off = "http://127.0.0.1:3001";
@@ -68,14 +94,19 @@ async function main() {
       .getAttribute("aria-current"), "page");
     assert.equal(await navigation.getByRole("link", { name: "HCM Inbox" })
       .getAttribute("href"), "/app?organizationId=1&workspacePage=People&hcmPanel=bp");
-    await navigation.getByRole("link", { name: "People Home" }).click();
+    await assertHcmSemantics(page, "Process Monitor");
+    // Keyboard activation, not programmatic click-only navigation.
+    await navigation.getByRole("link", { name: "People Home" }).focus();
+    await page.keyboard.press("Enter");
     await page.getByRole("heading", { level: 1, name: "People Home" }).waitFor();
     const homeNav = page.getByRole("navigation", { name: "HCM workspace navigation" });
     assert.equal(await homeNav.getByRole("link", { name: "People Home" })
       .getAttribute("aria-current"), "page");
     assert.equal(await homeNav.getByRole("link", { name: "Process monitor" })
       .getAttribute("href"), "/hcm/process-monitor?organizationId=1");
-    await homeNav.getByRole("link", { name: "Process monitor" }).click();
+    await assertHcmSemantics(page, "People Home");
+    await homeNav.getByRole("link", { name: "Process monitor" }).focus();
+    await page.keyboard.press("Enter");
     await page.getByRole("heading", { level: 1, name: "Business Process Monitor" }).waitFor();
     await page.getByRole("navigation", { name: "HCM workspace navigation" })
       .getByRole("link", { name: "HCM Inbox" }).click();
@@ -143,6 +174,22 @@ async function main() {
     assert.equal(workerResponse?.status(), 200);
     await workerPage.getByRole("heading", { level: 1, name: "Worker 360" }).waitFor();
     await workerPage.getByRole("heading", { level: 2, name: "Fictional Employee" }).waitFor();
+    await workerPage.getByLabel("History as of (Philippine date)").waitFor();
+    await workerPage.getByRole("button", { name: "Refresh" }).waitFor();
+    await assertHcmSemantics(workerPage, "Worker 360");
+    // The source must be tenant-qualified, private and independent of the UI shell.
+    const workerApi = await browserGet(workerPage,
+      "/api/hcm/worker-360?organizationId=1&employeeId=1&asOfDate=2026-10-11");
+    assert.equal(workerApi.status, 200);
+    assert.equal(workerApi.data.tenantId, 1);
+    assert.equal(workerApi.data.employeeId, 1);
+    assert.ok(workerApi.cacheControl?.includes("no-store"));
+    assert.ok(!JSON.stringify(workerApi.data).includes("30000.00"),
+      "Worker 360 projection must not disclose the synthetic payroll rate");
+    const crossEmployer = await browserGet(workerPage,
+      "/api/hcm/worker-360?organizationId=2&employeeId=1&asOfDate=2026-10-11");
+    assert.equal(crossEmployer.status, 404,
+      "Worker ID from employer 1 must not resolve under employer 2");
     const workerNav = workerPage.getByRole("navigation", { name: "HCM workspace navigation" });
     assert.equal(await workerNav.getByRole("link", { name: "Worker 360" })
       .getAttribute("aria-current"), "page");
@@ -178,6 +225,14 @@ async function main() {
     }));
     assert.ok(workerWidths.content <= workerWidths.viewport + 1,
       "375px Worker 360 overflow: " + JSON.stringify(workerWidths));
+    // 320 CSS px reflow is an automated narrow-layout proxy, not a manual 200% zoom test.
+    await phone.setViewportSize({ width: 320, height: 800 });
+    const reflow = await phone.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      content: document.documentElement.scrollWidth,
+    }));
+    assert.ok(reflow.content <= reflow.viewport + 1,
+      "320px Worker 360 reflow failure: " + JSON.stringify(reflow));
     await mobile.close();
 
     // Company-wide bookkeeper can view People Home but cannot discover
@@ -198,6 +253,9 @@ async function main() {
     assert.equal(await financeNav.getByRole("link", { name: "HCM Inbox" }).count(), 0);
     assert.equal(await financeNav.getByRole("link", { name: "People directory" }).count(), 0);
     assert.equal(await financePage.getByRole("link", { name: "Open HCM Inbox" }).count(), 0);
+    const financeWorker = await browserGet(financePage,
+      "/api/hcm/worker-360?organizationId=1&employeeId=1");
+    assert.equal(financeWorker.status, 403, "Bookkeeper cannot access Worker 360 API");
     const financeWorkspace = await financePage.goto(
       app + "/app?organizationId=1&workspacePage=People&hcmPanel=bp",
       { waitUntil: "domcontentloaded", timeout: 60000 },
@@ -234,13 +292,21 @@ async function main() {
     const disabledPage = await session.newPage();
     const disabledResponse = await disabledPage.goto(off + "/hcm/process-monitor?organizationId=1");
     assert.equal(disabledResponse?.status(), 404);
+    const disabledWorker = await session.request.get(
+      off + "/api/hcm/worker-360?organizationId=1&employeeId=1");
+    assert.equal(disabledWorker.status(), 404);
+    const disabledWorkerPage = await disabledPage.goto(
+      off + "/hcm/worker-360?organizationId=1&employeeId=1");
+    assert.equal(disabledWorkerPage?.status(), 404);
     await session.close();
 
     console.log(JSON.stringify({
       status: "PASS", syntheticOnly: true, realEmployerProof: false,
       tenantIsolation: true, roleDenials: true, responsive375: true,
       keyboard: true, keysetPagination: true, statusFilter: true,
-      serverKillSwitch: true, productionCertified: false,
+      serverKillSwitch: true, semanticA11y: true, reflow320: true,
+      humanScreenReaderAccepted: false, stagingIsolationAttested: false,
+      productionCertified: false,
     }));
   } finally {
     await browser.close();
