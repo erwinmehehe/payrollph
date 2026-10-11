@@ -156,7 +156,7 @@ export default async function HcmCommandCenter({
                   </p>}
                   {canOpenSource(item.sourceUrl) ? (
                     <Link href={item.sourceUrl} className="mt-2 inline-block text-sm font-semibold text-emerald-800 underline">
-                      Open source workflow
+                      {item.source === "provisioning" ? "Open worker in People" : "Open source workflow"}
                     </Link>
                   ) : <p className="mt-2 text-xs text-slate-600">People workspace action unavailable to this role.</p>}
                 </li>)}

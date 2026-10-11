@@ -137,7 +137,6 @@ export async function GET(request: Request) {
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  await ensureLeavePayrollSchema();
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
@@ -154,42 +153,48 @@ export async function GET(request: Request) {
     return Response.json({ error: "An assigned organizational unit is required for scoped leave access." }, { status: 403 });
   }
 
-  let employeeIds: number[] | null = null;
+  // Scope the SQL query to the selected employer and authorized worker/unit.
+  // Never fetch another team's records and filter them only after retrieval.
+  const scopeConditions = [
+    eq(leaveRequests.organizationId, organizationId),
+    eq(employees.organizationId, organizationId),
+  ];
   if (access.role === "employee") {
     if (!user.employeeId) return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
-    employeeIds = [user.employeeId];
+    scopeConditions.push(eq(leaveRequests.employeeId, user.employeeId));
   } else if (!roleAllowed(access.role, LEAVE_ADMIN_ROLES)) {
     return Response.json({ error: "Your role cannot view leave requests." }, { status: 403 });
   } else if (!access.companyWide && access.orgUnitId) {
-    const team = await db.select({ id: employees.id }).from(employees)
-      .where(and(eq(employees.organizationId, organizationId), eq(employees.orgUnitId, access.orgUnitId)));
-    employeeIds = team.map((row) => row.id);
+    scopeConditions.push(eq(employees.orgUnitId, access.orgUnitId));
   }
 
+  // A non-member or disallowed role must not trigger legacy schema writers.
+  await ensureLeavePayrollSchema();
+
+  // Read only worker display fields; not sensitive HRIS columns.
   const rows = await db.select({
     leave: leaveRequests,
-    employee: employees,
+    employeeFirstName: employees.firstName,
+    employeeLastName: employees.lastName,
+    employeeAvatarInitials: employees.avatarInitials,
   })
     .from(leaveRequests)
     .innerJoin(employees, and(
       eq(leaveRequests.employeeId, employees.id),
       eq(employees.organizationId, organizationId),
     ))
-    .where(eq(leaveRequests.organizationId, organizationId))
+    .where(and(...scopeConditions))
     .orderBy(desc(leaveRequests.id));
 
-  const visible = employeeIds
-    ? rows.filter(({ leave }) => employeeIds!.includes(leave.employeeId))
-    : rows;
-  const evidence = await preciseEvidenceForRequests(organizationId, visible.map(({ leave }) => leave.id));
+  const evidence = await preciseEvidenceForRequests(organizationId, rows.map(({ leave }) => leave.id));
 
   return Response.json({
-    requests: visible.map(({ leave, employee }) => {
+    requests: rows.map(({ leave, employeeFirstName, employeeLastName, employeeAvatarInitials }) => {
       const precise = evidence.get(leave.id);
       return {
         ...leave,
-        employeeName: `${employee.firstName} ${employee.lastName}`,
-        avatarInitials: employee.avatarInitials,
+        employeeName: `${employeeFirstName} ${employeeLastName}`,
+        avatarInitials: employeeAvatarInitials,
         intervalSet: precise?.intervalSet ?? null,
         intervals: precise?.intervals ?? [],
       };
@@ -203,7 +208,6 @@ export async function POST(request: Request) {
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  await ensureLeavePayrollSchema();
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -219,6 +223,14 @@ export async function POST(request: Request) {
   if (access.role === "manager" && deriveMyTeamScope(access)?.kind !== "unit") {
     return Response.json({ error: "A manager must have an assigned organizational unit." }, { status: 403 });
   }
+  // All leave actions are restricted before any request-time compatibility DDL.
+  if (access.role !== "employee" && !roleAllowed(access.role, LEAVE_ADMIN_ROLES)) {
+    return Response.json({ error: "Your role cannot manage leave requests." }, { status: 403 });
+  }
+  if (access.role === "employee" && !user.employeeId) {
+    return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
+  }
+  await ensureLeavePayrollSchema();
 
   if (action === "revise_intervals") {
     const leaveId = Number(body.leaveId);

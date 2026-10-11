@@ -122,6 +122,11 @@ test("People Home denies non-member, employee-only and unit HR while isolating t
     const own = await loadPeopleHomeWorklist(alpha.id, context);
     assert.deepEqual(own.decisions.items.map((item) => item.sourceId), [alphaStep.id]);
     assert.ok(own.followUps.items.some((item) => item.source === "provisioning"));
+    const alphaHandoff = own.followUps.items.find((item) => item.source === "provisioning");
+    assert.equal(alphaHandoff?.subjectEmployeeId, alphaWorker.id);
+    assert.equal(alphaHandoff?.sourceUrl,
+      "/app?organizationId=" + alpha.id + "&workspacePage=People&focusEmployeeId=" + alphaWorker.id);
+    assert.ok(!alphaHandoff?.sourceUrl.includes("focusEmployeeId=" + betaWorker.id));
     assert.deepEqual(own.ownedCases.items.map((item) => item.sourceId), [alphaCase.id]);
     assert.ok(Object.values(own).every((section) =>
       section.items.every((item) => item.tenantId === alpha.id)));
@@ -168,6 +173,11 @@ test("People Home denies non-member, employee-only and unit HR while isolating t
       .where(eq(userOrganizations.id, betaMembership.id));
     const other = await loadPeopleHomeWorklist(beta.id, context);
     assert.deepEqual(other.decisions.items.map((item) => item.sourceId), [betaStep.id]);
+    const betaHandoff = other.followUps.items.find((item) => item.source === "provisioning");
+    assert.equal(betaHandoff?.subjectEmployeeId, betaWorker.id);
+    assert.equal(betaHandoff?.sourceUrl,
+      "/app?organizationId=" + beta.id + "&workspacePage=People&focusEmployeeId=" + betaWorker.id);
+    assert.ok(!betaHandoff?.sourceUrl.includes("focusEmployeeId=" + alphaWorker.id));
     assert.deepEqual(other.ownedCases.items.map((item) => item.sourceId), [betaCase.id]);
     assert.ok(Object.values(other).every((section) =>
       section.items.every((item) => item.tenantId === beta.id)));
