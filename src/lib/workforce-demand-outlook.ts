@@ -158,7 +158,8 @@ export function forecastHistoricalStaffingRequirements(input: {
   const cohorts = new Set<string>();
   const uniqueSource = new Set<string>();
   for (const row of input.rows) {
-    const dateTime = dayTime(row.workDate);
+    let dateTime: number;
+    try { dateTime = dayTime(row.workDate); } catch { return empty("source_review"); }
     if (row.worksiteId !== input.worksiteId
       || !Number.isSafeInteger(row.shiftDefinitionId) || row.shiftDefinitionId <= 0
       || (row.jobProfileId !== null
