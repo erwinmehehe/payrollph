@@ -78,6 +78,24 @@ test("PostgreSQL 16 catalog audits all six additional request-schema writers aft
           spec,
         );
       } catch (error) {
+        if (spec.label === "marketing") {
+          // Synthetic, disposable PostgreSQL only; metadata, never employer
+          // records or SQL parameter values. Useful when Drizzle drifts.
+          const indexes = await client.query(
+            "SELECT idx.relname AS name, pg_catalog.pg_get_indexdef(i.indexrelid) AS ddl " +
+            "FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class idx ON idx.oid=i.indexrelid " +
+            "JOIN pg_catalog.pg_class t ON t.oid=i.indrelid " +
+            "WHERE t.relname='marketing_leads' ORDER BY idx.relname",
+          );
+          const constraints = await client.query(
+            "SELECT conname AS name, pg_catalog.pg_get_constraintdef(oid) AS definition " +
+            "FROM pg_catalog.pg_constraint WHERE conrelid='public.marketing_leads'::regclass " +
+            "ORDER BY conname",
+          );
+          console.error("Synthetic marketing catalog mismatch:", JSON.stringify({
+            indexes: indexes.rows, constraints: constraints.rows,
+          }));
+        }
         incompatible.push(spec.label + ": " + (error instanceof Error ? error.message : String(error)));
       }
       const after = await client.query(
