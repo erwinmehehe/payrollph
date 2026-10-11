@@ -149,3 +149,23 @@ test("dashboard and demo are still gated through the shared compatibility helper
   assert.ok(dashboard.includes("await ensureCoreCompatibilitySchema()"));
   assert.ok(demo.includes("await ensureCoreCompatibilitySchema()"));
 });
+
+
+test("read-only core readiness is independent of cached legacy DDL and cannot backfill secrets", () => {
+  const source = readFileSync("src/lib/core-schema-compat.ts", "utf8");
+  assert.match(source, /let coreSchemaReadOnlyReady = false/);
+  assert.match(source, /let coreSchemaReadOnlyInFlight: Promise<void> \| null = null/);
+  assert.ok(source.indexOf('if (mode === "read-only")') < source.indexOf('if (coreSchemaReady) return'),
+    "legacy readiness cache must not bypass a new read-only catalog check");
+  assert.match(source, /coreSchemaReadOnlyReady = true/);
+  assert.match(source, /coreSchemaReadOnlyInFlight = null/);
+  assert.match(source, /CORE_SCHEMA_LEGACY_MIGRATION_INFLIGHT/);
+  for (const name of [
+    "CORE_SCHEMA_READONLY_BANK_BACKFILL_FORBIDDEN",
+    "CORE_SCHEMA_READONLY_GOVERNMENT_ID_BACKFILL_FORBIDDEN",
+  ]) assert.ok(source.includes(name), name);
+  assert.ok(source.includes("client?.release(!safeToReuse)"),
+    "aborted or indeterminate compatibility DDL transactions must discard the pool client");
+  assert.ok(source.includes('await client.query("ROLLBACK")'),
+    "legacy migration failure still requires rollback");
+});
