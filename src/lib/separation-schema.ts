@@ -1,8 +1,40 @@
 import { pool } from "@/db";
+import type { PoolClient } from "pg";
+import { coreSchemaCompatibilityMode } from "@/lib/core-schema-readonly";
+import { separationSchemaSpec, verifyRequestSchemaReadOnly } from "@/lib/request-schema-readonly";
 
 let separationSchemaPromise: Promise<void> | null = null;
+let separationReadOnlyReady = false;
+let separationReadOnlyInFlight: Promise<void> | null = null;
 
 export function ensureSeparationSchema() {
+  // Use independent readiness caches: even an earlier legacy DDL call
+  // cannot bypass the opt-in read-only catalog check for final-pay records.
+  const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+  if (mode === "read-only") {
+    if (separationReadOnlyReady) return Promise.resolve();
+    if (separationReadOnlyInFlight) return separationReadOnlyInFlight;
+    separationReadOnlyInFlight = (async () => {
+      let client: PoolClient | null = null;
+      let verified = false;
+      try {
+        client = await pool.connect();
+        const connected = client;
+        await verifyRequestSchemaReadOnly(
+          (sql, parameters) => connected.query(sql, parameters),
+          separationSchemaSpec,
+        );
+        verified = true;
+        separationReadOnlyReady = true;
+      } finally {
+        // Catalog failure or failed ROLLBACK makes the connection unsafe.
+        client?.release(!verified);
+        separationReadOnlyInFlight = null;
+      }
+    })();
+    return separationReadOnlyInFlight;
+  }
+
   separationSchemaPromise ??= (async () => {
     const client = await pool.connect();
     try {
