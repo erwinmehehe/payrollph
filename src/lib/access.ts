@@ -1,8 +1,9 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, gte, isNull, lte, ne, or } from "drizzle-orm";
 import { db } from "@/db";
 import { orgUnits, userOrganizations } from "@/db/schema";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 import { roleGateAllowed, type RoleGatePermission } from "@/lib/permissions";
+import { manilaCalendarDate } from "@/lib/payroll-period-ui";
 
 export type AccessScope = {
   organizationId: number;
@@ -33,9 +34,13 @@ export async function getAccess(userId: number, organizationId: number): Promise
 
   let orgUnitName: string | null = null;
   if (membership.orgUnitId) {
+    const today = manilaCalendarDate();
     const [unit] = await db.select().from(orgUnits).where(and(
       eq(orgUnits.id, membership.orgUnitId),
       eq(orgUnits.organizationId, organizationId),
+      membership.role === "manager" ? eq(orgUnits.active, true) : undefined,
+      membership.role === "manager" ? or(isNull(orgUnits.effectiveFrom), lte(orgUnits.effectiveFrom, today)) : undefined,
+      membership.role === "manager" ? or(isNull(orgUnits.effectiveUntil), gte(orgUnits.effectiveUntil, today)) : undefined,
     )).limit(1);
     // A manager may act only for a unit that actually belongs to the selected
     // employer and is active. Stale or cross-employer assignments fail closed.
@@ -139,10 +144,13 @@ export async function assertMembership(userId: number, organizationId: number): 
     if (!Number.isSafeInteger(row.orgUnitId) || !row.orgUnitId || row.orgUnitId <= 0) {
       return Response.json({ error: "An assigned organizational unit is required for manager access." }, { status: 403 });
     }
+    const today = manilaCalendarDate();
     const [unit] = await db.select({ id: orgUnits.id }).from(orgUnits).where(and(
       eq(orgUnits.id, row.orgUnitId),
       eq(orgUnits.organizationId, organizationId),
       eq(orgUnits.active, true),
+      or(isNull(orgUnits.effectiveFrom), lte(orgUnits.effectiveFrom, today)),
+      or(isNull(orgUnits.effectiveUntil), gte(orgUnits.effectiveUntil, today)),
     )).limit(1);
     if (!unit) {
       return Response.json({ error: "The assigned manager unit is not active in this employer." }, { status: 403 });
