@@ -64,8 +64,9 @@ import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll,
 import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
+import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 
-export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false, allowHirePayrollReview = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean; allowHirePayrollReview?: boolean }) {
+export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean }) {
   const searchParams = useSearchParams();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
@@ -85,10 +86,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
     pilotFocusEnabled,
     demoMode: Boolean(demoRole),
   });
-  // Only the separately authorized hire-to-payroll view may deep-link
-  // back to these two existing HR pages. Never grant navigation outside
-  // role/plan, selected-employer, demo and pilot-focus restrictions.
-  const allowedHirePayrollPages = workspacePagesForRole(initialData.access?.role);
+  // Only company-wide People operators can return from the read-only
+  // payroll input review; managers and demo users retain their own routes.
+  const reviewPages = workspacePagesForRole(initialData.access?.role);
   const linkedHirePayrollPage =
     allowHirePayrollReview && !pilotFocusEnabled && !demoRole &&
     initialData.access?.companyWide &&
@@ -96,7 +96,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
     initialData.selectedOrganization.accountType !== "freelancer" &&
     (requestedWorkspacePage === "Recruitment" ||
       requestedWorkspacePage === "Time & attendance") &&
-    (!allowedHirePayrollPages || allowedHirePayrollPages.includes(requestedWorkspacePage))
+    (!reviewPages || reviewPages.includes(requestedWorkspacePage))
       ? requestedWorkspacePage : null;
   const initialPage = demoInfo?.landingPage ??
     (searchParams.get("workspacePage") === "People" &&
@@ -110,7 +110,19 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
   const [busy, setBusy] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"organization" | "team">("organization");
-  const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(null);
+  // A source-link can focus only a worker already in this selected employer's
+  // authorized People snapshot. A stale or cross-employer URL opens no drawer.
+  const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(() =>
+    resolvePeopleEmployeeFocus({
+      requestedPage: requestedWorkspacePage,
+      requestedOrganizationId: searchParams.get("organizationId"),
+      requestedEmployeeId: searchParams.get("focusEmployeeId"),
+      selectedOrganizationId: initialData.selectedOrganization.id,
+      access: initialData.access,
+      authorizedEmployees: initialData.employees,
+      serverAuthorized: allowPeopleFocus,
+      demoMode: Boolean(demoRole),
+    }));
 
   // Modals kept from the original build, all still server-authorised.
   const [newPayrollOpen, setNewPayrollOpen] = useState(false);

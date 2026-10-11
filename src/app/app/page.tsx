@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function WorkspacePage({ searchParams }: { searchParams: Promise<{ organizationId?: string | string[] }> }) {
+export default async function WorkspacePage({ searchParams }: { searchParams: Promise<{ organizationId?: string | string[]; focusEmployeeId?: string | string[]; workspacePage?: string | string[] }> }) {
   const user = await getSessionUser();
 
   if (!user) redirect("/login");
@@ -37,7 +37,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
     return <SelfServicePortal />;
   }
 
-  const { organizationId: requestedValue } = await searchParams;
+  const { organizationId: requestedValue, focusEmployeeId: requestedEmployeeId, workspacePage: requestedWorkspacePage } = await searchParams;
   let companyOrganizationId: number | null;
   if (requestedValue !== undefined) {
     const requestedOrganizationId = explicitHcmEmployerId(requestedValue);
@@ -81,8 +81,15 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
   const data = await getDashboardData(companyOrganizationId);
   const pilotFocusEnabled = pilotFocusEnabledForOrganization(companyOrganizationId);
   const access = data.access;
-  // Source-review navigation is not a permission grant. Apply the same
-  // selected-employer, private pilot and custom-deny gate as its server route.
+
+  // A guessed worker deep link cannot bypass the People Home tenant allowlist,
+  // SSO/custom-deny role gate, or the client-side authorized roster check.
+  const allowPeopleFocus = requestedWorkspacePage === "People" &&
+    typeof requestedEmployeeId === "string" &&
+    /^[1-9]\d*$/.test(requestedEmployeeId) &&
+    peopleHomeEnabledForOrganization(companyOrganizationId) &&
+    !(await assertOrganizationRole(user.id, companyOrganizationId, PEOPLE_ADMIN_ROLES));
+  // Source review is opt-in for one legal employer and explicit HR permission.
   const allowHirePayrollReview = !pilotFocusEnabled &&
     hirePayrollReviewEnabledForEmployer(companyOrganizationId) &&
     !!access?.companyWide && ["owner", "admin", "hr"].includes(access.role) &&
@@ -105,7 +112,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       )}
       {!pilotFocusEnabled && peopleHomeEnabledForOrganization(data.selectedOrganization.id) && canOpenPeopleHome(access) && (<Link href={`/hcm/command-center?organizationId=${data.selectedOrganization.id}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>) }
     </div>
-    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} pilotFocusEnabled={pilotFocusEnabled} allowHirePayrollReview={allowHirePayrollReview} />
+    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} pilotFocusEnabled={pilotFocusEnabled} allowPeopleFocus={allowPeopleFocus} allowHirePayrollReview={allowHirePayrollReview} />
   </>;
 }
 

@@ -58,6 +58,26 @@ test("dashboard requires a valid manager unit before loading any employer record
   assert.ok(page.includes("notFound()"));
 });
 
+test("leave endpoints reject unauthorised employers before request-time schema writers", () => {
+  const route = readFileSync("src/app/api/leave/route.ts", "utf8");
+  const start = route.indexOf("export async function GET(");
+  const postAt = route.indexOf("export async function POST(", start);
+  const sections = [route.slice(start, postAt), route.slice(postAt)];
+  for (const section of sections) {
+    const validOrg = section.indexOf("if (!Number.isInteger(organizationId))");
+    const membership = section.indexOf("const deniedMembership = await assertMembership(user.id, organizationId)");
+    const access = section.indexOf("const access = await getAccess(user.id, organizationId)");
+    const schema = section.indexOf("await ensureLeavePayrollSchema()");
+    assert.ok(validOrg >= 0 && validOrg < membership && membership < access && access < schema,
+      "Invalid employers, nonmembers and denied scoped access must not invoke request-time DDL");
+  }
+  const get = sections[0];
+  const post = sections[1];
+  assert.ok(get.indexOf('Your role cannot view leave requests.') < get.indexOf("await ensureLeavePayrollSchema()"));
+  assert.ok(post.indexOf('Your role cannot manage leave requests.') < post.indexOf("await ensureLeavePayrollSchema()"));
+  assert.ok(post.indexOf('Employee profile is not linked.') < post.indexOf("await ensureLeavePayrollSchema()"));
+});
+
 test("leave reads filter all assigned-unit staff and reject missing manager unit", () => {
   const source = readFileSync("src/app/api/leave/route.ts", "utf8");
   const start = source.indexOf("export async function GET(");
@@ -70,7 +90,13 @@ test("leave reads filter all assigned-unit staff and reject missing manager unit
   assert.match(get, /else if \(!access\.companyWide && access\.orgUnitId\)/);
   assert.match(get, /eq\(employees\.organizationId, organizationId\)/);
   assert.match(get, /eq\(employees\.orgUnitId, access\.orgUnitId\)/);
-  assert.match(get, /rows\.filter\(\(\{ leave \}\) => employeeIds!\.includes\(leave\.employeeId\)\)/);
+  assert.match(get, /eq\(leaveRequests\.employeeId, user\.employeeId\)/);
+  assert.match(get, /eq\(leaveRequests\.organizationId, organizationId\)/);
+  assert.match(get, /where\(and\(\.\.\.scopeConditions\)\)/);
+  assert.match(get, /innerJoin\(employees, and\(/);
+  assert.ok(!get.includes("rows.filter("), "Do not filter leave only after retrieving other teams.");
+  assert.ok(!get.includes("employeeIds"), "Apply authorized employee scope in SQL.");
+  assert.ok(!get.includes("employee: employees"), "Do not read unnecessary private employee fields.");
   assert.ok(get.includes('access.role !== "employee" && !access.companyWide'));
   assert.ok(!get.includes('access.role === "manager" && !access.companyWide && access.orgUnitId'));
 });

@@ -10,6 +10,7 @@ import { buildWfmManagerActionQueue, phWorkDateAt } from "@/lib/workforce-manage
 import { WorkforceLiveFloor } from "./workforce-live-floor";
 import { WorkforcePlanningPreviewPanel } from "./workforce-planning-preview-panel";
 import { WorkforceLaborCalibrationPanel } from "./workforce-labor-calibration-panel";
+import { WorkforceDemandOutlookPanel } from "./workforce-demand-outlook-panel";
 import { previewWorkforceRecovery } from "@/lib/workforce-planning-preview";
 
 type Shift = {
@@ -717,6 +718,16 @@ export function WorkforceCoveragePanel({
         loading={loading}
         onReviewHistory={() => setStartDate(addDays(planningToday, -14))}
       />}
+
+      {payload && process.env.NEXT_PUBLIC_WFM_HISTORICAL_OUTLOOK_ENABLED === "true" && (
+        <WorkforceDemandOutlookPanel
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
+          shifts={payload.shifts}
+          jobProfiles={payload.jobProfiles}
+        />
+      )}
 
       <WorkforceLiveFloor organizationId={organizationId} />
 
