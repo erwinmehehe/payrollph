@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import test from 'node:test';
@@ -47,6 +47,10 @@ test('unexpected SQL file names and symlinked SQL are not silently assigned rece
   try {
     writeFileSync(join(dir, 'unnumbered.sql'), 'SELECT 1');
     assert.throws(() => inventoryMigrationSources(dir), /Unclassified/);
+    rmSync(join(dir, 'unnumbered.sql'));
+    symlinkSync(join(dir, 'baseline.sql'), join(dir, '0111_alias.sql'));
+    assert.throws(() => inventoryMigrationSources(dir), /Unclassified/,
+      'symlinked SQL must not be used as a migration receipt identity');
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 test('only separately evidenced full-path migration receipts reconcile', () => {
