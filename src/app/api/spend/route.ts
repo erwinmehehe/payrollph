@@ -1,7 +1,7 @@
 
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, expenseClaims, expenseReports, expenseReportItems, spendCards, spendCardTransactions } from "@/db/schema";
+import { auditEvents, employees, expenseClaims, expenseReports, expenseReportItems, spendCards, spendCardTransactions } from "@/db/schema";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { enforceSameOriginMutation } from "@/lib/security-request";
@@ -132,10 +132,13 @@ export async function POST(request: Request) {
       if (!Number.isSafeInteger(cents) || cents <= 0) throw new Error("Invalid claim total.");
       const [created] = await tx.insert(expenseReports).values({ organizationId, employeeId, title, totalAmount: (cents / 100).toFixed(2), submittedByUserId: user.id }).returning();
       await tx.insert(expenseReportItems).values(claimIds.map(claimId => ({ organizationId, reportId: created.id, claimId })));
+      await tx.insert(auditEvents).values({
+        organizationId, actor: user.name, action: "Expense report submitted", resource: String(created.id),
+        metadata: { claimIds, employeeId, reportId: created.id, submittedByUserId: user.id },
+      });
       return created;
     }).catch(e => e instanceof Error ? e : new Error("Report failed."));
     if (report instanceof Error) return Response.json({ error: report.message }, { status: 409 });
-    await recordAuditEvent({ organizationId, actor: user.name, action: "Expense report submitted", resource: String(report.id), metadata: { claimIds, employeeId } });
     return Response.json(report, { status: 201 });
   }
   return Response.json({ error: "Unknown action." }, { status: 422 });
@@ -170,9 +173,12 @@ export async function PATCH(request: Request) {
       inArray(expenseClaims.id, claimIds), eq(expenseClaims.status, "pending"),
     )).returning({ id: expenseClaims.id });
     if (rows.length !== claimIds.length) throw new Error("One or more claims already changed; refresh report.");
+    await tx.insert(auditEvents).values({
+      organizationId: existing.organizationId, actor: user.name, action: "Expense report " + status,
+      resource: String(id), metadata: { reportId: id, employeeId: existing.employeeId, decidedByUserId: user.id },
+    });
     return report;
   }).catch(e => e instanceof Error ? e : new Error("Decision failed."));
   if (outcome instanceof Error) return Response.json({ error: outcome.message }, { status: 409 });
-  await recordAuditEvent({ organizationId: existing.organizationId, actor: user.name, action: "Expense report " + status, resource: String(id), metadata: { reportId: id, employeeId: existing.employeeId } });
   return Response.json(outcome);
 }
