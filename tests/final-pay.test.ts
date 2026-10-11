@@ -48,6 +48,26 @@ test("unknown or cross-year retro source fails closed instead of guessing the 13
   assert.equal(retroSourceTaxYear("2026-01-30", "2026-01-15"), null);
 });
 
+test("invalid calendar dates and retro amounts fail closed without altering legitimate leap-day sources", () => {
+  assert.equal(retroSourceTaxYear("2024-02-29", "2024-03-15"), 2024);
+  assert.equal(retroSourceTaxYear("2025-02-29", "2025-03-15"), null);
+  assert.equal(retroSourceTaxYear("2026-02-30", "2026-03-15"), null);
+  assert.equal(retroSourceTaxYear("2026-13-01", "2026-13-15"), null);
+  assert.equal(retroSourceTaxYear("2026-00-01", "2026-01-15"), null);
+  assert.equal(retroSourceTaxYear("2026-04-31", "2026-05-15"), null);
+  assert.equal(retroSourceTaxYear("2025-12-31", "2026-01-01"), null);
+  const verified = { taxYear: 2026, sourceYearByAdjustmentId: new Map([[42, 2026]]) };
+  for (const amount of [undefined, "", "not-a-number", Number.NaN, Infinity]) {
+    assert.throws(
+      () => readBasicAndThirteenth([{ code: "RETRO-42", amount }], verified),
+      /FINAL_PAY_RETRO_AMOUNT_INVALID/,
+    );
+  }
+  assert.equal(readBasicAndThirteenth(
+    [{ code: "RETRO-42", amount: "-100.01" }], verified,
+  ).basic, -100.01);
+});
+
 test("final pay computes 13th month from actual annual basic earned and subtracts amounts already paid", () => {
   const result = computeFinalPay({
     releasedBasicYtd: 110000,
