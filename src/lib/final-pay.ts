@@ -4,9 +4,22 @@ import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
 
 export type FinalPayLine = { code?: string; label?: string; amount?: string | number; notes?: string[] };
 
+/** Year of the original released payroll cutoff, not the later retro payout. */
+export type RetroSourceAttribution = {
+  taxYear: number;
+  sourceYearByAdjustmentId: ReadonlyMap<number, number | null>;
+};
+
+/** A source cutoff crossing calendar years needs payroll review, not a guessed year. */
+export function retroSourceTaxYear(periodStart: string, periodEnd: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(periodStart) || !/^\d{4}-\d{2}-\d{2}$/.test(periodEnd)
+    || periodStart > periodEnd || periodStart.slice(0, 4) !== periodEnd.slice(0, 4)) return null;
+  return Number(periodEnd.slice(0, 4));
+}
 
 
-export function readBasicAndThirteenth(lineItems: unknown) {
+
+export function readBasicAndThirteenth(lineItems: unknown, attribution?: RetroSourceAttribution) {
   const lines = Array.isArray(lineItems) ? lineItems as FinalPayLine[] : [];
   let basic = 0;
   let thirteenthPaid = 0;
@@ -21,11 +34,26 @@ export function readBasicAndThirteenth(lineItems: unknown) {
     const code = String(line.code ?? "").toUpperCase();
     const label = String(line.label ?? "").toLowerCase();
 
-    // Effective-dated RETRO entries are corrections to BASIC salary from a
-    // previously released cutoff, so they belong in the 13th-month base.
+    // A retro settlement paid in this tax year can correct BASIC pay earned
+    // in a previous calendar year. Attribute it to the original released
+    // cutoff; do not inflate the 13th-month base for the settlement year.
+    let eligibleRetroBasic = false;
+    if (code.startsWith("RETRO-")) {
+      const match = /^RETRO-(\d+)$/.exec(code);
+      const originalYear = match && attribution
+        ? attribution.sourceYearByAdjustmentId.get(Number(match[1]))
+        : undefined;
+      if (!Number.isInteger(originalYear) || !Number.isInteger(attribution?.taxYear)) {
+        throw new Error(
+          "FINAL_PAY_RETRO_SOURCE_YEAR_UNVERIFIED: Reconcile the original payroll cutoff for " +
+          code + " before calculating 13th-month final pay.",
+        );
+      }
+      eligibleRetroBasic = originalYear === attribution!.taxYear;
+    }
     if (
       code === "BASIC"
-      || code.startsWith("RETRO-")
+      || eligibleRetroBasic
       || (code.startsWith("LEAVE-") && !code.startsWith("LEAVE_CONV-"))
       || code === "LATE"
       || code === "UT"
