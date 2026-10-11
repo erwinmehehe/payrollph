@@ -5561,6 +5561,7 @@ export const spendCards = pgTable("spend_cards", {
   index("spend_cards_org_idx").on(t.organizationId, t.employeeId),
   uniqueIndex("spend_cards_ref_unique").on(t.organizationId, t.reference),
   check("spend_card_last_four_check", sql`${t.lastFour} ~ '^[0-9]{4}$'`),
+  check("spend_card_state_check", sql`${t.status} in ('registered','closed')`),
 ]);
 
 /** Employer-paid card charges stay entirely separate from payroll reimbursements. */
