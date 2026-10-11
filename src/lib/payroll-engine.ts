@@ -2775,7 +2775,7 @@ function calculateEmployeePay(input: {
   }));
   const leaveAdjustmentTotal = leaveLines.reduce((sum, line) => sum + Number(line.amount), 0);
 
-  const wageCheck = isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth);
+  const wageCheck = isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth, input.payDate);
   const mweResolution = resolveMweClassification(
     input.mweClassifications ?? [],
     input.payDate,
