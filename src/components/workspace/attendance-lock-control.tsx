@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { LockKeyhole, ShieldCheck, UnlockKeyhole } from "lucide-react";
 import type { Notify } from "./types";
 import { Spinner, Status } from "./ui";
+import { useScopedAsyncResource } from "./use-scoped-async-resource";
 
 type LockRow = {
   id: number;
@@ -33,27 +34,21 @@ export function AttendanceLockControl({
   endDate: string;
   notify: Notify;
 }) {
-  const [payload, setPayload] = useState<LockPayload | null>(null);
   const [reason, setReason] = useState("Attendance cutoff review complete");
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const response = await fetch(
-        `/api/workforce/attendance-locks?organizationId=${organizationId}`,
-        { cache: "no-store" },
-      );
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error ?? "Could not load attendance locks.");
-      setPayload(body as LockPayload);
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not load attendance locks.", "err");
-    }
-  }, [notify, organizationId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const fetchLocks = useCallback(async (signal: AbortSignal) => {
+    const response = await fetch(
+      `/api/workforce/attendance-locks?organizationId=${organizationId}`,
+      { cache: "no-store", signal },
+    );
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error ?? "Could not load attendance locks.");
+    return body as LockPayload;
+  }, [organizationId]);
+  const onLoadError = useCallback((error: Error) => notify(error.message, "err"), [notify]);
+  const { data: payload, error: loadError, loading, reload: load } =
+    useScopedAsyncResource(String(organizationId), fetchLocks, onLoadError);
 
   const coveringLocks = useMemo(
     () => (payload?.locks ?? []).filter((row) =>
@@ -96,7 +91,7 @@ export function AttendanceLockControl({
           </div>
         </div>
         <div className="toolbar-spacer" />
-        <Status value={cutoffLock ? "Payroll cutoff locked" : attendanceLock ? "Capture locked" : "Open"} />
+        <Status value={loading ? "Loading locks" : loadError ? "Lock status unavailable" : cutoffLock ? "Payroll cutoff locked" : attendanceLock ? "Capture locked" : "Open"} />
       </div>
 
       {!payload?.canManage && (

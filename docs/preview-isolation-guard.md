@@ -35,3 +35,11 @@ An offline check against a sanitized, non-secret metadata fixture is also availa
 The owner/admin must remove Preview targeting from the final shared variables **without removing or changing the Production values**, create an isolated synthetic-only Preview PostgreSQL/Neon database and independent Preview-only secrets, and prove database identity and role/network separation out of band. Only then should authorized operators deploy to protected staging for an exact-SHA, two-tenant attendance/role/cutoff/mobile/rollback rehearsal with HR and security witnesses. This safeguard does not authorize a real employee clock-in, payroll release, bank transfer, live migration, or production feature activation.
 
 Track environment setup in issue #733, WFM acceptance in #691, main protection in #737, and employee Web Bundy work in PR #763.
+
+## Emergency deployment hold while Preview is not isolated
+
+The current `vercel.json` preserves existing `main: true` behavior, but explicitly sets `staging: false`, `preview: false`, and `**: false` under `git.deploymentEnabled`. The Vercel Git configuration treats these as branch rules; this is a **temporary source-level block on automatic staging/preview Git deployments**, including any unlisted branches. The lightweight `tests/vercel-preview-deployment-guard.test.mjs` is executed by the ordinary test suite and the dedicated `Vercel Git Deploy Policy (No Deploy)` pull-request workflow.
+
+This is **not** a complete deployment prohibition. It does not block manual CLI/API deployments, prevent an owner from changing project settings, prove what Vercel has already deployed, or isolate secrets. The production branch's auto-deploy behavior and the existing cron configuration are unchanged. A Vercel administrator must separately enforce authorized project-level deployment controls and fix the shared variables identified above.
+
+Do not restore any Preview/staging Git deployment allowance until an isolated synthetic-only database, independently scoped Preview encryption/auth secrets, protected preview deployment access, and the human HR/security acceptance requirements in issue #733 and #691 are verified. Require a separately reviewed code change to lift this temporary deployment hold; source-only merge is not a staging acceptance approval.

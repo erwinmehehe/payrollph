@@ -18,6 +18,7 @@ import {
 } from "@/db/schema";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
+import { safeAutomationWebhookContext } from "@/lib/automation-webhook-context";
 import { assignEmployeeScheduleGoverned } from "@/lib/workforce-schedule-assignment";
 import { generateAutomationEmployeeDocument } from "@/lib/automation-document-generation";
 import { createApprovalFromConfiguredChain } from "@/lib/approval-chains";
@@ -1544,11 +1545,10 @@ async function executeAction(input: {
       organizationId: input.organizationId,
       event: "automation.triggered",
       data: {
-        automationExecutionId: input.executionId,
-        employeeId: input.employeeId ?? null,
+        // Never send employee identifiers, event keys or the full internal
+        // execution context to an org-registered external webhook.
         trigger: input.trigger,
-        eventKey: input.eventKey,
-        context: input.context,
+        context: safeAutomationWebhookContext(input.trigger, input.context),
       },
     });
     return { type: action.type, deliveries };

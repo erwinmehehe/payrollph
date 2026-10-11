@@ -2,6 +2,7 @@
 
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
+import { PrivacyConsentFields } from "@/components/marketing/privacy-consent-fields";
 import { AlertTriangle, ArrowRight, CalendarDays, Check, LoaderCircle } from "lucide-react";
 import { readMarketingAttribution } from "@/lib/marketing-attribution-client";
 
@@ -16,6 +17,8 @@ export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact
   const [problems, setProblems] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [privacyConsent, setPrivacyConsent] = useState(false);
+  const [website, setWebsite] = useState("");
   const [result, setResult] = useState<Result | null>(null);
 
   const set =
@@ -33,7 +36,7 @@ export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact
       const response = await fetch("/api/demo-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, notes: variant === "contact" ? `[Contact: ${topic}] ${form.notes}` : form.notes, sourcePath: variant === "contact" ? "/contact" : "/book-demo", requestType: "demo", attribution: readMarketingAttribution() }),
+        body: JSON.stringify({ ...form, notes: variant === "contact" ? `[Contact: ${topic}] ${form.notes}` : form.notes, sourcePath: variant === "contact" ? "/contact" : "/book-demo", requestType: "demo", privacyConsent, website, attribution: readMarketingAttribution() }),
       });
       const payload = await response.json().catch(() => ({}));
 
@@ -153,6 +156,7 @@ export function BookDemoForm({ variant = "demo" }: { variant?: "demo" | "contact
         </label>
       </div>
 
+      <PrivacyConsentFields accepted={privacyConsent} onAcceptedChange={setPrivacyConsent} website={website} onWebsiteChange={setWebsite} />
       <button
         type="submit"
         disabled={saving}

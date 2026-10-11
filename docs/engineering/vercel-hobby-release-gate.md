@@ -33,3 +33,7 @@ See `docs/engineering/sql-migration-release-protocol.md` and `docs/payroll-certi
 ## Rollback
 
 If the release requires a live five-minute scheduler, **do not** simply restore the prior `vercel.json` on Hobby: the unsupported cron prevents deployment. Obtain the appropriate plan/external scheduler and separate operations approval first.
+
+## Interaction with the Preview isolation hold
+
+This branch preserves the merged `git.deploymentEnabled` policy from #783: only `main: true`; `preview: false`, `staging: false` and catch-all `**: false`. The Hobby fix removes only the unsupported cron registration; it does not reopen Preview deployments or provision Preview database credentials. `tests/vercel-preview-deployment-guard.test.mjs` checks both the main-only auto-deployment policy and the Hobby cron exclusion. Because `main` remains enabled, a later source merge can trigger a production build and must be authorized separately.

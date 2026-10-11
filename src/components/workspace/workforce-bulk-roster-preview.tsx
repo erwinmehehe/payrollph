@@ -10,6 +10,7 @@ import {
   type BulkPreviewShift,
 } from "@/lib/workforce-bulk-roster-preview";
 import { Metric, Status } from "./ui";
+import { useScopedAsyncResource } from "./use-scoped-async-resource";
 
 type RosterPage = {
   startDate: string;
@@ -47,11 +48,6 @@ export function WorkforceBulkRosterPreview({
   const [selection, setSelection] = useState<{ scope: string; ids: number[] } | null>(null);
   const [workDate, setWorkDate] = useState(() => rosterDateOffset(phWorkDateAt(), 1));
   const [shiftSelection, setShiftSelection] = useState<{ scope: string; value: string } | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  const [snapshot, setSnapshot] = useState<{ scope: string; data: RosterPage } | null>(null);
-  const [failure, setFailure] = useState<{ scope: string; message: string } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const pending = useRef<AbortController | null>(null);
   const pendingStageKey = useRef<{ signature: string; key: string } | null>(null);
   const activeScope = useRef("");
   const [stageIntent, setStageIntent] = useState<{ scope: string; reason: string; acknowledged: boolean } | null>(null);
@@ -67,57 +63,33 @@ export function WorkforceBulkRosterPreview({
     [selection, scope]);
   const shiftChoice = shiftSelection?.scope === scope ? shiftSelection.value : "";
 
-  const load = useCallback(async () => {
-    if (!enabled) return;
-    pending.current?.abort();
-    const controller = new AbortController();
-    pending.current = controller;
-    setLoading(true);
-    setFailure(null);
-    try {
-      const params = new URLSearchParams({
-        organizationId: String(organizationId), startDate: weekStart,
-        page: String(page), search: appliedSearch,
-      });
-      const response = await fetch("/api/workforce/team-roster?" + params, {
-        signal: controller.signal, cache: "no-store",
-      });
-      const body: unknown = await response.json();
-      if (!response.ok) throw new Error(response.status === 403
-        ? "Your account is not authorized for the team roster."
-        : "The authorized roster source could not be loaded.");
-      if (!body || typeof body !== "object") throw new Error("Invalid roster source.");
-      const value = body as RosterPage;
-      if (value.page !== page || value.startDate !== weekStart ||
-        !Array.isArray(value.weekDates) || value.weekDates.length !== 7 ||
-        !Array.isArray(value.rows) || value.rows.length > 20 ||
-        !Array.isArray(value.shifts)) {
-        throw new Error("Roster response does not match the requested scope.");
-      }
-      if (pending.current === controller && !controller.signal.aborted) {
-        setSnapshot({ scope, data: value });
-        setFailure(null);
-      }
-    } catch (error) {
-      if (pending.current === controller && !controller.signal.aborted) {
-        setFailure({ scope, message: error instanceof Error ? error.message : "Roster unavailable." });
-        setSnapshot(null);
-      }
-    } finally {
-      if (pending.current === controller && !controller.signal.aborted) {
-        setLoading(false);
-      }
+  const fetchRoster = useCallback(async (signal: AbortSignal) => {
+    const params = new URLSearchParams({
+      organizationId: String(organizationId), startDate: weekStart,
+      page: String(page), search: appliedSearch,
+    });
+    const response = await fetch("/api/workforce/team-roster?" + params, {
+      signal, cache: "no-store",
+    });
+    const body: unknown = await response.json();
+    if (!response.ok) throw new Error(response.status === 403
+      ? "Your account is not authorized for the team roster."
+      : "The authorized roster source could not be loaded.");
+    if (!body || typeof body !== "object") throw new Error("Invalid roster source.");
+    const value = body as RosterPage;
+    if (value.page !== page || value.startDate !== weekStart ||
+      !Array.isArray(value.weekDates) || value.weekDates.length !== 7 ||
+      !Array.isArray(value.rows) || value.rows.length > 20 ||
+      !Array.isArray(value.shifts)) {
+      throw new Error("Roster response does not match the requested scope.");
     }
-  }, [enabled, organizationId, weekStart, page, appliedSearch, scope]);
+    return { scope, data: value };
+  }, [organizationId, weekStart, page, appliedSearch, scope]);
 
-  useEffect(() => {
-    void load();
-    return () => pending.current?.abort();
-  }, [load, reloadKey]);
-
-
+  const { data: snapshot, error, loading, reload } = useScopedAsyncResource(scope, fetchRoster, undefined, enabled);
   const visible = enabled && snapshot?.scope === scope ? snapshot.data : null;
-  const currentFailure = enabled && failure?.scope === scope ? failure.message : null;
+  const currentFailure = error?.message ?? null;
+
   const today = phWorkDateAt();
   const { futureDates, chosenDate } = useMemo(() => {
     const futureDates = visible?.weekDates.filter(date => date > today) ?? [];
@@ -209,7 +181,7 @@ export function WorkforceBulkRosterPreview({
           <p>Choose authorized workers from one 20-person roster page, pick a future date and shift, and preview obvious overlap and source-evidence problems. No changes are saved or published here.</p>
         </div>
         <button type="button" className="secondary-button" disabled={!enabled || loading}
-          onClick={() => setReloadKey(n => n + 1)}>
+          onClick={() => void reload()}>
           <RefreshCcw size={15} aria-hidden="true"/> Refresh
         </button>
       </div>

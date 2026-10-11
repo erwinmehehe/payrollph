@@ -60,11 +60,9 @@ export function publicDemoRequestAllowed(
   request: Request,
   options: PublicDemoHostOptions = {},
 ) {
-  const requestUrlHost = normalizeHost(new URL(request.url).hostname);
-  const forwardedHost = normalizeHost(request.headers.get("x-forwarded-host")?.split(",")[0]);
-  const hostHeader = normalizeHost(request.headers.get("host"));
-
-  const candidates = [...new Set([requestUrlHost, forwardedHost, hostHeader].filter(Boolean))];
-
-  return candidates.some((hostname) => publicDemoHostAllowed(hostname, options));
+  // The framework's resolved request URL is the only host input here.
+  // Caller-supplied Host and X-Forwarded-Host must never independently authorize
+  // demo-account provisioning on another production/customer deployment.
+  const verifiedHost = normalizeHost(new URL(request.url).hostname);
+  return publicDemoHostAllowed(verifiedHost, options);
 }

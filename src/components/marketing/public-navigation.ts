@@ -53,6 +53,7 @@ export const PUBLIC_FOOTER_GROUPS: Array<{ label: string; links: PublicLink[] }>
       { label: "Trust center", href: "/trust" },
       { label: "Capability scorecard", href: "/scorecard" },
       { label: "Security", href: "/security" },
+      { label: "Privacy notice", href: "/privacy" },
       { label: "System status", href: "/status" },
       { label: "Evidence methodology", href: "/methodology" },
       { label: "Request trial access", href: "/trial" },
