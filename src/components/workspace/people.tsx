@@ -456,6 +456,19 @@ export function PeopleView({
         </div>
       )}
 
+      {process.env.NEXT_PUBLIC_HCM_ORG_EXPLORER_ENABLED === "true" &&
+        (process.env.NEXT_PUBLIC_HCM_ORG_EXPLORER_ORG_IDS ?? "").split(",")
+          .some((part) => part.trim() === String(data.selectedOrganization.id)) &&
+        data.access?.companyWide &&
+        ["owner", "admin", "hr"].includes(data.access.role) && (
+          <div className="mb-4 flex justify-end">
+            <Link className="secondary-button"
+              href={`/hcm/org-explorer?organizationId=${data.selectedOrganization.id}`}>
+              <Building2 size={16} aria-hidden="true" /> Organization & Positions
+            </Link>
+          </div>
+        )}
+
       {canManageLifecycle && (
         <HcmPeopleOperationsInbox
           organizationId={data.selectedOrganization.id}
