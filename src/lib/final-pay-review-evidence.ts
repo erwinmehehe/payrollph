@@ -1,3 +1,5 @@
+import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
+
 /** Reconciliation-only display/export of immutable separation financial evidence. */
 export type FinalPayReviewRecord = {
   id: number;
@@ -12,25 +14,31 @@ export type FinalPayReviewRecord = {
 };
 
 const money = (value: number) => (Math.round((value + Number.EPSILON) * 100) / 100).toFixed(2);
+const verifiedCsvMoney = (value: unknown) => {
+  const cents = storedMoneyCentavos(value);
+  return cents === null ? "UNVERIFIABLE" : (cents / 100).toFixed(2);
+};
 
 export function finalPayReviewShortfall(record: FinalPayReviewRecord) {
-  const gross = Number(record.grossFinalPay);
-  const tax = Number(record.taxAdjustment);
-  const statutory = Number(record.finalStatutoryDeductions);
-  const invalid = ![gross, tax, statutory].every(Number.isFinite) || gross < 0 || statutory < 0;
-  const total = invalid ? null : Math.max(0, statutory - gross - tax);
+  const gross = storedMoneyCentavos(record.grossFinalPay);
+  const tax = storedMoneyCentavos(record.taxAdjustment);
+  const statutory = storedMoneyCentavos(record.finalStatutoryDeductions);
+  const candidate = gross !== null && tax !== null && statutory !== null
+    && gross >= 0 && statutory >= 0 ? statutory - gross - tax : null;
+  const totalCents = candidate !== null && Number.isSafeInteger(candidate)
+    ? Math.max(0, candidate) : null;
   const snapshot = record.computationSnapshot ?? {};
-  const sourceTax = snapshot.unpaidTaxWithholding;
-  const sourceStatutory = snapshot.unpaidStatutoryDeductions;
-  const splitIsValid = !invalid && typeof sourceTax === "number" && typeof sourceStatutory === "number"
-    && Number.isFinite(sourceTax) && Number.isFinite(sourceStatutory)
+  const sourceTax = storedMoneyCentavos(snapshot.unpaidTaxWithholding);
+  const sourceStatutory = storedMoneyCentavos(snapshot.unpaidStatutoryDeductions);
+  const splitIsValid = totalCents !== null && sourceTax !== null && sourceStatutory !== null
     && sourceTax >= 0 && sourceStatutory >= 0
-    && Math.abs(sourceTax + sourceStatutory - (total ?? 0)) < 0.011;
+    && Number.isSafeInteger(sourceTax + sourceStatutory)
+    && sourceTax + sourceStatutory === totalCents;
   return {
-    total: total === null ? null : Number(money(total)),
-    tax: splitIsValid ? Number(money(sourceTax)) : null,
-    statutory: splitIsValid ? Number(money(sourceStatutory)) : null,
-    reconciliationRequired: total === null || total > 0.004,
+    total: totalCents === null ? null : totalCents / 100,
+    tax: splitIsValid ? sourceTax! / 100 : null,
+    statutory: splitIsValid ? sourceStatutory! / 100 : null,
+    reconciliationRequired: totalCents === null || totalCents > 0,
     splitRecorded: splitIsValid,
   };
 }
@@ -49,11 +57,11 @@ export function finalPayReviewCsv(record: FinalPayReviewRecord) {
     ["Employee number", record.employeeNo],
     ["Employee", record.employeeName],
     ["Separation record ID", String(record.id)],
-    ["Gross final pay (PHP)", money(Number(record.grossFinalPay))],
-    ["Tax adjustment (PHP; negative = collection)", money(Number(record.taxAdjustment))],
-    ["Requested final statutory deductions (PHP)", money(Number(record.finalStatutoryDeductions))],
-    ["Loan deductions applied (PHP)", money(Number(record.loanDeductions))],
-    ["Net final pay (PHP)", money(Number(record.netFinalPay))],
+    ["Gross final pay (PHP)", verifiedCsvMoney(record.grossFinalPay)],
+    ["Tax adjustment (PHP; negative = collection)", verifiedCsvMoney(record.taxAdjustment)],
+    ["Requested final statutory deductions (PHP)", verifiedCsvMoney(record.finalStatutoryDeductions)],
+    ["Loan deductions applied (PHP)", verifiedCsvMoney(record.loanDeductions)],
+    ["Net final pay (PHP)", verifiedCsvMoney(record.netFinalPay)],
     ["Unpaid mandatory deductions (PHP)", shortfall.total === null ? "UNVERIFIABLE" : money(shortfall.total)],
     ["Unpaid tax withholding (PHP)", shortfall.tax === null ? "NOT RECORDED - RECOMPUTE" : money(shortfall.tax)],
     ["Unpaid statutory deductions (PHP)", shortfall.statutory === null ? "NOT RECORDED - RECOMPUTE" : money(shortfall.statutory)],
