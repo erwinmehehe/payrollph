@@ -4,7 +4,7 @@ import {
   auditEvents, workforceDemandImportBatches, worksites,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa,
@@ -51,11 +51,14 @@ export async function GET(request:Request) {
     ![15,30,60].includes(intervalMinutes)){
     return Response.json({error:"Exact employer, worksite and interval required."},{status:400,headers});
   }
-  // Deny outsiders before revealing whether a merchant has an opted-in
-  // provider connector; the source configuration is not a membership oracle.
+  // Assert tenant session policy AND custom workforce permission overlays
+  // before revealing whether this employer has a configured provider grant.
+  const roleDenied=await assertOrganizationRole(
+    user.id,organizationId,WORKFORCE_MANAGER_ROLES,
+    "Scoped workforce manager access required.");
+  if(roleDenied)return roleDenied;
   const access=await getAccess(user.id,organizationId);
-  if(!access||!WORKFORCE_MANAGER_ROLES.some(role=>role===access.role)||
-    !await siteAuthorized(organizationId,worksiteId,access)) {
+  if(!access||!await siteAuthorized(organizationId,worksiteId,access)) {
     return Response.json({error:"Scoped workforce manager access required."},{status:403,headers});
   }
   if(!operationalDemandPilotAllowed(organizationId)||
@@ -120,8 +123,12 @@ export async function POST(request:Request) {
   let scoped;
   try{scoped=parseLoyverseSyncRequest(JSON.parse(body));}
   catch{return Response.json({error:"Exact, acknowledged historical POS sync request required."},{status:400,headers});}
+  const roleDenied=await assertOrganizationRole(
+    user.id,scoped.organizationId,PEOPLE_ADMIN_ROLES,
+    "Company-wide People administration required.");
+  if(roleDenied)return roleDenied;
   const access=await getAccess(user.id,scoped.organizationId);
-  if(!access||!access.companyWide||!PEOPLE_ADMIN_ROLES.some(role=>role===access.role)||
+  if(!access||!access.companyWide||
     !await siteAuthorized(scoped.organizationId,scoped.worksiteId,access)) {
     return Response.json({error:"Company-wide People admin and exact active PH worksite access required."},{status:403,headers});
   }
