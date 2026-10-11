@@ -148,6 +148,29 @@ const RAW_AUTOMATION_WORKFLOW_TEMPLATES = [
     ],
   },
   {
+    id: "workforce-employee-schedule-review",
+    version: 1,
+    category: "Workforce",
+    name: "Invite an employee to review their current schedule",
+    description: "Optional employee email and Workforce Ops task for an unread near-term shift or a changed previously acknowledged schedule. This is not absence, legally required notice, or pay consent.",
+    trigger: "workforce.schedule_review_due",
+    conditions: { version: 1, all: [], any: [] },
+    actions: [
+      {
+        type: "create_task",
+        title: "Check the worker's current schedule review status",
+        owner: "Workforce Ops",
+        kind: "automation",
+      },
+      {
+        type: "send_email",
+        recipient: "employee",
+        subject: "Please review your current work schedule",
+        body: "Your current schedule has an item to review. Sign in to your employee Time workspace and check the current dates and changes. This message is not evidence of an absence or agreement to a pay change; contact your manager if details are wrong.",
+      },
+    ],
+  },
+  {
     id: "compliance-contribution-discrepancy",
     version: 1,
     category: "Compliance",
