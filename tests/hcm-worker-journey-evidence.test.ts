@@ -126,6 +126,53 @@ test("unfinished onboarding, review and compensation approval remain in progress
   assert.equal(find({ ...input, latestCompensation: { id: 21, status: "failed" } }, "compensation").state, "attention");
 });
 
+test("goal-only worker shows limited goal evidence without inventing appraisal approval", () => {
+  const performance = find({
+    ...worker,
+    goalPreview: {
+      recent: [{ id: 81, status: "active" }, { id: 79, status: "completed" }],
+      hasMore: true,
+    },
+  }, "performance");
+  assert.equal(performance.state, "in_progress");
+  assert.deepEqual(performance.evidence, { source: "performance_goals", id: 81 });
+  assert.match(performance.detail, /1 of 2 sampled employee goals marked completed/);
+  assert.match(performance.detail, /additional goal records exist/);
+  assert.match(performance.detail, /no performance review is linked/);
+  assert.match(performance.detail, /does not complete a performance review/);
+});
+
+test("review milestone remains anchored to review evidence, regardless of goal progress", () => {
+  const performance = find({
+    ...worker,
+    latestPerformance: { id: 13, status: "completed" },
+    goalPreview: { recent: [{ id: 81, status: "active" }], hasMore: false },
+  }, "performance");
+  assert.equal(performance.state, "recorded");
+  assert.deepEqual(performance.evidence, { source: "performance_reviews", id: 13 });
+  assert.match(performance.detail, /no pay decision is implied/);
+  assert.match(performance.detail, /0 of 1 sampled employee goals marked completed/);
+  assert.equal(find({ ...worker, goalPreview: { recent: [], hasMore: false } }, "performance").state, "not_recorded");
+});
+
+test("worker journey reads bounded, tenant-scoped goal statuses after authorized employee lookup", () => {
+  const route = read("src/app/api/hcm/worker-profile/route.ts");
+  assert.ok(route.indexOf("assertScope(access, employee.orgUnitId)") < route.indexOf("recentEmployeeGoalRows"));
+  const queryStart = route.indexOf("db.select({\n      id: performanceGoals.id,");
+  assert.ok(queryStart >= 0);
+  const queryEnd = route.indexOf(".limit(21)", queryStart);
+  assert.ok(queryEnd > queryStart);
+  const query = route.slice(queryStart, queryEnd);
+  for (const scoped of [
+    "eq(performanceGoals.organizationId, organizationId)",
+    "eq(performanceGoals.employeeId, employeeId)",
+    'eq(performanceGoals.scope, "employee")',
+  ]) assert.ok(query.includes(scoped), scoped);
+  assert.ok(!/performanceGoals\.(description|title|weight|progress)/.test(query));
+  assert.ok(route.includes("recent: recentEmployeeGoalRows.slice(0, 20)"));
+  assert.ok(route.includes("hasMore: recentEmployeeGoalRows.length > 20"));
+});
+
 test("a released Separation record alone does not close open offboarding tasks or unreturned assets", () => {
   const base: WorkerJourneyInput = {
     ...worker,

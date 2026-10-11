@@ -355,10 +355,14 @@ export function PerformanceGovernancePanel({
     }
   }
 
+  // The parent selector mirrors the server's strict tenant, unit and cycle
+  // cascade. A missing employee unit never guesses a team parent.
+  const selectedEmployeeUnitId = employees.find((item) => String(item.id) === goalForm.employeeId)?.orgUnitId ?? null;
+  const selectedCycleId = goalForm.cycleId ? Number(goalForm.cycleId) : null;
   const parentGoals = goals.filter((goal) => {
-    if (goalForm.scope === "company") return false;
+    if (goalForm.scope === "company" || goal.cycleId !== selectedCycleId) return false;
     if (goalForm.scope === "team") return goal.scope === "company";
-    return goal.scope === "company" || goal.scope === "team";
+    return goal.scope === "team" && selectedEmployeeUnitId !== null && goal.orgUnitId === selectedEmployeeUnitId;
   });
 
   return (
@@ -418,8 +422,8 @@ export function PerformanceGovernancePanel({
             <div className="setting-form">
               <label>Scope<select value={goalForm.scope} onChange={(event) => setGoalForm({ ...goalForm, scope: event.target.value as typeof goalForm.scope, employeeId: "", orgUnitId: "", parentGoalId: "" })}><option value="company">Company</option><option value="team">Team</option><option value="employee">Employee</option></select></label>
               {goalForm.scope === "team" && <label>Team<select required value={goalForm.orgUnitId} onChange={(event) => setGoalForm({ ...goalForm, orgUnitId: event.target.value })}><option value="">Select org unit</option>{orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}</select></label>}
-              {goalForm.scope === "employee" && <label>Employee<select required value={goalForm.employeeId} onChange={(event) => setGoalForm({ ...goalForm, employeeId: event.target.value })}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName} · {employee.title}</option>)}</select></label>}
-              <label>Cycle<select value={goalForm.cycleId} onChange={(event) => setGoalForm({ ...goalForm, cycleId: event.target.value })}><option value="">No cycle</option>{cycles.filter((cycle) => cycle.status !== "completed").map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}</select></label>
+              {goalForm.scope === "employee" && <label>Employee<select required value={goalForm.employeeId} onChange={(event) => setGoalForm({ ...goalForm, employeeId: event.target.value, parentGoalId: "" })}><option value="">Select employee</option>{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName} · {employee.title}</option>)}</select></label>}
+              <label>Cycle<select value={goalForm.cycleId} onChange={(event) => setGoalForm({ ...goalForm, cycleId: event.target.value, parentGoalId: "" })}><option value="">No cycle</option>{cycles.filter((cycle) => cycle.status !== "completed").map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}</select></label>
               {goalForm.scope !== "company" && <label>Parent goal<select value={goalForm.parentGoalId} onChange={(event) => setGoalForm({ ...goalForm, parentGoalId: event.target.value })}><option value="">No parent</option>{parentGoals.map((goal) => <option key={goal.id} value={goal.id}>{goal.scope + ": " + goal.title}</option>)}</select></label>}
               <label>Title<input required value={goalForm.title} onChange={(event) => setGoalForm({ ...goalForm, title: event.target.value })} /></label>
               <label>Weight %<input type="number" min="0" max="100" value={goalForm.weight} onChange={(event) => setGoalForm({ ...goalForm, weight: event.target.value })} /></label>
