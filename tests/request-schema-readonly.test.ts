@@ -11,7 +11,7 @@ import {
 
 type Variant = {
   missingTable?: string; missingColumn?: string; columnType?: string;
-  missingDefault?: string; wrongIndexKeys?: string;
+  missingDefault?: string; wrongDefault?: string; wrongIndexKeys?: string;
   weakIndex?: string; wrongIndexTable?: string; missingConstraint?: boolean;
   transactionReadOnly?: boolean; failAt?: string; rollbackFails?: boolean;
 };
@@ -30,8 +30,10 @@ function simulate(spec: RequestSchemaSpec, variant: Variant = {}) {
         name: c.name,
         type: c.name === variant.columnType ? "text" : c.type,
         notNull: c.notNull,
-        columnDefault: c.name === variant.missingDefault
-          ? null : c.defaultTokens?.join(" ") ?? null,
+        columnDefault: c.name === variant.missingDefault ? null
+          : c.name === variant.wrongDefault ? "'not_" + c.defaultTextLiteral + "'::character varying"
+          : c.defaultTextLiteral !== undefined ? "'" + c.defaultTextLiteral + "'::character varying"
+          : c.defaultTokens?.join(" ") ?? null,
       })),
     };
     if (sql.includes("pg_catalog.pg_index")) return {
@@ -154,6 +156,7 @@ test("month-close refuses absent legal employer, wrong evidence data type, weak 
     { weakIndex: "payroll_month_closure_snapshot_unique" },
     { wrongIndexKeys: "payroll_month_closure_status_idx" },
     { missingDefault: "payroll_month_closures.status" },
+    { wrongDefault: "payroll_month_closures.status" },
     { missingConstraint: true },
   ];
   for (const item of bad) {
@@ -170,6 +173,7 @@ test("DOLE report certification refuses incomplete metadata or per-employer uniq
     { missingColumn: "dole_compliance_submissions.report_hash" },
     { columnType: "dole_compliance_submissions.report_year" },
     { missingDefault: "dole_compliance_submissions.status" },
+    { wrongDefault: "dole_compliance_submissions.status" },
     { weakIndex: "dole_compliance_submission_snapshot_unique" },
     { wrongIndexTable: "dole_compliance_submission_snapshot_unique" },
     { missingConstraint: true },

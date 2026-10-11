@@ -59,3 +59,20 @@ helpers (e.g. payroll month-close, DOLE reporting). The release flag must
 remain unset in production until all remaining writers have been
 enumerated and retired or independently guarded. Do not use this setting
 to avoid migrating an incompatible or unverified production database.
+
+## Payroll month-close and DOLE reporting cutover
+
+The opt-in read-only schema policy also covers `ensurePayrollMonthCloseSchema()`
+and `ensureDoleReportingSchema()`. Both now check the relevant table, column
+types, legal-entity/organization foreign-key semantics, precise unique indexes
+and the expected **literal** certification/submission status defaults without
+issuing `CREATE`, `ALTER`, `DROP` or legacy `UPDATE` statements. The month-close
+preflight rejects legacy nullable `legal_entity_id` until a DBA has reconciled
+the actual source records and migrated them under change control.
+
+A separate synthetic PostgreSQL 16 integration test validates actual
+`pg_catalog` output after disposable CI `db:push`. Source mock tests cover
+missing and wrong object shapes, including a status default that merely
+contains the expected status name. Neither synthetic test proves real employer
+schema completeness or authorizes a DOLE filing or monthly certification.
+The global flag remains **unset** in production.

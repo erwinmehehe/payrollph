@@ -7,6 +7,7 @@
 export type RequestSchemaColumn = {
   name: string; type?: string; notNull?: boolean;
   defaultTokens?: readonly string[];
+  defaultTextLiteral?: string;
 };
 export type RequestSchemaIndex = {
   name: string; tableName: string; keys: readonly string[];
@@ -120,7 +121,14 @@ export async function verifyRequestSchemaReadOnly(
         && (required.notNull === undefined || actual.notNull === required.notNull)
         && (required.defaultTokens === undefined ||
           (typeof actual.columnDefault === "string" &&
-            required.defaultTokens.every(token => norm(String(actual.columnDefault)).includes(norm(token)))));
+            required.defaultTokens.every(token => norm(String(actual.columnDefault)).includes(norm(token)))))
+        && (required.defaultTextLiteral === undefined ||
+          (typeof actual.columnDefault === "string" &&
+            [
+              "'" + required.defaultTextLiteral + "'",
+              "'" + required.defaultTextLiteral + "'::text",
+              "'" + required.defaultTextLiteral + "'::charactervarying",
+            ].includes(norm(actual.columnDefault))));
     });
     const soundIndexes = spec.indexes.every(expected => {
       const actual = indexMap.get(expected.name);
@@ -219,7 +227,7 @@ export const payrollMonthCloseSchemaSpec: RequestSchemaSpec = {
     { name: "payroll_month_closures.organization_id", type: "integer", notNull: true },
     { name: "payroll_month_closures.legal_entity_id", type: "integer", notNull: true },
     { name: "payroll_month_closures.applicable_month", type: "character varying(7)", notNull: true },
-    { name: "payroll_month_closures.status", type: "character varying(24)", notNull: true, defaultTokens: ["certified"] },
+    { name: "payroll_month_closures.status", type: "character varying(24)", notNull: true, defaultTextLiteral: "certified" },
     { name: "payroll_month_closures.snapshot_hash", type: "character varying(64)", notNull: true },
     { name: "payroll_month_closures.evidence_snapshot", type: "jsonb", notNull: true },
     { name: "payroll_month_closures.certified_by_name", type: "character varying(120)", notNull: true },
@@ -260,7 +268,7 @@ export const doleReportingSchemaSpec: RequestSchemaSpec = {
     { name: "dole_compliance_submissions.report_type", type: "character varying(48)", notNull: true },
     { name: "dole_compliance_submissions.report_year", type: "integer", notNull: true },
     { name: "dole_compliance_submissions.report_hash", type: "character varying(64)", notNull: true },
-    { name: "dole_compliance_submissions.status", type: "character varying(24)", notNull: true, defaultTokens: ["submitted"] },
+    { name: "dole_compliance_submissions.status", type: "character varying(24)", notNull: true, defaultTextLiteral: "submitted" },
     { name: "dole_compliance_submissions.portal_reference", type: "character varying(160)", notNull: true },
     { name: "dole_compliance_submissions.submitted_at", type: "timestamp with time zone", notNull: true },
     { name: "dole_compliance_submissions.recorded_by_name", type: "character varying(120)", notNull: true },
