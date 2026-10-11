@@ -347,6 +347,7 @@ export function PeopleView({
   onAddEmployee,
   onPage,
   canManage = true,
+  expandHcmInbox = false,
   focusEmployeeId,
   onClearFocus,
 }: {
@@ -355,6 +356,7 @@ export function PeopleView({
   onAddEmployee: () => void;
   onPage: (page: string) => void;
   canManage?: boolean;
+  expandHcmInbox?: boolean;
   focusEmployeeId?: number | null;
   onClearFocus?: () => void;
 }) {
@@ -473,7 +475,7 @@ export function PeopleView({
         </details>
       )}
 
-      {(canManage || canManageLifecycle || canViewLifecycleNotifications) && <details className="panel-disclosure"><summary>Employee administration <span>Import, lifecycle policies and notifications</span></summary>
+      {(canManage || canManageLifecycle || canViewLifecycleNotifications) && <details className="panel-disclosure" defaultOpen={expandHcmInbox}><summary>Employee administration <span>Import, lifecycle policies and notifications</span></summary>
       {canManage && <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />}
 
       {canManageLifecycle && (
