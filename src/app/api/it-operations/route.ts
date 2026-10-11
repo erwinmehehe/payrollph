@@ -88,11 +88,15 @@ export async function POST(request: Request) {
     if (!valid(assetId)) return Response.json({ error: "Asset id required." }, { status: 422 });
     const [asset] = await db.select().from(assets).where(and(eq(assets.organizationId, org), eq(assets.id, assetId))).limit(1);
     if (!asset) return Response.json({ error: "Asset not found." }, { status: 404 });
-    if (asset.employeeId != null) { const check = await checkEmployee(org, asset.employeeId, access); if (check.error) return check.error; }
-    else if (!access.companyWide) return Response.json({ error: "Unassigned device outside unit scope." }, { status: 403 });
+    let currentEmployeeStatus: string | null = null;
+    if (asset.employeeId != null) {
+      const check = await checkEmployee(org, asset.employeeId, access);
+      if (check.error) return check.error;
+      currentEmployeeStatus = check.employee!.status;
+    } else if (!access.companyWide) return Response.json({ error: "Unassigned device outside unit scope." }, { status: 403 });
     const [device] = await db.insert(itManagedDevices).values({
       organizationId: org, assetId, employeeId: asset.employeeId,
-      state: asset.employeeId == null ? "available" : "assigned",
+      state: asset.employeeId == null ? "available" : currentEmployeeStatus === "Active" ? "assigned" : "return_requested",
       mdmProvider: String(body.mdmProvider ?? "").trim().slice(0, 100) || null,
       mdmReference: String(body.mdmReference ?? "").trim().slice(0, 160) || null,
     }).onConflictDoNothing().returning();
