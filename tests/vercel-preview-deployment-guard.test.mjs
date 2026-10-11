@@ -24,6 +24,7 @@ test("named staging and preview branches explicitly remain disabled", () => {
   assert.equal(gitRules.main, true, "This guard must not silently change the existing main auto-deploy policy");
 });
 
-test("repository deployment safety change does not edit production cron schedule", () => {
-  assert.deepEqual(config.crons, [{ path: "/api/jobs/cron", schedule: "*/5 * * * *" }]);
+test("Hobby deployment must not register the unsupported five-minute cron", () => {
+  assert.equal(config.crons, undefined,
+    "Reintroducing a five-minute Cron on Hobby would block production deployments");
 });

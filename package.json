@@ -6,7 +6,7 @@
     "build": "next build",
     "start": "next start",
     "worker": "tsx scripts/worker.ts",
-    "lint": "eslint .",
+    "lint": "node scripts/check-lint-warning-debt.mjs",
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",

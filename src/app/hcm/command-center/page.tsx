@@ -92,6 +92,15 @@ export default async function HcmCommandCenter({
       </p>
     </header>
 
+    {hasPeopleWorkspace && (
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <Link href={`/hcm/action-center?organizationId=${organizationId}`}
+          className="inline-flex min-h-11 items-center rounded-xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+          Open HCM Action Center
+        </Link>
+        <span className="text-sm text-slate-600">Review source-linked HR decisions, follow-ups and owned cases.</span>
+      </div>
+    )}
     {!hasPeopleWorkspace && <p role="note" className="mb-5 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
       This role can review People Home summaries, but People directory and HCM Inbox actions must be opened by an authorized People workspace user.
     </p>}

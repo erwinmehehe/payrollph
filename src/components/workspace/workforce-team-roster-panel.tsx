@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useMemo, useState, type FormEvent } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, Download, RefreshCcw, ShieldCheck } from "lucide-react";
 import {
   buildTeamRosterPageCsv,
@@ -95,12 +95,23 @@ export function WorkforceTeamRosterPanel({
   const [worksiteChoice, setWorksiteChoice] = useState("");
   const [reason, setReason] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
-  const [editorError, setEditorError] = useState("");
+  const [editorFailure, setEditorFailure] = useState<{ scopeKey: string; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
   // Derive visibility directly from the current props/filters, without waiting
   // for useEffect to clear a previous tenant's roster or CSV source.
-  const scopeKey = teamRosterScopeKey(organizationId, startDate, page, appliedSearch);
-  useEffect(() => { setEditor(null); setReceiptSelection(null); }, [organizationId]);
+  const scopeKey = useMemo(() => teamRosterScopeKey(organizationId, startDate, page, appliedSearch),
+    [organizationId, startDate, page, appliedSearch]);
+  const [editorOrganizationId, setEditorOrganizationId] = useState(organizationId);
+  // Reset only editor state before commit; keep the chosen week and filters.
+  if (editorOrganizationId !== organizationId) {
+    setEditorOrganizationId(organizationId);
+    setEditor(null);
+    setReceiptSelection(null);
+    setEditorFailure(null);
+  }
+
+  const editorError = editorFailure?.scopeKey === scopeKey ? editorFailure.message : "";
+  function setEditorError(message: string) { setEditorFailure({ scopeKey, message }); }
 
   const fetchRoster = useCallback(async (signal: AbortSignal): Promise<ScopedTeamRosterPayload<TeamRosterResponse>> => {
     const requestedScope = teamRosterScopeKey(organizationId, startDate, page, appliedSearch);
@@ -191,7 +202,7 @@ export function WorkforceTeamRosterPanel({
           : null;
         throw new Error(blocking?.detail ?? body.error ?? "This roster change was not approved.");
       }
-      setEditor(null);
+      setEditor((current) => current?.organizationId === organizationId && current.scopeKey === scopeKey ? null : current);
       await load();
       onScheduleChanged?.();
       notify("Approved roster override saved and audit-logged.");
