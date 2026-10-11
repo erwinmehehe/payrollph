@@ -59,3 +59,12 @@ test("existing performance mutation calls the goal-parent contract only after te
   assert.ok(route.includes("if (parentError) return Response.json({ error: parentError }, { status: 400 })"));
   assert.ok(route.includes("cycleInOrganization(organizationId, cycleId)"));
 });
+
+test("parent picker only offers the requested cycle and a matching organizational tier", () => {
+  const panel = readFileSync("src/components/performance-governance-panel.tsx", "utf8");
+  assert.ok(panel.includes("goal.cycleId !== selectedCycleId"));
+  assert.ok(panel.includes('goal.scope === "team" && selectedEmployeeUnitId !== null'));
+  assert.ok(panel.includes("goal.orgUnitId === selectedEmployeeUnitId"));
+  assert.ok(panel.includes('employeeId: event.target.value, parentGoalId: ""'));
+  assert.ok(panel.includes('cycleId: event.target.value, parentGoalId: ""'));
+});
