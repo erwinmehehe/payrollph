@@ -58,9 +58,12 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
   const selectedUnitId = selectedUnitChoice?.scope === graphScope
     ? selectedUnitChoice.id : current?.units[0]?.id ?? null;
   const selectedUnit = current?.units.find((unit) => unit.id === selectedUnitId) ?? null;
+  const showingUnlinked = current !== null && selectedUnitChoice?.scope === graphScope &&
+    selectedUnitChoice.id === null;
   const unitScope = graphScope + ":" + selectedUnitId;
   const visiblePositions = current?.positions.filter((position) =>
-    selectedUnit !== null && position.reportingUnitId === selectedUnit.id) ?? [];
+    showingUnlinked ? position.reportingUnitId === null :
+      selectedUnit !== null && position.reportingUnitId === selectedUnit.id) ?? [];
   const selectedPositionId = selectedPositionChoice?.scope === unitScope
     ? selectedPositionChoice.id : null;
   const selectedPosition = visiblePositions.find((position) => position.id === selectedPositionId) ?? null;
@@ -154,6 +157,21 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
                 </p>
                 {current.units.length === 0 && <p className="mt-5 text-sm text-slate-600">No active organizational units were returned.</p>}
                 <ul className="mt-4 space-y-2" aria-label="Organizational units">
+                  {current.unlinkedPositionRecords > 0 && (
+                    <li>
+                      <button type="button" aria-pressed={showingUnlinked}
+                        aria-label={"Review " + current.unlinkedPositionRecords + " position records without a verified current unit"}
+                        onClick={() => {
+                          setSelectedUnitChoice({ scope: graphScope, id: null });
+                          setSelectedPositionChoice({ scope: graphScope + ":null", id: null });
+                        }}
+                        className={"flex min-h-11 w-full items-center justify-between rounded-lg border p-3 text-left text-sm font-semibold " +
+                          (showingUnlinked ? "border-amber-600 bg-amber-50" : "border-amber-200 hover:bg-amber-50")}>
+                        <span>Unlinked or unverified unit</span>
+                        <span className="text-xs text-amber-900">{current.unlinkedPositionRecords} position records</span>
+                      </button>
+                    </li>
+                  )}
                   {current.units.map((unit) => (
                     <li key={unit.id} style={{ paddingLeft: Math.min(unit.depth, 8) * 14 }}>
                       <button
@@ -186,9 +204,9 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
               <section aria-labelledby="hcm-positions-heading" className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 id="hcm-positions-heading" className="text-lg font-semibold">Position records</h2>
                 <p className="mt-1 text-xs text-slate-600">
-                  {selectedUnit ? selectedUnit.name + " · current recorded reporting unit" : "Select a unit to see position records."}
+                  {selectedUnit ? selectedUnit.name + " · current recorded reporting unit" : showingUnlinked ? "Position records without a verified active reporting unit · relationships are not inferred" : "Select a unit to see position records."}
                 </p>
-                {selectedUnit && visiblePositions.length === 0 &&
+                {(selectedUnit || showingUnlinked) && visiblePositions.length === 0 &&
                   <p className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
                     No positions are mapped to this unit in the current source. This does not confirm a vacancy or staffing total.
                   </p>}
