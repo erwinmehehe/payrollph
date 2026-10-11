@@ -114,9 +114,12 @@ export function normalizePaymongoTransferWebhook(payload: unknown): PaymongoTran
   const resourceStatus = typeof attributes.status === "string" ? attributes.status.toLowerCase() : null;
   if (resourceStatus && resourceStatus !== status) return null;
 
-  const createdAt = typeof eventAttributes.created_at === "number"
-    ? eventAttributes.created_at
-    : Number.NaN;
+  const rawCreatedAt = eventAttributes.created_at;
+  const createdAt = typeof rawCreatedAt === "number"
+    ? rawCreatedAt
+    : typeof rawCreatedAt === "string" && /^\d{1,12}$/.test(rawCreatedAt)
+      ? Number(rawCreatedAt)
+      : Number.NaN;
   const occurredAtMs = createdAt * 1000;
   // An extreme but finite timestamp can still overflow Date.toISOString().
   const occurredAt = Number.isFinite(occurredAtMs) && Math.abs(occurredAtMs) <= 8_640_000_000_000_000
