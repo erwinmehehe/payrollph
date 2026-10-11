@@ -15,6 +15,9 @@ export type RequestSchemaColumn = {
 export type RequestSchemaIndex = {
   name: string; tableName: string; keys: readonly string[];
   unique: boolean; predicateTokens?: readonly string[];
+  // Key extraction via pg_get_indexdef(indexoid, n, true) omits sort flags;
+  // require explicit ordering in the *full* PostgreSQL index definition.
+  definitionTokens?: readonly string[];
 };
 export type RequestSchemaConstraint = {
   tableName: string; kind: "f" | "c" | "u" | "p"; tokens: readonly string[];
@@ -52,6 +55,12 @@ function isNumericZeroDefault(value: unknown): boolean {
 function safeIndex(actual: Record<string, unknown>, expected: RequestSchemaIndex) {
   const keys = actual.keys;
   const predicate = actual.predicate;
+  const requiredDefinition = expected.definitionTokens ?? [];
+  if (requiredDefinition.length &&
+      (typeof actual.indexDefinition !== "string" ||
+       !requiredDefinition.every(token => norm(actual.indexDefinition as string).includes(norm(token))))) {
+    return false;
+  }
   if (actual.tableName !== expected.tableName || actual.isUnique !== expected.unique ||
       actual.isValid !== true || actual.isReady !== true ||
       !Array.isArray(keys) || keys.length !== expected.keys.length) return false;
@@ -107,7 +116,8 @@ export async function verifyRequestSchemaReadOnly(
       "ind.indisunique AS \"isUnique\", ind.indisvalid AS \"isValid\", ind.indisready AS \"isReady\", " +
       "ARRAY(SELECT pg_catalog.pg_get_indexdef(ind.indexrelid, p.n, true) " +
       "FROM pg_catalog.generate_series(1, ind.indnkeyatts) AS p(n) ORDER BY p.n) AS keys, " +
-      "pg_catalog.pg_get_expr(ind.indpred, ind.indrelid) AS predicate " +
+      "pg_catalog.pg_get_expr(ind.indpred, ind.indrelid) AS predicate, " +
+      "pg_catalog.pg_get_indexdef(ind.indexrelid) AS \"indexDefinition\" " +
       "FROM pg_catalog.pg_index ind " +
       "JOIN pg_catalog.pg_class idx ON idx.oid = ind.indexrelid " +
       "JOIN pg_catalog.pg_class tbl ON tbl.oid = ind.indrelid " +
@@ -410,8 +420,8 @@ export const marketingLeadSchemaSpec: RequestSchemaSpec = {
     { name: "marketing_leads.notification_outbox_id", type: "integer" },
   ],
   indexes: [
-    { name: "marketing_leads_status_created_idx", tableName: "marketing_leads", keys: ["status", "created_at DESC NULLS LAST"], unique: false },
-    { name: "marketing_leads_kind_created_idx", tableName: "marketing_leads", keys: ["kind", "created_at DESC NULLS LAST"], unique: false },
+    { name: "marketing_leads_status_created_idx", tableName: "marketing_leads", keys: ["status", "created_at"], unique: false, definitionTokens: ["(status, created_at DESC NULLS LAST)"] },
+    { name: "marketing_leads_kind_created_idx", tableName: "marketing_leads", keys: ["kind", "created_at"], unique: false, definitionTokens: ["(kind, created_at DESC NULLS LAST)"] },
   ],
   constraints: [
     { tableName: "marketing_leads", kind: "p", tokens: ["primarykey(id)"] },
