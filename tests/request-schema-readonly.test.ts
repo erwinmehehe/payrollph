@@ -314,7 +314,7 @@ test("remaining request-time schema catalog checks are read-only and rollback cl
     assert.equal(calls.at(-1), "ROLLBACK", spec.label);
     assert.ok(calls.some(sql => sql.includes("pg_catalog.pg_attribute")), spec.label);
     for (const sql of calls) {
-      assert.doesNotMatch(sql, /\\b(?:CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|TRUNCATE|COMMIT)\\b/i);
+      assert.doesNotMatch(sql, /\b(?:CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|TRUNCATE|COMMIT)\b/i);
     }
   }
 });
