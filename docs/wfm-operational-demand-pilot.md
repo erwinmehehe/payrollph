@@ -16,7 +16,7 @@ No customer names, patient identities, email addresses, order IDs, individual tr
 
 The server uses current signed-in session, authorized exact employer, and active site bound to its real organization unit. Managers can read within approved scope. **Imports require company-wide People admin**, recent MFA when the production policy requires it, same-origin protection and a distributed request rate limit. No provider credential or browser API key is accepted as an alternative to authentication.
 
-**Before any pilot**: DBA independently reviews and applies `drizzle/0112_wfm_operational_demand_observations.sql` on a selected staging copy, verifies constraints/indexes and compatibility, checks rollback and retention policy, and signs off the exact employer activation. The repository has no ordered Drizzle migration journal; don't replay all historical SQL files and don't `db:push` against production employers.
+**Before any pilot**: DBA independently reviews and applies `drizzle/0113_wfm_operational_demand_observations.sql` on a selected staging copy, verifies constraints/indexes and compatibility, checks rollback and retention policy, and signs off the exact employer activation. The repository has no ordered Drizzle migration journal; don't replay all historical SQL files and don't `db:push` against production employers.
 
 ## Source export format
 
