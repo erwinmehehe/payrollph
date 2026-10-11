@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "../src/lib/final-pay";
+import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, retroSourceTaxYear } from "../src/lib/final-pay";
 import { readFileSync } from "node:fs";
 
 test("13th-month base uses basic earnings and effective-dated retro only", () => {
@@ -15,12 +15,57 @@ test("13th-month base uses basic earnings and effective-dated retro only", () =>
     { code: "13TH", label: "13th Month Pay", amount: "5000.00" },
     { code: "SSS", label: "SSS contribution", amount: "-500.00" },
     { code: "WHT", label: "Withholding tax", amount: "-700.00" },
-  ]);
+  ], { taxYear: 2026, sourceYearByAdjustmentId: new Map([[4, 2026]]) });
 
   assert.equal(parsed.basic, 11350);
   assert.equal(parsed.thirteenthPaid, 5000);
   assert.equal(parsed.contributions, 500);
   assert.equal(parsed.taxWithheld, 700);
+});
+
+test("13th-month excludes retro BASIC from a prior year even if paid this year", () => {
+  const parsed = readBasicAndThirteenth([
+    { code: "BASIC", amount: "2000.00" },
+    { code: "RETRO-11", amount: "600.00", label: "Retro, December 2025" },
+    { code: "RETRO-12", amount: "-100.00", label: "Retro, June 2026" },
+    { code: "WHT", amount: "-200.00" },
+  ], { taxYear: 2026, sourceYearByAdjustmentId: new Map([[11, 2025], [12, 2026]]) });
+  assert.equal(parsed.basic, 1900);
+  assert.equal(parsed.taxWithheld, 200);
+});
+
+test("unknown or cross-year retro source fails closed instead of guessing the 13th-month base", () => {
+  const retro = [{ code: "RETRO-11", amount: "500.00" }];
+  assert.throws(() => readBasicAndThirteenth(retro), /FINAL_PAY_RETRO_SOURCE_YEAR_UNVERIFIED/);
+  assert.throws(() => readBasicAndThirteenth(retro, {
+    taxYear: 2026, sourceYearByAdjustmentId: new Map(),
+  }), /FINAL_PAY_RETRO_SOURCE_YEAR_UNVERIFIED/);
+  assert.throws(() => readBasicAndThirteenth(retro, {
+    taxYear: 2026, sourceYearByAdjustmentId: new Map([[11, null]]),
+  }), /FINAL_PAY_RETRO_SOURCE_YEAR_UNVERIFIED/);
+  assert.equal(retroSourceTaxYear("2025-12-16", "2025-12-31"), 2025);
+  assert.equal(retroSourceTaxYear("2025-12-16", "2026-01-15"), null);
+  assert.equal(retroSourceTaxYear("2026-01-30", "2026-01-15"), null);
+});
+
+test("invalid calendar dates and retro amounts fail closed without altering legitimate leap-day sources", () => {
+  assert.equal(retroSourceTaxYear("2024-02-29", "2024-03-15"), 2024);
+  assert.equal(retroSourceTaxYear("2025-02-29", "2025-03-15"), null);
+  assert.equal(retroSourceTaxYear("2026-02-30", "2026-03-15"), null);
+  assert.equal(retroSourceTaxYear("2026-13-01", "2026-13-15"), null);
+  assert.equal(retroSourceTaxYear("2026-00-01", "2026-01-15"), null);
+  assert.equal(retroSourceTaxYear("2026-04-31", "2026-05-15"), null);
+  assert.equal(retroSourceTaxYear("2025-12-31", "2026-01-01"), null);
+  const verified = { taxYear: 2026, sourceYearByAdjustmentId: new Map([[42, 2026]]) };
+  for (const amount of [undefined, "", "not-a-number", Number.NaN, Infinity]) {
+    assert.throws(
+      () => readBasicAndThirteenth([{ code: "RETRO-42", amount }], verified),
+      /FINAL_PAY_RETRO_AMOUNT_INVALID/,
+    );
+  }
+  assert.equal(readBasicAndThirteenth(
+    [{ code: "RETRO-42", amount: "-100.01" }], verified,
+  ).basic, -100.01);
 });
 
 test("final pay computes 13th month from actual annual basic earned and subtracts amounts already paid", () => {

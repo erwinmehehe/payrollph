@@ -1,0 +1,63 @@
+name: WFM Operational Demand Observations QA
+
+on:
+  push:
+    branches:
+      - feat/wfm-operational-demand-observations-20261011
+  pull_request:
+    paths:
+      - "src/lib/workforce-operational-demand-*.ts"
+      - "src/app/api/workforce/demand-observations/**"
+      - "src/components/workspace/workforce-operational-demand-panel.tsx"
+      - "src/components/workspace/workforce-coverage-panel.tsx"
+      - "src/db/schema.ts"
+      - "drizzle/0112_wfm_operational_demand_observations.sql"
+      - "tests/workforce-operational-demand*.test.ts"
+      - ".github/workflows/wfm-operational-demand-observations-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-actual-demand:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      TZ: Asia/Manila
+      CI: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - name: Ephemeral test-only bank encryption key
+        shell: bash
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Create disposable schema (never a production employer database)
+        run: npm run db:push
+      - name: Check required observation tables and uniqueness indexes
+        run: |
+          node -e 'const{Client}=require("pg");(async()=>{const c=new Client({connectionString:process.env.DATABASE_URL});await c.connect();try{const r=await c.query("select to_regclass($1) as a,to_regclass($2) as b,to_regclass($3) as u",["public.workforce_demand_import_batches","public.workforce_demand_observation_revisions","public.wfm_demand_observation_version_unique"]);if(Object.values(r.rows[0]).some(v=>!v))throw Error("Operational demand schema missing after db:push");}finally{await c.end()}})().catch(e=>{console.error(e);process.exitCode=1})'
+      - run: npx tsc --noEmit
+      - name: Validate exact source / retrospective tests in isolated Postgres
+        run: npx tsx --test --test-concurrency=1 tests/workforce-operational-demand.test.ts tests/workforce-operational-demand-db.test.ts
+      - run: npm run source:size:check
+      - run: npm run build
