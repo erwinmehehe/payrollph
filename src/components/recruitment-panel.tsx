@@ -127,12 +127,12 @@ export function RecruitmentPanel({
     region: "NCR",
   });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<boolean> => {
     const response = await fetch(`/api/recruitment?organizationId=${organizationId}`, { cache: "no-store" });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       setNotice(payload.error ?? "Could not load recruitment.");
-      return;
+      return false;
     }
 
     const nextReqs = payload.requisitions ?? [];
@@ -143,6 +143,7 @@ export function RecruitmentPanel({
         ? current
         : nextReqs[0]?.id ?? null,
     );
+    return true;
   }, [organizationId, setNotice]);
 
   useEffect(() => { void load(); }, [load]);
@@ -251,7 +252,9 @@ export function RecruitmentPanel({
       }
 
       setHiringApplicant(null);
-      await load();
+      // Both data sources are refreshed independently, because a successful
+      // hire must not be resubmitted just because a subsequent read failed.
+      const recruitmentReloaded = await load().catch(() => false);
       // A successful hire must refresh the parent employee/provisioning snapshot.
       // An unsuccessful refresh never rolls back or resubmits the source hire.
       try {
@@ -262,8 +265,18 @@ export function RecruitmentPanel({
         );
         return;
       }
+      if (!recruitmentReloaded) {
+        setNotice(
+          `Employee ${payload.employee.employeeNo} was created, but recruitment could not refresh. Reload to see the updated candidate and onboarding records. Do not resubmit the hire.`,
+        );
+        return;
+      }
       setNotice(
         `${payload.employee.firstName} ${payload.employee.lastName} is now employee ${payload.employee.employeeNo}, assigned to ${payload.position.code}, with onboarding created.`,
+      );
+    } catch {
+      setNotice(
+        "The hire request could not be confirmed. Refresh the candidate pipeline and HCM Inbox before retrying. Do not submit a duplicate hire.",
       );
     } finally {
       setSavingHire(false);
