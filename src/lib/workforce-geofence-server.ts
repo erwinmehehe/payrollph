@@ -1,6 +1,6 @@
 import { and, eq, gte, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
-import { employeeWorksiteAssignments, hcmWorksiteAuthorizations, worksites } from "@/db/schema";
+import { employeeWorksiteAssignments, hcmWorksiteAuthorizations, worksites, worksiteGeofenceBoundaries } from "@/db/schema";
 import {
   permittedGeofenceWorksiteIds, validateGeofenceSite, type GeofenceSite,
 } from "@/lib/workforce-geofence";
@@ -28,10 +28,14 @@ export async function authorizedGeofenceSites(
     )),
     db.select({
       id: worksites.id,
-      latitude: worksites.geofenceLatitude,
-      longitude: worksites.geofenceLongitude,
-      radiusMeters: worksites.geofenceRadiusM,
-    }).from(worksites).where(and(
+      latitude: worksiteGeofenceBoundaries.latitude,
+      longitude: worksiteGeofenceBoundaries.longitude,
+      radiusMeters: worksiteGeofenceBoundaries.radiusMeters,
+    }).from(worksiteGeofenceBoundaries).innerJoin(worksites, and(
+      eq(worksites.id, worksiteGeofenceBoundaries.worksiteId),
+      eq(worksites.organizationId, worksiteGeofenceBoundaries.organizationId),
+    )).where(and(
+      eq(worksiteGeofenceBoundaries.organizationId, organizationId),
       eq(worksites.organizationId, organizationId),
       eq(worksites.active, true),
     )),

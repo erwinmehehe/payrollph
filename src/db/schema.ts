@@ -186,10 +186,6 @@ export const worksites = pgTable(
     province: varchar("province", { length: 100 }),
     cityMunicipality: varchar("city_municipality", { length: 120 }),
     addressLine1: varchar("address_line_1", { length: 200 }),
-    // Employer-owned boundary configuration; never store employee GPS fixes here.
-    geofenceLatitude: numeric("geofence_latitude", { precision: 10, scale: 7 }),
-    geofenceLongitude: numeric("geofence_longitude", { precision: 10, scale: 7 }),
-    geofenceRadiusM: integer("geofence_radius_m"),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -198,13 +194,29 @@ export const worksites = pgTable(
     uniqueIndex("worksites_org_code_unique").on(table.organizationId, table.code),
     index("worksites_org_active_idx").on(table.organizationId, table.active),
     index("worksites_org_unit_idx").on(table.organizationId, table.orgUnitId),
-    check("worksites_geofence_configuration_check", sql`(
-      (${table.geofenceLatitude} IS NULL AND ${table.geofenceLongitude} IS NULL AND ${table.geofenceRadiusM} IS NULL)
-      OR
-      (${table.geofenceLatitude} IS NOT NULL AND ${table.geofenceLongitude} IS NOT NULL AND ${table.geofenceRadiusM} IS NOT NULL
-       AND ${table.geofenceLatitude} BETWEEN -90 AND 90
-       AND ${table.geofenceLongitude} BETWEEN -180 AND 180
-       AND ${table.geofenceRadiusM} BETWEEN 100 AND 2000)
+  ],
+);
+
+/**
+ * Optional GPS boundary records: NEVER selected by legacy worksite reads.
+ * The collection is accessed only by explicitly allowlisted pilot employers.
+ */
+export const worksiteGeofenceBoundaries = pgTable(
+  "worksite_geofence_boundaries",
+  {
+    worksiteId: integer("worksite_id").primaryKey().references(() => worksites.id, { onDelete: "cascade" }),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    latitude: numeric("latitude", { precision: 10, scale: 7 }).notNull(),
+    longitude: numeric("longitude", { precision: 10, scale: 7 }).notNull(),
+    radiusMeters: integer("radius_meters").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("worksite_geofence_org_idx").on(table.organizationId),
+    check("worksite_geofence_valid_check", sql`(
+      ${table.latitude} BETWEEN -90 AND 90
+      AND ${table.longitude} BETWEEN -180 AND 180
+      AND ${table.radiusMeters} BETWEEN 100 AND 2000
     )`),
   ],
 );

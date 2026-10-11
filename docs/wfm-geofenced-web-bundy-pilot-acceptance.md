@@ -4,7 +4,7 @@
 
 ## Configuration and migration order
 
-1. DBA reviews and rehearses `drizzle/0111_wfm_geofenced_web_bundy.sql` against a disposable PG16 tenant. Apply and verify on the target staging DB **before** deploying code that reads the new worksite columns. Rehearse rollback and inspect all upstream worksite dependencies. No live database was modified by this branch.
+1. DBA reviews and rehearses `drizzle/0111_wfm_geofenced_web_bundy.sql` against a disposable PG16 tenant. The migration creates a **separate pilot-only table**; no pre-existing worksite column changes. Default-off application deployments do not query that table. Apply and verify the optional table on staging before enabling any pilot employer. Rehearse rollback and inspect all upstream worksite dependencies. No live database was modified by this branch.
 2. Create or verify a specific, active employer worksite and an effective-dated primary employee assignment or explicit HCM secondary authorization. Existing HCM worksite denial always wins.
 3. After the DPO approves employer legal basis, purpose notice, access scope, privacy retention and a written exception process, set `WFM_GEOFENCE_PILOT_ENABLED=true` **and** `WFM_GEOFENCE_PILOT_ORG_IDS` to a comma-delimited allowlist of actual staging employer IDs. Both required. Never set a blanket all-organizations flag.
 4. A company-wide workforce administrator with recent MFA configures the site GPS centre and radius 100-2000m in Workforce > Worksites, recording a reason. Audit records the site ID/radius/reason and configured state; they do not store employee GPS coordinates.

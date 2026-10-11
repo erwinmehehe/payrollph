@@ -9,6 +9,7 @@ import {
   orgUnits,
   scheduleOverrides,
   worksites,
+  worksiteGeofenceBoundaries,
 } from "@/db/schema";
 import {
   assertOrganizationRole,
@@ -154,14 +155,23 @@ export async function GET(request: Request) {
     : employeeRows.filter((employee) => employee.orgUnitId === access.orgUnitId);
   const visibleEmployeeIds = new Set(visibleEmployees.map((employee) => employee.id));
   const geofencePilotEnabled = geofencePilotEnabledForOrganization(organizationId);
-  const visibleWorksites = siteRows.filter((site) => worksiteVisibleToScope(site, access)).map((site) => ({
-    ...site,
-    // Full boundary centre is visible only to company-wide workforce administrators.
-    geofenceLatitude: geofencePilotEnabled && access.companyWide ? site.geofenceLatitude : null,
-    geofenceLongitude: geofencePilotEnabled && access.companyWide ? site.geofenceLongitude : null,
-    geofenceRadiusM: geofencePilotEnabled && access.companyWide ? site.geofenceRadiusM : null,
-    geofenceConfigured: site.geofenceLatitude !== null && site.geofenceLongitude !== null && site.geofenceRadiusM !== null,
-  }));
+  // No read of the optional table for non-pilot employers, preserving deployments
+  // that have not applied the pilot-only schema extension.
+  const boundaryRows = geofencePilotEnabled
+    ? await db.select().from(worksiteGeofenceBoundaries)
+        .where(eq(worksiteGeofenceBoundaries.organizationId, organizationId))
+    : [];
+  const boundaryByWorksite = new Map(boundaryRows.map((row) => [row.worksiteId, row]));
+  const visibleWorksites = siteRows.filter((site) => worksiteVisibleToScope(site, access)).map((site) => {
+    const boundary = boundaryByWorksite.get(site.id);
+    return {
+      ...site,
+      geofenceLatitude: access.companyWide ? boundary?.latitude ?? null : null,
+      geofenceLongitude: access.companyWide ? boundary?.longitude ?? null : null,
+      geofenceRadiusM: access.companyWide ? boundary?.radiusMeters ?? null : null,
+      geofenceConfigured: boundary !== undefined,
+    };
+  });
   const visibleWorksiteIds = new Set(visibleWorksites.map((site) => site.id));
 
   return Response.json({
@@ -234,12 +244,36 @@ export async function POST(request: Request) {
       if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
       boundary = parsed.value;
     }
-    const [updated] = await db.update(worksites).set({
-      geofenceLatitude: boundary ? String(boundary.latitude) : null,
-      geofenceLongitude: boundary ? String(boundary.longitude) : null,
-      geofenceRadiusM: boundary?.radiusMeters ?? null,
-      updatedAt: new Date(),
-    }).where(and(eq(worksites.id, worksiteId), eq(worksites.organizationId, organizationId))).returning();
+    const [previous] = await db.select({ id: worksiteGeofenceBoundaries.worksiteId })
+      .from(worksiteGeofenceBoundaries).where(and(
+        eq(worksiteGeofenceBoundaries.worksiteId, worksiteId),
+        eq(worksiteGeofenceBoundaries.organizationId, organizationId),
+      )).limit(1);
+    // Opt-in site policy changes never alter the existing worksites row.
+    if (boundary) {
+      await db.insert(worksiteGeofenceBoundaries).values({
+        worksiteId,
+        organizationId,
+        latitude: String(boundary.latitude),
+        longitude: String(boundary.longitude),
+        radiusMeters: boundary.radiusMeters,
+        updatedAt: new Date(),
+      }).onConflictDoUpdate({
+        target: worksiteGeofenceBoundaries.worksiteId,
+        set: {
+          organizationId,
+          latitude: String(boundary.latitude),
+          longitude: String(boundary.longitude),
+          radiusMeters: boundary.radiusMeters,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      await db.delete(worksiteGeofenceBoundaries).where(and(
+        eq(worksiteGeofenceBoundaries.worksiteId, worksiteId),
+        eq(worksiteGeofenceBoundaries.organizationId, organizationId),
+      ));
+    }
 
     await recordAuditEvent({
       organizationId,
@@ -248,7 +282,7 @@ export async function POST(request: Request) {
       resource: `${site.code} · ${site.name}`,
       metadata: {
         worksiteId, reason, policyVersion: GEOFENCE_POLICY_VERSION,
-        previousConfigured: site.geofenceLatitude !== null && site.geofenceLongitude !== null,
+        previousConfigured: previous !== undefined,
         newConfigured: boundary !== null,
         radiusMeters: boundary?.radiusMeters ?? null,
         // Site centre is administrative configuration; do not copy exact position
@@ -257,9 +291,9 @@ export async function POST(request: Request) {
     });
     return Response.json({
       worksite: {
-        id: updated.id,
+        id: worksiteId,
         geofenceConfigured: boundary !== null,
-        geofenceRadiusM: updated.geofenceRadiusM,
+        geofenceRadiusM: boundary?.radiusMeters ?? null,
       },
     });
   }

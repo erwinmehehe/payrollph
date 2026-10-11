@@ -44,8 +44,12 @@ test("worksite geofence can only be configured by company-wide managers behind e
   assert.ok(sites.includes("enforceSensitiveActionRateLimit(request"));
   assert.ok(sites.includes("validateGeofenceSite(body)"));
   assert.ok(sites.includes("geofencePilotEnabledForOrganization(organizationId)"));
-  assert.ok(schema.includes('geofenceLatitude: numeric("geofence_latitude"'));
-  assert.ok(schema.includes('geofenceRadiusM: integer("geofence_radius_m")'));
+  assert.ok(schema.includes('export const worksiteGeofenceBoundaries = pgTable('));
+  assert.ok(schema.includes('"worksite_geofence_boundaries"'));
+  assert.ok(!schema.includes('geofenceLatitude: numeric("geofence_latitude"'));
+  assert.ok(sites.includes('const boundaryRows = geofencePilotEnabled'));
+  assert.ok(sites.includes('db.insert(worksiteGeofenceBoundaries)'));
+  assert.ok(sites.includes('db.delete(worksiteGeofenceBoundaries)'));
 });
 
 test("effective dated tenant-bound worksite and HCM authorizations govern eligibility", () => {
