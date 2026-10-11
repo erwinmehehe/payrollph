@@ -85,7 +85,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
   // SSO/custom-deny role gate, or the client-side authorized roster check.
   const allowPeopleFocus = requestedWorkspacePage === "People" &&
     typeof requestedEmployeeId === "string" &&
-    /^[1-9]\\d*$/.test(requestedEmployeeId) &&
+    /^[1-9]\d*$/.test(requestedEmployeeId) &&
     peopleHomeEnabledForOrganization(companyOrganizationId) &&
     !(await assertOrganizationRole(user.id, companyOrganizationId, PEOPLE_ADMIN_ROLES));
   const canSeeMyTeam = !pilotFocusEnabled && process.env.HCM_MY_TEAM_ENABLED === "true" &&
