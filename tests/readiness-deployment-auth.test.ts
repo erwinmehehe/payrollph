@@ -52,7 +52,9 @@ test("production smoke workers authenticate the private deployment probe", () =>
   const script = readFileSync("scripts/live-production-readiness.ts", "utf8");
   const workflow = readFileSync(".github/workflows/live-rbac-sandbox-smoke.yml", "utf8");
   assert.ok(script.includes('headers: { "x-readiness-token": token }'));
-  assert.ok(script.includes('PRODUCTION_READINESS_TOKEN is required to verify a private production deployment'));
+  // Verification stays authenticated and fail-closed; diagnostics may evolve.
+  assert.ok(script.includes('if (token.length < 32)'));
+  assert.ok(script.includes('blocked: "missing-protected-verification-credential"'));
   assert.ok(workflow.includes('secrets.PRODUCTION_READINESS_TOKEN'));
   assert.ok(workflow.includes('-H "x-readiness-token: ${PRODUCTION_READINESS_TOKEN}"'));
 });

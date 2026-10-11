@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Building2, CornerDownLeft, Search, UsersRound, Zap } from "lucide-react";
 import { ALL_ITEMS, type NavItem } from "./nav";
 import type { Employee, Organization } from "./types";
-import { Avatar, money } from "./ui";
+import { Avatar } from "./ui";
 
 export type PaletteAction = { id: string; label: string; hint?: string; run: () => void };
 
@@ -166,7 +166,7 @@ function PaletteDialog({
                     {row.kind === "page" && row.item.hint}
                     {row.kind === "action" && row.action.hint}
                     {row.kind === "client" && `${row.organization.plan} · ${row.organization.employeeCount} people`}
-                    {row.kind === "person" && `${row.employee.employeeNo} · ${money(row.employee.basicRate)}`}
+                    {row.kind === "person" && `${row.employee.employeeNo} · ${row.employee.title}`}
                   </small>
                   {row.kind === "person" && <Avatar initials={row.employee.avatarInitials} index={row.employee.id} />}
                 </button>

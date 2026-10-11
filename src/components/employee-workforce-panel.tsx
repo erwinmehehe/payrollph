@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, CheckCircle2, PencilLine, RefreshCcw } from "lucide-react";
 import { manilaWorkDate, summarizeUpcomingWeek, upcomingSevenDays } from "@/lib/workforce-employee-upcoming-week";
 import { essText, type EssLanguage } from "@/lib/ess-language";
+import { EmployeeScheduleReceipts } from "./employee-schedule-receipts";
 
 type ScheduleSegment = {
   shiftDefinitionId: number;
@@ -232,11 +232,9 @@ export function EmployeeWorkforcePanel({ language = "en" }: { language?: EssLang
           <div className="notice notice-slate" style={{ margin: "4px 14px 14px" }}>
             <span>{upcomingSummary.scheduled} {t("shift day(s)")}, {upcomingSummary.restDays} {t("recorded rest day(s)")}, {upcomingSummary.changes} {t("changed day(s)")}, {upcomingSummary.needsReview} {t("requiring schedule confirmation")}. {t("A missing roster entry is not an absence or a payroll deduction.")}</span>
           </div>
-          {process.env.NEXT_PUBLIC_WFM_SCHEDULE_RECEIPTS_ENABLED === "true" && (
-            <div style={{ padding: "0 14px 14px" }}><Link className="secondary-button" href="/self/schedule-receipts">{t("Review schedule receipts")}</Link></div>
-          )}
         </article>
       )}
+      {process.env.NEXT_PUBLIC_WFM_SCHEDULE_RECEIPTS_ENABLED === "true" && payload && <EmployeeScheduleReceipts compact />}
       <article className="employee-list-card">
         <div className="employee-list-card-head">
           <div>

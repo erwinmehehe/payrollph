@@ -41,7 +41,14 @@ type FilingForm = {
     officialInstructionsUrl: string;
     officialPortalUrl: string;
     acceptanceEvidence: string;
+    acceptanceChecklist: string[];
     worksheetStatus: "reconciliation-only";
+    notes: string;
+  } | null;
+  relatedCertificate?: {
+    form: string;
+    officialInstructionsUrl: string;
+    acceptanceChecklist: string[];
     notes: string;
   } | null;
   copy: {
@@ -314,10 +321,31 @@ export function FilingEvidencePanel({
             <p style={{ fontSize: 12, margin: "6px 0" }}>
               {official.notes} The government acceptance evidence to retain is: {official.acceptanceEvidence}
             </p>
+            <strong style={{ display: "block", fontSize: 12, marginTop: 10 }}>External pilot acceptance checklist</strong>
+            <ul style={{ margin: "5px 0 10px", paddingLeft: 20, fontSize: 12 }}>
+              {official.acceptanceChecklist.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+            <p style={{ fontSize: 12, margin: "5px 0 10px" }}>
+              An operator-entered agency reference records a claim of acceptance. PayrollPH has not independently
+              verified the underlying agency receipt, final member posting or file-import compatibility.
+            </p>
             <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
               <a href={official.officialInstructionsUrl} target="_blank" rel="noopener noreferrer">Official filing instructions</a>
               <a href={official.officialPortalUrl} target="_blank" rel="noopener noreferrer">Open agency website</a>
             </div>
+          </section>
+        )}
+
+        {definition?.relatedCertificate && (
+          <section className="notice notice-slate" data-separate-bir-2316 style={{ margin: 0, display: "block" }}>
+            <strong>BIR Form 2316: separate employee certificate</strong>
+            <p style={{ fontSize: 12, margin: "6px 0" }}>{definition.relatedCertificate.notes}</p>
+            <ul style={{ margin: "5px 0 10px", paddingLeft: 20, fontSize: 12 }}>
+              {definition.relatedCertificate.acceptanceChecklist.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+            <a href={definition.relatedCertificate.officialInstructionsUrl} target="_blank" rel="noopener noreferrer">
+              View official BIR Form 2316
+            </a>
           </section>
         )}
 

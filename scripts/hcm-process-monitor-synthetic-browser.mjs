@@ -102,12 +102,24 @@ async function main() {
     const homeNav = page.getByRole("navigation", { name: "HCM workspace navigation" });
     assert.equal(await homeNav.getByRole("link", { name: "People Home" })
       .getAttribute("aria-current"), "page");
-    assert.equal(await homeNav.getByRole("link", { name: "Process monitor" })
+    assert.equal(await homeNav.getByRole("link", { name: "Process monitor" }).count(), 0,
+      "Everyday People Home navigation must hide advanced destinations");
+    const advanced = page.locator("details").filter({
+      has: page.locator("summary", { hasText: "Advanced HCM tools" }),
+    }).first();
+    await advanced.waitFor();
+    assert.equal(await advanced.evaluate((element) => element.open), false,
+      "Enterprise HCM tools must be collapsed on entry");
+    await advanced.locator("summary").focus();
+    await page.keyboard.press("Enter");
+    assert.equal(await advanced.evaluate((element) => element.open), true,
+      "Keyboard must expand Workday-depth navigation");
+    assert.equal(await advanced.getByRole("link", { name: "Process monitor" })
       .getAttribute("href"), "/hcm/process-monitor?organizationId=1");
     await assertHcmSemantics(page, "People Home");
-    assert.equal(await homeNav.getByRole("link", { name: "Action Center" })
+    assert.equal(await advanced.getByRole("link", { name: "Action Center" })
       .getAttribute("href"), "/hcm/action-center?organizationId=1");
-    await homeNav.getByRole("link", { name: "Action Center" }).focus();
+    await advanced.getByRole("link", { name: "Action Center" }).focus();
     await page.keyboard.press("Enter");
     await page.getByRole("heading", { level: 1, name: "HCM Action Center" }).waitFor();
     const actionNav = page.getByRole("navigation", { name: "HCM workspace navigation" });

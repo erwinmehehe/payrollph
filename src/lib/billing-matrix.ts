@@ -9,6 +9,8 @@ export const PLAN_FEATURES: Record<PlanId, string[]> = {
     "payroll", "time", "government-drafts", "self-service",
     "multi-branch", "approvals", "api", "imports",
     "audit-export", "bi-exports", "priority-sla",
+    // Discovery-only: underlying HCM routes keep their independent security gates.
+    "advanced-hcm-discovery",
   ],
 };
 

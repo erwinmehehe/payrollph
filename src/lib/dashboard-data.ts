@@ -40,6 +40,7 @@ import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 import { buildFirstPayrollReadiness } from "@/lib/first-payroll-readiness";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
+import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
 
 export async function getDashboardData(organizationId?: number) {
   await ensureCoreCompatibilitySchema();
@@ -87,6 +88,11 @@ export async function getDashboardData(organizationId?: number) {
   const access = await getAccess(sessionUser.id, selectedOrganization.id);
   if (!access) {
     throw new Error("The requested workspace is not available to this account.");
+  }
+  // A manager without a concrete supervisory unit must not silently receive
+  // company-wide staff, leave, attendance or other dashboard records.
+  if (access.role === "manager" && deriveMyTeamScope(access)?.kind !== "unit") {
+    throw new Error("An assigned supervisory unit is required to load the manager workspace.");
   }
 
   await ensureEmployeePayProfiles(selectedOrganization.id);

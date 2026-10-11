@@ -5,10 +5,12 @@ import {
   hcmBusinessProcessInstanceSteps,
   hcmLifecycleNotificationTasks,
   provisioningTasks,
+  employees,
 } from "@/db/schema";
 import { loadPeopleHomeAssigneePermissions } from "@/lib/delegation";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { canOpenPeopleHome, peopleHomeEnabledForOrganization } from "@/lib/hcm-people-home-scope";
+import { peopleEmployeeFocusHref } from "@/lib/hcm-people-employee-focus";
 
 /**
  * Source-minimized, server-only People Home projection. It provides previews,
@@ -19,6 +21,7 @@ export type PeopleHomeItem = {
   source: "hcm_business_process" | "lifecycle_notification" | "provisioning" | "operational_case";
   sourceId: number;
   tenantId: number;
+  subjectEmployeeId?: number;
   title: string;
   category: string;
   status: "pending" | "review" | "follow_up" | "source_check" | "open" | "acknowledged";
@@ -157,7 +160,13 @@ async function peopleOpsFollowUps(organizationId: number): Promise<PeopleHomeSec
     db.select({
       id: provisioningTasks.id,
       kind: provisioningTasks.kind,
+      employeeId: provisioningTasks.employeeId,
     }).from(provisioningTasks)
+      // A task's employee FK by itself is not proof of legal-employer ownership.
+      .innerJoin(employees, and(
+        eq(provisioningTasks.employeeId, employees.id),
+        eq(employees.organizationId, organizationId),
+      ))
       .where(and(
         eq(provisioningTasks.organizationId, organizationId),
         eq(provisioningTasks.done, false),
@@ -186,12 +195,14 @@ async function peopleOpsFollowUps(organizationId: number): Promise<PeopleHomeSec
       source: "provisioning" as const,
       sourceId: item.id,
       tenantId: organizationId,
+      subjectEmployeeId: item.employeeId,
       title: item.kind === "offboarding" ? "Offboarding checklist" : "Onboarding checklist",
       category: "Follow up",
       status: "follow_up" as const,
       dueAt: null,
       sourceDate: null,
-      sourceUrl: "/app?organizationId=" + organizationId + "&workspacePage=People",
+      sourceUrl: peopleEmployeeFocusHref(organizationId, item.employeeId) ??
+        "/app?organizationId=" + organizationId + "&workspacePage=People",
       incompleteEvidence: true,
     })),
   ];

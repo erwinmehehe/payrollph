@@ -17,18 +17,18 @@ export default function TrustPage() {
       intro="Linaw separates implemented controls, partial capabilities, external dependencies and absent features so buyers can distinguish working product paths from roadmap or validation gaps."
       proof={[
         "Public capability scorecard",
-        "Public system status page",
+        "Public system status samples (not independent uptime monitoring)",
         "Security controls tied to code paths and tests",
         "Government filing outputs labelled by validation status",
-        "Production-readiness gates",
+        "Documented pilot and production-readiness gates (not certifications)",
         "Role-based product sandbox",
       ]}
       sections={[
         { title: "Capability evidence", body: "The public scorecard classifies product capabilities as verified, partial or absent and attaches specific implementation or test evidence to each claim." },
-        { title: "Operational status", body: "The status page is separate from marketing claims and is designed to reflect application health evidence rather than a manually written uptime percentage." },
-        { title: "Security controls", body: "Authentication, tenant authorization, role scope, sensitive-data protection and security testing are documented as implementation controls without implying certifications that have not been obtained." },
+        { title: "Operational status", body: "The public status page summarizes application health snapshots recorded when /api/health is called. Samples may be absent or irregular; the page does not establish continuous uptime, external monitoring or an SLA." },
+        { title: "Security controls", body: "Authentication, tenant authorization, role scope, sensitive-data protection paths and security testing are documented as source-implemented controls. Historical data encryption, independent penetration testing and auditor assurance require their own proof. No SOC 2, ISO 27001 or external certification is claimed." },
         { title: "Compliance transparency", body: "Payroll calculation capability and government filing acceptance are deliberately kept separate. Prepared output stays validation-gated until evidence exists." },
-        { title: "External dependencies remain visible", body: "Email delivery, billing proof, bank-template acceptance and government filing validation are tracked as operational dependencies instead of being hidden behind a generic production-ready badge." },
+        { title: "External dependencies remain visible", body: "Email delivery, billing proof, bank-template acceptance, statutory filing acknowledgements, staging restore and independent payroll reconciliation remain operational dependencies. Public status does not reveal internal deployment secrets, tenant counts, readiness fingerprints or audit evidence." },
         { title: "The sandbox is proof of workflow, not certification", body: "The role-based demo lets buyers inspect how work moves between payroll, checker, owner and employee views, while the trust center separately documents what still requires external validation." },
       ]}
       faq={[

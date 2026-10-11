@@ -1,4 +1,4 @@
-import { enforceSameOriginMutation } from "@/lib/security-request";
+import { enforceSameOriginMutation, enforceSensitiveActionRateLimit } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, timePunches } from "@/db/schema";
@@ -9,6 +9,8 @@ import { clientIp } from "@/lib/rate-limit";
 import { reconcileAttendanceExceptionEvents } from "@/lib/workforce-attendance-exception-events";
 import { attendanceMutationLock, loadActiveAttendanceLocks } from "@/lib/workforce-attendance-lock";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
+import { evaluateGeofenceFix, geofencePilotEnabledForOrganization } from "@/lib/workforce-geofence";
+import { authorizedGeofenceSites } from "@/lib/workforce-geofence-server";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +77,10 @@ export async function GET(request: Request) {
 
   return Response.json({
     date: todayStr,
+    geofence: {
+      required: geofencePilotEnabledForOrganization(organizationId),
+      canClockWithLocation: user.role === "employee",
+    },
     punches: todayPunches.map(({ punch, employee }) => ({
       ...punch,
       employeeName: `${employee.firstName} ${employee.lastName}`,
@@ -94,7 +100,7 @@ export async function POST(request: Request) {
   const organizationId = Number(body.organizationId);
   let employeeId = Number(body.employeeId);
   const actionType = String(body.actionType ?? "");
-  const location = String(body.location ?? "Web Bundy Clock (Browser)").slice(0, 160);
+  let location = String(body.location ?? "Web Bundy Clock (Browser)").slice(0, 160);
   const ip = clientIp(request);
 
   const validActions = ["clock_in", "break_start", "break_end", "clock_out"];
@@ -128,6 +134,26 @@ export async function POST(request: Request) {
 
   const todayStr = manilaToday();
   const now = new Date();
+  const geofenceRequired = geofencePilotEnabledForOrganization(organizationId);
+  // A team administrator cannot silently bypass an enforced employee self-clock.
+  // Approved manual exceptions use the separate HR correction workflow.
+  if (geofenceRequired && user.role !== "employee") {
+    return Response.json({
+      code: "GEOFENCE_SELF_CLOCK_ONLY",
+      error: "Geofenced attendance requires the employee to clock themself. Ask HR for a reviewed manual attendance exception.",
+    }, { status: 403 });
+  }
+  if (geofenceRequired) {
+    // Avoid a GPS-boundary probing oracle and repeated rejected clock requests.
+    const rateDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id,
+      action: "geofenced-web-bundy",
+      resourceId: organizationId,
+      limit: 24,
+      windowMs: 5 * 60_000,
+    });
+    if (rateDenied) return rateDenied;
+  }
   const attendanceLock = attendanceMutationLock(
     await loadActiveAttendanceLocks(organizationId),
     todayStr,
@@ -142,6 +168,37 @@ export async function POST(request: Request) {
       attendanceLockId: attendanceLock.id,
       lockType: attendanceLock.lockType,
     }, { status: 423 });
+  }
+
+  let geofenceAudit: {
+    policyVersion: string;
+    worksiteId: number;
+    distanceBand: string;
+    accuracyBand: string;
+  } | null = null;
+  if (geofenceRequired && (actionType === "clock_in" || actionType === "clock_out")) {
+    const sites = await authorizedGeofenceSites(organizationId, employeeId, todayStr);
+    const decision = evaluateGeofenceFix({ fix: body.geolocation, sites, now: now.getTime() });
+    if (!decision.ok) {
+      // Rejected checks must be reviewable without preserving the submitted
+      // GPS fix, which can reveal a home or sensitive travel location.
+      await recordAuditEvent({
+        organizationId,
+        actor: user.name,
+        action: "Web Bundy GPS verification rejected",
+        resource: employee.employeeNo,
+        metadata: { employeeId, workDate: todayStr, code: decision.code },
+      });
+      return Response.json({ error: decision.error, code: decision.code }, { status: 422 });
+    }
+    geofenceAudit = {
+      policyVersion: decision.policyVersion,
+      worksiteId: decision.worksiteId,
+      distanceBand: decision.distanceBand,
+      accuracyBand: decision.accuracyBand,
+    };
+    // The raw fix is deliberately not persisted to punches, audits, logs or exports.
+    location = `Verified worksite #${decision.worksiteId}`;
   }
 
   const [existingPunch] = await db.select().from(timePunches).where(
@@ -252,7 +309,7 @@ export async function POST(request: Request) {
       actor: user.name,
       action: "Web Bundy Clock IN",
       resource: `${employee.firstName} ${employee.lastName}`,
-      metadata: { employeeId, workDate: todayStr, timeIn: now.toISOString(), ip },
+      metadata: { employeeId, workDate: todayStr, timeIn: now.toISOString(), ip, ...(geofenceAudit ? { geofence: geofenceAudit } : {}) },
     });
 
     await markTimesheetsStaleForEmployeeDate({
@@ -302,7 +359,7 @@ export async function POST(request: Request) {
       actor: user.name,
       action: "Web Bundy Clock OUT without IN",
       resource: `${employee.firstName} ${employee.lastName}`,
-      metadata: { employeeId, workDate: todayStr, timeOut: now.toISOString(), ip },
+      metadata: { employeeId, workDate: todayStr, timeOut: now.toISOString(), ip, ...(geofenceAudit ? { geofence: geofenceAudit } : {}) },
     });
 
     await markTimesheetsStaleForEmployeeDate({
@@ -337,7 +394,7 @@ export async function POST(request: Request) {
     actor: user.name,
     action: "Web Bundy Clock OUT",
     resource: `${employee.firstName} ${employee.lastName}`,
-    metadata: { employeeId, workDate: todayStr, timeOut: now.toISOString(), ip },
+    metadata: { employeeId, workDate: todayStr, timeOut: now.toISOString(), ip, ...(geofenceAudit ? { geofence: geofenceAudit } : {}) },
   });
 
   // Final clock-out changes payable hours. Submitted/approved timesheets must
