@@ -10,6 +10,7 @@ import { buildWfmManagerActionQueue, phWorkDateAt } from "@/lib/workforce-manage
 import { WorkforceLiveFloor } from "./workforce-live-floor";
 import { WorkforcePlanningPreviewPanel } from "./workforce-planning-preview-panel";
 import { WorkforceLaborCalibrationPanel } from "./workforce-labor-calibration-panel";
+import { WorkforceOperationalDemandPanel } from "./workforce-operational-demand-panel";
 import { previewWorkforceRecovery } from "@/lib/workforce-planning-preview";
 
 type Shift = {
@@ -710,6 +711,15 @@ export function WorkforceCoveragePanel({
         <Metric label="Open shifts" value={String((payload?.openShifts ?? []).filter((row) => row.status === "open").length)} hint="coverage recovery" icon={<UsersRound size={16} />} tone="blue" />
         <Metric label="Pending claims" value={String(pendingClaims)} hint="manager decision needed" icon={<UsersRound size={16} />} tone={pendingClaims ? "amber" : "slate"} />
       </section>
+
+      {payload && process.env.NEXT_PUBLIC_WFM_OPERATIONAL_DEMAND_ENABLED === "true" && (
+        <WorkforceOperationalDemandPanel
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
+          canManage={canManage}
+        />
+      )}
 
       {payload && <WorkforceLaborCalibrationPanel
         labor={payload.laborVariance}
