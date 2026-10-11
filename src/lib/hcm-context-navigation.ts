@@ -7,6 +7,8 @@ import {
   monitorEnabledForEmployer,
 } from "@/lib/hcm-process-monitor";
 import { roleHasPeopleWorkspace } from "@/lib/workspace-role-ui";
+import { hirePayrollReviewEnabledForEmployer } from "@/lib/hcm-hire-payroll-review";
+import { pilotFocusEnabledForOrganization } from "@/lib/pilot-navigation";
 
 /**
  * Discovery only, never an authorization gate.
@@ -15,7 +17,7 @@ import { roleHasPeopleWorkspace } from "@/lib/workspace-role-ui";
  * read. Never infer an employee from an HR user's first membership.
  */
 export type HcmNavigationLocation =
-  | "peopleHome" | "processMonitor" | "worker360" | "actionCenter" | "orgExplorer" | "inbox" | "directory";
+  | "peopleHome" | "processMonitor" | "worker360" | "payrollReview" | "actionCenter" | "orgExplorer" | "inbox" | "directory";
 
 export type HcmNavigationLink = {
   id: HcmNavigationLocation;
@@ -84,6 +86,22 @@ export function buildHcmNavigation(
     links.push({
       id: "worker360", label: "Worker 360",
       href: "/hcm/worker-360?organizationId=" + organizationId +
+        "&employeeId=" + safeWorkerId,
+    });
+  }
+
+  // Preserve the exact authorized worker context; the read-only destination
+  // rechecks session, employer, People permission-set overrides and source flags.
+  // Never expose a pay-review link to manager, bookkeeper or pilot-focus routes.
+  if (
+    canPeopleWorkspace && ["owner", "admin", "hr"].includes(access.role) &&
+    safeWorkerId !== null &&
+    hirePayrollReviewEnabledForEmployer(organizationId, env) &&
+    !pilotFocusEnabledForOrganization(organizationId, env)
+  ) {
+    links.push({
+      id: "payrollReview", label: "Payroll input evidence",
+      href: "/hcm/hire-payroll-review?organizationId=" + organizationId +
         "&employeeId=" + safeWorkerId,
     });
   }
