@@ -143,5 +143,30 @@ jobs:
           done
           echo 'Local disabled monitor unavailable'
           exit 1
+      # Separate app instance: do not change the default-off pilot experience.
+      # Only fictional employers 1/2 in disposable localhost PostgreSQL.
+      - name: Start local opt-in Enterprise HCM gate instance
+        shell: bash
+        env:
+          HCM_ENTERPRISE_PLAN_GATE_ENABLED: 'true'
+          HCM_ENTERPRISE_PLAN_GATE_ORG_IDS: '1,2'
+          HCM_ORG_EXPLORER_ENABLED: 'true'
+          HCM_ORG_EXPLORER_ORG_IDS: '1,2'
+          APP_BASE_URL: http://127.0.0.1:3002
+          TRUSTED_APP_ORIGINS: http://127.0.0.1:3002
+        run: |
+          nohup npm start -- -p 3002 -H 127.0.0.1 > /tmp/hcm-enterprise-gate.log 2>&1 &
+          for attempt in {1..40}; do
+            if curl -fsS 'http://127.0.0.1:3002/login' >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo 'Local opt-in HCM gate instance unavailable'
+          exit 1
+      - name: Browser QA — active Enterprise vs Core direct HCM pages and APIs
+        env:
+          HCM_ENTERPRISE_PLAN_GATE_ENABLED: 'true'
+          HCM_ENTERPRISE_PLAN_GATE_ORG_IDS: '1,2'
+        run: node scripts/hcm-enterprise-plan-synthetic-browser.mjs
+
       - name: Browser QA — HCM navigation/role/tenant/a11y/reflow/default-off
         run: node scripts/hcm-process-monitor-synthetic-browser.mjs
