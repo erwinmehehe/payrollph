@@ -1,3 +1,4 @@
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 const ALLOWED: Record<string, { mime: string; ext: string[]; magic: number[][] }> = {
@@ -68,7 +69,7 @@ export function safeFileName(name: string) {
  * route that depends on an unavailable malware scanner.
  */
 export function documentUploadsEnabled() {
-  return process.env.NODE_ENV !== "production" || process.env.DOCUMENT_UPLOADS_ENABLED === "true";
+  return process.env.NODE_ENV !== "production" || criticalReleaseFlagEnabled("documentUploads");
 }
 
 export function malwareScannerConfigured() {
