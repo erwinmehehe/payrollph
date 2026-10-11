@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { hcmBusinessProcessDefinitions, orgUnits } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
+import { enterpriseHcmPlanGateEnabled } from "@/lib/hcm-enterprise-plan-policy";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
@@ -31,10 +32,15 @@ async function assertBusinessProcessAdmin(userId: number, organizationId: number
   );
   if (denied) return { error: denied };
   const access = await getAccess(userId, organizationId);
-  if (!access?.companyWide) {
+  // Existing pilots retain their prior roles until explicitly enrolled.
+  // For enrolled Enterprise workflow DESIGN, a company-wide bookkeeper (who
+  // may have access to operational People tasks) cannot rewrite approvers.
+  const enrolledForPaidDesign = enterpriseHcmPlanGateEnabled(organizationId, process.env);
+  if (!access?.companyWide ||
+      (enrolledForPaidDesign && !["owner", "admin", "hr"].includes(access.role))) {
     return { error: Response.json({
-      error: "HCM business-process administration requires company-wide People access.",
-    }, { status: 403 }) };
+      error: "Enterprise workflow configuration requires company-wide People administrator access.",
+    }, { status: 403, headers: { "Cache-Control": "private, no-store" } }) };
   }
   return { access };
 }
