@@ -1,0 +1,57 @@
+name: HCM Staging Isolation Attestation (No Deploy)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/verify-hcm-staging-isolation.mjs'
+      - 'tests/hcm-staging-isolation.test.mjs'
+      - '.github/workflows/hcm-staging-isolation.yml'
+      - 'docs/hcm-staging-isolation-runbook.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Install locked dependencies for local contract test
+        run: npm ci
+      - name: Test fail-closed staging checks without DB credentials
+        run: node --test tests/hcm-staging-isolation.test.mjs
+
+  protected-database-attestation:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: offline-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: hcm-staging
+    env:
+      HCM_STAGING_GATE: 'true'
+      HCM_PEOPLE_HOME_ENABLED: 'false'
+      NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED: 'false'
+      HCM_STAGING_PROJECT_ID: ${{ vars.HCM_STAGING_PROJECT_ID }}
+      EXPECTED_HCM_STAGING_PROJECT_ID: ${{ vars.EXPECTED_HCM_STAGING_PROJECT_ID }}
+      HCM_STAGING_EXPECTED_DB_MARKER: ${{ vars.HCM_STAGING_EXPECTED_DB_MARKER }}
+      HCM_STAGING_DB_SSL: 'true'
+      DATABASE_URL: ${{ secrets.HCM_STAGING_READONLY_DATABASE_URL }}
+      PRODUCTION_DATABASE_URL_SHA256: ${{ secrets.PRODUCTION_DATABASE_URL_SHA256 }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Fail closed unless protected staging DB is independent and read only
+        run: node scripts/verify-hcm-staging-isolation.mjs
