@@ -188,12 +188,16 @@ export async function ensureCoreCompatibilitySchema() {
 
   if (mode === "read-only") {
     coreSchemaInFlight = (async () => {
-      const client = await pool.connect();
+      let client: PoolClient | null = null;
       try {
-        await verifyCoreSchemaReadOnly((sql, parameters) => client.query(sql, parameters));
+        client = await pool.connect();
+        const connected = client;
+        await verifyCoreSchemaReadOnly((sql, parameters) => connected.query(sql, parameters));
         coreSchemaReady = true;
       } finally {
-        client.release();
+        // Retry the catalog preflight after transient connection errors.
+        // Even pool.connect() rejection must not poison the readiness promise.
+        client?.release();
         coreSchemaInFlight = null;
       }
     })();
