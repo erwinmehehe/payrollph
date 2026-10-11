@@ -43,5 +43,6 @@ export function useScopedAsyncResource<T>(
 
   const active = activeAsyncResult(settled, key, enabled);
   const loading = enabled && (!active || refreshing === key);
-  return { data: loading ? null : active?.data ?? null, error: loading ? null : active?.error ?? null, loading, reload };
+  const isCurrent = useCallback(() => key.enabled && owner.isActive(key), [key, owner]);
+  return { data: loading ? null : active?.data ?? null, error: loading ? null : active?.error ?? null, loading, reload, isCurrent };
 }
