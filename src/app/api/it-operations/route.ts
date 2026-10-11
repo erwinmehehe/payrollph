@@ -1,7 +1,7 @@
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { assets, employees, itAccessGrants, itApplications, itDeviceEvents, itManagedDevices, provisioningTasks } from "@/db/schema";
+import { assets, auditEvents, employees, itAccessGrants, itApplications, itDeviceEvents, itManagedDevices, provisioningTasks } from "@/db/schema";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { enforceSameOriginMutation, requireSensitiveActionMfa, enforceSensitiveActionRateLimit } from "@/lib/security-request";
@@ -77,10 +77,19 @@ export async function POST(request: Request) {
     if (employeeCheck.employee!.status !== "Active") return Response.json({ error: "Only active employees can receive new app access." }, { status: 409 });
     const [app] = await db.select().from(itApplications).where(and(eq(itApplications.organizationId, org), eq(itApplications.id, applicationId))).limit(1);
     if (!app) return Response.json({ error: "Application not found." }, { status: 404 });
-    const [created] = await db.insert(itAccessGrants).values({ organizationId: org, employeeId, applicationId, requestedByUserId: user.id })
-      .onConflictDoNothing().returning();
-    if (!created) return Response.json({ error: "Existing access record; use lifecycle action." }, { status: 409 });
-    await recordAuditEvent({ organizationId: org, actor: user.name, action: "IT access requested", resource: app.name, metadata: { employeeId, applicationId } });
+    const created = await db.transaction(async tx => {
+      // Serialize grants with HR separation, which updates/locks this worker.
+      await tx.execute(sql`select id from employees where organization_id = ${org} and id = ${employeeId} for update`);
+      const [current] = await tx.select({ status: employees.status }).from(employees)
+        .where(and(eq(employees.id, employeeId), eq(employees.organizationId, org))).limit(1);
+      if (current?.status !== "Active") throw new Error("Only active employees can receive new app access.");
+      const [row] = await tx.insert(itAccessGrants).values({ organizationId: org, employeeId, applicationId, requestedByUserId: user.id })
+        .onConflictDoNothing().returning();
+      if (!row) throw new Error("Existing access record; use lifecycle action.");
+      await tx.insert(auditEvents).values({ organizationId: org, actor: user.name, action: "IT access requested", resource: app.name, metadata: { employeeId, applicationId } });
+      return row;
+    }).catch(e => e instanceof Error ? e : new Error("Could not request access."));
+    if (created instanceof Error) return Response.json({ error: created.message }, { status: 409 });
     return Response.json(created, { status: 201 });
   }
   if (body.action === "device") {
@@ -134,11 +143,23 @@ export async function PATCH(request: Request) {
     const allowed: Record<string, string[]> = { grant_requested: ["active", "revoked"], active: ["revoke_requested"], revoke_requested: ["revoked"], revoked: [] };
     if (!allowed[grant.state]?.includes(next)) return Response.json({ error: "Invalid access transition." }, { status: 409 });
     if (next === "active" && employeeCheck.employee!.status !== "Active") return Response.json({ error: "Cannot grant access to a separating or separated employee." }, { status: 409 });
-    const [row] = await db.update(itAccessGrants).set({ state: next, confirmedByUserId: user.id, updatedAt: new Date() })
-      .where(and(eq(itAccessGrants.id, id), eq(itAccessGrants.organizationId, grant.organizationId), eq(itAccessGrants.state, grant.state))).returning();
-    if (!row) return Response.json({ error: "Record changed; refresh." }, { status: 409 });
-    await recordAuditEvent({ organizationId: grant.organizationId, actor: user.name, action: "IT app access " + next + " (manually confirmed)", resource: String(id), metadata: { employeeId: grant.employeeId, applicationId: grant.applicationId } });
-    return Response.json(row);
+    const updated = await db.transaction(async tx => {
+      await tx.execute(sql`select id from employees where organization_id = ${grant.organizationId} and id = ${grant.employeeId} for update`);
+      const [worker] = await tx.select({ status: employees.status }).from(employees)
+        .where(and(eq(employees.organizationId, grant.organizationId), eq(employees.id, grant.employeeId))).limit(1);
+      if (next === "active" && worker?.status !== "Active") throw new Error("Employee is no longer active; confirm revocation instead.");
+      const [row] = await tx.update(itAccessGrants).set({ state: next, confirmedByUserId: user.id, updatedAt: new Date() })
+        .where(and(eq(itAccessGrants.id, id), eq(itAccessGrants.organizationId, grant.organizationId), eq(itAccessGrants.state, grant.state))).returning();
+      if (!row) throw new Error("Access record changed; refresh.");
+      await tx.insert(auditEvents).values({
+        organizationId: grant.organizationId, actor: user.name,
+        action: "IT app access " + next + " (manually confirmed)", resource: String(id),
+        metadata: { employeeId: grant.employeeId, applicationId: grant.applicationId, actorUserId: user.id },
+      });
+      return row;
+    }).catch(e => e instanceof Error ? e : new Error("Access decision failed."));
+    if (updated instanceof Error) return Response.json({ error: updated.message }, { status: 409 });
+    return Response.json(updated);
   }
   if (body.action === "device") {
     const [device] = await db.select().from(itManagedDevices).where(eq(itManagedDevices.id, id)).limit(1);
@@ -161,6 +182,12 @@ export async function PATCH(request: Request) {
     }
     if (next === "available" || next === "retired") employeeId = null;
     const result = await db.transaction(async tx => {
+      if (next === "assigned" && employeeId != null) {
+        await tx.execute(sql`select id from employees where organization_id = ${device.organizationId} and id = ${employeeId} for update`);
+        const [worker] = await tx.select({ status: employees.status }).from(employees)
+          .where(and(eq(employees.organizationId, device.organizationId), eq(employees.id, employeeId))).limit(1);
+        if (worker?.status !== "Active") throw new Error("Employee is no longer active; device cannot be assigned.");
+      }
       const [row] = await tx.update(itManagedDevices).set({ state: next, employeeId, updatedAt: new Date() })
         .where(and(eq(itManagedDevices.id, id), eq(itManagedDevices.organizationId, device.organizationId), eq(itManagedDevices.state, device.state))).returning();
       if (!row) throw new Error("Device changed; refresh.");
@@ -171,10 +198,13 @@ export async function PATCH(request: Request) {
         returnedOn: next === "returned" ? new Date().toISOString().slice(0, 10) : undefined,
       }).where(and(eq(assets.id, device.assetId), eq(assets.organizationId, device.organizationId)));
       await tx.insert(itDeviceEvents).values({ organizationId: device.organizationId, deviceId: id, eventType: next, employeeId, actorUserId: user.id });
+      await tx.insert(auditEvents).values({
+        organizationId: device.organizationId, actor: user.name, action: "IT device " + next,
+        resource: String(device.assetId), metadata: { deviceId: id, employeeId, actorUserId: user.id },
+      });
       return row;
     }).catch(e => e instanceof Error ? e : new Error("Device transition failed."));
     if (result instanceof Error) return Response.json({ error: result.message }, { status: 409 });
-    await recordAuditEvent({ organizationId: device.organizationId, actor: user.name, action: "IT device " + next, resource: String(device.assetId), metadata: { deviceId: id, employeeId } });
     return Response.json(result);
   }
   return Response.json({ error: "Unknown action." }, { status: 422 });
