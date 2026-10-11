@@ -60,7 +60,7 @@ test("isolated Postgres imports only aggregate counts, preserves older correctio
     });
     assert.equal(initial.changedIntervals,48);
     const write=await writeOperationalDemandImport({
-      batch:initial.batch!,actorUserId:user.id,actorName:user.name,
+      batch:initial.batch!,actorUserId:user.id,actorName:"Synthetic sandbox operator",
     });
     assert.equal(write.rowCount,48);
     const window=squareDayWindow(day,now);
@@ -86,7 +86,7 @@ test("isolated Postgres imports only aggregate counts, preserves older correctio
     assert.equal(changed.changedIntervals,1);
     assert.equal(changed.batch!.rows[0].revision,2);
     await writeOperationalDemandImport({
-      batch:changed.batch!,actorUserId:user.id,actorName:user.name,
+      batch:changed.batch!,actorUserId:user.id,actorName:"Synthetic sandbox operator",
     });
     const after=await loadOperationalDemandVersions(query);
     assert.equal(after.length,49,"Older counts must remain frozen as previous revisions");
