@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { employees, userOrganizations, users } from "@/db/schema";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { readScheduleReceiptView } from "@/lib/workforce-schedule-receipt-server";
+import { manilaWorkDate } from "@/lib/workforce-employee-upcoming-week";
 import { receiptPilotAllowed } from "@/lib/workforce-schedule-receipt";
 import { explicitReminderEmployerIds, scheduleReviewSignals } from "@/lib/workforce-schedule-review-reminders";
 
@@ -68,8 +69,18 @@ export async function emitWorkforceScheduleReviewReminders(now: Date = new Date(
     try {
       // The service verifies the exact active employee session binding again
       // after acquiring the same roster lock used by schedule publishers.
-      const view = await readScheduleReceiptView(row, () =>
-        new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(now));
+      // Compare the scheduler's starting business day with the live clock.
+      // A roster-lock wait can cross Philippine midnight; stale windows must
+      // never silently produce due notices for yesterday's workforce plan.
+      if (manilaWorkDate(now) !== manilaWorkDate()) {
+        return { skipped: true as const, reason: "business-date-changed",
+          inspected, attempted, failures, ambiguousAccounts };
+      }
+      const view = await readScheduleReceiptView(row, manilaWorkDate);
+      if (view.days[0]?.date !== manilaWorkDate(now) || manilaWorkDate(now) !== manilaWorkDate()) {
+        return { skipped: true as const, reason: "business-date-changed",
+          inspected, attempted, failures, ambiguousAccounts };
+      }
       inspected++;
       for (const signal of scheduleReviewSignals({ ...row, view, now })) {
         const outcomes = await runAutomationEventSafely({
