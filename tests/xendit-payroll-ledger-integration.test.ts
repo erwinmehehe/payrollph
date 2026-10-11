@@ -9,7 +9,7 @@ import {
 } from "../src/lib/xendit-payroll-operations";
 import { xenditPayoutLedger } from "../src/lib/xendit-payout-ledger";
 
-const payoutId = "po-b2c3d4e5-f6a7-8901-bcde-f23456789012";
+const payoutIdForRun = (runId: number) => `po-${String(runId).padStart(8, "0")}-0000-4000-8000-000000000001`;
 
 async function fixture() {
   const [org] = await db.insert(organizations).values({
@@ -75,7 +75,7 @@ async function fixture() {
 
 function providerPayload(runId: number, businessId: string, status: string) {
   return {
-    payout_id: payoutId,
+    payout_id: payoutIdForRun(runId),
     reference_id: `PAY-${runId}-E001`,
     status, source_currency: "PHP", source_amount: 1550123,
     destination_currency: "PHP", business_id: businessId,
@@ -95,7 +95,7 @@ test("Xendit stages, sends, and reconciles exactly one immutable employee payout
         assert.equal(body.payout_details.source_amount, 1550123);
         return Response.json(providerPayload(f.run.id, f.businessId, "ACCEPTED"));
       }
-      if (uri === `https://api.xendit.co/v3/payouts/${payoutId}`) {
+      if (uri === `https://api.xendit.co/v3/payouts/${payoutIdForRun(f.run.id)}`) {
         return Response.json(providerPayload(f.run.id, f.businessId, "SUCCEEDED"));
       }
       throw new Error("No unmocked external payments allowed in integration tests.");
@@ -114,7 +114,7 @@ test("Xendit stages, sends, and reconciles exactly one immutable employee payout
     assert.equal(reconciled.checked, 1);
     assert.equal(reconciled.ledger?.counts.succeeded, 1);
     assert.equal(reconciled.ledger?.status, "settled");
-    assert.equal((await xenditPayoutLedger(f.org.id, f.run.id))?.rows[0]?.providerPayoutId, payoutId);
+    assert.equal((await xenditPayoutLedger(f.org.id, f.run.id))?.rows[0]?.providerPayoutId, payoutIdForRun(f.run.id));
     const again = await submitXenditPayroll(f.run, "CI synthetic operator");
     assert.equal(again.submitted.length, 0);
     assert.equal(sends, 1, "A second request must never send salary again.");
@@ -135,7 +135,7 @@ test("Xendit transport timeout leaves a durable uncertain outcome; lookup cannot
         sends += 1;
         throw new Error("Synthetic request timeout after bank may have received instruction");
       }
-      if (uri === `https://api.xendit.co/v3/payouts/${payoutId}`) {
+      if (uri === `https://api.xendit.co/v3/payouts/${payoutIdForRun(f.run.id)}`) {
         return Response.json(providerPayload(f.run.id, f.businessId, "ACCEPTED"));
       }
       throw new Error("Unexpected real payment request");
@@ -148,7 +148,7 @@ test("Xendit transport timeout leaves a durable uncertain outcome; lookup cannot
     assert.equal(sends, 1, "Unknown transport outcome cannot be sent again");
     const linked = await resolveUnknownXenditPayroll({
       run: f.run, actor: "CI synthetic checker",
-      referenceNumber: `PAY-${f.run.id}-E001`, payoutId,
+      referenceNumber: `PAY-${f.run.id}-E001`, payoutId: payoutIdForRun(f.run.id),
     });
     assert.equal(linked?.counts.unknown, 0);
     assert.equal(linked?.counts.submitted, 1);
