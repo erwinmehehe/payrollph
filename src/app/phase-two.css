@@ -242,6 +242,18 @@
 .app-shell.clean-shell.premium-phase-one #payroll-workspace { scroll-margin-top: 95px; }
 
 /* Approvals: simplified decisions; the server is still the sole authority. */
+.app-shell.clean-shell.premium-phase-one .p2-checker-evidence {
+  margin: 24px 0 0;
+  scroll-margin-top: 90px;
+}
+.app-shell.clean-shell.premium-phase-one .p2-checker-evidence .primary-button.brand {
+  background: #086b5b;
+  border-color: #086b5b;
+  color: #fff;
+}
+.app-shell.clean-shell.premium-phase-one .p2-checker-evidence .primary-button.brand:hover {
+  background: #065346;
+}
 .app-shell.clean-shell.premium-phase-one .p2-approval-metrics { margin: 18px 0 24px; }
 .app-shell.clean-shell.premium-phase-one .p2-approval-toolbar {
   display: flex;
@@ -414,13 +426,48 @@
   .p2-payroll-overview .p2-payroll-actions { flex-direction: column; }
   .p2-payroll-overview .p2-payroll-disclaimer { padding: 11px 16px; }
   .app-shell.clean-shell.premium-phase-one .p2-approval-row {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    padding: 15px;
-    gap: 10px;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    align-items: start;
+    padding: 14px;
+    gap: 10px 11px;
   }
-  .p2-approval-row .approval-actions.p2-approval-actions { width: 100%; justify-content: flex-start; }
-  .p2-approval-row .p2-approval-readonly { align-items: flex-start; }
+  .app-shell.clean-shell.premium-phase-one .p2-approval-row > .approval-symbol {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .app-shell.clean-shell.premium-phase-one .p2-approval-row > div:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+  .app-shell.clean-shell.premium-phase-one .p2-approval-row > .p2-approval-actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    min-width: 0;
+    flex: unset;
+    gap: 8px;
+  }
+  .app-shell.clean-shell.premium-phase-one .p2-approval-row > .p2-approval-actions > button {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 44px;
+    box-sizing: border-box;
+    padding: 9px 7px;
+    font-size: 12px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+  .app-shell.clean-shell.premium-phase-one .p2-approval-row > .p2-approval-actions > button:only-child {
+    grid-column: 1 / -1;
+  }
+  .app-shell.clean-shell.premium-phase-one .p2-approval-row > .p2-approval-readonly {
+    grid-column: 2;
+    align-items: flex-start;
+  }
   .app-shell.clean-shell.premium-phase-one .p2-approval-confirm .p2-confirm-body { padding: 21px; }
 }
 @media (prefers-reduced-motion: reduce) {
