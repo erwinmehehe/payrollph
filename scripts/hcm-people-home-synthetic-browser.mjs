@@ -61,6 +61,14 @@ async function main() {
     assert.equal(await visit(page, 1), 200);
     await page.getByRole("heading", { name: "People Home", exact: true }).waitFor();
     assert.equal(await countEmployees(page), 1);
+    const region = page.getByRole("region", { name: "My tasks and source follow-ups" });
+    assert.equal(await region.count(), 1, "Worklist must have a named screen-reader region");
+    for (const sectionName of ["My HCM decisions", "People Ops follow-ups", "Cases assigned to me"]) {
+      assert.equal(await page.getByRole("article", { name: sectionName }).count(), 1,
+        "Source sections require distinct accessible article names: " + sectionName);
+    }
+    assert.equal(await page.getByRole("heading", { level: 1, name: "People Home" }).count(), 1);
+    assert.equal(await page.getByRole("heading", { level: 2, name: "My tasks and source follow-ups" }).count(), 1);
     const alpha = await page.locator("main").innerText();
     for (const expected of [
       "Synthetic Alpha Employer", "My HCM decisions",
@@ -105,6 +113,7 @@ async function main() {
     for (const email of [
       "hcm-denied@example.test", "hcm-payroll@example.test",
       "hcm-manager@example.test", "hcm-unit@example.test",
+      "hcm-checker@example.test", "hcm-employee@example.test",
     ]) {
       const context = await browser.newContext();
       await login(context, email);
@@ -127,7 +136,7 @@ async function main() {
     console.log(JSON.stringify({
       result: "PASS", target: "synthetic localhost only",
       tenantIsolation: true, roles: true, customDeny: true,
-      mobile375: true, keyboard: true, sourceDeepLink: true,
+      mobile375: true, keyboard: true, screenReaderLandmarks: true, sourceDeepLink: true,
       serverKillSwitch: true, realEmployerAccepted: false,
       productionCertified: false,
     }));

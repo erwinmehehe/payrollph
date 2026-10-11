@@ -28,7 +28,7 @@ Both `HCM_PEOPLE_HOME_ENABLED=true` and `NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED=tru
 5. Create HR source findings (review, follow-up, neutral optional check) and a separately owned/unowned operational case. Verify no source check is labelled an approval, and the owned-case preview does not show unowned cases.
 6. Test source failure, missing dates, 31+ pending BP candidates and more than five visible source items. The UI must not claim "all clear" or fabricate an exact decision count on a truncated candidate set.
 7. Switch employer rapidly, refresh and deep-link from each People Home card. Confirm the link returns to the selected employer, the People screen and (for decisions) the expanded Employee administration/HCM Inbox panel. No stale tenant data should remain.
-8. Check screen-reader labels, keyboard focus, 375px mobile width, zoom and low-bandwidth/retry behavior. Capture sanitized traces without real personal data.
+8. Synthetic Chromium verifies named screen-reader landmarks/articles, heading hierarchy, keyboard focus and 375px viewport. Protected staging must still cover zoom, real screen-reader interaction, slow-network/retry behavior and sanitized traces without real personal data.
 9. Keep GitHub source merge authorization distinct from protected production deployment, real employer payroll validation, bank encryption, live DB migration and release committee authorization.
 
 ## Production hold

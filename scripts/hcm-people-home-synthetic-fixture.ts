@@ -22,12 +22,14 @@ async function main() {
   ]).returning();
   assert.deepEqual([alpha.id, beta.id], [1, 2], "CI database must be empty");
   const passwordHash = hashPassword("Synthetic-HCM-QA-Password-Only-2026!");
-  const [hr, restricted, payroll, manager, unitHr] = await db.insert(users).values([
+  const [hr, restricted, payroll, manager, unitHr, checker, employee] = await db.insert(users).values([
     { email: "hcm-hr@example.test", name: "Synthetic HR", passwordHash, role: "hr" },
     { email: "hcm-denied@example.test", name: "Synthetic Restricted HR", passwordHash, role: "hr" },
     { email: "hcm-payroll@example.test", name: "Synthetic Payroll", passwordHash, role: "payroll" },
     { email: "hcm-manager@example.test", name: "Synthetic Manager", passwordHash, role: "manager" },
     { email: "hcm-unit@example.test", name: "Synthetic Unit HR", passwordHash, role: "hr" },
+    { email: "hcm-checker@example.test", name: "Synthetic Checker", passwordHash, role: "checker" },
+    { email: "hcm-employee@example.test", name: "Synthetic Employee", passwordHash, role: "employee" },
   ]).returning();
   const [unit] = await db.insert(orgUnits).values({
     organizationId: alpha.id, code: "HCM-QA-BRANCH", name: "Synthetic Branch", type: "department",
@@ -39,6 +41,8 @@ async function main() {
     { userId: payroll.id, organizationId: alpha.id, role: "payroll", active: true },
     { userId: manager.id, organizationId: alpha.id, role: "manager", active: true },
     { userId: unitHr.id, organizationId: alpha.id, role: "hr", orgUnitId: unit.id, active: true },
+    { userId: checker.id, organizationId: alpha.id, role: "checker", active: true },
+    { userId: employee.id, organizationId: alpha.id, role: "employee", active: true },
   ]).returning();
   const restrictedMembership = memberships.find((row) => row.userId === restricted.id);
   assert.ok(restrictedMembership);

@@ -244,6 +244,26 @@ async function myOwnedCases(
   };
 }
 
+/**
+ * Independently settle each authoritative source. A failure must not erase
+ * valid results from the other sources or masquerade as an empty inbox.
+ * Source exceptions and free text never enter the returned read model.
+ */
+export async function settlePeopleHomeSourcePreviews(
+  decisionsSource: Promise<PeopleHomeSection>,
+  followUpsSource: Promise<PeopleHomeSection>,
+  ownedCasesSource: Promise<PeopleHomeSection>,
+): Promise<PeopleHomeWorklist> {
+  const [decisions, followUps, ownedCases] = await Promise.allSettled([
+    decisionsSource, followUpsSource, ownedCasesSource,
+  ]);
+  return {
+    decisions: decisions.status === "fulfilled" ? decisions.value : missing(),
+    followUps: followUps.status === "fulfilled" ? followUps.value : missing(),
+    ownedCases: ownedCases.status === "fulfilled" ? ownedCases.value : missing(),
+  };
+}
+
 /** Caller must first enforce session, employer, People-admin RBAC and pilot flag. */
 export async function loadPeopleHomeWorklist(
   organizationId: number,
@@ -263,15 +283,9 @@ export async function loadPeopleHomeWorklist(
   if (denied || !canOpenPeopleHome(access)) {
     throw new Error("People Home access is not authorized.");
   }
-  const [decisions, followUps, ownedCases] = await Promise.allSettled([
+  return settlePeopleHomeSourcePreviews(
     assignedHcmDecisions(organizationId, user),
     peopleOpsFollowUps(organizationId),
     myOwnedCases(organizationId, user.id),
-  ]);
-  // An unavailable source can never be an empty/complete work queue.
-  return {
-    decisions: decisions.status === "fulfilled" ? decisions.value : missing(),
-    followUps: followUps.status === "fulfilled" ? followUps.value : missing(),
-    ownedCases: ownedCases.status === "fulfilled" ? ownedCases.value : missing(),
-  };
+  );
 }
