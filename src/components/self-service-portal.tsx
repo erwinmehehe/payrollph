@@ -1176,6 +1176,7 @@ export function SelfServicePortal() {
 
           {webBundyOpen && (
             <WebBundyModal
+              employeeId={data.employee.id}
               organizationId={data.employer?.id ?? 0}
               employeeName={data.employee.firstName + " " + data.employee.lastName}
               onClose={() => setWebBundyOpen(false)}
