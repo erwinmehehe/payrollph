@@ -37,6 +37,9 @@ export async function getAccess(userId: number, organizationId: number): Promise
       eq(orgUnits.id, membership.orgUnitId),
       eq(orgUnits.organizationId, organizationId),
     )).limit(1);
+    // A manager may act only for a unit that actually belongs to the selected
+    // employer and is active. Stale or cross-employer assignments fail closed.
+    if (membership.role === "manager" && (!unit || !unit.active)) return null;
     orgUnitName = unit?.name ?? null;
   }
 
