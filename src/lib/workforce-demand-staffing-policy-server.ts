@@ -10,6 +10,7 @@ import {
   policySpec, policyDatesOverlap, samePolicyScope,
 } from "./workforce-demand-staffing-policy";
 import { operationalDemandSiteAuthorized } from "./workforce-operational-demand-scope";
+import { manilaCalendarDate } from "./payroll-period-ui";
 
 type Access = {
   organizationId: number; companyWide: boolean; orgUnitId: number | null;
@@ -139,6 +140,9 @@ export async function createStaffingPolicyDraft(input: {
   return db.transaction(async tx => {
     await lockOrganization(tx,spec.organizationId);
     await ensureScope(tx,spec,input.access);
+    if (spec.effectiveFrom < manilaCalendarDate()) {
+      throw new StaffingPolicyConflict("Retroactive productivity proposals are not allowed.");
+    }
     const [priorRequest] = await tx.select().from(workforceDemandStaffingPolicies)
       .where(and(
         eq(workforceDemandStaffingPolicies.organizationId,spec.organizationId),
@@ -212,6 +216,9 @@ export async function transitionStaffingPolicy(input: {
     }
     if (row.status !== "submitted" || row.submittedByUserId === null) {
       throw new StaffingPolicyConflict("Only a submitted policy can be decided.");
+    }
+    if (change.action === "approve" && String(row.effectiveFrom) < manilaCalendarDate()) {
+      throw new StaffingPolicyConflict("Cannot approve a policy whose effective period already started.");
     }
     let replaced:PolicyRow|null=null;
     if (change.action === "approve") {
