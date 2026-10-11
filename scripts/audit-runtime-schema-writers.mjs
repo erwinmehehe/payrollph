@@ -94,6 +94,18 @@ function alwaysExits(node) {
   return false;
 }
 
+function containsLiteralWrite(node) {
+  if (isQueryCall(node)) {
+    const text = sqlText(node.arguments[0]);
+    if (text !== null && (DDL.test(text) || BACKFILL.test(text))) return true;
+  }
+  if (isSqlTag(node)) {
+    const text = sqlText(node);
+    if (text !== null && (DDL.test(text) || BACKFILL.test(text))) return true;
+  }
+  return ts.forEachChild(node, containsLiteralWrite) || false;
+}
+
 function unwrap(node) {
   while (ts.isParenthesizedExpression(node)) node = node.expression;
   return node;
@@ -140,6 +152,7 @@ function classifyGuard(functionNode, sourceFile, firstMutation) {
     if (!ts.isIfStatement(stmt) || stmt.getEnd() > firstMutation) continue;
     if (!isStrictReadOnlyGuard(stmt.expression, sourceFile, verifiedModeBinding)) continue;
     if (!alwaysExits(stmt.thenStatement)) continue;
+    if (containsLiteralWrite(stmt.thenStatement)) continue;
     // This is source-level control-flow evidence, not proof that the
     // read-only catalog verifier itself has correct semantics.
     return {
