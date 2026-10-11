@@ -1,0 +1,50 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { Client } from "pg";
+import {
+  payrollMonthCloseSchemaSpec,
+  doleReportingSchemaSpec,
+  separationSchemaSpec,
+  verifyRequestSchemaReadOnly,
+} from "../src/lib/request-schema-readonly";
+
+// Integration evidence comes exclusively from the disposable GitHub Actions
+// PostgreSQL 16 service after db:push. Never contact staging or production.
+const url = process.env.DATABASE_URL;
+let isolated = false;
+try {
+  if (url) {
+    const parsed = new URL(url);
+    isolated = process.env.CI === "true"
+      && process.env.GITHUB_ACTIONS === "true"
+      && ["127.0.0.1", "localhost"].includes(parsed.hostname)
+      && parsed.port === "5432"
+      && parsed.pathname === "/app_db"
+      && parsed.username === "postgres"
+      && !parsed.search && !parsed.hash;
+  }
+} catch {
+  isolated = false;
+}
+
+test("PostgreSQL 16 catalog accepts money-close, DOLE and separation schema after isolated Drizzle push", {
+  skip: !isolated,
+}, async () => {
+  const client = new Client({ connectionString: url, connectionTimeoutMillis: 4000, query_timeout: 8000 });
+  await client.connect();
+  try {
+    for (const spec of [payrollMonthCloseSchemaSpec, doleReportingSchemaSpec, separationSchemaSpec]) {
+      await verifyRequestSchemaReadOnly(
+        (sql, parameters) => client.query(sql, parameters),
+        spec,
+      );
+    }
+    const status = await client.query(
+      "SELECT current_setting('transaction_read_only') = 'off' AS normal",
+    );
+    assert.equal(status.rows[0]?.normal, true,
+      "Preflight transaction must not leak to following operations");
+  } finally {
+    await client.end();
+  }
+});
