@@ -19,6 +19,7 @@ import {
   LOYVERSE_WFM_SOURCE, LoyverseSourceError,
   loyverseConnection, loyversePilotEnabled, loyverseReceiptWindow,
   readLoyversePosDay, prepareLoyverseRevisions, parseLoyverseSyncRequest,
+  recordLoyverseScanConfirmation,
 } from "@/lib/workforce-loyverse-pos";
 
 export const dynamic="force-dynamic";
@@ -181,12 +182,15 @@ export async function POST(request:Request) {
       ?await writeOperationalDemandImport({
         batch:prepared.batch,actorUserId:user.id,actorName:user.name,
       }):null;
-    await audit(success,{
+    // writeOperationalDemandImport commits aggregate revisions and their audit
+    // atomically. A *separate* freshness receipt failure cannot make a
+    // successfully committed import appear rejected to the operator.
+    const scanAuditRecorded=await recordLoyverseScanConfirmation(()=>audit(success,{
       countedSales:aggregate.countedSales,scannedReceipts:aggregate.scannedReceipts,
       scannedPages:aggregate.pages,observedAsOf:aggregate.observedAsOf,
       changedIntervals:prepared.changed,unchangedIntervals:prepared.unchanged,
       importBatchId:wrote?.batchId??null,pointInTimeOnly:true,
-    });
+    }));
     return Response.json({
       readOnly:false,applied:true,source:LOYVERSE_WFM_SOURCE,
       workDate:scoped.workDate,intervalMinutes:scoped.intervalMinutes,
@@ -194,8 +198,10 @@ export async function POST(request:Request) {
       scannedPages:aggregate.pages,changedIntervals:prepared.changed,
       unchangedIntervals:prepared.unchanged,importBatchId:wrote?.batchId??null,
       replayed:wrote?.replayed??false,observedAsOf:aggregate.observedAsOf,
-      freshness:"source_reported_only",
-      boundary:aggregate.boundary+" Source approval does not authorize shifts, attendance, payroll or payment.",
+      freshness:"source_reported_only",sourceAuditRecorded:scanAuditRecorded,
+      boundary:aggregate.boundary+
+        (scanAuditRecorded?" Source approval does not authorize shifts, attendance, payroll or payment.":
+          " Historical import result is recorded, but scan-freshness audit failed; review source status. No shift, payroll or payment was authorized."),
     },{headers});
   }catch(error){
     if(!scoped.dryRun){
