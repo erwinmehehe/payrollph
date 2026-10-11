@@ -92,8 +92,30 @@ test("PostgreSQL 16 catalog audits all six additional request-schema writers aft
             "FROM pg_catalog.pg_constraint WHERE conrelid='public.marketing_leads'::regclass " +
             "ORDER BY conname",
           );
+          const indexKeys = await client.query(
+            "SELECT idx.relname AS name, tbl.relname AS \"tableName\", " +
+            "i.indisunique AS \"isUnique\", i.indisvalid AS \"isValid\", " +
+            "i.indisready AS \"isReady\", " +
+            "ARRAY(SELECT pg_catalog.pg_get_indexdef(i.indexrelid, n, true) " +
+            "FROM pg_catalog.generate_series(1, i.indnkeyatts) AS n ORDER BY n) AS keys, " +
+            "pg_catalog.pg_get_expr(i.indpred, i.indrelid) AS predicate " +
+            "FROM pg_catalog.pg_index i " +
+            "JOIN pg_catalog.pg_class idx ON idx.oid=i.indexrelid " +
+            "JOIN pg_catalog.pg_class tbl ON tbl.oid=i.indrelid " +
+            "WHERE tbl.relname='marketing_leads' ORDER BY idx.relname",
+          );
+          const columns = await client.query(
+            "SELECT a.attname AS name, pg_catalog.format_type(a.atttypid, a.atttypmod) AS type, " +
+            "a.attnotnull AS \"notNull\", pg_catalog.pg_get_expr(d.adbin, d.adrelid) AS \"columnDefault\" " +
+            "FROM pg_catalog.pg_attribute a " +
+            "JOIN pg_catalog.pg_class t ON t.oid=a.attrelid " +
+            "LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum " +
+            "WHERE t.relname='marketing_leads' AND a.attnum>0 AND NOT a.attisdropped ORDER BY a.attnum",
+          );
           console.error("Synthetic marketing catalog mismatch:", JSON.stringify({
-            indexes: indexes.rows, constraints: constraints.rows,
+            indexKeys: indexKeys.rows, columns: columns.rows,
+            constraints: constraints.rows,
+            expectedIndexKeys: marketingLeadSchemaSpec.indexes,
           }));
         }
         incompatible.push(spec.label + ": " + (error instanceof Error ? error.message : String(error)));
