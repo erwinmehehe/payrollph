@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { HcmManagerDecisionInbox } from "@/components/hcm-manager-decision-inbox";
 import { assertOrganizationRole, getAccess, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { deriveManagerDecisionScope } from "@/lib/hcm-manager-decision-contract";
+import { deriveManagerDecisionScope, managerDecisionEnabledForEmployer } from "@/lib/hcm-manager-decision-contract";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -29,6 +29,7 @@ export default async function HcmManagerDecisionInboxPage({
 
   const organizationId = positiveId((await searchParams).organizationId);
   if (!organizationId) notFound();
+  if (!managerDecisionEnabledForEmployer(organizationId)) notFound();
   const denied = await assertOrganizationRole(
     user.id, organizationId, WORKFORCE_MANAGER_ROLES,
     "Manager or People oversight access is required.",
