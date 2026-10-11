@@ -22,6 +22,7 @@ import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
 import { checkPayrollReleaseSegregation } from "@/lib/payroll-release-segregation";
 import { connectedPayrollReleaseGateEnabled, safePayrollConnectedReleaseReadiness } from "@/lib/payroll-connected-release-gate-server";
+import { configuredPayrollPayoutProvider } from "@/lib/payroll-payout-provider";
 
 const RELEASABLE = ["Ready for release"];
 
@@ -384,15 +385,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     },
     payout: {
       status: "awaiting-preflight" as const,
-      label:
-        process.env.PAYMONGO_SECRET_KEY
-        && process.env.PAYMONGO_WALLET_ID
-        && process.env.PAYMONGO_WEBHOOK_SECRET
-        && process.env.PAYMONGO_DISBURSEMENTS_ENABLED === "true"
-          ? "Run the no-money PayMongo preflight, then submit the payout."
-          : "PayMongo is the primary payout rail. Connect the wallet credentials and signed webhook, then run preflight. Bank files remain an optional fallback.",
+      label: configuredPayrollPayoutProvider() === "xendit"
+        ? "Xendit is the selected payout rail. Complete the no-money preflight and separate treasury authorization before any salary transfer; live payouts remain disabled without employer approval."
+        : process.env.PAYMONGO_SECRET_KEY
+          && process.env.PAYMONGO_WALLET_ID
+          && process.env.PAYMONGO_WEBHOOK_SECRET
+          && process.env.PAYMONGO_DISBURSEMENTS_ENABLED === "true"
+            ? "Run the no-money PayMongo preflight, then submit the payout."
+            : "PayMongo is selected for this employer. Connect the wallet credentials and signed webhook, then run preflight. Bank files remain an optional fallback.",
       reference: null,
-      method: "PayMongo",
+      method: configuredPayrollPayoutProvider() === "xendit" ? "Xendit" : "PayMongo",
       completedAt: null,
     },
     payslips: {
