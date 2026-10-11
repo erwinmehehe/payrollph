@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
-  deriveManagerDecisionScope, projectDueState, summarizeDecisionPage,
+  deriveManagerDecisionScope, managerDecisionEnabledForEmployer,
+  projectDueState, summarizeDecisionPage,
 } from "../src/lib/hcm-manager-decision-contract";
 
 const read = (path: string) => readFileSync(path, "utf8");
@@ -27,6 +28,30 @@ test("manager inbox denies company-wide manager and unrelated or unitless roles"
   assert.deepEqual(deriveManagerDecisionScope({
     role: "owner", companyWide: false, orgUnitId: 12,
   }), { kind: "unit", orgUnitId: 12 });
+});
+
+test("explicit employer activation gate rejects global, missing and malformed flags", () => {
+  const allowed = {
+    HCM_MANAGER_DECISION_INBOX_ENABLED: "true",
+    HCM_MANAGER_DECISION_INBOX_ORG_IDS: "12, 19, 43",
+  };
+  assert.equal(managerDecisionEnabledForEmployer(12, allowed), true);
+  assert.equal(managerDecisionEnabledForEmployer(43, allowed), true);
+  for (const id of [0, -12, 11, 13, 100, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.equal(managerDecisionEnabledForEmployer(id, allowed), false);
+  }
+  assert.equal(managerDecisionEnabledForEmployer(12, {
+    HCM_MANAGER_DECISION_INBOX_ENABLED: "true",
+  }), false);
+  assert.equal(managerDecisionEnabledForEmployer(12, {
+    ...allowed, HCM_MANAGER_DECISION_INBOX_ENABLED: "false",
+  }), false);
+  assert.equal(managerDecisionEnabledForEmployer(12, {
+    ...allowed, HCM_MANAGER_DECISION_INBOX_ORG_IDS: "012, 019",
+  }), false);
+  assert.equal(managerDecisionEnabledForEmployer(12, {
+    ...allowed, HCM_MANAGER_DECISION_INBOX_ORG_IDS: "all",
+  }), false);
 });
 
 test("deadline states depend on source dueAt, not effective or leave date", () => {
@@ -68,6 +93,11 @@ test("API and page require explicit tenant, default-off flag and workforce role"
   assert.match(route, /getAccess\(user\.id, organizationId\)/);
   assert.match(route, /private, no-store/);
   assert.match(route, /positiveId/);
+  for (const content of [route, page]) {
+    assert.ok(content.includes("managerDecisionEnabledForEmployer(organizationId)"));
+    assert.ok(content.indexOf("managerDecisionEnabledForEmployer(organizationId)") <
+      content.indexOf("assertOrganizationRole("));
+  }
   assert.ok(!route.includes("export async function POST"));
   assert.ok(!route.includes("export async function PATCH"));
   assert.ok(!route.includes("export async function DELETE"));
@@ -115,8 +145,12 @@ test("client is read-only and rejects stale source/tenant responses", () => {
   assert.match(ui, /loaded\?\.key === requestKey/);
   assert.match(ui, /page\.page\.nextCursor/);
   assert.match(navigation, /NEXT_PUBLIC_HCM_MANAGER_DECISION_INBOX_ENABLED === "true"/);
+  assert.ok(navigation.includes("NEXT_PUBLIC_HCM_MANAGER_DECISION_INBOX_ORG_IDS"));
+  assert.ok(ui.includes("/app?organizationId=${organizationId}&workspacePage=Approvals"));
+  assert.ok(!ui.includes('setLoaded({ key: requestKey, status: "loading"'));
+
   assert.match(navigation, /data\.selectedOrganization\.id/);
-  assert.match(navigation, /data\.access\.role === "manager" && !data\.access\.companyWide/);
+  assert.ok(navigation.includes('data.access.role === "manager" && !data.access.companyWide'));
   for (const method of ['method: "POST"', 'method: "PATCH"', 'method: "DELETE"']) {
     assert.ok(!ui.includes(method));
   }
