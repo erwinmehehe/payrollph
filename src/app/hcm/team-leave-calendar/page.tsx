@@ -4,7 +4,7 @@ import { HcmTeamLeaveCalendar } from "@/components/hcm-team-leave-calendar";
 import { assertOrganizationRole, getAccess, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import {
-  currentPhilippineMonth, deriveTeamLeaveScope,
+  currentPhilippineMonth, deriveTeamLeaveScope, teamLeaveEnabledForEmployer,
 } from "@/lib/hcm-team-leave-calendar-contract";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +31,7 @@ export default async function TeamLeaveCalendarPage({
   if (!user) redirect("/login");
   const organizationId = positiveId((await searchParams).organizationId);
   if (!organizationId) notFound();
+  if (!teamLeaveEnabledForEmployer(organizationId)) notFound();
 
   const denied = await assertOrganizationRole(
     user.id, organizationId, WORKFORCE_MANAGER_ROLES,
