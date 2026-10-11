@@ -26,6 +26,11 @@ test("legacy claim approvals cannot bypass report approvals", () => {
   const legacy = read("src/app/api/expenses/route.ts");
   assert.ok(legacy.includes("expenseReportItems"));
   assert.ok(legacy.includes("This claim belongs to an expense report"));
+  // Old expense claims have no submittedByUserId. A reviewer cannot
+  // demonstrate maker/checker independence for an unidentified maker.
+  assert.ok(legacy.includes('fresh.submittedByUserId == null'));
+  assert.ok(legacy.includes('CLAIM_MAKER_UNKNOWN'));
+  assert.ok(legacy.includes('The original submitter is unverified.'));
 });
 
 test("IT lifecycle never claims to execute remote MDM or vendor provisioning", () => {
