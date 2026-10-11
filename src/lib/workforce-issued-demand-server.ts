@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, lt, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents, workforceDemandObservationRevisions,
@@ -158,11 +158,30 @@ export async function fetchIssuedDemandForecasts(input: {
   )).orderBy(desc(workforceDemandForecastIssues.issuedAt)).limit(
     Math.min(20, Math.max(1, input.limit ?? 10))
   );
-  // Verify persisted evidence before returning it to any authorized manager.
+  const scored = issues.length ? await db.select({
+    issueId: workforceDemandForecastScores.issueId,
+    id: workforceDemandForecastScores.id,
+    scoredAt: workforceDemandForecastScores.scoredAt,
+    reportSha256: workforceDemandForecastScores.reportSha256,
+    report: workforceDemandForecastScores.report,
+  }).from(workforceDemandForecastScores).where(and(
+    eq(workforceDemandForecastScores.organizationId, input.organizationId),
+    inArray(workforceDemandForecastScores.issueId, issues.map(row => row.id)),
+  )) : [];
+  const byIssue = new Map(scored.map(row => [row.issueId, row]));
+  // Verify stored evidence before rendering to any authorized manager.
   return issues.map(row => {
     const integrityOk = demandSha256(row.snapshot) === row.snapshotSha256;
+    const score = byIssue.get(row.id);
+    const scoreOk = score ? demandSha256(score.report) === score.reportSha256 : false;
     return { ...row, snapshot: integrityOk ? row.snapshot : null,
-      integrity: integrityOk ? "matches_issued_hash" : "source_review" };
+      integrity: integrityOk ? "matches_issued_hash" : "source_review",
+      score: score ? {
+        status: scoreOk ? "frozen" : "source_review",
+        id: score.id, scoredAt: score.scoredAt, reportSha256: score.reportSha256,
+        report: integrityOk && scoreOk ? score.report : null,
+      } : null,
+    };
   });
 }
 
