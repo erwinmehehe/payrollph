@@ -107,7 +107,8 @@ test("Employee 360 is mounted only for authorized People administration and rese
     assert.ok(people.includes("id=\"employee-360-" + id + "\""), id);
   }
   assert.ok(overview.includes("disabled={isUnavailable}"));
-  assert.ok(overview.includes("document.getElementById(card.targetId)?.scrollIntoView"));
+  assert.ok(overview.includes("document.getElementById(card.targetId)"));
+  assert.ok(overview.includes("target.focus({ preventScroll: true })"));
   for (const unsafe of ["fetch(", "api/", "onPage(", "db.update(", "db.insert(", "payrollRuns"]) {
     assert.ok(!overview.includes(unsafe), unsafe);
   }
