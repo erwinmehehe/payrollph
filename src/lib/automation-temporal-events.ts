@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { emitWorkforceClockInWatch } from "@/lib/workforce-clock-in-watch-server";
+import { emitWorkforceScheduleReviewReminders } from "@/lib/workforce-schedule-review-reminders-server";
 
 const SCHEDULE_JOB = "automation-temporal-sla-events";
 const SCHEDULE_INTERVAL_MS = 60 * 60 * 1000;
@@ -307,6 +308,13 @@ export async function runScheduledAutomationTemporalEvents(options: {
       ).catch(() => ({ skipped: true as const, reason: "clock-in-watch-unavailable" }))
     : { skipped: true as const, reason: "disabled" };
 
+  // This opt-in source scan stays OFF for all employers until an exact
+  // pilot allowlist and published Automation Studio rule are authorized.
+  const scheduleReviewReminders = process.env.WFM_SCHEDULE_REVIEW_REMINDERS_ENABLED === "true"
+    ? await emitWorkforceScheduleReviewReminders(now)
+        .catch(() => ({ skipped: true as const, reason: "schedule-review-source-unavailable" }))
+    : { skipped: true as const, reason: "disabled" };
+
   const payload = {
     at: now.toISOString(),
     today,
@@ -316,6 +324,7 @@ export async function runScheduledAutomationTemporalEvents(options: {
     attendanceEvents: attendance.length,
     coverageEvents: coverage.length,
     clockInWatch,
+    scheduleReviewReminders,
     results: {
       payroll: payroll.slice(0, 50),
       timesheets: timesheets.slice(0, 50),
