@@ -45,6 +45,14 @@ const evaluate = (snapshot: IssuedDemandSnapshot, rows: ObservedDemandRevision[]
     evaluatedAt: new Date(evaluatedAt), observations: rows,
   });
 
+test("SHA-256 digest survives PostgreSQL JSONB key canonicalization and nested object order", () => {
+  const left = { scope: { org: 8, site: 12 }, points: [{ at: "2026-10-12T01:00:00Z", value: 4 }] };
+  const reordered = { points: [{ value: 4, at: "2026-10-12T01:00:00Z" }], scope: { site: 12, org: 8 } };
+  assert.equal(demandSha256(left), demandSha256(reordered));
+  assert.notEqual(demandSha256(left), demandSha256({ ...reordered,
+    points: [{ value: 5, at: "2026-10-12T01:00:00Z" }] }));
+});
+
 test("PH daylight boundaries are explicit without browser/server timezone leakage", () => {
   assert.equal(nextPhDay(new Date("2026-10-11T15:59:59Z")), "2026-10-12");
   assert.equal(nextPhDay(new Date("2026-10-11T16:00:00Z")), "2026-10-13");
