@@ -38,6 +38,7 @@ try{
   await admin.locator('input[type="checkbox"]').check();
   await admin.getByRole("button",{name:"Save immutable draft"}).click();
   await admin.getByText(/Draft #12 v1 saved/).waitFor();
+  await admin.locator('input[type="checkbox"]').check();
   await admin.getByRole("button",{name:"Submit for approval"}).click();
   await admin.getByText(/Policy #12 status: submitted/).waitFor();
   await admin.getByLabel("Decision justification").fill(
