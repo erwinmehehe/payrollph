@@ -103,7 +103,7 @@ export async function PATCH(request: Request) {
         )),
       ]);
       if (devices.some(device => !["returned", "available", "retired"].includes(device.state))
-          || issued.some(asset => asset.status === "assigned")) {
+          || issued.length > 0) {
         return Response.json({ error: "Assigned company equipment is outstanding. Confirm recovery in IT Operations before completing this checklist." }, { status: 409 });
       }
     }
