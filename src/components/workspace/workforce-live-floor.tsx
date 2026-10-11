@@ -30,7 +30,7 @@ function phTime(value: string) {
   }).format(new Date(value));
 }
 
-export function WorkforceLiveFloor({ organizationId }: { organizationId: number }) {
+export function WorkforceLiveFloor({ organizationId, onOpenAttendance }: { organizationId: number; onOpenAttendance?: () => void }) {
   const [page, setPage] = useState(1);
   const [snapshot, setSnapshot] = useState<ScopedLiveFloorSnapshot<FloorSnapshot> | null>(null);
   const [error, setError] = useState<{ scopeKey: string; message: string } | null>(null);
@@ -144,7 +144,7 @@ export function WorkforceLiveFloor({ organizationId }: { organizationId: number 
                 <td>{row.shiftName}<div className="id">{row.workDate} · {phTime(row.startsAt)}–{phTime(row.endsAt)}</div></td>
                 <td><Status value={floorNeedsReview(row.status) ? "Review" : ["upcoming", "check_in_window"].includes(row.status) ? "Upcoming" : row.status === "approved_leave" ? "Leave" : "Recorded"} /><div className="id">{labels[row.status] ?? row.status}</div></td>
                 <td><small>{row.explanation}</small>{floorNeedsReview(row.status) && (
-                  <div><a className="id" href="#wfm-labor-variance">Open attendance review →</a></div>
+                  <div>{onOpenAttendance ? <button type="button" className="secondary-button" onClick={onOpenAttendance}>Open attendance review →</button> : <a className="id" href="#wfm-labor-variance">Open attendance review →</a>}</div>
                 )}</td>
               </tr>)}</tbody>
             </table>
