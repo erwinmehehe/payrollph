@@ -54,7 +54,13 @@ export function safeAutomationWebhookContext(
     const year = Number(value.slice(0, 4));
     const month = Number(value.slice(5, 7));
     if (year < 2000 || year > 2100 || month < 1 || month > 12) continue;
-    if (value.length === 10 && (Number(value.slice(8, 10)) < 1 || Number(value.slice(8, 10)) > 31)) continue;
+    if (value.length === 10) {
+      const day = Number(value.slice(8, 10));
+      // A YYYY-MM-DD shape is not enough: reject impossible dates, including
+      // February 29 outside leap years and day 31 in 30-day months.
+      const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+      if (day < 1 || day > daysInMonth) continue;
+    }
     result[key] = value;
   }
   return result;
