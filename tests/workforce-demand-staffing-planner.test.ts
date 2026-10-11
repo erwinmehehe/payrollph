@@ -37,7 +37,9 @@ test("missing rest/skill proof blocks draft capacity without hiding observed gap
   }]);
   assert.equal(x.rows[0].gapWorkers, 2);
   assert.equal(x.rows[0].feasibleDraftAdds, null);
-  assert.equal(x.totals.estimatedBaseCostPhp, null);
+  // The cost is an indicative estimate for the recorded gap, not an
+  // authorization to select employees, work overtime, or commit wages.
+  assert.equal(x.totals.estimatedBaseCostPhp, 240);
 });
 test("capacity scarcity produces an uncovered remainder", () => {
   const x = previewDemandToStaffing([{...sample, availableEligibleHeadcount:1}]);
