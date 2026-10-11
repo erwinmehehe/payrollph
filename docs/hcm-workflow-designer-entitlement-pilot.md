@@ -9,7 +9,7 @@ Bamboo-simple HR tasks remain available to staff: employee directory, leave, onb
 ### Server enforcement (not menu-only)
 
 `GET /api/hcm/business-processes/definitions?organizationId=N`:
-- Session, explicit employer and existing company-wide People-admin permission checks happen first.
+- Session, explicit employer and existing company-wide People-admin permission checks happen first. For explicitly enrolled employers, the role is further limited to company-wide **owner, admin or HR**; a bookkeeper cannot configure approvers merely because the employer has an Enterprise plan.
 - For `N` explicitly enrolled in `HCM_ENTERPRISE_PLAN_GATE_ORG_IDS` **and** `HCM_ENTERPRISE_PLAN_GATE_ENABLED=true`, source entitlements must confirm an active Enterprise subscription with `advanced-hcm-discovery`.
 - On denial returns private no-store HTTP 402, or private no-store 503 on billing outage, before reading workflow-definition or supervisory organization rows.
 - Non-enrolled employers retain the original response with no new billing query.
@@ -30,7 +30,7 @@ People workspace's process designer initially stays hidden until its own authori
 The dedicated disposable PostgreSQL 16 / Chromium workflow checks:
 - Active Enterprise HR can read configuration; an invalid POST reaches validation but writes nothing.
 - Core HR cannot GET configuration or POST invalid configuration action even if HR member of both employers.
-- A manager cannot read or configure workflow definitions despite Enterprise employer status.
+- A manager and a company-wide bookkeeper cannot read or configure workflow definitions despite Enterprise employer status.
 - Unauthenticated user gets 401 before any plan lookup.
 - The source contracts ensure both route methods guard before reads/mutations and do not add a gate to assigned decision endpoints.
 - Previously green HCM navigation, source-security, restore, CodeQL, payroll goldens and full CI must remain green on the **same exact SHA**.
