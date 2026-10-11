@@ -59,6 +59,24 @@ test("manager access fails closed without a current, same-employer unit", async 
     assert.equal(await getAccess(user.id, alpha.id), null, "Inactive unit cannot authorize manager.");
     assert.equal((await assertMembership(user.id, alpha.id))?.status, 403);
 
+    await db.update(orgUnits).set({
+      active: true, effectiveFrom: "2099-01-01", effectiveUntil: null,
+    }).where(eq(orgUnits.id, alphaUnit.id));
+    assert.equal(await getAccess(user.id, alpha.id), null, "Future-dated unit cannot authorize manager yet.");
+    assert.equal((await assertMembership(user.id, alpha.id))?.status, 403);
+
+    await db.update(orgUnits).set({
+      effectiveFrom: null, effectiveUntil: "2000-01-01",
+    }).where(eq(orgUnits.id, alphaUnit.id));
+    assert.equal(await getAccess(user.id, alpha.id), null, "Expired unit cannot authorize manager.");
+    assert.equal((await assertMembership(user.id, alpha.id))?.status, 403);
+
+    await db.update(orgUnits).set({
+      effectiveFrom: null, effectiveUntil: null,
+    }).where(eq(orgUnits.id, alphaUnit.id));
+    assert.equal((await getAccess(user.id, alpha.id))?.orgUnitId, alphaUnit.id);
+    assert.equal(await assertMembership(user.id, alpha.id), null);
+
     await db.update(userOrganizations).set({ role: "hr", orgUnitId: null })
       .where(eq(userOrganizations.userId, user.id));
     const hr = await getAccess(user.id, alpha.id);
