@@ -60,3 +60,20 @@ test("unknown triggers and invalid dates send an empty context", () => {
     periodEnd: "2026-10-77",
   }), {});
 });
+
+test("allowlisted webhook dates must exist on the Gregorian calendar", () => {
+  assert.deepEqual(safeAutomationWebhookContext("payroll.created", {
+    payDate: "2026-02-29",
+    periodStart: "2026-04-31",
+    periodEnd: "2026-02-30",
+  }), {});
+  assert.deepEqual(safeAutomationWebhookContext("payroll.created", {
+    payDate: "2024-02-29",
+    periodStart: "2026-04-30",
+    periodEnd: "2026-02-28",
+  }), {
+    periodStart: "2026-04-30",
+    periodEnd: "2026-02-28",
+    payDate: "2024-02-29",
+  });
+});
