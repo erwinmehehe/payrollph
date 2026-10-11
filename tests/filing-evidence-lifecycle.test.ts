@@ -71,7 +71,8 @@ for (const [periodEnd, payDate] of [["2026-09-30", "2026-10-05"], ["2026-12-31",
   test(`filing evidence uses pay month for BIR and cutoff month for contributions: ${payDate}`, async () => {
     const { org, employee, run } = await seedRun(`Filing month boundary ${payDate}`);
     try {
-      // Positive fixtures need fictional member IDs; negative missing-ID tests remain unchanged.
+      // Complete fictional IDs only for this positive generation fixture.
+      // Missing-ID rejection tests below deliberately keep their inputs blank.
       await db.update(employees).set({
         philHealthNo: "12-345678901-2", pagIbigNo: "1234-5678-9012",
       }).where(eq(employees.id, employee.id));

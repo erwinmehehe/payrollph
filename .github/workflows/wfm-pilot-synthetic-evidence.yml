@@ -5,6 +5,8 @@ on:
   pull_request:
     paths:
       - "scripts/wfm-pilot-synthetic-evidence.mjs"
+      - "scripts/first-payroll-mobile-synthetic-*"
+      - "scripts/pilot-payroll-qa.ts"
       - "src/app/api/web-bundy/**"
       - "src/lib/web-bundy-*.ts"
       - "src/components/web-bundy-modal.tsx"

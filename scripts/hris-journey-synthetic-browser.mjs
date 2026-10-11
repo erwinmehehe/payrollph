@@ -92,7 +92,8 @@ try {
   });
 
   await checkpoint(page, "Employee 360 identifies the selected authorized worker", async () => {
-    await page.getByRole("row").filter({ hasText: "AlphaPrivate Worker" }).first().click();
+    await page.locator(".people-layout .data-table").getByRole("row")
+      .filter({ hasText: "AlphaPrivate Worker" }).click();
     const drawer = page.getByRole("dialog", { name: "AlphaPrivate Worker" });
     await drawer.waitFor();
     await drawer.getByRole("heading", { name: "Employee 360" }).waitFor();
