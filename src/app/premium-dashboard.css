@@ -296,7 +296,7 @@
 .premium-dashboard .pd-figures {
   margin: 26px 0 24px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0;
   border-radius: 11px;
   background: #f8faf8;
@@ -311,7 +311,13 @@
   flex-direction: column;
   gap: 8px;
 }
+.premium-dashboard .pd-figure:nth-child(2),
 .premium-dashboard .pd-figure:last-child { border-right: 0; }
+.premium-dashboard .pd-figure:nth-child(3),
+.premium-dashboard .pd-figure:nth-child(4) {
+  padding-top: 14px;
+  border-top: 1px solid #e2e8e2;
+}
 .premium-dashboard .pd-figure span {
   color: #5f716d;
   font-size: 12px;
@@ -324,7 +330,8 @@
   font-size: clamp(16px, 1.55vw, 22px);
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 .premium-dashboard .pd-figure small {
   font-size: 10px;
@@ -671,6 +678,12 @@
   margin: 10px 0 8px;
 }
 
+@media (min-width: 1700px) {
+  .premium-dashboard .pd-figures { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 0; }
+  .premium-dashboard .pd-figure:nth-child(2) { border-right: 1px solid #e2e8e2; }
+  .premium-dashboard .pd-figure:nth-child(3) { padding-top: 0; border-top: 0; }
+  .premium-dashboard .pd-figure:nth-child(4) { padding-top: 0; border-top: 0; }
+}
 @media (max-width: 1240px) {
   .premium-dashboard .pd-content-grid { grid-template-columns: minmax(0, 1fr); }
   .premium-dashboard .pd-side-column { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -706,7 +719,23 @@
   .premium-dashboard .pd-step small { display: none; }
   .premium-dashboard .pd-step strong { font-size: 10px; }
   .premium-dashboard .pd-figure { padding: 0 10px; }
-  .premium-dashboard .pd-figure strong { font-size: 16px; }
+  .premium-dashboard .pd-figure strong { font-size: clamp(13px, 3.8vw, 16px); }
+  .app-shell.clean-shell.premium-phase-one .mobile-bottom-nav {
+    background: rgba(255, 255, 255, .98);
+    border-top: 1px solid #e3ebe5;
+  }
+  .app-shell.clean-shell.premium-phase-one .mobile-bottom-nav button {
+    color: #4a625d;
+    opacity: 1;
+  }
+  .app-shell.clean-shell.premium-phase-one .mobile-bottom-nav button.active {
+    color: #086b5b;
+    background: #eaf5ef;
+  }
+  .app-shell.clean-shell.premium-phase-one .mobile-bottom-nav .nav-icon,
+  .app-shell.clean-shell.premium-phase-one .mobile-bottom-nav .nav-icon svg {
+    color: inherit;
+  }
   .premium-dashboard .pd-action-link { font-size: 0; }
   .premium-dashboard .pd-action-link svg { font-size: initial; }
   .premium-dashboard .pd-activity-list time { font-size: 10px; }
