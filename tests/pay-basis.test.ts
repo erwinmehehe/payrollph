@@ -972,3 +972,46 @@ test("month-final cutoff true-ups statutory employee shares against the released
     await db.delete(organizations).where(eq(organizations.id, org.id));
   }
 });
+
+
+test("mid-cutoff resignation prorates monthly BASIC through the last worked day", () => {
+  const input = {
+    currentProfile: {
+      payBasis: "monthly", rateAmount: "30000.00",
+      standardWorkDaysPerMonth: "22.00", standardHoursPerDay: "8.00",
+    },
+    revisions: [],
+    periodStart: "2026-09-16", periodEnd: "2026-09-30",
+  };
+  const timeline = resolvePayTimeline(input);
+  assert.equal(fixedMonthlyBasicForTimeline(
+    timeline, input.periodStart, input.periodEnd, "2026-01-01", "2026-09-22",
+  ), 7000, "7 of 15 days of a ₱15,000 cutoff payment");
+  assert.equal(fixedMonthlyBasicForTimeline(
+    timeline, input.periodStart, input.periodEnd, "2026-01-01", "2026-09-15",
+  ), 0, "already-separated worker has no basic pay in this cutoff");
+  assert.equal(fixedMonthlyBasicForTimeline(
+    timeline, input.periodStart, input.periodEnd, "2026-01-01", "2026-09-30",
+  ), 15000, "resignation at end of cutoff keeps the complete base");
+});
+
+test("mid-cutoff resignation with a dated raise includes only pre-resignation rate segments", () => {
+  const timeline = resolvePayTimeline({
+    currentProfile: {
+      payBasis: "monthly", rateAmount: "36000.00",
+      standardWorkDaysPerMonth: "22.00", standardHoursPerDay: "8.00",
+    },
+    revisions: [{
+      effectiveDate: "2026-09-24",
+      previousPayBasis: "monthly", previousRateAmount: "30000.00",
+      previousStandardWorkDaysPerMonth: "22.00", previousStandardHoursPerDay: "8.00",
+      newPayBasis: "monthly", newRateAmount: "36000.00",
+      newStandardWorkDaysPerMonth: "22.00", newStandardHoursPerDay: "8.00",
+    }],
+    periodStart: "2026-09-16", periodEnd: "2026-09-30",
+  });
+  assert.equal(
+    fixedMonthlyBasicForTimeline(timeline, "2026-09-16", "2026-09-30", "2026-01-01", "2026-09-26"),
+    11600, "8 days at old ₱15k semi-monthly rate plus 3 days at new ₱18k rate",
+  );
+});

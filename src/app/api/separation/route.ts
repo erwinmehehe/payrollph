@@ -31,7 +31,7 @@ import {
 } from "@/lib/access";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
-import { computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "@/lib/final-pay";
+import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "@/lib/final-pay";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
@@ -445,7 +445,7 @@ export async function POST(request: Request) {
       }, { status: 422 });
     }
 
-    const leaveMonetizationPay = Number(money(unusedLeaveCredits * sources.resolvedPayProfile.dailyRate));
+    const leaveMonetizationPay = calculateLeaveMonetizationPay(unusedLeaveCredits, sources.resolvedPayProfile.dailyRate);
     const leaveTaxReviewed = Boolean(body.leaveTaxReviewed);
     const leaveMonetizationTaxExempt = Boolean(body.leaveMonetizationTaxExempt);
     if (leaveMonetizationPay > 0 && !leaveTaxReviewed) {
