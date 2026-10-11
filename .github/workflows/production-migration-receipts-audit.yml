@@ -1,0 +1,57 @@
+name: Production Migration Receipts Audit (Read Only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Exact main SHA reviewed by DBA and release owner
+        required: true
+        type: string
+      expected_database_name:
+        description: DBA-confirmed PostgreSQL database name (not a URL or password)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payrollph-production-migration-receipts-audit
+  cancel-in-progress: false
+
+jobs:
+  inventory:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+      EXPECTED_PRODUCTION_DATABASE_NAME: ${{ inputs.expected_database_name }}
+    steps:
+      - name: Reject unreviewed source before dependency installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$REVIEWED_SHA" != "$GITHUB_SHA" ]; then
+            echo 'The reviewed 40-character SHA must match the dispatched main commit.'
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_PRODUCTION_DATABASE_NAME" =~ ^[A-Za-z0-9_]{1,63}$ ]]; then
+            echo 'A DBA-confirmed target database name is mandatory.'
+            exit 1
+          fi
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Record source-only manifest and legacy prefix collisions
+        run: node scripts/audit-production-migration-receipts.mjs --inventory
+      - name: Check actual database receipts with a catalog-only account
+        env:
+          PRODUCTION_MIGRATION_AUDIT_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_AUDIT_DATABASE_URL }}
+        run: node scripts/audit-production-migration-receipts.mjs --verify
