@@ -10,8 +10,10 @@ import {
   hcmBusinessProcessInstanceSteps,
   orgUnits,
   organizations,
+  permissionSets,
   provisioningTasks,
   userOrganizations,
+  userPermissionAssignments,
   users,
 } from "../src/db/schema";
 import { loadPeopleHomeWorklist } from "../src/lib/hcm-people-home-worklist";
@@ -41,9 +43,9 @@ test("People Home denies non-member, employee-only and unit HR while isolating t
       role: "hr",
     }).returning();
     actorId = actor.id;
-    await db.insert(userOrganizations).values({
+    const [alphaMembership] = await db.insert(userOrganizations).values({
       userId: actor.id, organizationId: alpha.id, role: "hr", active: true,
-    });
+    }).returning();
     const [alphaWorker, betaWorker] = await db.insert(employees).values([
       {
         organizationId: alpha.id, employeeNo: "SAME-EMPLOYEE-NO-" + code,
@@ -127,6 +129,20 @@ test("People Home denies non-member, employee-only and unit HR while isolating t
     assert.ok(!JSON.stringify(own).includes("BetaPrivate"), "Foreign employer details must not leak");
     assert.ok(!JSON.stringify(own).includes("99000.00"), "Private payroll data must not appear");
 
+    // A deny-only custom permission overlay must override an otherwise
+    // valid company-wide HR role. It cannot grant People administration.
+    const [restricted] = await db.insert(permissionSets).values({
+      organizationId: alpha.id, name: "No People Home " + code,
+      permissions: ["payroll.view"], active: true,
+    }).returning();
+    const [assignment] = await db.insert(userPermissionAssignments).values({
+      organizationId: alpha.id,
+      userOrganizationId: alphaMembership.id,
+      permissionSetId: restricted.id,
+    }).returning();
+    await assert.rejects(loadPeopleHomeWorklist(alpha.id, context), /not authorized/i);
+    await db.delete(userPermissionAssignments).where(eq(userPermissionAssignments.id, assignment.id));
+
     // No membership in Beta.
     await assert.rejects(loadPeopleHomeWorklist(beta.id, context), /not authorized/i);
 
@@ -134,6 +150,11 @@ test("People Home denies non-member, employee-only and unit HR while isolating t
       userId: actor.id, organizationId: beta.id, role: "employee", active: true,
     }).returning();
     await assert.rejects(loadPeopleHomeWorklist(beta.id, context), /not authorized/i);
+    for (const deniedRole of ["payroll", "manager"]) {
+      await db.update(userOrganizations).set({ role: deniedRole })
+        .where(eq(userOrganizations.id, betaMembership.id));
+      await assert.rejects(loadPeopleHomeWorklist(beta.id, context), /not authorized/i);
+    }
 
     const [betaUnit] = await db.insert(orgUnits).values({
       organizationId: beta.id, code: "SYN-" + code,
