@@ -25,6 +25,7 @@ import {
   requireSensitiveActionMfa,
 } from "@/lib/security-request";
 import { worksiteAssignmentOverlaps } from "@/lib/workforce-worksite";
+import { geofencePilotEnabledForOrganization, GEOFENCE_POLICY_VERSION, validateGeofenceSite } from "@/lib/workforce-geofence";
 import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 
@@ -152,11 +153,20 @@ export async function GET(request: Request) {
     ? employeeRows
     : employeeRows.filter((employee) => employee.orgUnitId === access.orgUnitId);
   const visibleEmployeeIds = new Set(visibleEmployees.map((employee) => employee.id));
-  const visibleWorksites = siteRows.filter((site) => worksiteVisibleToScope(site, access));
+  const geofencePilotEnabled = geofencePilotEnabledForOrganization(organizationId);
+  const visibleWorksites = siteRows.filter((site) => worksiteVisibleToScope(site, access)).map((site) => ({
+    ...site,
+    // Full boundary centre is visible only to company-wide workforce administrators.
+    geofenceLatitude: geofencePilotEnabled && access.companyWide ? site.geofenceLatitude : null,
+    geofenceLongitude: geofencePilotEnabled && access.companyWide ? site.geofenceLongitude : null,
+    geofenceRadiusM: geofencePilotEnabled && access.companyWide ? site.geofenceRadiusM : null,
+    geofenceConfigured: site.geofenceLatitude !== null && site.geofenceLongitude !== null && site.geofenceRadiusM !== null,
+  }));
   const visibleWorksiteIds = new Set(visibleWorksites.map((site) => site.id));
 
   return Response.json({
     worksites: visibleWorksites,
+    geofencePilotEnabled,
     arrangements: arrangementRows.filter((row) => visibleEmployeeIds.has(row.employeeId)),
     authorizations: clearanceRows.filter((row) => visibleEmployeeIds.has(row.employeeId) && visibleWorksiteIds.has(row.worksiteId)),
     assignments: assignmentRows.filter((assignment) =>
@@ -200,6 +210,59 @@ export async function POST(request: Request) {
     windowMs: 5 * 60_000,
   });
   if (rateDenied) return rateDenied;
+
+  if (action === "configure_geofence" || action === "disable_geofence") {
+    if (!geofencePilotEnabledForOrganization(organizationId)) {
+      return Response.json({ error: "Not found." }, { status: 404 });
+    }
+    if (!access.companyWide) {
+      return Response.json({ error: "Only company-wide workforce administrators can configure site boundaries." }, { status: 403 });
+    }
+    const worksiteId = Number(body.worksiteId);
+    const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 240) : "";
+    if (!Number.isSafeInteger(worksiteId) || worksiteId <= 0 || reason.length < 10) {
+      return Response.json({ error: "Worksite and a reason of at least ten characters are required." }, { status: 400 });
+    }
+    const siteCheck = await scopedWorksite(user.id, organizationId, worksiteId);
+    if (siteCheck.denied) return siteCheck.denied;
+    const site = siteCheck.worksite!;
+    if (!site.active) return Response.json({ error: "An inactive site cannot be used for GPS self-clocking." }, { status: 409 });
+
+    let boundary: { latitude: number; longitude: number; radiusMeters: number } | null = null;
+    if (action === "configure_geofence") {
+      const parsed = validateGeofenceSite(body);
+      if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
+      boundary = parsed.value;
+    }
+    const [updated] = await db.update(worksites).set({
+      geofenceLatitude: boundary ? String(boundary.latitude) : null,
+      geofenceLongitude: boundary ? String(boundary.longitude) : null,
+      geofenceRadiusM: boundary?.radiusMeters ?? null,
+      updatedAt: new Date(),
+    }).where(and(eq(worksites.id, worksiteId), eq(worksites.organizationId, organizationId))).returning();
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: boundary ? "Worksite geofence configured" : "Worksite geofence disabled",
+      resource: `${site.code} · ${site.name}`,
+      metadata: {
+        worksiteId, reason, policyVersion: GEOFENCE_POLICY_VERSION,
+        previousConfigured: site.geofenceLatitude !== null && site.geofenceLongitude !== null,
+        newConfigured: boundary !== null,
+        radiusMeters: boundary?.radiusMeters ?? null,
+        // Site centre is administrative configuration; do not copy exact position
+        // into general audit events or employee clock evidence.
+      },
+    });
+    return Response.json({
+      worksite: {
+        id: updated.id,
+        geofenceConfigured: boundary !== null,
+        geofenceRadiusM: updated.geofenceRadiusM,
+      },
+    });
+  }
 
   if (action === "create_worksite") {
     if (!access.companyWide) {

@@ -18,6 +18,10 @@ type Worksite = {
   province: string | null;
   cityMunicipality: string | null;
   addressLine1: string | null;
+  geofenceLatitude: string | null;
+  geofenceLongitude: string | null;
+  geofenceRadiusM: number | null;
+  geofenceConfigured: boolean;
   active: boolean;
 };
 
@@ -42,6 +46,7 @@ type HolidayRow = {
 
 type Payload = {
   worksites: Worksite[];
+  geofencePilotEnabled: boolean;
   assignments: WorksiteAssignment[];
   arrangements: Array<{ id: number; employeeId: number; mode: string; effectiveFrom: string; effectiveUntil: string | null }>;
   authorizations: Array<{ id: number; employeeId: number; worksiteId: number; decision: "allow" | "deny"; effectiveFrom: string; effectiveUntil: string | null }>;
@@ -77,6 +82,11 @@ export function WorkforceWorksitesPanel({
   const [province, setProvince] = useState("");
   const [cityMunicipality, setCityMunicipality] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
+  const [geofenceSelection, setGeofenceSelection] = useState<ScopedOptionSelection | null>(null);
+  const [geoLatitude, setGeoLatitude] = useState("");
+  const [geoLongitude, setGeoLongitude] = useState("");
+  const [geoRadius, setGeoRadius] = useState("200");
+  const [geofenceReason, setGeofenceReason] = useState("Approved field attendance boundary");
 
   const [employeeSelection, setEmployeeSelection] = useState<ScopedOptionSelection | null>(null);
   const employeeId = Number(resolveScopedOption(employeeSelection, organizationId, data.employees));
@@ -134,6 +144,7 @@ export function WorkforceWorksitesPanel({
   );
 
   const worksiteId = resolveScopedOption(worksiteSelection, organizationId, activeWorksites);
+  const geofenceWorksiteId = resolveScopedOption(geofenceSelection, organizationId, activeWorksites);
   const holidayWorksiteId = resolveScopedOption(holidaySelection, organizationId, activeWorksites);
 
   const currentAssignments = useMemo(() => {
@@ -193,6 +204,22 @@ export function WorkforceWorksitesPanel({
       setCityMunicipality("");
       setAddressLine1("");
     }
+  }
+
+  async function configureGeofence(disable = false) {
+    if (!geofenceWorksiteId || geofenceReason.trim().length < 10) {
+      notify("Select a worksite and enter a reason (at least ten characters).", "err");
+      return;
+    }
+    if (!disable && (!geoLatitude.trim() || !geoLongitude.trim() || !geoRadius.trim())) {
+      notify("Worksite centre coordinates and boundary radius are required.", "err");
+      return;
+    }
+    await mutate(disable ? "disable_geofence" : "configure_geofence", {
+      worksiteId: Number(geofenceWorksiteId),
+      reason: geofenceReason,
+      ...(!disable ? { latitude: Number(geoLatitude), longitude: Number(geoLongitude), radiusMeters: Number(geoRadius) } : {}),
+    }, disable ? "Site boundary disabled; HR review remains required where no other authorized site is configured." : "Site boundary configured and audited.");
   }
 
   async function assignEmployee() {
@@ -321,6 +348,58 @@ export function WorkforceWorksitesPanel({
             </button>
           </div>
         </div>
+      )}
+
+      {canManage && data.access?.companyWide && payload?.geofencePilotEnabled && activeWorksites.length > 0 && (
+        <section style={{ padding: "0 18px 18px" }} data-geofence-config>
+          <div className="card-kicker">PILOT GPS SELF-CLOCK BOUNDARIES</div>
+          <p className="field-help">
+            Employee location is checked only on clock IN/OUT and raw GPS fixes are not retained.
+            Denied or inaccurate positions must be reviewed through HR attendance procedures.
+          </p>
+          <div className="setting-form">
+            <label>Worksite
+              <select value={geofenceWorksiteId} onChange={(event) => {
+                const value = event.target.value;
+                setGeofenceSelection({ organizationId, value });
+                const site = activeWorksites.find((row) => String(row.id) === value);
+                setGeoLatitude(site?.geofenceLatitude ?? "");
+                setGeoLongitude(site?.geofenceLongitude ?? "");
+                setGeoRadius(String(site?.geofenceRadiusM ?? 200));
+              }}>
+                <option value="">Choose a worksite</option>
+                {activeWorksites.map((site) => (
+                  <option key={site.id} value={site.id}>{site.code} · {site.name}{site.geofenceConfigured ? " (configured)" : ""}</option>
+                ))}
+              </select>
+            </label>
+            <label>Centre latitude
+              <input type="number" inputMode="decimal" min="-90" max="90" step="0.0000001"
+                value={geoLatitude} onChange={(event) => setGeoLatitude(event.target.value)} />
+            </label>
+            <label>Centre longitude
+              <input type="number" inputMode="decimal" min="-180" max="180" step="0.0000001"
+                value={geoLongitude} onChange={(event) => setGeoLongitude(event.target.value)} />
+            </label>
+            <label>Radius in metres (100-2000)
+              <input type="number" inputMode="numeric" min="100" max="2000" step="1"
+                value={geoRadius} onChange={(event) => setGeoRadius(event.target.value)} />
+            </label>
+            <label>Configuration reason
+              <input value={geofenceReason} onChange={(event) => setGeofenceReason(event.target.value)} />
+            </label>
+          </div>
+          <div className="run-actions">
+            <button className="primary-button brand" disabled={saving !== null || !geofenceWorksiteId}
+              onClick={() => void configureGeofence()}>
+              <Save size={14} /> Save site boundary
+            </button>
+            <button className="secondary-button" disabled={saving !== null || !geofenceWorksiteId}
+              onClick={() => void configureGeofence(true)}>
+              Disable site boundary
+            </button>
+          </div>
+        </section>
       )}
 
       {canManage && activeWorksites.length > 0 && (
