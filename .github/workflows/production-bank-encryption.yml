@@ -23,11 +23,12 @@ jobs:
   encrypt-bank-data:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    if: ${{ github.ref == 'refs/heads/main' }}
     environment: production
     env:
-      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL || secrets.DATABASE_URL }}
-      BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY || secrets.BANK_DATA_ENCRYPTION_KEY }}
-      TOTP_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_TOTP_ENCRYPTION_KEY || secrets.TOTP_ENCRYPTION_KEY }}
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+      BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
+      TOTP_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_TOTP_ENCRYPTION_KEY }}
       PRODUCTION_BASE_URL: https://erwinmehehe-payrollph.vercel.app
       PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
     steps:
@@ -45,7 +46,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${DATABASE_URL:-}" ]; then
-            echo "Missing PRODUCTION_DATABASE_URL (or DATABASE_URL) secret."
+            echo "Missing dedicated PRODUCTION_DATABASE_URL secret."
             exit 1
           fi
           if [ -z "${BANK_DATA_ENCRYPTION_KEY:-}" ] && [ -z "${TOTP_ENCRYPTION_KEY:-}" ]; then
@@ -57,9 +58,6 @@ jobs:
             exit 1
           fi
           echo "Required database, bank encryption and readiness secret material is present."
-
-      - name: Prepare bank-account column safely
-        run: npx tsx scripts/prepare-bank-encryption.ts
 
       - name: Prove runner key matches live production
         id: key_match
@@ -83,6 +81,10 @@ jobs:
 
           echo "Live production and this runner use the same bank-encryption key fingerprint."
 
+      - name: Prepare bank-account column safely
+        if: ${{ inputs.mode == 'apply' }}
+        run: npx tsx scripts/prepare-bank-encryption.ts
+
       - name: Dry-run legacy plaintext scan
         shell: bash
         run: |
@@ -102,9 +104,17 @@ jobs:
         run: |
           set -euo pipefail
           npx tsx scripts/encrypt-bank-accounts.ts | tee /tmp/bank-encryption-verify.txt
-          grep -Eq '0 to encrypt\.$' /tmp/bank-encryption-verify.txt
+          grep -Eq '^[0-9]+ employee\(s\) have a bank account\. [0-9]+ already encrypted, 0 to encrypt\.$' /tmp/bank-encryption-verify.txt
           grep -Eq '^0 payroll payment snapshot\(s\) also hold a plaintext account number\.$' /tmp/bank-encryption-verify.txt
-          echo "All legacy employee bank accounts and payroll payment snapshots are encrypted."
+          grep -Fqx '0 legal entity disbursement account(s) hold plaintext.' /tmp/bank-encryption-verify.txt
+          grep -Fqx '0 payout change request(s) hold plaintext.' /tmp/bank-encryption-verify.txt
+          echo "Legacy employee, payroll snapshot, legal-entity, and payout-change bank accounts are encrypted."
+
+      # A forged enc:v1: prefix, corrupt GCM tag or previous-key-only envelope
+      # must never satisfy the production backfill completion gate.
+      - name: Authenticate every bank envelope with the current key
+        if: ${{ inputs.mode == 'apply' }}
+        run: npx tsx scripts/verify-bank-account-envelopes.ts
 
       - name: Verify live readiness sees encrypted bank data
         if: ${{ inputs.mode == 'apply' }}
@@ -112,9 +122,17 @@ jobs:
         run: |
           set -euo pipefail
           body=$(curl --fail --silent --show-error --max-time 20 -H "x-readiness-token: ${PRODUCTION_READINESS_TOKEN}" "${PRODUCTION_BASE_URL%/}/api/readiness/pilot-status")
-          if printf '%s' "$body" | jq -e '.criticalBlockers | index("bank-data-encryption") != null' >/dev/null; then
-            echo "Production still reports bank-data-encryption as a critical blocker."
-            printf '%s' "$body" | jq '{status, criticalBlockers, launchBlockers, deploymentSha}'
+          local_fp=$(npx tsx -e 'import { bankEncryptionKeyFingerprint } from "./src/lib/bank-account-crypto"; const fp = bankEncryptionKeyFingerprint(); if (!fp) process.exit(2); console.log(fp);')
+          if ! printf '%s' "$body" | jq -se --arg fp "$local_fp" '
+            length == 1 and (.[0] |
+              type == "object" and
+              (.bankEncryptionFingerprint | type == "string" and length > 0) and
+              .bankEncryptionFingerprint == $fp and
+              (.criticalBlockers | type == "array") and
+              (.criticalBlockers | all(type == "string")) and
+              (.criticalBlockers | index("bank-data-encryption") == null))
+          ' >/dev/null; then
+            echo "Production bank-encryption readiness is missing, malformed, blocked or uses a different key."
             exit 1
           fi
           printf '%s' "$body" | jq '{status, criticalBlockers, launchBlockers, deploymentSha}'
