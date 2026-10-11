@@ -7,11 +7,5 @@
       "staging": true,
       "preview": true
     }
-  },
-  "crons": [
-    {
-      "path": "/api/jobs/cron",
-      "schedule": "*/5 * * * *"
-    }
-  ]
+  }
 }
