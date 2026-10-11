@@ -7,6 +7,7 @@ import {
   hcmBusinessProcessInstanceSteps,
   orgUnits,
   organizations,
+  subscriptions,
   permissionSets,
   userOrganizations,
   userPermissionAssignments,
@@ -24,10 +25,17 @@ async function main() {
   assert.equal(process.env.OPENAI_API_KEY ?? "", "");
 
   const [alpha, beta] = await db.insert(organizations).values([
-    { name: "Monitor Fictional Alpha", legalName: "Monitor Fictional Alpha", plan: "Core" },
+    { name: "Monitor Fictional Alpha", legalName: "Monitor Fictional Alpha", plan: "Enterprise", accountType: "enterprise" },
     { name: "Monitor Fictional Beta", legalName: "Monitor Fictional Beta", plan: "Core" },
   ]).returning();
   assert.deepEqual([alpha.id, beta.id], [1, 2], "Must be an empty CI database");
+
+  // The separate opt-in HTTP browser instance must prove real billing
+  // enforcement, not rely on the Enterprise account-type fallback.
+  await db.insert(subscriptions).values([
+    { organizationId: alpha.id, plan: "Enterprise", status: "active", seatLimit: 100 },
+    { organizationId: beta.id, plan: "Core", status: "active", seatLimit: 10 },
+  ]);
 
   const [worker] = await db.insert(employees).values({
     organizationId: alpha.id, employeeNo: "MON-SYNTH-001",

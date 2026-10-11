@@ -9,6 +9,7 @@ import {
   orgUnits,
   scheduleOverrides,
   worksites,
+  worksiteGeofenceBoundaries,
 } from "@/db/schema";
 import {
   assertOrganizationRole,
@@ -25,6 +26,7 @@ import {
   requireSensitiveActionMfa,
 } from "@/lib/security-request";
 import { worksiteAssignmentOverlaps } from "@/lib/workforce-worksite";
+import { geofencePilotEnabledForOrganization, GEOFENCE_POLICY_VERSION, validateGeofenceSite } from "@/lib/workforce-geofence";
 import { markTimesheetsStaleForEmployeeRange } from "@/lib/workforce-timesheet-server";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 
@@ -152,11 +154,29 @@ export async function GET(request: Request) {
     ? employeeRows
     : employeeRows.filter((employee) => employee.orgUnitId === access.orgUnitId);
   const visibleEmployeeIds = new Set(visibleEmployees.map((employee) => employee.id));
-  const visibleWorksites = siteRows.filter((site) => worksiteVisibleToScope(site, access));
+  const geofencePilotEnabled = geofencePilotEnabledForOrganization(organizationId);
+  // No read of the optional table for non-pilot employers, preserving deployments
+  // that have not applied the pilot-only schema extension.
+  const boundaryRows = geofencePilotEnabled
+    ? await db.select().from(worksiteGeofenceBoundaries)
+        .where(eq(worksiteGeofenceBoundaries.organizationId, organizationId))
+    : [];
+  const boundaryByWorksite = new Map(boundaryRows.map((row) => [row.worksiteId, row]));
+  const visibleWorksites = siteRows.filter((site) => worksiteVisibleToScope(site, access)).map((site) => {
+    const boundary = boundaryByWorksite.get(site.id);
+    return {
+      ...site,
+      geofenceLatitude: access.companyWide ? boundary?.latitude ?? null : null,
+      geofenceLongitude: access.companyWide ? boundary?.longitude ?? null : null,
+      geofenceRadiusM: access.companyWide ? boundary?.radiusMeters ?? null : null,
+      geofenceConfigured: boundary !== undefined,
+    };
+  });
   const visibleWorksiteIds = new Set(visibleWorksites.map((site) => site.id));
 
   return Response.json({
     worksites: visibleWorksites,
+    geofencePilotEnabled,
     arrangements: arrangementRows.filter((row) => visibleEmployeeIds.has(row.employeeId)),
     authorizations: clearanceRows.filter((row) => visibleEmployeeIds.has(row.employeeId) && visibleWorksiteIds.has(row.worksiteId)),
     assignments: assignmentRows.filter((assignment) =>
@@ -200,6 +220,83 @@ export async function POST(request: Request) {
     windowMs: 5 * 60_000,
   });
   if (rateDenied) return rateDenied;
+
+  if (action === "configure_geofence" || action === "disable_geofence") {
+    if (!geofencePilotEnabledForOrganization(organizationId)) {
+      return Response.json({ error: "Not found." }, { status: 404 });
+    }
+    if (!access.companyWide) {
+      return Response.json({ error: "Only company-wide workforce administrators can configure site boundaries." }, { status: 403 });
+    }
+    const worksiteId = Number(body.worksiteId);
+    const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 240) : "";
+    if (!Number.isSafeInteger(worksiteId) || worksiteId <= 0 || reason.length < 10) {
+      return Response.json({ error: "Worksite and a reason of at least ten characters are required." }, { status: 400 });
+    }
+    const siteCheck = await scopedWorksite(user.id, organizationId, worksiteId);
+    if (siteCheck.denied) return siteCheck.denied;
+    const site = siteCheck.worksite!;
+    if (!site.active) return Response.json({ error: "An inactive site cannot be used for GPS self-clocking." }, { status: 409 });
+
+    let boundary: { latitude: number; longitude: number; radiusMeters: number } | null = null;
+    if (action === "configure_geofence") {
+      const parsed = validateGeofenceSite(body);
+      if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
+      boundary = parsed.value;
+    }
+    const [previous] = await db.select({ id: worksiteGeofenceBoundaries.worksiteId })
+      .from(worksiteGeofenceBoundaries).where(and(
+        eq(worksiteGeofenceBoundaries.worksiteId, worksiteId),
+        eq(worksiteGeofenceBoundaries.organizationId, organizationId),
+      )).limit(1);
+    // Opt-in site policy changes never alter the existing worksites row.
+    if (boundary) {
+      await db.insert(worksiteGeofenceBoundaries).values({
+        worksiteId,
+        organizationId,
+        latitude: String(boundary.latitude),
+        longitude: String(boundary.longitude),
+        radiusMeters: boundary.radiusMeters,
+        updatedAt: new Date(),
+      }).onConflictDoUpdate({
+        target: worksiteGeofenceBoundaries.worksiteId,
+        set: {
+          organizationId,
+          latitude: String(boundary.latitude),
+          longitude: String(boundary.longitude),
+          radiusMeters: boundary.radiusMeters,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      await db.delete(worksiteGeofenceBoundaries).where(and(
+        eq(worksiteGeofenceBoundaries.worksiteId, worksiteId),
+        eq(worksiteGeofenceBoundaries.organizationId, organizationId),
+      ));
+    }
+
+    await recordAuditEvent({
+      organizationId,
+      actor: user.name,
+      action: boundary ? "Worksite geofence configured" : "Worksite geofence disabled",
+      resource: `${site.code} · ${site.name}`,
+      metadata: {
+        worksiteId, reason, policyVersion: GEOFENCE_POLICY_VERSION,
+        previousConfigured: previous !== undefined,
+        newConfigured: boundary !== null,
+        radiusMeters: boundary?.radiusMeters ?? null,
+        // Site centre is administrative configuration; do not copy exact position
+        // into general audit events or employee clock evidence.
+      },
+    });
+    return Response.json({
+      worksite: {
+        id: worksiteId,
+        geofenceConfigured: boundary !== null,
+        geofenceRadiusM: boundary?.radiusMeters ?? null,
+      },
+    });
+  }
 
   if (action === "create_worksite") {
     if (!access.companyWide) {

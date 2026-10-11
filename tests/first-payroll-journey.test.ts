@@ -1,0 +1,70 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { FirstPayrollReadinessCard } from "../src/components/workspace/first-payroll-readiness";
+import { buildFirstPayrollReadiness } from "../src/lib/first-payroll-readiness";
+import { buildFirstPayrollJourney } from "../src/lib/first-payroll-journey";
+
+const base = { workspaceName: "Pilot Employer", employees: [{ status: "Active", bankAccount: "enc:v1:fixture", bankCode: "BPI" }], memberships: [{ role: "payroll" }, { role: "checker" }] };
+
+test("new employer sees one ordered guided journey without false readiness", () => {
+  const readiness = buildFirstPayrollReadiness({ workspaceName: "P", employees: [], memberships: [], payrollStatuses: [] });
+  const steps = buildFirstPayrollJourney(readiness);
+  assert.deepEqual(steps.map((step) => step.key), ["company", "people", "time", "reviewers", "payroll", "approval", "exports"]);
+  assert.equal(steps.find((step) => step.key === "time")?.state, "upcoming");
+  assert.equal(steps.find((step) => step.key === "payroll")?.state, "upcoming");
+  assert.equal(steps.find((step) => step.key === "exports")?.state, "upcoming");
+});
+
+test("setup complete is not evidence that attendance was reviewed or release approved", () => {
+  const steps = buildFirstPayrollJourney(buildFirstPayrollReadiness({ ...base, payrollStatuses: [] }));
+  assert.equal(steps.find((step) => step.key === "people")?.state, "complete");
+  assert.equal(steps.find((step) => step.key === "time")?.state, "review");
+  assert.equal(steps.find((step) => step.key === "payroll")?.state, "available");
+  assert.equal(steps.find((step) => step.key === "approval")?.state, "upcoming");
+});
+
+test("an in-progress run still requires independent review; released run still requires filing evidence", () => {
+  const inProgress = buildFirstPayrollJourney(buildFirstPayrollReadiness({ ...base, payrollStatuses: ["Draft"] }));
+  assert.equal(inProgress.find((step) => step.key === "approval")?.state, "review");
+  assert.equal(inProgress.find((step) => step.key === "exports")?.state, "upcoming");
+  const released = buildFirstPayrollJourney(buildFirstPayrollReadiness({ ...base, payrollStatuses: ["Released"] }));
+  assert.equal(released.find((step) => step.key === "payroll")?.state, "complete");
+  assert.equal(released.find((step) => step.key === "exports")?.state, "review");
+});
+test("settings destinations do not confuse employer data with reviewer membership setup", () => {
+  const steps = buildFirstPayrollJourney(buildFirstPayrollReadiness({ ...base, payrollStatuses: [] }));
+  assert.equal(steps.find((step) => step.key === "company")?.settingsTab, "organization");
+  assert.equal(steps.find((step) => step.key === "reviewers")?.settingsTab, "team");
+});
+
+test("the first released payroll still presents the export handoff before ongoing runs begin", () => {
+  const first = buildFirstPayrollReadiness({ ...base, payrollStatuses: ["Released"] });
+  const later = buildFirstPayrollReadiness({ ...base, payrollStatuses: ["Released", "Draft"] });
+  assert.equal(first.payrollRunCount, 1);
+  assert.equal(later.payrollRunCount, 2);
+  assert.equal(buildFirstPayrollJourney(first).find((step) => step.key === "exports")?.state, "review");
+  const ui = readFileSync("src/components/workspace/first-payroll-readiness.tsx", "utf8");
+  assert.ok(ui.includes("readiness.firstPayrollReleased && readiness.payrollRunCount > 1"));
+  assert.ok(ui.includes('"Open exports"'));
+});
+
+test("self-serve owners receive a single guided journey without duplicate setup tiles", () => {
+  const readiness = buildFirstPayrollReadiness({ ...base, payrollStatuses: [] });
+  const props = {
+    readiness, allowedPages: ["Settings", "People", "Time & attendance", "Payroll", "Approvals", "Exports"],
+    onPage: () => {}, onNewRun: () => {},
+  };
+  const guided = renderToStaticMarkup(createElement(FirstPayrollReadinessCard, { ...props, guided: true }));
+  const legacy = renderToStaticMarkup(createElement(FirstPayrollReadinessCard, { ...props, guided: false }));
+  assert.match(guided, /Guided first payroll journey/);
+  assert.doesNotMatch(guided, /class="first-payroll-grid"/);
+  assert.match(legacy, /class="first-payroll-grid"/);
+  assert.doesNotMatch(legacy, /Guided first payroll journey/);
+  const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
+  const page = readFileSync("src/app/app/page.tsx", "utf8");
+  assert.ok(page.includes("isSelfServeCustomer={isSelfServe}"));
+  assert.ok(workspace.includes("guided={isSelfServeCustomer}"));
+});

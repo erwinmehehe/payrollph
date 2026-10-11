@@ -1,3 +1,5 @@
+import { coreSchemaCompatibilityMode } from "@/lib/core-schema-readonly";
+import { migrationSchemaSpec, verifyRequestSchemaReadOnlyFromPool } from "@/lib/request-schema-readonly";
 import { pool } from "@/db";
 
 let ready = false;
@@ -11,13 +13,22 @@ let inFlight: Promise<void> | null = null;
  * with "column/table does not exist" at runtime.
  */
 export async function ensureMigrationSchema() {
+  const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+  if (mode === "read-only") {
+    if (inFlight) throw new Error("MIGRATION_LEGACY_SCHEMA_WRITE_IN_PROGRESS");
+    await verifyRequestSchemaReadOnlyFromPool(pool, migrationSchemaSpec);
+    return;
+  }
   if (ready) return;
   if (inFlight) return inFlight;
 
   inFlight = (async () => {
     const client = await pool.connect();
+    let transactionOpen = false;
+    let safeToReuse = false;
     try {
       await client.query("BEGIN");
+      transactionOpen = true;
       await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_migration_schema_v1'))");
 
       await client.query(`
@@ -61,15 +72,28 @@ export async function ensureMigrationSchema() {
       `);
 
       await client.query("COMMIT");
+      transactionOpen = false;
+      safeToReuse = true;
       ready = true;
     } catch (error) {
-      try { await client.query("ROLLBACK"); } catch { /* no-op */ }
+      if (transactionOpen) {
+        try {
+          await client.query("ROLLBACK");
+          transactionOpen = false;
+          safeToReuse = true;
+        } catch {
+          // Never reuse a client with an uncertain open transaction.
+        }
+      }
       throw error;
     } finally {
-      client.release();
-      inFlight = null;
+      client.release(!safeToReuse);
     }
-  })();
+  })().finally(() => {
+    // A failed pool.connect() or prerequisite schema preflight must not
+    // permanently poison this module's in-flight promise.
+    inFlight = null;
+  });
 
   return inFlight;
 }

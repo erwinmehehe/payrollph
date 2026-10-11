@@ -2,7 +2,10 @@ import {
   and, asc, count, eq, gt, ilike, inArray, isNull, lte, gte, or, sql,
 } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, leaveRequests, orgUnits, overtimeRequests } from "@/db/schema";
+import {
+  attendanceCorrectionRequests, employees, leaveRequests, orgUnits,
+  overtimeRequests, timePunches,
+} from "@/db/schema";
 import {
   summarizeMyTeamPage,
   type MyTeamResponse,
@@ -104,8 +107,8 @@ export async function loadHcmMyTeam(input: {
   const hasMore = sourceRows.length > PAGE_SIZE;
   const page = sourceRows.slice(0, PAGE_SIZE);
   const employeeIds = page.map((row) => row.id);
-  const [leaveCounts, overtimeCounts] = employeeIds.length === 0
-    ? [[], []]
+  const [leaveCounts, overtimeCounts, correctionCounts, incompletePunchCounts] = employeeIds.length === 0
+    ? [[], [], [], []]
     : await Promise.all([
       db.select({
         employeeId: leaveRequests.employeeId, pending: count(),
@@ -123,10 +126,28 @@ export async function loadHcmMyTeam(input: {
           inArray(overtimeRequests.employeeId, employeeIds),
           eq(overtimeRequests.status, "pending"),
         )).groupBy(overtimeRequests.employeeId),
+      db.select({
+        employeeId: attendanceCorrectionRequests.employeeId, pending: count(),
+      }).from(attendanceCorrectionRequests)
+        .where(and(
+          eq(attendanceCorrectionRequests.organizationId, organizationId),
+          inArray(attendanceCorrectionRequests.employeeId, employeeIds),
+          eq(attendanceCorrectionRequests.status, "pending"),
+        )).groupBy(attendanceCorrectionRequests.employeeId),
+      db.select({
+        employeeId: timePunches.employeeId, incomplete: count(),
+      }).from(timePunches)
+        .where(and(
+          eq(timePunches.organizationId, organizationId),
+          inArray(timePunches.employeeId, employeeIds),
+          or(isNull(timePunches.timeIn), isNull(timePunches.timeOut)),
+        )).groupBy(timePunches.employeeId),
     ]);
 
   const leaveById = new Map(leaveCounts.map((row) => [row.employeeId, row.pending]));
   const overtimeById = new Map(overtimeCounts.map((row) => [row.employeeId, row.pending]));
+  const correctionById = new Map(correctionCounts.map((row) => [row.employeeId, row.pending]));
+  const incompletePunchById = new Map(incompletePunchCounts.map((row) => [row.employeeId, row.incomplete]));
 
   const items = page.map((row) => ({
     id: row.id,
@@ -142,6 +163,8 @@ export async function loadHcmMyTeam(input: {
     ) as "not_recorded" | "unverified" | "verified",
     pendingLeaveRecords: leaveById.get(row.id) ?? 0,
     pendingOvertimeRecords: overtimeById.get(row.id) ?? 0,
+    pendingAttendanceCorrections: correctionById.get(row.id) ?? 0,
+    incompletePunchRecords: incompletePunchById.get(row.id) ?? 0,
   }));
 
   return {
@@ -157,6 +180,6 @@ export async function loadHcmMyTeam(input: {
       nextCursor: hasMore ? page[page.length - 1]?.id ?? null : null,
     },
     summary: summarizeMyTeamPage(items),
-    warning: "Current employee records in the authorized unit or employer only. Pending leave/overtime are recorded source counts, not decisions assigned to you. No staffing, pay, approval or completeness certification.",
+    warning: "Current employee records in the authorized unit or employer only. All counters cover this page, not the entire team. Pending leave, overtime, corrections and incomplete punches are source records, not assigned approvals. Incomplete punches can include active shifts. No staffing, pay, approval or completeness certification.",
   };
 }

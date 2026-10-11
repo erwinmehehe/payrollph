@@ -1,3 +1,5 @@
+import { coreSchemaCompatibilityMode } from "@/lib/core-schema-readonly";
+import { marketingLeadSchemaSpec, verifyRequestSchemaReadOnlyFromPool } from "@/lib/request-schema-readonly";
 import { pool } from "@/db";
 import { deliveryCapable } from "@/lib/mail-provider";
 import { queueMessage, retryOutboxMessage } from "@/lib/mailer";
@@ -26,13 +28,22 @@ let schemaReady = false;
 let schemaInFlight: Promise<void> | null = null;
 
 export async function ensureMarketingLeadSchema() {
+  const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+  if (mode === "read-only") {
+    if (schemaInFlight) throw new Error("MARKETING_LEGACY_SCHEMA_WRITE_IN_PROGRESS");
+    await verifyRequestSchemaReadOnlyFromPool(pool, marketingLeadSchemaSpec);
+    return;
+  }
   if (schemaReady) return;
   if (schemaInFlight) return schemaInFlight;
 
   schemaInFlight = (async () => {
     const client = await pool.connect();
+    let transactionOpen = false;
+    let safeToReuse = false;
     try {
       await client.query("BEGIN");
+      transactionOpen = true;
       await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_marketing_leads_v1'))");
       await client.query(`
         CREATE TABLE IF NOT EXISTS marketing_leads (
@@ -90,22 +101,35 @@ export async function ensureMarketingLeadSchema() {
       `);
       await client.query(`
         CREATE INDEX IF NOT EXISTS marketing_leads_status_created_idx
-        ON marketing_leads(status, created_at DESC)
+        ON marketing_leads(status, created_at DESC NULLS LAST)
       `);
       await client.query(`
         CREATE INDEX IF NOT EXISTS marketing_leads_kind_created_idx
-        ON marketing_leads(kind, created_at DESC)
+        ON marketing_leads(kind, created_at DESC NULLS LAST)
       `);
       await client.query("COMMIT");
+      transactionOpen = false;
+      safeToReuse = true;
       schemaReady = true;
     } catch (error) {
-      await client.query("ROLLBACK").catch(() => {});
+      if (transactionOpen) {
+        try {
+          await client.query("ROLLBACK");
+          transactionOpen = false;
+          safeToReuse = true;
+        } catch {
+          // Never reuse a client with an uncertain open transaction.
+        }
+      }
       throw error;
     } finally {
-      client.release();
-      schemaInFlight = null;
+      client.release(!safeToReuse);
     }
-  })();
+  })().finally(() => {
+    // A failed pool.connect() or prerequisite schema preflight must not
+    // permanently poison this module's in-flight promise.
+    schemaInFlight = null;
+  });
 
   return schemaInFlight;
 }

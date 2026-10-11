@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { canOpenPeopleHome } from "@/lib/hcm-people-home-scope";
 import { Clock, ShieldCheck, Sparkles } from "lucide-react";
-import { AssetsPanel } from "@/components/assets-panel";
+import { ItOperationsPanel } from "@/components/it-operations-panel";
 import { AutomationStudioPanel } from "@/components/automation-studio-panel";
 import { BenefitsPanel } from "@/components/benefits-panel";
 import { ContractorsPanel } from "@/components/contractors-panel";
@@ -12,7 +12,6 @@ import { CompensationPanel } from "@/components/compensation-panel";
 import { HcmDocumentsPanel } from "@/components/hcm-documents-panel";
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
-import { SaasOnboardingQuickstart } from "@/components/saas-onboarding-quickstart";
 import { HrisHomeShortcuts } from "@/components/hris-home-shortcuts";
 import { HrisOnboardingChecklist } from "@/components/hris-onboarding-checklist";
 import { DisciplinePanel } from "@/components/discipline-panel";
@@ -25,7 +24,8 @@ import { RecruitmentPanel } from "@/components/recruitment-panel";
 import { PerformancePanel } from "@/components/performance-panel";
 import { EnterpriseControlsPanel } from "@/components/enterprise-controls-panel";
 import { SeparationPanel } from "@/components/separation-panel";
-import { EwaPanel, ExpensesPanel } from "@/components/wallet-panel";
+import { EwaPanel } from "@/components/wallet-panel";
+import { SpendOperationsPanel } from "@/components/spend-operations-panel";
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { LaunchReadinessPanel } from "@/components/workspace/launch-readiness-panel";
 import { AnalyticsView } from "@/components/workspace/analytics";
@@ -63,8 +63,10 @@ import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId 
 import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, roleHasPeopleWorkspace, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
 import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
+import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
+import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 
-export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean }) {
+export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean }) {
   const searchParams = useSearchParams();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
@@ -74,11 +76,33 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       ? requestedDemoRole
       : null;
   const demoInfo = demoRoleInfo(demoRole);
+  const requestedWorkspacePage = searchParams.get("workspacePage");
+  const linkedTeamWorkflowPage = requestedMyTeamWorkspacePage({
+    requestedPage: requestedWorkspacePage,
+    role: initialData.access?.role ?? initialData.user?.role,
+    companyWide: initialData.access?.companyWide,
+    accountType: initialData.selectedOrganization.accountType,
+    rolePages: workspacePagesForRole(initialData.access?.role ?? initialData.user?.role),
+    pilotFocusEnabled,
+    demoMode: Boolean(demoRole),
+  });
+  // Only company-wide People operators can return from the read-only
+  // payroll input review; managers and demo users retain their own routes.
+  const reviewPages = workspacePagesForRole(initialData.access?.role);
+  const linkedHirePayrollPage =
+    allowHirePayrollReview && !pilotFocusEnabled && !demoRole &&
+    initialData.access?.companyWide &&
+    ["owner", "admin", "hr"].includes(initialData.access.role) &&
+    initialData.selectedOrganization.accountType !== "freelancer" &&
+    (requestedWorkspacePage === "Recruitment" ||
+      requestedWorkspacePage === "Time & attendance") &&
+    (!reviewPages || reviewPages.includes(requestedWorkspacePage))
+      ? requestedWorkspacePage : null;
   const initialPage = demoInfo?.landingPage ??
     (searchParams.get("workspacePage") === "People" &&
       canOpenPeopleHome(initialData.access) &&
       roleHasPeopleWorkspace(initialData.access?.role)
-      ? "People" : "Overview");
+      ? "People" : linkedTeamWorkflowPage ?? linkedHirePayrollPage ?? "Overview");
   const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
@@ -86,7 +110,19 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
   const [busy, setBusy] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"organization" | "team">("organization");
-  const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(null);
+  // A source-link can focus only a worker already in this selected employer's
+  // authorized People snapshot. A stale or cross-employer URL opens no drawer.
+  const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(() =>
+    resolvePeopleEmployeeFocus({
+      requestedPage: requestedWorkspacePage,
+      requestedOrganizationId: searchParams.get("organizationId"),
+      requestedEmployeeId: searchParams.get("focusEmployeeId"),
+      selectedOrganizationId: initialData.selectedOrganization.id,
+      access: initialData.access,
+      authorizedEmployees: initialData.employees,
+      serverAuthorized: allowPeopleFocus,
+      demoMode: Boolean(demoRole),
+    }));
 
   // Modals kept from the original build, all still server-authorised.
   const [newPayrollOpen, setNewPayrollOpen] = useState(false);
@@ -402,17 +438,14 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
 
         {page === "Overview" && (
           <>
-            {isSelfServeCustomer && data.payrollRuns.length === 0 && (
-              <SaasOnboardingQuickstart
-                companyName={data.selectedOrganization.name}
-                employees={data.employees.length}
-                runs={data.payrollRuns.length}
-                onPage={setPage}
-                onAddEmployee={() => setNewHireOpen(true)}
-              />
-            )}
             {hrisShortcuts.length > 0 && (
-              <HrisHomeShortcuts actions={hrisShortcuts} onPage={setPage} />
+              <HrisHomeShortcuts
+                key={data.selectedOrganization.id}
+                actions={hrisShortcuts}
+                onPage={setPage}
+                employees={canUsePeopleOps ? data.employees : []}
+                onOpenEmployee={canUsePeopleOps ? openHrEmployee : undefined}
+              />
             )}
             {dashboardRole ? (
               <RoleOverviewView
@@ -435,10 +468,10 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
                 readiness={data.firstPayrollReadiness}
-                onPage={(targetPage) => {
-                  if (targetPage === "Settings") setSettingsInitialTab("team");
-                  setPage(targetPage);
-                }}
+                guided={isSelfServeCustomer}
+                allowedPages={availablePages}
+                onSettings={setSettingsInitialTab}
+                onPage={setPage}
                 onNewRun={() => setNewPayrollOpen(true)}
               />
             )}
@@ -558,7 +591,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         {page === "Benefits" && <BenefitsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Documents" && <HcmDocumentsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "De minimis" && <DeMinimisPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
-        {page === "Expenses" && <ExpensesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Expenses" && <SpendOperationsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Earned wage" && <EwaPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Recruitment" && (
           <>
@@ -571,6 +604,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
                   provisioning={data.provisioning}
                   onRefresh={async () => { await refresh(data.selectedOrganization.id); }}
                   onOpenEmployee={openHrEmployee}
+                  allowHirePayrollReview={allowHirePayrollReview && !demoRole}
                   onOpenDocuments={availablePages.includes("Documents") ? () => setPage("Documents") : undefined}
                 />
               )}
@@ -586,7 +620,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         {page === "Discipline" && <DisciplinePanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Separation" && <SeparationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Contractors" && <ContractorsPanel organizationId={data.selectedOrganization.id} />}
-        {page === "Assets" && <AssetsPanel organizationId={data.selectedOrganization.id} />}
+        {page === "Assets" && <ItOperationsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Freelancer hub" && <FreelancerPage data={data} setNotice={noticeAdapter} />}
 
         {page === "Integrations" && <IntegrationsPage onOpenOutbox={canManageDeliveryOutbox ? () => setOutboxOpen(true) : undefined} />}

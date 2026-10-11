@@ -15,3 +15,14 @@ Mark the GitHub advisory migration guard as a required branch check only after c
 New numbered migration files must be **contiguous** after the greatest existing number in the current `main` history. A branch adding `0101_*.sql` without `0100_*.sql` already in `main` (or included in the same reviewed branch) is rejected; a branch jumping from `0100` to `0102` is rejected. Within a single PR multiple new migrations may be in arbitrary diff order, but their numbers must form a consecutive series.
 
 As of October 9, 2026, the current baseline ends at `0099` and pending migration candidates include compensation `0100` (#626), historical underpayments `0101` (#642), and final-pay maker-checker `0102` (#644). **Do not merge #642 or #644 until all previous migration numbers have been reviewed and merged safely.** This check validates only file numbering, not whether a live DB has applied the SQL or whether payroll release approvals are complete.
+
+## Current P0-4 source-only audit (October 11, 2026)
+
+The historical October 9 example referring to `0099` is no longer the latest
+repository prefix. The repository now retains **124** numbered SQL files through
+`0110`, including **13** duplicate-number groups. The new source-only inventory
+and protected receipt preflight are documented in
+`production-migration-receipt-runbook.md`. Matching full-path SHA-256 receipts
+is one release input, never automatic approval to deploy or run DDL. The
+runtime `ensureCoreCompatibilitySchema` writers remain an unresolved change
+requiring DBA-approved transition and isolated clone rehearsal.

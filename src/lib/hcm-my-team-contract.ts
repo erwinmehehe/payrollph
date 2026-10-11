@@ -17,6 +17,8 @@ export type MyTeamMember = {
   orgUnitIntegrity: "verified" | "not_recorded" | "unverified";
   pendingLeaveRecords: number;
   pendingOvertimeRecords: number;
+  pendingAttendanceCorrections: number;
+  incompletePunchRecords: number;
 };
 
 export type MyTeamResponse = {
@@ -31,6 +33,8 @@ export type MyTeamResponse = {
     employeeRecordsThisPage: number;
     pendingLeaveRecordsThisPage: number;
     pendingOvertimeRecordsThisPage: number;
+    pendingAttendanceCorrectionsThisPage: number;
+    incompletePunchRecordsThisPage: number;
   };
   warning: string;
 };
@@ -60,11 +64,15 @@ export function deriveMyTeamScope(
 }
 
 export function summarizeMyTeamPage(
-  records: readonly Pick<MyTeamMember, "pendingLeaveRecords" | "pendingOvertimeRecords">[],
+  records: readonly Pick<MyTeamMember,
+    "pendingLeaveRecords" | "pendingOvertimeRecords" | "pendingAttendanceCorrections" | "incompletePunchRecords"
+  >[],
 ) {
   return {
     employeeRecordsThisPage: records.length,
     pendingLeaveRecordsThisPage: records.reduce((total, record) => total + record.pendingLeaveRecords, 0),
     pendingOvertimeRecordsThisPage: records.reduce((total, record) => total + record.pendingOvertimeRecords, 0),
+    pendingAttendanceCorrectionsThisPage: records.reduce((total, record) => total + record.pendingAttendanceCorrections, 0),
+    incompletePunchRecordsThisPage: records.reduce((total, record) => total + record.incompletePunchRecords, 0),
   };
 }

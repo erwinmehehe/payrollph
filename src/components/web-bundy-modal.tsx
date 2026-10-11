@@ -6,6 +6,27 @@ import { Check, Clock, Coffee, LogIn, LogOut, MapPin, PlayCircle, X } from "luci
 import { essText, type EssLanguage } from "@/lib/ess-language";
 import { philippineClockDate, philippineClockTime } from "@/lib/philippine-clock-display";
 
+type ClockPolicy = { key: string; required: boolean; canClockWithLocation: boolean; error?: string };
+type OneTimePosition = { latitude: number; longitude: number; accuracyMeters: number; capturedAt: string };
+/** A single, deliberate clock action gets a fresh GPS fix; no background polling. */
+function requestOneTimePosition(): Promise<OneTimePosition> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    return Promise.reject(new Error("This device cannot provide GPS location. Ask HR for a reviewed attendance exception."));
+  }
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracyMeters: position.coords.accuracy,
+        capturedAt: new Date(position.timestamp).toISOString(),
+      }),
+      () => reject(new Error("Location permission failed or timed out. Enable GPS on HTTPS, or ask HR for a manual attendance review.")),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
+    );
+  });
+}
+
 type BundyEmployee = {
   id: number;
   employeeNo: string;
@@ -44,6 +65,7 @@ function WebBundyView({
   const time = philippineClockTime(now);
   const date = philippineClockDate(now);
   const [readState, setReadState] = useState<WebBundyReadState | null>(null);
+  const [clockPolicy, setClockPolicy] = useState<ClockPolicy | null>(null);
   const mounted = useRef(false);
   const submitting = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -77,6 +99,9 @@ function WebBundyView({
     ? visibleWebBundyState(readKey, readState)
     : { status: "unavailable" as const, punches: [] };
   const historyReady = validEmployer && selectedEmployeeId !== null && visible.status === "ready";
+  // Never reuse location policy for another employer, worker, or refresh generation.
+  const policy = clockPolicy?.key === readKey ? clockPolicy : null;
+  const policyReady = Boolean(policy && !policy.error && (!policy.required || policy.canClockWithLocation));
 
   useEffect(() => {
     if (!selectedEmployeeId || !validEmployer) return;
@@ -92,12 +117,21 @@ function WebBundyView({
         if (!res.ok) throw Error("Attendance state unavailable.");
         const data: unknown = await res.json();
         if (!alive || controller.signal.aborted) return;
-        const list = data && typeof data === "object"
-          ? (data as { punches?: unknown }).punches : undefined;
-        if (!isWebBundyPunchList(list)) throw Error("Invalid attendance state.");
-        setReadState({ key: readKey, status: "ready", punches: list });
+        const response = data && typeof data === "object"
+          ? data as { punches?: unknown; geofence?: unknown } : {};
+        if (!isWebBundyPunchList(response.punches)) throw Error("Invalid attendance state.");
+        const geo = response.geofence;
+        if (!geo || typeof geo !== "object"
+          || typeof (geo as { required?: unknown }).required !== "boolean"
+          || typeof (geo as { canClockWithLocation?: unknown }).canClockWithLocation !== "boolean") {
+          throw Error("Time-clock location policy could not be verified.");
+        }
+        const verified = geo as { required: boolean; canClockWithLocation: boolean };
+        setClockPolicy({ key: readKey, required: verified.required, canClockWithLocation: verified.canClockWithLocation });
+        setReadState({ key: readKey, status: "ready", punches: response.punches });
       } catch {
         if (alive && !controller.signal.aborted) {
+          setClockPolicy({ key: readKey, required: false, canClockWithLocation: false, error: "Time-clock policy unavailable. Retry attendance check." });
           setReadState({ key: readKey, status: "unavailable", punches: [] });
         }
       }
@@ -110,8 +144,8 @@ function WebBundyView({
   }, [organizationId, selectedEmployeeId, readKey, validEmployer]);
 
   async function handlePunch(actionType: "clock_in" | "break_start" | "break_end" | "clock_out") {
-    if (!selectedEmployeeId || !historyReady) {
-      setError(t("Verify this employee's current attendance before recording a punch."));
+    if (!selectedEmployeeId || !historyReady || !policyReady || !policy) {
+      setError(t("Verify this employee's current attendance and time-clock policy before recording a punch."));
       return;
     }
     if (submitting.current) return;
@@ -120,6 +154,18 @@ function WebBundyView({
     setMessage("");
     setError("");
     try {
+      let geolocation: OneTimePosition | undefined;
+      if (policy.required && (actionType === "clock_in" || actionType === "clock_out")) {
+        try {
+          geolocation = await requestOneTimePosition();
+        } catch (cause) {
+          if (mounted.current) setError(cause instanceof Error ? cause.message : "GPS location unavailable. Ask HR for a reviewed attendance exception.");
+          return;
+        }
+      }
+      // The worker may close the modal while the browser is waiting for a
+      // foreground GPS permission decision. Never clock after unmount.
+      if (!mounted.current) return;
       const res = await fetch("/api/web-bundy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -128,6 +174,7 @@ function WebBundyView({
           employeeId: selectedEmployeeId,
           actionType,
           location: "Web Bundy (Workstation / Mobile Browser)",
+          ...(geolocation ? { geolocation } : {}),
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -241,25 +288,36 @@ function WebBundyView({
         )}
         {message && <div className="notice notice-green" style={{ margin: "10px 0" }}><Check size={16} className="i-green" /><span>{message}</span></div>}
         {error && <div className="notice notice-amber" style={{ margin: "10px 0" }}><span>{error}</span></div>}
+        {policy?.error && <div className="notice notice-amber" role="alert">{policy.error}</div>}
+        {policy?.required && (
+          <div className="notice notice-blue" style={{ margin: "12px 0" }}>
+            <MapPin size={15} />
+            <span>
+              One-time GPS verification is required for clock IN and OUT at an approved worksite.
+              GPS is requested only after you press a clock button. Exact employee coordinates are not saved.
+              {!policy.canClockWithLocation && " Team administrators cannot clock for someone else in this pilot; employees must use their own account."}
+            </span>
+          </div>
+        )}
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
-          <button className="primary-button" disabled={busy || !canClockIn} onClick={() => handlePunch("clock_in")} style={{ height: 42, background: "var(--green)", fontSize: 13 }}>
+          <button className="primary-button" disabled={busy || !policyReady || !canClockIn} onClick={() => handlePunch("clock_in")} style={{ height: 42, background: "var(--green)", fontSize: 13 }}>
             <LogIn size={16} /> {t("Clock IN")}
           </button>
-          <button className="secondary-button" disabled={busy || !canStartBreak} onClick={() => handlePunch("break_start")} style={{ height: 42, fontSize: 13 }}>
+          <button className="secondary-button" disabled={busy || !policyReady || !canStartBreak} onClick={() => handlePunch("break_start")} style={{ height: 42, fontSize: 13 }}>
             <Coffee size={16} /> {t("Start break")}
           </button>
-          <button className="secondary-button" disabled={busy || !canEndBreak} onClick={() => handlePunch("break_end")} style={{ height: 42, fontSize: 13 }}>
+          <button className="secondary-button" disabled={busy || !policyReady || !canEndBreak} onClick={() => handlePunch("break_end")} style={{ height: 42, fontSize: 13 }}>
             <PlayCircle size={16} /> {t("End break")}
           </button>
-          <button className="secondary-button" disabled={busy || !canClockOut} onClick={() => handlePunch("clock_out")} style={{ height: 42, fontSize: 13 }}>
+          <button className="secondary-button" disabled={busy || !policyReady || !canClockOut} onClick={() => handlePunch("clock_out")} style={{ height: 42, fontSize: 13 }}>
             <LogOut size={16} /> {t("Clock OUT")}
           </button>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, color: "var(--muted)", fontSize: 11 }}>
           <MapPin size={14} className="i-blue" />
-          <span>{t("Browser IP and attendance source are audit-stamped. Shared team clocking remains role-controlled.")}</span>
+          <span>{t("Browser IP and attendance source are audit-stamped. Geofenced self-clock stores only coarse verification evidence, not raw employee GPS coordinates.")}</span>
         </div>
       </section>
     </div>

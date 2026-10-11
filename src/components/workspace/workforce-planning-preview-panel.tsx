@@ -90,6 +90,7 @@ export function WorkforcePlanningPreviewPanel({
                 <p><strong>{scenario.projection.proposedAssignments}</strong> suggested assignment(s) · {scenario.projection.unresolvedRequirements} requirement(s) still short</p>
                 <p><strong>Estimated added base pay:</strong> {costLabel(scenario.projection)}</p>
                 <small className="id">
+                  {scenario.draft.avoidedProposedRestViolations ?? 0} proposed blocking rest-gap conflict(s) avoided ·
                   {scenario.draft.avoidedConflictingAssignments} proposed shift conflict(s) avoided ·
                   {" "}{scenario.draft.missingWorkloadEvidence} worker(s) lacked complete workload evidence
                 </small>

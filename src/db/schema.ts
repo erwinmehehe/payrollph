@@ -197,6 +197,30 @@ export const worksites = pgTable(
   ],
 );
 
+/**
+ * Optional GPS boundary records: NEVER selected by legacy worksite reads.
+ * The collection is accessed only by explicitly allowlisted pilot employers.
+ */
+export const worksiteGeofenceBoundaries = pgTable(
+  "worksite_geofence_boundaries",
+  {
+    worksiteId: integer("worksite_id").primaryKey().references(() => worksites.id, { onDelete: "cascade" }),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    latitude: numeric("latitude", { precision: 10, scale: 7 }).notNull(),
+    longitude: numeric("longitude", { precision: 10, scale: 7 }).notNull(),
+    radiusMeters: integer("radius_meters").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("worksite_geofence_org_idx").on(table.organizationId),
+    check("worksite_geofence_valid_check", sql`(
+      ${table.latitude} BETWEEN -90 AND 90
+      AND ${table.longitude} BETWEEN -180 AND 180
+      AND ${table.radiusMeters} BETWEEN 100 AND 2000
+    )`),
+  ],
+);
+
 export const employees = pgTable("employees", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
@@ -1725,6 +1749,7 @@ export const leaveBalances = pgTable("leave_balances", {
 
 export const expenseClaims = pgTable("expense_claims", {
   id: serial("id").primaryKey(),
+  submittedByUserId: integer("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   category: varchar("category", { length: 60 }).notNull(),
@@ -1974,7 +1999,8 @@ export const outbox = pgTable("outbox", {
   sentAt: timestamp("sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
-  uniqueIndex("outbox_dedupe_key_unique").on(table.dedupeKey),
+  uniqueIndex("outbox_dedupe_key_unique").on(table.dedupeKey)
+    .where(sql`${table.dedupeKey} is not null`),
   index("outbox_org_created_idx").on(table.organizationId, table.createdAt),
   index("outbox_retry_idx").on(table.status, table.nextAttemptAt),
 ]);
@@ -2002,8 +2028,14 @@ export const marketingLeads = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("marketing_leads_status_created_idx").on(table.status, table.createdAt),
-    index("marketing_leads_kind_created_idx").on(table.kind, table.createdAt),
+    index("marketing_leads_status_created_idx").on(table.status, table.createdAt.desc()),
+    index("marketing_leads_kind_created_idx").on(table.kind, table.createdAt.desc()),
+    check("marketing_leads_kind_check",
+      sql`${table.kind} in ('demo','trial-access','payroll-outsourcing')`),
+    check("marketing_leads_status_check",
+      sql`${table.status} in ('new','contacted','qualified','closed')`),
+    check("marketing_leads_notification_status_check",
+      sql`${table.notificationStatus} in ('not-configured','queued','sent','failed')`),
   ],
 );
 
@@ -5542,5 +5574,315 @@ export const workforceRosterBatches = pgTable(
     check("wfm_roster_batches_decision_check",
       sql`(${table.status} = 'pending' and ${table.decidedAt} is null and ${table.decidedByUserId} is null)
         or (${table.status} <> 'pending' and ${table.decidedAt} is not null and ${table.decidedByUserId} is not null)`),
+  ],
+);
+
+
+/** Card metadata only. No PAN, CVV, card token, or bank credentials. */
+export const spendCards = pgTable("spend_cards", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").references(() => employees.id, { onDelete: "set null" }),
+  issuer: varchar("issuer", { length: 100 }).notNull(),
+  lastFour: varchar("last_four", { length: 4 }).notNull(),
+  reference: varchar("reference", { length: 120 }),
+  status: varchar("status", { length: 20 }).notNull().default("registered"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  index("spend_cards_org_idx").on(t.organizationId, t.employeeId),
+  uniqueIndex("spend_cards_ref_unique").on(t.organizationId, t.reference),
+  check("spend_card_last_four_check", sql`${t.lastFour} ~ '^[0-9]{4}$'`),
+  check("spend_card_state_check", sql`${t.status} in ('registered','closed')`),
+]);
+
+/** Employer-paid card charges stay entirely separate from payroll reimbursements. */
+export const spendCardTransactions = pgTable("spend_card_transactions", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  cardId: integer("card_id").notNull().references(() => spendCards.id, { onDelete: "restrict" }),
+  externalReference: varchar("external_reference", { length: 120 }).notNull(),
+  merchant: varchar("merchant", { length: 160 }).notNull(),
+  category: varchar("category", { length: 60 }).notNull().default("Other"),
+  amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
+  spentOn: date("spent_on").notNull(),
+  recordedByUserId: integer("recorded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("spend_card_transactions_dedupe").on(t.organizationId, t.cardId, t.externalReference),
+  index("spend_card_transactions_org_idx").on(t.organizationId, t.spentOn),
+  check("spend_card_tx_amount_check", sql`${t.amount} > 0`),
+]);
+
+/** Approval of a report atomically approves its employee-paid claims for payroll. */
+export const expenseReports = pgTable("expense_reports", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+  title: varchar("title", { length: 180 }).notNull(),
+  totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("submitted"),
+  submittedByUserId: integer("submitted_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  decisionNote: varchar("decision_note", { length: 240 }),
+}, t => [
+  index("expense_reports_queue_idx").on(t.organizationId, t.status, t.employeeId),
+  check("expense_report_amount_check", sql`${t.totalAmount} > 0`),
+  check("expense_report_state_check", sql`${t.status} in ('submitted','approved','rejected')`),
+  check("expense_report_maker_checker_check", sql`${t.decidedByUserId} is null or ${t.decidedByUserId} <> ${t.submittedByUserId}`),
+]);
+
+export const expenseReportItems = pgTable("expense_report_items", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  reportId: integer("report_id").notNull().references(() => expenseReports.id, { onDelete: "restrict" }),
+  claimId: integer("claim_id").notNull().references(() => expenseClaims.id, { onDelete: "restrict" }),
+}, t => [
+  uniqueIndex("expense_report_items_claim_unique").on(t.claimId),
+  index("expense_report_items_org_report_idx").on(t.organizationId, t.reportId),
+]);
+
+export const itApplications = pgTable("it_applications", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 120 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [uniqueIndex("it_applications_org_name_unique").on(t.organizationId, t.name)]);
+
+/** Human-confirmed application access, never an unverified remote provisioning claim. */
+export const itAccessGrants = pgTable("it_access_grants", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+  applicationId: integer("application_id").notNull().references(() => itApplications.id, { onDelete: "restrict" }),
+  state: varchar("state", { length: 24 }).notNull().default("grant_requested"),
+  requestedByUserId: integer("requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  confirmedByUserId: integer("confirmed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("it_access_grants_unique").on(t.organizationId, t.employeeId, t.applicationId),
+  index("it_access_grants_queue_idx").on(t.organizationId, t.state),
+  check("it_access_grants_state_check", sql`${t.state} in ('grant_requested','active','revoke_requested','revoked')`),
+]);
+
+/** Custody rows point to existing assets; no duplicate device inventory. */
+export const itManagedDevices = pgTable("it_managed_devices", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  assetId: integer("asset_id").notNull().references(() => assets.id, { onDelete: "restrict" }),
+  employeeId: integer("employee_id").references(() => employees.id, { onDelete: "set null" }),
+  state: varchar("state", { length: 24 }).notNull().default("available"),
+  mdmProvider: varchar("mdm_provider", { length: 100 }),
+  mdmReference: varchar("mdm_reference", { length: 160 }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("it_managed_devices_asset_unique").on(t.assetId),
+  index("it_managed_devices_org_idx").on(t.organizationId, t.state),
+  check("it_managed_devices_state_check", sql`${t.state} in ('available','assigned','return_requested','returned','lost','retired')`),
+]);
+
+export const itDeviceEvents = pgTable("it_device_events", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  deviceId: integer("device_id").notNull().references(() => itManagedDevices.id, { onDelete: "restrict" }),
+  eventType: varchar("event_type", { length: 48 }).notNull(),
+  employeeId: integer("employee_id").references(() => employees.id, { onDelete: "set null" }),
+  actorUserId: integer("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [index("it_device_events_idx").on(t.organizationId, t.deviceId, t.createdAt)]);
+
+/**
+ * WFM operational-demand evidence v1. Individual customers, patients, card
+ * transactions and employee identities are NEVER recorded here. Data is
+ * reported aggregated interval counts, not source-system certification.
+ * Corrections insert another revision; no application update/delete route.
+ */
+export const workforceDemandImportBatches = pgTable(
+  "workforce_demand_import_batches",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "cascade" }),
+    sourceKey: varchar("source_key", { length: 64 }).notNull(),
+    metricKind: varchar("metric_kind", { length: 24 }).notNull(),
+    intervalMinutes: integer("interval_minutes").notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
+    requestSha256: varchar("request_sha256", { length: 64 }).notNull(),
+    rowCount: integer("row_count").notNull(),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    importedAt: timestamp("imported_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("wfm_demand_import_idempotency_unique").on(table.organizationId, table.idempotencyKey),
+    index("wfm_demand_import_scope_idx").on(table.organizationId, table.worksiteId, table.importedAt),
+    check("wfm_demand_import_interval_check", sql`${table.intervalMinutes} IN (15, 30, 60)`),
+    check("wfm_demand_import_count_check", sql`${table.rowCount} BETWEEN 1 AND 100`),
+    check("wfm_demand_import_metric_check", sql`${table.metricKind} IN ('transactions', 'visits', 'orders', 'appointments', 'calls')`),
+  ],
+);
+
+export const workforceDemandObservationRevisions = pgTable(
+  "workforce_demand_observation_revisions",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "cascade" }),
+    importBatchId: integer("import_batch_id").notNull().references(() => workforceDemandImportBatches.id, { onDelete: "restrict" }),
+    sourceKey: varchar("source_key", { length: 64 }).notNull(),
+    metricKind: varchar("metric_kind", { length: 24 }).notNull(),
+    intervalStart: timestamp("interval_start", { withTimezone: true }).notNull(),
+    intervalMinutes: integer("interval_minutes").notNull(),
+    revision: integer("revision").notNull(),
+    observedCount: integer("observed_count").notNull(),
+    quality: varchar("quality", { length: 20 }).notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("wfm_demand_observation_version_unique").on(
+      table.organizationId, table.worksiteId, table.sourceKey, table.metricKind,
+      table.intervalStart, table.intervalMinutes, table.revision,
+    ),
+    index("wfm_demand_observation_history_idx").on(
+      table.organizationId, table.worksiteId, table.metricKind, table.intervalStart,
+    ),
+    check("wfm_demand_observation_interval_check", sql`${table.intervalMinutes} IN (15, 30, 60)`),
+    check("wfm_demand_observation_revision_check", sql`${table.revision} BETWEEN 1 AND 1000`),
+    check("wfm_demand_observation_count_check", sql`${table.observedCount} BETWEEN 0 AND 1000000`),
+    check("wfm_demand_observation_quality_check", sql`${table.quality} IN ('complete', 'partial', 'unverified')`),
+    check("wfm_demand_observation_metric_check", sql`${table.metricKind} IN ('transactions', 'visits', 'orders', 'appointments', 'calls')`),
+  ],
+);
+
+/**
+ * Issued operational-demand predictions. The forecast's exact content is
+ * captured before its future intervals occur and is never edited by any app
+ * route. Corrections to source-reported counts are separate append-only
+ * source revisions; score evidence is separately frozen once finalized.
+ */
+export const workforceDemandForecastIssues = pgTable(
+  "workforce_demand_forecast_issues",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "cascade" }),
+    sourceKey: varchar("source_key", { length: 64 }).notNull(),
+    metricKind: varchar("metric_kind", { length: 24 }).notNull(),
+    intervalMinutes: integer("interval_minutes").notNull(),
+    horizonDays: integer("horizon_days").notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
+    requestSha256: varchar("request_sha256", { length: 64 }).notNull(),
+    issuedByUserId: integer("issued_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    issuedAt: timestamp("issued_at", { withTimezone: true }).notNull(),
+    sourceCutoffAt: timestamp("source_cutoff_at", { withTimezone: true }).notNull(),
+    trainingEvidenceSha256: varchar("training_evidence_sha256", { length: 64 }).notNull(),
+    snapshotSha256: varchar("snapshot_sha256", { length: 64 }).notNull(),
+    pointsCount: integer("points_count").notNull(),
+    snapshot: jsonb("snapshot").notNull(),
+  },
+  t => [
+    uniqueIndex("wfm_demand_issued_key_unique").on(t.organizationId, t.idempotencyKey),
+    index("wfm_demand_issued_scope_idx").on(t.organizationId, t.worksiteId, t.issuedAt),
+    check("wfm_demand_issued_interval_check", sql`${t.intervalMinutes} IN (15, 30, 60)`),
+    check("wfm_demand_issued_horizon_check", sql`${t.horizonDays} IN (7, 14)`),
+    check("wfm_demand_issued_points_check", sql`${t.pointsCount} BETWEEN 1 AND 400`),
+    check("wfm_demand_issued_hash_check", sql`(
+      ${t.requestSha256} ~ '^[a-f0-9]{64}$'
+      AND ${t.snapshotSha256} ~ '^[a-f0-9]{64}$'
+      AND ${t.trainingEvidenceSha256} ~ '^[a-f0-9]{64}$'
+    )`),
+  ],
+);
+
+export const workforceDemandForecastScores = pgTable(
+  "workforce_demand_forecast_scores",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    issueId: integer("issue_id").notNull().references(() => workforceDemandForecastIssues.id, { onDelete: "restrict" }),
+    scoredByUserId: integer("scored_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    scoredAt: timestamp("scored_at", { withTimezone: true }).notNull(),
+    evaluationCutoffAt: timestamp("evaluation_cutoff_at", { withTimezone: true }).notNull(),
+    pointsCount: integer("points_count").notNull(),
+    reportSha256: varchar("report_sha256", { length: 64 }).notNull(),
+    report: jsonb("report").notNull(),
+  },
+  t => [
+    uniqueIndex("wfm_demand_issued_score_unique").on(t.issueId),
+    index("wfm_demand_score_tenant_idx").on(t.organizationId, t.scoredAt),
+    check("wfm_demand_score_points_check", sql`${t.pointsCount} BETWEEN 1 AND 400`),
+    check("wfm_demand_score_hash_check", sql`${t.reportSha256} ~ '^[a-f0-9]{64}$'`),
+  ],
+);
+
+/**
+ * Proposed and independently approved aggregate demand productivity policy.
+ * The scope and numeric assumptions are immutable after INSERT. Only status,
+ * submission and decision receipts transition in the governed application.
+ * There are NO employee schedule / time / payroll writes from this table.
+ */
+export const workforceDemandStaffingPolicies = pgTable(
+  "workforce_demand_staffing_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "restrict" }),
+    jobProfileId: integer("job_profile_id").references(() => jobProfiles.id, { onDelete: "restrict" }),
+    metricKind: varchar("metric_kind", { length: 24 }).notNull(),
+    intervalMinutes: integer("interval_minutes").notNull(),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until").notNull(),
+    version: integer("version").notNull(),
+    productiveUnitsPerWorkerHour: numeric("productive_units_per_worker_hour", { precision: 12, scale: 4 }).notNull(),
+    serviceTargetCoveragePercent: numeric("service_target_coverage_percent", { precision: 5, scale: 2 }).notNull(),
+    rationale: varchar("rationale", { length: 400 }).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
+    contentSha256: varchar("content_sha256", { length: 64 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("draft"),
+    proposedByUserId: integer("proposed_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    submittedByUserId: integer("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  t => [
+    uniqueIndex("wfm_staffing_policy_idempotency_unique").on(t.organizationId, t.idempotencyKey),
+    uniqueIndex("wfm_staffing_policy_scope_version_unique").on(
+      t.organizationId, t.worksiteId, sql`coalesce(${t.jobProfileId}, 0)`,
+      t.metricKind, t.intervalMinutes, t.version,
+    ),
+    index("wfm_staffing_policy_dates_idx").on(t.organizationId, t.worksiteId,
+      t.metricKind, t.intervalMinutes, t.status, t.effectiveFrom, t.effectiveUntil),
+    check("wfm_staffing_policy_metric_check", sql`${t.metricKind} in ('transactions','visits','orders','appointments','calls')`),
+    check("wfm_staffing_policy_interval_check", sql`${t.intervalMinutes} in (15, 30, 60)`),
+    check("wfm_staffing_policy_dates_check", sql`${t.effectiveFrom} <= ${t.effectiveUntil}`),
+    check("wfm_staffing_policy_values_check", sql`${t.productiveUnitsPerWorkerHour} between 0.01 and 1000000 and ${t.serviceTargetCoveragePercent} between 0.01 and 100`),
+    check("wfm_staffing_policy_version_check", sql`${t.version} between 1 and 10000`),
+    check("wfm_staffing_policy_status_check", sql`${t.status} in ('draft','submitted','approved','rejected','superseded')`),
+    check("wfm_staffing_policy_sha_check", sql`${t.contentSha256} ~ '^[a-f0-9]{64}$'`),
+  ],
+);
+
+export const workforceDemandStaffingPolicyEvents = pgTable(
+  "workforce_demand_staffing_policy_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    policyId: integer("policy_id").notNull().references(() => workforceDemandStaffingPolicies.id, { onDelete: "restrict" }),
+    actorUserId: integer("actor_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    action: varchar("action", { length: 20 }).notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    policySha256: varchar("policy_sha256", { length: 64 }).notNull(),
+    receiptSha256: varchar("receipt_sha256", { length: 64 }).notNull(),
+    priorPolicyId: integer("prior_policy_id").references(() => workforceDemandStaffingPolicies.id, { onDelete: "restrict" }),
+    decisionNote: varchar("decision_note", { length: 400 }).notNull().default(""),
+  },
+  t => [
+    uniqueIndex("wfm_staffing_policy_event_unique").on(t.policyId, t.action),
+    index("wfm_staffing_policy_event_scope_idx").on(t.organizationId, t.policyId, t.occurredAt),
+    check("wfm_staffing_policy_event_action_check", sql`${t.action} in ('created','submitted','approved','rejected','superseded')`),
+    check("wfm_staffing_policy_event_hash_check", sql`${t.policySha256} ~ '^[a-f0-9]{64}$' and ${t.receiptSha256} ~ '^[a-f0-9]{64}$'`),
   ],
 );

@@ -41,12 +41,14 @@ test("HR and owners have only explicit current membership scope", () => {
 
 test("manager home counts are bounded to displayed page not global workforce", () => {
   assert.deepEqual(summarizeMyTeamPage([
-    { pendingLeaveRecords: 2, pendingOvertimeRecords: 3 },
-    { pendingLeaveRecords: 0, pendingOvertimeRecords: 1 },
+    { pendingLeaveRecords: 2, pendingOvertimeRecords: 3, pendingAttendanceCorrections: 1, incompletePunchRecords: 4 },
+    { pendingLeaveRecords: 0, pendingOvertimeRecords: 1, pendingAttendanceCorrections: 0, incompletePunchRecords: 2 },
   ]), {
     employeeRecordsThisPage: 2,
     pendingLeaveRecordsThisPage: 2,
     pendingOvertimeRecordsThisPage: 4,
+    pendingAttendanceCorrectionsThisPage: 1,
+    incompletePunchRecordsThisPage: 6,
   });
 });
 
@@ -76,6 +78,11 @@ test("all SQL reads use explicit tenant and narrowly scoped team employee IDs", 
   assert.match(source, /eq\(orgUnits\.active, true\)/);
   assert.match(source, /eq\(leaveRequests\.organizationId, organizationId\)/);
   assert.match(source, /eq\(overtimeRequests\.organizationId, organizationId\)/);
+  assert.match(source, /eq\(attendanceCorrectionRequests\.organizationId, organizationId\)/);
+  assert.match(source, /eq\(timePunches\.organizationId, organizationId\)/);
+  assert.match(source, /inArray\(attendanceCorrectionRequests\.employeeId, employeeIds\)/);
+  assert.match(source, /inArray\(timePunches\.employeeId, employeeIds\)/);
+  assert.match(source, /or\(isNull\(timePunches\.timeIn\), isNull\(timePunches\.timeOut\)\)/);
   assert.match(source, /inArray\(leaveRequests\.employeeId, employeeIds\)/);
   assert.match(source, /inArray\(overtimeRequests\.employeeId, employeeIds\)/);
   assert.match(source, /gt\(employees\.id, cursor\)/);
@@ -83,6 +90,8 @@ test("all SQL reads use explicit tenant and narrowly scoped team employee IDs", 
   assert.match(source, /\.limit\(PAGE_SIZE \+ 1\)/);
   assert.match(source, /groupBy\(leaveRequests\.employeeId\)/);
   assert.match(source, /groupBy\(overtimeRequests\.employeeId\)/);
+  assert.match(source, /groupBy\(attendanceCorrectionRequests\.employeeId\)/);
+  assert.match(source, /groupBy\(timePunches\.employeeId\)/);
   for (const field of ["basicRate", "bankAccount", "tin:", "sssNo", "philHealthNo", "pagIbigNo", "reason:", "decisionNote:"]) {
     assert.ok(!source.includes(field), "Unexpected sensitive column: " + field);
   }
@@ -99,12 +108,18 @@ test("workspace UI has a gated link and stale employer/page responses cannot sur
   assert.match(app, /data\.selectedOrganization\.id/);
   assert.ok(app.includes('access.role === "manager" && !access.companyWide && access.orgUnitId !== null'));
   const page = readFileSync("src/app/hcm/my-team/page.tsx", "utf8");
-  assert.ok(page.includes("<HcmMyTeamClient key={organizationId} organizationId={organizationId} />"), "employer switch must reset cursors and filters");
+  // The keyed instance resets cursors on employer change, while the
+  // separately gated pilot-navigation flag may add client props.
+  assert.ok(page.includes("<HcmMyTeamClient key={organizationId} organizationId={organizationId}"), "employer switch must reset cursors and filters");
+  assert.ok(page.includes("pilotFocusEnabled={pilotFocusEnabledForOrganization(organizationId)}"), "pilot focus must be resolved for the selected employer");
   assert.match(ui, /new AbortController\(\)/);
   assert.match(ui, /controller\.abort\(\)/);
   assert.match(ui, /data\.organizationId !== organizationId/);
   assert.match(ui, /stored\?\.scopeKey === scopeKey/);
   assert.match(ui, /data\.page\.nextCursor/);
+  assert.match(ui, /pendingAttendanceCorrections/);
+  assert.match(ui, /incompletePunchRecords/);
+  assert.match(ui, /HcmMyTeamActionCenter/);
   assert.match(ui, /setCursors\(\[0\]\)/);
   assert.ok(!ui.includes('method: "POST"'));
   assert.ok(!ui.includes('method: "PATCH"'));

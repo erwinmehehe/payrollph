@@ -31,9 +31,22 @@ jobs:
     env:
       PRODUCTION_BASE_URL: ${{ inputs.base_url || 'https://erwinmehehe-payrollph.vercel.app' }}
       ROLLOUT_MODE: ${{ inputs.rollout_mode || 'code' }}
-      PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
       EXPECTED_COMMIT_SHA: ${{ github.sha }}
     steps:
+      # Explicitly block absent release credentials before downloading any
+      # dependencies. The private token is not exported to npm install scripts.
+      - name: Preflight protected production verification
+        env:
+          PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${#PRODUCTION_READINESS_TOKEN}" -lt 32 ]; then
+            echo "::error title=Production verification blocked::Configure GitHub Actions secret PRODUCTION_READINESS_TOKEN to match the privately managed Vercel READINESS_TOKEN (at least 32 bytes). Do not expose the secret in logs."
+            echo "### Production verification BLOCKED" >> "$GITHUB_STEP_SUMMARY"
+            echo "This is not a source CI failure. The private verification credential is absent; see docs/engineering/production-verification-operator-handoff.md. Do not lift the Vercel deployment hold without release approval." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v7
@@ -44,6 +57,8 @@ jobs:
       - run: npm ci
 
       - name: Verify live production rollout
+        env:
+          PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
         run: npx tsx scripts/live-production-readiness.ts
 
       - name: Upload readiness report

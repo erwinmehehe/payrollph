@@ -9,6 +9,12 @@ import { planSmartRecoveryDraft, type RecoveryMode } from "@/lib/workforce-recov
 import { buildWfmManagerActionQueue, phWorkDateAt } from "@/lib/workforce-manager-actions";
 import { WorkforceLiveFloor } from "./workforce-live-floor";
 import { WorkforcePlanningPreviewPanel } from "./workforce-planning-preview-panel";
+import { WorkforceLaborCalibrationPanel } from "./workforce-labor-calibration-panel";
+import { WorkforceOperationalDemandPanel } from "./workforce-operational-demand-panel";
+import { WorkforceIssuedDemandPanel } from "./workforce-issued-demand-panel";
+import { WorkforceDemandStaffingPanel } from "./workforce-demand-staffing-panel";
+import { WorkforceDemandStaffingPolicyAdmin } from "./workforce-demand-staffing-policy-admin";
+import { WorkforceDemandOutlookPanel } from "./workforce-demand-outlook-panel";
 import { previewWorkforceRecovery } from "@/lib/workforce-planning-preview";
 
 type Shift = {
@@ -556,11 +562,15 @@ export function WorkforceCoveragePanel({
   const futureCoverage = useMemo(() => (payload?.coverage ?? []).filter(
     (row) => row.workDate >= planningToday,
   ), [payload?.coverage, planningToday]);
+  const blockingMinimumRestMinutes = payload?.guardrailReadiness?.policy.active
+    && payload?.guardrailReadiness?.policy.enforcementMode === "block"
+    ? payload.guardrailReadiness.policy.minimumRestMinutes : undefined;
   const draftInputs = useMemo(() => ({
     allowHighWorkloadRisk: simulateHighRisk,
     // Draft-only company planning guidance; configurable governed policy is the source of truth.
     maxProjectedMinutesInWindow: 96 * 60,
     maxConsecutiveWorkingDays: 6,
+    minimumRestMinutes: blockingMinimumRestMinutes,
     requirements: futureCoverage
       .filter((row) => row.gap > 0)
       .map((row) => {
@@ -591,7 +601,7 @@ export function WorkforceCoveragePanel({
           })),
         };
       }),
-  }), [futureCoverage, payload?.shifts, proactiveByRequirement, simulateHighRisk]);
+  }), [futureCoverage, payload?.shifts, blockingMinimumRestMinutes, proactiveByRequirement, simulateHighRisk]);
 
   const simulation = useMemo(() => planSmartRecoveryDraft({
     ...draftInputs, mode: recoveryMode,
@@ -705,6 +715,77 @@ export function WorkforceCoveragePanel({
         <Metric label="Open shifts" value={String((payload?.openShifts ?? []).filter((row) => row.status === "open").length)} hint="coverage recovery" icon={<UsersRound size={16} />} tone="blue" />
         <Metric label="Pending claims" value={String(pendingClaims)} hint="manager decision needed" icon={<UsersRound size={16} />} tone={pendingClaims ? "amber" : "slate"} />
       </section>
+
+      {payload && process.env.NEXT_PUBLIC_WFM_OPERATIONAL_DEMAND_ENABLED === "true" && (
+        <WorkforceOperationalDemandPanel
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
+          canManage={canManage && data.access?.companyWide === true
+            && ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role)}
+        />
+      )}
+
+      {payload && process.env.NEXT_PUBLIC_WFM_ISSUED_DEMAND_FORECASTS_ENABLED === "true" && (
+        <WorkforceIssuedDemandPanel
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
+          canManage={canManage && data.access?.companyWide === true
+            && ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role)}
+        />
+      )}
+
+      {payload && canManage && data.access?.companyWide === true &&
+        ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role) &&
+        process.env.NEXT_PUBLIC_WFM_DEMAND_STAFFING_ENABLED === "true" &&
+        process.env.NEXT_PUBLIC_WFM_ISSUED_DEMAND_FORECASTS_ENABLED === "true" &&
+        process.env.NEXT_PUBLIC_WFM_DEMAND_STAFFING_POLICIES_ENABLED === "true" && (
+        <WorkforceDemandStaffingPolicyAdmin
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
+          jobProfiles={payload.jobProfiles}
+        />
+      )}
+
+      {payload && process.env.NEXT_PUBLIC_WFM_DEMAND_STAFFING_ENABLED === "true" &&
+        process.env.NEXT_PUBLIC_WFM_ISSUED_DEMAND_FORECASTS_ENABLED === "true" && (
+        <WorkforceDemandStaffingPanel
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
+          shifts={payload.shifts}
+          jobProfiles={payload.jobProfiles}
+          coverage={payload.coverage}
+          laborCostVisible={payload.laborVariance.costVisible}
+          laborRows={payload.laborVariance.rows}
+          recoveryOptions={payload.proactiveSuggestions}
+          policiesEnabled={process.env.NEXT_PUBLIC_WFM_DEMAND_STAFFING_POLICIES_ENABLED === "true"}
+          guardrailBlockers={payload.guardrailReadiness.blockingIssueCount}
+          rosterStatus={payload.rosterReadiness.status}
+          windowStart={startDate}
+          windowEnd={endDate}
+          dynamicGroupCode={dynamicGroupCode}
+        />
+      )}
+
+      {payload && <WorkforceLaborCalibrationPanel
+        labor={payload.laborVariance}
+        today={planningToday}
+        loading={loading}
+        onReviewHistory={() => setStartDate(addDays(planningToday, -14))}
+      />}
+
+      {payload && process.env.NEXT_PUBLIC_WFM_HISTORICAL_OUTLOOK_ENABLED === "true" && (
+        <WorkforceDemandOutlookPanel
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
+          shifts={payload.shifts}
+          jobProfiles={payload.jobProfiles}
+        />
+      )}
 
       <WorkforceLiveFloor organizationId={organizationId} />
 

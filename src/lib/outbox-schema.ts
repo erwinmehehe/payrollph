@@ -1,3 +1,5 @@
+import { coreSchemaCompatibilityMode } from "@/lib/core-schema-readonly";
+import { outboxDeliverySchemaSpec, verifyRequestSchemaReadOnlyFromPool } from "@/lib/request-schema-readonly";
 import { pool } from "@/db";
 
 let outboxSchemaReady = false;
@@ -9,13 +11,22 @@ let outboxSchemaInFlight: Promise<void> | null = null;
  * production database.
  */
 export async function ensureOutboxDeliverySchema() {
+  const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+  if (mode === "read-only") {
+    if (outboxSchemaInFlight) throw new Error("OUTBOX_LEGACY_SCHEMA_WRITE_IN_PROGRESS");
+    await verifyRequestSchemaReadOnlyFromPool(pool, outboxDeliverySchemaSpec);
+    return;
+  }
   if (outboxSchemaReady) return;
   if (outboxSchemaInFlight) return outboxSchemaInFlight;
 
   outboxSchemaInFlight = (async () => {
     const client = await pool.connect();
+    let transactionOpen = false;
+    let safeToReuse = false;
     try {
       await client.query("BEGIN");
+      transactionOpen = true;
       await client.query("SELECT pg_advisory_xact_lock(hashtext('linaw_outbox_delivery_v2'))");
       await client.query(`
         ALTER TABLE outbox
@@ -44,15 +55,28 @@ export async function ensureOutboxDeliverySchema() {
         ON outbox(status, next_attempt_at)
       `);
       await client.query("COMMIT");
+      transactionOpen = false;
+      safeToReuse = true;
       outboxSchemaReady = true;
     } catch (error) {
-      try { await client.query("ROLLBACK"); } catch { /* no-op */ }
+      if (transactionOpen) {
+        try {
+          await client.query("ROLLBACK");
+          transactionOpen = false;
+          safeToReuse = true;
+        } catch {
+          // Never reuse a client with an uncertain open transaction.
+        }
+      }
       throw error;
     } finally {
-      client.release();
-      outboxSchemaInFlight = null;
+      client.release(!safeToReuse);
     }
-  })();
+  })().finally(() => {
+    // A failed pool.connect() or prerequisite schema preflight must not
+    // permanently poison this module's in-flight promise.
+    outboxSchemaInFlight = null;
+  });
 
   return outboxSchemaInFlight;
 }

@@ -155,16 +155,28 @@ export async function recordFilingOutcome(input: {
 }) {
   const { outcome } = input;
   if (outcome.outcome === "accepted") {
-    const [source] = await db.select({
-      agency: governmentFilingValidations.agency,
-      form: governmentFilingValidations.form,
-    }).from(governmentFilingValidations).where(and(
-      eq(governmentFilingValidations.organizationId, input.organizationId),
-      eq(governmentFilingValidations.id, input.id),
-    )).limit(1);
-    if (source?.agency === "BIR" && source.form === "1604-C") {
+    const source = await getFilingValidation(input.organizationId, input.id);
+    if (!source || source.status !== "generated") return null;
+    if (source.agency === "BIR" && source.form === "1604-C") {
       throw new Error("Legacy 1604-C source worksheets cannot be marked as current BIR-validated filing evidence.");
     }
+    if (!source.payrollRunId) throw new Error("Filing acceptance requires a linked payroll run.");
+    const [run] = await db.select({
+      status: payrollRuns.status,
+      legalEntityId: payrollRuns.legalEntityId,
+    }).from(payrollRuns).where(and(
+      eq(payrollRuns.id, source.payrollRunId),
+      eq(payrollRuns.organizationId, input.organizationId),
+    )).limit(1);
+    if (!run || run.status !== "Released") {
+      throw new Error("Cannot record agency acceptance for a payroll run that is not released.");
+    }
+    if (source.legalEntityId !== run.legalEntityId) {
+      throw new Error("Filing legal employer no longer matches its payroll run.");
+    }
+    // Require the exact generated file to still be reproducible before
+    // marking external acceptance. Never certify a superseded worksheet.
+    await regenerateRecordedFile(source);
   }
   const [updated] = await db
     .update(governmentFilingValidations)

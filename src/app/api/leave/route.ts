@@ -15,6 +15,7 @@ import {
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, getAccess, roleAllowed } from "@/lib/access";
+import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
 import { ensureLeavePayrollSchema } from "@/lib/leave-payroll-schema";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { approvedLeaveCoverageImpact } from "@/lib/workforce-absence";
@@ -136,47 +137,64 @@ export async function GET(request: Request) {
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  await ensureLeavePayrollSchema();
   if (!Number.isInteger(organizationId)) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
 
+  const deniedMembership = await assertMembership(user.id, organizationId);
+  if (deniedMembership) return deniedMembership;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
-
-  let employeeIds: number[] | null = null;
-  if (user.role === "employee") {
-    if (!user.employeeId) return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
-    employeeIds = [user.employeeId];
-  } else if (!roleAllowed(access.role, LEAVE_ADMIN_ROLES)) {
-    return Response.json({ error: "Your role cannot view leave requests." }, { status: 403 });
-  } else if (access.role === "manager" && !access.companyWide && access.orgUnitId) {
-    const team = await db.select({ id: employees.id }).from(employees)
-      .where(and(eq(employees.organizationId, organizationId), eq(employees.orgUnitId, access.orgUnitId)));
-    employeeIds = team.map((row) => row.id);
+  if (access.role === "manager" && deriveMyTeamScope(access)?.kind !== "unit") {
+    return Response.json({ error: "A manager must have an assigned organizational unit." }, { status: 403 });
+  }
+  if (access.role !== "employee" && !access.companyWide &&
+      (!Number.isSafeInteger(access.orgUnitId) || !access.orgUnitId)) {
+    return Response.json({ error: "An assigned organizational unit is required for scoped leave access." }, { status: 403 });
   }
 
+  // Scope the SQL query to the selected employer and authorized worker/unit.
+  // Never fetch another team's records and filter them only after retrieval.
+  const scopeConditions = [
+    eq(leaveRequests.organizationId, organizationId),
+    eq(employees.organizationId, organizationId),
+  ];
+  if (access.role === "employee") {
+    if (!user.employeeId) return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
+    scopeConditions.push(eq(leaveRequests.employeeId, user.employeeId));
+  } else if (!roleAllowed(access.role, LEAVE_ADMIN_ROLES)) {
+    return Response.json({ error: "Your role cannot view leave requests." }, { status: 403 });
+  } else if (!access.companyWide && access.orgUnitId) {
+    scopeConditions.push(eq(employees.orgUnitId, access.orgUnitId));
+  }
+
+  // A non-member or disallowed role must not trigger legacy schema writers.
+  await ensureLeavePayrollSchema();
+
+  // Read only worker display fields; not sensitive HRIS columns.
   const rows = await db.select({
     leave: leaveRequests,
-    employee: employees,
+    employeeFirstName: employees.firstName,
+    employeeLastName: employees.lastName,
+    employeeAvatarInitials: employees.avatarInitials,
   })
     .from(leaveRequests)
-    .innerJoin(employees, eq(leaveRequests.employeeId, employees.id))
-    .where(eq(leaveRequests.organizationId, organizationId))
+    .innerJoin(employees, and(
+      eq(leaveRequests.employeeId, employees.id),
+      eq(employees.organizationId, organizationId),
+    ))
+    .where(and(...scopeConditions))
     .orderBy(desc(leaveRequests.id));
 
-  const visible = employeeIds
-    ? rows.filter(({ leave }) => employeeIds!.includes(leave.employeeId))
-    : rows;
-  const evidence = await preciseEvidenceForRequests(organizationId, visible.map(({ leave }) => leave.id));
+  const evidence = await preciseEvidenceForRequests(organizationId, rows.map(({ leave }) => leave.id));
 
   return Response.json({
-    requests: visible.map(({ leave, employee }) => {
+    requests: rows.map(({ leave, employeeFirstName, employeeLastName, employeeAvatarInitials }) => {
       const precise = evidence.get(leave.id);
       return {
         ...leave,
-        employeeName: `${employee.firstName} ${employee.lastName}`,
-        avatarInitials: employee.avatarInitials,
+        employeeName: `${employeeFirstName} ${employeeLastName}`,
+        avatarInitials: employeeAvatarInitials,
         intervalSet: precise?.intervalSet ?? null,
         intervals: precise?.intervals ?? [],
       };
@@ -190,7 +208,6 @@ export async function POST(request: Request) {
 
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  await ensureLeavePayrollSchema();
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -203,6 +220,17 @@ export async function POST(request: Request) {
   if (deniedMembership) return deniedMembership;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  if (access.role === "manager" && deriveMyTeamScope(access)?.kind !== "unit") {
+    return Response.json({ error: "A manager must have an assigned organizational unit." }, { status: 403 });
+  }
+  // All leave actions are restricted before any request-time compatibility DDL.
+  if (access.role !== "employee" && !roleAllowed(access.role, LEAVE_ADMIN_ROLES)) {
+    return Response.json({ error: "Your role cannot manage leave requests." }, { status: 403 });
+  }
+  if (access.role === "employee" && !user.employeeId) {
+    return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
+  }
+  await ensureLeavePayrollSchema();
 
   if (action === "revise_intervals") {
     const leaveId = Number(body.leaveId);
@@ -216,7 +244,7 @@ export async function POST(request: Request) {
     )).limit(1);
     if (!leave) return Response.json({ error: "Leave request not found." }, { status: 404 });
 
-    if (user.role === "employee") {
+    if (access.role === "employee") {
       if (user.employeeId !== leave.employeeId) return Response.json({ error: "You can revise only your own leave request." }, { status: 403 });
     } else if (!roleAllowed(access.role, LEAVE_ADMIN_ROLES)) {
       return Response.json({ error: "Your role cannot revise leave timing." }, { status: 403 });
@@ -226,7 +254,7 @@ export async function POST(request: Request) {
       eq(employees.organizationId, organizationId),
     )).limit(1);
     if (!employee) return Response.json({ error: "Employee not found." }, { status: 404 });
-    if (access.role === "manager" && !access.companyWide && access.orgUnitId && employee.orgUnitId !== access.orgUnitId) {
+    if (access.role !== "employee" && !access.companyWide && employee.orgUnitId !== access.orgUnitId) {
       return Response.json({ error: "This employee is outside your assigned unit." }, { status: 403 });
     }
     if (leave.status !== "Pending") {
@@ -280,6 +308,10 @@ export async function POST(request: Request) {
             || String(freshLeave.startDate) !== String(leave.startDate)
             || String(freshLeave.endDate) !== String(leave.endDate)) {
           throw new Error("LEAVE_REVISION_STALE");
+        }
+        if (access.role !== "employee" && !access.companyWide &&
+            freshEmployee.orgUnitId !== access.orgUnitId) {
+          throw new Error("LEAVE_SCOPE_CHANGED");
         }
         const liveSeparation = await loadCurrentHcmSeparation({
       employeeId: freshEmployee.id, organizationId: organizationId,
@@ -360,7 +392,7 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       const code = error instanceof Error ? error.message : "";
-      if (code === "LEAVE_REVISION_STALE" || code === "LEAVE_EMPLOYMENT_NOT_ELIGIBLE") {
+      if (code === "LEAVE_REVISION_STALE" || code === "LEAVE_EMPLOYMENT_NOT_ELIGIBLE" || code === "LEAVE_SCOPE_CHANGED") {
         return Response.json({
           code,
           error: "The leave request or worker employment changed during revision. Refresh and obtain a new review.",
@@ -387,7 +419,7 @@ export async function POST(request: Request) {
     }, { status: 400 });
   }
 
-  if (user.role === "employee") {
+  if (access.role === "employee") {
     if (!user.employeeId) return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
     employeeId = user.employeeId;
   } else if (!roleAllowed(access.role, LEAVE_ADMIN_ROLES)) {
@@ -403,13 +435,8 @@ export async function POST(request: Request) {
     .limit(1);
   if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
 
-  if (
-    access.role === "manager" &&
-    !access.companyWide &&
-    access.orgUnitId &&
-    employee.orgUnitId !== access.orgUnitId
-  ) {
-    return Response.json({ error: "Managers can submit leave only for employees in their assigned unit." }, { status: 403 });
+  if (access.role !== "employee" && !access.companyWide && employee.orgUnitId !== access.orgUnitId) {
+    return Response.json({ error: "You can submit leave only for employees in your assigned unit." }, { status: 403 });
   }
   const pendingSeparation = await loadCurrentHcmSeparation({
       employeeId: employee.id, organizationId: organizationId,
@@ -496,6 +523,10 @@ export async function POST(request: Request) {
       eq(employees.organizationId, organizationId),
     )).limit(1);
     if (!freshWorker) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
+    if (access.role !== "employee" && !access.companyWide &&
+        freshWorker.orgUnitId !== access.orgUnitId) {
+      throw new Error("LEAVE_SCOPE_CHANGED");
+    }
     const currentSeparation = await loadCurrentHcmSeparation({
       employeeId: freshWorker.id, organizationId: organizationId,
       status: freshWorker.status, startDate: String(freshWorker.startDate),
@@ -570,9 +601,16 @@ export async function POST(request: Request) {
     });
     return { task, row, intervalSet };
   }).catch((error) => {
+    if (error instanceof Error && error.message === "LEAVE_SCOPE_CHANGED") return "scope_changed" as const;
     if (error instanceof Error && error.message === "LEAVE_EMPLOYMENT_NOT_ELIGIBLE") return null;
     throw error;
   });
+  if (created === "scope_changed") {
+    return Response.json({
+      code: "LEAVE_SCOPE_CHANGED",
+      error: "The worker moved outside your assigned unit. Refresh and obtain a new review.",
+    }, { status: 409 });
+  }
   if (!created) {
     return Response.json({
       code: "LEAVE_EMPLOYMENT_NOT_ELIGIBLE",

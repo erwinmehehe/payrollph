@@ -17,6 +17,7 @@ export type FirstPayrollReadiness = {
   checkerCount: number;
   firstPayrollStarted: boolean;
   firstPayrollReleased: boolean;
+  payrollRunCount: number;
   items: FirstPayrollReadinessItem[];
 };
 
@@ -114,6 +115,7 @@ export function buildFirstPayrollReadiness(input: {
     payrollOfficerCount,
     checkerCount,
     firstPayrollStarted: input.payrollStatuses.length > 0,
+    payrollRunCount: input.payrollStatuses.length,
     firstPayrollReleased: input.payrollStatuses.some((status) => status === "Released"),
     items,
   };
