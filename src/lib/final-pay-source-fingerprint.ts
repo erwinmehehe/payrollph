@@ -4,6 +4,8 @@
  * settlement or employee/legal-employer eligibility. The arrays are sorted
  * without mutating the loader results because SQL has no implicit order.
  */
+import { reviewFinalPayLoans } from "@/lib/final-pay-loan-authority";
+
 export type FinalPayFingerprintInputs = {
   employee: {
     status: string; basicRate: string | number; mwe: boolean;
@@ -29,6 +31,11 @@ export type FinalPayFingerprintInputs = {
   loans: Array<{
     id: number; loanType: string; totalPaid: string | number;
     remainingBalance: string | number; status: string;
+    requestedByUserId?: number | null;
+    reviewedByUserId?: number | null;
+    reviewedAt?: Date | string | null;
+    deductionAuthorizationReference?: string | null;
+    reviewEvidenceReference?: string | null;
   }>;
 };
 
@@ -76,6 +83,9 @@ export function finalPaySourceFingerprint(sources: FinalPayFingerprintInputs) {
         pagIbigEmployee: Number(row.pagIbigEmployee),
         payDate: String(row.payDate),
       })),
+    // Comparisons detect changes to loan deduction review evidence without
+    // disclosing private external document references in the stored snapshot.
+    loanAuthorityEvidenceDigest: reviewFinalPayLoans(sources.loans).evidenceDigest,
     loans: [...sources.loans]
       .sort((a, b) => a.id - b.id)
       .map((loan) => ({
