@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, employees, payrollEntries, payrollRuns, payoutBatches } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { payoutCentsFromNetPay } from "@/lib/payout-ledger-rules";
 import { loadPayrollPayoutRows } from "@/lib/paymongo-disbursements";
 import { prepareInitialPayoutBatch } from "@/lib/payout-ledger";
 import { xenditPayrollLiveReadiness } from "@/lib/payroll-payout-provider";
@@ -36,7 +37,7 @@ async function xenditFrozenPayroll(run: PayrollRun) {
     const employee = byNo.get(row.employeeNo);
     const entry = employee ? entryById.get(employee.id) : undefined;
     if (!employee || !entry || employee.organizationId !== run.organizationId
-      || Number(entry.netPay) * 100 !== row.amountCents) {
+      || payoutCentsFromNetPay(entry.netPay) !== row.amountCents) {
       throw new Error("XENDIT_RELEASED_EMPLOYEE_IDENTITY_OR_AMOUNT_MISMATCH");
     }
     const payee: XenditPayrollPayee = {
