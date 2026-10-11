@@ -27,13 +27,13 @@ async function syncAttendanceExceptionEvents(organizationId: number, employeeId:
   }
 }
 
-function manilaToday() {
+function manilaToday(at: Date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Manila",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).format(at);
 }
 
 export async function GET(request: Request) {
@@ -148,8 +148,8 @@ export async function POST(request: Request) {
     .limit(1);
   if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
 
-  const todayStr = manilaToday();
   const now = new Date();
+  const todayStr = manilaToday(now);
   const yesterdayStr = previousManilaWorkDate(todayStr);
   // Only a recent unclosed browser punch may remain on yesterday's workDate.
   // Never guess that a biometric, stale or future-dated record is this shift.
