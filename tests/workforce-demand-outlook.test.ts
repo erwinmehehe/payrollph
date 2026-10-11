@@ -120,6 +120,10 @@ test("outlook API remains authenticated, strict tenant/site scoped, read-only an
   assert.match(route, /lt\(staffingRequirements.workDate, today\)/);
   assert.match(route, /limit\(WFM_OUTLOOK_MAX_ROWS \+ 1\)/);
   assert.match(route, /Cache-Control": "private, no-store"/);
+  assert.match(route, /WFM_HISTORICAL_OUTLOOK_ENABLED/);
+  assert.match(route, /WFM_HISTORICAL_OUTLOOK_ALLOWED_ORGANIZATION_IDS/);
+  assert.match(route, /receiptPilotAllowed\(/);
+  assert.match(coverage, /NEXT_PUBLIC_WFM_HISTORICAL_OUTLOOK_ENABLED === "true"/);
   assert.doesNotMatch(route, /export async function POST/);
   assert.match(coverage, /<WorkforceDemandOutlookPanel/);
   assert.match(panel, /AbortController/);
