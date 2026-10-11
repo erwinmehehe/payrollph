@@ -56,7 +56,8 @@ test("Employer selection and links remain authoritative on deep links and switch
   assert.match(workspace, /pilotFocusEnabled/);
   assert.match(workspace, /expandHcmInbox={searchParams.get\("hcmPanel"\) === "bp"}/);
   const people = read("src/components/workspace/people.tsx");
-  assert.ok(people.includes("defaultOpen={expandHcmInbox}"));
+  assert.ok(people.includes("open={administrationOpen}"));
+  assert.ok(people.includes("onToggle={(event) => setAdministrationOpen(event.currentTarget.open)}"));
   assert.ok(!workspace.includes("window.location.assign(\"/hcm/command-center\")"));
 });
 
