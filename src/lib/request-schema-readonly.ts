@@ -17,7 +17,7 @@ export type RequestSchemaConstraint = {
   tableName: string; kind: "f" | "c" | "u" | "p"; tokens: readonly string[];
 };
 export type RequestSchemaSpec = {
-  label: "leave" | "pay-basis" | "month-close" | "dole-reporting";
+  label: "leave" | "pay-basis" | "month-close" | "dole-reporting" | "separation";
   tables: readonly string[];
   columns: readonly RequestSchemaColumn[];
   indexes: readonly RequestSchemaIndex[];
@@ -286,5 +286,58 @@ export const doleReportingSchemaSpec: RequestSchemaSpec = {
     { tableName: "dole_compliance_submissions", kind: "p", tokens: ["primarykey(id)"] },
     { tableName: "dole_compliance_submissions", kind: "f",
       tokens: ["foreignkey(organization_id)", "referencesorganizations(id)", "ondeletecascade"] },
+  ],
+};
+
+
+/**
+ * Final-pay/separation integrity: all eighteen columns that the legacy helper
+ * previously added during requests must already exist with correct types.
+ * The reviewer separation rule and actor FK semantics are release-critical.
+ */
+export const separationSchemaSpec: RequestSchemaSpec = {
+  label: "separation",
+  tables: ["separation_records"],
+  columns: [
+    { name: "separation_records.organization_id", type: "integer", notNull: true },
+    { name: "separation_records.employee_id", type: "integer", notNull: true },
+    { name: "separation_records.thirteenth_entitlement", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
+    { name: "separation_records.thirteenth_paid_ytd", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
+    { name: "separation_records.basic_salary_earned_ytd", type: "numeric(14,2)", notNull: true, defaultTokens: ["0"] },
+    { name: "separation_records.historical_basic_salary_earned", type: "numeric(14,2)", notNull: true, defaultTokens: ["0"] },
+    { name: "separation_records.unpaid_basic_salary", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
+    { name: "separation_records.separation_pay", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
+    { name: "separation_records.retirement_pay", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
+    { name: "separation_records.other_benefits", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
+    { name: "separation_records.final_statutory_deductions", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
+    { name: "separation_records.gross_final_pay", type: "numeric(12,2)", notNull: true, defaultTokens: ["0"] },
+    { name: "separation_records.final_pay_due_date", type: "date", notNull: false },
+    { name: "separation_records.computation_snapshot", type: "jsonb", notNull: true, defaultTokens: ["{}", "jsonb"] },
+    { name: "separation_records.approved_at", type: "timestamp with time zone", notNull: false },
+    { name: "separation_records.released_at", type: "timestamp with time zone", notNull: false },
+    { name: "separation_records.release_reference", type: "character varying(160)", notNull: false },
+    { name: "separation_records.prepared_by_user_id", type: "integer", notNull: false },
+    { name: "separation_records.approved_by_user_id", type: "integer", notNull: false },
+    { name: "separation_records.released_by_user_id", type: "integer", notNull: false },
+  ],
+  indexes: [
+    { name: "separation_records_org_status_idx",
+      tableName: "separation_records",
+      keys: ["organization_id", "status", "id"], unique: false },
+  ],
+  constraints: [
+    { tableName: "separation_records", kind: "p", tokens: ["primarykey(id)"] },
+    { tableName: "separation_records", kind: "f",
+      tokens: ["foreignkey(organization_id)", "referencesorganizations(id)", "ondeletecascade"] },
+    { tableName: "separation_records", kind: "f",
+      tokens: ["foreignkey(employee_id)", "referencesemployees(id)", "ondeletecascade"] },
+    { tableName: "separation_records", kind: "f",
+      tokens: ["foreignkey(prepared_by_user_id)", "referencesusers(id)", "ondeletesetnull"] },
+    { tableName: "separation_records", kind: "f",
+      tokens: ["foreignkey(approved_by_user_id)", "referencesusers(id)", "ondeletesetnull"] },
+    { tableName: "separation_records", kind: "f",
+      tokens: ["foreignkey(released_by_user_id)", "referencesusers(id)", "ondeletesetnull"] },
+    { tableName: "separation_records", kind: "c",
+      tokens: ["prepared_by_user_id", "approved_by_user_id", "<>"] },
   ],
 };
