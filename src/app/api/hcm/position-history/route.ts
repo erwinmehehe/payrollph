@@ -1,6 +1,6 @@
 import { getSessionUser } from "@/lib/auth";
 import {
-  denyHcmOrgExplorer, hcmOrgExplorerJson, hcmOrgExplorerPositiveId,
+  denyHcmOrgExplorer, hcmOrgExplorerEnabledForEmployer, hcmOrgExplorerJson, hcmOrgExplorerPositiveId,
 } from "@/lib/hcm-org-explorer-access";
 import { loadHcmPositionHistory } from "@/lib/hcm-org-explorer-server";
 
@@ -21,8 +21,10 @@ export async function GET(request: Request) {
     return hcmOrgExplorerJson({ error: "Valid organizationId and positionId required." }, 400);
   }
 
+  if (!hcmOrgExplorerEnabledForEmployer(organizationId)) return hcmOrgExplorerJson({ error: "Not found." }, 404);
+
   const denied = await denyHcmOrgExplorer(user.id, organizationId);
-  if (denied) return denied;
+  if (denied) return hcmOrgExplorerJson({ error: "Workspace access denied." }, denied.status);
   try {
     const result = await loadHcmPositionHistory(organizationId, positionId);
     if (!result) return hcmOrgExplorerJson({ error: "Position not found in this employer." }, 404);
