@@ -347,6 +347,7 @@ export function PeopleView({
   onAddEmployee,
   onPage,
   canManage = true,
+  expandHcmInbox = false,
   focusEmployeeId,
   onClearFocus,
 }: {
@@ -355,9 +356,11 @@ export function PeopleView({
   onAddEmployee: () => void;
   onPage: (page: string) => void;
   canManage?: boolean;
+  expandHcmInbox?: boolean;
   focusEmployeeId?: number | null;
   onClearFocus?: () => void;
 }) {
+  const [administrationOpen, setAdministrationOpen] = useState(expandHcmInbox);
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
@@ -473,7 +476,7 @@ export function PeopleView({
         </details>
       )}
 
-      {(canManage || canManageLifecycle || canViewLifecycleNotifications) && <details className="panel-disclosure"><summary>Employee administration <span>Import, lifecycle policies and notifications</span></summary>
+      {(canManage || canManageLifecycle || canViewLifecycleNotifications) && <details className="panel-disclosure" open={administrationOpen} onToggle={(event) => setAdministrationOpen(event.currentTarget.open)}><summary>Employee administration <span>Import, lifecycle policies and notifications</span></summary>
       {canManage && <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />}
 
       {canManageLifecycle && (
