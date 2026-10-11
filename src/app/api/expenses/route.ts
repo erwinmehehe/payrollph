@@ -189,8 +189,11 @@ export async function PATCH(request: Request) {
     const [reported] = await tx.select({ id: expenseReportItems.id }).from(expenseReportItems)
       .where(and(eq(expenseReportItems.organizationId, existing.organizationId), eq(expenseReportItems.claimId, id))).limit(1);
     if (reported) throw new Error("CLAIM_IN_REPORT");
-    if (fresh?.submittedByUserId === user.id) throw new Error("CLAIM_SELF_REVIEW");
     if (!fresh || fresh.status !== "pending") throw new Error("CLAIM_STALE");
+    // Legacy rows without a verified maker cannot satisfy independent
+    // checker separation. Reconcile the origin before allowing a decision.
+    if (fresh.submittedByUserId == null) throw new Error("CLAIM_MAKER_UNKNOWN");
+    if (fresh.submittedByUserId === user.id) throw new Error("CLAIM_SELF_REVIEW");
     const [row] = await tx.update(expenseClaims).set({ status, decidedBy: user.name }).where(and(
       eq(expenseClaims.id, id), eq(expenseClaims.organizationId, existing.organizationId),
       eq(expenseClaims.status, "pending"),
@@ -207,7 +210,9 @@ export async function PATCH(request: Request) {
       ? "This claim belongs to an expense report. Decide the report in Spend management."
       : decided.message === "CLAIM_SELF_REVIEW"
         ? "You cannot approve or reject a claim you submitted."
-        : "This claim already changed, or is no longer pending. Refresh before deciding.";
+        : decided.message === "CLAIM_MAKER_UNKNOWN"
+          ? "The original submitter is unverified. Reconcile this legacy claim before approval."
+          : "This claim already changed, or is no longer pending. Refresh before deciding.";
     return Response.json({ error: message }, { status: decided.message === "CLAIM_SELF_REVIEW" ? 403 : 409 });
   }
 
