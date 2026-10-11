@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { assets, employees, itAccessGrants, itApplications, itDeviceEvents, itManagedDevices, provisioningTasks } from "@/db/schema";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { enforceSameOriginMutation } from "@/lib/security-request";
+import { enforceSameOriginMutation, requireSensitiveActionMfa, enforceSensitiveActionRateLimit } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -116,6 +116,13 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
   if (!valid(id)) return Response.json({ error: "Valid id required." }, { status: 422 });
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id, action: "it-custody-access-decision",
+    resourceId: String(id), limit: 20, windowMs: 15 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
   if (body.action === "access") {
     const [grant] = await db.select().from(itAccessGrants).where(eq(itAccessGrants.id, id)).limit(1);
     if (!grant) return Response.json({ error: "Access record not found." }, { status: 404 });
