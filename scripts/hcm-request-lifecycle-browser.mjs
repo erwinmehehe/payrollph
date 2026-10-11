@@ -11,6 +11,13 @@ await mkdir("qa-artifacts", { recursive: true });
 await build({
   entryPoints: ["tests/fixtures/hcm-request-lifecycle.jsx"], bundle: true,
   outfile: "qa-artifacts/hcm-request-lifecycle.js", platform: "browser", jsx: "automatic",
+  // This standalone esbuild fixture is intentionally NOT a Next.js build.
+  // Supply public calendar flags as default OFF rather than leaving browser
+  // code with an unbound Node process object.
+  define: {
+    "process.env.NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ENABLED": JSON.stringify("false"),
+    "process.env.NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ORG_IDS": JSON.stringify(""),
+  },
   plugins: [{ name: "read-only-link-fixture", setup(builder) {
     builder.onResolve({ filter: /^next\/link$/ }, () => ({ path: "link", namespace: "fixture" }));
     builder.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: "import React from 'react'; export default function Link(props) { return React.createElement('a', props); }", resolveDir: process.cwd() }));
@@ -29,7 +36,12 @@ const errors = [];
 page.on("pageerror", error => errors.push(error.message));
 const base = `http://127.0.0.1:${server.address().port}`;
 async function requestId(fragment, method = "GET") {
-  await page.waitForFunction(({ fragment, method }) => window.pending.some(r => !r.done && !r.options.signal?.aborted && r.url.includes(fragment) && (r.options.method ?? "GET") === method), { fragment, method });
+  try {
+    await page.waitForFunction(({ fragment, method }) => window.pending.some(r => !r.done && !r.options.signal?.aborted && r.url.includes(fragment) && (r.options.method ?? "GET") === method), { fragment, method });
+  } catch (error) {
+    // Previous failures hid the actual component exception behind a timeout.
+    throw new Error(`Expected pending ${method} ${fragment}; browser errors: ${errors.join(" | ") || "none"}`, { cause: error });
+  }
   return page.evaluate(({ fragment, method }) => window.pending.findLastIndex(r => !r.done && !r.options.signal?.aborted && r.url.includes(fragment) && (r.options.method ?? "GET") === method), { fragment, method });
 }
 async function complete(id, body, status = 200) { await page.evaluate(({id,body,status}) => window.complete(id,body,status), {id,body,status}); }
