@@ -10,12 +10,14 @@ export function FirstPayrollReadinessCard({
   onNewRun,
   onSettings,
   allowedPages,
+  guided = false,
 }: {
   readiness: FirstPayrollReadinessState;
   onPage: (page: string) => void;
   onNewRun: () => void;
   onSettings?: (tab: "organization" | "team") => void;
   allowedPages: readonly string[];
+  guided?: boolean;
 }) {
   // Keep the export/filing handoff visible after the first run is released.
   // Once a second run exists, the employer has completed the initial journey.
@@ -47,7 +49,7 @@ export function FirstPayrollReadinessCard({
         <span style={{ width: `${percent}%` }} />
       </div>
 
-      <ol aria-label="Guided first payroll journey" className="grid gap-3 md:grid-cols-2" style={{ margin: "16px 0", padding: 0, listStyle: "none" }}>
+      {guided && <ol aria-label="Guided first payroll journey" className="grid gap-3 md:grid-cols-2" style={{ margin: "16px 0", padding: 0, listStyle: "none" }}>
         {journey.map((step, index) => (
           <li key={step.key} className="rounded-xl border p-4" style={{ borderColor: "var(--line)", background: "var(--canvas-subtle)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -67,7 +69,7 @@ export function FirstPayrollReadinessCard({
             )}
           </li>
         ))}
-      </ol>
+      </ol>}
       <div className="first-payroll-grid">
         {readiness.items.map((item) => (
           <article className={item.ready ? "first-payroll-item is-ready" : "first-payroll-item"} key={item.key}>
