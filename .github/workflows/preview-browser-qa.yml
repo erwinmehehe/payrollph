@@ -16,6 +16,7 @@ on:
       - "src/components/workspace/**"
       - "src/components/linaw-workspace.tsx"
       - "src/components/self-service-portal.tsx"
+      - "scripts/verify-ess-web-bundy-synthetic.mjs"
       - "src/components/demo-sandbox-bar.tsx"
       - "src/app/page.tsx"
       - "src/app/app/page.tsx"
@@ -1042,6 +1043,14 @@ jobs:
           JS
 
           node preview-qa.cjs
+
+      # All synthetic HTTP mutations are confined to the disposable CI Postgres
+      # service. The script rejects remote URLs and unknown database targets.
+      - name: Verify ESS Web Bundy employee and tenant isolation with synthetic HTTP
+        env:
+          CI: "true"
+          SYNTHETIC_WFM_HTTP_REHEARSAL: isolated-ci-only
+        run: node scripts/verify-ess-web-bundy-synthetic.mjs
 
       - name: Show server log on failure
         if: failure()
