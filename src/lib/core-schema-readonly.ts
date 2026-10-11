@@ -91,9 +91,9 @@ export async function verifyCoreSchemaReadOnly(query: CatalogQuery): Promise<voi
     }
   } finally {
     if (begun) {
-      try { await query("ROLLBACK"); } catch {
-        // The connection may be dead. Never attempt a schema mutation to repair it.
-      }
+      // A failed rollback makes the pooled connection unsafe to reuse.
+      // Propagate the error so callers discard the connection instead.
+      await query("ROLLBACK");
     }
   }
 }

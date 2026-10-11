@@ -189,15 +189,17 @@ export async function ensureCoreCompatibilitySchema() {
   if (mode === "read-only") {
     coreSchemaInFlight = (async () => {
       let client: PoolClient | null = null;
+      let verifiedAndRolledBack = false;
       try {
         client = await pool.connect();
         const connected = client;
         await verifyCoreSchemaReadOnly((sql, parameters) => connected.query(sql, parameters));
+        verifiedAndRolledBack = true;
         coreSchemaReady = true;
       } finally {
-        // Retry the catalog preflight after transient connection errors.
-        // Even pool.connect() rejection must not poison the readiness promise.
-        client?.release();
+        // Failed catalog inspection or rollback must never return a
+        // possibly open transaction to the shared pool.
+        client?.release(!verifiedAndRolledBack);
         coreSchemaInFlight = null;
       }
     })();

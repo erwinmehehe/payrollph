@@ -124,6 +124,16 @@ test("a missing read-only transaction or a catalog exception fails closed and ro
   }
 });
 
+test("failed ROLLBACK cannot produce a successful readiness signal", async () => {
+  const { query, calls } = fixture();
+  await assert.rejects(() => verifyCoreSchemaReadOnly(async (sql, params) => {
+    if (sql === "ROLLBACK") throw new Error("synthetic rollback failure");
+    return query(sql, params);
+  }), /synthetic rollback failure/);
+  assert.ok(calls.some(sql => sql.includes("pg_catalog.pg_index")),
+    "catalog validation must execute before rollback rejection");
+});
+
 test("dashboard and demo are still gated through the shared compatibility helper", () => {
   const source = readFileSync("src/lib/core-schema-compat.ts", "utf8");
   const dashboard = readFileSync("src/lib/dashboard-data.ts", "utf8");
@@ -134,6 +144,8 @@ test("dashboard and demo are still gated through the shared compatibility helper
     source.indexOf('await client.query("BEGIN")'),
     "read-only mode must run before any legacy schema transaction");
   assert.ok(source.includes('await verifyCoreSchemaReadOnly('));
+  assert.ok(source.includes('client?.release(!verifiedAndRolledBack)'),
+    "failed read-only verification must discard the pooled connection");
   assert.ok(dashboard.includes("await ensureCoreCompatibilitySchema()"));
   assert.ok(demo.includes("await ensureCoreCompatibilitySchema()"));
 });
