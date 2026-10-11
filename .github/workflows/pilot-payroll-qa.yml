@@ -33,6 +33,7 @@ on:
       - "src/lib/treasury-**"
       - "src/lib/exporters.ts"
       - "src/lib/filing-evidence-store.ts"
+      - "tests/filing-evidence-lifecycle.test.ts"
       - "src/lib/payroll-**"
       - "src/lib/workforce-**"
       - "src/app/api/workforce/**"
@@ -105,6 +106,8 @@ jobs:
 
       - run: npm ci
       - run: npm run db:push
+      - name: Verify filing month boundaries and missing-ID rejection before the journey
+        run: node --import tsx --test tests/filing-evidence-lifecycle.test.ts
       - run: npm run build
 
       - name: Start production build
