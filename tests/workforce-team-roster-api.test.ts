@@ -71,7 +71,7 @@ test("manager view cancels obsolete requests and does not silently change histor
   assert.ok(panel.includes("pendingRequest.current?.abort()"));
   assert.ok(panel.includes("signal: controller.signal"));
   assert.ok(panel.includes("if (controller.signal.aborted || pendingRequest.current !== controller) return"));
-  assert.ok(panel.includes("const payload = activeTeamRosterPayload(storedPayload, scopeKey);"));
+  assert.match(panel, /const payload = useMemo\(\(\) => activeTeamRosterPayload\(storedPayload, scopeKey\),\s*\[storedPayload, scopeKey\]\);/);
   assert.ok(panel.includes("const requestedScope = teamRosterScopeKey(organizationId, startDate, page, appliedSearch);"));
   assert.ok(panel.includes("if (body?.page !== page || body?.startDate !== startDate)"));
   assert.ok(panel.includes("editor.organizationId === organizationId && editor.scopeKey === scopeKey && ("));

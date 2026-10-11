@@ -103,7 +103,8 @@ export function WorkforceTeamRosterPanel({
   // Derive visibility directly from the current props/filters, without waiting
   // for useEffect to clear a previous tenant's roster or CSV source.
   const scopeKey = teamRosterScopeKey(organizationId, startDate, page, appliedSearch);
-  const payload = activeTeamRosterPayload(storedPayload, scopeKey);
+  const payload = useMemo(() => activeTeamRosterPayload(storedPayload, scopeKey),
+    [storedPayload, scopeKey]);
   const activeLoadError = loadError?.scopeKey === scopeKey ? loadError.message : "";
 
   const visibleRows = useMemo(() => payload

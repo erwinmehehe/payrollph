@@ -339,11 +339,6 @@
       "count": 2
     }
   },
-  "src/components/workspace/production-pilot-signoff.tsx": {
-    "react-hooks/preserve-manual-memoization": {
-      "count": 2
-    }
-  },
   "src/components/workspace/statutory-contribution-issue-cases-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -375,17 +370,11 @@
     }
   },
   "src/components/workspace/workforce-bulk-roster-preview.tsx": {
-    "react-hooks/preserve-manual-memoization": {
-      "count": 1
-    },
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
   },
   "src/components/workspace/workforce-coverage-panel.tsx": {
-    "react-hooks/preserve-manual-memoization": {
-      "count": 1
-    },
     "react-hooks/set-state-in-effect": {
       "count": 2
     }
@@ -421,9 +410,6 @@
     }
   },
   "src/components/workspace/workforce-team-roster-panel.tsx": {
-    "react-hooks/preserve-manual-memoization": {
-      "count": 3
-    },
     "react-hooks/set-state-in-effect": {
       "count": 2
     }

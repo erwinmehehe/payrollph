@@ -448,19 +448,6 @@ export function WorkforceCoveragePanel({
     }, "Open shift created from the coverage gap.");
   }
 
-  async function stageRecoveryPlan() {
-    if (simulation.fills.length === 0) {
-      notify("No simulated recovery assignments are available to stage.", "err");
-      return;
-    }
-    await mutate("stage_recovery_plan", {
-      assignments: simulation.fills.map((fill) => ({
-        requirementId: fill.requirementId,
-        employeeId: fill.employeeId,
-      })),
-    }, "Recovery plan staged as pending claims for governed approval.");
-  }
-
   async function requestRosterReview(claimId: number) {
     if (!reviewChainCode) {
       notify("Configure and activate an Automation Studio approval chain before requesting roster review.", "err");
@@ -626,7 +613,7 @@ export function WorkforceCoveragePanel({
   }), [alternativeSimulation, futureCoverage, payload?.shifts, payload?.laborVariance]);
 
   const managerActions = useMemo(() => buildWfmManagerActionQueue({
-    today: phWorkDateAt(),
+    today: planningToday,
     coverage: futureCoverage,
     openShifts: payload?.openShifts ?? [],
     claims: payload?.claims ?? [],
@@ -634,11 +621,24 @@ export function WorkforceCoveragePanel({
     attendanceExceptionCount: payload?.laborVariance?.summary.attendanceExceptionCount ?? 0,
     evidenceWarnings: payload?.rosterReadiness?.signals ?? [],
   }), [
-    payload?.coverage, payload?.openShifts, payload?.claims,
+    planningToday, futureCoverage, payload?.openShifts, payload?.claims,
     payload?.guardrailReadiness?.blockingIssueCount,
-    payload?.laborVariance?.summary.attendanceExceptionCount,
+    payload?.laborVariance?.summary,
     payload?.rosterReadiness?.signals,
   ]);
+
+  async function stageRecoveryPlan() {
+    if (simulation.fills.length === 0) {
+      notify("No simulated recovery assignments are available to stage.", "err");
+      return;
+    }
+    await mutate("stage_recovery_plan", {
+      assignments: simulation.fills.map((fill) => ({
+        requirementId: fill.requirementId,
+        employeeId: fill.employeeId,
+      })),
+    }, "Recovery plan staged as pending claims for governed approval.");
+  }
 
   return (
     <article className="card" style={{ marginTop: 16 }} data-wfm-coverage>
