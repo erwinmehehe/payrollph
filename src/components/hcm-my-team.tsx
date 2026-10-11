@@ -70,6 +70,12 @@ function ScopedMyTeam({ organizationId }: { organizationId: number }) {
           data.statusFilter !== statusFilter ||
           !["company", "unit"].includes(data.scope?.kind) ||
           !Array.isArray(data.items) || data.items.length > 25 ||
+          !data.summary ||
+          data.summary.employeeRecordsThisPage !== data.items.length ||
+          !Number.isSafeInteger(data.summary.pendingLeaveRecordsThisPage) ||
+          !Number.isSafeInteger(data.summary.pendingOvertimeRecordsThisPage) ||
+          !Number.isSafeInteger(data.summary.pendingAttendanceCorrectionsThisPage) ||
+          !Number.isSafeInteger(data.summary.incompletePunchRecordsThisPage) ||
           data.page?.size !== 25 || typeof data.page.hasMore !== "boolean" ||
           (data.page.hasMore && (
             typeof data.page.nextCursor !== "number" ||
@@ -116,7 +122,7 @@ function ScopedMyTeam({ organizationId }: { organizationId: number }) {
   return (
     <main className="min-h-screen bg-slate-50 px-4 pb-14 pt-7 text-slate-900 sm:px-8">
       <div className="mx-auto max-w-6xl">
-        <Link href="/app" className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-emerald-800 hover:underline">
+        <Link href={"/app?organizationId=" + organizationId} className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-emerald-800 hover:underline">
           <ArrowLeft aria-hidden="true" size={16} /> Back to workspace
         </Link>
 
