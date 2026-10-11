@@ -12,6 +12,17 @@ import { previewDemandToStaffing } from "@/lib/workforce-demand-staffing-planner
 type Site = {id: number; name: string; code: string; active: boolean};
 type Shift = DemandStaffingShift & {name: string; code: string};
 type Role = {id: number; title: string};
+type RecoveryOption = {
+  requirementId: number;
+  gap: number;
+  recommendations: Array<{
+    employeeId: number; employeeName: string;
+    workloadRisk: "low" | "medium" | "high";
+    scheduledMinutesInWindow: number;
+    consecutiveWorkingDaysBeforeShift: number | null;
+    reasons: string[];
+  }>;
+};
 type Issued = {
   id: number; worksiteId: number; issuedAt: string;
   snapshotSha256: string; integrity: "matches_issued_hash" | "source_review";
@@ -36,13 +47,14 @@ const money = (count: number | null) => count == null ? "Unavailable" : peso.for
  */
 export function WorkforceDemandStaffingPanel({
   organizationId, worksites, shifts, jobProfiles, coverage, laborCostVisible,
-  laborRows, guardrailBlockers, rosterStatus, windowStart, windowEnd,
+  laborRows, recoveryOptions, guardrailBlockers, rosterStatus, windowStart, windowEnd,
   dynamicGroupCode,
 }: {
   organizationId: number;
   worksites: Site[]; shifts: Shift[]; jobProfiles: Role[];
   coverage: DemandStaffingCoverage[];
   laborCostVisible: boolean; laborRows: DemandStaffingCostRow[];
+  recoveryOptions: RecoveryOption[];
   guardrailBlockers: number; rosterStatus: string;
   windowStart: string; windowEnd: string; dynamicGroupCode: string;
 }) {
@@ -142,6 +154,7 @@ export function WorkforceDemandStaffingPanel({
   const roleLabel = (key: string) => key === "any" ? "Any job profile" :
     jobProfiles.find(p => p.id === Number(key))?.title ?? "Role #" + key;
   const reasons = [...new Set(base?.rows.flatMap(row => row.reviewReasons) ?? [])];
+  const optionsByRequirement = new Map(recoveryOptions.map(row => [row.requirementId, row]));
 
   return (
     <section data-wfm-demand-staffing id="wfm-demand-staffing" style={{padding:"0 18px 18px"}}>
@@ -286,6 +299,7 @@ export function WorkforceDemandStaffingPanel({
                 <th scope="col">Scheduled eligible</th>
                 <th scope="col">Required baseline / high</th>
                 <th scope="col">Baseline gap</th>
+                <th scope="col">Existing recovery options</th>
                 <th scope="col">Estimated extra base pay</th>
                 <th scope="col">Review status</th>
               </tr></thead>
@@ -297,6 +311,18 @@ export function WorkforceDemandStaffingPanel({
                   <td>{staff(row.scheduledWorkers)}</td>
                   <td>{staff(row.requiredWorkers)} / {staff(high.rows[i]?.requiredWorkers ?? null)}</td>
                   <td>{staff(row.gapWorkers)}</td>
+                  <td>{(() => {
+                    const related = optionsByRequirement.get(planning.evidence!.evidence[i]?.requirementId ?? -1);
+                    if (!related) return "Not evaluated for the current requirement";
+                    return <details><summary>{related.recommendations.length} ranked (limited to 5)</summary>
+                      {related.recommendations.map(candidate => (
+                        <p className="id" key={candidate.employeeId}>
+                          {candidate.employeeName} · {candidate.workloadRisk} workload ·
+                          {" "}{Math.round(candidate.scheduledMinutesInWindow / 60)}h already planned
+                        </p>
+                      ))}
+                    </details>;
+                  })()}</td>
                   <td>{money(row.estimatedAddedBaseCostPhp)}</td>
                   <td>{row.reviewReasons.length ? "Needs evidence" : "Review only"}</td>
                 </tr>)}
@@ -308,6 +334,8 @@ export function WorkforceDemandStaffingPanel({
             {" "}· Forecast: #{selected?.id} · Source hash: {selected?.snapshotSha256.slice(0,12)}…
             {" "}· Missing evidence: {reasons.join(", ") || "none"}. Numbers are not additive
             across overlapping shifts or a substitute for worker-level qualification checks.
+            Existing recovery options are ranked only for *recorded* gaps, capped at five,
+            and are not proof of complete candidate availability, legal overtime or minimum rest.
           </p>
           <p className="id" style={{padding:"0 18px 12px"}}>{planning.evidence.boundary}</p>
           <label style={{display:"flex",alignItems:"start",gap:8,margin:"0 18px 14px"}}>
