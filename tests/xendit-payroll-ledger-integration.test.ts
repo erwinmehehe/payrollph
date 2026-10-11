@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { db } from "../src/db";
 import { eq } from "drizzle-orm";
-import { organizations, legalEntities, employees, payrollEntries, payrollRuns } from "../src/db/schema";
+import { auditEvents, organizations, legalEntities, employees, payrollEntries, payrollRuns } from "../src/db/schema";
 import {
   preflightXenditPayroll, submitXenditPayroll, reconcileXenditPayroll,
   resolveUnknownXenditPayroll,
@@ -233,6 +233,52 @@ test("Xendit reconciliation advances across multiple provider pages without doub
     assert.equal(sends, 12, "Status reads must never send additional salaries");
   } finally {
     globalThis.fetch = previousFetch;
+    f.restore();
+  }
+});
+
+
+test("previous provider or final bank-file evidence blocks Xendit before any money-moving operation", async () => {
+  const scenarios = [
+    { action: "Payroll payout completed manually", metadata: {} },
+    { action: "Payroll payout submitted via PayMongo", metadata: { batchId: "legacy-1" } },
+    { action: "bank export generated", metadata: { kind: "bank", dryRun: false } },
+  ];
+  for (const scenario of scenarios) {
+    const f = await fixture();
+    try {
+      await db.insert(auditEvents).values({
+        organizationId: f.org.id, actor: "Synthetic payroll checker",
+        action: scenario.action, resource: f.run.periodLabel,
+        metadata: { runId: f.run.id, ...scenario.metadata },
+      });
+      await assert.rejects(
+        preflightXenditPayroll(f.run, "CI operator"),
+        /XENDIT_PREVIOUS_PAYOUT_OR_BANK_FILE_UNCERTAIN/,
+      );
+      await assert.rejects(
+        submitXenditPayroll(f.run, "CI operator"),
+        /XENDIT_PREVIOUS_PAYOUT_OR_BANK_FILE_UNCERTAIN/,
+      );
+      assert.equal(await xenditPayoutLedger(f.org.id, f.run.id), null,
+        "Blocked alternative payouts may not create an Xendit payment ledger");
+    } finally {
+      f.restore();
+    }
+  }
+});
+
+test("dry-run bank validation is not mistaken for an externally paid bank file", async () => {
+  const f = await fixture();
+  try {
+    await db.insert(auditEvents).values({
+      organizationId: f.org.id, actor: "Synthetic bank validator",
+      action: "bank export generated", resource: f.run.periodLabel,
+      metadata: { runId: f.run.id, kind: "bank", dryRun: true },
+    });
+    assert.equal((await preflightXenditPayroll(f.run, "CI operator")).ready, true);
+    assert.equal(await xenditPayoutLedger(f.org.id, f.run.id), null);
+  } finally {
     f.restore();
   }
 });
