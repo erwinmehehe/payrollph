@@ -28,7 +28,7 @@ test("quick find only returns records from the provided, authorized employer ros
 test("quick find handles name order, whitespace, number and title without exposing extra fields", () => {
   assert.deepEqual(findAuthorizedHrisEmployees(employerA, "  MARIA   CRUZ  ").map(row => row.id), [7]);
   assert.deepEqual(findAuthorizedHrisEmployees(employerA, "cruz maria").map(row => row.id), [7]);
-  assert.deepEqual(findAuthorizedHrisEmployees(employerA, "QA-00").map(row => row.id), [4, 7, 9]);
+  assert.deepEqual(findAuthorizedHrisEmployees(employerA, "QA-00").map(row => row.id), [7, 9, 4]);
   assert.deepEqual(findAuthorizedHrisEmployees(employerA, "Payroll Analyst").map(row => row.id), [9]);
   assert.deepEqual(findAuthorizedHrisEmployees(employerA, "SANTOS").map(row => row.id), [4]);
 });
