@@ -1,0 +1,51 @@
+name: WFM 14-Scenario Synthetic Evidence Matrix
+on:
+  push:
+    branches: [test/wfm-pilot-scenario-evidence-20261011]
+  pull_request:
+    paths:
+      - "scripts/wfm-pilot-synthetic-evidence.mjs"
+      - ".github/workflows/wfm-pilot-synthetic-evidence.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-wfm-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Ephemeral bank key for isolated fictional tests
+        shell: bash
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - name: Run automated portions of all fourteen WFM scenarios
+        run: node scripts/wfm-pilot-synthetic-evidence.mjs
+      - name: Upload sanitized scenario evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wfm-14-scenario-synthetic-evidence
+          path: qa-artifacts/wfm-pilot-synthetic-scenario-matrix.json
+          retention-days: 14
