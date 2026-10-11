@@ -1,3 +1,5 @@
+import { coreSchemaCompatibilityMode } from "@/lib/core-schema-readonly";
+import { statutoryMonthCloseSchemaSpec, verifyRequestSchemaReadOnlyFromPool } from "@/lib/request-schema-readonly";
 import { ensureStatutoryRemittanceCorrectionSchema } from "@/lib/statutory-remittance-correction-schema";
 import { pool } from "@/db";
 
@@ -5,14 +7,24 @@ let ready = false;
 let inFlight: Promise<void> | null = null;
 
 export async function ensureStatutoryRemittanceMonthCloseSchema() {
+  const mode = coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE);
+  if (mode === "read-only") {
+    if (inFlight) throw new Error("REMITTANCE_MONTH_CLOSE_LEGACY_SCHEMA_WRITE_IN_PROGRESS");
+    await ensureStatutoryRemittanceCorrectionSchema();
+    await verifyRequestSchemaReadOnlyFromPool(pool, statutoryMonthCloseSchemaSpec);
+    return;
+  }
   if (ready) return;
   if (inFlight) return inFlight;
 
   inFlight = (async () => {
     await ensureStatutoryRemittanceCorrectionSchema();
     const client = await pool.connect();
+    let transactionOpen = false;
+    let safeToReuse = false;
     try {
       await client.query("BEGIN");
+      transactionOpen = true;
       await client.query(
         "SELECT pg_advisory_xact_lock(hashtext('payrollph_statutory_remittance_month_close_v3'))",
       );
@@ -52,15 +64,28 @@ export async function ensureStatutoryRemittanceMonthCloseSchema() {
           ON statutory_remittance_month_closures(organization_id, legal_entity_id, status);
       `);
       await client.query("COMMIT");
+      transactionOpen = false;
+      safeToReuse = true;
       ready = true;
     } catch (error) {
-      try { await client.query("ROLLBACK"); } catch { /* no-op */ }
+      if (transactionOpen) {
+        try {
+          await client.query("ROLLBACK");
+          transactionOpen = false;
+          safeToReuse = true;
+        } catch {
+          // Never reuse a client with an uncertain open transaction.
+        }
+      }
       throw error;
     } finally {
-      client.release();
-      inFlight = null;
+      client.release(!safeToReuse);
     }
-  })();
+  })().finally(() => {
+    // A failed pool.connect() or prerequisite schema preflight must not
+    // permanently poison this module's in-flight promise.
+    inFlight = null;
+  });
 
   return inFlight;
 }
