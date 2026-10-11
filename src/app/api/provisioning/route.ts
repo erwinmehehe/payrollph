@@ -1,5 +1,5 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { assets, employees, itAccessGrants, itManagedDevices, provisioningTasks } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
@@ -121,17 +121,46 @@ export async function PATCH(request: Request) {
     }
   }
 
-  const [row] = await db.update(provisioningTasks).set({
-    done,
-    completedAt: done ? new Date() : null,
-    completedBy: done ? user.name : null,
-  }).where(and(
-    eq(provisioningTasks.id, id),
-    eq(provisioningTasks.organizationId, organizationId),
-    eq(provisioningTasks.employeeId, employeeId),
-  )).returning();
+  // Keep the employee's authorized unit stable until the task update commits.
+  // FOR SHARE conflicts with an employee reassignment UPDATE, so a scope
+  // decision cannot go stale between this locked read and the task write.
+  const result = await db.transaction(async (tx) => {
+    await tx.execute(sql`select id from employees
+      where id = ${employeeId} and organization_id = ${organizationId} for share`);
+    const [freshEmployee] = await tx.select({ orgUnitId: employees.orgUnitId }).from(employees)
+      .where(and(eq(employees.id, employeeId), eq(employees.organizationId, organizationId)))
+      .limit(1);
+    if (!freshEmployee) return { status: "missing_employee" as const };
+    if (!assertScope(access, freshEmployee.orgUnitId).ok) {
+      return { status: "scope_changed" as const };
+    }
+    const [updated] = await tx.update(provisioningTasks).set({
+      done,
+      completedAt: done ? new Date() : null,
+      completedBy: done ? user.name : null,
+    }).where(and(
+      eq(provisioningTasks.id, id),
+      eq(provisioningTasks.organizationId, organizationId),
+      eq(provisioningTasks.employeeId, employeeId),
+    )).returning();
+    return updated
+      ? { status: "updated" as const, row: updated }
+      : { status: "missing_task" as const };
+  });
 
-  if (!row) return Response.json({ error: "Task not found." }, { status: 404 });
+  if (result.status === "scope_changed") {
+    return Response.json({
+      code: "PROVISIONING_WORKER_UNIT_CHANGED",
+      error: "The employee's assigned unit changed during review. Refresh the checklist.",
+    }, { status: 409 });
+  }
+  if (result.status === "missing_employee") {
+    return Response.json({ error: "Employee not found for this provisioning task." }, { status: 404 });
+  }
+  if (result.status === "missing_task") {
+    return Response.json({ error: "Task not found." }, { status: 404 });
+  }
+  const { row } = result;
 
   await recordAuditEvent({
     organizationId: row.organizationId,
