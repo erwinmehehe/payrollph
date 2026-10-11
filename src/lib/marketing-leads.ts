@@ -101,11 +101,11 @@ export async function ensureMarketingLeadSchema() {
       `);
       await client.query(`
         CREATE INDEX IF NOT EXISTS marketing_leads_status_created_idx
-        ON marketing_leads(status, created_at DESC)
+        ON marketing_leads(status, created_at DESC NULLS LAST)
       `);
       await client.query(`
         CREATE INDEX IF NOT EXISTS marketing_leads_kind_created_idx
-        ON marketing_leads(kind, created_at DESC)
+        ON marketing_leads(kind, created_at DESC NULLS LAST)
       `);
       await client.query("COMMIT");
       transactionOpen = false;
