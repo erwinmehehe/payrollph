@@ -180,7 +180,8 @@ export async function PATCH(request: Request) {
       if (check.error) return check.error;
       if (check.employee!.status !== "Active") return Response.json({ error: "Employee must be active." }, { status: 409 });
     }
-    if (next === "available" || next === "retired") employeeId = null;
+    const priorCustodianId = device.employeeId;
+    if (next === "returned" || next === "available" || next === "retired") employeeId = null;
     const result = await db.transaction(async tx => {
       if (next === "assigned" && employeeId != null) {
         await tx.execute(sql`select id from employees where organization_id = ${device.organizationId} and id = ${employeeId} for update`);
@@ -197,10 +198,10 @@ export async function PATCH(request: Request) {
         assignedOn: next === "assigned" ? new Date().toISOString().slice(0, 10) : undefined,
         returnedOn: next === "returned" ? new Date().toISOString().slice(0, 10) : undefined,
       }).where(and(eq(assets.id, device.assetId), eq(assets.organizationId, device.organizationId)));
-      await tx.insert(itDeviceEvents).values({ organizationId: device.organizationId, deviceId: id, eventType: next, employeeId, actorUserId: user.id });
+      await tx.insert(itDeviceEvents).values({ organizationId: device.organizationId, deviceId: id, eventType: next, employeeId: next === "returned" ? priorCustodianId : employeeId, actorUserId: user.id });
       await tx.insert(auditEvents).values({
         organizationId: device.organizationId, actor: user.name, action: "IT device " + next,
-        resource: String(device.assetId), metadata: { deviceId: id, employeeId, actorUserId: user.id },
+        resource: String(device.assetId), metadata: { deviceId: id, employeeId, priorCustodianId, actorUserId: user.id },
       });
       return row;
     }).catch(e => e instanceof Error ? e : new Error("Device transition failed."));
