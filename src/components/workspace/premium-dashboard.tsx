@@ -244,7 +244,7 @@ export function PremiumDashboard({ data, currentRun: run, role, onPage, onNewRun
                 <div><strong>{view.attendanceEmployees} employees with time entries to review</strong><small>Within the selected payroll period</small></div>
                 <button type="button" aria-label="Open time and attendance" onClick={() => onPage("Time & attendance")}><ChevronRight size={18} /></button>
               </div>
-            }
+            )}
           </section>
 
           <section className="pd-card pd-dates" aria-labelledby="pd-dates-title">
