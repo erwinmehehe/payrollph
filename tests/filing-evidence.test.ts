@@ -43,6 +43,30 @@ test("only an uploaded file in today's layout counts as proof the format works",
   assert.equal(provesFileFormat(accepted({ form: "R-5" }), SSS), false);
 });
 
+test("legacy accepted rows without real agency references or submission dates never satisfy launch readiness", () => {
+  const sss = findFilingForm("SSS", "R-3")!;
+  const bir = findFilingForm("BIR", "1601-C")!;
+  const emptyReference = accepted({ agencyReference: null });
+  const shortReference = accepted({ agencyReference: "abc" });
+  const injectedReference = accepted({ agencyReference: "<script>" });
+  const missingDate = accepted({ submittedAt: null });
+  const invalidDate = accepted({ submittedAt: new Date("not-a-date") });
+  for (const row of [emptyReference, shortReference, injectedReference, missingDate, invalidDate]) {
+    assert.equal(provesFileFormat(row, sss), false);
+    assert.equal(provesOperationalFiling(row, sss), false);
+    assert.equal(summarizeFilingEvidence([row], sss).proven, false);
+    assert.equal(summarizeFilingEvidence([row], sss).operationallyProven, false);
+  }
+  for (const row of [emptyReference, shortReference, injectedReference, missingDate, invalidDate]) {
+    const b = {
+      ...row, agency: "BIR", form: "1601-C", submissionMethod: "manual_entry",
+      generatorVersion: BIR_1601C_GENERATOR_VERSION,
+    };
+    assert.equal(provesOperationalFiling(b, bir), false);
+  }
+  assert.equal(provesFileFormat(accepted(), sss), true, "complete current version remains accepted as operator-recorded evidence");
+});
+
 test("the summary separates real proof from weaker evidence so the scorecard can say which", () => {
   const empty = summarizeFilingEvidence([], SSS);
   assert.equal(empty.proven, false);

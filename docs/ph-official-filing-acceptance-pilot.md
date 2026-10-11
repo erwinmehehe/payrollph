@@ -16,12 +16,18 @@ Status: **agency acceptance not yet independently verified**. This note is for p
 
 | Agency / item | PayrollPH output | Required external proof / channel |
 | --- | --- | --- |
-| SSS R-3 | Internal monthly contribution worksheet, not certified upload | Current My.SSS employer e-CL/PRN, filing and payment/posting evidence. [SSS guidance](https://www.sss.gov.ph/pay-contribution/) |
+| SSS R-3 | Monthly reconciliation worksheet, not a certified upload | Current My.SSS employer e-CL/PRN, filing and payment/posting evidence. SSS also publishes an [official R-3 File Generator](https://www.sss.gov.ph/download-forms-and-electronic-applications/). An R-3 CSV from PayrollPH is not that generator's output. |
 | BIR 1601-C | Internal monthly withholding summary, not an import format | Complete the official eBIRForms/eFPS return, retain the filing acknowledgement and payment reference. [BIR eFPS job aids](https://efps.bir.gov.ph/efps-war/efpsJobaids.xhtml). Check eFPS-group-specific filing dates. |
 | BIR 1604-C / annual Alphalist | Retired per-run source CSV; no official DAT | Use approved annualization and BIR ADES to validate/create the actual DAT; retain agency filing/validation receipts. Source CSV acceptance is never an official DAT. |
-| BIR 2316 | Annual employee tax certificate; distinct from 1601-C | Independently reviewed year-end wage/tax calculations, required form issuance, signatures and distribution/acknowledgements. PayrollPH's monthly export is not a 2316. |
+| BIR 2316 | **Separate employee annual certificate**, not a monthly filing or annual Alphalist DAT | Use the [official BIR Form 2316](https://bir-cdn.bir.gov.ph/local/pdf/2316%20Sep%202021%20ENCS_Final_corrected.pdf), independently review wages/taxes, capture required signatures and employee distribution evidence. BIR lists issuance by January 31 of the next year, or with final wage payment upon termination. PayrollPH's monthly export is not a 2316 certificate. |
 | PhilHealth RF-1 | Reconciliation worksheet; EPRS import mapping unverified | Use employer EPRS, retain remittance and payment evidence. [PhilHealth employer procedures](https://www.philhealth.gov.ph/partners/employers/pay_procedures.php) |
-| Pag-IBIG MCRF | Internal worksheet; current eSRS template acceptance unverified | Current eSRS/approved remittance file workflow and payment/filing evidence. [Pag-IBIG official eSRS guide](https://www.pagibigfund.gov.ph/document/pdf/payments/ESRS.pdf) |
+| Pag-IBIG MCRF | Internal worksheet; no verified agency import | The [official eSRS guide](https://www.pagibigfund.gov.ph/document/pdf/payments/ESRS.pdf) refers to the MSRF membership-savings schedule. The [official MCRF encoding instructions](https://www.pagibigfund.gov.ph/document/pdf/dlforms/providentrelated/Instructions%20in%20Encoding%20of%20MCRF.pdf) are separate; do not assume an MCRF CSV imports as an eSRS MSRF. Retain the final employer remittance and payment/posting evidence. |
+
+## Additional programmatic gate for historical evidence
+
+A previous acceptance record lacking a genuine-looking agency reference or a valid submission date cannot satisfy the current-version file-format or operational evidence predicates. This prevents legacy incomplete records from turning the application readiness gate green. It **does not authenticate the agency receipt**: an operator can still enter a purported reference, so external reviewer/agency evidence remains mandatory.
+
+The filing UI now displays the agency-specific acceptance checklist and distinguishes an operator-recorded claim from independent verification. Form 2316 is tracked as a separate annual certificate and cannot be mistaken for annual Alphalist acceptance.
 
 ## Pilot acceptance test (not possible with synthetic fixtures alone)
 

@@ -295,8 +295,25 @@ export type FilingEvidenceRow = {
 };
 
 /**
- * True only when the agency accepted an upload of a file in the layout Linaw
- * produces today. This is the single definition readiness and the scorecard use.
+ * Accepted status alone is insufficient: legacy records may predate mandatory
+ * agency acknowledgement fields. An evidence row must have a real timestamp
+ * and nonblank agency-issued reference before influencing readiness.
+ *
+ * This verifies the RECORD is complete; it does not independently authenticate
+ * a government portal receipt. Employer acceptance is a separate pilot gate.
+ */
+export function hasRecordedAgencyAcknowledgement(row: FilingEvidenceRow): boolean {
+  return Boolean(
+    REFERENCE_PATTERN.test(row.agencyReference?.trim() ?? "")
+    && row.submittedAt instanceof Date
+    && Number.isFinite(row.submittedAt.getTime()),
+  );
+}
+
+/**
+ * An operator-recorded acceptance of the CURRENT worksheet file format.
+ * This does not independently authenticate the portal receipt or certify the
+ * import template, which remains subject to real-employer agency validation.
  */
 export function provesFileFormat(row: FilingEvidenceRow, definition: FilingFormDefinition): boolean {
   // 1604-C legacy evidence refers to a payroll-source CSV, not the prescribed
@@ -307,6 +324,7 @@ export function provesFileFormat(row: FilingEvidenceRow, definition: FilingFormD
     && row.form === definition.form
     && row.status === "accepted"
     && row.submissionMethod === "file_upload"
+    && hasRecordedAgencyAcknowledgement(row)
     && definition.submissionMethods.includes(row.submissionMethod as SubmissionMethod)
     && row.generatorVersion === definition.generatorVersion
   );
@@ -327,10 +345,10 @@ export function provesOperationalFiling(
     row.agency === definition.agency
     && row.form === definition.form
     && row.status === "accepted"
+    && hasRecordedAgencyAcknowledgement(row)
     && definition.submissionMethods.includes(row.submissionMethod as SubmissionMethod)
     && (row.submissionMethod === "file_upload" || row.submissionMethod === "manual_entry")
     && row.generatorVersion === definition.generatorVersion
-    && Boolean(row.agencyReference?.trim())
   );
 }
 
