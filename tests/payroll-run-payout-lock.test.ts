@@ -22,6 +22,14 @@ test("final bank files, PayMongo and Xendit stage under the same per-run claim l
   const exportRoute = readFileSync("src/app/api/payroll-runs/[id]/exports/route.ts", "utf8");
   const xendit = readFileSync("src/lib/xendit-payroll-operations.ts", "utf8");
   const staging = readFileSync("src/lib/payout-ledger.ts", "utf8");
+  const lock = readFileSync("src/lib/payroll-run-payout-lock.ts", "utf8");
+  assert.ok(lock.includes("pg_try_advisory_xact_lock"),
+    "Session advisory locks are unsafe behind transaction-pooling proxies.");
+  assert.ok(lock.includes('await client.query("ROLLBACK")'),
+    "The advisory transaction must release its lock even when the callback fails.");
+  assert.ok(lock.includes("client.release(!rolledBack)"),
+    "An uncertain rollback must discard the reserved connection.");
+  assert.ok(lock.includes("PAYOUT_RUN_LOCK_REQUIRES_THREE_POOL_CONNECTIONS"));
   assert.ok(exportRoute.includes("() => readPayrollExport(request, params, true)"));
   assert.ok(exportRoute.includes("FINAL_BANK_FILE_ALREADY_ISSUED"),
     "The issued bank file must never be silently reissued.");
