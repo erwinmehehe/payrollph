@@ -17,7 +17,7 @@ type Sync={
   applied:boolean;source:string;workDate:string;intervalMinutes:number;
   countedSales:number;scannedReceipts:number;scannedPages:number;
   changedIntervals:number;unchangedIntervals:number;
-  observedAsOf:string;boundary:string;
+  observedAsOf:string;boundary:string;sourceAuditRecorded?:boolean;
 };
 const endpoint="/api/workforce/demand-observations/loyverse";
 export function WorkforceLoyversePosPanel({organizationId,worksites,canManage}:{
@@ -155,6 +155,13 @@ export function WorkforceLoyversePosPanel({organizationId,worksites,canManage}:{
         </div>
         {message&&<div role="status" className="notice notice-slate"
           style={{margin:"0 18px 16px"}}>{message}</div>}
+        {result?.applied&&result.sourceAuditRecorded===false&&(
+          <div role="alert" className="notice notice-amber"
+            style={{margin:"0 18px 16px"}}>
+            The aggregate import was recorded, but its separate source-freshness
+            audit could not be saved. Review source status before relying on it.
+          </div>
+        )}
         {result&&<div data-loyverse-scan-result className="notice notice-slate"
           style={{margin:"0 18px 16px"}}>
           <span>{result.applied?"Historical aggregate import":"Read-only preview"}:
