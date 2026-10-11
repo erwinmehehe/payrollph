@@ -25,6 +25,8 @@ test("shared access resolution never promotes unassigned manager to company-wide
   assert.ok(access.includes('membership.role === "manager" &&'));
   assert.ok(access.includes('Number.isSafeInteger(membership.orgUnitId)'));
   assert.ok(access.includes('membership.orgUnitId <= 0)) return null;'));
+  assert.ok(access.includes('membership.role === "manager" && (!unit || !unit.active)'));
+  assert.ok(access.includes('eq(orgUnits.organizationId, organizationId)'));
   assert.ok(access.indexOf('membership.role === "manager" &&') <
     access.indexOf('companyWide: membership.orgUnitId == null'));
   assert.ok(access.includes('row.role === "manager" &&'));
