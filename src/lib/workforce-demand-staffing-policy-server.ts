@@ -253,7 +253,7 @@ export async function transitionStaffingPolicy(input: {
     if(!updated)throw new StaffingPolicyConflict("Policy decision changed concurrently.");
     const receiptSha256=await addEvent(tx,{
       organizationId:row.organizationId,policyId:row.id,actorUserId,
-      action:change.action,at,policySha256:row.contentSha256,
+      action:status,at,policySha256:row.contentSha256,
       priorPolicyId:replaced?.id??null,
       decisionNote:change.decisionNote.trim(),
     });
