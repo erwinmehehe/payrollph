@@ -1,4 +1,7 @@
-import { assertOrganizationRole, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { payrollRuns } from "@/db/schema";
+import { assertOrganizationRole, assertOrganizationUnitAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
@@ -53,6 +56,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       error: `This record is already ${existing.status} and cannot be changed. Generate a new record to file again.`,
     }, { status: 409 });
   }
+  if (!existing.payrollRunId) {
+    return Response.json({ error: "A filing outcome requires a linked payroll run." }, { status: 409 });
+  }
+  const [run] = await db.select({ scopeOrgUnitId: payrollRuns.scopeOrgUnitId })
+    .from(payrollRuns).where(and(
+      eq(payrollRuns.id, existing.payrollRunId),
+      eq(payrollRuns.organizationId, organizationId),
+    )).limit(1);
+  if (!run) return Response.json({ error: "Linked payroll run not found." }, { status: 409 });
+  const scopeDenied = await assertOrganizationUnitAccess(
+    user.id, organizationId, run.scopeOrgUnitId,
+    "This filing belongs to a payroll run outside your authorized organization unit.",
+  );
+  if (scopeDenied) return scopeDenied;
+
 
   const definition = findFilingForm(existing.agency, existing.form);
   if (!definition) {
