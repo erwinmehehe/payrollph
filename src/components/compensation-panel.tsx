@@ -320,8 +320,8 @@ export function CompensationPanel({
           <ShieldCheck size={15} />
           <span>
             <strong>Budget review preview:</strong>{" "}
-            {budgetPreview.pendingCount} proposed pay increase{budgetPreview.pendingCount === 1 ? "" : "s"} totaling{" "}
-            {peso(budgetPreview.pendingAnnual)} are awaiting independent review, not committed.
+            {budgetPreview.pendingCount} proposal{budgetPreview.pendingCount === 1 ? "" : "s"} awaiting independent review, not committed.
+            {" "}Positive annual increase exposure: {peso(budgetPreview.pendingAnnual)}.
             {budgetPreview.potentialOverBudgetAnnual > 0 && (
               <> If all proposed increases proceeded, the combined amount would exceed
                 the recorded pool by {peso(budgetPreview.potentialOverBudgetAnnual)}.</>
