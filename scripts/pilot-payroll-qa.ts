@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../src/db";
@@ -148,7 +148,31 @@ async function verifySyntheticSeparation(owner: ApiClient, maker: ApiClient, org
     manualReleaseBlocked: true, balanceUnspent: true };
 }
 
+/**
+ * This harness creates fictional records and calls writable routes. It must
+ * refuse every remote target, even when someone supplies working credentials.
+ * No real payroll, GPS, statutory submission, outbound provider or bank may be
+ * accessed by automated journey acceptance.
+ */
+function assertDisposableSyntheticTarget() {
+  assert.equal(process.env.CI, "true", "Synthetic employer journey runs only in CI.");
+  assert.equal(base, "http://127.0.0.1:3000", "No remote or production app may be used.");
+  const databaseUrl = new URL(process.env.DATABASE_URL ?? "");
+  assert.equal(databaseUrl.hostname, "127.0.0.1", "Only the disposable local PostgreSQL is permitted.");
+  assert.equal(databaseUrl.port, "5432");
+  assert.equal(databaseUrl.pathname, "/app_db");
+  assert.equal(process.env.DEMO_MODE, "false");
+  for (const flag of [
+    "PAYMONGO_DISBURSEMENTS_ENABLED", "XENDIT_PAYOUTS_ENABLED",
+    "XENDIT_PAYOUTS_LIVE_APPROVED", "WFM_GEOFENCE_PILOT_ENABLED",
+  ]) {
+    assert.notEqual(process.env[flag], "true", `${flag} must remain disabled in synthetic CI.`);
+  }
+  assert.equal(process.env.OPENAI_API_KEY ?? "", "", "No external AI provider is permitted.");
+}
+
 async function main() {
+  assertDisposableSyntheticTarget();
   assert.ok(setupToken && readinessToken, "Pilot QA tokens must be configured.");
   mkdirSync("qa-artifacts", { recursive: true });
 
@@ -196,6 +220,56 @@ async function main() {
     created.push({ id: Number(payload.employee.id), employeeNo: String(payload.employee.employeeNo) });
   }
   (report.lifecycle as string[]).push("employees-created-with-payout-details");
+
+  // Hiring in this core-employer journey uses the existing authorized People
+  // intake, NOT the separate governed recruitment/HCM Hire business process.
+  // All later stages must use these exact authoritative worker IDs.
+  const roster = await expectOk(owner, `/api/employees?organizationId=${organizationId}`);
+  assert.ok(Array.isArray(roster), "The employee directory must return actual worker records.");
+  for (const person of created) {
+    assert.equal(
+      roster.filter((row: any) => Number(row.id) === person.id && row.employeeNo === person.employeeNo).length,
+      1,
+      `Worker ${person.employeeNo} must exist once in the authoritative directory.`,
+    );
+  }
+  report.hire = { source: "authorized People employee creation", mode: "core HRIS direct hire",
+    employees: created.length, separateGovernedRecruitmentHire: "NOT_RUN" };
+
+  // Exercise source-owned onboarding on the same workers before scheduling.
+  // A checked box is a manual TEST attestation, never third-party ID/bank/HMO proof.
+  const onboarding = await expectOk(owner, `/api/provisioning?organizationId=${organizationId}`);
+  const targetWorker = onboarding.employees?.find((row: any) => Number(row.employeeId) === created[0].id);
+  const otherWorker = onboarding.employees?.find((row: any) => Number(row.employeeId) === created[1].id);
+  assert.ok(targetWorker && otherWorker, "Both hired workers must have an onboarding source.");
+  assert.ok(targetWorker.onboarding?.length >= 5, "The initial HR/Finance/IT checklist must be created.");
+  const task = targetWorker.onboarding.find((item: any) => item.title === "Email and software accounts provisioned");
+  assert.ok(Number(task?.id) > 0 && task.done === false, "Expected an open, worker-bound onboarding task.");
+  const wrongWorker = await owner.json("/api/provisioning", { method: "PATCH", json: {
+    id: task.id, organizationId, employeeId: created[1].id, done: true,
+  } });
+  assert.equal(wrongWorker.response.status, 404, "Another employee cannot complete this worker's task.");
+  const malformedTask = await owner.json("/api/provisioning", { method: "PATCH", json: {
+    id: task.id, organizationId, employeeId: created[0].id, done: "true",
+  } });
+  assert.equal(malformedTask.response.status, 400, "An arbitrary truthy value cannot complete a task.");
+  const manualTask = await expectOk(owner, "/api/provisioning", { method: "PATCH", json: {
+    id: task.id, organizationId, employeeId: created[0].id, done: true,
+  } });
+  assert.equal(manualTask.done, true);
+  const afterOnboarding = await expectOk(owner, `/api/provisioning?organizationId=${organizationId}`);
+  assert.equal(afterOnboarding.employees
+    .find((row: any) => Number(row.employeeId) === created[0].id)
+    .onboarding.find((item: any) => item.id === task.id).done, true);
+  assert.equal(afterOnboarding.employees
+    .find((row: any) => Number(row.employeeId) === created[1].id)
+    .onboarding.find((item: any) => item.title === task.title).done, false);
+  report.onboarding = {
+    source: "authenticated employee-scoped provisioning API",
+    taskKind: "onboarding", workerBindingEnforced: true, typedWriteValidated: true,
+    manualChecklistUpdatePersisted: true, independentExternalVerification: "NOT_RUN",
+  };
+  (report.lifecycle as string[]).push("onboarding-checklist-handoff-scoped-and-audited");
 
   // The zero-leak synthetic CI suite tests a FINAL semi-monthly cutoff.
   // Therefore it needs an earlier RELEASED cutoff ledger for the same month
@@ -441,6 +515,42 @@ async function main() {
   const payroll = await login(payrollUser.email, credentials.payroll);
   const checker = await login(checkerUser.email, credentials.checker);
   const employee = await login(employeeUser.email, credentials.employee);
+
+  // Actual employee Web Bundy IN/OUT requests cannot be backdated. Verify
+  // today's source-owned clock API and self-identity binding independently;
+  // the historical Sep payroll below uses explicitly seeded attendance.
+  const currentBundy = await expectOk(employee, `/api/web-bundy?organizationId=${organizationId}`);
+  assert.ok(!dates.includes(String(currentBundy.date)), "Current-day clock must not overlap the historical payroll fixture.");
+  const clockIn = await expectOk(employee, "/api/web-bundy", { method: "POST", json: {
+    organizationId, employeeId: created[1].id, actionType: "clock_in",
+  } });
+  assert.equal(clockIn.action, "clock_in");
+  assert.equal(Number(clockIn.punch?.employeeId), created[0].id,
+    "Employee-supplied employeeId must never let them clock for a coworker.");
+  const duplicateClock = await employee.json("/api/web-bundy", { method: "POST", json: {
+    organizationId, employeeId: created[0].id, actionType: "clock_in",
+  } });
+  assert.equal(duplicateClock.response.status, 409, "Double clock-in must be refused.");
+  const clockOut = await expectOk(employee, "/api/web-bundy", { method: "POST", json: {
+    organizationId, employeeId: created[1].id, actionType: "clock_out",
+  } });
+  assert.equal(clockOut.action, "clock_out");
+  assert.equal(Number(clockOut.punch?.id), Number(clockIn.punch.id));
+  assert.equal(Number(clockOut.punch?.employeeId), created[0].id);
+  assert.equal(clockOut.punch?.status, "Complete");
+  const ownClock = await expectOk(employee, `/api/web-bundy?organizationId=${organizationId}&employeeId=${created[1].id}`);
+  assert.equal(ownClock.punches?.length, 1);
+  assert.equal(Number(ownClock.punches[0].employeeId), created[0].id,
+    "Employee read must ignore a forged coworker ID.");
+  report.webBundy = {
+    result: "passed", source: "employee Web Bundy GET/POST",
+    selfIdentityBinding: true, duplicateInBlocked: true, inOutMatched: true,
+    currentDayOnly: String(currentBundy.date),
+    payrollPeriod: "2026-09-16 through 2026-09-30",
+    historicalPayrollPunchesAreSeededFixtures: true,
+    realDeviceGpsBiometrics: "NOT_RUN",
+  };
+  (report.lifecycle as string[]).push("employee-web-bundy-clock-in-out-scoped");
 
   const selfWorkforce = await expectOk(
     employee,
@@ -710,6 +820,70 @@ async function main() {
   const [finalRun] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.organizationId, organizationId))).limit(1);
   assert.equal(finalRun?.status, "Released");
 
+  // Prepare all FOUR current monthly government reconciliation worksheets from
+  // this exact released payroll. Verify the HTTP file bytes against the stored
+  // immutable hash; never create an invented agency acceptance or submit data.
+  const filingForms = [
+    { agency: "SSS", form: "R-3" },
+    { agency: "BIR", form: "1601-C" },
+    { agency: "PhilHealth", form: "RF-1" },
+    { agency: "Pag-IBIG", form: "MCRF" },
+  ] as const;
+  const preparedFilingRecords: Array<{ agency: string; form: string; recordId: number }> = [];
+  for (const definition of filingForms) {
+    const input = { organizationId, runId, ...definition };
+    const generated = await expectOk(owner, "/api/compliance/filing-validations", {
+      method: "POST", json: input,
+    });
+    assert.equal(generated.created, true, `${definition.agency} worksheet must be newly generated.`);
+    assert.equal(generated.record?.status, "generated");
+    assert.equal(Number(generated.record?.payrollRunId), runId);
+    assert.equal(Number(generated.record?.organizationId), organizationId);
+    assert.match(String(generated.record?.fileSha256), /^[a-f0-9]{64}$/);
+
+    const recordId = Number(generated.record.id);
+    const download = await owner.request(
+      `/api/compliance/filing-validations/${recordId}/file?organizationId=${organizationId}`,
+    );
+    assert.equal(download.status, 200, `${definition.agency} worksheet download failed.`);
+    assert.match(download.headers.get("content-type") ?? "", /text\/csv/);
+    const worksheet = await download.text();
+    assert.match(worksheet, /DRAFT ONLY, not a certified government submission file/);
+    const digest = createHash("sha256").update(worksheet, "utf8").digest("hex");
+    assert.equal(digest, generated.record.fileSha256, "Downloaded bytes must match the recorded SHA-256.");
+    assert.equal(download.headers.get("x-filing-sha256"), digest);
+
+    const duplicate = await expectOk(owner, "/api/compliance/filing-validations", {
+      method: "POST", json: input,
+    });
+    assert.equal(duplicate.created, false, "Identical filing bytes must not create duplicate evidence.");
+    assert.equal(Number(duplicate.record?.id), recordId);
+    preparedFilingRecords.push({ ...definition, recordId });
+  }
+  const forgedAcceptance = await owner.json(
+    `/api/compliance/filing-validations/${preparedFilingRecords[0].recordId}`,
+    { method: "PATCH", json: {
+      organizationId, outcome: "accepted", submissionMethod: "manual_entry",
+      agencyReference: "", submittedAt: "2026-10-05",
+    } },
+  );
+  assert.ok(!forgedAcceptance.response.ok,
+    "A fictional filing without an agency acknowledgement must never be accepted.");
+  const filingRead = await expectOk(owner, `/api/compliance/filing-validations?organizationId=${organizationId}`);
+  for (const prepared of preparedFilingRecords) {
+    const record = filingRead.records.find((row: any) => Number(row.id) === prepared.recordId);
+    assert.equal(record?.status, "generated", "CI-generated worksheet is not an agency receipt.");
+    assert.equal(record?.agencyReference ?? null, null, "Do not invent a government reference in CI.");
+  }
+  report.filingEvidence = {
+    result: "passed", scope: "reconciliation worksheet generation and byte-hash binding only",
+    forms: preparedFilingRecords.map(({ agency, form }) => `${agency} ${form}`),
+    generatedCount: preparedFilingRecords.length, duplicateGenerationBlocked: true,
+    unreferencedAgencyAcceptanceRejected: true, officialAgencyAcceptance: "NOT_RUN",
+    officialImportFormatsCertified: false, governmentSubmissionPerformed: false,
+  };
+  (report.lifecycle as string[]).push("government-reconciliation-worksheets-prepared-hash-verified-not-submitted");
+
   const afterReleaseRequest = await expectOk(employee, "/api/self/workforce", { method: "POST", json: {
     action: "request_correction", punchId: latePunch.id,
     proposedBreakStart: "2026-09-18T12:10:00+08:00", proposedBreakEnd: "2026-09-18T13:10:00+08:00",
@@ -745,6 +919,13 @@ async function main() {
     "Approval approved",
     "Payroll released",
     "PayMongo payroll preflight failed",
+    "Provisioning item completed",
+    "Web Bundy Clock IN",
+    "Web Bundy Clock OUT",
+    "SSS R-3 filing record created",
+    "BIR 1601-C filing record created",
+    "PhilHealth RF-1 filing record created",
+    "Pag-IBIG MCRF filing record created",
   ];
   for (const action of expectedActions) assert.ok(actions.has(action), `Missing audit event: ${action}`);
   report.auditEventsVerified = expectedActions;
@@ -759,6 +940,27 @@ async function main() {
     status: readiness.status,
     launchBlockersRemaining: readiness.launchBlockersRemaining,
     manualLaunchReady: readiness.manualLaunch?.ready ?? false,
+  };
+  const journeySteps = [
+    { step: "Hire", evidence: "employees-created-with-payout-details", caveat: "Core People direct hire; governed candidate Hire BP not exercised" },
+    { step: "Onboard", evidence: "onboarding-checklist-handoff-scoped-and-audited", caveat: "Synthetic manual task; third-party verification not implied" },
+    { step: "Schedule", evidence: "advanced-wfm-schedules-assigned" },
+    { step: "Clock In", evidence: "employee-web-bundy-clock-in-out-scoped", caveat: "Real current-day Web Bundy test; payroll-period time punches are separate fictional historical fixtures" },
+    { step: "Approve Time", evidence: "timesheet-gate-blocked-payroll-until-distinct-test-actor-approval" },
+    { step: "Run Payroll", evidence: "payroll-calculated" },
+    { step: "Review", evidence: "payroll-approved-by-independent-checker" },
+    { step: "Release Payroll Records", evidence: "owner-released-payroll", caveat: "Synthetic payroll ledger only; no payment instructions" },
+    { step: "Prepare Filing Evidence", evidence: "government-reconciliation-worksheets-prepared-hash-verified-not-submitted", caveat: "Draft worksheets only; no agency acceptance" },
+  ];
+  for (const step of journeySteps) {
+    assert.ok((report.lifecycle as string[]).includes(step.evidence), `Missing journey step: ${step.step}`);
+  }
+  report.employerJourney = {
+    result: "passed-synthetic-only",
+    stages: journeySteps.map(({ evidence, ...step }) => ({ ...step, result: "passed", evidence })),
+    independentHumanUat: "NOT_RUN", realEmployerShadowPayroll: "NOT_RUN",
+    fieldDeviceCertification: "NOT_RUN", governmentPortalAcceptance: "NOT_RUN",
+    realBankOrProviderSubmission: "NOT_RUN", productionActivation: "NOT_AUTHORIZED",
   };
   report.result = "passed";
   writeFileSync("qa-artifacts/pilot-payroll-report.json", JSON.stringify(report, null, 2));
