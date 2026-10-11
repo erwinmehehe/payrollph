@@ -36,7 +36,6 @@ export function XenditPayoutPanel({
     setStatus(data as Status);
   }
   useEffect(() => {
-    setReconcileCursor(0);
     let active = true;
     const controller = new AbortController();
     void fetch(`/api/payroll-runs/${runId}/xendit-payout`,
