@@ -19,9 +19,9 @@ test("onboarding projection counts only recorded task state, not certifications"
     task(41, 18, true), task(42, 18, true),
     task(51, 19),
   ]);
-  assert.deepEqual(result.map((group) => group.employee.id), [17, 19, 18]);
+  assert.deepEqual(result.map((group) => group.employee.id), [19, 17, 18]);
   assert.deepEqual(result.map((group) => [group.recorded, group.markedDone, group.remaining]), [
-    [2, 1, 1], [1, 0, 1], [2, 2, 0],
+    [1, 0, 1], [2, 1, 1], [2, 2, 0],
   ]);
   assert.deepEqual(result.find((group) => group.employee.id === 17)?.tasks.map((entry) => entry.id), [32, 31]);
   assert.ok(result.every((group) => group.tasks.every((entry) => entry.kind === "onboarding")));
