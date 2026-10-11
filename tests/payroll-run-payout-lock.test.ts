@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { withPayrollRunPayoutLock } from "../src/lib/payroll-run-payout-lock";
+import { withPayrollPayoutSubmissionLock } from "../src/lib/payout-submission-lock";
 
 // Never use real employer or non-local databases for advisory-lock tests.
 let isolated = false;
@@ -23,6 +24,11 @@ test("final bank files, PayMongo and Xendit stage under the same per-run claim l
   const xendit = readFileSync("src/lib/xendit-payroll-operations.ts", "utf8");
   const staging = readFileSync("src/lib/payout-ledger.ts", "utf8");
   const lock = readFileSync("src/lib/payroll-run-payout-lock.ts", "utf8");
+  const wallet = readFileSync("src/lib/payout-submission-lock.ts", "utf8");
+  assert.ok(wallet.includes("pg_try_advisory_xact_lock"));
+  assert.ok(wallet.includes('await client.query("ROLLBACK")'));
+  assert.ok(wallet.includes("client.release(!rolledBack)"));
+  assert.ok(!wallet.includes("pg_advisory_unlock("));
   assert.ok(lock.includes("pg_try_advisory_xact_lock"),
     "Session advisory locks are unsafe behind transaction-pooling proxies.");
   assert.ok(lock.includes('await client.query("ROLLBACK")'),
@@ -77,4 +83,42 @@ test("isolated Postgres serializes one payroll claim and releases it for later r
     await withPayrollRunPayoutLock(919991, 919992, async () => "reconciled-run"),
     "reconciled-run",
   );
+});
+
+
+test("isolated Postgres holds PayMongo wallet reservation across runs and releases after rollback", {
+  skip: !isolated,
+}, async () => {
+  const prior = process.env.PAYMONGO_WALLET_ID;
+  const wallet = "synthetic-wallet-for-advisory-claim-test";
+  let started!: () => void;
+  let finish!: () => void;
+  const acquired = new Promise<void>((resolve) => { started = resolve; });
+  const held = new Promise<void>((resolve) => { finish = resolve; });
+  process.env.PAYMONGO_WALLET_ID = wallet;
+  const first = withPayrollPayoutSubmissionLock(async () => {
+    started();
+    await held;
+    return "wallet-claim-finished";
+  });
+  try {
+    await Promise.race([
+      acquired,
+      first.then(() => { throw new Error("Wallet lock returned before its test callback."); }),
+    ]);
+    await assert.rejects(
+      () => withPayrollPayoutSubmissionLock(async () => "unsafe-second"),
+      /Another payroll payout is already being submitted/,
+    );
+    process.env.PAYMONGO_WALLET_ID = wallet + "-different";
+    assert.equal(
+      await withPayrollPayoutSubmissionLock(async () => "independent-wallet"),
+      "independent-wallet",
+    );
+  } finally {
+    finish();
+    assert.equal(await first, "wallet-claim-finished");
+    if (prior === undefined) delete process.env.PAYMONGO_WALLET_ID;
+    else process.env.PAYMONGO_WALLET_ID = prior;
+  }
 });
