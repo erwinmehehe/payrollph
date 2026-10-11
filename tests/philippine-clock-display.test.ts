@@ -37,8 +37,12 @@ test("Manila display ignores the device timezone, including browsers west of UTC
 test("Web Bundy presents every stored punch in Manila time without rewriting API timestamps", () => {
   const modal = readFileSync("src/components/web-bundy-modal.tsx", "utf8");
   const server = readFileSync("src/app/api/web-bundy/route.ts", "utf8");
-  assert.match(modal, /setTime\(philippineClockTime\(now\)\)/);
-  assert.match(modal, /setDate\(philippineClockDate\(now\)\)/);
+  // The clock now derives both labels from a lazy-initialized Date and an interval tick.
+  // Assert current rendering semantics rather than the removed setTime/setDate effect.
+  assert.match(modal, /const \[now, setNow\] = useState\(\(\) => new Date\(\)\)/);
+  assert.match(modal, /const time = philippineClockTime\(now\)/);
+  assert.match(modal, /const date = philippineClockDate\(now\)/);
+  assert.match(modal, /setInterval\(\(\) => setNow\(new Date\(\)\), 1000\)/);
   assert.match(modal, /philippineClockTime\(new Date\(todayPunch\.timeIn\)\)/);
   assert.match(modal, /philippineClockTime\(new Date\(todayPunch\.timeOut\)\)/);
   assert.match(modal, /philippineClockTime\(new Date\(todayPunch\.breakStart\)\)/);
