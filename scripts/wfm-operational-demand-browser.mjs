@@ -28,7 +28,8 @@ try {
   await page.getByRole("heading", { name: "Compare staffing forecasts with reported business activity" }).waitFor();
   await page.getByText("25.0%").waitFor();
   assert.equal(await page.locator("[data-wfm-workload-forecasts] tbody tr").count(), 1);
-  await page.getByRole("button", { name: "Import aggregate counts" }).click();
+  assert.equal(await page.getByRole("button", { name: "Import aggregate counts" }).isDisabled(), true,
+    "Unacknowledged aggregate demand must never enable submission.");
   assert.equal((await page.evaluate(() => window.requests.filter(x => x.method === "POST"))).length, 0,
     "No consent must never submit any demand data.");
   await page.getByLabel("Aggregate CSV (Philippine time +08:00)").fill(
