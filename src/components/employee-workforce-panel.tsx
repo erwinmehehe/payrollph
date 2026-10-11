@@ -84,7 +84,7 @@ function fromManilaInput(value: string) {
   return value ? `${value}:00+08:00` : null;
 }
 
-export function EmployeeWorkforcePanel({ language = "en" }: { language?: EssLanguage } = {}) {
+export function EmployeeWorkforcePanel({ language = "en" }: { language?: EssLanguage }) {
   const t = (label: string) => essText(language, label);
   const [payload, setPayload] = useState<Payload | null>(null);
   const [today, setToday] = useState(() => manilaWorkDate());
