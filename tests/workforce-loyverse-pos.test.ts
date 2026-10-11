@@ -19,7 +19,9 @@ const ticket=(number:string,created:string,receiptDate:string,other:Record<strin
 });
 function pages(list:Record<string,unknown>[],urls:string[]=[]):typeof fetch {
   let index=0;
-  return (async(value:RequestInfo|URL)=>{
+  return (async(value:RequestInfo|URL,init?:RequestInit)=>{
+    assert.equal(init?.method,"GET");
+    assert.equal(init?.redirect,"error","Never forward bearer credentials to a redirected origin");
     const u=new URL(String(value));urls.push(u.toString());
     assert.equal(u.origin,"https://api.loyverse.com");
     if(u.pathname==="/v1.0/stores")return Response.json({
@@ -154,4 +156,18 @@ test("a failed scan-freshness receipt cannot misreport a committed aggregate as 
     "src/components/workspace/workforce-loyverse-pos-panel.tsx","utf8");
   assert.ok(panel.includes("result.sourceAuditRecorded===false"));
   assert.ok(panel.includes("aggregate import was recorded"));
+});
+
+test("nonexistent calendar times and invalid offsets cannot become aggregate bins",async()=>{
+  for(const stamp of [
+    "2026-09-31T09:00:00+08:00",
+    "2026-09-20T09:00:00+15:00",
+    "2026-09-20T25:00:00+08:00",
+  ]){
+    const row=ticket("BROKEN","2026-09-20T09:00:00+08:00",stamp);
+    await assert.rejects(readLoyversePosDay({...conf,
+      request:pages([{receipts:[row]}])}),
+    (e:unknown)=>e instanceof LoyverseSourceError&&e.code==="SOURCE_REVIEW",
+    "Invalid provider clock must never be treated as a completed source scan: "+stamp);
+  }
 });
