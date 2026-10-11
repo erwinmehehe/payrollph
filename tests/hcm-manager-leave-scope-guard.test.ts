@@ -28,6 +28,13 @@ test("dashboard requires a valid manager unit before loading any employer record
   const employeeIndex = source.indexOf("db.select().from(employees).where(employeeFilter)");
   assert.ok(accessIndex >= 0 && guardIndex > accessIndex && guardIndex < salaryIndex && guardIndex < employeeIndex);
   assert.match(source, /assigned supervisory unit is required to load the manager workspace/);
+
+  const api = readFileSync("src/app/api/dashboard/route.ts", "utf8");
+  assert.ok(api.includes('access.role === "manager" && deriveMyTeamScope(access)?.kind !== "unit"'));
+  assert.ok(api.includes("status: 403"));
+  const page = readFileSync("src/app/app/page.tsx", "utf8");
+  assert.ok(page.includes('managerAccess?.role === "manager" && deriveMyTeamScope(managerAccess)?.kind !== "unit"'));
+  assert.ok(page.includes("notFound()"));
 });
 
 test("leave reads filter all assigned-unit staff and reject missing manager unit", () => {
