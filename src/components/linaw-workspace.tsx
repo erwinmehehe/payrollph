@@ -66,7 +66,7 @@ import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 
-export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false, allowPeopleFocus = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean }) {
+export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean }) {
   const searchParams = useSearchParams();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
@@ -86,11 +86,23 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
     pilotFocusEnabled,
     demoMode: Boolean(demoRole),
   });
+  // Only company-wide People operators can return from the read-only
+  // payroll input review; managers and demo users retain their own routes.
+  const reviewPages = workspacePagesForRole(initialData.access?.role);
+  const linkedHirePayrollPage =
+    allowHirePayrollReview && !pilotFocusEnabled && !demoRole &&
+    initialData.access?.companyWide &&
+    ["owner", "admin", "hr"].includes(initialData.access.role) &&
+    initialData.selectedOrganization.accountType !== "freelancer" &&
+    (requestedWorkspacePage === "Recruitment" ||
+      requestedWorkspacePage === "Time & attendance") &&
+    (!reviewPages || reviewPages.includes(requestedWorkspacePage))
+      ? requestedWorkspacePage : null;
   const initialPage = demoInfo?.landingPage ??
     (searchParams.get("workspacePage") === "People" &&
       canOpenPeopleHome(initialData.access) &&
       roleHasPeopleWorkspace(initialData.access?.role)
-      ? "People" : linkedTeamWorkflowPage ?? "Overview");
+      ? "People" : linkedTeamWorkflowPage ?? linkedHirePayrollPage ?? "Overview");
   const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
@@ -586,6 +598,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
                   provisioning={data.provisioning}
                   onRefresh={async () => { await refresh(data.selectedOrganization.id); }}
                   onOpenEmployee={openHrEmployee}
+                  allowHirePayrollReview={allowHirePayrollReview && !demoRole}
                   onOpenDocuments={availablePages.includes("Documents") ? () => setPage("Documents") : undefined}
                 />
               )}

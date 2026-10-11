@@ -14,6 +14,7 @@ import { isSelfServeOrganization } from "@/lib/saas-workspace-access";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 import { pilotFocusEnabledForOrganization } from "@/lib/pilot-navigation";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
+import { hirePayrollReviewEnabledForEmployer } from "@/lib/hcm-hire-payroll-review";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +89,11 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
     /^[1-9]\d*$/.test(requestedEmployeeId) &&
     peopleHomeEnabledForOrganization(companyOrganizationId) &&
     !(await assertOrganizationRole(user.id, companyOrganizationId, PEOPLE_ADMIN_ROLES));
+  // Source review is opt-in for one legal employer and explicit HR permission.
+  const allowHirePayrollReview = !pilotFocusEnabled &&
+    hirePayrollReviewEnabledForEmployer(companyOrganizationId) &&
+    !!access?.companyWide && ["owner", "admin", "hr"].includes(access.role) &&
+    (await assertOrganizationRole(user.id, companyOrganizationId, PEOPLE_ADMIN_ROLES)) === null;
   const canSeeMyTeam = !pilotFocusEnabled && process.env.HCM_MY_TEAM_ENABLED === "true" &&
     process.env.NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true" &&
     !!access && (
@@ -106,7 +112,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       )}
       {!pilotFocusEnabled && peopleHomeEnabledForOrganization(data.selectedOrganization.id) && canOpenPeopleHome(access) && (<Link href={`/hcm/command-center?organizationId=${data.selectedOrganization.id}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>) }
     </div>
-    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} pilotFocusEnabled={pilotFocusEnabled} allowPeopleFocus={allowPeopleFocus} />
+    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} pilotFocusEnabled={pilotFocusEnabled} allowPeopleFocus={allowPeopleFocus} allowHirePayrollReview={allowHirePayrollReview} />
   </>;
 }
 
