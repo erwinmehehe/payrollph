@@ -85,6 +85,7 @@ test("all source call sites send explicitly bound employer and employee IDs", ()
   assert.ok(callers.length > 0, "At least one onboarding client should use provisioning");
   for (const caller of callers) {
     const matches = caller.content.match(/fetch\(\s*["'\x60]\/api\/provisioning/g) ?? [];
+    assert.ok(matches.length > 0, "Provisioning source reference requires caller contract review: " + caller.path);
     for (const match of matches) {
       assert.ok(caller.content.includes(
         'JSON.stringify({ id: task.id, organizationId, employeeId, done })',
