@@ -155,7 +155,7 @@ export async function GET(request: Request) {
   }
 
   let employeeIds: number[] | null = null;
-  if (user.role === "employee") {
+  if (access.role === "employee") {
     if (!user.employeeId) return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
     employeeIds = [user.employeeId];
   } else if (!roleAllowed(access.role, LEAVE_ADMIN_ROLES)) {
@@ -229,7 +229,7 @@ export async function POST(request: Request) {
     )).limit(1);
     if (!leave) return Response.json({ error: "Leave request not found." }, { status: 404 });
 
-    if (user.role === "employee") {
+    if (access.role === "employee") {
       if (user.employeeId !== leave.employeeId) return Response.json({ error: "You can revise only your own leave request." }, { status: 403 });
     } else if (!roleAllowed(access.role, LEAVE_ADMIN_ROLES)) {
       return Response.json({ error: "Your role cannot revise leave timing." }, { status: 403 });
@@ -239,7 +239,7 @@ export async function POST(request: Request) {
       eq(employees.organizationId, organizationId),
     )).limit(1);
     if (!employee) return Response.json({ error: "Employee not found." }, { status: 404 });
-    if (user.role !== "employee" && !access.companyWide && employee.orgUnitId !== access.orgUnitId) {
+    if (access.role !== "employee" && !access.companyWide && employee.orgUnitId !== access.orgUnitId) {
       return Response.json({ error: "This employee is outside your assigned unit." }, { status: 403 });
     }
     if (leave.status !== "Pending") {
@@ -294,7 +294,7 @@ export async function POST(request: Request) {
             || String(freshLeave.endDate) !== String(leave.endDate)) {
           throw new Error("LEAVE_REVISION_STALE");
         }
-        if (user.role !== "employee" && !access.companyWide &&
+        if (access.role !== "employee" && !access.companyWide &&
             freshEmployee.orgUnitId !== access.orgUnitId) {
           throw new Error("LEAVE_SCOPE_CHANGED");
         }
@@ -404,7 +404,7 @@ export async function POST(request: Request) {
     }, { status: 400 });
   }
 
-  if (user.role === "employee") {
+  if (access.role === "employee") {
     if (!user.employeeId) return Response.json({ error: "Employee profile is not linked." }, { status: 403 });
     employeeId = user.employeeId;
   } else if (!roleAllowed(access.role, LEAVE_ADMIN_ROLES)) {
@@ -420,7 +420,7 @@ export async function POST(request: Request) {
     .limit(1);
   if (!employee) return Response.json({ error: "Employee not found in this organization." }, { status: 404 });
 
-  if (user.role !== "employee" && !access.companyWide && employee.orgUnitId !== access.orgUnitId) {
+  if (access.role !== "employee" && !access.companyWide && employee.orgUnitId !== access.orgUnitId) {
     return Response.json({ error: "You can submit leave only for employees in your assigned unit." }, { status: 403 });
   }
   const pendingSeparation = await loadCurrentHcmSeparation({
@@ -508,7 +508,7 @@ export async function POST(request: Request) {
       eq(employees.organizationId, organizationId),
     )).limit(1);
     if (!freshWorker) throw new Error("LEAVE_EMPLOYMENT_NOT_ELIGIBLE");
-    if (user.role !== "employee" && !access.companyWide &&
+    if (access.role !== "employee" && !access.companyWide &&
         freshWorker.orgUnitId !== access.orgUnitId) {
       throw new Error("LEAVE_SCOPE_CHANGED");
     }
