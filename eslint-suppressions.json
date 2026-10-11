@@ -29,8 +29,8 @@
       "count": 1
     }
   },
-  "src/components/employee-profile-extras.tsx": {
-    "react/no-unescaped-entities": {
+  "src/components/employee-schedule-receipts.tsx": {
+    "react-hooks/set-state-in-effect": {
       "count": 1
     }
   },
