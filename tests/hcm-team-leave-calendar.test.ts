@@ -173,7 +173,7 @@ test("client hides stale tenant/month responses and shows only recorded request 
   assert.match(nav, /NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ENABLED === "true"/);
   assert.match(nav, /NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ORG_IDS/);
   assert.ok(nav.includes('/hcm/team-leave-calendar?organizationId=${organizationId}'));
-  assert.ok(ui.includes("/app?organizationId=${organizationId}&workspacePage=Approvals"));
+  assert.ok(ui.includes("/hcm/my-team?organizationId=${organizationId}"));
   assert.ok(!ui.includes('setLoaded({ requestKey, status: "loading"'));
   for (const word of ["method: \"POST\"", "method: \"PATCH\"", "bankAccount", "leaveType"]) {
     assert.ok(!ui.includes(word), "Unexpected client source field or mutation: " + word);
