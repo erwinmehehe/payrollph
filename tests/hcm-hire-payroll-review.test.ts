@@ -128,7 +128,11 @@ test("route is feature-gated and authorized before any source reads; review neve
   assert.match(page, /unavailable = true/);
   assert.match(app, /allowHirePayrollReview = !pilotFocusEnabled/);
   assert.match(app, /assertOrganizationRole\(user.id, companyOrganizationId, PEOPLE_ADMIN_ROLES\)/);
-  assert.match(workspace, /allowHirePayrollReview=\{allowHirePayrollReview && !demoRole\}/);
+  assert.match(workspace, /allowHirePayrollReview=\\{allowHirePayrollReview && !demoRole\\}/);
+  assert.ok(workspace.includes("allowHirePayrollReview && !pilotFocusEnabled && !demoRole"));
+  assert.ok(workspace.includes('requestedWorkspacePage === "Recruitment"'));
+  assert.ok(workspace.includes('requestedWorkspacePage === "Time & attendance"'));
+  assert.ok(workspace.includes('linkedTeamWorkflowPage ?? linkedHirePayrollPage ?? "Overview"'));
   assert.match(onboard, /allowHirePayrollReview && \(/);
   assert.ok(onboard.includes("/hcm/hire-payroll-review?organizationId="));
 
