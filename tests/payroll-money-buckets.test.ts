@@ -61,3 +61,15 @@ test("mid-cutoff hire: calculate withholding on rounded taxable centavos, never 
   // under the explicit centavo-first withholding computation.
   assert.equal(computeSemiMonthlyWithholdingTax(rawGross - sss - philHealth - pagIbig, false, "2026-09-15"), 11.83);
 });
+
+test("payroll gross cannot overflow Number's exactly representable centavos", () => {
+  assert.throws(
+    () => roundedGrossFromBuckets([1e20]),
+    /safe centavo range/,
+  );
+  assert.throws(
+    () => roundedGrossFromBuckets([Number.MAX_SAFE_INTEGER / 200, Number.MAX_SAFE_INTEGER / 200, Number.MAX_SAFE_INTEGER / 200]),
+    /safe centavo range/,
+  );
+  assert.equal(roundedGrossFromBuckets([2500.05, -0.01]), 2500.04);
+});
