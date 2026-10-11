@@ -57,6 +57,10 @@ test("server flag and organization allowlist authorize before any read", () => {
   }
   assert.ok(page.includes("hcmOrgExplorerEnabledForEmployer(organizationId)"));
   assert.ok(people.includes("NEXT_PUBLIC_HCM_ORG_EXPLORER_ORG_IDS"));
+  assert.ok(page.includes("HcmContextNavigation"));
+  assert.ok(page.includes('current="orgExplorer"'));
+  assert.ok(client.includes("/app?organizationId=${organizationId}&workspacePage=People"));
+
 });
 test("access gate enforces membership, role, custom deny overlay and company-wide scope", () => {
   assert.match(access, /assertOrganizationRole/);
