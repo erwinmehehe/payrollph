@@ -113,6 +113,17 @@ const peso = (value: string | number | null) =>
         maximumFractionDigits: 0,
       }).format(Number(value));
 
+// Preserve centavo precision in budget review amounts. This is display-only.
+const budgetPeso = (value: string | number | null) =>
+  value == null
+    ? "—"
+    : new Intl.NumberFormat("en-PH", {
+        style: "currency",
+        currency: "PHP",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(Number(value));
+
 function pct(value: number | null) {
   return value == null || !Number.isFinite(value) ? "—" : `${value.toFixed(1)}%`;
 }
@@ -297,15 +308,15 @@ export function CompensationPanel({
         </article>
         <article className="stat-card">
           <span>{access?.companyWide ? "Committed budget" : "Visible committed increases"}</span>
-          <strong>{peso(committedSpend)}</strong>
+          <strong>{budgetPeso(committedSpend)}</strong>
           <small>{!activeCycle
             ? "no active cycle"
             : budgetPreview?.state !== "available"
               ? "Budget preview unavailable. Refresh the authoritative source."
               : access?.companyWide
                 ? budgetPreview.overCommittedAnnual > 0
-                  ? `${peso(budgetPreview.overCommittedAnnual)} over the recorded budget; review source controls`
-                  : `${peso(budgetPreview.remainingAnnual)} remaining of ${peso(activeCycle.budgetPool)} pool`
+                  ? `${budgetPeso(budgetPreview.overCommittedAnnual)} over the recorded budget; review source controls`
+                  : `${budgetPeso(budgetPreview.remainingAnnual)} remaining of ${budgetPeso(activeCycle.budgetPool)} pool`
                 : "Only proposals in your assigned scope are shown"}
           </small>
         </article>
@@ -321,10 +332,10 @@ export function CompensationPanel({
           <span>
             <strong>Budget review preview:</strong>{" "}
             {budgetPreview.pendingCount} proposal{budgetPreview.pendingCount === 1 ? "" : "s"} awaiting independent review, not committed.
-            {" "}Positive annual increase exposure: {peso(budgetPreview.pendingAnnual)}.
+            {" "}Positive annual increase exposure: {budgetPeso(budgetPreview.pendingAnnual)}.
             {budgetPreview.potentialOverBudgetAnnual > 0 && (
               <> If all proposed increases proceeded, the combined amount would exceed
-                the recorded pool by {peso(budgetPreview.potentialOverBudgetAnnual)}.</>
+                the recorded pool by {budgetPeso(budgetPreview.potentialOverBudgetAnnual)}.</>
             )}
             {" "}Values reflect only this source snapshot. The server rechecks budget before any governed pay change.
           </span>
