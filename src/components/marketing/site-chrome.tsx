@@ -245,6 +245,7 @@ export function SiteFooter() {
         <span>&copy; {new Date().getFullYear()} Linaw. People, time, and pay.</span>
         <div>
           <Link href="/security">Security</Link>
+          <Link href="/privacy">Privacy</Link>
           <Link href="/status">System status</Link>
           <Link href="/methodology">Our methodology</Link>
         </div>

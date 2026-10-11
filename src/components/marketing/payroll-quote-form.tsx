@@ -2,6 +2,7 @@
 
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import Link from "next/link";
+import { PrivacyConsentFields } from "@/components/marketing/privacy-consent-fields";
 import { AlertTriangle, ArrowRight, Check, LoaderCircle, Send } from "lucide-react";
 
 type Result = { leadId: number; recorded: boolean };
@@ -22,6 +23,8 @@ export function PayrollQuoteForm() {
   const [problems, setProblems] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [privacyConsent, setPrivacyConsent] = useState(false);
+  const [website, setWebsite] = useState("");
   const [result, setResult] = useState<Result | null>(null);
 
   const set =
@@ -39,7 +42,7 @@ export function PayrollQuoteForm() {
       const response = await fetch("/api/payroll-outsourcing/quote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, privacyConsent, website }),
       });
       const payload = await response.json().catch(() => ({}));
 
@@ -179,6 +182,7 @@ export function PayrollQuoteForm() {
         </label>
       </div>
 
+      <PrivacyConsentFields accepted={privacyConsent} onAcceptedChange={setPrivacyConsent} website={website} onWebsiteChange={setWebsite} />
       <button
         type="submit"
         disabled={saving}

@@ -128,6 +128,10 @@ async function waitForSurface(path: string, expectedText?: RegExp) {
 }
 
 async function waitForExpectedDeployment() {
+  // Deployment provenance is private, even for code-only releases.
+  // The operator must supply the matching live readiness secret.
+  assert.ok(token.length >= 24,
+    "PRODUCTION_READINESS_TOKEN is required to verify a private production deployment.");
   if (!expectedCommitSha) {
     report.deployment = {
       verified: false,
@@ -141,7 +145,9 @@ async function waitForExpectedDeployment() {
 
   for (let attempt = 1; attempt <= 24; attempt++) {
     try {
-      const response = await fetchWithTimeout(`${baseUrl}/api/readiness/deployment`);
+      const response = await fetchWithTimeout(`${baseUrl}/api/readiness/deployment`, {
+        headers: { "x-readiness-token": token },
+      });
       lastStatus = response.status;
       const payload = await response.json().catch(() => ({}));
       lastDeploymentSha = typeof payload.deploymentSha === "string" ? payload.deploymentSha : null;
@@ -263,7 +269,10 @@ async function verifyDetailedReadiness() {
 }
 
 async function verifySanitizedReadiness() {
-  const response = await fetchWithTimeout(`${baseUrl}/api/readiness/pilot-status`);
+  assert.ok(token.length >= 24, "PRODUCTION_READINESS_TOKEN is required for the private pilot-readiness probe.");
+  const response = await fetchWithTimeout(`${baseUrl}/api/readiness/pilot-status`, {
+    headers: { "x-readiness-token": token },
+  });
   const payload = await response.json().catch(() => ({}));
   assert.ok(
     response.ok,
@@ -335,9 +344,9 @@ async function main() {
     `Unauthenticated detailed readiness must be protected or fail-closed in production, got ${unauthenticated.status}.`,
   );
 
-  const result = token.length >= 24
-    ? await verifyDetailedReadiness()
-    : await verifySanitizedReadiness();
+  // A private deployment verification token is required in every rollout mode.
+  // Source-branch CI remains separate from authenticated production acceptance.
+  const result = await verifyDetailedReadiness();
 
   writeReport();
   console.log(JSON.stringify({ ok: true, rolloutMode, gaApproved: false, externalCertification: "not-assessed-by-live-readiness-probe", ...result }, null, 2));

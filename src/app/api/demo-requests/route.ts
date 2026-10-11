@@ -7,6 +7,8 @@ import {
 } from "@/lib/marketing-leads";
 import { sanitizeMarketingAttribution } from "@/lib/marketing-attribution";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
+import { sha256 } from "@/lib/crypto";
+import { hasMarketingEnquiryConsent, marketingConsentEvidence, marketingHoneypotTripped } from "@/lib/marketing-consent";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { normalizeEmail, validEmail } from "@/lib/validation";
 
@@ -22,7 +24,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "Too many demo requests from this address. Try again later." }, { status: 429 });
   }
 
-  const body = await request.json().catch(() => ({}));
+  const body = (await request.json().catch(() => ({}))) || {};
+  if (marketingHoneypotTripped(body)) {
+    // A bot filled an invisible field: do not persist a lead or queue an email.
+    return Response.json({ ok: true, recorded: false, notified: false }, { headers: { "Cache-Control": "no-store" } });
+  }
   const requestType: MarketingLeadKind =
     body.requestType === "trial-access" || body.requestType === "trial"
       ? "trial-access"
@@ -32,13 +38,24 @@ export async function POST(request: Request) {
   const company = String(body.company ?? "").trim().slice(0, 160);
   const headcount = String(body.headcount ?? "").trim().slice(0, 40);
   const notes = String(body.notes ?? "").trim().slice(0, 1000);
-  const attribution = sanitizeMarketingAttribution(body.attribution);
+  const attribution = { ...sanitizeMarketingAttribution(body.attribution), ...marketingConsentEvidence() };
 
   const problems: string[] = [];
+  if (!hasMarketingEnquiryConsent(body)) problems.push("Please agree to the privacy notice before submitting.");
   if (name.length < 2) problems.push("Your name is required.");
   if (!validEmail(email)) problems.push("A valid work email is required.");
   if (company.length < 2) problems.push("Company or practice name is required.");
   if (problems.length) return Response.json({ error: "Validation failed.", problems }, { status: 422 });
+  // These limits survive attacker-controlled/rotating proxy headers.
+  const emailDomain = email.split("@")[1] ?? "";
+  const [perEmail, perDomain] = await Promise.all([
+    rateLimitDistributed(`public-enquiry-email:${sha256(email)}`, { limit: 5, windowMs: 60 * 60 * 1000 }),
+    rateLimitDistributed(`public-enquiry-domain:${sha256(emailDomain)}`, { limit: 50, windowMs: 60 * 60 * 1000 }),
+  ]);
+  if (!perEmail.allowed || !perDomain.allowed) {
+    return Response.json({ error: "Too many requests. Try again later." }, { status: 429 });
+  }
+
 
   let lead: Awaited<ReturnType<typeof recordMarketingLead>>;
   try {

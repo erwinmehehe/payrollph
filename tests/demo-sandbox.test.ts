@@ -308,8 +308,8 @@ test("canonical APP_BASE_URL can authorize a custom production demo host", () =>
     publicDemoRequestAllowed(request, {
       appBaseUrl: "https://payroll.example.com",
     }),
-    true,
-    "the canonical production app host must not need a second PUBLIC_DEMO_HOSTS entry",
+    false,
+    "a forwarded host alone must never authorize public demo account creation",
   );
 });
 
@@ -395,8 +395,8 @@ test("production Vercel aliases are accepted from forwarded host plus deployment
       vercelUrl: "new-payrollph-production.vercel.app",
       vercelProductionUrl: "canonical-payrollph.vercel.app",
     }),
-    true,
-    "production Vercel aliases must not depend on request.url exposing the public hostname",
+    false,
+    "forged forwarded host cannot authorize a mismatched request URL",
   );
 });
 
@@ -430,7 +430,7 @@ test("Vercel forwarded host can authorize the canonical public sandbox", () => {
     },
   });
 
-  assert.equal(publicDemoRequestAllowed(request), true);
+  assert.equal(publicDemoRequestAllowed(request), false);
 });
 
 test("forwarded host fallback does not allow arbitrary preview or customer domains", () => {
@@ -592,4 +592,22 @@ test("employee self-service keeps the payslip summary without mascot dependencie
 test("PayrollPH no longer ships the owl mascot component or asset", () => {
   assert.equal(existsSync("src/components/payroll-owl.tsx"), false, "owl component should be removed");
   assert.equal(existsSync("public/mascots/payroll-owl.webp"), false, "owl raster asset should be removed");
+});
+
+test("verified request URL permits only a configured public demo host", () => {
+  const allowed = new Request("https://erwinmehehe-payrollph.vercel.app/api/auth/demo-switch", { method: "POST" });
+  const denied = new Request("https://customer.example.com/api/auth/demo-switch", {
+    method: "POST",
+    headers: { host: "erwinmehehe-payrollph.vercel.app", "x-forwarded-host": "erwinmehehe-payrollph.vercel.app" },
+  });
+  assert.equal(publicDemoRequestAllowed(allowed), true);
+  assert.equal(publicDemoRequestAllowed(denied), false);
+});
+
+test("demo-switch refuses provisioning when a production database has real employer organizations", () => {
+  const route = read("src/app/api/auth/demo-switch/route.ts");
+  const start = route.indexOf('if (process.env.NODE_ENV === "production")');
+  const provision = route.indexOf("await preparePublicDemoTenant()");
+  assert.ok(start >= 0 && start < provision);
+  assert.ok(route.includes('ne(organizations.name, "Loom & Local")'));
 });

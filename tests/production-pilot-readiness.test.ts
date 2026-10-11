@@ -167,7 +167,7 @@ test("first payroll readiness only turns green when all operational prerequisite
 });
 
 
-test("sanitized pilot readiness can prove production without duplicating the readiness secret into CI", () => {
+test("private pilot readiness requires authenticated operator token and never exposes fingerprints anonymously", () => {
   const route = read("src/app/api/readiness/pilot-status/route.ts");
   const script = read("scripts/live-production-readiness.ts");
 
@@ -181,7 +181,14 @@ test("sanitized pilot readiness can prove production without duplicating the rea
   assert.ok(route.includes("not-evaluated-by-live-probe"));
   assert.ok(script.includes("/api/readiness/pilot-status"));
   assert.ok(script.includes('source: "server-internal-sanitized"'));
+  assert.ok(route.includes("constantTimeSecretEqual"));
+  assert.ok(route.includes("x-readiness-token"));
   assert.ok(script.includes("token.length >= 24"));
+  assert.ok(script.includes("x-readiness-token"));
+  assert.ok(script.includes("PRODUCTION_READINESS_TOKEN is required"));
+  const workflow = read(".github/workflows/production-bank-encryption.yml");
+  assert.ok(workflow.includes("secrets.PRODUCTION_READINESS_TOKEN"));
+  assert.equal((workflow.match(/-H "x-readiness-token:/g) ?? []).length, 2);
   assert.ok(script.includes("unauthenticated.status"));
 });
 
