@@ -15,7 +15,7 @@ import { roleHasPeopleWorkspace } from "@/lib/workspace-role-ui";
  * read. Never infer an employee from an HR user's first membership.
  */
 export type HcmNavigationLocation =
-  | "peopleHome" | "processMonitor" | "worker360" | "inbox" | "directory";
+  | "peopleHome" | "processMonitor" | "worker360" | "actionCenter" | "inbox" | "directory";
 
 export type HcmNavigationLink = {
   id: HcmNavigationLocation;
@@ -85,6 +85,13 @@ export function buildHcmNavigation(
       id: "worker360", label: "Worker 360",
       href: "/hcm/worker-360?organizationId=" + organizationId +
         "&employeeId=" + safeWorkerId,
+    });
+  }
+
+  if (canPeopleWorkspace && peopleHomeEnabledForOrganization(organizationId, env)) {
+    links.push({
+      id: "actionCenter", label: "Action Center",
+      href: "/hcm/action-center?organizationId=" + organizationId,
     });
   }
 
