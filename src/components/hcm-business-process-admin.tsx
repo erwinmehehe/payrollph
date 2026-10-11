@@ -147,6 +147,12 @@ export function HcmBusinessProcessAdmin({ organizationId }: { organizationId: nu
         }),
       });
       const data = await response.json().catch(() => ({}));
+      if (!response.ok && ((response.status === 402 && data.code === "HCM_ENTERPRISE_PLAN_REQUIRED") ||
+          (response.status === 503 && data.code === "HCM_ENTITLEMENTS_UNAVAILABLE"))) {
+        setPayload(null);
+        setView("restricted");
+        return;
+      }
       if (!response.ok) throw new Error(data.error ?? "Could not save the HCM business process.");
       await load();
       resetForm();
@@ -172,6 +178,12 @@ export function HcmBusinessProcessAdmin({ organizationId }: { organizationId: nu
         }),
       });
       const data = await response.json().catch(() => ({}));
+      if (!response.ok && ((response.status === 402 && data.code === "HCM_ENTERPRISE_PLAN_REQUIRED") ||
+          (response.status === 503 && data.code === "HCM_ENTITLEMENTS_UNAVAILABLE"))) {
+        setPayload(null);
+        setView("restricted");
+        return;
+      }
       if (!response.ok) throw new Error(data.error ?? "Could not update the HCM business process.");
       await load();
     } catch (caught) {
