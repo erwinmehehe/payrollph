@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { finalPayLoanReviewSummary, finalPayReviewCsv } from "../src/lib/final-pay-review-evidence";
 import {
   matchesRecordedFinalPayLoanReview,
   reviewFinalPayLoans,
@@ -82,4 +83,33 @@ test("separation creation and locked release use the same signed-authority eligi
   assert.match(route, /\.filter\(\(loan\) => eligibleLoanIds\.has\(loan\.id\)\)/);
   assert.match(route, /eq\(employeeLoans\.deductionAuthorizationReference, loan\.deductionAuthorizationReference!\)/);
   assert.match(fingerprint, /loanAuthorityEvidenceDigest: reviewFinalPayLoans\(sources\.loans\)\.evidenceDigest/);
+});
+
+test("finance preview and CSV list unrecovered loans without raw signed evidence references", () => {
+  const loanReview = reviewFinalPayLoans([
+    valid(1, "800.00"),
+    { ...valid(2, "350.75"), deductionAuthorizationReference: null },
+  ]);
+  const record = {
+    id: 10,
+    employeeNo: "EMP-10",
+    employeeName: "Employee Example",
+    grossFinalPay: "5000.00",
+    netFinalPay: "4200.00",
+    taxAdjustment: "0.00",
+    finalStatutoryDeductions: "0.00",
+    loanDeductions: "800.00",
+    computationSnapshot: { loanAuthority: loanReview, deductOutstandingLoans: true },
+  };
+  const display = finalPayLoanReviewSummary(record);
+  assert.equal(display.recorded, true);
+  assert.equal(display.unrecoveredBalance, 350.75);
+  assert.deepEqual(display.unrecovered.map(x => x.id), [2]);
+  const csv = finalPayReviewCsv(record);
+  assert.match(csv, /Outstanding loans excluded pending authority review/);
+  assert.match(csv, /Unrecovered loan #2/);
+  assert.match(csv, /350\.75/);
+  assert.match(csv, /not independent proof of employee signature/i);
+  assert.doesNotMatch(csv, /SIGNED-DOCUMENT-EMPLOYEE-7|HR-CHECKER-APPROVAL-1729/);
+  assert.equal(finalPayLoanReviewSummary({ ...record, computationSnapshot: {} }).recorded, false);
 });
