@@ -10,7 +10,7 @@ import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
 
 export const dynamic = "force-dynamic";
 const validId = (v: unknown) => Number.isSafeInteger(Number(v)) && Number(v) > 0;
-const validDate = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v + "T00:00:00Z"));
+const validDate = (v: unknown) => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v + "T00:00:00Z")) && new Date(v + "T00:00:00Z").toISOString().slice(0, 10) === v;
 function amount(v: unknown): string | null {
   const cents = storedMoneyCentavos(v);
   return cents != null && cents > 0 && cents <= 999999999999 ? (cents / 100).toFixed(2) : null;
