@@ -36,17 +36,23 @@ test("employer-paid charges reject duplicate reference, invalid card digits and 
       organizationId: org.id, cardId: card.id, externalReference: "row-001",
       merchant: "Test Merchant", spentOn: "2026-10-01", amount: "150.25",
     });
-    await assert.rejects(db.insert(spendCardTransactions).values({
-      organizationId: org.id, cardId: card.id, externalReference: "row-001",
-      merchant: "Duplicated", spentOn: "2026-10-01", amount: "150.25",
-    }));
-    await assert.rejects(db.insert(spendCardTransactions).values({
-      organizationId: org.id, cardId: card.id, externalReference: "invalid-0",
-      merchant: "Zero Charge", spentOn: "2026-10-01", amount: "0.00",
-    }));
-    await assert.rejects(db.insert(spendCards).values({
-      organizationId: org.id, issuer: "Synthetic Bank", lastFour: "12XX",
-    }));
+    await assert.rejects(async () => {
+      await db.insert(spendCardTransactions).values({
+        organizationId: org.id, cardId: card.id, externalReference: "row-001",
+        merchant: "Duplicated", spentOn: "2026-10-01", amount: "150.25",
+      });
+    });
+    await assert.rejects(async () => {
+      await db.insert(spendCardTransactions).values({
+        organizationId: org.id, cardId: card.id, externalReference: "invalid-0",
+        merchant: "Zero Charge", spentOn: "2026-10-01", amount: "0.00",
+      });
+    });
+    await assert.rejects(async () => {
+      await db.insert(spendCards).values({
+        organizationId: org.id, issuer: "Synthetic Bank", lastFour: "12XX",
+      });
+    });
     const stored = await db.select().from(spendCardTransactions).where(eq(spendCardTransactions.organizationId, org.id));
     assert.equal(stored.length, 1);
     assert.equal(stored[0].amount, "150.25");
@@ -75,10 +81,14 @@ test("expense report member claim may belong to only one report and reviewer can
       { organizationId: org.id, employeeId: staff.id, title: "Second Report", totalAmount: "300.50", submittedByUserId: actor.id },
     ]).returning();
     await db.insert(expenseReportItems).values({ organizationId: org.id, reportId: reportA.id, claimId: claim.id });
-    await assert.rejects(db.insert(expenseReportItems).values({ organizationId: org.id, reportId: reportB.id, claimId: claim.id }));
-    await assert.rejects(db.update(expenseReports).set({
-      decidedByUserId: actor.id, decidedAt: new Date(), status: "approved",
-    }).where(eq(expenseReports.id, reportA.id)));
+    await assert.rejects(async () => {
+      await db.insert(expenseReportItems).values({ organizationId: org.id, reportId: reportB.id, claimId: claim.id });
+    });
+    await assert.rejects(async () => {
+      await db.update(expenseReports).set({
+        decidedByUserId: actor.id, decidedAt: new Date(), status: "approved",
+      }).where(eq(expenseReports.id, reportA.id));
+    });
     const unchanged = await db.select().from(expenseReports).where(eq(expenseReports.id, reportA.id));
     assert.equal(unchanged[0].status, "submitted");
   } finally {
