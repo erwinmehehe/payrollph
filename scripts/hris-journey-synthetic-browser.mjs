@@ -113,7 +113,7 @@ try {
     page.once("dialog", async dialog => { await dialog.accept(); });
     await page.getByRole("checkbox", {
       name: "Mark complete: AlphaPrivate note for AlphaPrivate Worker",
-    }).check();
+    }).click();
     await page.getByText("Checklist item marked complete in the source workflow.").waitFor({ timeout: 60000 });
     const after = await hr.request.get(base + "/api/provisioning?organizationId=1");
     const latest = await after.json();
