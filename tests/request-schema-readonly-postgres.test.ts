@@ -4,6 +4,7 @@ import { Client } from "pg";
 import {
   payrollMonthCloseSchemaSpec,
   doleReportingSchemaSpec,
+  separationSchemaSpec,
   verifyRequestSchemaReadOnly,
 } from "../src/lib/request-schema-readonly";
 
@@ -26,13 +27,13 @@ try {
   isolated = false;
 }
 
-test("PostgreSQL 16 catalog accepts money-close and DOLE schema after isolated Drizzle push", {
+test("PostgreSQL 16 catalog accepts money-close, DOLE and separation schema after isolated Drizzle push", {
   skip: !isolated,
 }, async () => {
   const client = new Client({ connectionString: url, connectionTimeoutMillis: 4000, query_timeout: 8000 });
   await client.connect();
   try {
-    for (const spec of [payrollMonthCloseSchemaSpec, doleReportingSchemaSpec]) {
+    for (const spec of [payrollMonthCloseSchemaSpec, doleReportingSchemaSpec, separationSchemaSpec]) {
       await verifyRequestSchemaReadOnly(
         (sql, parameters) => client.query(sql, parameters),
         spec,

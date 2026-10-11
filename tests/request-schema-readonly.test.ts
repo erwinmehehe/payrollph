@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   leaveSchemaSpec, payBasisSchemaSpec,
-  payrollMonthCloseSchemaSpec, doleReportingSchemaSpec,
+  payrollMonthCloseSchemaSpec, doleReportingSchemaSpec, separationSchemaSpec,
   verifyRequestSchemaReadOnly,
   type RequestSchemaSpec,
   type RequestCatalogQuery,
@@ -13,6 +13,7 @@ type Variant = {
   missingTable?: string; missingColumn?: string; columnType?: string;
   missingDefault?: string; wrongDefault?: string; wrongIndexKeys?: string;
   weakIndex?: string; wrongIndexTable?: string; missingConstraint?: boolean;
+  missingConstraintToken?: string; nullableColumn?: string;
   transactionReadOnly?: boolean; failAt?: string; rollbackFails?: boolean;
 };
 
@@ -29,7 +30,7 @@ function simulate(spec: RequestSchemaSpec, variant: Variant = {}) {
       rows: spec.columns.filter(c => c.name !== variant.missingColumn).map(c => ({
         name: c.name,
         type: c.name === variant.columnType ? "text" : c.type,
-        notNull: c.notNull,
+        notNull: c.name === variant.nullableColumn ? !c.notNull : c.notNull,
         columnDefault: c.name === variant.missingDefault ? null
           : c.name === variant.wrongDefault ? "'not_" + c.defaultTextLiteral + "'::character varying"
           : c.defaultTextLiteral !== undefined ? "'" + c.defaultTextLiteral + "'::character varying"
@@ -46,7 +47,9 @@ function simulate(spec: RequestSchemaSpec, variant: Variant = {}) {
       })),
     };
     if (sql.includes("pg_catalog.pg_constraint")) return {
-      rows: spec.constraints.slice(variant.missingConstraint ? 1 : 0).map(c => ({
+      rows: spec.constraints.slice(variant.missingConstraint ? 1 : 0)
+        .filter(c => !variant.missingConstraintToken || !c.tokens.some(t => t.includes(variant.missingConstraintToken!)))
+        .map(c => ({
         tableName: c.tableName, kind: c.kind, definition: c.tokens.join(" "),
       })),
     };
@@ -205,4 +208,66 @@ test("payroll month-close and DOLE legacy writers honor read-only mode before DD
   assert.ok(close.includes("ALTER COLUMN legal_entity_id SET NOT NULL"));
   const dole = readFileSync("src/lib/dole-reporting-schema.ts", "utf8");
   assert.ok(dole.includes("CREATE TABLE IF NOT EXISTS dole_compliance_submissions"));
+});
+
+
+test("separation final-pay schema is catalog-complete without DDL or employee row access", async () => {
+  const { query, calls } = simulate(separationSchemaSpec);
+  await verifyRequestSchemaReadOnly(query, separationSchemaSpec);
+  assert.equal(calls[0], "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY");
+  assert.equal(calls.at(-1), "ROLLBACK");
+  assert.ok(calls.some(sql => sql.includes("pg_catalog.pg_constraint")));
+  assert.equal(separationSchemaSpec.columns.filter(c =>
+    c.name.startsWith("separation_records.") && !["organization_id","employee_id"].some(k => c.name.endsWith("." + k))).length, 18);
+  for (const sql of calls) {
+    assert.doesNotMatch(sql, /\b(?:ALTER|CREATE|DROP|INSERT|UPDATE|DELETE|COMMIT)\b/i);
+    assert.doesNotMatch(sql, /FROM\s+separation_records\b/i);
+  }
+});
+
+test("separation final-pay blocks missing/incorrect amounts, JSON snapshots and actor integrity", async () => {
+  const cases: Variant[] = [
+    { missingTable: "separation_records" },
+    { missingColumn: "separation_records.thirteenth_entitlement" },
+    { columnType: "separation_records.thirteenth_paid_ytd" },
+    { columnType: "separation_records.basic_salary_earned_ytd" },
+    { columnType: "separation_records.computation_snapshot" },
+    { columnType: "separation_records.approved_at" },
+    { nullableColumn: "separation_records.gross_final_pay" },
+    { nullableColumn: "separation_records.prepared_by_user_id" },
+    { missingDefault: "separation_records.computation_snapshot" },
+    { weakIndex: "separation_records_org_status_idx" },
+    { wrongIndexKeys: "separation_records_org_status_idx" },
+    { missingConstraintToken: "prepared_by_user_id" },
+    { missingConstraintToken: "approved_by_user_id" },
+    { missingConstraintToken: "released_by_user_id" },
+    { missingConstraintToken: "<>" },
+  ];
+  for (const c of cases) {
+    const { query, calls } = simulate(separationSchemaSpec, c);
+    await assert.rejects(() => verifyRequestSchemaReadOnly(query, separationSchemaSpec),
+      /REQUEST_SCHEMA_READONLY_SEPARATION_INCOMPATIBLE/,
+      "Unexpectedly accepted separation drift: " + JSON.stringify(c));
+    assert.equal(calls.at(-1), "ROLLBACK");
+  }
+});
+
+test("separation read-only failure and ROLLBACK errors propagate, and legacy DDL remains gated", async () => {
+  for (const drift of [
+    { transactionReadOnly: false },
+    { failAt: "pg_catalog.pg_constraint" },
+    { rollbackFails: true },
+  ]) {
+    const { query, calls } = simulate(separationSchemaSpec, drift);
+    await assert.rejects(() => verifyRequestSchemaReadOnly(query, separationSchemaSpec));
+    assert.equal(calls.at(-1), "ROLLBACK");
+  }
+  const source = readFileSync("src/lib/separation-schema.ts", "utf8");
+  assert.ok(source.includes("coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE)"));
+  assert.ok(source.includes('if (mode === "read-only")'));
+  assert.ok(source.includes("verifyRequestSchemaReadOnly("));
+  assert.ok(source.includes("client?.release(!verified)"));
+  assert.ok(source.indexOf('if (mode === "read-only")') < source.indexOf('await client.query("BEGIN")'));
+  assert.ok(source.includes("ALTER TABLE separation_records"),
+    "Legacy mode retains its prior operation until DBA migration cutover");
 });
