@@ -111,6 +111,7 @@ function ScopedPeopleOperationsInbox({ organizationId, onOpenWorker, onPage }: {
         const body = await result.json().catch(() => ({}));
         if (!result.ok) throw new Error(body.error ?? "The People Operations Inbox could not be loaded.");
         if (controller.signal.aborted) return;
+        if (body.organizationId !== organizationId) throw new Error("The People Operations Inbox returned an unexpected employer scope.");
         setResponse({ key: requestKey, data: body as PeopleOpsPayload, error: "" });
       } catch (loadError) {
         if (controller.signal.aborted) return;

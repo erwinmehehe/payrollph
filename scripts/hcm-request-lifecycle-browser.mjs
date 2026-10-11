@@ -123,6 +123,9 @@ try {
   await page.getByRole("button",{name:"Refresh",exact:true}).click();
   await absent("Current inbox unavailable");
   await visible("Loading tenant-scoped HR follow-ups…");
+  await complete(await requestId("people-operations-inbox?organizationId=2"), {organizationId:1,items:[{employeeName:"FOREIGN_INBOX_WORKER"}]});
+  await visible("The People Operations Inbox returned an unexpected employer scope.");
+  await absent("FOREIGN_INBOX_WORKER");
   assert.deepEqual(errors, []);
   console.log("HCM request lifecycle browser QA passed: tenant/filter/editor isolation, late history, stale save, refresh/failure states, My Team, Worker 360 and People Ops (StrictMode; transport ignores abort).");
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
