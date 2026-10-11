@@ -56,6 +56,47 @@ function sqlText(node) {
   return null;
 }
 
+/**
+ * A dynamic SQL argument is safe to delegate only when it is passed directly
+ * as the unmodified callback parameter to an imported, reviewed read-only
+ * catalog verifier. SQL literals inside these callbacks are still classified
+ * by the ordinary DDL/backfill scanner.
+ */
+function isDelegatedReadOnlyCatalogQuery(call, sourceFile) {
+  if (!isQueryCall(call) || !call.arguments.length) return false;
+  const wrapper = call.parent;
+  if (!ts.isArrowFunction(wrapper) || wrapper.body !== call) return false;
+  const verifyCall = wrapper.parent;
+  if (!ts.isCallExpression(verifyCall) || verifyCall.arguments[0] !== wrapper) return false;
+  if (!ts.isIdentifier(verifyCall.expression)) return false;
+  const verifier = verifyCall.expression.text;
+  const reviewedModules = {
+    verifyCoreSchemaReadOnly: '@/lib/core-schema-readonly',
+    verifyRequestSchemaReadOnly: '@/lib/request-schema-readonly',
+  };
+  const target = reviewedModules[verifier];
+  if (!target) return false;
+  const trustedImport = sourceFile.statements.some(stmt =>
+    ts.isImportDeclaration(stmt) && ts.isStringLiteral(stmt.moduleSpecifier)
+    && stmt.moduleSpecifier.text === target
+    && stmt.importClause?.namedBindings
+    && ts.isNamedImports(stmt.importClause.namedBindings)
+    && stmt.importClause.namedBindings.elements.some(entry =>
+      entry.name.text === verifier && (!entry.propertyName || entry.propertyName.text === verifier)
+    )
+  );
+  if (!trustedImport || wrapper.parameters.length < 1 || wrapper.parameters.length > 2) return false;
+  if (!ts.isIdentifier(wrapper.parameters[0].name) ||
+      !ts.isIdentifier(call.arguments[0]) ||
+      wrapper.parameters[0].name.text !== call.arguments[0].text) return false;
+  if (call.arguments.length > 2) return false;
+  if (call.arguments.length === 2 && (!wrapper.parameters[1]
+      || !ts.isIdentifier(wrapper.parameters[1].name)
+      || !ts.isIdentifier(call.arguments[1])
+      || wrapper.parameters[1].name.text !== call.arguments[1].text)) return false;
+  return true;
+}
+
 function isQueryCall(node) {
   if (!ts.isCallExpression(node) || !node.arguments.length) return false;
   if (ts.isPropertyAccessExpression(node.expression)) {
@@ -88,6 +129,13 @@ function alwaysExits(node) {
     return Boolean(node.elseStatement)
       && alwaysExits(node.thenStatement)
       && alwaysExits(node.elseStatement);
+  }
+  if (ts.isTryStatement(node)) {
+    // Return/throw in a try executes finally, but cannot fall through unless
+    // a catch clause catches it and completes normally.
+    const tryAndCatchExit = alwaysExits(node.tryBlock)
+      && (!node.catchClause || alwaysExits(node.catchClause.block));
+    return tryAndCatchExit || Boolean(node.finallyBlock && alwaysExits(node.finallyBlock));
   }
   // A nested callback, loop or conditional-only return is not proof
   // that this read-only branch cannot fall through into DDL.
@@ -198,7 +246,8 @@ export function auditSource(source, file = 'src/unknown.ts') {
       if (literal !== null && DDL.test(literal)) record(owner, arg, literal, 'DDL');
       else if (literal !== null && lifecycle && BACKFILL.test(literal)) {
         record(owner, arg, literal, 'IMPLICIT_BACKFILL');
-      } else if (literal === null && lifecycle) {
+      } else if (literal === null && lifecycle &&
+        !isDelegatedReadOnlyCatalogQuery(node, sf)) {
         record(owner, arg, null, 'DYNAMIC_QUERY_REVIEW');
       }
     }
