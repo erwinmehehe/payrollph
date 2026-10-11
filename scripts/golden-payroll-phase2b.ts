@@ -54,6 +54,27 @@ function entryLines(entry: typeof payrollEntries.$inferSelect) {
   return Array.isArray(entry.lineItems) ? entry.lineItems as PayrollLine[] : [];
 }
 
+/** Prove what an employee sees adds up to stored centavos, not just a fixture. */
+function assertDisplayedPayslipReconciles(entry: typeof payrollEntries.$inferSelect, label: string) {
+  const cents = (value: number) => {
+    assert.ok(Number.isFinite(value), `${label}: non-finite line amount`);
+    const result = Math.round((value + Number.EPSILON) * 100);
+    assert.ok(Number.isSafeInteger(result), `${label}: unsafe centavo amount`);
+    return result;
+  };
+  const lines = entryLines(entry);
+  assert.ok(lines.length > 0, `${label}: a calculated payslip must contain line items`);
+  const printed = lines.map((line) => cents(Number(line.amount)));
+  const printedGross = printed.filter((amount) => amount > 0).reduce((a, b) => a + b, 0);
+  const printedDeductions = printed.filter((amount) => amount < 0).reduce((a, b) => a - b, 0);
+  const gross = cents(Number(entry.grossPay));
+  const deductions = cents(Number(entry.deductions));
+  const net = cents(Number(entry.netPay));
+  assert.equal(printedGross, gross, `${label}: printed earning buckets differ from stored gross`);
+  assert.equal(printedDeductions, deductions, `${label}: printed deduction buckets differ from stored deductions`);
+  assert.equal(gross - deductions, net, `${label}: gross - deductions differs from stored net`);
+}
+
 function lineAmount(entry: typeof payrollEntries.$inferSelect, code: string) {
   return Number(entryLines(entry).find((item) => String(item.code ?? "") === code)?.amount ?? 0);
 }
@@ -252,6 +273,7 @@ async function caseMidCutoffHire(expected: Record<string, number>, tolerance: nu
       payDate: "2026-09-15",
     });
     const entry = await onlyEntry(run.id);
+    assertDisplayedPayslipReconciles(entry, "mid-cutoff hire");
     const actual = {
       grossPay: Number(entry.grossPay),
       sss: Math.abs(lineAmount(entry, "SSS")),
@@ -513,6 +535,7 @@ async function caseMonthFinalTrueUp(expected: Record<string, any>, tolerance: nu
       payDate: "2026-09-30",
     });
     const entry = await onlyEntry(secondRun.id);
+    assertDisplayedPayslipReconciles(entry, "month-final statutory true-up");
     const actual = {
       priorGross: Number(firstEntry.grossPay),
       currentGross: Number(entry.grossPay),
