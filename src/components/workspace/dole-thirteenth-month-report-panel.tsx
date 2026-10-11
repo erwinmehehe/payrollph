@@ -242,7 +242,7 @@ export function DoleThirteenthMonthReportPanel({
             <div className="notice notice-amber" style={{ margin: 0 }}>
               <ShieldAlert size={15} />
               <span>
-                <strong>{state.reviewRows.length} employee(s) need 13th-month coverage/payment review.</strong> PayrollPH's 1/12 screening shows a recorded amount below the basic-salary formula. Confirm rank-and-file coverage and any missing payment evidence before treating this as a final legal shortfall.
+                <strong>{state.reviewRows.length} employee(s) need 13th-month coverage/payment review.</strong> PayrollPH&#39;s 1/12 screening shows a recorded amount below the basic-salary formula. Confirm rank-and-file coverage and any missing payment evidence before treating this as a final legal shortfall.
               </span>
             </div>
           )}

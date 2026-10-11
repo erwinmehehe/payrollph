@@ -68,7 +68,8 @@ test("Web Bundy remains English by default, keeps clock API actions and Philippi
     assert.ok(source.includes(action));
   }
   assert.match(source, /location: "Web Bundy \(Workstation \/ Mobile Browser\)"/);
-  assert.match(source, /toLocaleTimeString\("en-PH"/);
+  assert.match(source, /philippineClockTime\(new Date\(todayPunch\.timeIn\)\)/);
+  assert.match(readFileSync("src/lib/philippine-clock-display.ts", "utf8"), /timeZone: "Asia\/Manila"/);
 });
 
 test("every expanded ESS screen receives the chosen language through props without API changes", () => {
@@ -78,7 +79,7 @@ test("every expanded ESS screen receives the chosen language through props witho
   assert.match(source, /<option value="fil">Taglish<\/option>/);
   assert.match(source, /<EmployeeTakeHomeEstimator language=\{language\} \/>/);
   assert.match(source, /<EmployeeContributionIssueModal\s+language=\{language\}/);
-  assert.match(source, /<WebBundyModal\s+language=\{language\}/);
+  assert.match(source, /<WebBundyModal\s+employeeId=\{data\.employee\.id\}\s+language=\{language\}/);
   assert.match(source, /<SectionHeading kicker=\{t\("MY TIME"\)\}/);
   assert.match(source, /<SectionHeading kicker=\{t\("MY LEAVE"\)\}/);
   assert.match(source, /<SectionHeading kicker=\{t\("MY PROFILE"\)\}/);

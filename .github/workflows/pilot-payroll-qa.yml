@@ -61,6 +61,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
+      TZ: Asia/Manila
+      # Fictional leave type for the fresh, single-tenant local CI database.
+      # This is not an employer policy or a production conversion authorization.
+      LEAVE_CONVERSION_MAX_DAYS_JSON: '{"1":{"synthetic exit leave":5}}'
+      SYNTHETIC_SEPARATION_QA: "true"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
       APP_BASE_URL: http://127.0.0.1:3000
       TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
@@ -116,6 +121,9 @@ jobs:
 
       - name: Run fresh tenant payroll pilot
         run: npx tsx scripts/pilot-payroll-qa.ts
+
+      - name: Authenticate synthetic bank envelopes across all four stores
+        run: npx tsx scripts/verify-bank-account-envelopes.ts
 
       - name: Show server log on failure
         if: failure()

@@ -29,6 +29,7 @@ const taglishCopy: Readonly<Record<string, string>> = {
   "Open profile": "Buksan ang profile",
   "Open time clock": "Buksan ang time clock",
   "Close more pages": "Isara ang iba pang pahina",
+  "Close time clock": "Isara ang time clock",
   "EMPLOYEE SELF-SERVICE": "EMPLOYEE SELF-SERVICE",
   "Link your employee record": "I-link ang employee record mo",
   "This one-time step connects your login to exactly one employee record. After that, you can see only your own pay, time and leave.": "Isang beses lang ito para i-link ang account mo sa isang employee record. Pagkatapos, sariling sahod, attendance, at leave mo lang ang makikita mo.",

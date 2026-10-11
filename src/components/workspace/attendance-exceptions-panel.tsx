@@ -108,7 +108,7 @@ export function AttendanceExceptionsPanel({
   organizationId: number;
   notify: Notify;
 }) {
-  const today = useMemo(localToday, []);
+  const today = useMemo(() => localToday(), []);
   const [startDate, setStartDate] = useState(() => addDays(today, -13));
   const [endDate, setEndDate] = useState(today);
   const [filter, setFilter] = useState<"review" | "all">("review");

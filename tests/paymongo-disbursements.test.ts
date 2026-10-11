@@ -389,7 +389,7 @@ test("payout reconciliation route and UI enforce failed-only retry semantics", (
 
 
 test("PayMongo webhook signature verification uses the raw payload and rejects replayed timestamps", () => {
-  const payload = '{"data":{"id":"evt_test","type":"event","attributes":{"type":"transfer.outward.successful"}}}';
+  const payload = '{"data":{"id":"evt_test","type":"event","attributes":{"type":"transfer.outward.successful","livemode":false}}}';
   const secret = "whsec_paymongo_test";
   const nowMs = Date.parse("2026-10-01T00:00:00Z");
   const timestamp = String(Math.floor(nowMs / 1000));

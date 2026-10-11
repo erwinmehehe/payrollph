@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { canOpenPeopleHome } from "@/lib/hcm-people-home-scope";
 import { Clock, ShieldCheck, Sparkles } from "lucide-react";
 import { AssetsPanel } from "@/components/assets-panel";
 import { AutomationStudioPanel } from "@/components/automation-studio-panel";
@@ -70,7 +71,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       ? requestedDemoRole
       : null;
   const demoInfo = demoRoleInfo(demoRole);
-  const initialPage = demoInfo?.landingPage ?? "Overview";
+  const initialPage = demoInfo?.landingPage ??
+    (searchParams.get("workspacePage") === "People" && canOpenPeopleHome(initialData.access)
+      ? "People" : "Overview");
   const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
@@ -142,18 +145,14 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       }
       setData((await response.json()) as DashboardData);
     },
-    [data.selectedOrganization.id],
+    [data.selectedOrganization.id, setData],
   );
 
 
-  async function changeOrganization(id: number) {
-    try {
-      await refresh(id);
-      setPage("Overview");
-      notify("Switched client. Every query is re-scoped server-side to that workspace.");
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not switch client.", "err");
-    }
+  function changeOrganization(id: number) {
+    if (!Number.isSafeInteger(id) || id <= 0 || id === data.selectedOrganization.id) return;
+    // Always re-evaluate server-side access when changing employer.
+    window.location.assign("/app?organizationId=" + id);
   }
 
   async function switchDemoRole(role: DemoRoleId) {
@@ -250,7 +249,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
     } finally {
       setBusy(false);
     }
-  }, [refresh, notify]);
+  }, [refresh, notify, setBusy]);
 
   async function releaseRun(
     runId: number,
@@ -326,7 +325,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       actions.push({ id: "gov", label: "Government validation status", hint: "Which agency outputs are still labelled DRAFT", run: () => setGovModalOpen(true) });
     }
     return actions;
-  }, [availablePages, canManageDeliveryOutbox, canManageTime, canUsePayrollOps, canUsePeopleOps, currentRun, processRun]);
+  }, [availablePages, canManageDeliveryOutbox, canManageTime, canUsePayrollOps, canUsePeopleOps, currentRun, processRun, setNewPayrollOpen, setNewHireOpen, setPage, setWebBundyOpen, setOutboxOpen, setGovModalOpen]);
 
   /* --------------------------------------------------------------- render */
 
@@ -457,6 +456,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
             onAddEmployee={() => setNewHireOpen(true)}
             onPage={setPage}
             canManage={canManagePeople}
+            expandHcmInbox={searchParams.get("hcmPanel") === "bp"}
             focusEmployeeId={focusEmployeeId}
             onClearFocus={() => setFocusEmployeeId(null)}
           />

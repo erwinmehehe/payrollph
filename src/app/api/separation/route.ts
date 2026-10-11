@@ -50,6 +50,7 @@ import {
 import {
   expectedFinalPaySourceAfterInitiation,
   finalPaySourceFingerprint as fingerprint,
+  sameFinalPaySource as sameSnapshot,
 } from "@/lib/final-pay-source-fingerprint";
 
 import { approvedLeaveConversionCap } from "@/lib/leave-conversion-policy";
@@ -236,10 +237,6 @@ async function loadFinalPaySources(input: {
       activeLoanBalance: Number(money(loans.reduce((sum, loan) => sum + Number(loan.remainingBalance), 0))),
     },
   };
-}
-
-function sameSnapshot(left: unknown, right: unknown) {
-  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 export async function GET(request: Request) {

@@ -33,7 +33,7 @@ test("owner shows net funding but waits for server validation before declaring r
       onNewRun: noop,
     }),
   );
-  assert.match(markup, /Net payroll funding/);
+  assert.match(markup, /Net salaries to fund/);
   assert.match(markup, /3,842,180/);
   assert.match(markup, /Continue payroll/);
   assert.doesNotMatch(markup, /All checks completed/);
