@@ -6,6 +6,8 @@ import {
   CalendarDays,
   ClipboardList,
   FileText,
+  BadgeDollarSign,
+  ReceiptText,
   History,
   Target,
   type LucideIcon,
@@ -18,6 +20,8 @@ const ICONS: Record<Employee360CardId, LucideIcon> = {
   documents: FileText,
   leave: CalendarDays,
   performance: Target,
+  compensation: BadgeDollarSign,
+  payroll: ReceiptText,
   history: History,
 };
 
