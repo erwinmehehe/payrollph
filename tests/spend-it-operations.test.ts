@@ -11,6 +11,9 @@ test("spend schema uses a distinct employer-paid card ledger and one report per 
   }
   assert.ok(schema.includes('uniqueIndex("spend_card_transactions_dedupe")'));
   assert.ok(schema.includes('uniqueIndex("expense_report_items_claim_unique")'));
+  for (const model of ["spendCards", "spendCardTransactions", "expenseReports", "expenseReportItems", "itApplications", "itAccessGrants", "itManagedDevices", "itDeviceEvents"]) {
+    assert.equal(schema.split("export const " + model + " =").length - 1, 1, "Each spend/IT table must be declared once: " + model);
+  }
   const spend = read("src/app/api/spend/route.ts");
   assert.ok(spend.includes("storedMoneyCentavos"));
   assert.ok(spend.includes("submittedByUserId === user.id"));
@@ -62,7 +65,7 @@ test("finance release and IT clearance both preserve their independent state-mac
   assert.ok(separation.includes("requestOffboardingIT(organizationId, employeeId)"));
   assert.ok(separation.includes("SEPARATION_IT_RECOVERY_PENDING"));
   assert.ok(separation.includes('g.state !== "revoked"'));
-  assert.ok(separation.includes('a.status === "assigned"'));
+  assert.ok(separation.includes("assignedAssets.length > 0"));
 });
 
 test("legacy mutations cannot silently change a managed device and checklist completion requires recovery", () => {
