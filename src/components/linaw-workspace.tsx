@@ -65,7 +65,7 @@ import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 
-export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean }) {
+export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false, allowHirePayrollReview = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean; allowHirePayrollReview?: boolean }) {
   const searchParams = useSearchParams();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
@@ -573,6 +573,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
                   provisioning={data.provisioning}
                   onRefresh={async () => { await refresh(data.selectedOrganization.id); }}
                   onOpenEmployee={openHrEmployee}
+                  allowHirePayrollReview={allowHirePayrollReview && !demoRole}
                   onOpenDocuments={availablePages.includes("Documents") ? () => setPage("Documents") : undefined}
                 />
               )}
