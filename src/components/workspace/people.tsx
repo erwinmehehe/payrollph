@@ -489,6 +489,7 @@ export function PeopleView({
 
       {canViewLifecycleNotifications && (
         <HcmBusinessProcessInbox
+          key={data.selectedOrganization.id}
           organizationId={data.selectedOrganization.id}
           onChanged={onRefresh}
         />
