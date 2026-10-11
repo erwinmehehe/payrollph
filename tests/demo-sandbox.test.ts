@@ -547,15 +547,17 @@ test("workspace dashboard matches the PayrollPH mockup using modular real-data c
   assert.ok(shell.includes("primaryPages"), "workspace shell must receive a role-specific primary navigation set");
   assert.ok(shell.includes("secondaryItems"), "secondary features must remain reachable outside the primary navigation");
   assert.ok(shell.includes("nav-more-toggle"), "secondary features must be grouped under More instead of deleted");
-  assert.deepEqual(ROLE_PRIMARY_PAGES.owner, ["Overview", "Payroll", "Analytics", "People", "Settings"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.hr, ["Overview", "People"]);
+  assert.ok(shell.includes("<LinawMark />"), "premium shell must preserve the approved Linaw logo");
+  assert.ok(shell.includes("sidebar-settings-link"), "settings must remain available without cluttering primary navigation");
+  assert.deepEqual(ROLE_PRIMARY_PAGES.owner, ["Overview", "Payroll", "People", "Time & attendance", "Leave", "Approvals", "Analytics"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.hr, ["Overview", "People", "Time & attendance", "Leave", "Approvals", "Analytics"]);
   for (const page of ["Planning", "Compensation", "Workforce", "Time & attendance", "Leave", "Recruitment", "Performance"]) {
     assert.ok(REAL_ROLE_PAGE_ACCESS.hr?.includes(page), `HR secondary page ${page} must remain accessible under More`);
   }
-  assert.deepEqual(ROLE_PRIMARY_PAGES.payroll, ["Overview", "Payroll", "Time & attendance", "People"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.checker, ["Overview", "Audit trail"]);
-  assert.deepEqual(ROLE_PRIMARY_PAGES.bookkeeper, ["Overview", "Exports", "Compliance", "Readiness", "Analytics"]);
-  assert.ok(shell.includes("Search employees, payroll, reports"), "top search should use the mockup wording");
+  assert.deepEqual(ROLE_PRIMARY_PAGES.payroll, ["Overview", "Payroll", "People", "Time & attendance", "Approvals", "Analytics"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.checker, ["Overview", "Approvals", "Audit trail"]);
+  assert.deepEqual(ROLE_PRIMARY_PAGES.bookkeeper, ["Overview", "Payroll", "Exports", "Compliance", "Analytics", "Audit trail"]);
+  assert.ok(shell.includes("Search pages, people, and actions"), "top search should accurately describe available search targets");
   assert.ok(dashboard.includes("mockup-owner-release"), "owner dashboard must render the approved release card");
   assert.ok(dashboard.includes("mockup-four-step"), "payroll dashboard must render the approved workflow stepper");
   assert.ok(dashboard.includes("mockup-checker-summary"), "checker dashboard must render the approved comparison summary");

@@ -95,7 +95,7 @@ export function OwnerPayrollRelease({
           <div className="card-kicker">OWNER RELEASE</div>
           <h2>{run.periodLabel}</h2>
           <p>
-            Confirm the independent checker, funding requirement and release controls before money-bearing payroll state is locked.
+            Confirm independent review, payroll costs, and release controls. Release locks payroll and makes payslips available; submitting bank payouts is a separate action.
           </p>
         </div>
         <div className="owner-release-heading-status">
@@ -108,7 +108,7 @@ export function OwnerPayrollRelease({
         <div>
           <span>Net salaries</span>
           <strong className="green-number">{money(summary.netPay)}</strong>
-          <small>cash due to employees</small>
+          <small>employee payouts, separate from employer remittances</small>
         </div>
         <div>
           <span>Employer statutory cost</span>
@@ -120,9 +120,9 @@ export function OwnerPayrollRelease({
           </small>
         </div>
         <div className="owner-release-funding">
-          <span>Total funding requirement</span>
+          <span>Total payroll cost (planning)</span>
           <strong>{summary.totalFundingRequirement == null ? "—" : money(summary.totalFundingRequirement)}</strong>
-          <small>gross payroll + employer statutory cost</small>
+          <small>gross payroll plus employer statutory contributions</small>
         </div>
       </div>
 
@@ -242,7 +242,7 @@ export function OwnerPayrollRelease({
         </span>
         <WalletCards size={13} />
         <span>
-          PayMongo is the primary payout rail. After release, run its no-money preflight before submitting funds. Validated bank files remain an optional fallback.
+          Releasing payroll does not transfer money. After release, validate the payout using the no-money preflight, then submit funds separately. Validated bank files remain an optional fallback.
         </span>
       </div>
     </section>

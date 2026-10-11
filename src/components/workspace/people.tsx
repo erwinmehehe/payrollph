@@ -501,7 +501,7 @@ export function PeopleView({
             const worker = data.employees.find((employee) => employee.id === employeeId);
             if (worker) setPicked(worker);
           }}
-          onOpenSeparation={() => onPage("separation")}
+          onOpenSeparation={() => onPage("Separation")}
         />
       )}
 
@@ -512,7 +512,7 @@ export function PeopleView({
             const worker = data.employees.find((employee) => employee.id === employeeId);
             if (worker) setPicked(worker);
           }}
-          onOpenSeparation={() => onPage("separation")}
+          onOpenSeparation={() => onPage("Separation")}
         />
       )}
       </details>}
@@ -616,7 +616,7 @@ export function PeopleView({
                       {employee.mwe && <small className="mwe-tag">MWE</small>}
                     </td>
                     <td className="right mono" style={{ color: "var(--muted)" }}>
-                      {employee.region ?? "NCR"}
+                      {employee.region?.trim() || "Not set"}
                     </td>
                   </tr>
                 ))}
@@ -1655,7 +1655,7 @@ function PersonDrawer({
             employeeId={employee.id}
             currentEmploymentType={employee.employmentType}
             onChanged={refreshConnectedProfile}
-            onOpenSeparation={() => onPage("separation")}
+            onOpenSeparation={() => onPage("Separation")}
           />
         )}
 
