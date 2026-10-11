@@ -1,0 +1,49 @@
+name: Preview DB Target Isolation Guard (No Deploy)
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/verify-preview-isolation.mjs'
+      - 'tests/verify-preview-isolation.test.mjs'
+      - '.github/workflows/preview-isolation-guard.yml'
+      - 'docs/preview-isolation-guard.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Test read-only Preview isolation logic using synthetic metadata
+        run: node --test tests/verify-preview-isolation.test.mjs
+
+  # Never expose Vercel credentials to a pull_request or automated deploy.
+  # Manual GET-only check on main; not permission to enable a pilot.
+  vercel-metadata-attestation:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: offline-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: preview-isolation
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_METADATA_READ_TOKEN }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PREVIEW_AUDIT_PROJECT_ID }}
+      VERCEL_TEAM_ID: ${{ vars.VERCEL_PREVIEW_AUDIT_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+      - name: Fail closed if Preview still shares Production environment variables
+        run: node scripts/verify-preview-isolation.mjs
