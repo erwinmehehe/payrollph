@@ -29,17 +29,13 @@ function integrityLabel(value: string) {
 export function HcmOrgExplorerClient({ organizationId }: { organizationId: number }) {
   const [revision, setRevision] = useState(0);
   const [graph, setGraph] = useState<Load<HcmOrgExplorerResponse> | null>(null);
-  const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null);
-  const [selectedPositionId, setSelectedPositionId] = useState<number | null>(null);
+  const [selectedUnitChoice, setSelectedUnitChoice] = useState<{ scope: string; id: number | null } | null>(null);
+  const [selectedPositionChoice, setSelectedPositionChoice] = useState<{ scope: string; id: number | null } | null>(null);
   const [history, setHistory] = useState<Load<HcmPositionHistoryResponse> | null>(null);
   const graphScope = organizationId + ":" + revision;
 
   useEffect(() => {
     const controller = new AbortController();
-    setGraph({ scope: graphScope, status: "loading", data: null });
-    setSelectedUnitId(null);
-    setSelectedPositionId(null);
-    setHistory(null);
     void fetch("/api/hcm/org-explorer?organizationId=" + organizationId, {
       cache: "no-store", signal: controller.signal,
     }).then(async (response) => {
@@ -49,7 +45,6 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
       if (data.tenantId !== organizationId || !Array.isArray(data.units) ||
           !Array.isArray(data.positions)) throw new Error("Unexpected employer data");
       setGraph({ scope: graphScope, status: "ready", data });
-      setSelectedUnitId(data.units[0]?.id ?? null);
     }).catch(() => {
       if (!controller.signal.aborted) {
         setGraph({ scope: graphScope, status: "unavailable", data: null });
@@ -60,16 +55,20 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
 
   const current = graph?.scope === graphScope && graph.status === "ready" ? graph.data : null;
   const status = graph?.scope === graphScope ? graph.status : "loading";
+  const selectedUnitId = selectedUnitChoice?.scope === graphScope
+    ? selectedUnitChoice.id : current?.units[0]?.id ?? null;
   const selectedUnit = current?.units.find((unit) => unit.id === selectedUnitId) ?? null;
+  const unitScope = graphScope + ":" + selectedUnitId;
   const visiblePositions = current?.positions.filter((position) =>
     selectedUnit !== null && position.reportingUnitId === selectedUnit.id) ?? [];
+  const selectedPositionId = selectedPositionChoice?.scope === unitScope
+    ? selectedPositionChoice.id : null;
   const selectedPosition = visiblePositions.find((position) => position.id === selectedPositionId) ?? null;
-  const positionScope = graphScope + ":" + selectedPositionId;
+  const positionScope = unitScope + ":" + selectedPositionId;
 
   useEffect(() => {
     if (selectedPositionId === null || !current || !selectedPosition) return;
     const controller = new AbortController();
-    setHistory({ scope: positionScope, status: "loading", data: null });
     const params = new URLSearchParams({
       organizationId: String(organizationId), positionId: String(selectedPositionId),
     });
@@ -161,7 +160,10 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
                         type="button"
                         aria-pressed={unit.id === selectedUnitId}
                         aria-label={unit.name + ", level " + (unit.depth + 1) + ", " + unit.positionRecordCount + " mapped position records. " + integrityLabel(unit.relationship)}
-                        onClick={() => { setSelectedUnitId(unit.id); setSelectedPositionId(null); }}
+                        onClick={() => {
+                          setSelectedUnitChoice({ scope: graphScope, id: unit.id });
+                          setSelectedPositionChoice({ scope: graphScope + ":" + unit.id, id: null });
+                        }}
                         className={"flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left text-sm " +
                           (unit.id === selectedUnitId ? "border-emerald-600 bg-emerald-50" : "border-slate-200 hover:bg-slate-50")}
                       >
@@ -196,7 +198,7 @@ export function HcmOrgExplorerClient({ organizationId }: { organizationId: numbe
                       <button
                         type="button"
                         aria-pressed={position.id === selectedPositionId}
-                        onClick={() => setSelectedPositionId(position.id)}
+                        onClick={() => setSelectedPositionChoice({ scope: unitScope, id: position.id })}
                         className={"w-full rounded-lg border p-3 text-left text-sm " +
                           (position.id === selectedPositionId ? "border-emerald-600 bg-emerald-50" : "border-slate-200 hover:bg-slate-50")}
                       >
