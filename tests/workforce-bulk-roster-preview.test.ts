@@ -111,7 +111,8 @@ test("bulk proposal uses role-scoped roster reads; optional staging is separatel
   assert.ok(ui.includes('method: "POST"'));
   assert.ok(ui.includes('process.env.NEXT_PUBLIC_WFM_BULK_PUBLISH_UI_ENABLED === "true"'));
   assert.ok(!ui.includes("api/payroll"));
-  assert.ok(ui.includes("pending.current?.abort()"));
+  assert.ok(ui.includes("useScopedAsyncResource(scope, fetchRoster, undefined, enabled)"));
+  assert.ok(ui.includes('signal, cache: "no-store"'));
   assert.ok(ui.includes("snapshot?.scope === scope"));
   assert.ok(planner.includes('id="wfm-panel-bulk"'));
   assert.ok(planner.includes('"owner", "admin", "bookkeeper", "hr"'));

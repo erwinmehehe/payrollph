@@ -1,6 +1,7 @@
 # Open issue reconciliation — October 11, 2026
 
-Reviewed baseline: `d7211a2b1a26234daaccdd58867891607738c04a`.
+Reviewed baseline: `e3c5e67b5977f224406dfbbd3d495f4cbcc5595f`, including
+the integrated WFM request-ownership fix #782 and Preview deployment guard #783.
 The open-issue search returned 33 issues. This inventory is a source-status
 reconciliation, not closure evidence or permission to activate live services.
 Historical issue wording can refer to PRs that have since merged. The current
@@ -21,7 +22,7 @@ GitHub reviewer; explicitly requested operational reviews remain unevidenced.
   refresh identity during render. My Team and Worker 360 already had this
   binding; their redundant synchronous loading resets are removed.
 - Four resolved effect-state counts are removed from the native ESLint bulk
-  suppression file (99 remain on this baseline). No lint rule is disabled.
+  suppression file (95 remain after integrating #782). No lint rule is disabled.
 - Native ESLint still runs with bulk/unused-suppression checks. A file/rule
   warning baseline fails on new/increased warnings. The 16 existing warnings
   remain debt; this is not a zero-warning or zero-suppression claim.
@@ -35,7 +36,7 @@ GitHub reviewer; explicitly requested operational reviews remain unevidenced.
 
 | Issue | Current source evidence / remaining requirement |
 | --- | --- |
-| #774 | This branch removes four HCM effect counts; #782 separately addresses four WFM loads. Remaining effect/request lifecycle work and existing warnings stay open. Resolve suppression-file overlap when integrating. |
+| #774 | This branch removes four HCM effect counts; merged #782 removes four WFM counts. Both removals are preserved (95 remain). Remaining effect/request lifecycle work and existing warnings stay open. |
 | #744 | Master re-audit, not one defect. #765, #759, #723/#724, #745/#771, #742, #750–#753, #755/#768/#773 and other main commits cover multiple slices. Migration mechanism, object-storage migration, DB tenant backstop, remaining module splits and full UX/flag work are not completed by this branch. Live evidence checkboxes remain open. |
 | #737 | Main branch fetched as unprotected with no required-check enforcement. Integration cannot administer protection. Repository administrator must configure/verify non-destructive refs and applicable checks. No universal reviewer-count requirement. |
 | #735 | Encryption and release-separation source #723/#724 is merged. Four-store live current-key scan, protected key provisioning, backfill/rotation/rollback, real authenticated SoD and operator evidence remain. |
@@ -48,8 +49,8 @@ GitHub reviewer; explicitly requested operational reviews remain unevidenced.
 | #692 | People Home/My Tasks #755/#773 is connected. Source workflow owners remain authoritative. Complete real operator UX acceptance before broad activation. |
 | #691 | WFM cross-role/shift-to-pay acceptance is not supplied by source merges. #766 and other synthetic tests cover engineering scenarios. Actual manager/HR/payroll reviewer/device receipts remain. |
 | #687 | ESS and signup/billing code exists. Merchant activation, provider recurring-payment/retry/cancellation proof, privacy/terms, encrypted photo operations, actual onboarding and recovery remain. Keep external billing activation gated. |
-| #678 | Core WFM scheduling/live-floor/roster changes are merged; #782 handles a read-lifecycle batch. Smart-scheduling roadmap depth, mobile/device reliability and operator acceptance remain. |
-| #674 | Historical queue counts are stale. At review, #781 and #782 were review-ready; #780 was draft. This source branch must stay within the three-ready cap; no bulk merge or independent-review fiction. |
+| #678 | Core WFM scheduling/live-floor/roster changes and #782 read-lifecycle batch are merged. Smart-scheduling roadmap depth, mobile/device reliability and operator acceptance remain. |
+| #674 | Historical queue counts are stale. #781/#782/#783 are merged; #786 and #790 are review-ready, #780 remains draft. This source branch must stay within the three-ready cap; no bulk merge or independent-review fiction. |
 | #671 | Source leave/lifecycle changes are integrated. Human HR/bookkeeper workflow acceptance is still not evidenced. Revalidate source regressions against current main rather than obsolete draft heads. |
 | #665 | Historical SQL collision was reconciled by integrated migrations/loan controls. This does not prove the live applied journal or authorize deductions. Actual DBA application/rollback and employer loan acceptance remain. |
 | #664 | Scheduler provenance source is merged. Explicit post-merge human security assessment is not recorded here; scheduler runtime proof belongs to #637. |
