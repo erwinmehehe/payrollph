@@ -55,3 +55,11 @@ test("effective dated tenant-bound worksite and HCM authorizations govern eligib
   assert.ok(server.includes("permittedGeofenceWorksiteIds"));
   assert.ok(server.includes("eq(worksites.active, true)"));
 });
+
+test("a delayed one-time GPS prompt cannot mutate attendance after the clock closes", () => {
+  assert.ok(ui.includes("if (!mounted.current) return;"));
+  const promptEnd = ui.indexOf("geolocation = await requestOneTimePosition()");
+  const unmountGuard = ui.indexOf("if (!mounted.current) return;", promptEnd);
+  const mutation = ui.indexOf('fetch("/api/web-bundy", {', promptEnd);
+  assert.ok(promptEnd > 0 && unmountGuard > promptEnd && mutation > unmountGuard);
+});
