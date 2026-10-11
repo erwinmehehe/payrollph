@@ -13,6 +13,7 @@ import { subscriptions } from "@/db/schema";
 import { isSelfServeOrganization } from "@/lib/saas-workspace-access";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 import { pilotFocusEnabledForOrganization } from "@/lib/pilot-navigation";
+import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,12 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
   const companyDenied = await assertOrganizationSessionPolicy(user.id, companyOrganizationId);
   if (companyDenied) redirect("/login?ssoRequired=1");
 
+  // Fail closed before the dashboard loader: a manager with no assigned
+  // organizational unit cannot use a company-wide fallback.
+  const managerAccess = await getAccess(user.id, companyOrganizationId);
+  if (managerAccess?.role === "manager" && deriveMyTeamScope(managerAccess)?.kind !== "unit") {
+    notFound();
+  }
   const data = await getDashboardData(companyOrganizationId);
   const pilotFocusEnabled = pilotFocusEnabledForOrganization(companyOrganizationId);
   const access = data.access;
