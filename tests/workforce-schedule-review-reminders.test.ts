@@ -105,4 +105,8 @@ test("scheduler / Automation Studio wiring remains default OFF, using existing d
   assert.match(server, /readScheduleReceiptView\(row/);
   assert.match(server, /runAutomationEventSafely/);
   assert.match(server, /accountCounts/);
+  assert.match(server, /readScheduleReceiptView\(row, manilaWorkDate\)/);
+  assert.match(server, /reason: "business-date-changed"/);
+  assert.doesNotMatch(server, /Intl.DateTimeFormat\("en-CA"/);
+
 });
