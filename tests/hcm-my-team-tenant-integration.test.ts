@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
-import { employees, leaveRequests, orgUnits, organizations, overtimeRequests } from "../src/db/schema";
+import {
+  attendanceCorrectionRequests, employees, leaveRequests, orgUnits, organizations,
+  overtimeRequests, timePunches,
+} from "../src/db/schema";
 import { InvalidMyTeamScopeError, loadHcmMyTeam } from "../src/lib/hcm-my-team-server";
 
 /** Synthetic PostgreSQL-only test. Never query real employee data or payroll. */
@@ -100,6 +103,32 @@ test("My Team isolates employer and exact unit, with SQL paging before request c
       },
     ]);
 
+    const [alphaPunch, outsidePunch, betaPunch] = await db.insert(timePunches).values([
+      { organizationId: alpha.id, employeeId: firstWorker.id, workDate: "2026-10-06", timeIn: new Date("2026-10-06T01:00:00.000Z"), timeOut: null },
+      { organizationId: alpha.id, employeeId: alphaOutside.id, workDate: "2026-10-06", timeIn: null, timeOut: null },
+      { organizationId: beta.id, employeeId: betaWorker.id, workDate: "2026-10-06", timeIn: null, timeOut: null },
+    ]).returning();
+    await db.insert(attendanceCorrectionRequests).values([
+      {
+        organizationId: alpha.id, employeeId: firstWorker.id, punchId: alphaPunch.id,
+        workDate: "2026-10-06",
+        originalPunchSnapshot: {}, proposedPunchSnapshot: {},
+        reason: "Synthetic missing punch", requestedBy: "Test reviewer", status: "pending",
+      },
+      {
+        organizationId: alpha.id, employeeId: alphaOutside.id, punchId: outsidePunch.id,
+        workDate: "2026-10-06",
+        originalPunchSnapshot: {}, proposedPunchSnapshot: {},
+        reason: "Outside team sensitive detail", requestedBy: "Test reviewer", status: "pending",
+      },
+      {
+        organizationId: beta.id, employeeId: betaWorker.id, punchId: betaPunch.id,
+        workDate: "2026-10-06",
+        originalPunchSnapshot: {}, proposedPunchSnapshot: {},
+        reason: "Foreign tenant sensitive detail", requestedBy: "Test reviewer", status: "pending",
+      },
+    ]);
+
     const scope = { kind: "unit" as const, orgUnitId: alphaUnit.id };
     const first = await loadHcmMyTeam({
       organizationId: alpha.id, scope, cursor: 0, query: "", statusFilter: "all",
@@ -109,6 +138,10 @@ test("My Team isolates employer and exact unit, with SQL paging before request c
     assert.equal(first.summary.employeeRecordsThisPage, 25);
     assert.equal(first.summary.pendingLeaveRecordsThisPage, 1);
     assert.equal(first.summary.pendingOvertimeRecordsThisPage, 1);
+    assert.equal(first.summary.pendingAttendanceCorrectionsThisPage, 1);
+    assert.equal(first.summary.incompletePunchRecordsThisPage, 1);
+    assert.equal(first.items.find((row) => row.id === firstWorker.id)?.pendingAttendanceCorrections, 1);
+    assert.equal(first.items.find((row) => row.id === firstWorker.id)?.incompletePunchRecords, 1);
     assert.ok(first.page.nextCursor !== null);
     assert.ok(first.items.every((row) => row.orgUnitName === "Alpha Source Team"));
     assert.ok(first.items.every((row) => row.orgUnitIntegrity === "verified"));
@@ -120,6 +153,8 @@ test("My Team isolates employer and exact unit, with SQL paging before request c
     assert.equal(second.items.length, 2);
     assert.equal(second.page.hasMore, false);
     assert.equal(second.page.nextCursor, null);
+    assert.equal(second.summary.pendingAttendanceCorrectionsThisPage, 0);
+    assert.equal(second.summary.incompletePunchRecordsThisPage, 0);
 
     const filtered = await loadHcmMyTeam({
       organizationId: alpha.id, scope, cursor: 0,
@@ -141,6 +176,8 @@ test("My Team isolates employer and exact unit, with SQL paging before request c
     assert.equal(otherUnit.items.length, 0);
     assert.ok(!JSON.stringify([first, second]).includes("PrivateBetaOnly"));
     assert.ok(!JSON.stringify([first, second]).includes("Foreign-tenant sensitive detail"));
+    assert.ok(!JSON.stringify([first, second]).includes("Outside team sensitive detail"));
+    assert.ok(!JSON.stringify(first).includes("PrivateBetaOnly"));
 
     const company = await loadHcmMyTeam({
       organizationId: alpha.id,
