@@ -475,6 +475,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         {page === "Compensation" && <CompensationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Workforce" && (
           <WorkforcePlanner
+            key={[data.user?.id, data.selectedOrganization.id, data.access?.role, data.access?.companyWide, data.access?.orgUnitName].join(":")}
             data={data}
             notify={notify}
             canManage={canManageTime}
