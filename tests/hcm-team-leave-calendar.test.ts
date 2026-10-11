@@ -155,6 +155,13 @@ test("calendar SQL filters request AND employee tenant before bounded complete s
   assert.ok(!server.includes("db.delete("));
 });
 
+test("standalone HCM browser fixture provides the new public flags without Next.js", () => {
+  const browserFixture = readFileSync("scripts/hcm-request-lifecycle-browser.mjs", "utf8");
+  assert.ok(browserFixture.includes('"process.env.NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ENABLED": JSON.stringify("false")'));
+  assert.ok(browserFixture.includes('"process.env.NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ORG_IDS": JSON.stringify("")'));
+  assert.ok(browserFixture.includes('browser errors:'));
+});
+
 test("client hides stale tenant/month responses and shows only recorded request statuses", () => {
   const ui = readFileSync("src/components/hcm-team-leave-calendar.tsx", "utf8");
   const nav = readFileSync("src/components/hcm-my-team.tsx", "utf8");
