@@ -47,15 +47,17 @@ test("legacy accepted rows without real agency references or submission dates ne
   const sss = findFilingForm("SSS", "R-3")!;
   const bir = findFilingForm("BIR", "1601-C")!;
   const emptyReference = accepted({ agencyReference: null });
+  const shortReference = accepted({ agencyReference: "abc" });
+  const injectedReference = accepted({ agencyReference: "<script>" });
   const missingDate = accepted({ submittedAt: null });
   const invalidDate = accepted({ submittedAt: new Date("not-a-date") });
-  for (const row of [emptyReference, missingDate, invalidDate]) {
+  for (const row of [emptyReference, shortReference, injectedReference, missingDate, invalidDate]) {
     assert.equal(provesFileFormat(row, sss), false);
     assert.equal(provesOperationalFiling(row, sss), false);
     assert.equal(summarizeFilingEvidence([row], sss).proven, false);
     assert.equal(summarizeFilingEvidence([row], sss).operationallyProven, false);
   }
-  for (const row of [emptyReference, missingDate, invalidDate]) {
+  for (const row of [emptyReference, shortReference, injectedReference, missingDate, invalidDate]) {
     const b = {
       ...row, agency: "BIR", form: "1601-C", submissionMethod: "manual_entry",
       generatorVersion: BIR_1601C_GENERATOR_VERSION,
