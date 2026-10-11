@@ -59,6 +59,11 @@ test("2316 issuance stays distinct from annual Alphalist validation in product r
   assert.ok(readiness.includes('label: "BIR annual Alphalist / ADES acceptance (Form 2316 tracked separately)"'));
   assert.ok(!readiness.includes("BIR Alphalist / 2316 validated in ADES"));
   assert.ok(readiness.includes("Alphalist status never proves its issuance or signatures"));
+  const route = readFileSync("src/app/api/compliance/filing-validations/route.ts", "utf8");
+  assert.ok(route.includes('officialFilingGuidance("BIR", "2316")'));
+  const panel = readFileSync("src/components/workspace/filing-evidence.tsx", "utf8");
+  assert.ok(panel.includes("definition?.relatedCertificate"));
+  assert.ok(panel.includes("View official BIR Form 2316"));
 });
 
 test("eSRS guidance does not confuse a Pag-IBIG MCRF reconciliation CSV with prescribed MSRF upload", () => {
