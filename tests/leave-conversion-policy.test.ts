@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import {
-  approvedLeaveConversionCap, leaveConversionAllowance, validateLeaveConversionDays,
+  approvedLeaveConversionCap, leaveConversionAllowance, leaveConversionTaxReviewAcknowledged, validateLeaveConversionDays,
 } from "../src/lib/leave-conversion-policy";
 
 test("no organization/type cap means leave monetization is disabled, even with positive balance", () => {
@@ -52,4 +52,23 @@ test("route locks authoritative balance and records conversion and audit in the 
   assert.ok(source.includes("LEAVE_CONVERSION_CAP_EXCEEDED"));
   assert.ok(source.includes("const daysConverted: unknown = body.daysConverted"), "route must not coerce booleans or strings into payable leave days");
   assert.ok(source.includes("year !== manilaYear"));
+});
+
+test("tax review attestation is a separate fail-closed organization gate", () => {
+  assert.equal(leaveConversionTaxReviewAcknowledged(12, {}), false);
+  assert.equal(leaveConversionTaxReviewAcknowledged(12, { LEAVE_CONVERSION_TAX_REVIEWED_ORG_IDS: "13" }), false);
+  const env = { LEAVE_CONVERSION_TAX_REVIEWED_ORG_IDS: "12, 14,0,12junk,9007199254740992" };
+  assert.equal(leaveConversionTaxReviewAcknowledged(12, env), true);
+  assert.equal(leaveConversionTaxReviewAcknowledged(14, env), true);
+  assert.equal(leaveConversionTaxReviewAcknowledged(0, env), false);
+  assert.equal(leaveConversionTaxReviewAcknowledged(13, env), false);
+});
+
+test("approved leave cash conversion enforces fiscal review and privileged MFA", () => {
+  const route = readFileSync("src/app/api/leave/conversion/route.ts", "utf8");
+  assert.ok(route.includes("leaveConversionTaxReviewAcknowledged(organizationId)"));
+  assert.ok(route.includes("LEAVE_CONVERSION_TAX_REVIEW_REQUIRED"));
+  assert.ok(route.includes("requireSensitiveActionMfa(user)"));
+  assert.ok(route.includes("Number.isSafeInteger(Math.round(cashAmount * 100))"));
+  assert.ok(route.includes("eq(employees.organizationId, organizationId)"));
 });
