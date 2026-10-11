@@ -32,9 +32,21 @@ export function eligiblePreviousWebBundyPunch(
 ): boolean {
   if (!previous || previous.source !== "web_bundy" || previous.timeOut !== null
       || !previous.timeIn || previous.workDate !== previousManilaWorkDate(today)) return false;
-  const at = new Date(previous.timeIn).getTime();
+  const started = new Date(previous.timeIn);
+  const at = started.getTime();
   const elapsed = now.getTime() - at;
-  return Number.isFinite(elapsed) && elapsed >= 0 && elapsed <= MAX_MS;
+  if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed > MAX_MS) return false;
+  // Corrected and imported records can contain an inconsistent workDate/timeIn.
+  // Never treat a clock-in from TODAY as if it belonged to YESTERDAY.
+  const startManilaDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(started);
+  return startManilaDate === previous.workDate;
+}
+
+export function unresolvedPreviousWorkDayPunch(previous: WebBundyAnchorPunch | null, today: string): boolean {
+  return Boolean(previous && previous.workDate === previousManilaWorkDate(today)
+    && previous.timeIn && !previous.timeOut);
 }
 
 export function resolveWebBundyPunchAnchor(input: {
@@ -43,15 +55,25 @@ export function resolveWebBundyPunchAnchor(input: {
   todayPunch: WebBundyAnchorPunch | null;
   previousPunch: WebBundyAnchorPunch | null;
   action: "clock_in" | "break_start" | "break_end" | "clock_out";
-}): { workDate: string; usePrevious: boolean; previousOpenRequiresClose: boolean } {
-  const openPrevious = eligiblePreviousWebBundyPunch(input.previousPunch, input.today, input.now);
+}): { workDate: string; usePrevious: boolean; previousOpenRequiresClose: boolean; previousShiftNeedsReview: boolean } {
+  const unresolvedPrevious = unresolvedPreviousWorkDayPunch(input.previousPunch, input.today);
+  const eligiblePrevious = eligiblePreviousWebBundyPunch(input.previousPunch, input.today, input.now);
+  // Conflicting today/previous records or an old/foreign-source shift need a
+  // governed correction. Do not let a fresh day's clock silently hide them.
+  const previousShiftNeedsReview = unresolvedPrevious
+    && (!eligiblePrevious || Boolean(input.todayPunch));
   if (input.action === "clock_in") {
-    return { workDate: input.today, usePrevious: false, previousOpenRequiresClose: openPrevious };
+    return {
+      workDate: input.today, usePrevious: false,
+      previousOpenRequiresClose: unresolvedPrevious && !previousShiftNeedsReview,
+      previousShiftNeedsReview,
+    };
   }
-  const usePrevious = !input.todayPunch && openPrevious;
+  const usePrevious = !input.todayPunch && eligiblePrevious && !previousShiftNeedsReview;
   return {
     workDate: usePrevious ? previousManilaWorkDate(input.today) : input.today,
     usePrevious,
     previousOpenRequiresClose: false,
+    previousShiftNeedsReview,
   };
 }
