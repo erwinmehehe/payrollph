@@ -12,7 +12,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const CALENDAR = /^\d{4}-\d{2}-\d{2}$/;
 // Provider timestamps must carry an explicit UTC offset; Date.parse of a bare
 // local time depends on the server timezone and can silently shift POS bins.
-const PROVIDER_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
+const PROVIDER_TIME = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
 export const LOYVERSE_WFM_SOURCE = "loyverse_pos_sales";
 export type LoyverseSyncRequest = {
   organizationId: number;
@@ -54,8 +54,21 @@ const validStore = (x:unknown):x is string => typeof x==="string" &&
   UUID.test(x);
 const iso = (ms:number)=>new Date(ms).toISOString();
 function explicitProviderTime(value:unknown):value is string {
-  return typeof value==="string" && PROVIDER_TIME.test(value) &&
-    Number.isFinite(Date.parse(value));
+  if(typeof value!=="string")return false;
+  const match=PROVIDER_TIME.exec(value);
+  if(!match)return false;
+  const parsed=Date.parse(value);
+  if(!Number.isFinite(parsed))return false;
+  const zone=match[2];
+  let minutes=0;
+  if(zone!=="Z"){
+    const hours=Number(zone.slice(1,3)),mins=Number(zone.slice(4,6));
+    if(hours>14||mins>59||(hours===14&&mins!==0))return false;
+    minutes=(zone[0]==="+"?1:-1)*(hours*60+mins);
+  }
+  // Verify the provider's local calendar fields rather than accepting JS
+  // rollover dates such as September 31 as October 1.
+  return new Date(parsed+minutes*60_000).toISOString().slice(0,19)===match[1];
 }
 /**
  * The aggregate import is committed and audited in its own SQL transaction.
@@ -120,7 +133,7 @@ async function providerJson(request:typeof fetch, url:string, token:string):Prom
     response=await request(url,{
       method:"GET",
       headers:{Authorization:"Bearer "+token,Accept:"application/json"},
-      signal:AbortSignal.timeout(8000),cache:"no-store",
+      signal:AbortSignal.timeout(8000),cache:"no-store",redirect:"error",
     });
   }catch {
     throw new LoyverseSourceError("SOURCE_UNAVAILABLE");
