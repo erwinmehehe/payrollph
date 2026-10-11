@@ -751,6 +751,38 @@ jobs:
               await page.waitForTimeout(120);
               const afterTask = (await page.locator("body").textContent()) ?? "";
               check(afterTask.includes("Rule version"), "Employee: opening the payslip did not reveal its details");
+
+              // Disposable browser-app proof: the identity-bound employee's
+              // time-clock controls are enabled and keyboard usable. Actual
+              // punch mutations are tested separately against isolated CI PG.
+              const timeTab = page.locator(".employee-workspace-sidebar .employee-side-nav .nav-item:visible").filter({ hasText: /^Time$/ }).first();
+              check((await timeTab.count()) === 1, "Employee: Time navigation must be present");
+              await timeTab.click();
+              const openClock = page.getByRole("button", { name: "Clock in / out", exact: true }).first();
+              check((await openClock.count()) === 1, "Employee: Time page has no clock button");
+              await openClock.click();
+              const clockDialog = page.getByRole("dialog", { name: "Web Bundy Time Clock" });
+              check((await clockDialog.count()) === 1, "Employee: clock dialog must open");
+              const clockInButton = clockDialog.getByRole("button", { name: "Clock IN", exact: true });
+              check(await clockInButton.isEnabled(), "Employee: own Clock IN must be enabled when no current-day punch exists");
+              await clockInButton.focus();
+              check(await clockInButton.evaluate((el) => el === document.activeElement), "Employee: Clock IN must be keyboard focusable");
+              await page.setViewportSize({ width: 375, height: 812 });
+              const clockBounds = await clockDialog.evaluate((el) => {
+                const rect = el.getBoundingClientRect();
+                return { left: rect.left, right: rect.right };
+              });
+              check(clockBounds.left >= -1 && clockBounds.right <= 376,
+                "Employee: clock dialog must fit a 375px phone without horizontal overflow");
+              const closeClock = clockDialog.getByRole("button", { name: "Close time clock" });
+              check((await closeClock.count()) === 1, "Employee: clock dialog close control has no accessible name");
+              await closeClock.focus();
+              check(await closeClock.evaluate((el) => el === document.activeElement), "Employee: clock close control must receive keyboard focus");
+              await closeClock.press("Enter");
+              check((await clockDialog.count()) === 0, "Employee: keyboard Enter must close the clock dialog");
+              await page.setViewportSize({ width: 1440, height: 1000 });
+              const payTab = page.locator(".employee-workspace-sidebar .employee-side-nav .nav-item:visible").filter({ hasText: /^Pay$/ }).first();
+              await payTab.click();
             } else {
               const taskNav = page.locator("aside .nav-item").filter({ hasText: new RegExp(`^${persona.taskPage}`) }).first();
               check((await taskNav.count()) === 1, `${persona.label}: target navigation ${persona.taskPage} is missing`);
