@@ -83,16 +83,33 @@ export async function GET(request: Request) {
 
   // An authorized worker may close a recent Web Bundy shift started yesterday.
   // Never use a stale, closed or different-source punch as an active shift.
-  const currentRow = employeeId > 0 ? todayPunches.find(({ punch }) => punch.workDate === todayStr) : null;
-  const priorRow = employeeId > 0 ? todayPunches.find(({ punch }) => punch.workDate === yesterdayStr) : null;
-  const previousOpen = eligiblePreviousWebBundyPunch(priorRow?.punch ?? null, todayStr, new Date());
+  const currentRows = employeeId > 0 ? todayPunches.filter(({ punch }) => punch.workDate === todayStr) : [];
+  const priorRows = employeeId > 0 ? todayPunches.filter(({ punch }) => punch.workDate === yesterdayStr) : [];
+  if (currentRows.length > 1 || priorRows.length > 1) {
+    // There is no authoritative "first" punch when imports/edits created more
+    // than one attendance record for the same worker and Manila work date.
+    return Response.json({
+      code: "ATTENDANCE_REQUIRES_REVIEW",
+      error: "Several attendance records require HR review before browser clocking.",
+    }, { status: 409 });
+  }
+  const currentRow = currentRows[0] ?? null;
+  const priorRow = priorRows[0] ?? null;
+  const checkAt = new Date();
+  const previousOpen = eligiblePreviousWebBundyPunch(priorRow?.punch ?? null, todayStr, checkAt);
+  const anchor = resolveWebBundyPunchAnchor({
+    today: todayStr, now: checkAt,
+    todayPunch: currentRow?.punch ?? null,
+    previousPunch: priorRow?.punch ?? null,
+    action: "clock_out",
+  });
   const visibleRows = employeeId > 0
     ? currentRow ? [currentRow] : previousOpen && priorRow ? [priorRow] : []
     : todayPunches;
 
   return Response.json({
     date: todayStr,
-    previousShiftNeedsReview: Boolean(priorRow?.punch.timeIn && !priorRow.punch.timeOut && !previousOpen),
+    previousShiftNeedsReview: anchor.previousShiftNeedsReview,
     geofence: {
       required: geofencePilotEnabledForOrganization(organizationId),
       canClockWithLocation: user.role === "employee",
@@ -153,22 +170,38 @@ export async function POST(request: Request) {
   const yesterdayStr = previousManilaWorkDate(todayStr);
   // Only a recent unclosed browser punch may remain on yesterday's workDate.
   // Never guess that a biometric, stale or future-dated record is this shift.
-  const [todayPunch] = await db.select().from(timePunches).where(and(
+  const todayRows = await db.select().from(timePunches).where(and(
     eq(timePunches.organizationId, organizationId),
     eq(timePunches.employeeId, employeeId),
     eq(timePunches.workDate, todayStr),
-  )).limit(1);
-  const [previousPunch] = await db.select().from(timePunches).where(and(
+  )).limit(2);
+  const previousRows = await db.select().from(timePunches).where(and(
     eq(timePunches.organizationId, organizationId),
     eq(timePunches.employeeId, employeeId),
     eq(timePunches.workDate, yesterdayStr),
-  )).limit(1);
+  )).limit(2);
+  if (todayRows.length > 1 || previousRows.length > 1) {
+    return Response.json({
+      code: "ATTENDANCE_REQUIRES_REVIEW",
+      error: "Several attendance records require HR review before browser clocking.",
+    }, { status: 409 });
+  }
+  const [todayPunch] = todayRows;
+  const [previousPunch] = previousRows;
   const anchor = resolveWebBundyPunchAnchor({
     today: todayStr, now,
     todayPunch: todayPunch ?? null,
     previousPunch: previousPunch ?? null,
     action: actionType as "clock_in" | "break_start" | "break_end" | "clock_out",
   });
+  if (anchor.previousShiftNeedsReview) {
+    // Prior-day data is stale, not a Web Bundy punch or conflicts with a
+    // current-day record. Never insert a new day's clock as a workaround.
+    return Response.json({
+      code: "PREVIOUS_SHIFT_REQUIRES_REVIEW",
+      error: "A previous shift remains unresolved or conflicts with today's attendance. Request an approved HR attendance correction.",
+    }, { status: 409 });
+  }
   if (anchor.previousOpenRequiresClose) {
     return Response.json({
       code: "PREVIOUS_SHIFT_STILL_OPEN",
