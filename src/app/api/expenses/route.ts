@@ -2,6 +2,7 @@ import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, expenseClaims, expenseReportItems } from "@/db/schema";
+import { inArray } from "drizzle-orm";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
@@ -55,10 +56,18 @@ export async function GET(request: Request) {
 
   const scopedRows = visibleEmployeeIds ? rows.filter((row) => visibleEmployeeIds!.has(row.employeeId)) : rows;
   const visibleRows = employeeId != null && status ? scopedRows.filter((row) => row.status === status) : scopedRows;
+  const reportedItems = visibleRows.length
+    ? await db.select({ claimId: expenseReportItems.claimId }).from(expenseReportItems)
+        .where(and(
+          eq(expenseReportItems.organizationId, organizationId),
+          inArray(expenseReportItems.claimId, visibleRows.map(row => row.id)),
+        ))
+    : [];
+  const reportedIds = new Set(reportedItems.map(item => item.claimId));
   const approved = visibleRows.filter((row) => row.status === "approved" && row.payrollRunId == null);
 
   return Response.json({
-    claims: visibleRows,
+    claims: visibleRows.map(row => ({ ...row, inExpenseReport: reportedIds.has(row.id) })),
     pendingReimbursement: Number(approved.reduce((sum, row) => sum + Number(row.amount), 0).toFixed(2)),
   });
 }
@@ -120,6 +129,7 @@ export async function POST(request: Request) {
   const [row] = await db.insert(expenseClaims).values({
     organizationId,
     employeeId,
+    submittedByUserId: user.id,
     category: category.slice(0, 60),
     description: description.slice(0, 240),
     amount: amount.toFixed(2),
@@ -174,7 +184,10 @@ export async function PATCH(request: Request) {
   if (reported) return Response.json({
     error: "This claim belongs to an expense report. Approve or reject the entire report in Spend management.",
   }, { status: 409 });
-  if (existing.status !== "pending") {
+  if (existing.submittedByUserId === user.id) {
+    return Response.json({ error: "You cannot approve or reject a claim you submitted." }, { status: 403 });
+  }
+    if (existing.status !== "pending") {
     return Response.json({ error: `This claim is already ${existing.status} and cannot be decided again.` }, { status: 409 });
   }
 
