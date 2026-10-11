@@ -77,6 +77,21 @@ async function main() {
       .getAttribute("href"), "/hcm/process-monitor?organizationId=1");
     await homeNav.getByRole("link", { name: "Process monitor" }).click();
     await page.getByRole("heading", { level: 1, name: "Business Process Monitor" }).waitFor();
+    await page.getByRole("navigation", { name: "HCM workspace navigation" })
+      .getByRole("link", { name: "HCM Inbox" }).click();
+    await page.getByRole("heading", { level: 1, name: "Employees" }).waitFor();
+    const inboxUrl = new URL(page.url());
+    assert.equal(inboxUrl.searchParams.get("organizationId"), "1");
+    assert.equal(inboxUrl.searchParams.get("workspacePage"), "People");
+    assert.equal(inboxUrl.searchParams.get("hcmPanel"), "bp");
+    const administration = page.locator("details.panel-disclosure")
+      .filter({ has: page.locator("summary", { hasText: "Employee administration" }) })
+      .first();
+    await administration.waitFor();
+    assert.equal(await administration.evaluate((element) => element.open), true,
+      "HCM Inbox deep link must open its authoritative People administration panel");
+    assert.equal(await visit(page), 200);
+    await page.getByRole("heading", { level: 1, name: "Business Process Monitor" }).waitFor();
     const main = await page.locator("main").innerText();
     assert.ok(main.includes("Recorded workflows") && main.includes("Step timeline"));
     assert.equal(await page.locator("a[href*='processId=']").count(), 20);
@@ -127,6 +142,7 @@ async function main() {
     );
     assert.equal(workerResponse?.status(), 200);
     await workerPage.getByRole("heading", { level: 1, name: "Worker 360" }).waitFor();
+    await workerPage.getByRole("heading", { level: 2, name: "Fictional Employee" }).waitFor();
     const workerNav = workerPage.getByRole("navigation", { name: "HCM workspace navigation" });
     assert.equal(await workerNav.getByRole("link", { name: "Worker 360" })
       .getAttribute("aria-current"), "page");
@@ -152,6 +168,16 @@ async function main() {
     await phone.getByRole("button", { name: "Apply" }).click();
     await phone.waitForURL("**/hcm/process-monitor?organizationId=1&status=approved");
     assert.equal(await phone.locator("a[href*='processId=']").count(), 1);
+    const mobileWorker = await phone.goto(
+      app + "/hcm/worker-360?organizationId=1&employeeId=1");
+    assert.equal(mobileWorker?.status(), 200);
+    await phone.getByRole("heading", { level: 2, name: "Fictional Employee" }).waitFor();
+    const workerWidths = await phone.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      content: document.documentElement.scrollWidth,
+    }));
+    assert.ok(workerWidths.content <= workerWidths.viewport + 1,
+      "375px Worker 360 overflow: " + JSON.stringify(workerWidths));
     await mobile.close();
 
     // Company-wide bookkeeper can view People Home but cannot discover

@@ -80,6 +80,21 @@ test("HCM links preserve selected employer and worker context, never a guessed w
   }, 209).every((link) => link.id !== "worker360"));
 });
 
+test("HCM current-page links cannot bypass disabled public discovery flags", () => {
+  const monitorOff = { ...pilotEnv, NEXT_PUBLIC_HCM_PROCESS_MONITOR_ENABLED: "false" };
+  assert.ok(!links(17, "processMonitor", hr, monitorOff)
+    .some((link) => link.id === "processMonitor"));
+  const employerOff = { ...pilotEnv, NEXT_PUBLIC_HCM_PROCESS_MONITOR_ORG_IDS: "18" };
+  assert.ok(!links(17, "processMonitor", hr, employerOff)
+    .some((link) => link.id === "processMonitor"));
+  const workerOff = { ...pilotEnv, NEXT_PUBLIC_HCM_WORKER_360_ENABLED: "false" };
+  assert.ok(!links(17, "worker360", hr, workerOff, 209)
+    .some((link) => link.id === "worker360"));
+  assert.ok(links(17, "processMonitor", hr).some((link) => link.id === "processMonitor"));
+  assert.ok(links(17, "worker360", hr, pilotEnv, 209)
+    .some((link) => link.id === "worker360"));
+});
+
 test("existing HCM server pages reuse scoped navigation without broadening permissions", () => {
   const read = (path: string) => readFileSync(path, "utf8");
   const home = read("src/app/hcm/command-center/page.tsx");

@@ -60,11 +60,9 @@ export function buildHcmNavigation(
 
   const monitorLinkEnabled =
     canMonitor && monitorEnabledForEmployer(organizationId, env) &&
-    (current === "processMonitor" || (
-      env.NEXT_PUBLIC_HCM_PROCESS_MONITOR_ENABLED === "true" &&
-      (env.NEXT_PUBLIC_HCM_PROCESS_MONITOR_ORG_IDS ?? "").split(",")
-        .some((part) => canonicalHcmId(part.trim()) === organizationId)
-    ));
+    env.NEXT_PUBLIC_HCM_PROCESS_MONITOR_ENABLED === "true" &&
+    (env.NEXT_PUBLIC_HCM_PROCESS_MONITOR_ORG_IDS ?? "").split(",")
+      .some((part) => canonicalHcmId(part.trim()) === organizationId);
   if (monitorLinkEnabled) {
     links.push({
       id: "processMonitor", label: "Process monitor",
@@ -79,7 +77,7 @@ export function buildHcmNavigation(
   if (
     canMonitor && safeWorkerId !== null &&
     env.HCM_WORKER_360_ENABLED === "true" &&
-    (current === "worker360" || env.NEXT_PUBLIC_HCM_WORKER_360_ENABLED === "true")
+    env.NEXT_PUBLIC_HCM_WORKER_360_ENABLED === "true"
   ) {
     links.push({
       id: "worker360", label: "Worker 360",
