@@ -123,6 +123,7 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     finalStatutoryDeductions: "0",
     finalStatutoryReviewed: false,
     unusedLeaveCredits: "0",
+    unusedLeaveType: "Vacation leave",
     leaveTaxReviewed: false,
     leaveMonetizationTaxExempt: false,
     separationPay: "0",
@@ -489,8 +490,12 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                   </label>
                 </>
               )}
+              <label>Leave type to monetize
+                <input value={form.unusedLeaveType} onChange={(e) => setForm({ ...form, unusedLeaveType: e.target.value })} />
+                <small>Use the exact leave type from the employee’s leave balance. The approved policy and available balance determine the payout limit.</small>
+              </label>
               <label>Convertible unused leave credits (days)
-                <input type="number" step="0.5" min="0" max="365" value={form.unusedLeaveCredits} onChange={(e) => setForm({ ...form, unusedLeaveCredits: e.target.value })} />
+                <input type="number" step="0.1" min="0" max="366" value={form.unusedLeaveCredits} onChange={(e) => setForm({ ...form, unusedLeaveCredits: e.target.value })} />
               </label>
               {Number(form.unusedLeaveCredits) > 0 && (
                 <>

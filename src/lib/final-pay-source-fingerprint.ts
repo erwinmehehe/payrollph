@@ -1,12 +1,13 @@
+import type { SeparationLeaveSources } from "@/lib/separation-leave";
+import { reviewFinalPayLoans } from "@/lib/final-pay-loan-authority";
 /**
  * Frozen, deterministic final-pay source evidence. Includes every source
  * field used for 13th month, annualized tax/statutory contributions, loan
  * settlement or employee/legal-employer eligibility. The arrays are sorted
  * without mutating the loader results because SQL has no implicit order.
  */
-import { reviewFinalPayLoans } from "@/lib/final-pay-loan-authority";
-
 export type FinalPayFingerprintInputs = {
+  leave?: SeparationLeaveSources;
   employee: {
     status: string; basicRate: string | number; mwe: boolean;
     orgUnitId: number | null; legalEntityId: number | null;
@@ -41,6 +42,11 @@ export type FinalPayFingerprintInputs = {
 
 export function finalPaySourceFingerprint(sources: FinalPayFingerprintInputs) {
   return {
+    leave: sources.leave ? {
+      balances: [...sources.leave.balances].sort((a, b) => a.id - b.id),
+      policies: [...sources.leave.policies].sort((a, b) => a.id - b.id),
+      conversions: [...sources.leave.conversions].sort((a, b) => a.id - b.id),
+    } : null,
     employeeStatus: sources.employee.status,
     employeeBasicRate: Number(sources.employee.basicRate),
     employeeMwe: sources.employee.mwe,

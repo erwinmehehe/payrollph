@@ -12,6 +12,9 @@ import {
   hcmEmploymentDecisionEvents,
   hcmEmploymentTermDecisions,
   loanPayments,
+  leaveBalances,
+  leavePolicies,
+  leaveConversions,
   payrollEntries,
   payrollRuns,
   positionAssignments,
@@ -48,6 +51,9 @@ import {
   expectedFinalPaySourceAfterInitiation,
   finalPaySourceFingerprint as fingerprint,
 } from "@/lib/final-pay-source-fingerprint";
+
+import { approvedLeaveConversionCap } from "@/lib/leave-conversion-policy";
+import { separationLeaveAllowance, validateSeparationLeaveCredits } from "@/lib/separation-leave";
 
 export const dynamic = "force-dynamic";
 
@@ -151,6 +157,17 @@ async function loadFinalPaySources(input: {
     eq(employeeLoans.status, "active"),
   ));
 
+  const balances = await reader.select().from(leaveBalances).where(and(
+    eq(leaveBalances.organizationId, input.organizationId), eq(leaveBalances.employeeId, input.employeeId), eq(leaveBalances.year, taxYear),
+  ));
+  const policies = await reader.select().from(leavePolicies).where(eq(leavePolicies.organizationId, input.organizationId));
+  const conversions = await reader.select().from(leaveConversions).where(and(
+    eq(leaveConversions.organizationId, input.organizationId), eq(leaveConversions.employeeId, input.employeeId),
+  ));
+  const leave = { balances, conversions, policies: policies.map(policy => ({ ...policy,
+    conversionCap: approvedLeaveConversionCap(input.organizationId, policy.leaveType),
+  })) };
+
   let releasedBasicYtd = 0;
   let thirteenthPaidYtd = 0;
   let ordinaryGrossYtd = 0;
@@ -203,6 +220,7 @@ async function loadFinalPaySources(input: {
     employee,
     payProfile,
     resolvedPayProfile,
+    leave,
     released,
     historical,
     loans,
@@ -432,6 +450,10 @@ export async function POST(request: Request) {
       }, { status: 422 });
     }
     const unusedLeaveCredits = nonNegative(body.unusedLeaveCredits, "Convertible unused leave credits");
+    const unusedLeaveType = String(body.unusedLeaveType ?? "Vacation leave").trim();
+    const leaveAllowance = unusedLeaveCredits > 0
+      ? separationLeaveAllowance(sources.leave, unusedLeaveType, Number(lastDay.slice(0, 4))) : null;
+    if (leaveAllowance) validateSeparationLeaveCredits(unusedLeaveCredits, leaveAllowance);
     const separationPay = nonNegative(body.separationPay, "Separation pay");
     const retirementPay = nonNegative(body.retirementPay, "Retirement pay");
     const otherBenefits = nonNegative(body.otherBenefits, "Other final-pay benefits");
@@ -512,8 +534,8 @@ export async function POST(request: Request) {
       deMinimisExcessYtd: sources.totals.deMinimisExcessYtd,
       mweTaxableSupplementaryCompensationYtd: sources.totals.mweTaxableSupplementaryCompensationYtd,
       deductOutstandingLoans,
-      // Only a digest, loan IDs and monetary review amounts are exposed.
       loanAuthority,
+      separationLeave: leaveAllowance ? { ...leaveAllowance, credits: unusedLeaveCredits } : null,
       requestedLoanDeductions: result.requestedLoanDeductions,
       collectibleLoanDeductions: result.loanDeductions,
       deferredLoanBalance: result.deferredLoanBalance,
@@ -1352,6 +1374,18 @@ export async function PATCH(request: Request) {
       if (!sameSnapshot(freshSnapshot.sourceFingerprint, transactionFingerprint)
         || !sameSnapshot(currentFingerprint, transactionFingerprint)) {
         throw new Error("FINAL_PAY_SOURCE_CHANGED: source payroll, imported history, pay profile, or outstanding loans changed during release.");
+      }
+
+      if (Number(fresh.unusedLeaveCredits) > 0) {
+        const evidence = freshSnapshot.separationLeave as { leaveType?: string; credits?: number } | undefined;
+        if (!evidence?.leaveType || evidence.credits !== Number(fresh.unusedLeaveCredits)) {
+          throw new Error("Recompute this package with verified leave entitlement before release.");
+        }
+        const allowance = separationLeaveAllowance(transactionSources.leave, evidence.leaveType, Number(String(fresh.lastDay).slice(0, 4)));
+        validateSeparationLeaveCredits(evidence.credits, allowance);
+        await tx.update(leaveBalances).set({
+          used: sql`${leaveBalances.used} + ${evidence.credits}`, updatedAt: new Date(),
+        }).where(and(eq(leaveBalances.id, allowance.balanceId), eq(leaveBalances.organizationId, fresh.organizationId), eq(leaveBalances.employeeId, fresh.employeeId)));
       }
 
       // Separation cannot overwrite a worker who was concurrently rehired,
