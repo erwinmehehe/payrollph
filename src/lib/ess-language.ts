@@ -258,7 +258,6 @@ const taglishCopy: Readonly<Record<string, string>> = {
   "Clock IN:": "Time IN:",
   "Clock OUT:": "Time OUT:",
   "Break:": "Break:",
-  "Not recorded": "Walang record",
   "In progress": "Kasalukuyang ginagawa",
   "Clock IN": "Time IN",
   "Start break": "Simulan ang break",
