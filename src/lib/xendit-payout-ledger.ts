@@ -101,7 +101,9 @@ export async function claimNextXenditPayout(input: {
   return db.transaction(async (tx) => {
     const [batch] = await tx.select().from(payoutBatches)
       .where(batchScope(input.organizationId, input.payrollRunId)).for("update");
-    if (!batch || batch.provider !== "xendit" || !["prepared", "submitting"].includes(batch.status)) {
+    if (!batch || batch.provider !== "xendit") throw new Error("XENDIT_BATCH_NOT_PREPARED");
+    if (batch.status === "submitted" || batch.status === "settled") return null;
+    if (!["prepared", "submitting"].includes(batch.status)) {
       throw new Error("XENDIT_BATCH_NOT_PREPARED");
     }
     const all = await linkedTx(tx, batch.id, input.organizationId);
