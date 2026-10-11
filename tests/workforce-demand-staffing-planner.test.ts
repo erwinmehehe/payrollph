@@ -54,3 +54,30 @@ test("rejects fabricated range, duplicate intervals and invalid productivity", (
   assert.throws(() => previewDemandToStaffing([sample,sample]), /duplicated/);
   assert.throws(() => previewDemandToStaffing([{...sample, productiveUnitsPerWorkerHour:0}]), /Invalid/);
 });
+
+test("unknown scheduled headcount never becomes an empty roster", () => {
+  const result = previewDemandToStaffing([{...sample, scheduledHeadcount:null}]);
+  assert.equal(result.rows[0].requiredWorkers, 4);
+  assert.equal(result.rows[0].gapWorkers, null);
+  assert.equal(result.rows[0].estimatedAddedBaseCostPhp, null);
+  assert.ok(result.rows[0].reviewReasons.includes("missing_roster_evidence"));
+});
+test("peak 30-minute demand and paid 8-hour shift have separate units", () => {
+  const result = previewDemandToStaffing([{
+    ...sample, predictedCount:20, lowerScenarioCount:10,
+    upperScenarioCount:25, demandIntervalMinutes:30, paidMinutesPerWorker:480,
+  }]);
+  assert.equal(result.rows[0].requiredWorkers, 4);
+  assert.equal(result.rows[0].gapWorkers, 2);
+  assert.equal(result.rows[0].estimatedAddedBaseCostPhp, 1920);
+  assert.equal(result.rows[0].estimatedAddedOvertimeCostPhp, 0);
+});
+test("unbounded demand does not return impossible headcount or infinity", () => {
+  const result = previewDemandToStaffing([{
+    ...sample, predictedCount:1_000_000, upperScenarioCount:1_000_000,
+    lowerScenarioCount:1_000_000, productiveUnitsPerWorkerHour:0.01,
+  }]);
+  assert.equal(result.status, "source_review");
+  assert.equal(result.rows[0].requiredWorkers, null);
+  assert.ok(result.rows[0].reviewReasons.includes("staffing_estimate_unbounded"));
+});
