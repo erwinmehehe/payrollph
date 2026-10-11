@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Clock, Coffee, LogIn, LogOut, MapPin, PlayCircle, X } from "lucide-react";
+import { essText, type EssLanguage } from "@/lib/ess-language";
+import { philippineClockDate, philippineClockTime } from "@/lib/philippine-clock-display";
 
 type BundyEmployee = {
   id: number;
@@ -14,6 +16,7 @@ export function WebBundyModal({
   organizationId,
   employeeId,
   employeeName,
+  language = "en",
   employees = [],
   onClose,
   onPunchSuccess,
@@ -21,10 +24,12 @@ export function WebBundyModal({
   organizationId: number;
   employeeId?: number;
   employeeName?: string;
+  language?: EssLanguage;
   employees?: BundyEmployee[];
   onClose: () => void;
   onPunchSuccess: () => void;
 }) {
+  const t = (text: string) => essText(language, text);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<number | null>(employeeId ?? null);
   const [time, setTime] = useState("");
   const [date, setDate] = useState("");
@@ -39,13 +44,13 @@ export function WebBundyModal({
   );
   const displayName = selectedEmployee
     ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}`
-    : employeeName ?? "Select an employee";
+    : employeeName ?? t("Select an employee");
 
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      setTime(now.toLocaleTimeString("en-PH", { hour12: true, hour: "2-digit", minute: "2-digit", second: "2-digit" }));
-      setDate(now.toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" }));
+      setTime(philippineClockTime(now));
+      setDate(philippineClockDate(now));
     };
     updateTime();
     const interval = setInterval(updateTime, 1000);
@@ -79,7 +84,7 @@ export function WebBundyModal({
 
   async function handlePunch(actionType: "clock_in" | "break_start" | "break_end" | "clock_out") {
     if (!selectedEmployeeId) {
-      setError("Select an employee before recording attendance.");
+      setError(t("Select an employee before recording attendance."));
       return;
     }
 
@@ -99,7 +104,7 @@ export function WebBundyModal({
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Clock punch failed.");
+        setError(data.error ?? t("Clock punch failed."));
         return;
       }
       const labels = {
@@ -108,11 +113,11 @@ export function WebBundyModal({
         break_end: "Break ended.",
         clock_out: "Clock OUT recorded.",
       } as const;
-      setMessage(labels[actionType]);
+      setMessage(t(labels[actionType]));
       reloadPunches();
       onPunchSuccess();
     } catch {
-      setError("Network error recording punch.");
+      setError(t("Network error recording punch."));
     } finally {
       setBusy(false);
     }
@@ -128,15 +133,15 @@ export function WebBundyModal({
   return (
     <div className="modal-backdrop linaw-dialog" role="presentation">
       <section className="modal" role="dialog" aria-modal="true" aria-label="Web Bundy Time Clock">
-        <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        <button className="modal-close" type="button" aria-label={t("Close time clock")} onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Clock size={22} className="i-cyan" /></div>
-        <div className="card-kicker">WEB &amp; TEAM TIME CLOCK</div>
-        <h2>{displayName}&apos;s attendance</h2>
-        <p>Role-controlled browser clocking for workstation, tablet or mobile use. Payroll still derives payable time from the stored punch evidence.</p>
+        <div className="card-kicker">{t("WEB & TEAM TIME CLOCK")}</div>
+        <h2>{language === "fil" ? `${displayName} · ${t("attendance")}` : <>{displayName}&apos;s attendance</>}</h2>
+        <p>{t("Role-controlled browser clocking for workstation, tablet or mobile use. Payroll still derives payable time from the stored punch evidence.")}</p>
 
         {!employeeId && employees.length > 0 && (
           <label style={{ display: "grid", gap: 6, margin: "14px 0" }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>Employee</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)" }}>{t("Employee")}</span>
             <select
               value={selectedEmployeeId ?? ""}
               onChange={(event) => {
@@ -145,9 +150,9 @@ export function WebBundyModal({
                 setMessage("");
                 setError("");
               }}
-              aria-label="Select employee for team time clock"
+              aria-label={t("Select employee for team time clock")}
             >
-              <option value="">Select employee…</option>
+              <option value="">{t("Select employee…")}</option>
               {employees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
                   {employee.employeeNo} · {employee.firstName} {employee.lastName}
@@ -166,22 +171,22 @@ export function WebBundyModal({
         {selectedEmployeeId && todayPunch && (
           <div style={{ background: "var(--canvas-subtle)", padding: 12, borderRadius: 10, marginBottom: 14, fontSize: 11.5 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span>Clock IN:</span>
-              <strong>{todayPunch.timeIn ? new Date(todayPunch.timeIn).toLocaleTimeString("en-PH") : "Not recorded"}</strong>
+              <span>{t("Clock IN:")}</span>
+              <strong>{todayPunch.timeIn ? philippineClockTime(new Date(todayPunch.timeIn)) : t("Not recorded")}</strong>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-              <span>Break:</span>
+              <span>{t("Break:")}</span>
               <strong>
                 {breakActive
-                  ? "In progress"
+                  ? t("In progress")
                   : todayPunch.breakStart && todayPunch.breakEnd
-                    ? `${new Date(todayPunch.breakStart).toLocaleTimeString("en-PH")}–${new Date(todayPunch.breakEnd).toLocaleTimeString("en-PH")}`
-                    : "Not recorded"}
+                    ? `${philippineClockTime(new Date(todayPunch.breakStart))}–${philippineClockTime(new Date(todayPunch.breakEnd))}`
+                    : t("Not recorded")}
               </strong>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>Clock OUT:</span>
-              <strong>{todayPunch.timeOut ? new Date(todayPunch.timeOut).toLocaleTimeString("en-PH") : "In progress"}</strong>
+              <span>{t("Clock OUT:")}</span>
+              <strong>{todayPunch.timeOut ? philippineClockTime(new Date(todayPunch.timeOut)) : t("In progress")}</strong>
             </div>
           </div>
         )}
@@ -191,22 +196,22 @@ export function WebBundyModal({
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
           <button className="primary-button" disabled={busy || !canClockIn} onClick={() => handlePunch("clock_in")} style={{ height: 42, background: "var(--green)", fontSize: 13 }}>
-            <LogIn size={16} /> Clock IN
+            <LogIn size={16} /> {t("Clock IN")}
           </button>
           <button className="secondary-button" disabled={busy || !canStartBreak} onClick={() => handlePunch("break_start")} style={{ height: 42, fontSize: 13 }}>
-            <Coffee size={16} /> Start break
+            <Coffee size={16} /> {t("Start break")}
           </button>
           <button className="secondary-button" disabled={busy || !canEndBreak} onClick={() => handlePunch("break_end")} style={{ height: 42, fontSize: 13 }}>
-            <PlayCircle size={16} /> End break
+            <PlayCircle size={16} /> {t("End break")}
           </button>
           <button className="secondary-button" disabled={busy || !canClockOut} onClick={() => handlePunch("clock_out")} style={{ height: 42, fontSize: 13 }}>
-            <LogOut size={16} /> Clock OUT
+            <LogOut size={16} /> {t("Clock OUT")}
           </button>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, color: "var(--muted)", fontSize: 11 }}>
           <MapPin size={14} className="i-blue" />
-          <span>Browser IP and attendance source are audit-stamped. Shared team clocking remains role-controlled.</span>
+          <span>{t("Browser IP and attendance source are audit-stamped. Shared team clocking remains role-controlled.")}</span>
         </div>
       </section>
     </div>

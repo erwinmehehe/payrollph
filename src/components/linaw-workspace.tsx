@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { canOpenPeopleHome } from "@/lib/hcm-people-home-scope";
 import { Clock, ShieldCheck, Sparkles } from "lucide-react";
 import { AssetsPanel } from "@/components/assets-panel";
 import { AutomationStudioPanel } from "@/components/automation-studio-panel";
@@ -58,8 +59,9 @@ import type { DashboardData, PayrollReleaseReceipt, PricingPlan } from "@/compon
 import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
+import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 
-export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean }) {
+export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean }) {
   const searchParams = useSearchParams();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
@@ -69,7 +71,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
       ? requestedDemoRole
       : null;
   const demoInfo = demoRoleInfo(demoRole);
-  const initialPage = demoInfo?.landingPage ?? "Overview";
+  const initialPage = demoInfo?.landingPage ??
+    (searchParams.get("workspacePage") === "People" && canOpenPeopleHome(initialData.access)
+      ? "People" : "Overview");
   const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 
   const [data, setData] = useState(initialData);
@@ -97,14 +101,17 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
   const effectiveRole = demoRole ?? data.access?.role ?? data.user?.role ?? null;
   const rolePages = demoRole ? demoRolePages(demoRole) : workspacePagesForRole(effectiveRole);
   const primaryPages = workspacePrimaryPagesForRole(effectiveRole);
-  const availablePages = useMemo(
-    () =>
-      NAVIGATION.flatMap((group) => group.items)
-        .map((item) => item.name)
-        .filter((name) => !(isFreelancer && FREELANCER_HIDDEN.has(name)))
-        .filter((name) => !rolePages || rolePages.includes(name)),
-    [isFreelancer, rolePages],
-  );
+  const availablePages = useMemo(() => {
+    const roleAllowedPages = NAVIGATION.flatMap((group) => group.items)
+      .map((item) => item.name)
+      .filter((name) => !(isFreelancer && FREELANCER_HIDDEN.has(name)))
+      .filter((name) => !rolePages || rolePages.includes(name));
+    // Keep the pilot menu small without ever granting access outside the
+    // already calculated role/plan navigation entitlement.
+    return pilotFocusEnabled && !isFreelancer && !demoRole
+      ? pilotCoreNavigationPages(roleAllowedPages)
+      : roleAllowedPages;
+  }, [isFreelancer, rolePages, pilotFocusEnabled, demoRole]);
 
   const notifications = useMemo(
     () => buildNotifications(data, effectiveRole).filter((item) => !item.page || availablePages.includes(item.page)),
@@ -138,18 +145,14 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
       }
       setData((await response.json()) as DashboardData);
     },
-    [data.selectedOrganization.id],
+    [data.selectedOrganization.id, setData],
   );
 
 
-  async function changeOrganization(id: number) {
-    try {
-      await refresh(id);
-      setPage("Overview");
-      notify("Switched client. Every query is re-scoped server-side to that workspace.");
-    } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not switch client.", "err");
-    }
+  function changeOrganization(id: number) {
+    if (!Number.isSafeInteger(id) || id <= 0 || id === data.selectedOrganization.id) return;
+    // Always re-evaluate server-side access when changing employer.
+    window.location.assign("/app?organizationId=" + id);
   }
 
   async function switchDemoRole(role: DemoRoleId) {
@@ -246,7 +249,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
     } finally {
       setBusy(false);
     }
-  }, [refresh, notify]);
+  }, [refresh, notify, setBusy]);
 
   async function releaseRun(
     runId: number,
@@ -322,7 +325,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
       actions.push({ id: "gov", label: "Government validation status", hint: "Which agency outputs are still labelled DRAFT", run: () => setGovModalOpen(true) });
     }
     return actions;
-  }, [availablePages, canManageDeliveryOutbox, canManageTime, canUsePayrollOps, canUsePeopleOps, currentRun, processRun]);
+  }, [availablePages, canManageDeliveryOutbox, canManageTime, canUsePayrollOps, canUsePeopleOps, currentRun, processRun, setNewPayrollOpen, setNewHireOpen, setPage, setWebBundyOpen, setOutboxOpen, setGovModalOpen]);
 
   /* --------------------------------------------------------------- render */
 
@@ -453,6 +456,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
             onAddEmployee={() => setNewHireOpen(true)}
             onPage={setPage}
             canManage={canManagePeople}
+            expandHcmInbox={searchParams.get("hcmPanel") === "bp"}
             focusEmployeeId={focusEmployeeId}
             onClearFocus={() => setFocusEmployeeId(null)}
           />
@@ -471,6 +475,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false }: { i
         {page === "Compensation" && <CompensationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Workforce" && (
           <WorkforcePlanner
+            key={[data.user?.id, data.selectedOrganization.id, data.access?.role, data.access?.companyWide, data.access?.orgUnitName].join(":")}
             data={data}
             notify={notify}
             canManage={canManageTime}

@@ -190,6 +190,9 @@ test("PayMongo payroll preflight validates live bank mapping without creating a 
       periodEnd: "2026-09-30",
       payDate: "2026-09-30",
       status: "Released",
+      employeeCount: 1,
+      grossPay: "30000.00",
+      netPay: "25000.00",
     }).returning();
 
     await db.insert(payrollEntries).values({
@@ -198,6 +201,19 @@ test("PayMongo payroll preflight validates live bank mapping without creating a 
       grossPay: "30000",
       deductions: "5000",
       netPay: "25000",
+      trace: {
+        payment: {
+          employeeName: "Juan Dela Cruz",
+          employeeNo: employee.employeeNo,
+          firstName: employee.firstName,
+          middleName: employee.middleName,
+          lastName: employee.lastName,
+          email: employee.email,
+          bankAccount: employee.bankAccount,
+          bankCode: employee.bankCode,
+          mobile: employee.mobile,
+        },
+      },
     });
 
     process.env.PAYMONGO_SECRET_KEY = "sk_test_preflight_only";
@@ -373,7 +389,7 @@ test("payout reconciliation route and UI enforce failed-only retry semantics", (
 
 
 test("PayMongo webhook signature verification uses the raw payload and rejects replayed timestamps", () => {
-  const payload = '{"data":{"id":"evt_test","type":"event","attributes":{"type":"transfer.outward.successful"}}}';
+  const payload = '{"data":{"id":"evt_test","type":"event","attributes":{"type":"transfer.outward.successful","livemode":false}}}';
   const secret = "whsec_paymongo_test";
   const nowMs = Date.parse("2026-10-01T00:00:00Z");
   const timestamp = String(Math.floor(nowMs / 1000));

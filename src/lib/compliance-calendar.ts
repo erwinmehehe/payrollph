@@ -206,6 +206,57 @@ function remittanceItem(input: {
   };
 }
 
+const ANNUAL_BIR_OBLIGATIONS = [
+  {
+    key: "2316-EMPLOYEE",
+    obligation: "BIR Form 2316 issued to every employee",
+    dueMonthDay: "01-31",
+    detail: "Furnish each employee a signed Certificate of Compensation Payment/Tax Withheld for the tax year.",
+  },
+  {
+    key: "1604C",
+    obligation: "BIR Form 1604-C annual information return with alphalist",
+    dueMonthDay: "01-31",
+    detail: "File the annual withholding information return and employee alphalist. Validate the alphalist with the BIR validation module before submission.",
+  },
+  {
+    key: "2316-BIR",
+    obligation: "Signed BIR Form 2316 copies submitted to BIR",
+    dueMonthDay: "02-28",
+    detail: "Submit the duly signed 2316 copies (substituted filing) to the BIR office or channel that applies to the employer.",
+  },
+] as const;
+
+/**
+ * Annual BIR compensation obligations for a tax year, shown from November of
+ * the tax year through April of the following year so they surface early
+ * without cluttering the rest of the calendar.
+ */
+export function annualBirItems(taxYear: number, today: string): ComplianceCalendarItem[] {
+  const windowStart = `${taxYear}-11-01`;
+  const windowEnd = `${taxYear + 1}-04-30`;
+  if (today < windowStart || today > windowEnd) return [];
+
+  return ANNUAL_BIR_OBLIGATIONS.map((item) => {
+    const dueDate = `${taxYear + 1}-${item.dueMonthDay}`;
+    const timed = timeStatus(dueDate, today);
+    return {
+      id: `BIR-${item.key}-${taxYear}`,
+      agency: "BIR" as const,
+      obligation: item.obligation,
+      applicableMonth: `${taxYear}-12`,
+      dueDate,
+      status: timed === "overdue" ? "verification-required" as const : timed,
+      detail: timed === "overdue"
+        ? `${item.detail} The nominal date has passed; verify the filing externally and retain the official evidence.`
+        : `${item.detail} Nominal date for tax year ${taxYear}; a weekend or holiday can move the final date.`,
+      sourceLabel: SOURCES.BIR.label,
+      sourceUrl: SOURCES.BIR.url,
+      exactness: "nominal" as const,
+    };
+  });
+}
+
 export function buildComplianceCalendar(input: {
   today: string;
   currentMonth: string;
@@ -215,6 +266,7 @@ export function buildComplianceCalendar(input: {
   philHealthEmployerNo?: string | null;
   batches: CalendarBatch[];
   bir1601cOperationalMonths?: string[];
+  annualTaxYears?: number[];
 }) {
   const byKey = new Map(input.batches.map((batch) => [`${batch.applicableMonth}|${batch.agency}`, batch]));
   const birOperationalMonths = new Set(input.bir1601cOperationalMonths ?? []);
@@ -244,6 +296,14 @@ export function buildComplianceCalendar(input: {
       sourceUrl: SOURCES.BIR.url,
       exactness: "conservative-target",
     });
+  }
+
+  const taxYears = new Set(
+    input.annualTaxYears
+      ?? (input.birApplicableMonths ?? input.applicableMonths).map((month) => Number(month.slice(0, 4))),
+  );
+  for (const taxYear of [...taxYears].sort()) {
+    items.push(...annualBirItems(taxYear, input.today));
   }
 
   for (const applicableMonth of input.applicableMonths) {

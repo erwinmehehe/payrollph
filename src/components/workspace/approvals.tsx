@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check, ClipboardCheck, Clock3, Settings2, ShieldCheck, UserCheck, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, ArrowRight, Check, ClipboardCheck, Clock3, Settings2, ShieldCheck, UserCheck, X } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { CheckerVarianceCenter } from "./checker-variance";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
+import { manilaCalendarDate } from "@/lib/payroll-period-ui";
+import { decisionVisibleToViewer, viewerApprovalCounts } from "@/lib/workspace-approval-eligibility";
 import type { DashboardData, Notify, Task } from "./types";
 import { EmptyState, Metric, PageHeading, Segmented, Spinner, Status } from "./ui";
 
@@ -33,38 +35,65 @@ export function ApprovalsView({
   onRefresh: () => Promise<void>;
   notify: Notify;
 }) {
-  const [filter, setFilter] = useState<"pending" | "all">("pending");
+  const [filter, setFilter] = useState<"mine" | "pending" | "all">(canDecide ? "mine" : "pending");
   const [formOpen, setFormOpen] = useState(false);
   const [pendingId, setPendingId] = useState<number | null>(null);
-
+  const [decisionDraft, setDecisionDraft] = useState<{ id: number; status: "Approved" | "Declined" } | null>(null);
+  const confirmDialog = useRef<HTMLDialogElement>(null);
+  const today = manilaCalendarDate();
+  const role = data.access?.role ?? data.user?.role;
+  const actorName = data.user?.name;
   const delegations = data.delegations ?? [];
-  const activeDelegations = delegations.filter((row) => row.active);
+  const activeDelegations = delegations.filter((row) => row.active && row.startsOn <= today && row.endsOn >= today);
+  const assignment = { actorName, role, delegations, canDecide, today };
+  const counts = viewerApprovalCounts({ ...assignment, tasks: data.tasks });
+  const canDecideTask = (task: Task) => decisionVisibleToViewer({ ...assignment, task });
 
-  const tasks = useMemo(
-    () => (filter === "pending" ? data.tasks.filter((task) => task.status === "Pending") : data.tasks),
-    [data.tasks, filter],
-  );
-
-  const pendingCount = data.tasks.filter((task) => task.status === "Pending").length;
-  const highCount = data.tasks.filter((task) => task.status === "Pending" && task.priority === "High").length;
+  // This small, derived queue does not need manual memoization; keeping the
+  // filter direct avoids unstable empty delegation arrays as hook dependencies.
+  const tasks = filter === "all" ? data.tasks
+    : filter === "pending" ? data.tasks.filter((task) => task.status === "Pending")
+    : data.tasks.filter((task) => decisionVisibleToViewer({
+        task, actorName, role, delegations, canDecide, today,
+      }));
+  const pendingCount = counts.pending;
+  const highCount = counts.high;
   const currentRun = data.payrollRuns.find((run) => run.status === "Pending approval") ?? data.payrollRuns.find((run) => run.status !== "Released") ?? data.payrollRuns[0];
   const payrollTask = currentRun
-    ? data.tasks
-        .filter((task) => task.detail.includes(`Payroll run #${currentRun.id}`))
-        .sort((a, b) => b.id - a.id)[0] ?? null
+    ? data.tasks.filter((task) => task.detail.includes("Payroll run #" + currentRun.id)).sort((a, b) => b.id - a.id)[0] ?? null
     : null;
   const handoffStages = currentRun
     ? buildPayrollHandoff(currentRun, { payrollExceptions: currentRun.exceptions, approvalTask: payrollTask })
     : [];
-  const handoffRole = handoffViewerRole(data.access?.role ?? data.user?.role);
-  const checkerMode = data.access?.role === "checker";
+  const handoffRole = handoffViewerRole(role);
+  const checkerMode = role === "checker";
 
-  async function decide(task: Task, status: "Approved" | "Declined") {
-    setPendingId(task.id);
+  const draftTask = decisionDraft ? data.tasks.find((task) => task.id === decisionDraft.id) : null;
+  const draftPermitted = Boolean(draftTask && canDecideTask(draftTask));
+  useEffect(() => {
+    const dialog = confirmDialog.current;
+    if (!dialog) return;
+    if (decisionDraft && !dialog.open) dialog.showModal();
+    else if (!decisionDraft && dialog.open) dialog.close();
+  }, [decisionDraft]);
+
+  function requestDecision(id: number, status: "Approved" | "Declined") {
+    const task = data.tasks.find((item) => item.id === id);
+    if (!task || !canDecideTask(task)) return;
+    setDecisionDraft({ id, status });
+  }
+
+  async function confirmDecision() {
+    if (!decisionDraft || !draftTask || !draftPermitted) {
+      setDecisionDraft(null);
+      return;
+    }
+    setPendingId(draftTask.id);
     try {
-      await onDecide(task.id, status);
+      await onDecide(draftTask.id, decisionDraft.status);
     } finally {
       setPendingId(null);
+      setDecisionDraft(null);
     }
   }
 
@@ -72,11 +101,11 @@ export function ApprovalsView({
     <>
       <PageHeading
         eyebrow="Approvals"
-        title="Decisions, with a clear trail."
+        title="Approvals, without the guesswork."
         copy={
           canDecide
-            ? "Every decision is permission-checked on the server against the assigned approver and any active delegation."
-            : "This role can review approval status and history, but decision controls stay with an assigned approver or checker."
+            ? "See requests assigned to you, review their details, and confirm each decision. The server checks your authorization."
+            : "Browse approval status and history. Only the assigned approver or a permitted delegate can make decisions."
         }
         actions={
           canManageDelegations ? (
@@ -98,20 +127,10 @@ export function ApprovalsView({
         />
       )}
 
-      {checkerMode && currentRun && (
-        <CheckerVarianceCenter
-          run={currentRun}
-          payrollTask={payrollTask}
-          busy={busy}
-          canDecide={canDecide}
-          onDecide={onDecide}
-        />
-      )}
-
       <section className="stats-grid">
-        <Metric label="Pending" value={String(pendingCount)} hint="awaiting a decision" icon={<ClipboardCheck size={16} className="i-amber" />} tone={pendingCount ? "amber" : "mint"} />
+        <Metric label="Assigned to me" value={String(counts.mine)} hint="awaiting your review" icon={<ClipboardCheck size={16} className="i-amber" />} tone={pendingCount ? "amber" : "mint"} />
         <Metric label="High priority" value={String(highCount)} hint="flagged for today" icon={<Clock3 size={16} className="i-cyan" />} tone={highCount ? "red" : "slate"} />
-        <Metric label="Decided" value={String(data.tasks.length - pendingCount)} hint="recorded in the audit trail" icon={<Check size={16} className="i-green" />} tone="mint" />
+        <Metric label="Decided" value={String(counts.decided)} hint="recorded in the audit trail" icon={<Check size={16} className="i-green" />} tone="mint" />
         <Metric
           label="Active delegations"
           value={String(activeDelegations.length)}
@@ -153,65 +172,135 @@ export function ApprovalsView({
         />
       )}
 
-      <div className="table-toolbar" style={{ border: 0, padding: "0 0 14px" }}>
+      <div className="p2-approval-toolbar">
+        <div className="p2-approval-toolbar-copy">
+          <span className="p2-overline">DECISION CENTER</span>
+          <h2>Requests and decisions</h2>
+          <p>Only tasks assigned to your identity or role show decision actions.</p>
+        </div>
         <Segmented
           label="Approval filter"
           value={filter}
           onChange={setFilter}
           options={[
-            { value: "pending", label: `Pending (${pendingCount})` },
-            { value: "all", label: `All (${data.tasks.length})` },
+            { value: "mine", label: "Assigned to me (" + counts.mine + ")" },
+            { value: "pending", label: "All pending (" + pendingCount + ")" },
+            { value: "all", label: "History (" + data.tasks.length + ")" },
           ]}
         />
       </div>
-
-      <article className="card">
+      <article className="card p2-approval-queue">
         <div className="approval-list">
           {tasks.length === 0 && (
-            <EmptyState icon={<Check size={20} className="i-green" />} title={filter === "pending" ? "Nothing waiting on you" : "No approval tasks"}>
-              {filter === "pending"
-                ? "Every task on this client has a recorded decision."
-                : "Approval tasks are created by payroll runs, leave requests and lifecycle checklists."}
+            <EmptyState icon={<Check size={20} className="i-green" />} title={filter === "mine" ? "No decisions assigned to you" : filter === "pending" ? "No pending approvals" : "No approval tasks"}>
+              {filter === "mine"
+                ? "No pending task matches your name or role. Switch to All pending to track other requests."
+                : filter === "pending"
+                  ? "Every approval in this workspace has a recorded decision."
+                  : "Approval tasks are created by payroll runs, leave requests and lifecycle checklists."}
             </EmptyState>
           )}
 
           {tasks.map((task) => (
-            <div className="approval-content" key={task.id}>
+            <div className="approval-content p2-approval-row" key={task.id}>
               <span className={`approval-symbol ${task.priority === "High" ? "" : ""}`} aria-hidden>
                 <ClipboardCheck size={17} className="i-amber" />
               </span>
               <div>
-                <div className="card-kicker">{task.priority === "High" ? "Priority review" : "Pending decision"}</div>
+                <div className="card-kicker">{task.status !== "Pending" ? "Decision recorded" : task.priority === "High" ? "Priority review" : "Awaiting decision"}</div>
                 <strong>{task.title}</strong>
                 <p>{task.detail}</p>
                 <div className="approval-meta">
                   <span>
-                    <UserCheck size={12} className="i-purple" /> Approver <strong style={{ fontSize: 10.5 }}>{approverLabel(task.approver)}</strong>
+                    <UserCheck size={12} className="i-purple" /> Approver <strong style={{ fontSize: 12 }}>{approverLabel(task.approver)}</strong>
                   </span>
                   <span>
                     <Clock3 size={12} className="i-cyan" /> {task.dueLabel}
                   </span>
-                  {activeDelegations.some((row) => row.fromApprover === task.approver) && (
+                  {activeDelegations.some((row) => row.fromApprover.trim().toLowerCase() === task.approver.trim().toLowerCase()) && (
                     <span className="status status-delegated">Delegated</span>
                   )}
                 </div>
               </div>
-              {task.status === "Pending" && canDecide ? (
-                <div className="approval-actions">
-                  <button className="decline-button" disabled={busy && pendingId === task.id} onClick={() => decide(task, "Declined")}>
+              {checkerMode && payrollTask?.id === task.id && canDecideTask(task) ? (
+                <div className="approval-actions p2-approval-actions">
+                  <button
+                    type="button"
+                    className="primary-button brand"
+                    onClick={() => document.getElementById("p2-checker-evidence")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  >
+                    <ArrowRight size={15} /> Review payroll evidence
+                  </button>
+                </div>
+              ) : canDecideTask(task) ? (
+                <div className="approval-actions p2-approval-actions">
+                  <button type="button" className="decline-button" disabled={busy || pendingId != null} onClick={() => requestDecision(task.id, "Declined")}>
                     Decline
                   </button>
-                  <button className="primary-button brand" disabled={busy && pendingId === task.id} onClick={() => decide(task, "Approved")}>
-                    {busy && pendingId === task.id ? <Spinner label="Saving" /> : <Check size={14} className="i-green" />} Approve
+                  <button type="button" className="primary-button brand" disabled={busy || pendingId != null} onClick={() => requestDecision(task.id, "Approved")}>
+                    {busy && pendingId === task.id ? <Spinner label="Saving" /> : <Check size={14} />} Review & approve
                   </button>
                 </div>
               ) : (
-                <Status value={task.status} />
+                <div className="p2-approval-readonly">
+                  <Status value={task.status} />
+                  {task.status === "Pending" && <span>Awaiting assigned approver</span>}
+                </div>
               )}
             </div>
           ))}
         </div>
       </article>
+
+      {checkerMode && currentRun && (
+        <section className="p2-checker-evidence" id="p2-checker-evidence" aria-label="Payroll approval evidence">
+          <CheckerVarianceCenter
+            run={currentRun}
+            payrollTask={payrollTask}
+            busy={busy}
+            canDecide={Boolean(payrollTask && canDecideTask(payrollTask))}
+            onDecide={async (id, status) => requestDecision(id, status)}
+          />
+        </section>
+      )}
+
+      <dialog
+        ref={confirmDialog}
+        className="p2-approval-confirm"
+        aria-labelledby="p2-decision-title"
+        aria-describedby="p2-decision-description"
+        onCancel={() => setDecisionDraft(null)}
+      >
+        {decisionDraft && draftTask && (
+          <div className="p2-confirm-body">
+            <span className="p2-confirm-icon" aria-hidden><ShieldCheck size={22} /></span>
+            <h2 id="p2-decision-title">{decisionDraft.status === "Approved" ? "Confirm approval" : "Confirm decline"}</h2>
+            <p id="p2-decision-description">
+              Review the assigned request before you record this decision. All permissions, source integrity, payroll assurance, and maker-checker rules are enforced by the server.
+            </p>
+            <dl>
+              <div><dt>Request</dt><dd>{draftTask.title}</dd></div>
+              <div><dt>Assigned to</dt><dd>{approverLabel(draftTask.approver)}</dd></div>
+              <div><dt>Decision</dt><dd>{decisionDraft.status}</dd></div>
+            </dl>
+            {!draftPermitted && (
+              <p className="p2-confirm-warning"><AlertTriangle size={16} /> This task is no longer eligible for your decision.</p>
+            )}
+            <div className="p2-confirm-actions">
+              <button type="button" className="secondary-button" disabled={pendingId != null} onClick={() => setDecisionDraft(null)}>Cancel</button>
+              <button
+                type="button"
+                className={decisionDraft.status === "Approved" ? "primary-button brand" : "decline-button"}
+                disabled={busy || pendingId != null || !draftPermitted}
+                onClick={() => void confirmDecision()}
+              >
+                {pendingId != null ? <Spinner label="Saving" /> : <ShieldCheck size={15} />}
+                {decisionDraft.status === "Approved" ? "Confirm approval" : "Confirm decline"}
+              </button>
+            </div>
+          </div>
+        )}
+      </dialog>
 
       {canManageDelegations && delegations.length > 0 && (
         <article className="card" style={{ marginTop: 16 }}>

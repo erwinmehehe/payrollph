@@ -349,7 +349,7 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
       </section>
 
       <article className="card" style={{ padding: 20, marginBottom: 16 }}>
-        <div className="card-header"><div><div className="card-kicker">SESSION POLICY</div><h2>Set organization authentication guardrails</h2><p>The strictest policy across all of a user's workspaces governs the session.</p></div></div>
+        <div className="card-header"><div><div className="card-kicker">SESSION POLICY</div><h2>Set organization authentication guardrails</h2><p>The strictest policy across all of a user&#39;s workspaces governs the session.</p></div></div>
         <form onSubmit={savePolicy}>
           <div className="setting-form">
             <label>Idle timeout (minutes)<input required type="number" min="15" max="10080" value={policy.sessionIdleMinutes} onChange={(e) => setPolicy({ ...policy, sessionIdleMinutes: Number(e.target.value) })} /></label>
@@ -458,7 +458,7 @@ export function EnterpriseControlsPanel({ organizationId, setNotice }: { organiz
 
       <section className="module-grid two" style={{ marginTop: 16 }}>
         <article className="card">
-          <div className="card-header"><div><div className="card-kicker">CUSTOM PERMISSIONS</div><h2>Deny-only role restrictions</h2><p>A permission set can only narrow the member's base role. An optional live Dynamic Group requirement narrows it further and stops access if the worker loses membership, changes scope, or the group version changes.</p></div><button className="secondary-button" onClick={() => setShowPermission(!showPermission)}>New set</button></div>
+          <div className="card-header"><div><div className="card-kicker">CUSTOM PERMISSIONS</div><h2>Deny-only role restrictions</h2><p>A permission set can only narrow the member&#39;s base role. An optional live Dynamic Group requirement narrows it further and stops access if the worker loses membership, changes scope, or the group version changes.</p></div><button className="secondary-button" onClick={() => setShowPermission(!showPermission)}>New set</button></div>
           {showPermission && <form onSubmit={savePermission} style={{ padding: "0 16px 14px" }}>
             <div className="setting-form">
               <label>Name<input required value={permissionForm.name} onChange={(e) => setPermissionForm({ ...permissionForm, name: e.target.value })} placeholder="HR without payroll" /></label>

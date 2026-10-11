@@ -1,6 +1,7 @@
 import { and, count, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalTasks, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { approvalTasks, auditEvents, employees, organizations, payrollEntries, payrollRuns } from "@/db/schema";
+import { checkerReleaseSeparationError } from "@/lib/treasury-controls";
 import { getSessionUser } from "@/lib/auth";
 import { queueMessage } from "@/lib/mailer";
 import { dispatchWebhook } from "@/lib/webhooks";
@@ -19,6 +20,7 @@ import { managedPayrollReleaseRequirement } from "@/lib/managed-payroll";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
+import { checkPayrollReleaseSegregation } from "@/lib/payroll-release-segregation";
 import { connectedPayrollReleaseGateEnabled, safePayrollConnectedReleaseReadiness } from "@/lib/payroll-connected-release-gate-server";
 
 const RELEASABLE = ["Ready for release"];
@@ -108,6 +110,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }, { status: 409 });
   }
 
+  const checkerEvents = await db.select().from(auditEvents).where(and(
+    eq(auditEvents.organizationId, run.organizationId),
+    inArray(auditEvents.action, ["Approval approved", "Approval approved by delegate"]),
+  ));
+  const separationError = checkerReleaseSeparationError({
+    events: checkerEvents,
+    approvalTaskId: payrollApproval.id,
+    payrollRunId: run.id,
+    userId: user.id,
+    userName: user.name,
+  });
+  if (separationError) {
+    return Response.json({ error: separationError, code: "PAYROLL_CHECKER_RELEASE_SEPARATION" }, { status: 403 });
+  }
+
   const approvalSnapshot = await verifyPayrollApprovalSnapshot(run, payrollApproval);
   if (!approvalSnapshot.valid) {
     return Response.json({
@@ -144,6 +161,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         approvalValid: Boolean(managedRequirement.approvalValid),
       },
     }, { status: 409 });
+  }
+
+  // Mandatory, tenant/task-linked release separation. A display name cannot
+  // prove that a distinct person approved this payroll. Keep the original
+  // checker-event guard too: both must be satisfied before settlement.
+  const separation = await checkPayrollReleaseSegregation({
+    organizationId: run.organizationId,
+    payrollRunId: run.id,
+    approvalTaskId: payrollApproval.id,
+    releaserUserId: user.id,
+    managedClientApproverUserId: managedRequirement.required
+      ? managedRequirement.approval?.approvedByUserId ?? null
+      : null,
+  });
+  if (!separation.allowed) {
+    return Response.json({ code: separation.code, error: separation.error }, {
+      status: separation.status,
+      headers: { "Cache-Control": "private, no-store" },
+    });
   }
 
   const assuranceResult = await buildPayrollAssurance(runId);
@@ -231,6 +267,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         assurance: assuranceResult?.assurance.summary ?? null,
         approvalTaskId: payrollApproval.id,
         approvedBy: payrollApproval.decidedBy ?? payrollApproval.approver,
+        makerUserId: separation.makerUserId,
+        checkerUserId: separation.checkerUserId,
+        assignedCheckerUserId: separation.assignedCheckerUserId,
         connectedSourceGate: connectedReleaseEvidence,
       },
     });

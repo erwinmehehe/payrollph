@@ -1,7 +1,7 @@
 # Database schema
 
 Nothing in the app creates its own tables, so a fresh database needs the schema
-applied before the first request. There are three files here and they are not a
+applied before the first request. The SQL files here are not a
 single ordered sequence, so read this before running anything.
 
 ## A fresh database
@@ -13,13 +13,13 @@ DATABASE_URL="postgresql://..." npm run db:push
 `db:push` reads `src/db/schema.ts` and creates everything it finds there, which
 is the whole current schema. **Check that it actually created tables**: push has
 been seen to report success and create nothing against a non-standard Postgres.
-Expect 167 tables. If it creates nothing, apply `baseline.sql` instead, which is
-the same schema as plain SQL and can be pasted into the Neon or Supabase SQL
-editor without any tooling.
+Compare the created tables with `src/db/schema.ts`; the count changes as features
+are added. Do not use the historical `baseline.sql` as a replacement for the
+current schema. It omits tables and columns introduced after it was generated.
 
 ## The files
 
-- `baseline.sql` is the complete current schema, 167 tables, generated from
+- `baseline.sql` is a historical schema snapshot generated from an older
   `src/db/schema.ts`. It is deliberately unnumbered: it is a starting point for
   an empty database, not the next step in the numbered sequence below.
 - `0001_payroll_periods_rbac.sql` and `0002_final_pay_reconciliation.sql` are
@@ -143,6 +143,20 @@ rehearses the SQL transactionally in a disposable local schema; the rehearsal
 cannot establish that a real employer's staging schema has been migrated.
 
 See [Compensation staging release gate](../docs/compensation-staging-release-gate.md).
+## Tamper-evident audit trail (0109)
+
+`0109_tamper_evident_audit_chain.sql` installs a trigger and SQL functions,
+which `db:push` does not create. Apply it with `psql -f` (it is idempotent)
+after the schema exists. It rejects UPDATE/DELETE on `audit_events` (except
+cascades from an organization deletion), and `seal_audit_events()` appends
+committed rows to a per-organization SHA-256 chain. Inserts take no locks; the
+scheduler and the verifier seal pending rows. Verify a workspace with
+`GET /api/compliance/audit-chain?organizationId=…`.
+
 Do not run `db:push` or paste a historical baseline into a production
 employer database without a separate signed, reviewed migration and rollback
 plan. Neither schema compatibility nor CI supplies payroll GA authorization.
+
+## Provider webhook event inbox (0110)
+
+`0110_provider_events_inbox.sql` follows the 0109 tamper-evident audit-chain migration. It creates the `provider_events` table with a unique `(provider,event_id)` index and organization/run foreign keys. Apply via a controlled, journaled staging/production SQL release after verifying 0109 and a backup/rollback plan. It is **not** applied by the source merge. Signed PayMongo webhooks return a retryable 503 if the inbox transaction cannot persist an event, including when the schema is missing. Test concurrent replays before activating live PayMongo payouts.

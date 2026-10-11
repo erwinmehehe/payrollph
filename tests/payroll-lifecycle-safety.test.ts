@@ -23,7 +23,7 @@ test("calculation snapshots payout instructions and release rejects stale employ
 
   assert.ok(engine.includes("payment: {"));
   assert.ok(engine.includes("payProfile: {"));
-  assert.ok(engine.includes("bankAccount: employee.bankAccount"));
+  assert.ok(engine.includes("bankAccount: sealedPaymentBankAccounts.get(employee.id) ?? null"));
   assert.ok(engine.includes("mobile: employee.mobile"));
   assert.ok(settlement.includes("lacks an immutable payment snapshot"));
   assert.ok(settlement.includes('employee.status !== "Active"'));
@@ -62,8 +62,8 @@ test("recalculation invalidates linked approvals and replaces derived register d
 
   assert.ok(process.includes('status: "Superseded"'));
   assert.ok(process.includes('eq(payrollRuns.status, run.status)'));
-  assert.ok(engine.includes("db.delete(payrollEntries)"));
-  assert.ok(engine.includes("db.delete(payrollJobs)"));
+  assert.ok(engine.includes("tx.delete(payrollEntries)"), "Register deletion must occur within the row-locked enqueue transaction");
+  assert.ok(engine.includes("tx.delete(payrollJobs)"), "Job reset must occur within the same transaction");
   assert.ok(schema.includes('references(() => payrollEntries.id, { onDelete: "cascade" })'));
 });
 

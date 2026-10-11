@@ -87,9 +87,11 @@ export async function createPayoutDestinationChangeRequest(input: {
     )).limit(1);
     if (!currentEmployee) throw new Error("Employee not found.");
 
-    const proposedBankAccount = input.replacementBankAccount
-      ? encryptBankAccount(input.replacementBankAccount)
-      : currentEmployee.bankAccount;
+    // Even a bank-code-only change must never copy a legacy plaintext account
+    // into a new pending destination row.
+    const proposedBankAccount = encryptBankAccount(
+      input.replacementBankAccount || currentEmployee.bankAccount,
+    );
     const proposedBankCode = normalizeCode(input.bankCode);
     const proposedMobile = normalizeMobile(input.mobile);
 
@@ -273,7 +275,8 @@ export async function decidePayoutDestinationChange(input: {
     }
 
     const [updatedEmployee] = await tx.update(employees).set({
-      bankAccount: request.proposedBankAccount,
+      // Old pending changes may predate mandatory encryption: seal on approval.
+      bankAccount: encryptBankAccount(request.proposedBankAccount),
       bankCode: request.proposedBankCode,
       mobile: request.proposedMobile,
     }).where(and(

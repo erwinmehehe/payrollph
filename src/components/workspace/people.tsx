@@ -347,6 +347,7 @@ export function PeopleView({
   onAddEmployee,
   onPage,
   canManage = true,
+  expandHcmInbox = false,
   focusEmployeeId,
   onClearFocus,
 }: {
@@ -355,9 +356,11 @@ export function PeopleView({
   onAddEmployee: () => void;
   onPage: (page: string) => void;
   canManage?: boolean;
+  expandHcmInbox?: boolean;
   focusEmployeeId?: number | null;
   onClearFocus?: () => void;
 }) {
+  const [administrationOpen, setAdministrationOpen] = useState(expandHcmInbox);
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" }>({ key: "name", dir: "asc" });
@@ -473,7 +476,7 @@ export function PeopleView({
         </details>
       )}
 
-      {(canManage || canManageLifecycle || canViewLifecycleNotifications) && <details className="panel-disclosure"><summary>Employee administration <span>Import, lifecycle policies and notifications</span></summary>
+      {(canManage || canManageLifecycle || canViewLifecycleNotifications) && <details className="panel-disclosure" open={administrationOpen} onToggle={(event) => setAdministrationOpen(event.currentTarget.open)}><summary>Employee administration <span>Import, lifecycle policies and notifications</span></summary>
       {canManage && <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />}
 
       {canManageLifecycle && (
@@ -498,7 +501,7 @@ export function PeopleView({
             const worker = data.employees.find((employee) => employee.id === employeeId);
             if (worker) setPicked(worker);
           }}
-          onOpenSeparation={() => onPage("separation")}
+          onOpenSeparation={() => onPage("Separation")}
         />
       )}
 
@@ -509,7 +512,7 @@ export function PeopleView({
             const worker = data.employees.find((employee) => employee.id === employeeId);
             if (worker) setPicked(worker);
           }}
-          onOpenSeparation={() => onPage("separation")}
+          onOpenSeparation={() => onPage("Separation")}
         />
       )}
       </details>}
@@ -613,7 +616,7 @@ export function PeopleView({
                       {employee.mwe && <small className="mwe-tag">MWE</small>}
                     </td>
                     <td className="right mono" style={{ color: "var(--muted)" }}>
-                      {employee.region ?? "NCR"}
+                      {employee.region?.trim() || "Not set"}
                     </td>
                   </tr>
                 ))}
@@ -1652,7 +1655,7 @@ function PersonDrawer({
             employeeId={employee.id}
             currentEmploymentType={employee.employmentType}
             onChanged={refreshConnectedProfile}
-            onOpenSeparation={() => onPage("separation")}
+            onOpenSeparation={() => onPage("Separation")}
           />
         )}
 
@@ -1717,6 +1720,12 @@ function PersonDrawer({
                 <label>Standard work days / month
                   <input type="number" min="1" max="31" step="0.5" value={standardWorkDaysPerMonth} onChange={(event) => setStandardWorkDaysPerMonth(event.target.value)} />
                 </label>
+                <div className="modal-note" data-monthly-workday-divisor-guidance style={{ gridColumn: "1 / -1" }}>
+                  <strong>Conversion examples, not prescribed divisors:</strong>{" "}
+                  <button className="secondary-button" type="button" onClick={() => setStandardWorkDaysPerMonth("22")}>22 days · example 5-day schedule</button>{" "}
+                  <button className="secondary-button" type="button" onClick={() => setStandardWorkDaysPerMonth("26")}>26 days · example 6-day schedule</button>
+                  <p>Verify the contract, paid leave, rest days and holiday rules before changing this financial assumption. Annual 261/262/313/314 day divisors are not values for this monthly field.</p>
+                </div>
                 <label>Standard hours / day
                   <input type="number" min="1" max="24" step="0.25" value={standardHoursPerDay} onChange={(event) => setStandardHoursPerDay(event.target.value)} />
                 </label>
@@ -1910,7 +1919,7 @@ function PersonDrawer({
                 </label>
               </div>
               <div className="modal-note" style={{ margin: "0 16px 10px" }}>
-                Leave account number blank to keep the saved destination; newly supplied numbers are encrypted server-side and returned masked. Once this employee appears in any payroll register (including a calculated Draft), bank/mobile payout changes require enterprise Treasury Controls and a different assigned treasury approver. Without that policy, direct entry is available only before this worker's first payroll calculation to a company-wide owner/admin with MFA. Never bypass an approval by creating a replacement employee.
+                Leave account number blank to keep the saved destination; newly supplied numbers are encrypted server-side and returned masked. Once this employee appears in any payroll register (including a calculated Draft), bank/mobile payout changes require enterprise Treasury Controls and a different assigned treasury approver. Without that policy, direct entry is available only before this worker&#39;s first payroll calculation to a company-wide owner/admin with MFA. Never bypass an approval by creating a replacement employee.
               </div>
               {payoutError && <div className="notice notice-amber" style={{ margin: "0 16px 10px" }}><span>{payoutError}</span></div>}
               {payoutNotice && <div className="notice notice-slate" style={{ margin: "0 16px 10px" }}><span>{payoutNotice}</span></div>}

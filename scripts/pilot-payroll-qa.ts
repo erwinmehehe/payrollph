@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../src/db";
-import { attendanceExceptionEvents, auditEvents, employees, leaveRequests, payrollRuns, separationRecords, timePunches, userOrganizations, users } from "../src/db/schema";
+import { attendanceExceptionEvents, auditEvents, employees, leaveBalances, leaveConversions, leavePolicies, leaveRequests, payrollEntries, payrollRuns, separationRecords, timePunches, userOrganizations, users } from "../src/db/schema";
 import { hashPassword } from "../src/lib/crypto";
 import { isEncryptedBankAccount } from "../src/lib/bank-account-crypto";
 import { reconcileAttendanceExceptionEvents } from "../src/lib/workforce-attendance-exception-events";
@@ -64,6 +64,90 @@ async function login(email: string, password: string) {
   return client;
 }
 
+async function verifySyntheticSeparation(owner: ApiClient, maker: ApiClient, organizationId: number) {
+  assert.equal(base, "http://127.0.0.1:3000", "Separation QA is restricted to the isolated local CI app.");
+  assert.equal(organizationId, 1, "The synthetic cap must match the fresh CI tenant exactly.");
+  assert.notEqual(process.env.FINAL_PAY_MANUAL_RELEASE_ENABLED, "true");
+  const type = "Synthetic exit leave";
+  const person = await expectOk(owner, "/api/employees", { method: "POST", json: {
+    organizationId, employeeNo: "PILOT-EXIT-001", firstName: "Synthetic", lastName: "Exit",
+    title: "QA Fixture", payBasis: "monthly", rateAmount: 22000,
+    standardWorkDaysPerMonth: 22, standardHoursPerDay: 8, region: "NCR", startDate: "2026-01-01",
+  } });
+  const employeeId = Number(person.employee.id);
+  await db.insert(leavePolicies).values({ organizationId, leaveType: type, annualDays: "10" });
+  const [balance] = await db.insert(leaveBalances).values({
+    organizationId, employeeId, leaveType: type, year: 2026,
+    opening: "10", used: "3", pending: "2",
+  }).returning();
+  await db.insert(leaveConversions).values({
+    organizationId, employeeId, leaveType: type, daysConverted: "2",
+    dailyRate: "1000.00", cashAmount: "2000.00", status: "approved",
+    createdAt: new Date("2026-09-01T00:00:00Z"),
+  });
+  const request = { organizationId, employeeId, separationType: "resignation",
+    noticeDate: "2026-09-01", lastDay: "2026-09-30", unusedLeaveType: type,
+    unusedLeaveCredits: 3, leaveTaxReviewed: true, leaveMonetizationTaxExempt: false };
+  const excess = await maker.json("/api/separation", { method: "POST", json: { ...request, unusedLeaveCredits: 3.1 } });
+  assert.equal(excess.response.status, 422);
+  assert.match(String(excess.payload.error), /authorized unspent balance/);
+  assert.equal((await db.select().from(separationRecords).where(eq(separationRecords.employeeId, employeeId))).length, 0);
+  const pending = await expectOk(maker, "/api/separation", { method: "POST", json: request });
+  assert.equal(pending.approvalRequired, true);
+  assert.equal(pending.separationCreated, false);
+  assert.equal((await db.select().from(separationRecords).where(eq(separationRecords.employeeId, employeeId))).length, 0);
+  const [hrUser] = await db.insert(users).values({
+    email: "hr.exit.pilot@linaw.test", name: "Synthetic exit HR reviewer", role: "hr",
+    passwordHash: hashPassword(credentials.checker), totpEnabled: false, backupCodes: [],
+  }).returning();
+  await db.insert(userOrganizations).values({ userId: hrUser.id, organizationId, role: "hr" });
+  const hr = await login(hrUser.email, credentials.checker);
+  for (const reviewer of [hr, owner]) {
+    const inbox = await expectOk(reviewer, `/api/hcm/business-processes/inbox?organizationId=${organizationId}`);
+    const step = inbox.myWork.find((item: Record<string, any>) => Number(item.instanceId) === Number(pending.businessProcess.id));
+    assert.ok(step?.approvalTaskId, "The separation intent needs its next governed approval task.");
+    assert.equal(step.makerBlocked, false);
+    await expectOk(reviewer, `/api/approvals/${step.approvalTaskId}`, { method: "PATCH", json: { status: "Approved" } });
+  }
+  const computed = await expectOk(maker, "/api/separation", { method: "POST", json: request });
+  assert.equal(computed.status, "draft");
+  assert.equal(computed.computationSnapshot.separationLeave.convertible, 3);
+  assert.equal(computed.computationSnapshot.separationLeave.authorizedCap, 5);
+  assert.equal(Number(computed.leaveMonetizationPay), 3000);
+  for (const field of ["itCleared", "adminCleared", "financeCleared", "hrCleared"]) {
+    await expectOk(owner, "/api/separation", { method: "PATCH", json: {
+      id: computed.id, action: "clearance", [field]: true, previousValue: false,
+      clearanceEvidenceReference: `synthetic-ci-${field}`,
+      clearanceReason: "Synthetic QA assertion only; no actual departmental attestation.",
+    } });
+  }
+  await db.update(leaveBalances).set({ used: "4" }).where(eq(leaveBalances.id, balance.id));
+  const stale = await owner.json("/api/separation", { method: "PATCH", json: { id: computed.id, action: "approve" } });
+  assert.equal(stale.response.status, 409);
+  assert.match(String(stale.payload.error), /changed after final pay/);
+  const revised = await expectOk(maker, "/api/separation", { method: "POST", json: { ...request, unusedLeaveCredits: 2 } });
+  assert.equal(Number(revised.id), Number(computed.id));
+  assert.equal(revised.approvedByUserId, null);
+  assert.equal(revised.computationSnapshot.separationLeave.convertible, 2);
+  assert.equal(revised.financeCleared, false, "Recomputation must revoke Finance clearance.");
+  await expectOk(owner, "/api/separation", { method: "PATCH", json: {
+    id: revised.id, action: "clearance", financeCleared: true, previousValue: false,
+    clearanceEvidenceReference: "synthetic-ci-finance-recomputed",
+    clearanceReason: "Synthetic QA assertion for the recomputed package only.",
+  } });
+  const approved = await expectOk(owner, "/api/separation", { method: "PATCH", json: { id: revised.id, action: "approve" } });
+  assert.equal(approved.status, "approved");
+  assert.notEqual(approved.preparedByUserId, approved.approvedByUserId);
+  const release = await owner.json("/api/separation", { method: "PATCH", json: { id: revised.id, action: "release" } });
+  assert.equal(release.response.status, 409);
+  assert.equal(release.payload.code, "FINAL_PAY_MANUAL_RELEASE_NOT_CERTIFIED");
+  assert.equal(Number((await db.select().from(leaveBalances).where(eq(leaveBalances.id, balance.id)))[0].used), 4);
+  report.syntheticSeparation = { result: "passed", cap: 5, reservedDays: 2,
+    rejectedExcess: true, staleApprovalBlocked: true, recomputedCredits: 2,
+    distinctTestActors: true, hcmIntentReviewedBeforeComputation: true,
+    manualReleaseBlocked: true, balanceUnspent: true };
+}
+
 async function main() {
   assert.ok(setupToken && readinessToken, "Pilot QA tokens must be configured.");
   mkdirSync("qa-artifacts", { recursive: true });
@@ -112,6 +196,37 @@ async function main() {
     created.push({ id: Number(payload.employee.id), employeeNo: String(payload.employee.employeeNo) });
   }
   (report.lifecycle as string[]).push("employees-created-with-payout-details");
+
+  // The zero-leak synthetic CI suite tests a FINAL semi-monthly cutoff.
+  // Therefore it needs an earlier RELEASED cutoff ledger for the same month
+  // to exercise the statutory true-up path. This DB-only fixture is not a
+  // real employer payment, approval, independent review or actual release.
+  const [syntheticPriorCutoff] = await db.insert(payrollRuns).values({
+    organizationId,
+    periodLabel: "Synthetic prior cutoff (1-15 Sep 2026) — CI ONLY",
+    periodStart: "2026-09-01",
+    periodEnd: "2026-09-15",
+    payDate: "2026-09-20",
+    status: "Released",
+    employeeCount: created.length,
+    grossPay: "39000.00",
+    netPay: "39000.00",
+    exceptions: 0,
+    processedChunks: 1,
+    totalChunks: 1,
+  }).returning();
+  await db.insert(payrollEntries).values(created.map((person, index) => ({
+    payrollRunId: syntheticPriorCutoff.id,
+    employeeId: person.id,
+    grossPay: index === 0 ? "21000.00" : "18000.00",
+    deductions: "0.00",
+    netPay: index === 0 ? "21000.00" : "18000.00",
+    status: "Ready",
+    lineItems: [{ code: "BASIC", amount: index === 0 ? "21000.00" : "18000.00" }],
+    trace: { inputs: [] },
+  })));
+  (report.lifecycle as string[]).push("synthetic-released-prior-cutoff-ledger-for-true-up");
+
 
   const stored = await db.select().from(employees).where(eq(employees.organizationId, organizationId));
   assert.equal(stored.length, 2);
@@ -397,6 +512,35 @@ async function main() {
   (report.lifecycle as string[]).push("wfm-attendance-correction-approved-four-eyes");
   (report.lifecycle as string[]).push("wfm-attendance-exception-resolution-evidence-recorded");
 
+  await expectOk(owner, "/api/workforce/timesheets", { method: "POST", json: {
+    organizationId, action: "update_policy", active: true, enforcementMode: "block",
+  } });
+  const blockedRun = await payroll.json("/api/payroll-runs", { method: "POST", json: {
+    organizationId, periodStart: "2026-09-16", periodEnd: "2026-09-30", payDate: "2026-10-05", processNow: true,
+  } });
+  assert.equal(blockedRun.response.status, 422);
+  assert.equal(blockedRun.payload.code, "TIMESHEET_APPROVAL_REQUIRED");
+  const [secondEmployeeUser] = await db.insert(users).values({
+    email: "second.employee.pilot@linaw.test", name: "Synthetic second employee",
+    passwordHash: hashPassword(credentials.employee), role: "employee",
+    employeeId: created[1].id, totpEnabled: false, backupCodes: [],
+  }).returning();
+  await db.insert(userOrganizations).values({ userId: secondEmployeeUser.id, organizationId, role: "employee" });
+  const secondEmployee = await login(secondEmployeeUser.email, credentials.employee);
+  for (const [index, client] of [employee, secondEmployee].entries()) {
+    const submitted = await expectOk(client, "/api/workforce/timesheets", { method: "POST", json: {
+      organizationId, action: "submit", employeeId: created[index].id,
+      periodStart: "2026-09-16", periodEnd: "2026-09-30",
+    } });
+    const approved = await expectOk(owner, "/api/workforce/timesheets", { method: "POST", json: {
+      organizationId, action: "decide", timesheetId: submitted.timesheet.id,
+      decision: "approved", decisionNote: "Synthetic CI review of corrected attendance; no employer attestation.",
+    } });
+    assert.equal(approved.timesheet.status, "approved");
+    assert.notEqual(approved.timesheet.submittedByUserId, approved.timesheet.decidedByUserId);
+  }
+  (report.lifecycle as string[]).push("timesheet-gate-blocked-payroll-until-distinct-test-actor-approval");
+
   const runPayload = await expectOk(payroll, "/api/payroll-runs", {
     method: "POST",
     json: { organizationId, periodStart: "2026-09-16", periodEnd: "2026-09-30", payDate: "2026-10-05", processNow: true },
@@ -405,6 +549,7 @@ async function main() {
   assert.ok(runId > 0);
   assert.ok(["Needs review", "Processed"].includes(String(runPayload.run?.status)));
   assert.equal(Number(runPayload.run?.exceptions), 0, "Pilot calculation must have zero engine exceptions.");
+  assert.equal(runPayload.timesheetGate?.gate?.allowed ?? runPayload.timesheetGate?.allowed, true);
   report.runId = runId;
   (report.lifecycle as string[]).push("payroll-calculated");
 
@@ -519,6 +664,11 @@ async function main() {
 
   const [finalRun] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.organizationId, organizationId))).limit(1);
   assert.equal(finalRun?.status, "Released");
+
+  if (process.env.SYNTHETIC_SEPARATION_QA === "true") {
+    await verifySyntheticSeparation(owner, payroll, organizationId);
+    (report.lifecycle as string[]).push("synthetic-separation-cap-and-stale-approval-verified-no-release");
+  }
 
   const events = await db.select().from(auditEvents).where(eq(auditEvents.organizationId, organizationId));
   const actions = new Set(events.map((event) => event.action));

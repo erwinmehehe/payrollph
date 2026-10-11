@@ -1,8 +1,8 @@
 import { encryptBankAccount } from "@/lib/bank-account-crypto";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, employeePayProfiles, employees, importBatches } from "@/db/schema";
+import { auditEvents, employeePayProfiles, employees, hcmBusinessProcessDefinitions, importBatches } from "@/db/schema";
 import { GOVERNED_HIRE_REQUIRED, hasConfiguredHireBusinessProcess } from "@/lib/hcm-direct-entry-policy";
 import { getSessionUser } from "@/lib/auth";
 import { getEntitlements, requireFeature, seatUsage } from "@/lib/billing";
@@ -157,6 +157,16 @@ export async function POST(request: Request) {
       // this transaction prevents two importer requests from inserting the same
       // worker after both observed the same preflight snapshot.
       await tx.execute(sql`SELECT pg_advisory_xact_lock(4212, ${organizationId})`);
+      // Revalidate configured Hire policy in the transaction: a CSV upload
+      // cannot outrun an organization HCM definition being saved.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(4195, ${organizationId})`);
+      const [configuredHire] = await tx.select({ id: hcmBusinessProcessDefinitions.id })
+        .from(hcmBusinessProcessDefinitions)
+        .where(and(
+          eq(hcmBusinessProcessDefinitions.organizationId, organizationId),
+          eq(hcmBusinessProcessDefinitions.processType, "hire"),
+        )).limit(1);
+      if (configuredHire) throw new Error("HCM_GOVERNED_HIRE_REQUIRED");
       let inserted: Array<{ id: number; employeeNo: string; basicRate: string }> = [];
       if (!dryRun && toInsert.length) {
         // Employee numbers are unique only within a tenant. Never reject
@@ -217,6 +227,9 @@ export async function POST(request: Request) {
       return { batch, createdCount: inserted.length };
     });
   } catch (error) {
+    if (error instanceof Error && error.message === "HCM_GOVERNED_HIRE_REQUIRED") {
+      return Response.json(GOVERNED_HIRE_REQUIRED, { status: 409 });
+    }
     if (error instanceof Error && error.message === "IMPORT_DUPLICATE_AFTER_PREFLIGHT") {
       return Response.json({
         error: "Another request created one of these employee numbers during the import. Refresh and validate the CSV again.",

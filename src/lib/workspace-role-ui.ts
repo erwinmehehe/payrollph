@@ -1,11 +1,11 @@
 export const ROLE_PRIMARY_PAGES: Partial<Record<string, readonly string[]>> = {
-  owner: ["Overview", "Payroll", "Analytics", "People", "Settings"],
-  admin: ["Overview", "Payroll", "Exports", "Compliance", "Analytics", "Settings"],
-  bookkeeper: ["Overview", "Exports", "Compliance", "Readiness", "Analytics"],
-  hr: ["Overview", "People"],
-  payroll: ["Overview", "Payroll", "Time & attendance", "People"],
-  checker: ["Overview", "Audit trail"],
-  manager: ["Overview", "Planning", "Performance", "Approvals", "Analytics"],
+  owner: ["Overview", "Payroll", "People", "Time & attendance", "Leave", "Approvals", "Analytics"],
+  admin: ["Overview", "Payroll", "People", "Time & attendance", "Leave", "Approvals", "Analytics"],
+  bookkeeper: ["Overview", "Payroll", "Exports", "Compliance", "Analytics", "Audit trail"],
+  hr: ["Overview", "People", "Time & attendance", "Leave", "Approvals", "Analytics"],
+  payroll: ["Overview", "Payroll", "People", "Time & attendance", "Approvals", "Analytics"],
+  checker: ["Overview", "Approvals", "Audit trail"],
+  manager: ["Overview", "Approvals", "Planning", "Performance", "Analytics"],
 };
 
 export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> = {

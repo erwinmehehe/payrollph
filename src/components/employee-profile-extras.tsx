@@ -338,7 +338,7 @@ export function EmployeeProfileExtras({
         <div className="ess-profile-card-heading">
           <div>
             <h3 id="ess-password-heading"><KeyRound size={20} aria-hidden="true" /> Change password</h3>
-            <p>You'll need your current password. After updating, your other sessions will be signed out.</p>
+            <p>You&#39;ll need your current password. After updating, your other sessions will be signed out.</p>
           </div>
         </div>
         <form onSubmit={(event) => void changePassword(event)} className="ess-password-form">

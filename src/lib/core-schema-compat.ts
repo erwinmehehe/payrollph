@@ -409,6 +409,15 @@ export async function ensureCoreCompatibilitySchema() {
         ON employee_rest_day_revisions(employee_id, effective_date)
       `);
 
+      // Chain columns are nullable and filled only by seal_audit_events()
+      // (drizzle/0109), so audit reads work before that migration is applied.
+      await client.query(`
+        ALTER TABLE audit_events
+          ADD COLUMN IF NOT EXISTS chain_seq bigint,
+          ADD COLUMN IF NOT EXISTS prev_hash varchar(64),
+          ADD COLUMN IF NOT EXISTS row_hash varchar(64)
+      `);
+
       await client.query(`
         ALTER TABLE data_requests
           ADD COLUMN IF NOT EXISTS fulfillment_action varchar(64),

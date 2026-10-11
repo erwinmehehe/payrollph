@@ -73,13 +73,18 @@ export function main() {
   const currentBase=git("rev-parse","--verify","refs/remotes/origin/"+base).trim();
   const mergeBase=git("merge-base",currentBase,head).trim();
   if (!/^[a-f0-9]{40}$/.test(mergeBase)) throw new Error("Unverifiable current merge base");
-  const historic=git("ls-tree","-r","--name-only",mergeBase,"--","drizzle").split("\n").filter(Boolean);
+  // Compare added migrations to the *current* main tree, not just the fork
+  // point. Otherwise two concurrent PRs can both pass a 0110 reservation
+  // check and create ambiguous migration history after the first merge.
+  const historic=git("ls-tree","-r","--name-only",currentBase,"--","drizzle").split("\n").filter(Boolean);
   const changes=parseDiff(git("diff","--name-status","--no-renames","-z",mergeBase,head,"--","drizzle"));
   const result=analyzeMigrationChanges(historic,changes);
   const summary=[
     "## SQL Migration History Guard (advisory)","",
     "Changed SQL files: "+result.changedSql,
-    "Last existing migration number: "+String(result.maxNumber).padStart(4,"0"),
+    "Current main ref SHA: "+currentBase,
+    "Pull request merge base SHA: "+mergeBase,
+    "Last existing migration number on current main: "+String(result.maxNumber).padStart(4,"0"),
     "Legacy duplicate number groups (unchanged): "+result.legacyDuplicatePrefixes.length,
     "Outcome: "+(result.errors.length ? "FAIL" : "PASS"),"",
     ...result.errors.map(e=>"- "+e),"",

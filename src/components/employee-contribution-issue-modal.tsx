@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { essText, type EssLanguage } from "@/lib/ess-language";
 
 const ISSUE_OPTIONS = [
   ["missing_posting", "Contribution is missing from my agency record"],
@@ -13,17 +14,20 @@ const ISSUE_OPTIONS = [
 
 export function EmployeeContributionIssueModal({
   memberId,
+  language = "en",
   initialAgency,
   initialMonth,
   onClose,
   onSubmitted,
 }: {
   memberId: number | null;
+  language?: EssLanguage;
   initialAgency?: string;
   initialMonth?: string;
   onClose: () => void;
   onSubmitted: () => void;
 }) {
+  const t = (text: string) => essText(language, text);
   const [agency, setAgency] = useState(initialAgency ?? "");
   const [applicableMonth, setApplicableMonth] = useState(initialMonth ?? "");
   const [issueType, setIssueType] = useState("missing_posting");
@@ -34,7 +38,7 @@ export function EmployeeContributionIssueModal({
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!agency || !applicableMonth || description.trim().length < 20) {
-      setError("Choose the agency/month and describe the problem in at least 20 characters.");
+      setError(t("Choose the agency/month and describe the problem in at least 20 characters."));
       return;
     }
 
@@ -54,13 +58,13 @@ export function EmployeeContributionIssueModal({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setError(body.error ?? "The contribution issue could not be submitted.");
+        setError(body.error ?? t("The contribution issue could not be submitted."));
         return;
       }
       onSubmitted();
       onClose();
     } catch {
-      setError("The contribution issue could not be submitted because the server could not be reached.");
+      setError(t("The contribution issue could not be submitted because the server could not be reached."));
     } finally {
       setBusy(false);
     }
@@ -68,26 +72,26 @@ export function EmployeeContributionIssueModal({
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <section className="modal employee-leave-modal" role="dialog" aria-modal="true" aria-label="Report contribution issue">
-        <div className="card-kicker">MANDATORY CONTRIBUTIONS</div>
-        <h2>Report a contribution problem</h2>
+      <section className="modal employee-leave-modal" role="dialog" aria-modal="true" aria-label={t("Report contribution issue")}>
+        <div className="card-kicker">{t("MANDATORY CONTRIBUTIONS")}</div>
+        <h2>{t("Report a contribution problem")}</h2>
         <p>
-          This creates a payroll compliance case. It does not change your payslip or agency record.
+          {t("This creates a payroll compliance case. It does not change your payslip or agency record.")}
         </p>
 
         <form onSubmit={submit} className="employee-leave-form">
           <div className="employee-form-two">
             <label>
-              Agency
+              {t("Agency")}
               <select value={agency} onChange={(event) => setAgency(event.target.value)} disabled={Boolean(initialAgency)}>
-                <option value="">Select agency</option>
+                <option value="">{t("Select agency")}</option>
                 <option value="SSS">SSS</option>
                 <option value="PhilHealth">PhilHealth</option>
                 <option value="Pag-IBIG">Pag-IBIG</option>
               </select>
             </label>
             <label>
-              Applicable month
+              {t("Applicable month")}
               <input
                 type="month"
                 value={applicableMonth}
@@ -99,39 +103,39 @@ export function EmployeeContributionIssueModal({
           </div>
 
           <label>
-            What looks wrong?
+            {t("What looks wrong?")}
             <select value={issueType} onChange={(event) => setIssueType(event.target.value)}>
               {ISSUE_OPTIONS.map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
+                <option key={value} value={value}>{t(label)}</option>
               ))}
             </select>
           </label>
 
           <label>
-            What did you notice?
+            {t("What did you notice?")}
             <textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               maxLength={500}
-              placeholder="Example: My September payslip deducted SSS, but the contribution does not appear in my SSS record."
+              placeholder={t("Example: My September payslip deducted SSS, but the contribution does not appear in my SSS record.")}
               required
             />
-            <small>{description.trim().length}/20 minimum characters</small>
+            <small>{description.trim().length}/20 {t("minimum characters")}</small>
           </label>
 
           <div className="notice notice-amber">
             <AlertTriangle size={15} />
             <span>
-              Do not include passwords, OTPs or login credentials. Payroll can review contribution evidence without access to your agency account.
+              {t("Do not include passwords, OTPs or login credentials. Payroll can review contribution evidence without access to your agency account.")}
             </span>
           </div>
 
           {error && <div className="notice notice-red"><span>{error}</span></div>}
 
           <div className="employee-modal-actions">
-            <button type="button" className="secondary-button" onClick={onClose}>Cancel</button>
+            <button type="button" className="secondary-button" onClick={onClose}>{t("Cancel")}</button>
             <button className="primary-button brand" disabled={busy || !agency || !applicableMonth || description.trim().length < 20}>
-              {busy ? "Submitting…" : "Submit compliance case"}
+              {busy ? t("Submitting…") : t("Submit compliance case")}
             </button>
           </div>
         </form>

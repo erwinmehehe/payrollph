@@ -12,6 +12,9 @@ import {
   hcmEmploymentDecisionEvents,
   hcmEmploymentTermDecisions,
   loanPayments,
+  leaveBalances,
+  leavePolicies,
+  leaveConversions,
   payrollEntries,
   payrollRuns,
   positionAssignments,
@@ -31,7 +34,7 @@ import {
 } from "@/lib/access";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
-import { computeFinalPay, finalPayDueDate, readBasicAndThirteenth } from "@/lib/final-pay";
+import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, unresolvedFinalPayMandatoryShortfall } from "@/lib/final-pay";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
@@ -46,7 +49,11 @@ import {
 import {
   expectedFinalPaySourceAfterInitiation,
   finalPaySourceFingerprint as fingerprint,
+  sameFinalPaySource as sameSnapshot,
 } from "@/lib/final-pay-source-fingerprint";
+
+import { approvedLeaveConversionCap } from "@/lib/leave-conversion-policy";
+import { separationLeaveAllowance, validateSeparationLeaveCredits } from "@/lib/separation-leave";
 
 export const dynamic = "force-dynamic";
 
@@ -150,6 +157,17 @@ async function loadFinalPaySources(input: {
     eq(employeeLoans.status, "active"),
   ));
 
+  const balances = await reader.select().from(leaveBalances).where(and(
+    eq(leaveBalances.organizationId, input.organizationId), eq(leaveBalances.employeeId, input.employeeId), eq(leaveBalances.year, taxYear),
+  ));
+  const policies = await reader.select().from(leavePolicies).where(eq(leavePolicies.organizationId, input.organizationId));
+  const conversions = await reader.select().from(leaveConversions).where(and(
+    eq(leaveConversions.organizationId, input.organizationId), eq(leaveConversions.employeeId, input.employeeId),
+  ));
+  const leave = { balances, conversions, policies: policies.map(policy => ({ ...policy,
+    conversionCap: approvedLeaveConversionCap(input.organizationId, policy.leaveType),
+  })) };
+
   let releasedBasicYtd = 0;
   let thirteenthPaidYtd = 0;
   let ordinaryGrossYtd = 0;
@@ -202,6 +220,7 @@ async function loadFinalPaySources(input: {
     employee,
     payProfile,
     resolvedPayProfile,
+    leave,
     released,
     historical,
     loans,
@@ -217,10 +236,6 @@ async function loadFinalPaySources(input: {
       activeLoanBalance: Number(money(loans.reduce((sum, loan) => sum + Number(loan.remainingBalance), 0))),
     },
   };
-}
-
-function sameSnapshot(left: unknown, right: unknown) {
-  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 export async function GET(request: Request) {
@@ -431,6 +446,10 @@ export async function POST(request: Request) {
       }, { status: 422 });
     }
     const unusedLeaveCredits = nonNegative(body.unusedLeaveCredits, "Convertible unused leave credits");
+    const unusedLeaveType = String(body.unusedLeaveType ?? "Vacation leave").trim();
+    const leaveAllowance = unusedLeaveCredits > 0
+      ? separationLeaveAllowance(sources.leave, unusedLeaveType, Number(lastDay.slice(0, 4))) : null;
+    if (leaveAllowance) validateSeparationLeaveCredits(unusedLeaveCredits, leaveAllowance);
     const separationPay = nonNegative(body.separationPay, "Separation pay");
     const retirementPay = nonNegative(body.retirementPay, "Retirement pay");
     const otherBenefits = nonNegative(body.otherBenefits, "Other final-pay benefits");
@@ -445,7 +464,7 @@ export async function POST(request: Request) {
       }, { status: 422 });
     }
 
-    const leaveMonetizationPay = Number(money(unusedLeaveCredits * sources.resolvedPayProfile.dailyRate));
+    const leaveMonetizationPay = calculateLeaveMonetizationPay(unusedLeaveCredits, sources.resolvedPayProfile.dailyRate);
     const leaveTaxReviewed = Boolean(body.leaveTaxReviewed);
     const leaveMonetizationTaxExempt = Boolean(body.leaveMonetizationTaxExempt);
     if (leaveMonetizationPay > 0 && !leaveTaxReviewed) {
@@ -501,9 +520,19 @@ export async function POST(request: Request) {
       deMinimisExcessYtd: sources.totals.deMinimisExcessYtd,
       mweTaxableSupplementaryCompensationYtd: sources.totals.mweTaxableSupplementaryCompensationYtd,
       deductOutstandingLoans,
+      separationLeave: leaveAllowance ? { ...leaveAllowance, credits: unusedLeaveCredits } : null,
       requestedLoanDeductions: result.requestedLoanDeductions,
       collectibleLoanDeductions: result.loanDeductions,
       deferredLoanBalance: result.deferredLoanBalance,
+      // Immutable per-recomputation evidence; these amounts remain unpaid
+      // until independently reconciled and must not disappear at net=0.
+      requestedTaxCollection: result.requestedTaxCollection,
+      appliedTaxCollection: result.appliedTaxCollection,
+      unpaidTaxWithholding: result.unpaidTaxWithholding,
+      appliedStatutoryDeductions: result.appliedStatutoryDeductions,
+      unpaidStatutoryDeductions: result.unpaidStatutoryDeductions,
+      unpaidMandatoryDeductions: result.unpaidMandatoryDeductions,
+      shortfallAllocationPolicy: "tax-first-provisional-review-required",
       annualization: result.annualization,
       specialPayTaxReviewed,
       separationPayTaxExempt,
@@ -1129,6 +1158,16 @@ export async function PATCH(request: Request) {
   }
 
   if (action === "approve" || action === "release") {
+    // Recompute this independent gate from protected numeric columns so a
+    // legacy snapshot lacking the new fields cannot silently bypass review.
+    const shortfall = unresolvedFinalPayMandatoryShortfall(sep);
+    if (shortfall === null || shortfall > 0) {
+      return Response.json({
+        code: "FINAL_PAY_MANDATORY_SHORTFALL_REVIEW_REQUIRED",
+        error: "Final pay does not cover all mandatory tax and statutory deductions. Reconcile the unpaid obligations with payroll and finance before approval or release.",
+        unpaidMandatoryDeductions: shortfall,
+      }, { status: 409 });
+    }
     if (!(sep.itCleared && sep.adminCleared && sep.financeCleared && sep.hrCleared)) {
       return Response.json({ error: "IT, Admin, Finance, and HR clearance must all be complete first." }, { status: 409 });
     }
@@ -1161,6 +1200,9 @@ export async function PATCH(request: Request) {
           )).limit(1);
           if (!fresh || fresh.status !== "draft") {
             throw new Error("FINAL_PAY_APPROVAL_CHANGED");
+          }
+          if (unresolvedFinalPayMandatoryShortfall(fresh) !== 0) {
+            throw new Error("FINAL_PAY_MANDATORY_SHORTFALL_REVIEW_REQUIRED");
           }
           // Stable actor IDs, never display names. Historical packages with
           // unknown preparers require a fresh evidence-backed recomputation.
@@ -1218,7 +1260,9 @@ export async function PATCH(request: Request) {
         if (code.startsWith("FINAL_PAY_")) {
           return Response.json({
             code,
-            error: code === "FINAL_PAY_MAKER_EVIDENCE_MISSING"
+            error: code === "FINAL_PAY_MANDATORY_SHORTFALL_REVIEW_REQUIRED"
+              ? "Mandatory tax or statutory deductions exceed the payable final amount. Recompute and reconcile the outstanding obligations before approval."
+              : code === "FINAL_PAY_MAKER_EVIDENCE_MISSING"
               ? "This legacy final-pay draft has no stable preparer identity. Recompute against verified source records before independent approval."
               : code === "FINAL_PAY_MAKER_CHECKER_REQUIRED"
                 ? "The employee final-pay preparer cannot approve their own computation."
@@ -1249,6 +1293,9 @@ export async function PATCH(request: Request) {
       )).limit(1);
       if (!fresh || fresh.status !== "approved") {
         throw new Error("Final-pay release state changed. Refresh and try again.");
+      }
+      if (unresolvedFinalPayMandatoryShortfall(fresh) !== 0) {
+        throw new Error("FINAL_PAY_MANDATORY_SHORTFALL_REVIEW_REQUIRED");
       }
       if (String(fresh.lastDay) > todayPh()) {
         throw new Error("The approved employee last day has not yet occurred. Do not mark the worker Separated or release final pay early.");
@@ -1287,6 +1334,18 @@ export async function PATCH(request: Request) {
       if (!sameSnapshot(freshSnapshot.sourceFingerprint, transactionFingerprint)
         || !sameSnapshot(currentFingerprint, transactionFingerprint)) {
         throw new Error("FINAL_PAY_SOURCE_CHANGED: source payroll, imported history, pay profile, or outstanding loans changed during release.");
+      }
+
+      if (Number(fresh.unusedLeaveCredits) > 0) {
+        const evidence = freshSnapshot.separationLeave as { leaveType?: string; credits?: number } | undefined;
+        if (!evidence?.leaveType || evidence.credits !== Number(fresh.unusedLeaveCredits)) {
+          throw new Error("Recompute this package with verified leave entitlement before release.");
+        }
+        const allowance = separationLeaveAllowance(transactionSources.leave, evidence.leaveType, Number(String(fresh.lastDay).slice(0, 4)));
+        validateSeparationLeaveCredits(evidence.credits, allowance);
+        await tx.update(leaveBalances).set({
+          used: sql`${leaveBalances.used} + ${evidence.credits}`, updatedAt: new Date(),
+        }).where(and(eq(leaveBalances.id, allowance.balanceId), eq(leaveBalances.organizationId, fresh.organizationId), eq(leaveBalances.employeeId, fresh.employeeId)));
       }
 
       // Separation cannot overwrite a worker who was concurrently rehired,

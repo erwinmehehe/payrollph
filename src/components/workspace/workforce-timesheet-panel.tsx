@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Clock3, FileCheck2, RefreshCcw, ShieldAlert } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
+import { phWorkDateAt } from "@/lib/workforce-manager-actions";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
 
 type Timesheet = {
@@ -47,9 +48,7 @@ type Payload = {
 };
 
 function localToday() {
-  const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 10);
+  return phWorkDateAt();
 }
 
 function addDays(dateText: string, days: number) {
@@ -66,15 +65,17 @@ export function WorkforceTimesheetPanel({
   data,
   notify,
   canManage,
+  initialPeriod,
 }: {
   data: DashboardData;
   notify: Notify;
   canManage: boolean;
+  initialPeriod?: { periodStart: string; periodEnd: string };
 }) {
   const organizationId = data.selectedOrganization.id;
   const today = localToday();
-  const [periodEnd, setPeriodEnd] = useState(today);
-  const [periodStart, setPeriodStart] = useState(addDays(today, -14));
+  const [periodEnd, setPeriodEnd] = useState(initialPeriod?.periodEnd ?? today);
+  const [periodStart, setPeriodStart] = useState(initialPeriod?.periodStart ?? addDays(today, -14));
   const [payload, setPayload] = useState<Payload | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 

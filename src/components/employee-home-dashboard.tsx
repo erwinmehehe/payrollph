@@ -10,6 +10,7 @@ import {
   WalletCards,
 } from "lucide-react";
 import { dashboardDate, dashboardMoney } from "@/lib/dashboard-presentation";
+import { essText, type EssLanguage } from "@/lib/ess-language";
 
 type HomeData = {
   employee: { firstName: string };
@@ -38,6 +39,7 @@ export function EmployeeHomeDashboard({
   onAttendance,
   onLeave,
   onRequestLeave,
+  language = "en",
 }: {
   data: HomeData;
   onPayslip: (id: number) => void;
@@ -45,7 +47,9 @@ export function EmployeeHomeDashboard({
   onAttendance: () => void;
   onLeave: () => void;
   onRequestLeave: () => void;
+  language?: EssLanguage;
 }) {
+  const t = (text: string) => essText(language, text);
   const latest = data.payslips[0];
   const pending = data.leave.requests.filter(
     (request) => request.status === "Pending",
@@ -54,11 +58,11 @@ export function EmployeeHomeDashboard({
     <div className="clean-dashboard clean-employee-home employee-home">
       <div className="clean-heading">
         <div>
-          <h1>Good morning, {data.employee.firstName}.</h1>
-          <p>Your pay, leave and attendance at a glance.</p>
+          <h1>{t("Good morning")}, {data.employee.firstName}.</h1>
+          <p>{t("Your pay, leave and attendance at a glance.")}</p>
         </div>
         <button type="button" className="clean-button secondary employee-leave-shortcut" onClick={onLeave}>
-          <Leaf size={16} aria-hidden="true" /> My leave
+          <Leaf size={16} aria-hidden="true" /> {t("My leave")}
         </button>
       </div>
       <section className="clean-card clean-employee-next">
@@ -66,26 +70,26 @@ export function EmployeeHomeDashboard({
           <CalendarDays size={24} />
         </span>
         <div>
-          <span>Next payday</span>
+          <span>{t("Next payday")}</span>
           <h2>
             {data.nextPay
               ? dashboardDate(data.nextPay.payDate)
-              : "Not scheduled yet"}
+              : t("Not scheduled yet")}
           </h2>
           <p>
             {data.nextPay
               ? `${data.nextPay.period} · ${data.nextPay.label}`
-              : "Your next cycle appears when you’re included in a payroll run."}
+              : t("Your next cycle appears when you’re included in a payroll run.")}
           </p>
           <small>
-            Your payslip will be available after payroll is released.
+            {t("Your payslip will be available after payroll is released.")}
           </small>
         </div>
       </section>
       <div className="clean-employee-grid">
         <section className="clean-card">
           <div className="clean-card-header">
-            <h2>Leave balance</h2>
+            <h2>{t("Leave balance")}</h2>
             <span className="clean-icon green">
               <Leaf size={21} />
             </span>
@@ -97,40 +101,40 @@ export function EmployeeHomeDashboard({
                   {balance.available.toLocaleString("en-PH", {
                     maximumFractionDigits: 1,
                   })}{" "}
-                  days
+                  {t("days")}
                 </strong>
                 <span>{balance.leaveType}</span>
               </div>
             ))
           ) : (
-            <p className="clean-muted">No leave policy assigned yet.</p>
+            <p className="clean-muted">{t("No leave policy assigned yet.")}</p>
           )}
           <p className="clean-muted">
             {pending
-              ? `${pending} requests awaiting approval`
-              : "No pending leave requests"}
+              ? `${pending} ${t("requests awaiting approval")}`
+              : t("No pending leave requests")}
           </p>
           <button type="button" className="clean-link" onClick={onLeave}>
-            View leave details <ArrowRight size={16} aria-hidden="true" />
+            {t("View leave details")} <ArrowRight size={16} aria-hidden="true" />
           </button>
         </section>
         <section className="clean-card">
           <div className="clean-card-header">
-            <h2>Attendance</h2>
+            <h2>{t("Attendance")}</h2>
             <span className="clean-icon blue">
               <Clock size={21} />
             </span>
           </div>
           <div className="clean-leave-balance">
-            <strong>{data.attendance.completeCount} complete</strong>
-            <span>Of {data.attendance.recent.length} recent time records</span>
+            <strong>{data.attendance.completeCount} {t("complete")}</strong>
+            <span>{t("Of")} {data.attendance.recent.length} {t("recent time records")}</span>
           </div>
           <p className="clean-muted">
             {data.attendance.today?.timeIn
               ? data.attendance.today.timeOut
-                ? "Today’s shift is complete"
-                : "You’re clocked in"
-              : "Not clocked in today"}
+                ? t("Today’s shift is complete")
+                : t("You’re clocked in")
+              : t("Not clocked in today")}
           </p>
         </section>
       </div>
@@ -139,13 +143,13 @@ export function EmployeeHomeDashboard({
         data-latest-payslip={latest ? "" : undefined}
       >
         <div>
-          <span className="clean-eyebrow">Latest payslip</span>
-          <p>{latest?.period ?? "No released payslip yet"}</p>
+          <span className="clean-eyebrow">{t("Latest payslip")}</span>
+          <p>{latest?.period ?? t("No released payslip yet")}</p>
           <strong>{latest ? dashboardMoney(latest.net) : "—"}</strong>
           <small>
             {latest
-              ? `Payslip available · Net pay · Paid ${dashboardDate(latest.payDate)}`
-              : "Your released pay will appear here."}
+              ? `${t("Payslip available · Net pay · Paid")} ${dashboardDate(latest.payDate)}`
+              : t("Your released pay will appear here.")}
           </small>
         </div>
         {latest && (
@@ -155,7 +159,7 @@ export function EmployeeHomeDashboard({
               className="clean-link"
               onClick={() => onPayslip(latest.entryId)}
             >
-              View payslip <ArrowRight size={17} />
+              {t("View payslip")} <ArrowRight size={17} />
             </button>
             <a
               className="clean-link"
@@ -168,17 +172,17 @@ export function EmployeeHomeDashboard({
       </section>
       <div className="clean-employee-actions">
         <button type="button" className="clean-button secondary" onClick={onRequestLeave}>
-          <Leaf size={17} /> Request leave
+          <Leaf size={17} /> {t("Request leave")}
         </button>
         <button type="button" className="clean-button secondary" onClick={onAttendance}>
-          <CalendarDays size={17} /> View attendance
+          <CalendarDays size={17} /> {t("View attendance")}
         </button>
       </div>
       <section className="clean-card">
         <div className="clean-card-header">
-          <h2>Recent payslips</h2>
+          <h2>{t("Recent payslips")}</h2>
           <button type="button" className="clean-link" onClick={onPay}>
-            View all <ArrowRight size={15} />
+            {t("View all")} <ArrowRight size={15} />
           </button>
         </div>
         {data.payslips.length ? (
@@ -194,7 +198,7 @@ export function EmployeeHomeDashboard({
               </span>
               <span>
                 <strong>{slip.period}</strong>
-                <small>Paid {dashboardDate(slip.payDate)}</small>
+                <small>{t("Paid")} {dashboardDate(slip.payDate)}</small>
               </span>
               <strong>{dashboardMoney(slip.net)}</strong>
               <ArrowRight size={16} />
@@ -202,7 +206,7 @@ export function EmployeeHomeDashboard({
           ))
         ) : (
           <p className="clean-muted">
-            <WalletCards size={18} /> No released payslips yet.
+            <WalletCards size={18} /> {t("No released payslips yet.")}
           </p>
         )}
       </section>

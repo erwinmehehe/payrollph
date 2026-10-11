@@ -1,3 +1,4 @@
+import { parseMigrationDate } from "@/lib/migration-date";
 import { parseCsv } from "@/lib/csv-import";
 import { DE_MINIMIS_2026, type DeMinimisType } from "@/lib/ph-compliance";
 
@@ -271,14 +272,7 @@ function numberValue(value: string | undefined, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
-function dateValue(value: string | undefined): string | null {
-  const raw = (value ?? "").trim();
-  if (!raw) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(0, 10);
-}
+const dateValue = parseMigrationDate;
 
 function boolValue(value: string | undefined) {
   return ["1", "true", "yes", "y"].includes((value ?? "").trim().toLowerCase());
@@ -331,11 +325,11 @@ function parseEmployee(
   if (!Number.isFinite(monthlyBasic) || monthlyBasic <= 0) problems.push("monthly basic salary must be greater than zero");
 
   const email = get("email").trim() || null;
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) problems.push(`email "${email}" is not valid`);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) problems.push(`email "${email}" is invalid or ambiguous; use YYYY-MM-DD`);
 
   const startDateRaw = get("startDate").trim();
   const startDate = dateValue(startDateRaw);
-  if (startDateRaw && !startDate) problems.push(`start date "${startDateRaw}" is not valid`);
+  if (startDateRaw && !startDate) problems.push(`start date "${startDateRaw}" is invalid or ambiguous; use YYYY-MM-DD`);
 
   if (problems.length) return { problems };
 
@@ -378,7 +372,7 @@ function parsePayrollHistory(
   const netPay = numberValue(get("netPay"));
 
   if (!employeeNo) problems.push("employee number / ID is required");
-  if (!payDate) problems.push(`pay date "${rawPayDate || "(blank)"}" is not valid`);
+  if (!payDate) problems.push(`pay date "${rawPayDate || "(blank)"}" is invalid or ambiguous; use YYYY-MM-DD`);
   if (!Number.isFinite(grossPay) || grossPay < 0) problems.push("gross pay must be zero or greater");
   if (!Number.isFinite(basicSalary) || basicSalary < 0) problems.push("basic salary earned is required and must be zero or greater");
   if (!Number.isFinite(netPay) || netPay < 0) problems.push("net pay must be zero or greater");

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { and, desc, eq, isNull, notInArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  hcmBusinessProcessDefinitions,
   jobRequisitions,
   positionAssignments,
   positions,
@@ -426,6 +427,22 @@ export async function PATCH(request: Request) {
         activeRequisitionPositionIds: state.activeRequisitionPositionIds,
       });
       if (!preview.summary.executable) throw new Error("POSITION_EXECUTION_STATE_CHANGED");
+      // An approved workforce plan is not an override of a configured
+      // independent HCM Create Position business-process policy.
+      const createsApprovedPosition = preview.actions.some((action) =>
+        action.kind === "create" || (action.kind === "update" &&
+          action.before.status === "planned" && action.after.status === "approved"),
+      );
+      if (createsApprovedPosition) {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(4195, ${freshExecution.organizationId})`);
+        const [governedCreation] = await tx.select({ id: hcmBusinessProcessDefinitions.id })
+          .from(hcmBusinessProcessDefinitions)
+          .where(and(
+            eq(hcmBusinessProcessDefinitions.organizationId, freshExecution.organizationId),
+            eq(hcmBusinessProcessDefinitions.processType, "create_position"),
+          )).limit(1);
+        if (governedCreation) throw new Error("POSITION_EXECUTION_GOVERNED_REVIEW_REQUIRED");
+      }
 
       const liveStateHash = hash(executionLiveState({
         positions: state.livePositions,
@@ -553,6 +570,12 @@ export async function PATCH(request: Request) {
     return Response.json({ execution: result.applied });
   } catch (error) {
     const code = error instanceof Error ? error.message : "POSITION_EXECUTION_FAILED";
+    if (code === "POSITION_EXECUTION_GOVERNED_REVIEW_REQUIRED") {
+      return Response.json({
+        error: "This employer uses HCM Create Position review. Published-plan execution cannot independently approve new positions. Use the governed position workflow.",
+        code,
+      }, { status: 409 });
+    }
     if (code === "POSITION_EXECUTION_ALREADY_DECIDED") {
       return Response.json({ error: "This execution preview was already decided." }, { status: 409 });
     }

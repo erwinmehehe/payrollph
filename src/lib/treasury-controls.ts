@@ -110,6 +110,44 @@ export function treasuryReleaseSeparationError(input: {
   return null;
 }
 
+type CheckerDecisionEvent = {
+  id: number;
+  action: string;
+  actor: string;
+  metadata: unknown;
+};
+
+/**
+ * Always-on separation between the payroll checker and the releaser, independent
+ * of the opt-in treasury policy. Legacy decisions without a stable decider id
+ * fall back to the recorded actor name.
+ */
+export function checkerReleaseSeparationError(input: {
+  events: CheckerDecisionEvent[];
+  approvalTaskId: number;
+  payrollRunId: number;
+  userId: number;
+  userName: string;
+}) {
+  const decision = input.events
+    .filter((event) => {
+      if (event.action !== "Approval approved" && event.action !== "Approval approved by delegate") return false;
+      if (!event.metadata || typeof event.metadata !== "object") return false;
+      const metadata = event.metadata as Record<string, unknown>;
+      return Number(metadata.taskId) === input.approvalTaskId && Number(metadata.payrollRunId) === input.payrollRunId;
+    })
+    .sort((left, right) => right.id - left.id)[0];
+  if (!decision) return null;
+
+  const deciderUserId = Number((decision.metadata as Record<string, unknown>).deciderUserId);
+  const sameUser = Number.isInteger(deciderUserId) && deciderUserId > 0
+    ? deciderUserId === input.userId
+    : decision.actor.trim().toLowerCase() === input.userName.trim().toLowerCase();
+  return sameUser
+    ? "Separation of duties: the checker who approved this payroll cannot also release it."
+    : null;
+}
+
 /**
  * Enterprise treasury gate.
  *

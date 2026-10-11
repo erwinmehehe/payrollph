@@ -1,4 +1,4 @@
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { hcmBusinessProcessDefinitions, orgUnits } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -122,6 +122,8 @@ export async function POST(request: Request) {
       : eq(hcmBusinessProcessDefinitions.supervisoryOrgUnitId, existing.supervisoryOrgUnitId);
 
     const [updated] = await db.transaction(async (tx) => {
+      // Share the tenant policy lock with direct intake and position execution.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(4195, ${organizationId})`);
       if (nextActive) {
         await tx.update(hcmBusinessProcessDefinitions).set({
           active: false,
@@ -222,6 +224,8 @@ export async function POST(request: Request) {
     if (!existing) return Response.json({ error: "Business-process definition not found." }, { status: 404 });
 
     const [updated] = await db.transaction(async (tx) => {
+      // Share the tenant policy lock with direct intake and position execution.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(4195, ${organizationId})`);
       await tx.update(hcmBusinessProcessDefinitions).set({
         active: false,
         updatedAt: new Date(),
@@ -266,6 +270,8 @@ export async function POST(request: Request) {
 
   try {
     const [created] = await db.transaction(async (tx) => {
+      // Share the tenant policy lock with direct intake and position execution.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(4195, ${organizationId})`);
       await tx.update(hcmBusinessProcessDefinitions).set({
         active: false,
         updatedAt: new Date(),

@@ -1,5 +1,5 @@
 {
-  "version": "phase2b-2026-10-06",
+  "version": "phase2b-2026-10-10-centavo-rounding-review",
   "tolerancePeso": 0.01,
   "cases": {
     "benefitPool90k": {
@@ -22,16 +22,16 @@
       }
     },
     "midCutoffHire": {
-      "description": "₱44,000 monthly employee starting Sep 8 is prorated for 8 of 15 cutoff calendar days.",
+      "description": "₱44,000 monthly employee starting Sep 8 is prorated for 8 of 15 cutoff calendar days. Centavo-based policy: tax applies to the payable PHP 10,495.83 taxable base (not the raw prorating fraction); candidate expected values pending reviewer signoff.",
       "expected": {
         "grossPay": 11733.33,
         "sss": 587.5,
         "philHealth": 550,
         "pagIbig": 100,
         "taxableCompensation": 10495.83,
-        "withholdingTax": 11.83,
-        "deductions": 1249.33,
-        "netPay": 10484
+        "withholdingTax": 11.82,
+        "deductions": 1249.32,
+        "netPay": 10484.01
       }
     },
     "retroPay": {

@@ -12,7 +12,7 @@ import {
   treasuryControlPolicies,
   users,
 } from "../src/db/schema";
-import { decryptBankAccount } from "../src/lib/bank-account-crypto";
+import { decryptBankAccount, isEncryptedBankAccount } from "../src/lib/bank-account-crypto";
 import {
   createPayoutDestinationChangeRequest,
   decidePayoutDestinationChange,
@@ -120,6 +120,7 @@ test("treasury dual control applies payout changes only after a distinct stable-
     });
     assert.equal(approved.kind, "approved");
     if (approved.kind !== "approved") throw new Error("Expected approved payout change.");
+    assert.ok(isEncryptedBankAccount(approved.employee.bankAccount), "approved payout account must remain encrypted at rest");
     assert.equal(decryptBankAccount(approved.employee.bankAccount), "999900001111");
     assert.equal(approved.employee.bankCode, "BPI");
     assert.equal(approved.employee.mobile, "09171111111");

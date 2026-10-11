@@ -373,7 +373,7 @@ test("payroll engine loads, applies and traces the migrated company-premium fami
   assert.ok(source.includes("lte(payPolicies.effectiveFrom, workforcePricingWindowEnd)"));
   assert.ok(source.includes("from(payPolicyRules)"));
   assert.ok(source.includes("applyWorkedTimePremium"));
-  assert.ok(source.includes("+ companyPremiumPay"));
+  assert.match(source, /const gross = roundedGrossFromBuckets\(\[[\s\S]*?\bcompanyPremiumPay,[\s\S]*?\]\);/);
   assert.ok(source.includes("companyPremiumExcludedFromSssBase"));
   assert.ok(source.includes("companyPremiumExcludedFromPagIbigBase"));
   assert.ok(source.includes("payPolicyExecution"));
@@ -665,7 +665,7 @@ test("holiday/rest-day family rejects overtime conditions so OT remains independ
 test("payroll engine traces the holiday/rest-day family and preserves month-end premium exclusions", () => {
   const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
   assert.ok(source.includes("applyHolidayRestDayPremium"));
-  assert.ok(source.includes("+ holidayRestDayPremiumPay"));
+  assert.match(source, /const gross = roundedGrossFromBuckets\(\[[\s\S]*?\bholidayRestDayPremiumPay,[\s\S]*?\]\);/);
   assert.ok(source.includes("holidayRestDayPremiumExcludedFromSssBase"));
   assert.ok(source.includes("holidayRestDayPremiumExcludedFromPagIbigBase"));
   assert.ok(source.includes('traceInputNumber(prior.trace, "companyPremiumExcludedFromSssBase")'));
@@ -903,7 +903,7 @@ test("OT authorization cannot be used to suppress the configurable or statutory 
 test("payroll engine executes and traces OT overlays while preserving statutory OT accounting", () => {
   const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
   assert.ok(source.includes("applyOvertimePremium"));
-  assert.ok(source.includes("+ overtimePremiumPay"));
+  assert.match(source, /const gross = roundedGrossFromBuckets\(\[[\s\S]*?\bovertimePremiumPay,[\s\S]*?\]\);/);
   assert.ok(source.includes("overtimePremiumExcludedFromSssBase"));
   assert.ok(source.includes("overtimePremiumExcludedFromPagIbigBase"));
   assert.ok(source.includes('traceInputNumber(prior.trace, "overtimePremiumExcludedFromSssBase")'));
@@ -1128,7 +1128,7 @@ test("night differential premium fails closed without statutory-floor protection
 test("payroll engine executes NSD overlays and carries classifications through month-end reconciliation", () => {
   const source = readFileSync("src/lib/payroll-engine.ts", "utf8");
   assert.ok(source.includes("applyNightDifferentialPremium"));
-  assert.ok(source.includes("+ nightDifferentialPremiumPay"));
+  assert.match(source, /const gross = roundedGrossFromBuckets\(\[[\s\S]*?\bnightDifferentialPremiumPay,[\s\S]*?\]\);/);
   assert.ok(source.includes("nightDifferentialPremiumExcludedFromSssBase"));
   assert.ok(source.includes("nightDifferentialPremiumExcludedFromPagIbigBase"));
   assert.ok(source.includes('traceInputNumber(prior.trace, "nightDifferentialPremiumExcludedFromSssBase")'));

@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { LinawMark } from "@/components/linaw-mark";
 import { EmployeeHomeDashboard } from "@/components/employee-home-dashboard";
+import { EmployeeTakeHomeEstimator } from "@/components/employee-take-home-estimator";
 import { EmployeeProfileExtras } from "@/components/employee-profile-extras";
 import { EmployeeWorkforcePanel } from "@/components/employee-workforce-panel";
 import { EmployeeExplainPay } from "@/components/employee-explain-pay";
@@ -40,6 +41,7 @@ import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { DEMO_ROLES, demoRolePath, type DemoRoleId } from "@/lib/demo-roles";
 import { buildPayrollHandoff } from "@/lib/payroll-handoff";
+import { essText, parseEssLanguage, ESS_LANGUAGE_STORAGE_KEY, type EssLanguage } from "@/lib/ess-language";
 
 type Payslip = {
   entryId: number;
@@ -162,6 +164,7 @@ type LeaveRequest = {
 
 type Payload = {
   employee: {
+    id: number;
     employeeNo: string;
     firstName: string;
     lastName: string;
@@ -262,6 +265,8 @@ function statusTone(status: string) {
 export function SelfServicePortal() {
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demoRole") === "employee";
+  const [language, setLanguage] = useState<EssLanguage>("en");
+  const t = (label: string) => essText(language, label);
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState("");
   const [employeeNo, setEmployeeNo] = useState("");
@@ -296,6 +301,15 @@ export function SelfServicePortal() {
     agency?: string;
     applicableMonth?: string;
   } | null>(null);
+
+  useEffect(() => {
+    try { setLanguage(parseEssLanguage(window.localStorage.getItem(ESS_LANGUAGE_STORAGE_KEY))); } catch { /* Private browsing may disable storage. */ }
+  }, []);
+
+  function changeLanguage(next: EssLanguage) {
+    setLanguage(next);
+    try { window.localStorage.setItem(ESS_LANGUAGE_STORAGE_KEY, next); } catch { /* Preference remains usable for this session. */ }
+  }
 
   function navigateTo(next: SelfTab) {
     setMoreOpen(false);
@@ -501,22 +515,33 @@ export function SelfServicePortal() {
     };
   }, [latestPayslip]);
 
+  const languageControl = (
+    <label className="employee-language-control" style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 12 }}>
+      <span>{t("Language")}</span>
+      <select aria-label={t("Display language")} value={language} onChange={(event) => changeLanguage(parseEssLanguage(event.target.value))} style={{ minHeight: 34, borderRadius: 8, padding: "4px 8px" }}>
+        <option value="en">English</option>
+        <option value="fil">Taglish</option>
+      </select>
+    </label>
+  );
+
   if (!data) {
     return (
       <main className="employee-app employee-app-link">
         <section className="employee-link-card">
           <div className="employee-brand-mark">L</div>
-          <div className="card-kicker">EMPLOYEE SELF-SERVICE</div>
-          <h1>Link your employee record</h1>
-          <p>This one-time step connects your login to exactly one employee record. After that, you can see only your own pay, time and leave.</p>
+          <div className="card-kicker">{t("EMPLOYEE SELF-SERVICE")}</div>
+          <h1>{t("Link your employee record")}</h1>
+          <p>{t("This one-time step connects your login to exactly one employee record. After that, you can see only your own pay, time and leave.")}</p>
+          {languageControl}
           <form onSubmit={link} className="employee-link-form">
             <label>
-              Employee number
+              {t("Employee number")}
               <input value={employeeNo} onChange={(event) => setEmployeeNo(event.target.value)} placeholder="e.g. LL-101" />
             </label>
             {error && <div className="notice notice-amber"><span>{error}</span></div>}
-            {linked && <div className="notice notice-green"><ShieldCheck size={15} /><span>Linked. Loading your account…</span></div>}
-            <button className="primary-button brand" disabled={busy || !employeeNo}>{busy ? "Linking…" : "Link my record"}</button>
+            {linked && <div className="notice notice-green"><ShieldCheck size={15} /><span>{t("Linked. Loading your account…")}</span></div>}
+            <button className="primary-button brand" disabled={busy || !employeeNo}>{busy ? t("Linking…") : t("Link my record")}</button>
           </form>
         </section>
       </main>
@@ -527,13 +552,13 @@ export function SelfServicePortal() {
 
   return (
     <div className="app-shell clean-shell employee-workspace-shell" data-workspace-page={`employee-${tab}`} data-workspace-role="employee">
-      <aside className="sidebar employee-workspace-sidebar" aria-label="Employee navigation">
+      <aside className="sidebar employee-workspace-sidebar" aria-label={t("Employee navigation")}>
         <div className="sidebar-brand employee-shell-brand">
           <span className="brand-mark employee-shell-brandmark"><LinawMark /></span>
           <div><strong>Linaw</strong><span>PayrollPH</span></div>
         </div>
-        <div className="workspace-label employee-workspace-label"><span className="pulse-dot" />Employee workspace</div>
-        <nav className="side-navigation employee-side-nav" aria-label="Employee pages">
+        <div className="workspace-label employee-workspace-label"><span className="pulse-dot" />{t("Employee workspace")}</div>
+        <nav className="side-navigation employee-side-nav" aria-label={t("Employee pages")}>
           {ESS_ALL_TABS.map((value) => {
             const { icon: Icon, label } = ESS_TAB_CONFIG[value];
             return (
@@ -546,7 +571,7 @@ export function SelfServicePortal() {
                 onClick={() => navigateTo(value)}
               >
                 <span className="nav-icon t-green"><Icon size={17} aria-hidden="true" /></span>
-                {label}
+                {t(label)}
               </button>
             );
           })}
@@ -558,12 +583,12 @@ export function SelfServicePortal() {
           <div className="employee-topbar-greeting">
             <div>
               <strong>Hi, {data.employee.firstName} 👋</strong>
-              <span>{data.employer?.name ?? "Your employer"} · {data.employee.title}</span>
+              <span>{data.employer?.name ?? t("Your employer")} · {data.employee.title}</span>
             </div>
           </div>
           <div className="employee-shell-top-actions employee-self-service-actions">
-            <button className="employee-clock-button" type="button" aria-label="Open time clock" onClick={() => setWebBundyOpen(true)}>
-              <Clock size={18} /> <span>Time clock</span>
+            <button className="employee-clock-button" type="button" aria-label={t("Open time clock")} onClick={() => setWebBundyOpen(true)}>
+              <Clock size={18} /> <span>{t("Time clock")}</span>
             </button>
             {isDemo && (
               <label className="role-pill-btn employee-role-switcher">
@@ -573,7 +598,7 @@ export function SelfServicePortal() {
                 </select>
               </label>
             )}
-            <button className="top-profile-button employee-shell-profile" type="button" onClick={() => navigateTo("profile")} aria-label="Open profile">
+            <button className="top-profile-button employee-shell-profile" type="button" onClick={() => navigateTo("profile")} aria-label={t("Open profile")}>
               <span className="employee-app-avatar">
                 {photoAvailable
                   ? <Image unoptimized width={44} height={44} src={`/api/self/photo?v=${photoVersion}`} alt="" />
@@ -581,17 +606,18 @@ export function SelfServicePortal() {
               </span>
               <span className="clean-profile-copy"><strong>{data.employee.firstName} {data.employee.lastName}</strong><small>Employee</small></span>
             </button>
-            <button className="employee-icon-button employee-shell-signout" type="button" disabled={busy} onClick={() => void signOut()} aria-label="Sign out">
+            <button className="employee-icon-button employee-shell-signout" type="button" disabled={busy} onClick={() => void signOut()} aria-label={t("Sign out")}>
               <LogOut size={14} />
             </button>
           </div>
         </header>
 
         <main className="content-area employee-app employee-self-service">
-          <span className="employee-contract-copy">My pay · What did I get paid, and what do I need today? · Payslip available</span>
+          <span className="employee-contract-copy">{language === "fil" ? "Sahod ko · Magkano ang natanggap ko? · Available ang payslip" : "My pay · What did I get paid, and what do I need today? · Payslip available"}</span>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>{languageControl}</div>
           {error && <div className="notice notice-amber" role="alert"><span>{error}</span></div>}
 
-          <nav className="employee-tabs employee-mobile-nav" aria-label="Employee pages">
+          <nav className="employee-tabs employee-mobile-nav" aria-label={t("Employee pages")}>
             {ESS_PRIMARY_TABS.map((value) => {
               const { icon: Icon, label, mobileLabel } = ESS_TAB_CONFIG[value];
               return (
@@ -603,7 +629,7 @@ export function SelfServicePortal() {
                   onClick={() => navigateTo(value)}
                 >
                   <span className="employee-tab-icon"><Icon size={20} aria-hidden="true" /></span>
-                  <span>{mobileLabel ?? label}</span>
+                  <span>{t(mobileLabel ?? label)}</span>
                 </button>
               );
             })}
@@ -617,7 +643,7 @@ export function SelfServicePortal() {
               onClick={() => setMoreOpen((open) => !open)}
             >
               <span className="employee-tab-icon"><Menu size={20} aria-hidden="true" /></span>
-              <span>More</span>
+              <span>{t("More")}</span>
             </button>
           </nav>
           {moreOpen && (
@@ -625,8 +651,8 @@ export function SelfServicePortal() {
               <button className="employee-more-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setMoreOpen(false)} />
               <section id="employee-more-panel" className="employee-more-panel" aria-label="Additional employee pages">
                 <div className="employee-more-header">
-                  <strong>More from Linaw</strong>
-                  <button type="button" aria-label="Close more pages" onClick={() => { setMoreOpen(false); moreButtonRef.current?.focus(); }}>
+                  <strong>{t("More from Linaw")}</strong>
+                  <button type="button" aria-label={t("Close more pages")} onClick={() => { setMoreOpen(false); moreButtonRef.current?.focus(); }}>
                     <X size={20} aria-hidden="true" />
                   </button>
                 </div>
@@ -642,7 +668,7 @@ export function SelfServicePortal() {
                         onClick={() => navigateTo(value)}
                       >
                         <Icon size={20} aria-hidden="true" />
-                        <span>{mobileLabel ?? label}</span>
+                        <span>{t(mobileLabel ?? label)}</span>
                         <ChevronRight size={18} aria-hidden="true" />
                       </button>
                     );
@@ -650,7 +676,7 @@ export function SelfServicePortal() {
                 </div>
                 <button className="employee-more-signout" type="button" disabled={busy} onClick={() => void signOut()}>
                   <LogOut size={20} aria-hidden="true" />
-                  <span>{busy ? "Signing out…" : "Sign out"}</span>
+                  <span>{busy ? t("Signing out…") : t("Sign out")}</span>
                 </button>
               </section>
             </>
@@ -674,6 +700,7 @@ export function SelfServicePortal() {
       {tab === "home" && (
         <div>
           <EmployeeHomeDashboard
+            language={language}
             data={data}
             onPayslip={(id) => { setOpenPayslip(id); navigateTo("pay"); }}
             onPay={() => navigateTo("pay")}
@@ -683,8 +710,8 @@ export function SelfServicePortal() {
           />
           {data.nextPay && (
             <div className="employee-contract-handoff" aria-hidden>
-              <span>NEXT PAY STATUS</span>
-              <span>Your pay amount stays private and hidden until payroll is released.</span>
+              <span>{t("NEXT PAY STATUS")}</span>
+              <span>{t("Your pay amount stays private and hidden until payroll is released.")}</span>
               <PayrollHandoff
                 stages={buildPayrollHandoff({
                   status: data.nextPay.status,
@@ -704,77 +731,79 @@ export function SelfServicePortal() {
 
       {tab === "pay" && (
         <section className="employee-section">
-          <SectionHeading kicker="MY PAY" title="Payslips" copy="Latest released pay first. Draft and in-review payroll amounts never appear here." />
+          <SectionHeading kicker={t("MY PAY")} title={t("Payslips")} copy={t("Latest released pay first. Draft and in-review payroll amounts never appear here.")} />
           {latestPayslip && (
             <article className="employee-pay-breakdown">
               <div className="employee-pay-breakdown-head">
                 <div>
                   <span>{latestPayslip.period}</span>
                   <strong>{peso(latestPayslip.net)}</strong>
-                  <small>Net pay · paid {payDateLabel(latestPayslip.payDate)}</small>
+                  <small>{t("Net pay · paid")} {payDateLabel(latestPayslip.payDate)}</small>
                 </div>
                 <a className="secondary-button" href={"/api/self/payslips/" + latestPayslip.entryId}><Download size={14} /> PDF</a>
               </div>
               <div className="employee-pay-totals">
-                <div><span>Gross</span><strong>{peso(latestPayslip.gross)}</strong></div>
-                <div><span>Deductions</span><strong>{peso(latestPayslip.deductions)}</strong></div>
-                <div><span>Tax withheld YTD</span><strong>{peso(data.yearToDate.tax)}</strong></div>
+                <div><span>{t("Gross")}</span><strong>{peso(latestPayslip.gross)}</strong></div>
+                <div><span>{t("Deductions")}</span><strong>{peso(latestPayslip.deductions)}</strong></div>
+                <div><span>{t("Tax withheld YTD")}</span><strong>{peso(data.yearToDate.tax)}</strong></div>
               </div>
               <div className="employee-breakdown-columns">
-                <PayLines title="Earnings" rows={latestBreakdown.earnings} empty="No positive pay lines stored." />
-                <PayLines title="Deductions" rows={latestBreakdown.deductions} empty="No deductions stored." deductions />
+                <PayLines title={t("Earnings")} rows={latestBreakdown.earnings} empty={t("No positive pay lines stored.")} />
+                <PayLines title={t("Deductions")} rows={latestBreakdown.deductions} empty={t("No deductions stored.")} deductions />
               </div>
-              <EmployeeExplainPay entryId={latestPayslip.entryId} period={latestPayslip.period} />
-              <div className="employee-rule-note"><ShieldCheck size={12} /> Rule version {latestPayslip.ruleVersion}</div>
+              <EmployeeExplainPay entryId={latestPayslip.entryId} period={latestPayslip.period} language={language} />
+              <div className="employee-rule-note"><ShieldCheck size={12} /> {t("Rule version")} {latestPayslip.ruleVersion}</div>
             </article>
           )}
+
+          <EmployeeTakeHomeEstimator language={language} />
 
           <article className="employee-list-card">
             <div className="employee-list-card-head">
               <div>
-                <span className="card-kicker">MANDATORY CONTRIBUTIONS</span>
-                <h3>Remittance and agency posting</h3>
+                <span className="card-kicker">{t("MANDATORY CONTRIBUTIONS")}</span>
+                <h3>{t("Remittance and agency posting")}</h3>
               </div>
               <button
                 className="secondary-button"
                 onClick={() => setContributionIssueContext({ memberId: null })}
               >
-                Report issue
+                {t("Report issue")}
               </button>
             </div>
             {data.contributions.length === 0 ? (
               <div className="employee-empty-row">
-                No employer remittance reconciliation has been published to your account yet. Your payslip still shows what was deducted.
+                {t("No employer remittance reconciliation has been published to your account yet. Your payslip still shows what was deducted.")}
               </div>
             ) : data.contributions.slice(0, 12).map((row, index) => (
               <div className="employee-pay-row" key={row.agency + "-" + row.applicableMonth + "-" + index}>
                 <div className="employee-pay-row-main" style={{ cursor: "default" }}>
                   <div>
                     <strong>{row.agency} · {row.applicableMonth}</strong>
-                    <span>Deducted {peso(row.employeeShare)} · employer {peso(row.employerShare)}</span>
+                    <span>{t("Deducted")} {peso(row.employeeShare)} · {t("employer")} {peso(row.employerShare)}</span>
                   </div>
                   <div className="employee-pay-row-amount">
                     <strong>{peso(row.totalContribution)}</strong>
-                    <span>total contribution</span>
+                    <span>{t("total contribution")}</span>
                   </div>
                   <span className={"employee-status-pill " + statusTone(row.postingStatus)}>
                     {row.postingStatus === "confirmed"
-                      ? "Agency posting confirmed"
+                      ? t("Agency posting confirmed")
                       : row.postingStatus === "exception"
-                        ? "Posting exception"
+                        ? t("Posting exception")
                         : row.paymentStatus === "open"
-                          ? "Employer payment pending"
-                          : "Payment recorded · posting pending"}
+                          ? t("Employer payment pending")
+                          : t("Payment recorded · posting pending")}
                   </span>
                 </div>
                 <div className="employee-pay-row-detail" style={{ display: "grid" }}>
-                  <div><span>Employer payment</span><strong>{row.paymentStatus}</strong></div>
-                  <div><span>Agency posting</span><strong>{row.postingStatus}</strong></div>
-                  {row.postedAmount && <div><span>Amount posted</span><strong>{peso(row.postedAmount)}</strong></div>}
-                  {row.postingReference && <div><span>Posting reference</span><strong>{row.postingReference}</strong></div>}
+                  <div><span>{t("Employer payment")}</span><strong>{row.paymentStatus}</strong></div>
+                  <div><span>{t("Agency posting")}</span><strong>{row.postingStatus}</strong></div>
+                  {row.postedAmount && <div><span>{t("Amount posted")}</span><strong>{peso(row.postedAmount)}</strong></div>}
+                  {row.postingReference && <div><span>{t("Posting reference")}</span><strong>{row.postingReference}</strong></div>}
                   {row.postingEvidenceSource && (
                     <div>
-                      <span>Posting evidence source</span>
+                      <span>{t("Posting evidence source")}</span>
                       <strong>
                         {row.postingEvidenceSource}
                         {row.postingEvidenceHashSha256
@@ -783,18 +812,18 @@ export function SelfServicePortal() {
                       </strong>
                     </div>
                   )}
-                  {row.exceptionNote && <div><span>Issue</span><strong>{row.exceptionNote}</strong></div>}
+                  {row.exceptionNote && <div><span>{t("Issue")}</span><strong>{row.exceptionNote}</strong></div>}
                   <div>
-                    <span>Evidence</span>
+                    <span>{t("Evidence")}</span>
                     <a
                       className="secondary-button"
                       href={`/api/self/contribution-evidence?agency=${encodeURIComponent(row.agency)}&month=${encodeURIComponent(row.applicableMonth)}`}
                     >
-                      <Download size={13} /> Download evidence
+                      <Download size={13} /> {t("Download evidence")}
                     </a>
                   </div>
                   <div>
-                    <span>Something wrong?</span>
+                    <span>{t("Something wrong?")}</span>
                     <button
                       className="secondary-button"
                       onClick={() => setContributionIssueContext({
@@ -803,27 +832,27 @@ export function SelfServicePortal() {
                         applicableMonth: row.applicableMonth,
                       })}
                     >
-                      Report this record
+                      {t("Report this record")}
                     </button>
                   </div>
                 </div>
               </div>
             ))}
             <div className="employee-rule-note">
-              <ShieldCheck size={12} /> “Deducted” comes from released payroll. “Payment recorded” is employer evidence. “Agency posting confirmed” is the final reconciliation state.
+              <ShieldCheck size={12} /> {t("“Deducted” comes from released payroll. “Payment recorded” is employer evidence. “Agency posting confirmed” is the final reconciliation state.")}
             </div>
           </article>
 
           <article className="employee-list-card">
             <div className="employee-list-card-head">
               <div>
-                <span className="card-kicker">SSS / PAG-IBIG LOANS</span>
-                <h3>Government loan remittance</h3>
+                <span className="card-kicker">{t("SSS / PAG-IBIG LOANS")}</span>
+                <h3>{t("Government loan remittance")}</h3>
               </div>
             </div>
             {data.governmentLoanRemittances.length === 0 ? (
               <div className="employee-empty-row">
-                No government-loan remittance reconciliation has been published to your account yet. Your released payslip remains the record of any loan deduction.
+                {t("No government-loan remittance reconciliation has been published to your account yet. Your released payslip remains the record of any loan deduction.")}
               </div>
             ) : data.governmentLoanRemittances.slice(0, 12).map((row) => (
               <div className="employee-pay-row" key={row.memberId}>
@@ -834,42 +863,42 @@ export function SelfServicePortal() {
                   </div>
                   <div className="employee-pay-row-amount">
                     <strong>{peso(row.deductedAmount)}</strong>
-                    <span>deducted from payroll</span>
+                    <span>{t("deducted from payroll")}</span>
                   </div>
                   <span className={"employee-status-pill " + statusTone(row.postingStatus)}>
                     {row.postingStatus === "confirmed"
-                      ? "Loan posting confirmed"
+                      ? t("Loan posting confirmed")
                       : row.postingStatus === "exception"
-                        ? "Posting exception"
+                        ? t("Posting exception")
                         : row.paymentStatus === "open"
-                          ? "Employer payment pending"
-                          : "Payment recorded · posting pending"}
+                          ? t("Employer payment pending")
+                          : t("Payment recorded · posting pending")}
                   </span>
                 </div>
                 <div className="employee-pay-row-detail" style={{ display: "grid" }}>
-                  <div><span>Employer payment</span><strong>{row.paymentStatus}</strong></div>
-                  <div><span>Agency loan posting</span><strong>{row.postingStatus}</strong></div>
-                  <div><span>Control due date</span><strong>{row.dueDate}</strong></div>
-                  {row.postedAmount && <div><span>Amount posted</span><strong>{peso(row.postedAmount)}</strong></div>}
-                  {row.postingReference && <div><span>Posting reference</span><strong>{row.postingReference}</strong></div>}
-                  {row.exceptionNote && <div><span>Issue</span><strong>{row.exceptionNote}</strong></div>}
+                  <div><span>{t("Employer payment")}</span><strong>{row.paymentStatus}</strong></div>
+                  <div><span>{t("Agency loan posting")}</span><strong>{row.postingStatus}</strong></div>
+                  <div><span>{t("Control due date")}</span><strong>{row.dueDate}</strong></div>
+                  {row.postedAmount && <div><span>{t("Amount posted")}</span><strong>{peso(row.postedAmount)}</strong></div>}
+                  {row.postingReference && <div><span>{t("Posting reference")}</span><strong>{row.postingReference}</strong></div>}
+                  {row.exceptionNote && <div><span>{t("Issue")}</span><strong>{row.exceptionNote}</strong></div>}
                 </div>
               </div>
             ))}
             <div className="employee-rule-note">
-              <ShieldCheck size={12} /> A payroll loan deduction is not shown as reconciled until employer payment is recorded and the matching SSS/Pag-IBIG loan posting is confirmed.
+              <ShieldCheck size={12} /> {t("A payroll loan deduction is not shown as reconciled until employer payment is recorded and the matching SSS/Pag-IBIG loan posting is confirmed.")}
             </div>
           </article>
 
           <article className="employee-list-card">
             <div className="employee-list-card-head">
               <div>
-                <span className="card-kicker">CONTRIBUTION CASES</span>
-                <h3>Your reported issues</h3>
+                <span className="card-kicker">{t("CONTRIBUTION CASES")}</span>
+                <h3>{t("Your reported issues")}</h3>
               </div>
             </div>
             {data.contributionIssues.length === 0 ? (
-              <div className="employee-empty-row">No contribution issues reported.</div>
+              <div className="employee-empty-row">{t("No contribution issues reported.")}</div>
             ) : data.contributionIssues.slice(0, 12).map((issue) => (
               <div className="employee-pay-row" key={issue.id}>
                 <div className="employee-pay-row-main" style={{ cursor: "default" }}>
@@ -878,26 +907,26 @@ export function SelfServicePortal() {
                     <span>{issue.issueType.replaceAll("_", " ")}</span>
                   </div>
                   <span className={"employee-status-pill " + statusTone(issue.status)}>
-                    {issue.status === "in_review" ? "In review" : issue.status}
+                    {issue.status === "in_review" ? t("In review") : issue.status}
                   </span>
                 </div>
                 <div className="employee-pay-row-detail" style={{ display: "grid" }}>
-                  <div><span>Your report</span><strong>{issue.description}</strong></div>
-                  {issue.assignedToName && <div><span>Reviewing</span><strong>{issue.assignedToName}</strong></div>}
+                  <div><span>{t("Your report")}</span><strong>{issue.description}</strong></div>
+                  {issue.assignedToName && <div><span>{t("Reviewing")}</span><strong>{issue.assignedToName}</strong></div>}
                   {issue.status !== "resolved" && (
                     <div>
-                      <span>PayrollPH service target</span>
+                      <span>{t("PayrollPH service target")}</span>
                       <strong>
                         {issue.service.targetLabel} by {issue.service.targetDate ?? "complete"}
                         {issue.service.overdue ? " · overdue" : ""}
                       </strong>
                     </div>
                   )}
-                  {issue.resolutionOutcome && <div><span>Outcome</span><strong>{issue.resolutionOutcome.replaceAll("_", " ")}</strong></div>}
-                  {issue.resolutionNote && <div><span>Payroll response</span><strong>{issue.resolutionNote}</strong></div>}
+                  {issue.resolutionOutcome && <div><span>{t("Outcome")}</span><strong>{issue.resolutionOutcome.replaceAll("_", " ")}</strong></div>}
+                  {issue.resolutionNote && <div><span>{t("Payroll response")}</span><strong>{issue.resolutionNote}</strong></div>}
                   {issue.events.length > 0 && (
                     <div style={{ gridColumn: "1 / -1", display: "grid", gap: 6 }}>
-                      <span>Case timeline</span>
+                      <span>{t("Case timeline")}</span>
                       {issue.events.slice(0, 5).reverse().map((event) => (
                         <div key={event.id} className="employee-rule-note">
                           <History size={12} />
@@ -910,12 +939,12 @@ export function SelfServicePortal() {
                     </div>
                   )}
                   <div>
-                    <span>Evidence packet</span>
+                    <span>{t("Evidence packet")}</span>
                     <a
                       className="secondary-button"
                       href={`/api/self/contribution-evidence?agency=${encodeURIComponent(issue.agency)}&month=${encodeURIComponent(issue.applicableMonth)}`}
                     >
-                      <Download size={13} /> Download case evidence
+                      <Download size={13} /> {t("Download case evidence")}
                     </a>
                   </div>
                 </div>
@@ -924,19 +953,19 @@ export function SelfServicePortal() {
           </article>
           {data.contributionIssues.some((issue) => issue.status !== "resolved") && (
             <div className="employee-rule-note">
-              <Clock size={12} /> Internal service targets are not statutory or agency deadlines. They are PayrollPH follow-up targets so your report does not sit unattended.
+              <Clock size={12} /> {t("Internal service targets are not statutory or agency deadlines. They are PayrollPH follow-up targets so your report does not sit unattended.")}
             </div>
           )}
 
           <article className="employee-list-card">
             <div className="employee-list-card-head">
               <div>
-                <span className="card-kicker">PAY HISTORY</span>
-                <h3>{data.payslips.length} released period{data.payslips.length === 1 ? "" : "s"}</h3>
+                <span className="card-kicker">{t("PAY HISTORY")}</span>
+                <h3>{data.payslips.length} {t(data.payslips.length === 1 ? "released period" : "released periods")}</h3>
               </div>
             </div>
             {data.payslips.length === 0 ? (
-              <div className="employee-empty-row">No released payslips yet.</div>
+              <div className="employee-empty-row">{t("No released payslips yet.")}</div>
             ) : data.payslips.map((slip) => {
               const expanded = openPayslip === slip.entryId;
               return (
@@ -948,16 +977,16 @@ export function SelfServicePortal() {
                     </div>
                     <div className="employee-pay-row-amount">
                       <strong>{peso(slip.net)}</strong>
-                      <span>net pay</span>
+                      <span>{t("Net pay")}</span>
                     </div>
                     <ChevronRight size={15} className={expanded ? "open" : ""} />
                   </button>
                   {expanded && (
                     <div className="employee-pay-row-detail" id={"employee-payslip-" + slip.entryId}>
-                      <div><span>Gross</span><strong>{peso(slip.gross)}</strong></div>
-                      <div><span>Deductions</span><strong>{peso(slip.deductions)}</strong></div>
-                      <a className="secondary-button" href={"/api/self/payslips/" + slip.entryId}><Download size={13} /> Download PDF</a>
-                      <EmployeeExplainPay entryId={slip.entryId} period={slip.period} />
+                      <div><span>{t("Gross")}</span><strong>{peso(slip.gross)}</strong></div>
+                      <div><span>{t("Deductions")}</span><strong>{peso(slip.deductions)}</strong></div>
+                      <a className="secondary-button" href={"/api/self/payslips/" + slip.entryId}><Download size={13} /> {t("Download PDF")}</a>
+                      <EmployeeExplainPay entryId={slip.entryId} period={slip.period} language={language} />
                     </div>
                   )}
                 </div>
@@ -969,41 +998,41 @@ export function SelfServicePortal() {
 
       {tab === "time" && (
         <section className="employee-section">
-          <SectionHeading kicker="MY TIME" title="Attendance" copy="Your recent punches only. Time is shown in Philippine time." action={
-            <button className="primary-button brand" onClick={() => setWebBundyOpen(true)}><Clock size={14} /> Clock in / out</button>
+          <SectionHeading kicker={t("MY TIME")} title={t("Attendance")} copy={t("Your recent punches only. Time is shown in Philippine time.")} action={
+            <button className="primary-button brand" onClick={() => setWebBundyOpen(true)}><Clock size={14} /> {t("Clock in / out")}</button>
           } />
           <div className="employee-time-today">
             <div>
-              <span className="card-kicker">TODAY</span>
-              <h3>{today?.timeIn ? (today.timeOut ? "Shift complete" : "You’re clocked in") : "No punch yet"}</h3>
-              <p>{today?.status ?? "Use the clock above to start your workday."}</p>
+              <span className="card-kicker">{t("TODAY")}</span>
+              <h3>{today?.timeIn ? (today.timeOut ? t("Shift complete") : t("You’re clocked in")) : t("No punch yet")}</h3>
+              <p>{today?.status ?? t("Use the clock above to start your workday.")}</p>
             </div>
             <div className="employee-time-pair">
-              <div><span>In</span><strong>{timeLabel(today?.timeIn ?? null)}</strong></div>
-              <div><span>Out</span><strong>{timeLabel(today?.timeOut ?? null)}</strong></div>
+              <div><span>{t("In")}</span><strong>{timeLabel(today?.timeIn ?? null)}</strong></div>
+              <div><span>{t("Out")}</span><strong>{timeLabel(today?.timeOut ?? null)}</strong></div>
             </div>
           </div>
           <EmployeeWorkforcePanel />
           <article className="employee-list-card">
             <div className="employee-list-card-head">
-              <div><span className="card-kicker">RECENT ATTENDANCE</span><h3>Last {data.attendance.recent.length} records</h3></div>
-              <span className="employee-mini-meta">{data.attendance.incompleteCount} incomplete</span>
+              <div><span className="card-kicker">{t("RECENT ATTENDANCE")}</span><h3>{t("Last")} {data.attendance.recent.length} {t("records")}</h3></div>
+              <span className="employee-mini-meta">{data.attendance.incompleteCount} {t("incomplete")}</span>
             </div>
             {data.attendance.recent.length === 0 ? (
-              <div className="employee-empty-row">No attendance records yet.</div>
+              <div className="employee-empty-row">{t("No attendance records yet.")}</div>
             ) : data.attendance.recent.map((row) => (
               <div className="employee-attendance-row" key={row.id}>
                 <div>
                   <strong>{dateLabel(row.workDate)}</strong>
-                  <span>{row.source === "web_bundy" ? "Web time clock" : row.source ?? "Attendance"}</span>
+                  <span>{row.source === "web_bundy" ? t("Web time clock") : row.source ?? t("Attendance")}</span>
                 </div>
                 <div className="employee-attendance-times">
                   <span>{timeLabel(row.timeIn)}</span>
-                  <small>to</small>
+                  <small>{t("to")}</small>
                   <span>{timeLabel(row.timeOut)}</span>
                 </div>
                 <span className={"employee-status-pill " + statusTone(row.timeIn && row.timeOut ? "Complete" : "Incomplete")}>
-                  {row.timeIn && row.timeOut ? "Complete" : "Incomplete"}
+                  {row.timeIn && row.timeOut ? t("Complete") : t("Incomplete")}
                 </span>
               </div>
             ))}
@@ -1013,32 +1042,32 @@ export function SelfServicePortal() {
 
       {tab === "leave" && (
         <section className="employee-section">
-          <SectionHeading kicker="MY LEAVE" title="Leave" copy="Check your available days and request leave without seeing anyone else’s records." action={
-            data.leave.policies.length ? <button className="primary-button brand" onClick={() => setLeaveOpen(true)}><CalendarDays size={14} /> Request leave</button> : undefined
+          <SectionHeading kicker={t("MY LEAVE")} title={t("Leave")} copy={t("Check your available days and request leave without seeing anyone else’s records.")} action={
+            data.leave.policies.length ? <button className="primary-button brand" onClick={() => setLeaveOpen(true)}><CalendarDays size={14} /> {t("Request leave")}</button> : undefined
           } />
           <div className="employee-leave-balances">
             {data.leave.balances.length === 0 ? (
-              <div className="employee-empty-row">No active leave policy is configured for your employer.</div>
+              <div className="employee-empty-row">{t("No active leave policy is configured for your employer.")}</div>
             ) : data.leave.balances.map((balance) => (
               <article key={balance.leaveType}>
                 <span>{balance.leaveType}</span>
                 <strong>{balance.available.toFixed(1)}</strong>
-                <small>days available · {balance.pending.toFixed(1)} pending</small>
+                <small>{t("days available ·")} {balance.pending.toFixed(1)} {t("pending")}</small>
                 <div className="employee-leave-meter"><span style={{ width: Math.min(100, balance.annualDays ? (balance.available / balance.annualDays) * 100 : 0) + "%" }} /></div>
               </article>
             ))}
           </div>
           <article className="employee-list-card">
             <div className="employee-list-card-head">
-              <div><span className="card-kicker">REQUESTS</span><h3>Recent leave requests</h3></div>
+              <div><span className="card-kicker">{t("REQUESTS")}</span><h3>{t("Recent leave requests")}</h3></div>
             </div>
             {data.leave.requests.length === 0 ? (
-              <div className="employee-empty-row">No leave requests yet.</div>
+              <div className="employee-empty-row">{t("No leave requests yet.")}</div>
             ) : data.leave.requests.map((request) => (
               <div className="employee-leave-row" key={request.id}>
                 <div>
                   <strong>{request.leaveType}</strong>
-                  <span>{dateLabel(request.startDate)} – {dateLabel(request.endDate)} · {Number(request.days).toFixed(1)} day(s)</span>
+                  <span>{dateLabel(request.startDate)} – {dateLabel(request.endDate)} · {Number(request.days).toFixed(1)} {t("day(s)")}</span>
                 </div>
                 <span className={"employee-status-pill " + statusTone(request.status)}>{request.status}</span>
               </div>
@@ -1057,29 +1086,29 @@ export function SelfServicePortal() {
 
       {tab === "profile" && (
         <section className="employee-section">
-          <SectionHeading kicker="MY PROFILE" title="Personal details" copy="You can update contact details. Payroll-sensitive employment, bank and government records stay controlled by HR." action={
-            <button className="secondary-button" onClick={() => setProfileEdit((value) => !value)}><Pencil size={13} /> {profileEdit ? "Cancel" : "Edit contact details"}</button>
+          <SectionHeading kicker={t("MY PROFILE")} title={t("Personal details")} copy={t("You can update contact details. Payroll-sensitive employment, bank and government records stay controlled by HR.")} action={
+            <button className="secondary-button" onClick={() => setProfileEdit((value) => !value)}><Pencil size={13} /> {profileEdit ? t("Cancel") : t("Edit contact details")}</button>
           } />
           <div className="employee-profile-grid">
-            <ProfileItem icon={<IdCard size={15} />} label="Employee number" value={data.employee.employeeNo} />
-            <ProfileItem icon={<UserRound size={15} />} label="Role" value={data.employee.title} detail={data.employee.employmentType} />
-            <ProfileItem icon={<CalendarDays size={15} />} label="Start date" value={payDateLabel(data.employee.startDate)} />
-            <ProfileItem icon={<History size={15} />} label="Rest day" value={data.employee.restDay ?? "Not configured"} />
-            <ProfileItem icon={<FileText size={15} />} label="Work email" value={data.employee.email ?? "Not recorded"} detail="Contact HR to change this payroll record." />
-            <ProfileItem icon={<Phone size={15} />} label="Mobile" value={data.employee.mobile ?? "Not recorded"} />
+            <ProfileItem icon={<IdCard size={15} />} label={t("Employee number")} value={data.employee.employeeNo} />
+            <ProfileItem icon={<UserRound size={15} />} label={t("Role")} value={data.employee.title} detail={data.employee.employmentType} />
+            <ProfileItem icon={<CalendarDays size={15} />} label={t("Start date")} value={payDateLabel(data.employee.startDate)} />
+            <ProfileItem icon={<History size={15} />} label={t("Rest day")} value={data.employee.restDay ?? t("Not configured")} />
+            <ProfileItem icon={<FileText size={15} />} label={t("Work email")} value={data.employee.email ?? t("Not recorded")} detail={t("Contact HR to change this payroll record.")} />
+            <ProfileItem icon={<Phone size={15} />} label={t("Mobile")} value={data.employee.mobile ?? t("Not recorded")} />
           </div>
 
           {profileEdit && (
             <article className="employee-edit-card">
               <div className="employee-edit-fields">
-                <label>Mobile<input value={mobile} onChange={(event) => setMobile(event.target.value)} maxLength={24} /></label>
-                <label>Emergency contact<input value={emergencyContact} onChange={(event) => setEmergencyContact(event.target.value)} maxLength={120} /></label>
-                <label>Emergency phone<input value={emergencyPhone} onChange={(event) => setEmergencyPhone(event.target.value)} maxLength={32} /></label>
+                <label>{t("Mobile")}<input value={mobile} onChange={(event) => setMobile(event.target.value)} maxLength={24} /></label>
+                <label>{t("Emergency contact")}<input value={emergencyContact} onChange={(event) => setEmergencyContact(event.target.value)} maxLength={120} /></label>
+                <label>{t("Emergency phone")}<input value={emergencyPhone} onChange={(event) => setEmergencyPhone(event.target.value)} maxLength={32} /></label>
               </div>
               {profileError && <div className="notice notice-amber"><span>{profileError}</span></div>}
               <div className="employee-edit-actions">
                 <button className="primary-button brand" disabled={profileBusy} onClick={() => void saveProfile()}>
-                  <Check size={14} /> {profileBusy ? "Saving…" : "Save contact details"}
+                  <Check size={14} /> {profileBusy ? t("Saving…") : t("Save contact details")}
                 </button>
               </div>
             </article>
@@ -1097,13 +1126,14 @@ export function SelfServicePortal() {
 
           <div className="employee-privacy-note">
             <ShieldCheck size={15} />
-            <span>Your pay, time, leave and profile queries are bound to your employee ID from the signed-in session. Editing a URL does not switch whose records are returned.</span>
+            <span>{t("Your pay, time, leave and profile queries are bound to your employee ID from the signed-in session. Editing a URL does not switch whose records are returned.")}</span>
           </div>
         </section>
       )}
 
       {contributionIssueContext && (
         <EmployeeContributionIssueModal
+          language={language}
           memberId={contributionIssueContext.memberId}
           initialAgency={contributionIssueContext.agency}
           initialMonth={contributionIssueContext.applicableMonth}
@@ -1114,30 +1144,30 @@ export function SelfServicePortal() {
 
       {leaveOpen && (
         <div className="modal-backdrop linaw-dialog" role="presentation">
-          <section className="modal employee-leave-modal" role="dialog" aria-modal="true" aria-label="Request leave">
-            <div className="card-kicker">REQUEST LEAVE</div>
-            <h2>New leave request</h2>
-            <p>Your request will be sent to a separate approver configured by your employer.</p>
+          <section className="modal employee-leave-modal" role="dialog" aria-modal="true" aria-label={t("Request leave")}>
+            <div className="card-kicker">{t("REQUEST LEAVE")}</div>
+            <h2>{t("New leave request")}</h2>
+            <p>{t("Your request will be sent to a separate approver configured by your employer.")}</p>
             <form onSubmit={submitLeave} className="employee-leave-form">
-              <label>Leave type
+              <label>{t("Leave type")}
                 <select value={leaveType} onChange={(event) => setLeaveType(event.target.value)}>
                   {data.leave.policies.map((policy) => <option key={policy.leaveType} value={policy.leaveType}>{policy.leaveType}</option>)}
                 </select>
               </label>
               <div className="employee-form-two">
-                <label>Start date<input type="date" value={leaveStart} onChange={(event) => setLeaveStart(event.target.value)} required /></label>
-                <label>End date<input type="date" value={leaveEnd} onChange={(event) => setLeaveEnd(event.target.value)} required /></label>
+                <label>{t("Start date")}<input type="date" value={leaveStart} onChange={(event) => setLeaveStart(event.target.value)} required /></label>
+                <label>{t("End date")}<input type="date" value={leaveEnd} onChange={(event) => setLeaveEnd(event.target.value)} required /></label>
               </div>
-              <label>Leave days
+              <label>{t("Leave days")}
                 <input type="number" min="0.5" step="0.5" value={leaveDays} onChange={(event) => setLeaveDays(event.target.value)} required />
-                <small>Enter the actual leave days. The app does not guess weekends, rest days or holidays.</small>
+                <small>{t("Enter the actual leave days. The app does not guess weekends, rest days or holidays.")}</small>
               </label>
-              <label>Reason<textarea value={leaveReason} onChange={(event) => setLeaveReason(event.target.value)} maxLength={240} /></label>
+              <label>{t("Reason")}<textarea value={leaveReason} onChange={(event) => setLeaveReason(event.target.value)} maxLength={240} /></label>
               {leaveError && <div className="notice notice-amber"><span>{leaveError}</span></div>}
               <div className="employee-modal-actions">
-                <button type="button" className="secondary-button" onClick={() => setLeaveOpen(false)}>Cancel</button>
+                <button type="button" className="secondary-button" onClick={() => setLeaveOpen(false)}>{t("Cancel")}</button>
                 <button className="primary-button brand" disabled={leaveBusy || !leaveType || !leaveStart || !leaveEnd || !leaveDays}>
-                  {leaveBusy ? "Submitting…" : "Submit request"}
+                  {leaveBusy ? t("Submitting…") : t("Submit request")}
                 </button>
               </div>
             </form>
@@ -1147,6 +1177,8 @@ export function SelfServicePortal() {
 
           {webBundyOpen && (
             <WebBundyModal
+              employeeId={data.employee.id}
+              language={language}
               organizationId={data.employer?.id ?? 0}
               employeeName={data.employee.firstName + " " + data.employee.lastName}
               onClose={() => setWebBundyOpen(false)}
