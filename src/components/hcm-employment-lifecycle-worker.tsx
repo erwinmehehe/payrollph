@@ -288,7 +288,7 @@ export function HcmEmploymentLifecycleWorker({
       ) : (
         <div className="notice notice-amber" style={{ marginBottom: 12 }}>
           <AlertTriangle size={15} />
-          <span><strong>No active governed employment terms.</strong> Configure the worker's terms before relying on probation or contract-end automation.</span>
+          <span><strong>No active governed employment terms.</strong> Configure the worker&#39;s terms before relying on probation or contract-end automation.</span>
         </div>
       )}
 

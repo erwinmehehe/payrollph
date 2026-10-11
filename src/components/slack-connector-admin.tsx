@@ -131,7 +131,7 @@ export function SlackConnectorAdmin({
         <div>
           <div className="card-kicker">PROVIDER CONNECTOR</div>
           <h2>Slack</h2>
-          <p>Send Automation Studio messages through Slack's Bot API using verified, encrypted credentials and allow-listed channel IDs.</p>
+          <p>Send Automation Studio messages through Slack&#39;s Bot API using verified, encrypted credentials and allow-listed channel IDs.</p>
         </div>
         <div className="run-actions" style={{ margin: 0 }}>
           <button type="button" className="secondary-button" disabled={loading} onClick={() => void load()}>

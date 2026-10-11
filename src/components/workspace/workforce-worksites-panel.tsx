@@ -374,7 +374,7 @@ export function WorkforceWorksitesPanel({
           <div className="card-kicker" style={{ marginBottom: 8 }}>Worker location eligibility</div>
           <p style={{ color: "var(--muted)", fontSize: 12 }}>
             The primary worksite remains authoritative for payroll. These dated approvals authorize
-            additional sites and the worker's onsite, hybrid, remote or field arrangement.
+            additional sites and the worker&#39;s onsite, hybrid, remote or field arrangement.
           </p>
           <div className="setting-form">
             <label>Worker

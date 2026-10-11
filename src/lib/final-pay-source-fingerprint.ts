@@ -1,3 +1,4 @@
+import type { SeparationLeaveSources } from "@/lib/separation-leave";
 /**
  * Frozen, deterministic final-pay source evidence. Includes every source
  * field used for 13th month, annualized tax/statutory contributions, loan
@@ -5,6 +6,7 @@
  * without mutating the loader results because SQL has no implicit order.
  */
 export type FinalPayFingerprintInputs = {
+  leave?: SeparationLeaveSources;
   employee: {
     status: string; basicRate: string | number; mwe: boolean;
     orgUnitId: number | null; legalEntityId: number | null;
@@ -34,6 +36,11 @@ export type FinalPayFingerprintInputs = {
 
 export function finalPaySourceFingerprint(sources: FinalPayFingerprintInputs) {
   return {
+    leave: sources.leave ? {
+      balances: [...sources.leave.balances].sort((a, b) => a.id - b.id),
+      policies: [...sources.leave.policies].sort((a, b) => a.id - b.id),
+      conversions: [...sources.leave.conversions].sort((a, b) => a.id - b.id),
+    } : null,
     employeeStatus: sources.employee.status,
     employeeBasicRate: Number(sources.employee.basicRate),
     employeeMwe: sources.employee.mwe,
@@ -101,4 +108,20 @@ export function expectedFinalPaySourceAfterInitiation(
   source: ReturnType<typeof finalPaySourceFingerprint>,
 ) {
   return { ...source, employeeStatus: "Separating" as const };
+}
+
+/** JSONB preserves values and array order, but not object property order. */
+export function sameFinalPaySource(left: unknown, right: unknown): boolean {
+  if (!left || !right || typeof left !== "object" || typeof right !== "object"
+    || Array.isArray(left) || Array.isArray(right)) return false;
+  const canonical = (value: unknown) => JSON.stringify(value, (_key, nested: unknown) => {
+    // JSON.stringify normalizes Date via toJSON before calling this replacer,
+    // matching timestamps read back from JSONB without dropping their value.
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      const record = nested as Record<string, unknown>;
+      return Object.fromEntries(Object.keys(record).sort().map(key => [key, record[key]]));
+    }
+    return nested;
+  });
+  return canonical(left) === canonical(right);
 }

@@ -43,7 +43,7 @@ test("team roster uses bounded pages and deterministic payroll schedule evidence
 });
 
 test("the team tab is real, and day changes use the existing guarded mutation", () => {
-  assert.ok(planner.includes("['team', 'Team roster']"));
+  assert.ok(planner.includes("['team', 'Weekly roster']"));
   assert.ok(planner.includes("wfm-panel-team"));
   assert.ok(planner.includes("<WorkforceTeamRosterPanel"));
   assert.ok(panel.includes('fetch("/api/workforce/team-roster?"'));

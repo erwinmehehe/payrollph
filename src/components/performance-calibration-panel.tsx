@@ -274,7 +274,7 @@ export function PerformanceCalibrationPanel({
           <div>
             <span className="card-kicker">DISTRIBUTION POLICY · v{policy?.version ?? 0}</span>
             <h3>Outlier thresholds</h3>
-            <p>New calibration sessions freeze these settings. Policy updates never rewrite an open session's thresholds.</p>
+            <p>New calibration sessions freeze these settings. Policy updates never rewrite an open session&#39;s thresholds.</p>
           </div>
         </div>
         <div className="setting-form">
