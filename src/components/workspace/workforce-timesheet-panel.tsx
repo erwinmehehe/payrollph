@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { CheckCircle2, Clock3, FileCheck2, RefreshCcw, ShieldAlert } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { phWorkDateAt } from "@/lib/workforce-manager-actions";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
+import { useScopedAsyncResource } from "./use-scoped-async-resource";
 
 type Timesheet = {
   id: number;
@@ -76,26 +77,23 @@ export function WorkforceTimesheetPanel({
   const today = localToday();
   const [periodEnd, setPeriodEnd] = useState(initialPeriod?.periodEnd ?? today);
   const [periodStart, setPeriodStart] = useState(initialPeriod?.periodStart ?? addDays(today, -14));
-  const [payload, setPayload] = useState<Payload | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const fetchTimesheets = useCallback(async (signal: AbortSignal) => {
     const params = new URLSearchParams({
       organizationId: String(organizationId),
       periodStart,
       periodEnd,
     });
-    const response = await fetch(`/api/workforce/timesheets?${params.toString()}`, { cache: "no-store" });
+    const response = await fetch(`/api/workforce/timesheets?${params.toString()}`, { cache: "no-store", signal });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error ?? "Could not load workforce timesheets.");
-    setPayload(body as Payload);
+    return body as Payload;
   }, [organizationId, periodEnd, periodStart]);
 
-  useEffect(() => {
-    void load().catch((error) =>
-      notify(error instanceof Error ? error.message : "Could not load workforce timesheets.", "err"),
-    );
-  }, [load, notify]);
+  const scopeKey = JSON.stringify([organizationId, periodStart, periodEnd]);
+  const onLoadError = useCallback((error: Error) => notify(error.message, "err"), [notify]);
+  const { data: payload, error: loadError, loading, reload: load } = useScopedAsyncResource(scopeKey, fetchTimesheets, onLoadError);
 
   async function mutate(action: string, extra: Record<string, unknown>, success: string) {
     setBusy(action);
@@ -157,10 +155,13 @@ export function WorkforceTimesheetPanel({
             Each submitted version stores an immutable attendance and schedule snapshot. New payroll runs also freeze the exact employee cohort expected to submit, so a true missing timesheet is distinguishable from a period with no obligation.
           </p>
         </div>
-        <button className="secondary-button" onClick={() => void load()}>
+        <button className="secondary-button" onClick={() => void load()} disabled={loading}>
           <RefreshCcw size={14} /> Refresh
         </button>
       </div>
+
+      {loading && <div style={{ padding: "0 18px 18px" }}><Spinner label="Loading timesheets" /></div>}
+      {loadError && <div className="notice notice-red" role="alert" style={{ margin: "0 18px 18px" }}>{loadError.message}</div>}
 
       <section className="stats-grid" style={{ padding: "0 18px 18px" }}>
         <Metric label="Approved" value={String(approved)} hint="latest employee versions" icon={<CheckCircle2 size={16} />} tone="mint" />

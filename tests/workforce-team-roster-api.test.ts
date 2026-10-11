@@ -68,9 +68,9 @@ test("manager roster renders scoped digest and focus without a new data endpoint
 });
 
 test("manager view cancels obsolete requests and does not silently change historical location", () => {
-  assert.ok(panel.includes("pendingRequest.current?.abort()"));
-  assert.ok(panel.includes("signal: controller.signal"));
-  assert.ok(panel.includes("if (controller.signal.aborted || pendingRequest.current !== controller) return"));
+  assert.ok(panel.includes("useScopedAsyncResource(scopeKey, fetchRoster, onLoadError)"));
+  assert.match(panel, /fetchRoster = useCallback\(async \(signal: AbortSignal\)/);
+  assert.match(panel, /cache: "no-store",\s*signal,/);
   assert.match(panel, /const payload = useMemo\(\(\) => activeTeamRosterPayload\(storedPayload, scopeKey\),\s*\[storedPayload, scopeKey\]\);/);
   assert.ok(panel.includes("const requestedScope = teamRosterScopeKey(organizationId, startDate, page, appliedSearch);"));
   assert.ok(panel.includes("if (body?.page !== page || body?.startDate !== startDate)"));

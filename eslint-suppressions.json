@@ -244,11 +244,6 @@
       "count": 1
     }
   },
-  "src/components/workspace/attendance-lock-control.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/workspace/bir-1601c-remittance-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -369,11 +364,6 @@
       "count": 1
     }
   },
-  "src/components/workspace/workforce-bulk-roster-preview.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/workspace/workforce-coverage-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 2
@@ -410,11 +400,6 @@
     }
   },
   "src/components/workspace/workforce-team-roster-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 2
-    }
-  },
-  "src/components/workspace/workforce-timesheet-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
