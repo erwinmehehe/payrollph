@@ -1,5 +1,19 @@
-import { DEMAND_METRICS, type DemandMetric } from "./workforce-operational-demand-import";
-import { validReceiptId, receiptDate } from "./workforce-schedule-receipt";
+import type { DemandMetric } from "./workforce-operational-demand-import";
+
+// Browser-safe validation: no dependency on server crypto or payroll modules.
+const DEMAND_METRICS = ["transactions","visits","orders","appointments","calls"] as const;
+const validReceiptId = (value: unknown): value is number =>
+  Number.isSafeInteger(value) && Number(value) > 0 && Number(value) <= 2147483647;
+function receiptDate(value: unknown): string {
+  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) {
+    throw new Error("Invalid PH policy date");
+  }
+  const d = new Date(value + "T00:00:00Z");
+  if (!Number.isFinite(d.getTime()) || d.toISOString().slice(0,10) !== value) {
+    throw new Error("Invalid PH policy date");
+  }
+  return value;
+}
 
 export type StaffingPolicyStatus = "draft" | "submitted" | "approved" | "rejected" | "superseded";
 export type StaffingPolicySpec = {
