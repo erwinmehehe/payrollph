@@ -36,9 +36,13 @@ export function ensureSeparationSchema() {
   }
 
   separationSchemaPromise ??= (async () => {
-    const client = await pool.connect();
+    let client: PoolClient | null = null;
+    let transactionOpen = false;
+    let safeToReuse = false;
     try {
+      client = await pool.connect();
       await client.query("BEGIN");
+      transactionOpen = true;
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS thirteenth_entitlement numeric(12,2) NOT NULL DEFAULT 0');
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS thirteenth_paid_ytd numeric(12,2) NOT NULL DEFAULT 0');
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS basic_salary_earned_ytd numeric(14,2) NOT NULL DEFAULT 0');
@@ -58,12 +62,22 @@ export function ensureSeparationSchema() {
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS approved_by_user_id integer REFERENCES users(id) ON DELETE SET NULL');
       await client.query('ALTER TABLE separation_records ADD COLUMN IF NOT EXISTS released_by_user_id integer REFERENCES users(id) ON DELETE SET NULL');
       await client.query("COMMIT");
+      transactionOpen = false;
+      safeToReuse = true;
     } catch (error) {
-      await client.query("ROLLBACK");
+      if (transactionOpen && client) {
+        try {
+          await client.query("ROLLBACK");
+          transactionOpen = false;
+          safeToReuse = true;
+        } catch {
+          // Failed rollback requires discarding the possibly open transaction.
+        }
+      }
       separationSchemaPromise = null;
       throw error;
     } finally {
-      client.release();
+      client?.release(!safeToReuse);
     }
   })();
   return separationSchemaPromise;
