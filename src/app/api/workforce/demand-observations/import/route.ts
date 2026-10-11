@@ -56,13 +56,16 @@ export async function POST(request: Request) {
   try {
     const [site] = await db.select({
       organizationId: worksites.organizationId,
-      orgUnitId: worksites.orgUnitId, active: worksites.active,
+      orgUnitId: worksites.orgUnitId, active: worksites.active, timezone: worksites.timezone,
     }).from(worksites).where(and(
       eq(worksites.organizationId, batch.organizationId),
       eq(worksites.id, batch.worksiteId),
     )).limit(1);
     if (!site || !operationalDemandSiteAuthorized(access, site)) {
       return Response.json({ error: "Worksite unavailable in the selected employer." }, { status: 403 });
+    }
+    if (site.timezone !== "Asia/Manila") {
+      return Response.json({ error: "Only Philippine worksite timezone is supported by this pilot." }, { status: 409 });
     }
     const result = await writeOperationalDemandImport({
       batch, actorUserId: user.id, actorName: user.name,
