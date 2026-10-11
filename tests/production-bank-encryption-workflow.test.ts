@@ -113,6 +113,9 @@ test("readiness requires one valid report, the matching key, and no bank blocker
     JSON.stringify({ ...report, criticalBlockers: "none" }),
     JSON.stringify({ ...report, criticalBlockers: [null] }),
     JSON.stringify({ ...report, criticalBlockers: ["bank-data-encryption"] }),
+    JSON.stringify({ ...report, criticalBlockers: ["readiness-internal-error"] }),
+    JSON.stringify({ ...report, deploymentSha: "b".repeat(40) }),
+    JSON.stringify({ ...report, deploymentEnvironment: "preview" }),
     JSON.stringify(report) + "\n" + JSON.stringify(report),
   ]) {
     const result = check(invalid);

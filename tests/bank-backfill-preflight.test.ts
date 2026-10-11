@@ -45,6 +45,7 @@ test("workflow requires reviewed SHA, exact prod deployment, dedicated key and e
   assert.match(w, /REVIEWED_SHA.*inputs\.reviewed_sha/);
   assert.match(w, /REVIEWED_SHA" != "\$GITHUB_SHA"/);
   assert.match(w, /deploymentSha == \$sha/);
+  assert.match(w, /index\("readiness-internal-error"\) == null/);
   assert.match(w, /deploymentEnvironment == "production"/);
   assert.match(w, /bankEncryptionKeySource\(\) !== "dedicated"/);
   assert.match(w, /APPLY_APPROVED_BANK_BACKFILL/);
