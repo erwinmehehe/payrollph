@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, provisioningTasks } from "@/db/schema";
+import { requestOffboardingIT } from "@/lib/it-offboarding";
 
 export const ONBOARDING_TASKS = [
   { title: "Government IDs on file (SSS / PhilHealth / Pag-IBIG / TIN)", owner: "People Ops" },
@@ -36,8 +37,9 @@ export async function ensureLifecycleProvisioning(organizationId: number) {
   const rows = await db.select().from(employees).where(eq(employees.organizationId, organizationId));
   for (const employee of rows) {
     await seedProvisioning(organizationId, employee.id, "onboarding");
-    if (employee.status === "Separating") {
+    if (employee.status === "Separating" || employee.status === "Separated") {
       await seedProvisioning(organizationId, employee.id, "offboarding");
+      await requestOffboardingIT(organizationId, employee.id);
     }
   }
 }
