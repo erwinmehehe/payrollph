@@ -33,11 +33,14 @@ test("provisioning PATCH checks employer and worker in selection, worker read, a
   assert.ok(patch.includes("enforceSameOriginMutation(request)"));
   assert.ok(patch.includes("parseScopedProvisioningMutation(body)"));
   const parseAt = patch.indexOf("const mutation = parseScopedProvisioningMutation(body)");
-  const lookupAt = patch.indexOf("const [target] = await db.select(");
   const deniedAt = patch.indexOf("assertOrganizationRole(");
+  const accessAt = patch.indexOf("const access = await getAccess(user.id, organizationId)");
+  const lookupAt = patch.indexOf("const [target] = await db.select(");
   const writeAt = patch.indexOf("tx.update(provisioningTasks)");
-  assert.ok(parseAt >= 0 && lookupAt > parseAt && deniedAt > lookupAt && writeAt > deniedAt);
-  const taskLookup = patch.slice(lookupAt, deniedAt);
+  assert.ok(parseAt >= 0 && deniedAt > parseAt && accessAt > deniedAt &&
+    lookupAt > accessAt && writeAt > lookupAt,
+    "Authenticate the selected employer before querying any task row.");
+  const taskLookup = patch.slice(lookupAt, writeAt);
   for (const condition of [
     "eq(provisioningTasks.id, id)",
     "eq(provisioningTasks.organizationId, organizationId)",
