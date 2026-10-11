@@ -65,8 +65,9 @@ test("schema preflight script executes catalog-only queries inside a read-only t
   assert.match(code, /pg_catalog\.pg_class/);
   assert.match(code, /pg_catalog\.pg_attribute/);
   assert.match(code, /pg_catalog\.pg_trigger/);
-  assert.match(code, /pg_catalog\.pg_index/);
+  assert.match(readFileSync("src/lib/production-schema-inventory.ts", "utf8"), /pg_catalog\.pg_index/);
   assert.match(code, /pg_catalog\.has_table_privilege/);
+  assert.match(code, /canReadPayrollRows/);
   assert.match(code, /EXPECTED_PRODUCTION_DATABASE_NAME/);
   assert.match(code, /validatedReleaseIndexes\(indexes\.rows\)/);
   assert.match(code, /t\.tgtype & 27/);

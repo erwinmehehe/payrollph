@@ -42,6 +42,29 @@ export const requiredReleaseIndexes = [
  * wrong table, invalid CONCURRENTLY-created index, non-unique replacement, or
  * a changed partial predicate must NOT pass the payroll release canary.
  */
+
+/**
+ * The same parameterized PostgreSQL query is used by production's read-only
+ * check and by an isolated PostgreSQL 16 catalog regression test.
+ * Parameters: reviewed index names; fixed schema name ("public" in production).
+ */
+export const releaseIndexCatalogSql = `
+  SELECT idx.relname AS name, tbl.relname AS "tableName",
+    ind.indisunique AS "isUnique", ind.indisvalid AS "isValid",
+    ind.indisready AS "isReady",
+    ARRAY(
+      SELECT pg_catalog.pg_get_indexdef(ind.indexrelid, pos.n, true)
+      FROM pg_catalog.generate_series(1, ind.indnkeyatts) AS pos(n)
+      ORDER BY pos.n
+    ) AS keys,
+    pg_catalog.pg_get_expr(ind.indpred, ind.indrelid) AS predicate
+  FROM pg_catalog.pg_index ind
+  JOIN pg_catalog.pg_class idx ON idx.oid = ind.indexrelid
+  JOIN pg_catalog.pg_class tbl ON tbl.oid = ind.indrelid
+  JOIN pg_catalog.pg_namespace n ON n.oid = tbl.relnamespace
+  WHERE n.nspname = $2::text AND idx.relname = ANY($1::text[])
+`;
+
 export type ReleaseIndexMetadata = {
   name: string;
   tableName: string;

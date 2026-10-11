@@ -5,6 +5,7 @@ import {
   requiredReleaseIndexes,
   requiredReleaseTables,
   validatedReleaseIndexes,
+  releaseIndexCatalogSql,
   type ReleaseIndexMetadata,
 } from "../src/lib/production-schema-inventory";
 
@@ -42,6 +43,7 @@ async function main() {
       readOnly: boolean;
       elevated: boolean;
       canWrite: boolean;
+      canReadPayrollRows: boolean;
     }>(`
       SELECT
         current_database() = $1::text AS "databaseMatches",
@@ -58,10 +60,18 @@ async function main() {
             AND c.relname = ANY($2::text[])
             AND pg_catalog.has_table_privilege(current_user, c.oid,
               'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
-        ) AS "canWrite"
+        ) AS "canWrite",
+        EXISTS (
+          SELECT 1 FROM pg_catalog.pg_class c
+          JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+          WHERE n.nspname = 'public'
+            AND c.relname = ANY(ARRAY['employees', 'payroll_entries', 'payroll_runs', 'separation_records'])
+            AND pg_catalog.has_table_privilege(current_user, c.oid, 'SELECT')
+        ) AS "canReadPayrollRows"
     `, [expectedDatabase, [...requiredReleaseTables]]);
     if (!identity.rows[0]?.databaseMatches || !identity.rows[0]?.readOnly
-      || identity.rows[0].elevated || identity.rows[0].canWrite) {
+      || identity.rows[0].elevated || identity.rows[0].canWrite
+      || identity.rows[0].canReadPayrollRows) {
       throw new Error("Production database identity or catalog-only access guard failed.");
     }
 
@@ -77,22 +87,9 @@ async function main() {
       "SELECT c.relname || '.' || a.attname AS name FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON c.oid = a.attrelid JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r','p') AND a.attnum > 0 AND NOT a.attisdropped AND (c.relname || '.' || a.attname) = ANY($1::text[])",
       [[...requiredReleaseColumns]],
     );
-    const indexes = await client.query<ReleaseIndexMetadata>(`
-      SELECT idx.relname AS name, tbl.relname AS "tableName",
-        ind.indisunique AS "isUnique", ind.indisvalid AS "isValid",
-        ind.indisready AS "isReady",
-        ARRAY(
-          SELECT pg_catalog.pg_get_indexdef(ind.indexrelid, pos.n, true)
-          FROM pg_catalog.generate_series(1, ind.indnkeyatts) AS pos(n)
-          ORDER BY pos.n
-        ) AS keys,
-        pg_catalog.pg_get_expr(ind.indpred, ind.indrelid) AS predicate
-      FROM pg_catalog.pg_index ind
-      JOIN pg_catalog.pg_class idx ON idx.oid = ind.indexrelid
-      JOIN pg_catalog.pg_class tbl ON tbl.oid = ind.indrelid
-      JOIN pg_catalog.pg_namespace n ON n.oid = tbl.relnamespace
-      WHERE n.nspname = 'public' AND idx.relname = ANY($1::text[])
-    `, [[...requiredReleaseIndexes]]);
+    const indexes = await client.query<ReleaseIndexMetadata>(
+      releaseIndexCatalogSql, [[...requiredReleaseIndexes], "public"],
+    );
     const functions = await client.query<{ present: boolean }>(
       "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.prokind = 'f' AND p.oid = to_regprocedure('public.seal_audit_events(integer)')) AS present",
     );
