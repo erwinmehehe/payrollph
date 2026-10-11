@@ -14,6 +14,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
+  Settings2,
   ShieldCheck,
   UserCheck,
 } from "lucide-react";
@@ -33,22 +34,22 @@ export type Notification = {
 };
 
 const WORKSPACE_LABELS: Record<string, string> = {
-  Overview: "Home",
+  Overview: "Dashboard",
   People: "Employees",
   Analytics: "Reports",
 };
 
 function workspaceLabel(page: string, role?: string | null) {
   if (role === "owner" && page === "Analytics") return "Reports";
-  if (role === "owner" && page === "People") return "Team";
-  if (role === "payroll" && page === "Overview") return "Home";
+  if (role === "owner" && page === "People") return "Employees";
+  if (role === "payroll" && page === "Overview") return "Dashboard";
   if (role === "payroll" && page === "Time & attendance") return "Attendance";
-  if (role === "checker" && page === "Overview") return "Reviews";
+  if (role === "checker" && page === "Overview") return "Dashboard";
   if (role === "checker" && page === "Audit trail") return "Payroll history";
-  if (role === "hr" && page === "Overview") return "Today";
+  if (role === "hr" && page === "Overview") return "Dashboard";
   if (role === "hr" && page === "Time & attendance") return "Time";
   if (role === "hr" && page === "Recruitment") return "Onboarding";
-  if (role === "bookkeeper" && page === "Overview") return "Close";
+  if (role === "bookkeeper" && page === "Overview") return "Dashboard";
   if (role === "bookkeeper" && page === "Analytics") return "Reports";
   if (role === "admin" && page === "Exports") return "Accounting";
   return WORKSPACE_LABELS[page] ?? page;
@@ -109,8 +110,17 @@ export function WorkspaceShell({
     .filter((item) => !(isFreelancer && FREELANCER_HIDDEN.has(item.name)))
     .filter((item) => !visiblePages || visiblePages.includes(item.name));
   const primarySet = new Set(primaryPages ?? allowedItems.map((item) => item.name));
-  const primaryItems = allowedItems.filter((item) => primarySet.has(item.name));
-  const secondaryItems = allowedItems.filter((item) => !primarySet.has(item.name));
+  const settingsAvailable = allowedItems.some((item) => item.name === "Settings");
+  // Navigation only reorders already-permitted pages; it never expands access.
+  const primaryItems = allowedItems
+    .filter((item) => item.name !== "Settings" && primarySet.has(item.name))
+    .sort((a, b) => (primaryPages?.indexOf(a.name) ?? 0) - (primaryPages?.indexOf(b.name) ?? 0));
+  const secondaryItems = allowedItems.filter((item) => item.name !== "Settings" && !primarySet.has(item.name));
+  const mobilePreferred = ["Overview", "Payroll", "People", "Approvals"];
+  const mobileItems = [
+    ...mobilePreferred.flatMap((name) => primaryItems.filter((item) => item.name === name)),
+    ...primaryItems.filter((item) => !mobilePreferred.includes(item.name)),
+  ].slice(0, 4);
   const navigationGroups = [{ label: "", items: primaryItems }];
   const secondaryGroups = NAVIGATION
     .map((group) => ({
@@ -160,7 +170,7 @@ export function WorkspaceShell({
 
   return (
     <div
-      className={`app-shell clean-shell ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`}
+      className={`app-shell clean-shell premium-phase-one ${rail ? "rail" : ""} ${drawer ? "drawer-open" : ""}`}
       data-workspace-page={page}
       data-workspace-role={workspaceRole ?? undefined}
       data-demo-role={displayRole ?? undefined}
@@ -277,6 +287,18 @@ export function WorkspaceShell({
         </nav>
 
         <div className="sidebar-bottom">
+          {settingsAvailable && (
+            <button
+              type="button"
+              className={"sidebar-settings-link " + (page === "Settings" ? "active" : "")}
+              onClick={() => go("Settings")}
+              aria-current={page === "Settings" ? "page" : undefined}
+              title={rail ? "Settings" : undefined}
+            >
+              <Settings2 size={16} className="i-slate" />
+              <span>Settings</span>
+            </button>
+          )}
           <button className="nav-item" onClick={onSignOut}>
             <LogOut size={16} className="i-slate" />
             <span>Sign out</span>
@@ -377,8 +399,8 @@ export function WorkspaceShell({
           <div className="topbar-actions">
             <button className="palette-trigger" onClick={onOpenPalette} aria-label="Open command palette">
               <Search size={15} className="i-slate" />
-              <span>Search employees, payroll, reports...</span>
-              <kbd>⌘K</kbd>
+              <span>Search pages, people, and actions...</span>
+              <kbd>Ctrl / ⌘ K</kbd>
             </button>
 
             {headerExtras}
@@ -424,7 +446,7 @@ export function WorkspaceShell({
                 className="icon-button relative"
                 onClick={() => setTrayOpen((current) => !current)}
                 aria-expanded={trayOpen}
-                aria-label={`Notifications${notifications.length ? ` (${notifications.length} unread)` : ""}`}
+                aria-label={`Notifications${notifications.length ? ` (${notifications.length} items)` : ""}`}
               >
                 <Bell size={17} className="i-pink" />
                 {notifications.length > 0 && <span className="notification-dot">{notifications.length > 9 ? "9+" : notifications.length}</span>}
@@ -498,7 +520,7 @@ export function WorkspaceShell({
       </div>
 
       <nav className="mobile-bottom-nav" aria-label="Mobile workspace navigation">
-        {primaryItems.slice(0, 5).map((item) => {
+        {mobileItems.map((item) => {
           const Icon = item.icon;
           const active = page === item.name;
           return (
@@ -517,6 +539,10 @@ export function WorkspaceShell({
             </button>
           );
         })}
+        <button type="button" onClick={() => setDrawer(true)} aria-label="More navigation options" aria-expanded={drawer}>
+          <span className="nav-icon t-slate" aria-hidden><MoreHorizontal size={16} /></span>
+          <span>More</span>
+        </button>
       </nav>
     </div>
   );
