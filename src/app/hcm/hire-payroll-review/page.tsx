@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HcmContextNavigation } from "@/components/hcm-context-navigation";
 import { notFound, redirect } from "next/navigation";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
@@ -86,6 +87,10 @@ export default async function HirePayrollInputReviewPage({
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 sm:px-8">
       <div className="mx-auto max-w-5xl">
+        <HcmContextNavigation
+          organizationId={organizationId} employeeId={employeeId}
+          access={access} current="payrollReview"
+        />
         <Link href={back} className="inline-block text-sm font-semibold text-emerald-800 underline-offset-4 hover:underline focus-visible:underline">
           Return to onboarding
         </Link>
