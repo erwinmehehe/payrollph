@@ -69,8 +69,12 @@ function acceptance(method: "file_upload" | "manual_entry" = "file_upload") {
 
 for (const [periodEnd, payDate] of [["2026-09-30", "2026-10-05"], ["2026-12-31", "2027-01-05"]]) {
   test(`filing evidence uses pay month for BIR and cutoff month for contributions: ${payDate}`, async () => {
-    const { org, run } = await seedRun(`Filing month boundary ${payDate}`);
+    const { org, employee, run } = await seedRun(`Filing month boundary ${payDate}`);
     try {
+      // Positive fixtures need fictional member IDs; negative missing-ID tests remain unchanged.
+      await db.update(employees).set({
+        philHealthNo: "12-345678901-2", pagIbigNo: "1234-5678-9012",
+      }).where(eq(employees.id, employee.id));
       await db.update(payrollRuns).set({ periodStart: `${periodEnd.slice(0, 7)}-01`, periodEnd, payDate })
         .where(eq(payrollRuns.id, run.id));
       for (const [agency, form] of [["BIR", "1601-C"], ["SSS", "R-3"], ["PhilHealth", "RF-1"], ["Pag-IBIG", "MCRF"]]) {
