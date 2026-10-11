@@ -140,6 +140,9 @@ test("Phase 2 screens preserve confirmation and guarded payout separation", () =
   const banner = readFileSync("src/components/workspace/payroll-phase-two-overview.tsx", "utf8");
   const backend = readFileSync("src/app/api/approvals/[id]/route.ts", "utf8");
   assert.match(approvals, /confirmDialog/);
+  assert.match(approvals, /Review payroll evidence/);
+  assert.ok(approvals.indexOf('className="card p2-approval-queue"') < approvals.indexOf('id="p2-checker-evidence"'), "task queue must appear before the long variance review");
+  assert.match(banner, /moneyExact\(view\.grossPay\)/);
   assert.match(approvals, /draftPermitted/);
   assert.match(approvals, /canDecideTask\(task\)/);
   assert.match(payroll, /PayrollPhaseTwoOverview/);
