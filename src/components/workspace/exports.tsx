@@ -315,7 +315,7 @@ export function ExportsView({
       <div className="notice notice-blue">
         <Info size={15} className="i-blue" />
         <span>
-          PayMongo is Linaw&apos;s primary payroll payout rail when the production wallet is connected. Bank files below are an
+          Xendit is Linaw&apos;s default selected payroll payout rail. Live Xendit transfers remain blocked pending end-to-end submission and settlement acceptance. Bank files below are an
           optional fallback and stay fail-closed until their exact bank-provided template has passed UAT. Government worksheets
           remain draft-only until agency acceptance evidence is recorded. See <a className="link-button" href="/api/readiness">/api/readiness</a>.
         </span>
@@ -411,7 +411,7 @@ export function ExportsView({
                 <div>
                   <div className="card-kicker">PAYOUT COMPLETION</div>
                   <h2>Close the loop after release</h2>
-                  <p>Release, PayMongo preflight, submission and provider settlement are separate audited milestones. Bank files are optional fallback.</p>
+                  <p>Release, provider preflight, submission and provider settlement must be separately authorized. Xendit is the selected default; its live payout workflow is not yet activated. Validated bank files remain available.</p>
                 </div>
                 <Status value={payoutState.payout.status === "completed" ? "Completed" : "In progress"} />
               </div>
@@ -549,6 +549,12 @@ export function ExportsView({
                 </section>
 
                 {payoutState.reconciliation.provider !== "PayMongo" && payoutState.payout.method !== "bank-file" && (
+                  <div className="notice notice-amber" data-xendit-default-payout-pending style={{ marginBottom: 12 }}>
+                    <AlertTriangle size={15} className="i-amber" />
+                    <span><strong>Default provider: Xendit.</strong> The payout adapter is staged, but live submissions and settlement reconciliation are not yet enabled. No payroll funds can move through Xendit from this screen.</span>
+                  </div>
+                )}
+                {false && payoutState.reconciliation.provider !== "PayMongo" && payoutState.payout.method !== "bank-file" && (
                   <div className="payout-confirm" data-paymongo-primary-actions>
                     <div>
                       <strong>Primary payout: PayMongo</strong>
