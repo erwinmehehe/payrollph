@@ -27,6 +27,9 @@ test("shared access resolution never promotes unassigned manager to company-wide
   assert.ok(access.includes('membership.orgUnitId <= 0)) return null;'));
   assert.ok(access.indexOf('membership.role === "manager" &&') <
     access.indexOf('companyWide: membership.orgUnitId == null'));
+  assert.ok(access.includes('row.role === "manager" &&'));
+  assert.ok(access.includes('row.orgUnitId <= 0'));
+  assert.ok(access.includes('An assigned organizational unit is required for manager access.'));
 });
 
 test("dashboard requires a valid manager unit before loading any employer records", () => {
