@@ -901,6 +901,7 @@ jobs:
                 check((await confirmation.count()) === 1, "Phase 2 Checker: approval must show explicit confirmation");
                 check((await confirmation.innerText()).toLowerCase().includes("server"), "Phase 2 Checker: guard explanation is missing");
                 await confirmation.getByRole("button", { name: "Cancel" }).click();
+                await page.locator("dialog.p2-approval-confirm[open]").waitFor({ state: "hidden", timeout: 5000 });
                 check((await page.locator("dialog.p2-approval-confirm[open]").count()) === 0, "Phase 2 Checker: cancel must close without deciding");
                 const decline = page.getByRole("button", { name: "Decline", exact: true }).first();
                 if (await decline.count()) {
@@ -908,6 +909,7 @@ jobs:
                   const declineDialog = page.getByRole("dialog", { name: "Confirm decline" });
                   check((await declineDialog.count()) === 1, "Phase 2 Checker: decline must require confirmation");
                   await declineDialog.getByRole("button", { name: "Cancel" }).click();
+                  await page.locator("dialog.p2-approval-confirm[open]").waitFor({ state: "hidden", timeout: 5000 });
                 }
               }
               await filters.getByRole("button", { name: /All pending/ }).click();
