@@ -87,7 +87,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }, { status: 400 });
   }
 
-  const record = await recordFilingOutcome({ organizationId, id, actor: user.name, outcome: parsed.value });
+  let record;
+  try {
+    record = await recordFilingOutcome({ organizationId, id, actor: user.name, outcome: parsed.value });
+  } catch (error) {
+    return Response.json({
+      error: error instanceof Error ? error.message : "Filing acceptance could not be verified against the released source.",
+    }, { status: 409 });
+  }
   // Lost a race with another person recording the same record.
   if (!record) {
     return Response.json({ error: "This record was already resolved by someone else." }, { status: 409 });
