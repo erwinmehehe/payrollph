@@ -11,9 +11,11 @@ import { myTeamWorkflowHref, type MyTeamWorkflowPage } from "@/lib/hcm-my-team-n
 export function HcmMyTeamActionCenter({
   organizationId,
   summary,
+  pilotFocusEnabled = false,
 }: {
   organizationId: number;
   summary: MyTeamResponse["summary"];
+  pilotFocusEnabled?: boolean;
 }) {
   const actions: Array<{
     page: MyTeamWorkflowPage;
@@ -66,7 +68,7 @@ export function HcmMyTeamActionCenter({
         </p>
       </div>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        {actions.map((action) => {
+        {actions.filter((action) => !(pilotFocusEnabled && action.page === "Workforce")).map((action) => {
           const Icon = action.icon;
           const href = myTeamWorkflowHref(organizationId, action.page);
           if (!href) return null;
