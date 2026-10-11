@@ -45,6 +45,11 @@ window.renderTenant = (organizationId) => {
     coverage={coverage}
     laborCostVisible={true}
     laborRows={[{requirementId:21,benchmarkHourlyRate:150}]}
+    recoveryOptions={[{requirementId:21,gap:1,recommendations:[{
+      employeeId:12,employeeName:"Synthetic Worker",workloadRisk:"low",
+      scheduledMinutesInWindow:480,consecutiveWorkingDaysBeforeShift:2,
+      reasons:["Verified fixture role"],
+    }]}]}
     guardrailBlockers={0} rosterStatus="ready"
     windowStart={workDate} windowEnd={workDate} dynamicGroupCode=""
   /></StrictMode>);
