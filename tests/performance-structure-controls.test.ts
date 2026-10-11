@@ -5,6 +5,7 @@ import test from "node:test";
 const migration = readFileSync("drizzle/0076_performance_structure_controls.sql", "utf8");
 const schema = readFileSync("src/db/schema.ts", "utf8");
 const route = readFileSync("src/app/api/performance/route.ts", "utf8");
+const goalContract = readFileSync("src/lib/hcm-performance-goal-parent.ts", "utf8");
 const selfRoute = readFileSync("src/app/api/self/performance/route.ts", "utf8");
 const panel = readFileSync("src/components/performance-governance-panel.tsx", "utf8");
 const performancePanel = readFileSync("src/components/performance-panel.tsx", "utf8");
@@ -15,8 +16,8 @@ test("performance goals support governed company team employee hierarchy", () =>
   assert.ok(migration.includes('"performance_goals_scope_check"'));
   assert.ok(schema.includes('parentGoalId: integer("parent_goal_id")'));
   assert.ok(schema.includes('"performance_goals_scope_check"'));
-  assert.ok(route.includes("Team goals may only cascade from a company goal."));
-  assert.ok(route.includes("An employee goal can only cascade from a team goal in that employee's org unit."));
+  assert.ok(goalContract.includes("Team goals may only cascade from a company goal."));
+  assert.ok(goalContract.includes("An employee goal can only cascade from a team goal in that employee's org unit."));
 });
 
 test("competency and KRA templates create structured review evidence", () => {
