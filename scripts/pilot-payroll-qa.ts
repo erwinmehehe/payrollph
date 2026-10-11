@@ -92,6 +92,23 @@ async function verifySyntheticSeparation(owner: ApiClient, maker: ApiClient, org
   assert.equal(excess.response.status, 422);
   assert.match(String(excess.payload.error), /authorized unspent balance/);
   assert.equal((await db.select().from(separationRecords).where(eq(separationRecords.employeeId, employeeId))).length, 0);
+  const pending = await expectOk(maker, "/api/separation", { method: "POST", json: request });
+  assert.equal(pending.approvalRequired, true);
+  assert.equal(pending.separationCreated, false);
+  assert.equal((await db.select().from(separationRecords).where(eq(separationRecords.employeeId, employeeId))).length, 0);
+  const [hrUser] = await db.insert(users).values({
+    email: "hr.exit.pilot@linaw.test", name: "Synthetic exit HR reviewer", role: "hr",
+    passwordHash: hashPassword(credentials.checker), totpEnabled: false, backupCodes: [],
+  }).returning();
+  await db.insert(userOrganizations).values({ userId: hrUser.id, organizationId, role: "hr" });
+  const hr = await login(hrUser.email, credentials.checker);
+  for (const reviewer of [hr, owner]) {
+    const inbox = await expectOk(reviewer, `/api/hcm/business-processes/inbox?organizationId=${organizationId}`);
+    const step = inbox.myWork.find((item: Record<string, any>) => Number(item.instanceId) === Number(pending.businessProcess.id));
+    assert.ok(step?.approvalTaskId, "The separation intent needs its next governed approval task.");
+    assert.equal(step.makerBlocked, false);
+    await expectOk(reviewer, `/api/approvals/${step.approvalTaskId}`, { method: "PATCH", json: { status: "Approved" } });
+  }
   const computed = await expectOk(maker, "/api/separation", { method: "POST", json: request });
   assert.equal(computed.status, "draft");
   assert.equal(computed.computationSnapshot.separationLeave.convertible, 3);
@@ -127,7 +144,8 @@ async function verifySyntheticSeparation(owner: ApiClient, maker: ApiClient, org
   assert.equal(Number((await db.select().from(leaveBalances).where(eq(leaveBalances.id, balance.id)))[0].used), 4);
   report.syntheticSeparation = { result: "passed", cap: 5, reservedDays: 2,
     rejectedExcess: true, staleApprovalBlocked: true, recomputedCredits: 2,
-    distinctTestActors: true, manualReleaseBlocked: true, balanceUnspent: true };
+    distinctTestActors: true, hcmIntentReviewedBeforeComputation: true,
+    manualReleaseBlocked: true, balanceUnspent: true };
 }
 
 async function main() {
