@@ -152,7 +152,7 @@ test("source routes are guarded, remain aggregation-only and never write roster 
   assert.match(get, /eq\(worksites.organizationId, organizationId\)/);
   assert.match(get, /operationalDemandSiteAuthorized\(access, site\)/);
   assert.match(get, /WORKFORCE_MANAGER_ROLES/);
-  assert.match(get, /eq\(workforceDemandObservationRevisions.organizationId, input.organizationId\)/);
+  assert.match(storage, /eq\(workforceDemandObservationRevisions.organizationId, input.organizationId\)/);
   assert.match(storage, /pg_advisory_xact_lock/);
   assert.match(storage, /idempotencyKey/);
   assert.match(storage, /db.transaction/);
