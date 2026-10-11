@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { db } from "../src/db";
 import { hashPassword } from "../src/lib/crypto";
 import {
+  employees,
   hcmBusinessProcessInstances,
   hcmBusinessProcessInstanceSteps,
   orgUnits,
@@ -28,8 +29,16 @@ async function main() {
   ]).returning();
   assert.deepEqual([alpha.id, beta.id], [1, 2], "Must be an empty CI database");
 
+  const [worker] = await db.insert(employees).values({
+    organizationId: alpha.id, employeeNo: "MON-SYNTH-001",
+    firstName: "Fictional", lastName: "Employee",
+    title: "Research Associate", avatarInitials: "FE",
+    basicRate: "30000.00", startDate: "2026-01-01",
+  }).returning();
+  assert.equal(worker.id, 1, "Worker 360 QA must use only a fresh synthetic DB");
+
   const passwordHash = hashPassword("Synthetic-HCM-Monitor-Only-2026!");
-  const [hr, manager, payroll, checker, employee, scoped, denied] =
+  const [hr, manager, payroll, checker, employee, scoped, denied, bookkeeper] =
     await db.insert(users).values([
       { email: "monitor-hr@example.test", name: "Fictional HR", passwordHash, role: "hr" },
       { email: "monitor-manager@example.test", name: "Fictional Manager", passwordHash, role: "manager" },
@@ -38,6 +47,7 @@ async function main() {
       { email: "monitor-employee@example.test", name: "Fictional Employee", passwordHash, role: "employee" },
       { email: "monitor-unit-hr@example.test", name: "Fictional Scoped HR", passwordHash, role: "hr" },
       { email: "monitor-denied-hr@example.test", name: "Fictional Denied HR", passwordHash, role: "hr" },
+      { email: "monitor-bookkeeper@example.test", name: "Fictional Bookkeeper", passwordHash, role: "bookkeeper" },
     ]).returning();
 
   const [unit] = await db.insert(orgUnits).values({
@@ -52,6 +62,7 @@ async function main() {
     { userId: employee.id, organizationId: alpha.id, role: "employee", active: true },
     { userId: scoped.id, organizationId: alpha.id, role: "hr", orgUnitId: unit.id, active: true },
     { userId: denied.id, organizationId: alpha.id, role: "hr", active: true },
+    { userId: bookkeeper.id, organizationId: alpha.id, role: "bookkeeper", active: true },
   ]).returning();
 
   const restricted = membership.find((row) => row.userId === denied.id);
