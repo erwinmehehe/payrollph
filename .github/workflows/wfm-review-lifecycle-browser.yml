@@ -1,0 +1,28 @@
+name: WFM Review Lifecycle Browser QA
+on:
+  pull_request:
+    paths:
+      - "src/components/workspace/workforce-roster-batch-reviews.tsx"
+      - "src/components/workspace/workforce-schedule-receipt-review.tsx"
+      - "src/components/workspace/use-scoped-async-resource.ts"
+      - "src/lib/scoped-async-request.ts"
+      - "scripts/wfm-review-lifecycle-browser.mjs"
+      - "tests/fixtures/wfm-review-lifecycle.jsx"
+      - ".github/workflows/wfm-review-lifecycle-browser.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --ignore-scripts playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/wfm-review-lifecycle-browser.mjs

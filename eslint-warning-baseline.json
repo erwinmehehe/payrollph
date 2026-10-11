@@ -34,11 +34,5 @@
   },
   "src/components/workspace/panels.tsx": {
     "@next/next/no-location-assign-relative-destination": 1
-  },
-  "src/components/workspace/workforce-roster-batch-reviews.tsx": {
-    "react-hooks/exhaustive-deps": 1
-  },
-  "src/components/workspace/workforce-schedule-receipt-review.tsx": {
-    "react-hooks/exhaustive-deps": 1
   }
 }

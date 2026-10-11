@@ -97,7 +97,8 @@ test("staging and checking are only exposed behind UI gate; no automatic bank/pa
   assert.ok(p.includes('action: "stage"'));
   assert.ok(reviews.includes('"approve" | "reject"'));
   assert.ok(reviews.includes('currentUserId === chosen.requestedByUserId'));
-  assert.ok(reviews.includes('snapshot?.employer === organizationId'));
+  assert.ok(reviews.includes('useScopedAsyncResource(scope, load, undefined, enabled)'));
+  assert.ok(reviews.includes('JSON.stringify([props.organizationId, props.currentUserId, props.enabled])'));
   assert.ok(!p.includes('/api/payroll'));
   assert.ok(!reviews.includes('/api/payout'));
 });
