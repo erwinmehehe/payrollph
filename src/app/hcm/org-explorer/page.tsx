@@ -1,5 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { HcmOrgExplorerClient } from "@/components/hcm-org-explorer";
+import { HcmContextNavigation } from "@/components/hcm-context-navigation";
+import { getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { denyHcmOrgExplorer, hcmOrgExplorerEnabledForEmployer, hcmOrgExplorerPositiveId } from "@/lib/hcm-org-explorer-access";
 
@@ -29,5 +31,13 @@ export default async function HcmOrgExplorerPage({
   const denied = await denyHcmOrgExplorer(user.id, organizationId);
   if (denied) notFound();
 
-  return <HcmOrgExplorerClient organizationId={organizationId} />;
+  const access = await getAccess(user.id, organizationId);
+  if (!access) notFound();
+
+  return <>
+    <div className="mx-auto max-w-7xl px-4 pt-8 sm:px-8">
+      <HcmContextNavigation organizationId={organizationId} access={access} current="orgExplorer" />
+    </div>
+    <HcmOrgExplorerClient organizationId={organizationId} />
+  </>;
 }
