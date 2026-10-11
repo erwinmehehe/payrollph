@@ -1,6 +1,7 @@
 
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { AssetsPanel } from "@/components/assets-panel";
 type Employee = { id: number; firstName: string; lastName: string; status: string };
 type Asset = { id: number; name: string; type: string; employeeId: number | null };
 type Device = { id: number; assetId: number; employeeId: number | null; state: string; mdmProvider: string | null };
@@ -81,5 +82,7 @@ export function ItOperationsPanel({ organizationId, setNotice }: { organizationI
       <p>Provisioning checklists remain managed by the existing HR workflow. Tasks below are read-only here.</p>
       <table className="data-table"><thead><tr><th>Employee</th><th>Lifecycle</th><th>Task</th><th>State</th></tr></thead><tbody>{data.tasks.map(t => <tr key={t.id}><td>{employee(t.employeeId)}</td><td>{t.kind}</td><td>{t.title}</td><td>{t.done ? "Complete" : "Pending"}</td></tr>)}</tbody></table>
     </div>
+    <button className="secondary-button" onClick={reload}>Refresh equipment inventory</button>
+    <AssetsPanel organizationId={organizationId} managedAssetIds={data.devices.map(d => d.assetId)} />
   </section>;
 }
