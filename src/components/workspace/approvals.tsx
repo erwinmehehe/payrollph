@@ -253,6 +253,44 @@ export function ApprovalsView({
         </div>
       </article>
 
+      <dialog
+        ref={confirmDialog}
+        className="p2-approval-confirm"
+        aria-labelledby="p2-decision-title"
+        aria-describedby="p2-decision-description"
+        onCancel={() => setDecisionDraft(null)}
+      >
+        {decisionDraft && draftTask && (
+          <div className="p2-confirm-body">
+            <span className="p2-confirm-icon" aria-hidden><ShieldCheck size={22} /></span>
+            <h2 id="p2-decision-title">{decisionDraft.status === "Approved" ? "Confirm approval" : "Confirm decline"}</h2>
+            <p id="p2-decision-description">
+              Review the assigned request before you record this decision. All permissions, source integrity, payroll assurance, and maker-checker rules are enforced by the server.
+            </p>
+            <dl>
+              <div><dt>Request</dt><dd>{draftTask.title}</dd></div>
+              <div><dt>Assigned to</dt><dd>{approverLabel(draftTask.approver)}</dd></div>
+              <div><dt>Decision</dt><dd>{decisionDraft.status}</dd></div>
+            </dl>
+            {!draftPermitted && (
+              <p className="p2-confirm-warning"><AlertTriangle size={16} /> This task is no longer eligible for your decision.</p>
+            )}
+            <div className="p2-confirm-actions">
+              <button type="button" className="secondary-button" disabled={pendingId != null} onClick={() => setDecisionDraft(null)}>Cancel</button>
+              <button
+                type="button"
+                className={decisionDraft.status === "Approved" ? "primary-button brand" : "decline-button"}
+                disabled={busy || pendingId != null || !draftPermitted}
+                onClick={() => void confirmDecision()}
+              >
+                {pendingId != null ? <Spinner label="Saving" /> : <ShieldCheck size={15} />}
+                {decisionDraft.status === "Approved" ? "Confirm approval" : "Confirm decline"}
+              </button>
+            </div>
+          </div>
+        )}
+      </dialog>
+
       {canManageDelegations && delegations.length > 0 && (
         <article className="card" style={{ marginTop: 16 }}>
           <div className="card-header">
