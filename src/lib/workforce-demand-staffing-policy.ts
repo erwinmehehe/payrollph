@@ -5,7 +5,7 @@ const DEMAND_METRICS = ["transactions","visits","orders","appointments","calls"]
 const validReceiptId = (value: unknown): value is number =>
   Number.isSafeInteger(value) && Number(value) > 0 && Number(value) <= 2147483647;
 function receiptDate(value: unknown): string {
-  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     throw new Error("Invalid PH policy date");
   }
   const d = new Date(value + "T00:00:00Z");
