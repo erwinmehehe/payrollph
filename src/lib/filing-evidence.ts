@@ -237,7 +237,16 @@ export function parseFilingOutcome(
 
   let submittedAt: Date | null = null;
   if (input.submittedAt !== undefined && input.submittedAt !== null && input.submittedAt !== "") {
-    const parsed = new Date(String(input.submittedAt));
+    const rawDate = String(input.submittedAt);
+    // JavaScript Date silently normalizes impossible dates such as 2026-02-30.
+    // Government acknowledgements must have a real ISO calendar day.
+    const shape = /^(\d{4})-(\d{2})-(\d{2})(?:T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2}))?$/.exec(rawDate);
+    if (!shape) return { ok: false, error: "submittedAt must be an ISO date or timestamp." };
+    const calendarDay = new Date(Date.UTC(Number(shape[1]), Number(shape[2]) - 1, Number(shape[3])));
+    if (!Number.isFinite(calendarDay.getTime()) || calendarDay.toISOString().slice(0, 10) !== rawDate.slice(0, 10)) {
+      return { ok: false, error: "submittedAt is not a valid calendar date." };
+    }
+    const parsed = new Date(rawDate);
     if (Number.isNaN(parsed.getTime())) return { ok: false, error: "submittedAt is not a valid date." };
     if (parsed.getTime() > now.getTime() + ONE_DAY_MS) return { ok: false, error: "submittedAt cannot be in the future." };
     submittedAt = parsed;
