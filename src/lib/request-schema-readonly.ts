@@ -10,7 +10,7 @@ export type RequestSchemaIndex = {
   unique: boolean; predicateTokens?: readonly string[];
 };
 export type RequestSchemaConstraint = {
-  tableName: string; kind: "f" | "c"; tokens: readonly string[];
+  tableName: string; kind: "f" | "c" | "u"; tokens: readonly string[];
 };
 export type RequestSchemaSpec = {
   label: "leave" | "pay-basis";
@@ -149,6 +149,7 @@ export const leaveSchemaSpec: RequestSchemaSpec = {
     { name: "leave_request_intervals_org_date_idx", tableName: "leave_request_intervals", keys: ["organization_id", "work_date"], unique: false },
   ],
   constraints: [
+    { tableName: "leave_request_interval_sets", kind: "c", tokens: ["status", "current", "superseded"] },
     { tableName: "leave_request_interval_sets", kind: "f", tokens: ["leave_request_id", "referencesleave_requests(id)", "ondeletecascade"] },
     { tableName: "leave_request_intervals", kind: "f", tokens: ["interval_set_id", "referencesleave_request_interval_sets(id)", "ondeletecascade"] },
     { tableName: "leave_request_intervals", kind: "c", tokens: ["kind", "start_local_time", "end_local_time", "ends_next_day"] },
@@ -182,6 +183,7 @@ export const payBasisSchemaSpec: RequestSchemaSpec = {
     { name: "employee_pay_retro_revision_run_idx", tableName: "employee_pay_retro_adjustments", keys: ["revision_id", "source_payroll_run_id"], unique: true },
   ],
   constraints: [
+    { tableName: "employee_pay_profiles", kind: "u", tokens: ["employee_id"] },
     { tableName: "employee_pay_profiles", kind: "f", tokens: ["employee_id", "referencesemployees(id)", "ondeletecascade"] },
     { tableName: "employee_pay_revisions", kind: "f", tokens: ["employee_id", "referencesemployees(id)", "ondeletecascade"] },
     { tableName: "employee_pay_retro_adjustments", kind: "f", tokens: ["revision_id", "referencesemployee_pay_revisions(id)", "ondeletecascade"] },
