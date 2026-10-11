@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, CheckCircle2, PencilLine, RefreshCcw } from "lucide-react";
 import { manilaWorkDate, summarizeUpcomingWeek, upcomingSevenDays } from "@/lib/workforce-employee-upcoming-week";
+import { essText, type EssLanguage } from "@/lib/ess-language";
 
 type ScheduleSegment = {
   shiftDefinitionId: number;
@@ -83,7 +84,8 @@ function fromManilaInput(value: string) {
   return value ? `${value}:00+08:00` : null;
 }
 
-export function EmployeeWorkforcePanel() {
+export function EmployeeWorkforcePanel({ language = "en" }: { language?: EssLanguage }) {
+  const t = (label: string) => essText(language, label);
   const [payload, setPayload] = useState<Payload | null>(null);
   const [today, setToday] = useState(() => manilaWorkDate());
   const [error, setError] = useState("");
@@ -196,12 +198,12 @@ export function EmployeeWorkforcePanel() {
         <article className="employee-list-card" data-employee-upcoming-week>
           <div className="employee-list-card-head">
             <div>
-              <span className="card-kicker">UPCOMING WEEK · PHILIPPINE TIME</span>
-              <h3>Your next seven days</h3>
+              <span className="card-kicker">{t("UPCOMING WEEK · PHILIPPINE TIME")}</span>
+              <h3>{t("Your next seven days")}</h3>
             </div>
-            <span className="employee-mini-meta">Today through the next 6 days</span>
+            <span className="employee-mini-meta">{t("Today through the next 6 days")}</span>
           </div>
-          <div role="list" aria-label="Seven-day schedule overview" style={{
+          <div role="list" aria-label={t("Seven-day schedule overview")} style={{
             display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
             gap: 10, padding: "12px 14px",
           }}>
@@ -216,9 +218,9 @@ export function EmployeeWorkforcePanel() {
                   day.state === "review" || day.changed ? "warn" :
                     day.state === "shift" ? "good" : ""
                 )}>
-                  {day.changed ? "Changed" : day.state === "rest" ? "Rest" :
-                    day.state === "unassigned" ? "Unassigned" :
-                    day.state === "review" ? "Review" : "Scheduled"}
+                  {day.changed ? t("Changed") : day.state === "rest" ? t("Rest") :
+                    day.state === "unassigned" ? t("Unassigned") :
+                    day.state === "review" ? t("Review") : t("Scheduled")}
                 </span>
                 <span style={{ fontSize: 12 }}>{day.label}</span>
                 {day.segments.map((segment, index) => (
@@ -228,26 +230,26 @@ export function EmployeeWorkforcePanel() {
             ))}
           </div>
           <div className="notice notice-slate" style={{ margin: "4px 14px 14px" }}>
-            <span>{upcomingSummary.scheduled} shift day(s), {upcomingSummary.restDays} recorded rest day(s), {upcomingSummary.changes} changed day(s), {upcomingSummary.needsReview} requiring schedule confirmation. A missing roster entry is not an absence or a payroll deduction.</span>
+            <span>{upcomingSummary.scheduled} {t("shift day(s)")}, {upcomingSummary.restDays} {t("recorded rest day(s)")}, {upcomingSummary.changes} {t("changed day(s)")}, {upcomingSummary.needsReview} {t("requiring schedule confirmation")}. {t("A missing roster entry is not an absence or a payroll deduction.")}</span>
           </div>
           {process.env.NEXT_PUBLIC_WFM_SCHEDULE_RECEIPTS_ENABLED === "true" && (
-            <div style={{ padding: "0 14px 14px" }}><Link className="secondary-button" href="/self/schedule-receipts">Review schedule receipts</Link></div>
+            <div style={{ padding: "0 14px 14px" }}><Link className="secondary-button" href="/self/schedule-receipts">{t("Review schedule receipts")}</Link></div>
           )}
         </article>
       )}
       <article className="employee-list-card">
         <div className="employee-list-card-head">
           <div>
-            <span className="card-kicker">MY SCHEDULE</span>
-            <h3>Effective workforce schedule</h3>
+            <span className="card-kicker">{t("MY SCHEDULE")}</span>
+            <h3>{t("Effective workforce schedule")}</h3>
           </div>
           <button className="secondary-button" type="button" onClick={() => void load()} disabled={loading}>
-            <RefreshCcw size={13} /> {loading ? "Loading…" : "Refresh"}
+            <RefreshCcw size={13} /> {loading ? t("Loading…") : t("Refresh")}
           </button>
         </div>
-        {error && <div className="notice notice-amber"><span>{error}</span></div>}
+        {error && <div className="notice notice-amber"><span>{t(error)}</span></div>}
         {!loading && workingSchedule.length === 0 ? (
-          <div className="employee-empty-row">No governed workforce schedule is assigned in this window.</div>
+          <div className="employee-empty-row">{t("No governed workforce schedule is assigned in this window.")}</div>
         ) : (
           workingSchedule.map((day) => (
             <div className="employee-attendance-row" key={day.date}>
@@ -255,15 +257,15 @@ export function EmployeeWorkforcePanel() {
                 <strong>{phDateLabel(day.date)}</strong>
                 <span>
                   {day.isRestDay
-                    ? "Rest day"
+                    ? t("Rest day")
                     : day.source === "override"
-                      ? "Approved schedule override"
-                      : "Assigned schedule"}
+                      ? t("Approved schedule override")
+                      : t("Assigned schedule")}
                 </span>
               </div>
               <div className="employee-attendance-times">
                 {day.isRestDay || day.segments.length === 0 ? (
-                  <span>Off</span>
+                  <span>{t("Off")}</span>
                 ) : (
                   <span>
                     {day.segments.map((segment) =>
@@ -273,7 +275,7 @@ export function EmployeeWorkforcePanel() {
                 )}
               </div>
               <span className={"employee-status-pill " + (day.source === "override" ? "warn" : "good")}>
-                {day.source === "override" ? "Changed" : day.isRestDay ? "Rest" : "Scheduled"}
+                {day.source === "override" ? t("Changed") : day.isRestDay ? t("Rest") : t("Scheduled")}
               </span>
             </div>
           ))
@@ -283,16 +285,16 @@ export function EmployeeWorkforcePanel() {
       <article className="employee-list-card">
         <div className="employee-list-card-head">
           <div>
-            <span className="card-kicker">ATTENDANCE CORRECTIONS</span>
-            <h3>Request a correction</h3>
+            <span className="card-kicker">{t("ATTENDANCE CORRECTIONS")}</span>
+            <h3>{t("Request a correction")}</h3>
           </div>
-          <span className="employee-mini-meta">Manager approval required</span>
+          <span className="employee-mini-meta">{t("Manager approval required")}</span>
         </div>
         <div className="notice notice-slate" style={{ margin: "0 0 10px" }}>
-          <span>Your request cannot change attendance or payroll by itself. A separate authorized manager must review it.</span>
+          <span>{t("Your request cannot change attendance or payroll by itself. A separate authorized manager must review it.")}</span>
         </div>
         {(payload?.punches ?? []).length === 0 ? (
-          <div className="employee-empty-row">No punch records are available in this workforce window.</div>
+          <div className="employee-empty-row">{t("No punch records are available in this workforce window.")}</div>
         ) : (
           (payload?.punches ?? []).map((punch) => {
             const pending = pendingByPunch.get(punch.id);
@@ -300,18 +302,18 @@ export function EmployeeWorkforcePanel() {
               <div className="employee-attendance-row" key={punch.id}>
                 <div>
                   <strong>{phDateLabel(punch.workDate)}</strong>
-                  <span>{punch.source === "web_bundy" ? "Web time clock" : punch.source ?? "Attendance"}</span>
+                  <span>{punch.source === "web_bundy" ? t("Web time clock") : punch.source ?? t("Attendance")}</span>
                 </div>
                 <div className="employee-attendance-times">
                   <span>{phTime(punch.timeIn)}</span>
-                  <small>to</small>
+                  <small>{t("to")}</small>
                   <span>{phTime(punch.timeOut)}</span>
                 </div>
                 {pending ? (
-                  <span className="employee-status-pill warn">Pending review</span>
+                  <span className="employee-status-pill warn">{t("Pending review")}</span>
                 ) : (
                   <button className="secondary-button" type="button" onClick={() => openCorrection(punch)}>
-                    <PencilLine size={13} /> Request correction
+                    <PencilLine size={13} /> {t("Request correction")}
                   </button>
                 )}
               </div>
@@ -324,8 +326,8 @@ export function EmployeeWorkforcePanel() {
         <article className="employee-list-card">
           <div className="employee-list-card-head">
             <div>
-              <span className="card-kicker">MY REQUESTS</span>
-              <h3>Correction history</h3>
+              <span className="card-kicker">{t("MY REQUESTS")}</span>
+              <h3>{t("Correction history")}</h3>
             </div>
           </div>
           {(payload?.corrections ?? []).map((row) => (
@@ -350,36 +352,36 @@ export function EmployeeWorkforcePanel() {
           <section className="employee-modal" role="dialog" aria-modal="true" aria-labelledby="attendance-correction-title">
             <div className="employee-modal-head">
               <div>
-                <span className="card-kicker">ATTENDANCE CORRECTION</span>
+                <span className="card-kicker">{t("ATTENDANCE CORRECTION")}</span>
                 <h3 id="attendance-correction-title">{phDateLabel(selected.workDate)}</h3>
               </div>
-              <button className="secondary-button" type="button" onClick={() => setSelected(null)}>Cancel</button>
+              <button className="secondary-button" type="button" onClick={() => setSelected(null)}>{t("Cancel")}</button>
             </div>
             <form onSubmit={submitCorrection}>
               <div className="employee-form-two">
-                <label>Time in<input type="datetime-local" value={timeIn} onChange={(event) => setTimeIn(event.target.value)} /></label>
-                <label>Time out<input type="datetime-local" value={timeOut} onChange={(event) => setTimeOut(event.target.value)} /></label>
-                <label>Break start<input type="datetime-local" value={breakStart} onChange={(event) => setBreakStart(event.target.value)} /></label>
-                <label>Break end<input type="datetime-local" value={breakEnd} onChange={(event) => setBreakEnd(event.target.value)} /></label>
+                <label>{t("Time in")}<input type="datetime-local" value={timeIn} onChange={(event) => setTimeIn(event.target.value)} /></label>
+                <label>{t("Time out")}<input type="datetime-local" value={timeOut} onChange={(event) => setTimeOut(event.target.value)} /></label>
+                <label>{t("Break start")}<input type="datetime-local" value={breakStart} onChange={(event) => setBreakStart(event.target.value)} /></label>
+                <label>{t("Break end")}<input type="datetime-local" value={breakEnd} onChange={(event) => setBreakEnd(event.target.value)} /></label>
               </div>
               <label>
-                Reason
+                {t("Reason")}
                 <textarea
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
                   maxLength={240}
-                  placeholder="Explain what should be corrected and why."
+                  placeholder={t("Explain what should be corrected and why.")}
                   required
                 />
               </label>
               <div className="notice notice-slate">
                 <CheckCircle2 size={14} />
-                <span>This creates a pending request only. Your stored punch remains unchanged until independently approved.</span>
+                <span>{t("This creates a pending request only. Your stored punch remains unchanged until independently approved.")}</span>
               </div>
               <div className="employee-modal-actions">
-                <button className="secondary-button" type="button" onClick={() => setSelected(null)}>Cancel</button>
+                <button className="secondary-button" type="button" onClick={() => setSelected(null)}>{t("Cancel")}</button>
                 <button className="primary-button brand" disabled={saving || reason.trim().length < 3}>
-                  <CalendarDays size={14} /> {saving ? "Submitting…" : "Submit for review"}
+                  <CalendarDays size={14} /> {saving ? t("Submitting…") : t("Submit for review")}
                 </button>
               </div>
             </form>

@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   UploadCloud,
 } from "lucide-react";
+import { essText, type EssLanguage } from "@/lib/ess-language";
 
 type PolicyAssignment = {
   assignmentId: number;
@@ -84,7 +85,8 @@ function statusTone(status: string) {
   return "neutral";
 }
 
-export function EmployeeDocumentsPanel({ organizationId }: { organizationId: number }) {
+export function EmployeeDocumentsPanel({ organizationId, language = "en" }: { organizationId: number; language?: EssLanguage }) {
+  const t = (label: string) => essText(language, label);
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -174,7 +176,7 @@ export function EmployeeDocumentsPanel({ organizationId }: { organizationId: num
   if (!data) {
     return (
       <section className="employee-section">
-        <div className="employee-empty-row">{error || "Loading your documents and policies…"}</div>
+        <div className="employee-empty-row">{t(error || "Loading your documents and policies…")}</div>
       </section>
     );
   }
@@ -187,64 +189,65 @@ export function EmployeeDocumentsPanel({ organizationId }: { organizationId: num
     <section className="employee-section">
       <header className="employee-section-heading">
         <div>
-          <span className="card-kicker">MY DOCUMENTS</span>
-          <h2>Policies &amp; required documents</h2>
-          <p>Read the exact policy version assigned to you, acknowledge it yourself, and keep required employee documents current.</p>
+          <span className="card-kicker">{t("MY DOCUMENTS")}</span>
+          <h2>{t("Policies & required documents")}</h2>
+          <p>{t("Read the exact policy version assigned to you, acknowledge it yourself, and keep required employee documents current.")}</p>
         </div>
       </header>
 
-      {error && <div className="notice notice-amber"><AlertTriangle size={15} /><span>{error}</span></div>}
+      {error && <div className="notice notice-amber"><AlertTriangle size={15} /><span>{t(error)}</span></div>}
+      <p className="employee-rule-note" style={{ marginTop: 8 }}>{t("Official policy content and acknowledgement statements remain in their original language.")}</p>
 
       <div className="employee-leave-balances">
         <article>
-          <span>Policy acknowledgements</span>
+          <span>{t("Policy acknowledgements")}</span>
           <strong>{data.summary.acknowledgementRequired}</strong>
-          <small>{data.summary.overdueAcknowledgements} overdue</small>
+          <small>{data.summary.overdueAcknowledgements} {t("overdue")}</small>
         </article>
         <article>
-          <span>Missing documents</span>
+          <span>{t("Missing documents")}</span>
           <strong>{data.summary.missingDocuments}</strong>
-          <small>{data.summary.submittedDocuments} awaiting HR verification</small>
+          <small>{data.summary.submittedDocuments} {t("awaiting HR verification")}</small>
         </article>
         <article>
-          <span>Renewal attention</span>
+          <span>{t("Renewal attention")}</span>
           <strong>{data.summary.expiringDocuments + data.summary.expiredDocuments}</strong>
-          <small>{data.summary.expiringDocuments} expiring · {data.summary.expiredDocuments} expired</small>
+          <small>{data.summary.expiringDocuments} {t("expiring")} · {data.summary.expiredDocuments} {t("expired")}</small>
         </article>
       </div>
 
       <article className="employee-list-card">
         <div className="employee-list-card-head">
-          <div><span className="card-kicker">POLICIES</span><h3>Assigned policy versions</h3></div>
+          <div><span className="card-kicker">{t("POLICIES")}</span><h3>{t("Assigned policy versions")}</h3></div>
           <ShieldCheck size={17} />
         </div>
         {data.policies.length === 0 ? (
-          <div className="employee-empty-row">No policy versions are assigned to you.</div>
+          <div className="employee-empty-row">{t("No policy versions are assigned to you.")}</div>
         ) : data.policies.map((policy) => (
           <div key={policy.assignmentId} style={{ borderBottom: "1px solid var(--border)", padding: "14px 16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
               <div>
                 <strong>{policy.title}</strong>
                 <span style={{ display: "block", color: "var(--muted)", fontSize: 12 }}>
-                  {policy.policyCode} · version {policy.version} · effective {dateLabel(policy.effectiveFrom)}
-                  {policy.dueAt ? ` · due ${dateLabel(policy.dueAt)}` : ""}
+                  {policy.policyCode} · {t("version")} {policy.version} · {t("effective")} {dateLabel(policy.effectiveFrom)}
+                  {policy.dueAt ? ` · ${t("due")} ${dateLabel(policy.dueAt)}` : ""}
                 </span>
               </div>
               <span className={"employee-status-pill " + statusTone(policy.overdue ? "overdue" : policy.status)}>
-                {policy.overdue ? "Overdue" : policy.status.replaceAll("_", " ")}
+                {policy.overdue ? t("Overdue") : policy.status.replaceAll("_", " ")}
               </span>
             </div>
 
             <details style={{ marginTop: 12 }}>
               <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 13 }}>
                 <BookOpen size={14} style={{ verticalAlign: "middle", marginRight: 6 }} />
-                Read policy version
+                {t("Read policy version")}
               </summary>
               <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6, marginTop: 12, padding: 14, borderRadius: 10, background: "var(--surface-soft)" }}>
                 {policy.content}
               </div>
               <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted)" }}>
-                Content evidence: SHA-256 {policy.contentSha256.slice(0, 16)}… · approved by {policy.approvedByName ?? "HR"}
+                {t("Content evidence")}: SHA-256 {policy.contentSha256.slice(0, 16)}… · {t("approved by")} {policy.approvedByName ?? "HR"}
               </div>
             </details>
 
@@ -271,7 +274,7 @@ export function EmployeeDocumentsPanel({ organizationId }: { organizationId: num
                   disabled={busy || !confirmed.has(policy.assignmentId)}
                   onClick={() => void acknowledge(policy)}
                 >
-                  <Check size={14} /> Acknowledge policy
+                  <Check size={14} /> {t("Acknowledge policy")}
                 </button>
               </div>
             )}
@@ -279,7 +282,7 @@ export function EmployeeDocumentsPanel({ organizationId }: { organizationId: num
             {policy.status === "acknowledged" && (
               <div className="notice notice-green" style={{ marginTop: 12 }}>
                 <FileCheck2 size={15} />
-                <span>Acknowledged {dateLabel(policy.acknowledgedAt)}. Evidence hash {policy.acknowledgementSha256?.slice(0, 16)}…</span>
+                <span>{t("Acknowledged")} {dateLabel(policy.acknowledgedAt)}. {t("Evidence hash")} {policy.acknowledgementSha256?.slice(0, 16)}…</span>
               </div>
             )}
           </div>
@@ -288,11 +291,11 @@ export function EmployeeDocumentsPanel({ organizationId }: { organizationId: num
 
       <article className="employee-list-card" style={{ marginTop: 16 }}>
         <div className="employee-list-card-head">
-          <div><span className="card-kicker">REQUIRED DOCUMENTS</span><h3>Compliance checklist</h3></div>
+          <div><span className="card-kicker">{t("REQUIRED DOCUMENTS")}</span><h3>{t("Compliance checklist")}</h3></div>
           <FileText size={17} />
         </div>
         {data.documentRequirements.length === 0 ? (
-          <div className="employee-empty-row">No employee documents are currently required.</div>
+          <div className="employee-empty-row">{t("No employee documents are currently required.")}</div>
         ) : data.documentRequirements.map((row) => (
           <div className="employee-leave-row" key={row.complianceId}>
             <div>
@@ -300,9 +303,9 @@ export function EmployeeDocumentsPanel({ organizationId }: { organizationId: num
               <span>
                 {row.documentId && row.fileName
                   ? <><a href={"/api/documents/" + row.documentId} target="_blank" rel="noreferrer">{row.fileName}</a></>
-                  : "No file submitted"}
-                {row.dueAt ? ` · due ${dateLabel(row.dueAt)}` : ""}
-                {row.expiresAt ? ` · expires ${dateLabel(row.expiresAt)}` : ""}
+                  : t("No file submitted")}
+                {row.dueAt ? ` · ${t("due")} ${dateLabel(row.dueAt)}` : ""}
+                {row.expiresAt ? ` · ${t("expires")} ${dateLabel(row.expiresAt)}` : ""}
               </span>
             </div>
             <span className={"employee-status-pill " + statusTone(row.status)}>{row.status}</span>
@@ -313,27 +316,27 @@ export function EmployeeDocumentsPanel({ organizationId }: { organizationId: num
       {openRequirements.length > 0 && (
         <article className="employee-edit-card" style={{ marginTop: 16 }}>
           <div>
-            <span className="card-kicker">UPLOAD / RENEW</span>
-            <h3 style={{ marginTop: 4 }}>Submit a required document</h3>
-            <p style={{ marginTop: 4 }}>Your upload is malware-scanned and remains Submitted until HR verifies it.</p>
+            <span className="card-kicker">{t("UPLOAD / RENEW")}</span>
+            <h3 style={{ marginTop: 4 }}>{t("Submit a required document")}</h3>
+            <p style={{ marginTop: 4 }}>{t("Your upload is malware-scanned and remains Submitted until HR verifies it.")}</p>
           </div>
           <div className="employee-edit-fields">
-            <label>Requirement
+            <label>{t("Requirement")}
               <select value={requirementId} onChange={(event) => { setRequirementId(event.target.value); setExpiresAt(""); }}>
-                <option value="">Choose requirement</option>
+                <option value="">{t("Choose requirement")}</option>
                 {openRequirements.map((row) => <option key={row.complianceId} value={row.complianceId}>{row.name} · {row.status}</option>)}
               </select>
             </label>
-            <label>File
+            <label>{t("File")}
               <input type="file" accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
             </label>
             {selectedRequirement?.expiryRequired && (
-              <label>Expiry date<input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label>
+              <label>{t("Expiry date")}<input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /></label>
             )}
           </div>
           <div className="employee-edit-actions">
             <button className="primary-button brand" disabled={busy || !selectedRequirement || !file} onClick={() => void upload()}>
-              <UploadCloud size={14} /> {busy ? "Submitting…" : "Submit document"}
+              <UploadCloud size={14} /> {busy ? t("Submitting…") : t("Submit document")}
             </button>
           </div>
         </article>
@@ -341,7 +344,7 @@ export function EmployeeDocumentsPanel({ organizationId }: { organizationId: num
 
       <div className="employee-privacy-note" style={{ marginTop: 16 }}>
         <Clock3 size={15} />
-        <span>Policy acknowledgements are bound to your signed-in user, employee record, policy version, exact policy content hash and acknowledgement timestamp.</span>
+        <span>{t("Policy acknowledgements are bound to your signed-in user, employee record, policy version, exact policy content hash and acknowledgement timestamp.")}</span>
       </div>
     </section>
   );

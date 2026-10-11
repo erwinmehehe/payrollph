@@ -11,6 +11,7 @@ import {
   normalizeEssIdentifier, type EssIdentifierKind,
 } from "@/lib/ess-identifiers";
 import { passwordIssues } from "@/lib/validation";
+import { essText, type EssLanguage } from "@/lib/ess-language";
 
 type EmployeeDetails = {
   firstName: string;
@@ -77,13 +78,15 @@ async function makeSmallPhoto(file: File): Promise<File> {
 }
 
 export function EmployeeProfileExtras({
-  employee, photoAvailable, photoVersion, onPhotoChanged,
+  employee, photoAvailable, photoVersion, onPhotoChanged, language = "en",
 }: {
   employee: EmployeeDetails;
   photoAvailable: boolean;
   photoVersion: number;
+  language?: EssLanguage;
   onPhotoChanged: (available: boolean) => void;
 }) {
+  const t = (label: string) => essText(language, label);
   const fileRef = useRef<HTMLInputElement>(null);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState("");
@@ -207,14 +210,14 @@ export function EmployeeProfileExtras({
       <section className="employee-edit-card ess-profile-card" aria-labelledby="ess-photo-heading">
         <div className="ess-profile-card-heading">
           <div>
-            <h3 id="ess-photo-heading"><Camera size={20} aria-hidden="true" /> Profile picture</h3>
-            <p>Choose a clear photo. Images are resized on your device and checked before saving.</p>
+            <h3 id="ess-photo-heading"><Camera size={20} aria-hidden="true" /> {t("Profile picture")}</h3>
+            <p>{t("Choose a clear photo. Images are resized on your device and checked before saving.")}</p>
           </div>
         </div>
         <div className="ess-photo-layout">
-          <div className="ess-profile-picture" aria-label="Current profile picture">
+          <div className="ess-profile-picture" aria-label={t("Current profile picture")}>
             {photoAvailable ? (
-              <Image src={`/api/self/photo?v=${photoVersion}`} unoptimized width={88} height={88} alt={`Profile photo of ${employee.firstName} ${employee.lastName}`} />
+              <Image src={`/api/self/photo?v=${photoVersion}`} unoptimized width={88} height={88} alt={`${t("Profile photo of")} ${employee.firstName} ${employee.lastName}`} />
             ) : (
               <span>{employee.firstName.charAt(0)}{employee.lastName.charAt(0)}</span>
             )}
@@ -224,36 +227,36 @@ export function EmployeeProfileExtras({
               ref={fileRef}
               type="file"
               accept="image/jpeg,image/png,.jpg,.jpeg,.png"
-              aria-label="Select profile picture"
+              aria-label={t("Select profile picture")}
               onChange={(event) => void uploadPhoto(event.target.files?.[0] ?? null)}
               hidden
             />
             <button type="button" className="primary-button brand" disabled={photoBusy} onClick={() => fileRef.current?.click()}>
-              <UploadCloud size={17} /> {photoBusy ? "Processing…" : photoAvailable ? "Change picture" : "Upload picture"}
+              <UploadCloud size={17} /> {photoBusy ? t("Processing…") : photoAvailable ? t("Change picture") : t("Upload picture")}
             </button>
             {photoAvailable && (
               <button type="button" className="secondary-button" disabled={photoBusy} onClick={() => void removePhoto()}>
-                <Trash2 size={16} /> Remove
+                <Trash2 size={16} /> {t("Remove")}
               </button>
             )}
-            <small>Square crop · JPEG / PNG · up to 512 KB after resizing</small>
+            <small>{t("Square crop · JPEG / PNG · up to 512 KB after resizing")}</small>
           </div>
         </div>
-        {photoNotice && <p className="ess-message good" role="status">{photoNotice}</p>}
-        {photoError && <p className="ess-message error" role="alert">{photoError}</p>}
+        {photoNotice && <p className="ess-message good" role="status">{t(photoNotice)}</p>}
+        {photoError && <p className="ess-message error" role="alert">{t(photoError)}</p>}
       </section>
 
       <section className="employee-edit-card ess-profile-card" aria-labelledby="ess-id-heading">
         <div className="ess-profile-card-heading">
           <div>
-            <h3 id="ess-id-heading"><Fingerprint size={20} aria-hidden="true" /> Government ID numbers & credentials</h3>
-            <p>Enter ID numbers only. No pictures, scans, or copies of ID cards are needed. HR reviews changes before they affect official records or payroll.</p>
+            <h3 id="ess-id-heading"><Fingerprint size={20} aria-hidden="true" /> {t("Government ID numbers & credentials")}</h3>
+            <p>{t("Enter ID numbers only. No pictures, scans, or copies of ID cards are needed. HR reviews changes before they affect official records or payroll.")}</p>
           </div>
-          <span className="employee-status-pill neutral"><LockKeyhole size={13} /> Protected</span>
+          <span className="employee-status-pill neutral"><LockKeyhole size={13} /> {t("Protected")}</span>
         </div>
-        {idError && <p className="ess-message error" role="alert">{idError}</p>}
-        {idNotice && <p className="ess-message good" role="status">{idNotice}</p>}
-        {!ids && !idError && <p className="clean-muted">Loading your registered identifiers…</p>}
+        {idError && <p className="ess-message error" role="alert">{t(idError)}</p>}
+        {idNotice && <p className="ess-message good" role="status">{t(idNotice)}</p>}
+        {!ids && !idError && <p className="clean-muted">{t("Loading your registered identifiers…")}</p>}
         <div className="ess-id-grid">
           {ESS_IDENTIFIER_KINDS.map((kind) => {
             const setting = ESS_IDENTIFIER_FIELDS[kind];
@@ -262,12 +265,12 @@ export function EmployeeProfileExtras({
             return (
               <div key={kind} className="ess-id-tile">
                 <span>{setting.label}</span>
-                <strong>{value?.masked ?? "Not on file"}</strong>
+                <strong>{value?.masked ?? t("Not on file")}</strong>
                 {isPending ? (
-                  <small className="ess-pending"><RefreshCcw size={13} /> Awaiting HR review</small>
+                  <small className="ess-pending"><RefreshCcw size={13} /> {t("Awaiting HR review")}</small>
                 ) : (
                   <button type="button" className="ess-id-edit" disabled={!ids || idBusy} onClick={() => { setIdKind(kind); setIdValue(""); setIdError(""); setIdNotice(""); }}>
-                    {value?.hasValue ? "Request correction" : "Add ID number"}
+                    {value?.hasValue ? t("Request correction") : t("Add ID number")}
                   </button>
                 )}
               </div>
@@ -288,18 +291,18 @@ export function EmployeeProfileExtras({
                 required
               />
             </label>
-            <p>Type the number only. The value is encrypted and is not applied to payroll until HR approves it.</p>
+            <p>{t("Type the number only. The value is encrypted and is not applied to payroll until HR approves it.")}</p>
             <div className="ess-inline-actions">
-              <button type="button" className="secondary-button" disabled={idBusy} onClick={() => { setIdKind(null); setIdValue(""); }}>Cancel</button>
+              <button type="button" className="secondary-button" disabled={idBusy} onClick={() => { setIdKind(null); setIdValue(""); }}>{t("Cancel")}</button>
               <button type="submit" className="primary-button brand" disabled={idBusy || !idValue.trim()}>
-                <ShieldCheck size={17} /> {idBusy ? "Submitting…" : "Send to HR for verification"}
+                <ShieldCheck size={17} /> {idBusy ? t("Submitting…") : t("Send to HR for verification")}
               </button>
             </div>
           </form>
         )}
         {(ids?.requests.length ?? 0) > 0 && (
           <details className="ess-requests-history">
-            <summary>Recent ID requests ({ids?.requests.length ?? 0})</summary>
+            <summary>{t("Recent ID requests")} ({ids?.requests.length ?? 0})</summary>
             {ids?.requests.slice(0, 12).map((request) => (
               <div key={request.id} className="ess-request-row">
                 <div>
@@ -307,55 +310,55 @@ export function EmployeeProfileExtras({
                   <small>{request.proposedMasked || "••••"} · {new Date(request.requestedAt).toLocaleDateString("en-PH")}</small>
                 </div>
                 <span className={"employee-status-pill " + (request.status === "approved" ? "good" : request.status === "rejected" ? "bad" : "warn")}>
-                  {request.status === "pending" ? "HR review" : request.status === "approved" ? "Verified" : "Needs correction"}
+                  {request.status === "pending" ? t("HR review") : request.status === "approved" ? t("Verified") : t("Needs correction")}
                 </span>
                 {request.status === "rejected" && request.reviewNote && <p>{request.reviewNote}</p>}
               </div>
             ))}
           </details>
         )}
-        <p className="ess-privacy-note"><FileCheck2 size={16} aria-hidden="true" /> ID numbers only. No ID card uploads are required. Do not enter a PhilSys Number (PSN).</p>
+        <p className="ess-privacy-note"><FileCheck2 size={16} aria-hidden="true" /> {t("ID numbers only. No ID card uploads are required. Do not enter a PhilSys Number (PSN).")}</p>
       </section>
 
       <section className="employee-edit-card ess-profile-card" aria-labelledby="ess-employment-heading">
         <div className="ess-profile-card-heading">
           <div>
-            <h3 id="ess-employment-heading"><FileCheck2 size={20} aria-hidden="true" /> Additional personal details</h3>
-            <p>These HR records are shown for your reference. Contact HR if anything is inaccurate.</p>
+            <h3 id="ess-employment-heading"><FileCheck2 size={20} aria-hidden="true" /> {t("Additional personal details")}</h3>
+            <p>{t("These HR records are shown for your reference. Contact HR if anything is inaccurate.")}</p>
           </div>
         </div>
         <dl className="ess-details-grid">
-          <div><dt>Middle name</dt><dd>{employee.middleName || "Not recorded"}</dd></div>
-          <div><dt>Date of birth</dt><dd>{employee.birthDate || "Not recorded"}</dd></div>
-          <div><dt>Nationality</dt><dd>{employee.nationality || "Not recorded"}</dd></div>
-          <div><dt>Region</dt><dd>{employee.region || "Not recorded"}</dd></div>
-          <div><dt>Dependents</dt><dd>{employee.dependentsCount ?? "Not recorded"}</dd></div>
-          <div><dt>Education</dt><dd>{employee.education || "Not recorded"}</dd></div>
+          <div><dt>{t("Middle name")}</dt><dd>{employee.middleName || t("Not recorded")}</dd></div>
+          <div><dt>{t("Date of birth")}</dt><dd>{employee.birthDate || t("Not recorded")}</dd></div>
+          <div><dt>{t("Nationality")}</dt><dd>{employee.nationality || t("Not recorded")}</dd></div>
+          <div><dt>{t("Region")}</dt><dd>{employee.region || t("Not recorded")}</dd></div>
+          <div><dt>{t("Dependents")}</dt><dd>{employee.dependentsCount ?? "Not recorded"}</dd></div>
+          <div><dt>{t("Education")}</dt><dd>{employee.education || t("Not recorded")}</dd></div>
         </dl>
       </section>
 
       <section className="employee-edit-card ess-profile-card" aria-labelledby="ess-password-heading">
         <div className="ess-profile-card-heading">
           <div>
-            <h3 id="ess-password-heading"><KeyRound size={20} aria-hidden="true" /> Change password</h3>
-            <p>You&#39;ll need your current password. After updating, your other sessions will be signed out.</p>
+            <h3 id="ess-password-heading"><KeyRound size={20} aria-hidden="true" /> {t("Change password")}</h3>
+            <p>{t("You'll need your current password. After updating, your other sessions will be signed out.")}</p>
           </div>
         </div>
         <form onSubmit={(event) => void changePassword(event)} className="ess-password-form">
-          <label htmlFor="ess-current-password">Current password
+          <label htmlFor="ess-current-password">{t("Current password")}
             <input id="ess-current-password" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} autoComplete="current-password" required />
           </label>
-          <label htmlFor="ess-new-password">New password
+          <label htmlFor="ess-new-password">{t("New password")}
             <input id="ess-new-password" type="password" value={nextPassword} onChange={(event) => setNextPassword(event.target.value)} autoComplete="new-password" minLength={12} maxLength={256} required />
           </label>
-          <label htmlFor="ess-confirm-password">Confirm new password
+          <label htmlFor="ess-confirm-password">{t("Confirm new password")}
             <input id="ess-confirm-password" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={12} required />
           </label>
-          <p className="ess-password-help">Use 12+ characters with uppercase and lowercase letters and a number.</p>
-          {passwordError && <p className="ess-message error" role="alert">{passwordError}</p>}
-          {passwordNotice && <p className="ess-message good" role="status"><CheckCircle2 size={16} /> {passwordNotice}</p>}
+          <p className="ess-password-help">{t("Use 12+ characters with uppercase and lowercase letters and a number.")}</p>
+          {passwordError && <p className="ess-message error" role="alert">{t(passwordError)}</p>}
+          {passwordNotice && <p className="ess-message good" role="status"><CheckCircle2 size={16} /> {t(passwordNotice)}</p>}
           <button className="primary-button brand" type="submit" disabled={passwordBusy || !currentPassword || !nextPassword || !confirmPassword}>
-            <ShieldCheck size={17} /> {passwordBusy ? "Updating password…" : "Update password"}
+            <ShieldCheck size={17} /> {passwordBusy ? t("Updating password…") : t("Update password")}
           </button>
         </form>
       </section>

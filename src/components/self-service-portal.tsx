@@ -1012,7 +1012,7 @@ export function SelfServicePortal() {
               <div><span>{t("Out")}</span><strong>{timeLabel(today?.timeOut ?? null)}</strong></div>
             </div>
           </div>
-          <EmployeeWorkforcePanel />
+          <EmployeeWorkforcePanel language={language} />
           <article className="employee-list-card">
             <div className="employee-list-card-head">
               <div><span className="card-kicker">{t("RECENT ATTENDANCE")}</span><h3>{t("Last")} {data.attendance.recent.length} {t("records")}</h3></div>
@@ -1077,7 +1077,7 @@ export function SelfServicePortal() {
       )}
 
       {tab === "documents" && data.employer && (
-        <EmployeeDocumentsPanel organizationId={data.employer.id} />
+        <EmployeeDocumentsPanel organizationId={data.employer.id} language={language} />
       )}
 
       {tab === "performance" && (
@@ -1115,6 +1115,7 @@ export function SelfServicePortal() {
           )}
 
           <EmployeeProfileExtras
+            language={language}
             employee={data.employee}
             photoAvailable={photoAvailable}
             photoVersion={photoVersion}
