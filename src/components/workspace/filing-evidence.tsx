@@ -338,7 +338,7 @@ export function FilingEvidencePanel({
 
         {definition?.relatedCertificate && (
           <section className="notice notice-slate" data-separate-bir-2316 style={{ margin: 0, display: "block" }}>
-            <strong>BIR Form 2316 — separate employee certificate</strong>
+            <strong>BIR Form 2316: separate employee certificate</strong>
             <p style={{ fontSize: 12, margin: "6px 0" }}>{definition.relatedCertificate.notes}</p>
             <ul style={{ margin: "5px 0 10px", paddingLeft: 20, fontSize: 12 }}>
               {definition.relatedCertificate.acceptanceChecklist.map((item) => <li key={item}>{item}</li>)}
