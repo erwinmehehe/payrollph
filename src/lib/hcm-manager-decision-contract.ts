@@ -15,7 +15,7 @@ export function managerDecisionEnabledForEmployer(
   return (env.HCM_MANAGER_DECISION_INBOX_ORG_IDS ?? "").split(",")
     .some((part) => {
       const id = part.trim();
-      return /^[1-9]\\d*$/.test(id) &&
+      return /^[1-9]\d*$/.test(id) &&
         Number.isSafeInteger(Number(id)) && Number(id) === organizationId;
     });
 }
