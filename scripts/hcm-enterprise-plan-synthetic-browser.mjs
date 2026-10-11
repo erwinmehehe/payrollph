@@ -35,6 +35,24 @@ async function read(page, path) {
     };
   }, path);
 }
+async function write(page, path, payload) {
+  // Real same-origin session, not Playwright's detached cookie jar.
+  return page.evaluate(async ({ path, payload }) => {
+    const response = await fetch(path, {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return {
+      status: response.status,
+      headers: response.headers.get("cache-control"),
+      body: await response.json().catch(() => null),
+    };
+  }, { path, payload });
+}
+
 async function open(page, path) {
   const result = await page.goto(url + path, { waitUntil: "domcontentloaded", timeout: 60000 });
   return result?.status();
@@ -69,6 +87,18 @@ try {
   assert.equal(await open(page, "/hcm/command-center?organizationId=2"), 200);
   assert.equal(await page.locator("summary").filter({ hasText: "Advanced HCM tools" }).count(), 0,
     "Core HR must not discover advanced paid routes");
+  const defsEnterprise = await read(page,
+    "/api/hcm/business-processes/definitions?organizationId=1");
+  assert.equal(defsEnterprise.status, 200,
+    "Active Enterprise HR can inspect versioned workflow definitions");
+  assert.ok(Array.isArray(defsEnterprise.body?.definitions));
+  const invalidEnterpriseWrite = await write(page,
+    "/api/hcm/business-processes/definitions",
+    { organizationId: 1, action: "unsupported-synthetic-qa" });
+  assert.equal(invalidEnterpriseWrite.status, 400,
+    "Enterprise role passes paid gate and reaches action validation, without writes");
+  receipts.push("Active Enterprise HR may inspect definitions; invalid write never mutates");
+
   receipts.push("Active Enterprise HR sees advanced navigation; Core HR does not");
 
   for (const suffix of ["process-monitor", "org-explorer"]) {
@@ -85,6 +115,20 @@ try {
     "Core HR cannot bypass the org explorer paywall through position history");
   assert.equal(coreHistory.body?.code, "HCM_ENTERPRISE_PLAN_REQUIRED");
   assert.ok(coreHistory.headers?.includes("no-store"));
+  const coreDefinitions = await read(page,
+    "/api/hcm/business-processes/definitions?organizationId=2");
+  assert.equal(coreDefinitions.status, 402,
+    "Core HR cannot directly read advanced workflow definitions");
+  assert.equal(coreDefinitions.body?.code, "HCM_ENTERPRISE_PLAN_REQUIRED");
+  assert.ok(coreDefinitions.headers?.includes("no-store"));
+  const coreInvalidWrite = await write(page,
+    "/api/hcm/business-processes/definitions",
+    { organizationId: 2, action: "unsupported-synthetic-qa" });
+  assert.equal(coreInvalidWrite.status, 402,
+    "Core HR must fail plan gate before any create/enable/disable action");
+  assert.equal(coreInvalidWrite.body?.code, "HCM_ENTERPRISE_PLAN_REQUIRED");
+  receipts.push("Core HR denied direct workflow definition reads and writes");
+
   receipts.push("Active Core denied on both pages and all three direct read APIs");
 
   const manager = await browser.newContext();
@@ -101,8 +145,33 @@ try {
     "/api/hcm/position-history?organizationId=1&positionId=9999");
   assert.equal(managerHistory.status, 403,
     "Manager position-history access must fail before billing");
+  const managerDefinitions = await read(managerPage,
+    "/api/hcm/business-processes/definitions?organizationId=1");
+  assert.equal(managerDefinitions.status, 403,
+    "Manager cannot inspect Enterprise workflow designer definitions");
+  const managerWrite = await write(managerPage,
+    "/api/hcm/business-processes/definitions",
+    { organizationId: 1, action: "unsupported-synthetic-qa" });
+  assert.equal(managerWrite.status, 403,
+    "Manager cannot buy their way past workflow admin authorization");
   receipts.push("Unprivileged manager cannot buy their way past existing roles");
   await manager.close();
+
+  const bookkeeper = await browser.newContext();
+  await login(bookkeeper, "monitor-bookkeeper@example.test");
+  const bookkeeperPage = await bookkeeper.newPage();
+  await bookkeeperPage.goto(url + "/login", { waitUntil: "domcontentloaded" });
+  const bookkeeperDefinitions = await read(bookkeeperPage,
+    "/api/hcm/business-processes/definitions?organizationId=1");
+  assert.equal(bookkeeperDefinitions.status, 403,
+    "Enterprise subscription never grants a bookkeeper workflow designer privileges");
+  const bookkeeperWrite = await write(bookkeeperPage,
+    "/api/hcm/business-processes/definitions",
+    { organizationId: 1, action: "unsupported-synthetic-qa" });
+  assert.equal(bookkeeperWrite.status, 403,
+    "Enrolled bookkeeper cannot revise source approver rules");
+  await bookkeeper.close();
+  receipts.push("Bookkeeper is denied Enterprise workflow design even in a paid employer");
 
   const unauthenticated = await browser.newContext();
   const anonymousPage = await unauthenticated.newPage();
@@ -115,6 +184,10 @@ try {
     "/api/hcm/position-history?organizationId=1&positionId=9999");
   assert.equal(anonymousHistory.status, 401,
     "Anonymous position-history must fail before billing");
+  const anonDefinitions = await read(anonymousPage,
+    "/api/hcm/business-processes/definitions?organizationId=1");
+  assert.equal(anonDefinitions.status, 401,
+    "Anonymous workflow designer GET must reject before billing");
   await unauthenticated.close();
   receipts.push("Unauthenticated requests denied before billing");
   console.log(JSON.stringify({
