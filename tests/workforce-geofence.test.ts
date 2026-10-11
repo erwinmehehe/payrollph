@@ -73,3 +73,27 @@ test("a worker inside an authorized overlapping boundary is not rejected by a ne
   assert.equal(decision.ok, true);
   assert.equal(decision.ok && decision.worksiteId, 2);
 });
+
+test("a newer denied primary assignment cannot reactivate a stale allowed primary site", () => {
+  const result = permittedGeofenceWorksiteIds({
+    date: "2026-10-11",
+    assignments: [
+      { id: 1, worksiteId: 1, decision: "allow", effectiveFrom: "2026-01-01" },
+      { id: 2, worksiteId: 2, decision: "deny", effectiveFrom: "2026-10-01" },
+    ],
+    authorizations: [],
+  });
+  assert.deepEqual(result, []);
+});
+
+test("explicit primary denial overrides an older allow and same-site HCM authorization", () => {
+  const result = permittedGeofenceWorksiteIds({
+    date: "2026-10-11",
+    assignments: [
+      { id: 10, worksiteId: 1, decision: "allow", effectiveFrom: "2026-01-01" },
+      { id: 11, worksiteId: 1, decision: "deny", effectiveFrom: "2026-10-01" },
+    ],
+    authorizations: [{ worksiteId: 1, decision: "allow", effectiveFrom: "2026-10-03" }],
+  });
+  assert.deepEqual(result, []);
+});
