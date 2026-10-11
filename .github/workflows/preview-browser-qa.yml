@@ -22,6 +22,9 @@ on:
       - "src/components/workspace/**"
       - "src/components/linaw-workspace.tsx"
       - "src/components/self-service-portal.tsx"
+      - "src/components/web-bundy-modal.tsx"
+      - "src/lib/web-bundy-display-scope.ts"
+      - "tests/web-bundy-display-scope.test.ts"
       - "scripts/verify-ess-web-bundy-synthetic.mjs"
       - "src/components/demo-sandbox-bar.tsx"
       - "src/app/page.tsx"
@@ -781,11 +784,29 @@ jobs:
               await timeTab.click();
               const openClock = page.getByRole("button", { name: "Clock in / out", exact: true }).first();
               check((await openClock.count()) === 1, "Employee: Time page has no clock button");
+              // A failed current-employee GET must not be mistaken for an
+              // empty day with Clock IN enabled. This synthetic route never
+              // sends punch mutations and does not access production data.
+              const bundyReadUrl = "**/api/web-bundy?**";
+              await page.route(bundyReadUrl, async (route) => {
+                await route.fulfill({
+                  status: 503, contentType: "application/json",
+                  body: '{"error":"Synthetic attendance history outage"}',
+                });
+              });
               await openClock.click();
               const clockDialog = page.getByRole("dialog", { name: "Web Bundy Time Clock" });
               check((await clockDialog.count()) === 1, "Employee: clock dialog must open");
               const clockInButton = clockDialog.getByRole("button", { name: "Clock IN", exact: true });
-              check(await clockInButton.isEnabled(), "Employee: own Clock IN must be enabled when no current-day punch exists");
+              const retryRead = clockDialog.getByRole("button", { name: /Retry attendance check/i });
+              await retryRead.waitFor({ state: "visible", timeout: 12000 });
+              check(!(await clockInButton.isEnabled()), "Employee: no clock-in while attendance GET is unavailable");
+              await page.unroute(bundyReadUrl);
+              await retryRead.click();
+              // Playwright trial clicks wait for an enabled button but never
+              // submit the punch. Authorization is still tested via CI HTTP.
+              await clockInButton.click({ trial: true, timeout: 12000 });
+              check(await clockInButton.isEnabled(), "Employee: own Clock IN must be enabled after current-day history loads");
               await clockInButton.focus();
               check(await clockInButton.evaluate((el) => el === document.activeElement), "Employee: Clock IN must be keyboard focusable");
               await page.setViewportSize({ width: 375, height: 812 });
