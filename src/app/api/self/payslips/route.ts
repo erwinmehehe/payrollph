@@ -235,6 +235,9 @@ export async function GET() {
 
   return Response.json({
     employee: {
+      // Session-bound identity, not selected from request parameters.
+      // Used only to enable the signed-in employee's Web Bundy controls.
+      id: employee.id,
       employeeNo: employee.employeeNo,
       firstName: employee.firstName,
       lastName: employee.lastName,
