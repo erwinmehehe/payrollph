@@ -4,6 +4,7 @@ import { staffingRequirements, worksites } from "@/db/schema";
 import { getAccess, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { phWorkDateAt } from "@/lib/workforce-manager-actions";
+import { receiptPilotAllowed } from "@/lib/workforce-schedule-receipt";
 import { authorizedOutlookSite } from "@/lib/workforce-demand-outlook-scope";
 import {
   forecastHistoricalStaffingRequirements,
@@ -26,6 +27,14 @@ export async function GET(request: Request) {
     || !Number.isSafeInteger(worksiteId) || worksiteId <= 0
     || (horizon !== "7" && horizon !== "14")) {
     return Response.json({ error: "Valid employer, worksite and seven- or fourteen-day horizon are required." }, { status: 400 });
+  }
+
+  if (!receiptPilotAllowed(
+    organizationId,
+    process.env.WFM_HISTORICAL_OUTLOOK_ENABLED,
+    process.env.WFM_HISTORICAL_OUTLOOK_ALLOWED_ORGANIZATION_IDS,
+  )) {
+    return Response.json({ error: "Historical staffing outlook is not available for this employer." }, { status: 404 });
   }
 
   const access = await getAccess(user.id, organizationId);
