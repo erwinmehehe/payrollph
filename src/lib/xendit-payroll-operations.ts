@@ -6,6 +6,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { payoutCentsFromNetPay } from "@/lib/payout-ledger-rules";
 import { loadPayrollPayoutRows } from "@/lib/paymongo-disbursements";
 import { prepareInitialPayoutBatch } from "@/lib/payout-ledger";
+import { withPayrollRunPayoutLock } from "@/lib/payroll-run-payout-lock";
 import { xenditPayrollLiveReadiness } from "@/lib/payroll-payout-provider";
 import {
   buildXenditPayrollPayout, createXenditPayrollPayout, getXenditPayrollPayout,
@@ -169,12 +170,21 @@ export async function submitXenditPayroll(run: PayrollRun, actor: string) {
 
   const initial = await xenditPayoutLedger(run.organizationId, run.id);
   if (!initial) {
-    await prepareInitialPayoutBatch({
-      organizationId: run.organizationId, payrollRunId: run.id, provider: "xendit",
-      intents: frozen.rows.map(({ payee, employeeId, payrollEntryId }) => ({
-        employeeId, payrollEntryId, referenceNumber: payee.referenceNumber,
-        amountCents: payee.amountCents,
-      })),
+    await withPayrollRunPayoutLock(run.organizationId, run.id, async () => {
+      // Another process might have generated an externally uploaded bank
+      // file while we fetched the frozen payroll or validated preflight.
+      // The prior-file check and durable ledger claim must be atomic relative
+      // to final bank-file generation, including concurrent requests.
+      await assertNoPriorPayrollDisbursement(run);
+      const rechecked = await xenditPayoutLedger(run.organizationId, run.id);
+      if (rechecked) return;
+      await prepareInitialPayoutBatch({
+        organizationId: run.organizationId, payrollRunId: run.id, provider: "xendit",
+        intents: frozen.rows.map(({ payee, employeeId, payrollEntryId }) => ({
+          employeeId, payrollEntryId, referenceNumber: payee.referenceNumber,
+          amountCents: payee.amountCents,
+        })),
+      });
     });
   }
   const submitted: string[] = [];
