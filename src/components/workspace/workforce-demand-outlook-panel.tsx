@@ -28,6 +28,7 @@ export function WorkforceDemandOutlookPanel({
 }) {
   const [chosenWorksite, setChosenWorksite] = useState<number | null>(null);
   const [horizonDays, setHorizonDays] = useState<7 | 14>(7);
+  const [roleFilter, setRoleFilter] = useState("all");
   const [refresh, setRefresh] = useState(0);
   const [loaded, setLoaded] = useState<{ key: string; value: ReadResult } | null>(null);
   const [error, setError] = useState<{ key: string; message: string } | null>(null);
@@ -81,7 +82,13 @@ export function WorkforceDemandOutlookPanel({
   const shiftNames = useMemo(() => new Map(shifts.map(row => [row.id, row.code + " · " + row.name])), [shifts]);
   const roleNames = useMemo(() => new Map(jobProfiles.map(row => [row.id, row.title])), [jobProfiles]);
   const outlook = record?.outlook;
-  const rows = outlook?.forecasts ?? [];
+  const presentRoleKeys = [...new Set((outlook?.forecasts ?? []).map(
+    row => row.jobProfileId === null ? "any" : String(row.jobProfileId),
+  ))].sort();
+  const effectiveRoleFilter = presentRoleKeys.includes(roleFilter) ? roleFilter : "all";
+  const rows = (outlook?.forecasts ?? []).filter(row =>
+    effectiveRoleFilter === "all" ||
+    (row.jobProfileId === null ? "any" : String(row.jobProfileId)) === effectiveRoleFilter);
 
   return (
     <section data-wfm-demand-outlook style={{ padding: "0 18px 18px" }}>
@@ -112,6 +119,16 @@ export function WorkforceDemandOutlookPanel({
             <select value={horizonDays} onChange={event => setHorizonDays(event.target.value === "14" ? 14 : 7)}>
               <option value={7}>Next 7 days</option>
               <option value={14}>Next 14 days</option>
+            </select>
+          </label>
+          <label>Role filter
+            <select value={effectiveRoleFilter} onChange={event => setRoleFilter(event.target.value)}>
+              <option value="all">All roles and general requirements</option>
+              {presentRoleKeys.map(id => (
+                <option key={id} value={id}>
+                  {id === "any" ? "No job profile specified" : roleNames.get(Number(id)) ?? "Role #" + id}
+                </option>
+              ))}
             </select>
           </label>
         </div>
@@ -178,7 +195,7 @@ export function WorkforceDemandOutlookPanel({
                 </table>
                 {rows.length > 30 && (
                   <p style={{ padding: "12px" }}>
-                    Showing the first 30 of {rows.length} estimates. Narrow to a single role before using this for operational planning; no rows are automatically published.
+                    Showing the first 30 of {rows.length} estimates. Use the role filter to review individual shift/role combinations. No rows are automatically published.
                   </p>
                 )}
               </div>
