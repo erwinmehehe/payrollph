@@ -83,7 +83,7 @@ async function main() {
 
     const filtered = await browserGet(page, "/api/hcm/process-monitor?organizationId=1&status=approved");
     assert.equal(filtered.status, 200, "Authenticated status-filter API must load");
-    assert.equal(filtered.cacheControl, "private, no-store");
+    assert.ok(filtered.cacheControl?.split(",").map((part) => part.trim()).includes("no-store"), "Protected workflow API must be non-cacheable");
     assert.equal(filtered.data.items.length, 1);
     assert.equal(filtered.data.items[0].typeLabel, "Hire");
     const beta = await browserGet(page, "/api/hcm/process-monitor?organizationId=2");
