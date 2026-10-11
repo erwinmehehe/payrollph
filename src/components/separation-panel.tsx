@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Check, CheckCircle2, Download, FileCheck, FileText, HelpCircle, Plus, Shield, UserX, X } from "lucide-react";
+import { finalPayReviewCsv, finalPayReviewShortfall } from "@/lib/final-pay-review-evidence";
 
 type ReadyTermHandoff = {
   employeeId: number;
@@ -65,6 +66,7 @@ type SeparationRecord = {
   loanDeductions: string;
   grossFinalPay: string;
   netFinalPay: string;
+  computationSnapshot?: Record<string, unknown> | null;
   finalPayDueDate?: string | null;
   status: string;
   coeIssued: boolean;
@@ -90,6 +92,18 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   const [loaded, setLoaded] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<SeparationRecord | null>(null);
+  function downloadFinalPayReview(record: SeparationRecord) {
+    const blob = new Blob(["\uFEFF", finalPayReviewCsv(record)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    try {
+      const download = document.createElement("a");
+      download.href = url;
+      download.download = `linaw-final-pay-review-${record.id}.csv`;
+      download.click();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
   const [showCoeModal, setShowCoeModal] = useState(false);
   const [releaseReference, setReleaseReference] = useState("");
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -588,6 +602,14 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             </div>
           </div>
 
+          {finalPayReviewShortfall(selectedRecord).reconciliationRequired && (
+            <div className="notice notice-amber" role="alert" style={{ marginTop: 14, display: "grid", gap: 6 }}>
+              <strong>Mandatory final-pay deductions are not fully collectible.</strong>
+              <span>Outstanding tax/statutory obligations: {finalPayReviewShortfall(selectedRecord).total === null ? "amount unverified" : peso(finalPayReviewShortfall(selectedRecord).total!) }. Net pay may show ₱0.00, but this does not settle the unpaid deductions.</span>
+              <span>Approval and release are blocked until Finance and Philippine payroll reconcile and recompute the package. Legacy records may not include a tax/statutory allocation split.</span>
+            </div>
+          )}
+
           <div style={{ marginTop: 14, padding: "12px 16px", borderRadius: 10, background: "var(--green-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <span style={{ fontSize: 10, textTransform: "uppercase", fontWeight: 800, color: "#0e3e34" }}>NET FINAL PAY DUE</span>
@@ -595,11 +617,12 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
               <small style={{ color: "var(--muted)" }}>Gross {peso(selectedRecord.grossFinalPay)} · due by {selectedRecord.finalPayDueDate ?? "not set"}</small>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
+              <button className="secondary-button" onClick={() => downloadFinalPayReview(selectedRecord)}><Download size={15} aria-hidden="true" /> Download review CSV</button>
               <button className="secondary-button" onClick={() => setShowCoeModal(true)}><FileText size={15} className="i-teal" /> View COE Draft</button>
               {selectedRecord.status === "draft" && (
                 <button
                   className="primary-button"
-                  disabled={selectedRecord.preparedByUserId == null || selectedRecord.preparedByUserId === currentUserId}
+                  disabled={selectedRecord.preparedByUserId == null || selectedRecord.preparedByUserId === currentUserId || finalPayReviewShortfall(selectedRecord).reconciliationRequired}
                   title="A different authenticated approver must review the recorded final-pay preparer."
                   onClick={() => transitionFinalPay(selectedRecord.id, "approve")}
                 >Approve Final Pay</button>
