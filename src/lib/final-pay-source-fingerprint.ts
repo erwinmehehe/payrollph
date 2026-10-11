@@ -29,6 +29,9 @@ export type FinalPayFingerprintInputs = {
     sssEmployee: string | number; philHealthEmployee: string | number;
     pagIbigEmployee: string | number; payDate: string;
   }>;
+  retroSourcePeriods?: Array<{
+    id: number; sourcePeriodStart: string; sourcePeriodEnd: string;
+  }>;
   loans: Array<{
     id: number; loanType: string; totalPaid: string | number;
     remainingBalance: string | number; status: string;
@@ -88,6 +91,15 @@ export function finalPaySourceFingerprint(sources: FinalPayFingerprintInputs) {
         philHealthEmployee: Number(row.philHealthEmployee),
         pagIbigEmployee: Number(row.pagIbigEmployee),
         payDate: String(row.payDate),
+      })),
+    // A changed source period must invalidate a final-pay maker/checker
+    // approval even when the already-released RETRO payslip stays unchanged.
+    retroSourcePeriods: [...(sources.retroSourcePeriods ?? [])]
+      .sort((a, b) => a.id - b.id)
+      .map((row) => ({
+        id: row.id,
+        sourcePeriodStart: String(row.sourcePeriodStart),
+        sourcePeriodEnd: String(row.sourcePeriodEnd),
       })),
     // Comparisons detect changes to loan deduction review evidence without
     // disclosing private external document references in the stored snapshot.
