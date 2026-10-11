@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
+import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import {
   hcmBusinessProcessInstances,
@@ -119,10 +120,10 @@ test("monitor SQL keyset and source steps stay employer-scoped, bounded and priv
     // Synthetic two-tenant FK cascade; no live worker or pay records.
     await db.delete(organizations).where(
       // Deliberate separate tenant deletes avoid an accidental broad cleanup.
-      (await import("drizzle-orm")).eq(organizations.id, alpha.id),
+      eq(organizations.id, alpha.id),
     );
     await db.delete(organizations).where(
-      (await import("drizzle-orm")).eq(organizations.id, beta.id),
+      eq(organizations.id, beta.id),
     );
   }
 });
