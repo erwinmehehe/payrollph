@@ -88,3 +88,57 @@ test("payroll engine preserves uncollected line on the payslip, does not inflate
   assert.ok(source.includes("mandatoryUncollected="));
   assert.ok(source.includes("PAYROLL_MANDATORY_SHORTFALL:"));
 });
+
+
+test("incomplete, duplicated or forged shortfall traces cannot bypass release assurance", () => {
+  const fakeEntry = (inputs: string[], options: {
+    flags?: string[];
+    marker?: boolean;
+  } = {}) => ({
+    id: 919, employeeId: 218, grossPay: 100,
+    deductions: 20, netPay: 80, status: "Ready" as const,
+    trace: { inputs, flags: options.flags ?? [] },
+    lineItems: options.marker
+      ? [{ code: "UNPAID_MANDATORY", label: "Uncollected", amount: "0.00" }]
+      : [],
+  });
+  const samples = [
+    fakeEntry(["mandatoryUncollected=-1.00"]),
+    fakeEntry(["mandatoryUncollected=0.00", "mandatoryUncollected=20.00"]),
+    fakeEntry(["mandatoryUncollected=garbage"]),
+    fakeEntry(["mandatoryRequested=30.00", "mandatoryApplied=20.00", "mandatoryUncollected=0.00"]),
+    fakeEntry(["mandatoryRequested=30.00", "mandatoryApplied=20.00"]),
+    fakeEntry(["mandatoryRequested=20.00", "mandatoryApplied=20.00", "mandatoryUncollected=0.0001"]),
+    fakeEntry([], { marker: true }),
+    fakeEntry([], { flags: ["Mandatory/statutory and attendance deductions exceed gross pay by PHP 30.00"] }),
+  ];
+  for (const [index, entry] of samples.entries()) {
+    const result = evaluatePayrollAssurance([entry]);
+    assert.ok(result.findings.some(f =>
+      f.code === "MANDATORY_DEDUCTIONS_UNCOLLECTED"
+      && f.severity === "high" && f.blocking === true
+    ), "Corrupt or incomplete liability evidence must fail closed in sample " + index);
+  }
+
+  const normal = evaluatePayrollAssurance([
+    fakeEntry(["mandatoryRequested=20.00", "mandatoryApplied=20.00", "mandatoryUncollected=0.00"]),
+    { ...fakeEntry(["mandatoryUncollected=0.00"]), id: 920, employeeId: 219 },
+  ]);
+  assert.equal(normal.findings.filter(f => f.code === "MANDATORY_DEDUCTIONS_UNCOLLECTED").length, 0,
+    "A complete reconciled trace or older verified zero-shortfall trace must not invent a debt");
+});
+
+test("payroll release and checklist use unwaivable blocking assurance before acknowledgements", () => {
+  const route = readFileSync("src/app/api/payroll-runs/[id]/release/route.ts", "utf8");
+  const checklist = readFileSync("src/lib/payroll-release-checklist.ts", "utf8");
+  const assuranceGate = route.indexOf("const blockingFindings = assuranceResult?.assurance.findings.filter");
+  const exceptionAcknowledgement = route.indexOf("if (run.exceptions > 0 && !body.acknowledgeExceptions)");
+  assert.ok(assuranceGate > 0 && exceptionAcknowledgement > assuranceGate,
+    "Unwaivable assurance must precede optional acknowledgment");
+  assert.ok(route.includes('finding.code === "MISSING_BANK_DETAILS"'));
+  assert.ok(!route.includes('finding.code === "MANDATORY_DEDUCTIONS_UNCOLLECTED"'),
+    "No blanket exception may bypass statutory shortfall findings");
+  assert.ok(checklist.includes("const nonBankBlockers = blockers.filter"));
+  assert.ok(checklist.includes("nonBankBlockers.length === 0"));
+  assert.ok(checklist.includes("acknowledgeable: nonBankBlockers.length === 0"));
+});
