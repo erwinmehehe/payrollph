@@ -140,9 +140,6 @@ export async function createStaffingPolicyDraft(input: {
   return db.transaction(async tx => {
     await lockOrganization(tx,spec.organizationId);
     await ensureScope(tx,spec,input.access);
-    if (spec.effectiveFrom < manilaCalendarDate()) {
-      throw new StaffingPolicyConflict("Retroactive productivity proposals are not allowed.");
-    }
     const [priorRequest] = await tx.select().from(workforceDemandStaffingPolicies)
       .where(and(
         eq(workforceDemandStaffingPolicies.organizationId,spec.organizationId),
@@ -156,6 +153,9 @@ export async function createStaffingPolicyDraft(input: {
       return { id:priorRequest.id, version:priorRequest.version,
         status:priorRequest.status, replayed:true,
         contentSha256:priorRequest.contentSha256 };
+    }
+    if (spec.effectiveFrom < manilaCalendarDate()) {
+      throw new StaffingPolicyConflict("Retroactive productivity proposals are not allowed.");
     }
     const rows = await tx.select({
       version: workforceDemandStaffingPolicies.version,
