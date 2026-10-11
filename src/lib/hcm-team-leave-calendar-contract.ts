@@ -4,6 +4,21 @@
  * schedules, shifts and payroll treatment remain in their source workflows.
  */
 
+/** Default-off server gate plus explicit company allowlist. Never enable all employers. */
+export function teamLeaveEnabledForEmployer(
+  organizationId: number,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
+      env.HCM_TEAM_LEAVE_CALENDAR_ENABLED !== "true") return false;
+  return (env.HCM_TEAM_LEAVE_CALENDAR_ORG_IDS ?? "").split(",")
+    .some((part) => {
+      const text = part.trim();
+      return /^[1-9]\d*$/.test(text) &&
+        Number.isSafeInteger(Number(text)) && Number(text) === organizationId;
+    });
+}
+
 export const TEAM_LEAVE_MONTHS_AHEAD = 6;
 export const TEAM_LEAVE_SOURCE_CEILING = 400;
 
