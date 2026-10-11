@@ -398,15 +398,5 @@
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
-  },
-  "src/components/workspace/workforce-team-roster-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/workspace/workforce-worksites-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 2
-    }
   }
 }
