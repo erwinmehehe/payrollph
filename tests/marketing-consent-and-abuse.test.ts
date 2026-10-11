@@ -53,7 +53,7 @@ test("public notice and footer are discoverable with existing 365-day lead reten
 test("public enquiry error paths do not serialize raw exception objects to logs", () => {
   for (const path of ["src/app/api/demo-requests/route.ts", "src/app/api/payroll-outsourcing/quote/route.ts"]) {
     const source = read(path);
-    assert.ok(!/console\\.(?:error|warn|log)\\([^\\n]*,\\s*error\\)/.test(source), path);
+    assert.ok(!/console\.(?:error|warn|log)\([^\n]*,\s*error\)/.test(source), path);
     assert.ok(source.includes("notification failed after durable"), path);
   }
 });
