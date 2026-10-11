@@ -215,6 +215,14 @@ export async function POST(request: Request) {
         punch: existingPunch,
       }, { status: 409 });
     }
+    if (existingPunch?.timeOut) {
+      // A previous clock-out-only record requires an authorized correction,
+      // never a later clock-in that would invert the payable time sequence.
+      return Response.json({
+        error: "A clock-out has already been recorded without clock-in. Request an attendance correction.",
+        code: "ATTENDANCE_CORRECTION_REQUIRED",
+      }, { status: 409 });
+    }
 
     const [punch] = existingPunch
       ? await db.update(timePunches).set({
@@ -256,7 +264,24 @@ export async function POST(request: Request) {
     return Response.json({ ok: true, action: "clock_in", punch, attendanceExceptionSync }, { status: existingPunch ? 200 : 201 });
   }
 
-  if (!existingPunch || !existingPunch.timeIn) {
+  if (existingPunch?.timeOut) {
+    // This covers both completed and clock-out-only attendance records.
+    // Do not INSERT another row for a date that already has an orphan out.
+    return Response.json({
+      error: `Already clocked out today at ${new Date(existingPunch.timeOut).toLocaleTimeString("en-PH", { timeZone: "Asia/Manila")}.`,
+      code: "ATTENDANCE_ALREADY_CLOCKED_OUT",
+    }, { status: 409 });
+  }
+
+  if (existingPunch && !existingPunch.timeIn) {
+    // A partial source record is not authorization for a duplicate insert.
+    return Response.json({
+      error: "An incomplete attendance record already exists. Request an attendance correction.",
+      code: "ATTENDANCE_CORRECTION_REQUIRED",
+    }, { status: 409 });
+  }
+
+  if (!existingPunch) {
     const [created] = await db.insert(timePunches).values({
       organizationId,
       employeeId,
@@ -298,13 +323,6 @@ export async function POST(request: Request) {
   if (existingPunch.breakStart && !existingPunch.breakEnd) {
     return Response.json({
       error: "End the active break before clocking out so paid hours and night differential can be calculated correctly.",
-    }, { status: 409 });
-  }
-
-  if (existingPunch.timeOut) {
-    return Response.json({
-      error: `Already clocked out today at ${new Date(existingPunch.timeOut).toLocaleTimeString("en-PH", { timeZone: "Asia/Manila" })}.`,
-      punch: existingPunch,
     }, { status: 409 });
   }
 
