@@ -60,6 +60,12 @@ test("both read-only APIs and pages enforce the same check after actor/tenant au
   }
   // Position history is an independent network endpoint used by the explorer,
   // not a subresource automatically covered by the explorer's route guard.
+  const peopleHome = readFileSync("src/app/hcm/command-center/page.tsx", "utf8");
+  assert.ok(peopleHome.includes("evaluateEnterpriseHcmPlan("),
+    "Opted-in People Home must not advertise denied advanced HCM routes");
+  assert.ok(peopleHome.includes('planDecision === "allowed" || planDecision === "not-enforced"'));
+  assert.ok(peopleHome.indexOf("evaluateEnterpriseHcmPlan(") >
+    peopleHome.indexOf("await getEntitlements(organizationId)"));
   const explorer = readFileSync("src/components/hcm-org-explorer.tsx", "utf8");
   assert.ok(explorer.includes('"/api/hcm/position-history?"'));
 });
