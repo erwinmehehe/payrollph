@@ -126,6 +126,34 @@ test("Manager Decision Inbox only displays assigned same-unit, same-tenant sourc
       status: "pending", dueAt: new Date("2026-10-01T12:00:00Z"),
     }).returning();
 
+    // Even if a compensation/termination process has a pending manager step,
+    // those sensitive HR/money-bearing streams are never decision-preview sources.
+    const excluded = await db.insert(hcmBusinessProcessInstances).values([
+      { organizationId: alpha.id, employeeId: member.id,
+        processType: "termination", sourceType: "synthetic_manager_inbox",
+        sourceKey: "excluded-termination-" + id, definitionCode: "synthetic-excluded",
+        definitionVersion: 1, definitionSnapshot: { steps: [] },
+        initiatedByName: "Independent source initiator", status: "in_progress",
+        currentStepIndex: 0 },
+      { organizationId: alpha.id, employeeId: member.id,
+        processType: "compensation_change", sourceType: "synthetic_manager_inbox",
+        sourceKey: "excluded-compensation-" + id, definitionCode: "synthetic-excluded",
+        definitionVersion: 1, definitionSnapshot: { steps: [] },
+        initiatedByName: "Independent source initiator", status: "in_progress",
+        currentStepIndex: 0 },
+      { organizationId: alpha.id, employeeId: member.id,
+        processType: "transfer", sourceType: "synthetic_manager_inbox",
+        sourceKey: "maker-owned-transfer-" + id, definitionCode: "synthetic-transfer",
+        definitionVersion: 1, definitionSnapshot: { steps: [] },
+        initiatedByName: alphaUser.name, initiatedByUserId: alphaUser.id,
+        status: "in_progress", currentStepIndex: 0 },
+    ]).returning();
+    await db.insert(hcmBusinessProcessInstanceSteps).values(excluded.map((instance) => ({
+      organizationId: alpha.id, instanceId: instance.id, stepIndex: 0,
+      stepType: "review", assignee: "role:manager",
+      label: "Excluded pending decision source", status: "pending",
+    })));
+
     const scope = deriveManagerDecisionScope({
       role: "manager", orgUnitId: alphaUnit.id, companyWide: false,
     })!;
@@ -147,6 +175,8 @@ test("Manager Decision Inbox only displays assigned same-unit, same-tenant sourc
 
     const hcmPage = await loadManagerDecisionPage({ ...query, source: "hcm" });
     assert.deepEqual(hcmPage.items.map((item) => item.id), [hcmStep.id]);
+    assert.ok(!hcmPage.items.some((item) => excluded.some((row) => row.id === item.sourceRecordId)),
+      "Termination, compensation and maker-owned source steps must not appear in manager decisions");
     assert.equal(hcmPage.items[0].dueState, "overdue");
     assert.equal(hcmPage.items[0].stepType, "review");
 
