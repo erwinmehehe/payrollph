@@ -11,7 +11,7 @@ const scripts = [...workflow.matchAll(/^        run: \|\n((?:          [^\n]*\n|
 
 test("bank encryption workflow has one readiness verification and valid shell blocks", () => {
   assert.equal((workflow.match(/^      - name: Verify live readiness sees encrypted bank data$/gm) ?? []).length, 1);
-  assert.equal(scripts.length, 6, "inspect every multiline shell step");
+  assert.equal(scripts.length, 4, "inspect every multiline shell step");
   for (const script of scripts) {
     const result = spawnSync("bash", ["-n"], { input: script, encoding: "utf8" });
     assert.ifError(result.error);
@@ -65,9 +65,10 @@ test("workflow remains manual, production-protected and apply-gated", () => {
 });
 
 test("dry-run cannot prepare database columns and apply validates the key first", () => {
-  assert.ok(workflow.includes("      - name: Prepare bank-account column safely\n        if: ${{ inputs.mode == 'apply' }}"));
-  assert.ok(workflow.indexOf("- name: Prove runner key matches live production") <
-    workflow.indexOf("- name: Prepare bank-account column safely"));
+  assert.ok(!workflow.includes("      - name: Prepare bank-account column safely"), "no unreviewed schema writes");
+  assert.ok(workflow.includes("      - name: Verify exact database/schema before approved apply"));
+  assert.ok(workflow.indexOf("- name: Verify dedicated runner key and exact live production build before DB access") <
+    workflow.indexOf("- name: Verify exact database/schema before approved apply"));
   assert.ok(workflow.indexOf("- name: Verify zero plaintext bank data remains") <
     workflow.indexOf("- name: Authenticate every bank envelope with the current key"));
   assert.ok(workflow.indexOf("- name: Authenticate every bank envelope with the current key") <
@@ -84,7 +85,7 @@ test("readiness requires one valid report, the matching key, and no bank blocker
     'curl() { printf "%s" "$MOCK_READINESS"; return "${MOCK_CURL_STATUS:-0}"; }',
     'npx() { printf "%s\\n" "synthetic-key-fingerprint"; }',
   ].join("\n") + "\n";
-  const report = { bankEncryptionFingerprint: "synthetic-key-fingerprint", criticalBlockers: [] };
+  const report = { bankEncryptionFingerprint: "synthetic-key-fingerprint", criticalBlockers: [], deploymentSha: "a".repeat(40), deploymentEnvironment: "production" };
   const check = (body: string, status = 0) => {
     const result = spawnSync("bash", ["-c", stub + script], {
       encoding: "utf8", timeout: 5000,
@@ -92,6 +93,7 @@ test("readiness requires one valid report, the matching key, and no bank blocker
         NODE_ENV: "test",
         PATH: process.env.PATH,
         PRODUCTION_BASE_URL: "https://synthetic.invalid",
+        REVIEWED_SHA: "a".repeat(40),
         PRODUCTION_READINESS_TOKEN: "synthetic-monitor-token-not-a-live-secret",
         MOCK_READINESS: body, MOCK_CURL_STATUS: String(status),
       },
@@ -125,7 +127,7 @@ test("production backfill cannot use unreviewed branches or generic CI secret fa
     "production-protected bank workflow must run only against reviewed main");
   assert.ok(workflow.includes("DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}"));
   assert.ok(workflow.includes("BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}"));
-  assert.ok(workflow.includes("TOTP_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_TOTP_ENCRYPTION_KEY }}"));
+  assert.ok(!workflow.includes("TOTP_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_TOTP_ENCRYPTION_KEY }}"));
   assert.ok(!workflow.includes("|| secrets.DATABASE_URL"));
   assert.ok(!workflow.includes("|| secrets.BANK_DATA_ENCRYPTION_KEY"));
   assert.ok(!workflow.includes("|| secrets.TOTP_ENCRYPTION_KEY"));
