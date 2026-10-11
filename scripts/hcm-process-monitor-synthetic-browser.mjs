@@ -262,9 +262,16 @@ async function main() {
     assert.equal(await financeNav.getByRole("link", { name: "Worker 360" }).count(), 0);
     assert.equal(await financeNav.getByRole("link", { name: "HCM Inbox" }).count(), 0);
     assert.equal(await financeNav.getByRole("link", { name: "Action Center" }).count(), 0);
-    const bookkeeperActionCenter = await finance.request.get(
-      app + "/hcm/action-center?organizationId=1");
-    assert.equal(bookkeeperActionCenter.status(), 404);
+    // Use the authenticated browser, not Playwright's separate API request
+    // cookie policy for Secure localhost sessions.
+    const financeDeniedPage = await finance.newPage();
+    const bookkeeperActionCenter = await financeDeniedPage.goto(
+      app + "/hcm/action-center?organizationId=1",
+      { waitUntil: "domcontentloaded", timeout: 60000 },
+    );
+    assert.equal(bookkeeperActionCenter?.status(), 404,
+      "Bookkeeper must not open the company-wide HCM Action Center");
+    await financeDeniedPage.close();
     assert.equal(await financeNav.getByRole("link", { name: "People directory" }).count(), 0);
     assert.equal(await financePage.getByRole("link", { name: "Open HCM Inbox" }).count(), 0);
     const financeWorker = await browserGet(financePage,
