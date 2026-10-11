@@ -66,3 +66,10 @@ test("Action Center business-process source is bounded, tenant-scoped and non-ca
   assert.ok(route.includes("canDecide("), "mutation authority must remain source-bound");
   assert.ok(!route.includes("...row,"), "unbounded source object must not be sent to the browser");
 });
+
+test("People workspace remounts HCM Inbox when the selected employer changes", () => {
+  const people = readFileSync("src/components/workspace/people.tsx", "utf8");
+  assert.match(people, /<HcmBusinessProcessInbox\s+key=\{data\.selectedOrganization\.id\}/);
+  const client = readFileSync("src/components/hcm-business-process-inbox.tsx", "utf8");
+  assert.ok(client.includes("requestSequence.current"));
+});
