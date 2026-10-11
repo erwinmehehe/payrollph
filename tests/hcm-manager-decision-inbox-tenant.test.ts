@@ -102,13 +102,13 @@ test("Manager Decision Inbox only displays assigned same-unit, same-tenant sourc
       requestedBy: "Synthetic staff", status: "pending", reason: "Restricted overtime reason",
     }).returning();
 
-    await db.insert(approvalDelegations).values({
+    const [delegation] = await db.insert(approvalDelegations).values({
       organizationId: alpha.id,
       fromApprover: "Original Reviewer " + id,
       toApprover: alphaUser.name,
       reason: "Synthetic test only",
       startsOn: "2026-01-01", endsOn: "2027-12-31", active: true,
-    });
+    }).returning();
 
     const [process] = await db.insert(hcmBusinessProcessInstances).values({
       organizationId: alpha.id, employeeId: member.id,
@@ -147,11 +147,17 @@ test("Manager Decision Inbox only displays assigned same-unit, same-tenant sourc
         definitionVersion: 1, definitionSnapshot: { steps: [] },
         initiatedByName: alphaUser.name, initiatedByUserId: alphaUser.id,
         status: "in_progress", currentStepIndex: 0 },
+      { organizationId: alpha.id, employeeId: member.id,
+        processType: "transfer", sourceType: "synthetic_manager_inbox",
+        sourceKey: "approval-without-task-" + id, definitionCode: "synthetic-transfer",
+        definitionVersion: 1, definitionSnapshot: { steps: [] },
+        initiatedByName: "Independent source initiator", status: "in_progress",
+        currentStepIndex: 0 },
     ]).returning();
     await db.insert(hcmBusinessProcessInstanceSteps).values(excluded.map((instance) => ({
       organizationId: alpha.id, instanceId: instance.id, stepIndex: 0,
-      stepType: "review", assignee: "role:manager",
-      label: "Excluded pending decision source", status: "pending",
+      stepType: instance.sourceKey.startsWith("approval-without-task-") ? "approval" : "review",
+      assignee: "role:manager", label: "Excluded pending decision source", status: "pending",
     })));
 
     const scope = deriveManagerDecisionScope({
@@ -205,6 +211,16 @@ test("Manager Decision Inbox only displays assigned same-unit, same-tenant sourc
       ...query, scope: { kind: "unit", orgUnitId: betaUnit.id }, source: "hcm",
     }).then(() => "unexpected success", () => "denied");
     assert.equal(foreignUnitPage, "denied");
+
+    // Even an active delegation row is not an effective authorization after
+    // its recorded end date; canDecide must recheck current validity.
+    await db.update(approvalDelegations).set({ endsOn: "2026-01-02" })
+      .where(eq(approvalDelegations.id, delegation.id));
+    const expiredDelegation = await loadManagerDecisionPage({ ...query, source: "leave" });
+    assert.equal(expiredDelegation.items.length, 0,
+      "Expired delegation cannot expose a manager's source decision");
+    await db.update(approvalDelegations).set({ endsOn: "2027-12-31" })
+      .where(eq(approvalDelegations.id, delegation.id));
 
     // Ambiguous display names must not grant named/delegated tasks,
     // although role-queue tasks remain authorized by actual role.
