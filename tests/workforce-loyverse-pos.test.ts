@@ -133,6 +133,14 @@ test("a failed scan-freshness receipt cannot misreport a committed aggregate as 
   const get=route.slice(route.indexOf("export async function GET("),
     route.indexOf("export async function POST("));
   const post=route.slice(route.indexOf("export async function POST("));
+  const getRoleGate=get.indexOf("assertOrganizationRole(");
+  const postRoleGate=post.indexOf("assertOrganizationRole(");
+  assert.ok(getRoleGate>=0 && get.includes("WORKFORCE_MANAGER_ROLES"),
+    "GET must enforce workforce.manage and organization session policy");
+  assert.ok(postRoleGate>=0 && post.includes("PEOPLE_ADMIN_ROLES"),
+    "POST must enforce people.admin and organization session policy");
+  assert.ok(getRoleGate<get.indexOf("loyverseConnection("));
+  assert.ok(postRoleGate<post.indexOf("loyverseConnection("));
   assert.ok(get.indexOf("const access=await getAccess(")>=0);
   assert.ok(get.indexOf("const access=await getAccess(")<get.indexOf("loyverseConnection("),
     "GET must deny unauthorized tenants before disclosing connector configuration");
