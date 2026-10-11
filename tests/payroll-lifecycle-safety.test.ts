@@ -103,7 +103,8 @@ test("release completion and payroll failure states are explicit and recoverable
 
   for (const marker of [
     "Payroll release receipt",
-    "PayMongo is the primary payout rail",
+    "Xendit is the selected payout rail.",
+    "PayMongo is selected for this employer.",
     "Run the no-money PayMongo preflight",
     "releasedAt",
     "missingEmail",
@@ -225,4 +226,35 @@ test("release receipt records selected payout provider and keeps bank files opti
   assert.ok(releaseRoute.includes('method: configuredPayrollPayoutProvider() === "xendit" ? "Xendit" : "PayMongo"'));
   assert.ok(payrollView.includes('data-payout-status={visibleReleaseReceipt.payout.status}'));
   assert.ok(types.includes('"awaiting-preflight" | "ready" | "submitted" | "completed"'));
+});
+
+
+test("provider-specific payout controls preserve ledger ownership and forbid duplicate bank files", () => {
+  const exportsRoute = read("src/app/api/payroll-runs/[id]/exports/route.ts");
+  const xenditRoute = read("src/app/api/payroll-runs/[id]/xendit-payout/route.ts");
+  const operations = read("src/lib/xendit-payroll-operations.ts");
+  const exportsUi = read("src/components/workspace/exports.tsx");
+  const panel = read("src/components/workspace/xendit-payout-panel.tsx");
+
+  assert.ok(exportsRoute.includes("PAYROLL_PAYOUT_LEDGER_ALREADY_CLAIMED"));
+  assert.ok(exportsRoute.includes('if (kind === "bank" && !dryRun)'));
+  assert.ok(exportsRoute.includes("eq(payoutBatches.payrollRunId, run.id)"));
+  assert.ok(operations.includes("XENDIT_PREVIOUS_PAYOUT_OR_BANK_FILE_UNCERTAIN"));
+  assert.ok(operations.includes("await assertNoPriorPayrollDisbursement(run);"));
+  assert.ok(xenditRoute.includes("claimedProvider: existing?.provider ?? null"));
+  assert.ok(xenditRoute.includes('existing?.provider === "paymongo"'));
+  assert.ok(xenditRoute.includes('action === "reconcile" || action === "resolve-unknown"'));
+  assert.ok(panel.includes('status?.selectedProvider === "paymongo" && !status.claimedProvider && allowPaymongoActions'));
+  assert.ok(panel.includes("Run PayMongo preflight"));
+  assert.ok(panel.includes("Submit via PayMongo"));
+  assert.ok(panel.includes('status?.selectedProvider === "xendit" && !claimedByPaymongo'));
+  for (const marker of [
+    "onPaymongoPreflight={runPaymongoPreflight}",
+    "onPaymongoSubmit={submitPaymongoPayout}",
+    "canSubmitPaymongo={payoutState?.payout.method",
+    "paymongoPreflighting={preflightingPayout}",
+    "paymongoSubmitting={submittingPayout}",
+  ]) {
+    assert.ok(exportsUi.includes(marker), "Missing selected-provider control: " + marker);
+  }
 });
