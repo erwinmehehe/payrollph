@@ -50,5 +50,6 @@ test("route locks authoritative balance and records conversion and audit in the 
   assert.ok(source.includes("approvedLeaveConversionCap(organizationId, leaveType)"));
   assert.ok(source.indexOf("tx.insert(leaveConversions)") < source.indexOf("tx.insert(auditEvents)"));
   assert.ok(source.includes("LEAVE_CONVERSION_CAP_EXCEEDED"));
+  assert.ok(source.includes("const daysConverted: unknown = body.daysConverted"), "route must not coerce booleans or strings into payable leave days");
   assert.ok(source.includes("year !== manilaYear"));
 });
