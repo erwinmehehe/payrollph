@@ -56,9 +56,11 @@ export function Employee360Overview({
             <button key={card.id} type="button" disabled={isUnavailable}
               aria-label={"Review " + card.title + " details"}
               onClick={() => {
-                document.getElementById(card.targetId)?.scrollIntoView({
-                  behavior: "smooth", block: "start",
-                });
+                const target = document.getElementById(card.targetId);
+                if (!target) return;
+                // Move keyboard/screen-reader focus as well as the scroll position.
+                target.focus({ preventScroll: true });
+                target.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
               className={
                 "flex min-h-32 flex-col rounded-xl border p-3 text-left outline-offset-2 " +
