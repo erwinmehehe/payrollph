@@ -43,3 +43,11 @@ export function isWebBundyPunchList(value: unknown): value is WebBundyPunch[] {
     }),
   );
 }
+
+/**
+ * Clock-out-only exceptions must never be treated as an untouched day. An
+ * authorised correction is required before attempting a later clock-in.
+ */
+export function mayClockInWebBundy(historyReady: boolean, punch?: WebBundyPunch): boolean {
+  return historyReady && !punch?.timeIn && !punch?.timeOut;
+}

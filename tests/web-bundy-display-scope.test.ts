@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   isWebBundyPunchList,
+  mayClockInWebBundy,
   visibleWebBundyState,
   webBundyReadKey,
   type WebBundyReadState,
@@ -61,4 +62,12 @@ test("invalid IDs or revision values cannot identify a worker's read state", () 
     assert.throws(() => webBundyReadKey(1, id, 0), /Valid employer/);
   }
   assert.throws(() => webBundyReadKey(1, 1, -1), /revision/);
+});
+
+test("clock-in stays disabled for an orphan clock-out record until reviewed correction", () => {
+  assert.equal(mayClockInWebBundy(false, undefined), false);
+  assert.equal(mayClockInWebBundy(true, undefined), true);
+  assert.equal(mayClockInWebBundy(true, { timeIn: null, timeOut: "2026-10-11T07:59:00Z" }), false);
+  assert.equal(mayClockInWebBundy(true, { timeIn: "2026-10-11T07:00:00Z" }), false);
+  assert.equal(mayClockInWebBundy(true, { timeIn: null, timeOut: null }), true);
 });

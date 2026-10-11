@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { isWebBundyPunchList, visibleWebBundyState, webBundyReadKey, type WebBundyReadState } from "@/lib/web-bundy-display-scope";
+import { isWebBundyPunchList, mayClockInWebBundy, visibleWebBundyState, webBundyReadKey, type WebBundyReadState } from "@/lib/web-bundy-display-scope";
 import { Check, Clock, Coffee, LogIn, LogOut, MapPin, PlayCircle, X } from "lucide-react";
 import { essText, type EssLanguage } from "@/lib/ess-language";
 import { philippineClockDate, philippineClockTime } from "@/lib/philippine-clock-display";
@@ -154,7 +154,7 @@ function WebBundyView({
 
   const todayPunch = visible.punches[0];
   const breakActive = Boolean(todayPunch?.breakStart && !todayPunch?.breakEnd);
-  const canClockIn = historyReady && !todayPunch?.timeIn;
+  const canClockIn = mayClockInWebBundy(historyReady, todayPunch);
   const canStartBreak = Boolean(historyReady && todayPunch?.timeIn && !todayPunch?.breakStart && !todayPunch?.timeOut);
   const canEndBreak = Boolean(historyReady && breakActive && !todayPunch?.timeOut);
   const canClockOut = Boolean(historyReady && todayPunch?.timeIn && !todayPunch?.timeOut && !breakActive);

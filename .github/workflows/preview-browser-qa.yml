@@ -784,14 +784,15 @@ jobs:
               await timeTab.click();
               const openClock = page.getByRole("button", { name: "Clock in / out", exact: true }).first();
               check((await openClock.count()) === 1, "Employee: Time page has no clock button");
-              // A failed current-employee GET must not be mistaken for an
-              // empty day with Clock IN enabled. This synthetic route never
-              // sends punch mutations and does not access production data.
+              // A malformed current-employee GET must not be mistaken for
+              // an empty day with Clock IN enabled. No punches are submitted,
+              // and unlike an intentionally failed HTTP resource this fixture
+              // does not pollute normal browser console-error monitoring.
               const bundyReadUrl = "**/api/web-bundy?**";
               await page.route(bundyReadUrl, async (route) => {
                 await route.fulfill({
-                  status: 503, contentType: "application/json",
-                  body: '{"error":"Synthetic attendance history outage"}',
+                  status: 200, contentType: "application/json",
+                  body: '{"punches":"invalid-synthetic-employee-history"}',
                 });
               });
               await openClock.click();
