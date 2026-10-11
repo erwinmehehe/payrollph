@@ -1,6 +1,6 @@
 # Opt-in WFM schedule review reminders — engineering candidate
 
-The scheduled worker can **suggest** a review when an already-acknowledged current schedule changes, or when a yet-unacknowledged work shift starts within 24 hours. It reuses existing authoritative employee schedule receipts and the Automation Studio event, task, email-outbox and retry pipeline. It does not assert a legal notice was delivered, nor prove physical presence, consent, attendance, leave compliance or pay entitlement.
+The scheduled worker can **suggest** a review when a previously acknowledged schedule changes, when an approved schedule override is published for a previously unacknowledged day, or when an ordinary unacknowledged work shift starts within 24 hours. It reuses existing authoritative employee schedule receipts and the Automation Studio event, task, email-outbox and retry pipeline. It does not assert a legal notice was delivered, nor prove physical presence, consent, attendance, leave compliance or pay entitlement.
 
 ## Fail-closed activation (all OFF by default)
 
@@ -15,7 +15,7 @@ The scheduled worker can **suggest** a review when an already-acknowledged curre
 - Candidate ESS accounts must be active, employee-role and employer-bound to an active employee. For multiple active accounts for a single worker, **skip** rather than choose a recipient.
 - The total active account cohort is bounded at 200; >200 results in **zero notifications** and an explicit `cohort-too-large` result. This is not a full-company monitor or a paginated solution.
 - The source service reacquires the existing roster lock and validates employee and tenant bindings. An invalid window/source remains unknown and generates no event. Trigger context contains only a day, content hash and purpose code; it contains no salary, timeclock, government ID or GPS coordinates.
-- A stable `workforce.schedule_review_due` event key includes employer, worker, active login, work date, reason and exact schedule content hash. Re-running the hourly scheduler must not duplicate a rule execution for the same version and reason. Approved changes to the content yield a new key.
+- A stable `workforce.schedule_review_due` event key includes employer, worker, active login, work date, reason and exact schedule content hash. Re-running the hourly scheduler must not duplicate a rule execution for the same version and reason. Approved changes to the content yield a new key. Approved overrides are recognized as changes even if the worker did not acknowledge the original pattern.
 - Notification copy deliberately asks the employee to **sign in and verify their latest schedule**, not that a specific shift was missed or that an older snapshot is still authoritative.
 - Scans are advisory. A schedule change can race with the subsequent event execution. Worker-initiated or human review must always reload the current schedule. Absence, pay changes, disciplinary measures and delivery consent are not inferred.
 - Mail send and retries are owned by the existing governed outbox; the operator must separately validate sender/domain configuration, delivery failure visibility, opt-in expectations, lawful notice/consent requirements and scheduler liveness.
