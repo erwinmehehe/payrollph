@@ -37,9 +37,10 @@ function toCents(value: string): number | null {
   if (typeof value !== "string") return null;
   const matched = /^(\d{1,14})(?:\.(\d{1,2}))?$/.exec(value.trim());
   if (!matched) return null;
-  const parsed = BigInt(matched[1]) * BigInt(100) +
-    BigInt((matched[2] ?? "").padEnd(2, "0") || "0");
-  return parsed <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(parsed) : null;
+  const whole = Number(matched[1]);
+  const fraction = Number((matched[2] ?? "").padEnd(2, "0") || "0");
+  const cents = whole * 100 + fraction;
+  return Number.isSafeInteger(cents) && cents >= 0 ? cents : null;
 }
 
 function safeAdd(a: number, b: number): number | null {
