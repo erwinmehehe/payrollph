@@ -18,6 +18,10 @@ on:
       - 'src/lib/hcm-context-navigation.ts'
       - 'src/lib/hcm-action-center.ts'
       - 'src/app/hcm/action-center/**'
+      - 'src/app/api/hcm/business-processes/definitions/**'
+      - 'src/components/hcm-business-process-admin.tsx'
+      - 'src/components/workspace/people.tsx'
+      - 'tests/hcm-enterprise-workflow-definition-gate.test.ts'
       - 'src/app/api/hcm/business-processes/inbox/**'
       - 'tests/hcm-action-center-v2.test.ts'
       - 'src/components/hcm-context-navigation.tsx'
@@ -47,6 +51,10 @@ on:
       - 'src/lib/hcm-context-navigation.ts'
       - 'src/lib/hcm-action-center.ts'
       - 'src/app/hcm/action-center/**'
+      - 'src/app/api/hcm/business-processes/definitions/**'
+      - 'src/components/hcm-business-process-admin.tsx'
+      - 'src/components/workspace/people.tsx'
+      - 'tests/hcm-enterprise-workflow-definition-gate.test.ts'
       - 'src/app/api/hcm/business-processes/inbox/**'
       - 'tests/hcm-action-center-v2.test.ts'
       - 'src/components/hcm-context-navigation.tsx'
@@ -124,6 +132,8 @@ jobs:
       # Run after fixture creation: the browser fixture assumes employer IDs 1/2.
       - name: Verify monitor contract and two-employer PostgreSQL integration
         run: npx tsx --test --test-concurrency=1 tests/hcm-process-monitor.test.ts tests/hcm-process-monitor-tenant-integration.test.ts tests/hcm-context-navigation.test.ts tests/hcm-action-center-v2.test.ts
+      - name: Verify paid HCM workflow designer GET/POST policy and scope
+        run: npx tsx --test --test-concurrency=1 tests/hcm-enterprise-workflow-definition-gate.test.ts
       - name: Build local Next.js without external deployment
         run: npm run build
       - name: Install pinned local Chromium and automated accessibility rules

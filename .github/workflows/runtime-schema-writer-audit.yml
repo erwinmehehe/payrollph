@@ -1,0 +1,71 @@
+name: Runtime Schema Writer Source Audit (P0-4)
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "scripts/audit-runtime-schema-writers.mjs"
+      - "tests/runtime-schema-audit.test.mjs"
+      - ".github/workflows/runtime-schema-writer-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-only-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout source without persisting GitHub credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      # No production environment, DB, Vercel tokens or secrets are supplied.
+      - run: npm ci
+      - name: Exercise static parser, early guard and strict rejection cases
+        run: node --test tests/runtime-schema-audit.test.mjs
+      - name: Inspect all runtime sources and reject unguarded schema writes
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p qa-artifacts
+          # GitHub runs bash with -e; explicitly capture a strict failure so
+          # operators still receive the source locations instead of an empty log.
+          status=0
+          node scripts/audit-runtime-schema-writers.mjs --strict src > qa-artifacts/runtime-schema-inventory.json || status=$?
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            const report = JSON.parse(readFileSync("qa-artifacts/runtime-schema-inventory.json", "utf8"));
+            const unsafe = report.findings.filter(x => x.state === "unguarded");
+            const groups = new Map();
+            for (const x of unsafe) {
+              if (!groups.has(x.file)) groups.set(x.file, {
+                file: x.file, count: 0, DDL: 0, IMPLICIT_BACKFILL: 0,
+                DYNAMIC_QUERY_REVIEW: 0, exampleLines: []
+              });
+              const g = groups.get(x.file);
+              g.count++;
+              g[x.type] = (g[x.type] ?? 0) + 1;
+              if (g.exampleLines.length < 4) g.exampleLines.push(x.line);
+            }
+            const affectedFiles = [...groups.values()].sort((a,b) => b.count - a.count);
+            console.log(JSON.stringify({
+              filesScanned: report.filesScanned,
+              unguarded: report.unguarded,
+              earlyReadOnlyExit: report.earlyReadOnlyExit,
+              distinctUnsafeFiles: affectedFiles.length,
+              affectedFiles,
+              sourceOnly: true, productionReleaseApproved: false
+            }, null, 2));
+          '
+          exit "$status"
