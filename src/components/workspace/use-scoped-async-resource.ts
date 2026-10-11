@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { activeAsyncResult, createScopedRequestOwner, type ScopedAsyncResult } from "@/lib/scoped-async-request";
 
 /** Fetch only in effects/events; derive first-load visibility from the render scope. */
@@ -24,11 +24,15 @@ export function useScopedAsyncResource<T>(
     });
   }, [key, owner, setSettled, setRefreshing]);
 
-  useEffect(() => {
+  // Cancel ownership during commit, before an obsolete response can emit a notice.
+  useLayoutEffect(() => {
     owner.activate(key);
-    void run();
     return () => owner.cancel(key);
-  }, [key, owner, run]);
+  }, [key, owner]);
+
+  useEffect(() => {
+    void run();
+  }, [run]);
 
   // Called by explicit refresh/mutation handlers, never by the mount effect.
   const reload = useCallback(() => {
