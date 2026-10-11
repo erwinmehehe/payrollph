@@ -197,6 +197,30 @@ export const worksites = pgTable(
   ],
 );
 
+/**
+ * Optional GPS boundary records: NEVER selected by legacy worksite reads.
+ * The collection is accessed only by explicitly allowlisted pilot employers.
+ */
+export const worksiteGeofenceBoundaries = pgTable(
+  "worksite_geofence_boundaries",
+  {
+    worksiteId: integer("worksite_id").primaryKey().references(() => worksites.id, { onDelete: "cascade" }),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    latitude: numeric("latitude", { precision: 10, scale: 7 }).notNull(),
+    longitude: numeric("longitude", { precision: 10, scale: 7 }).notNull(),
+    radiusMeters: integer("radius_meters").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("worksite_geofence_org_idx").on(table.organizationId),
+    check("worksite_geofence_valid_check", sql`(
+      ${table.latitude} BETWEEN -90 AND 90
+      AND ${table.longitude} BETWEEN -180 AND 180
+      AND ${table.radiusMeters} BETWEEN 100 AND 2000
+    )`),
+  ],
+);
+
 export const employees = pgTable("employees", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
