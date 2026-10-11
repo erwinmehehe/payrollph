@@ -49,9 +49,21 @@ export function verifyPaymongoWebhookSignature(input: {
     .update(`${timestamp}.${input.payload}`)
     .digest("hex");
 
-  return [parts.get("li"), parts.get("te")]
-    .filter((value): value is string => Boolean(value))
-    .some((candidate) => safeEqualHex(candidate, expected));
+  // PayMongo specifies different signature slots for live and test events.
+  // Select the slot from the signed raw payload, never accept whichever
+  // environment signature happens to match.
+  let livemode: boolean;
+  try {
+    const envelope = asRecord(JSON.parse(input.payload) as unknown);
+    const event = asRecord(envelope?.data) ?? envelope;
+    const attributes = asRecord(event?.attributes);
+    if (!attributes || typeof attributes.livemode !== "boolean") return false;
+    livemode = attributes.livemode;
+  } catch {
+    return false;
+  }
+  const candidate = parts.get(livemode ? "li" : "te");
+  return Boolean(candidate && safeEqualHex(candidate, expected));
 }
 
 export type PaymongoTransferWebhookEvent = {
