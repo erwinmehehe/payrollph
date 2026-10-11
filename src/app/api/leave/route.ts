@@ -171,7 +171,10 @@ export async function GET(request: Request) {
     employee: employees,
   })
     .from(leaveRequests)
-    .innerJoin(employees, eq(leaveRequests.employeeId, employees.id))
+    .innerJoin(employees, and(
+      eq(leaveRequests.employeeId, employees.id),
+      eq(employees.organizationId, organizationId),
+    ))
     .where(eq(leaveRequests.organizationId, organizationId))
     .orderBy(desc(leaveRequests.id));
 
