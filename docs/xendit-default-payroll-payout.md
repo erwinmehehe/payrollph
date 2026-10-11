@@ -1,51 +1,74 @@
-# Xendit as default payroll payout provider — controlled integration
+# Xendit default Philippine payroll disbursements — controlled release
 
-Status: **engineering candidate; not active for real-money payouts**. Default selection does not constitute a completed disbursement implementation or employer acceptance.
+**Status:** implemented on draft PR #813; source only. `PAYROLL_PAYOUT_PROVIDER` defaults to `xendit`, but **no live money movement is authorized by this change**. Keep `XENDIT_PAYOUTS_ENABLED=false` and `XENDIT_PAYOUTS_LIVE_APPROVED=false` until independent acceptance.
 
-## Default and safety behavior
+## Implemented
 
-- `PAYROLL_PAYOUT_PROVIDER` defaults to `xendit`. Set it explicitly to `paymongo` only for an authorized legacy PayMongo workflow.
-- When Xendit is selected, the existing `/api/payroll-runs/[id]/exports` PayMongo preflight and disbursement actions refuse to send money (501). This prevents unintended PayMongo transfers, including when old PayMongo credentials remain configured.
-- Bank-file/manual payout paths retain their existing treasury, validation, and authorization gates.
-- No migration, deployment, credential update, money movement, or transfer to an external account is performed by this change.
+- Xendit V3 PHP salary payout API: `POST /v3/payouts` (one payout per employee), `GET /v3/payouts/{id}` and authenticated V3 payout webhooks.
+- Dedicated MONEY-OUT key, nonshared legal-employer and organization allow-list, business-ID match, explicit payout authorization and no automatic switch to PayMongo.
+- Frozen payroll input and employee account checks, exact-centavo totals, a keyed preflight fingerprint and cash-movement confirmation.
+- The existing immutable payroll payout ledger now supports provider `xendit` with **the same one-run exclusivity** as PayMongo. `drizzle/0111_xendit_payout_provider.sql` updates database constraints; **no live database migration was performed**.
+- Atomic one-at-a-time employee payout claims (up to three API calls per request). A timeout, network interruption or malformed provider acknowledgment marks the recipient's state as **reconciliation_required** and blocks further salary submission for the same run. Do not treat an HTTP error as a bank failure.
+- Individual Xendit payout IDs recorded against the original payroll instructions. GET reconciliation is read-only at the provider; the authorized treasury operator can link an unrecognized payout only after providing an existing Xendit ID, which is re-verified against expected amount/reference/business ID.
+- Webhook authentication via `x-callback-token`, business/organization/legal-entity scoping, database-deduped events and explicit `reversed` handling. Reversed payouts are **not** automatically retried.
+- Workspace payout control center, employer payout-method selector, distinct old PayMongo path and optional bank-file fallback (blocked after any Xendit ledger claim to prevent duplicate salaries).
+- Isolated API tests and synthetic database workflow tests (test suite execution / CI results must be checked on exact PR head).
 
-## Implemented source
+## Lifecycle
 
-- `src/lib/payroll-payout-provider.ts`: default provider, allow-list and live-gate declarations.
-- `src/lib/xendit-payroll-payouts.ts`: V3 `POST /v3/payouts` and read-only `GET /v3/payouts/:id` transport with strict request/response identity, immutable references, centavo amounts, provider-specific key, webhook token comparison and event parsing.
-- `tests/xendit-payroll-payouts.test.ts`: isolated request-building and identity tests; no real network transfers.
-- The UI identifies Xendit as the selected default and does not expose the old PayMongo buttons while the new flow is incomplete.
+```text
+Released payroll
+  -> Xendit no-money local preflight + fingerprint
+  -> privileged treasury submit confirmation
+  -> stage immutable payroll-run batch and per-employee transfer rows
+  -> atomically claim single employee before API call
+  -> send one POST /v3/payouts with a deterministic idempotency key
+  -> durable provider acknowledgment (or RECONCILIATION REQUIRED)
+  -> read-only GET /v3/payouts/{id} and authenticated webhooks
+  -> succeeded | failed | reversed | uncertain
+  -> close when every expected employee transfer settled and no reversals
+```
 
-## Required gates before enabling live payout (NOT YET IMPLEMENTED)
-
-1. **Do not enable `XENDIT_PAYOUTS_ENABLED` for real employers yet.** Complete an employer-scoped, database-backed Xendit payout orchestration flow. The current PayMongo-ledger path has a PayMongo-only DB check constraint; do not repurpose it without a reviewed migration and atomic per-transfer claim model.
-2. Replace one-shot API calls with durable per-recipient work items: exactly one frozen payout reference, amount, bank destination and persisted idempotency key per employee. Store the initiating legal employer, provider business ID, encrypted destination fingerprint and immutable payroll source hash. Enforce the global single-run provider claim, cross-provider duplication denial and no fallback after timeout.
-3. Process V3 individual payouts with bounded concurrency and backpressure. **A timeout does not equal a failure.** Any request with unknown outcome must be looked up by reference/id before another submission; never automatically try a new idempotency key.
-4. Implement an authenticated webhook inbox with durable deduplication, server-verifiable business/amount/reference mapping and official Xendit status transitions. On REVERSED or FAILED status after settlement, reopen investigation; do not silently mark a previously paid salary unpaid, automatically retry, or count returned money twice.
-5. Add a reconciliation dashboard for 100% of payroll rows: pending/succeeded/failed/reversed/unknown. Pending and unknown money is not eligible for automatic retry. Require maker-checker authorization for failed-only retries, with new explicitly approved payout attempt records.
-6. Validate verified Philippine destination bank/e-wallet mappings against Xendit's supported channel list, rather than relying only on local BIC examples. Validate name formats and any required bank-specific recipient information with sanctioned sandbox and real bank test accounts.
-7. Obtain employer-specific Xendit onboarding, API scopes, funding arrangement, fees, contractual permission to disburse salary, and positive/negative/reversal UAT evidence. Record signed finance/security approval before any production activation.
-
-## Configuration reserved for subsequent rollout
+## Rollout configuration
 
 ```text
 PAYROLL_PAYOUT_PROVIDER=xendit
 XENDIT_PAYOUTS_ENABLED=false
 XENDIT_PAYOUTS_LIVE_APPROVED=false
-XENDIT_PAYOUT_SECRET_KEY=(dedicated MONEY-OUT API key; not subscription billing key)
-XENDIT_PAYOUT_CALLBACK_TOKEN=(do not log or expose)
-XENDIT_PAYOUT_BUSINESS_ID=(actual approved business)
-XENDIT_PAYOUT_ALLOWED_ORGANIZATION_ID=(approved Linaw organization)
-XENDIT_PAYOUT_ALLOWED_LEGAL_ENTITY_ID=(approved legal employer)
-XENDIT_PAYOUT_VERIFIED_BANK_BICS_JSON=(reviewed bank-to-BIC map, optional)
+XENDIT_PAYOUT_SECRET_KEY=(dedicated MONEY-OUT API key, not billing key)
+XENDIT_PAYOUT_CALLBACK_TOKEN=(from Xendit payout webhook settings)
+XENDIT_PAYOUT_BUSINESS_ID=(approved business)
+XENDIT_PAYOUT_ALLOWED_ORGANIZATION_ID=(Linaw organization)
+XENDIT_PAYOUT_ALLOWED_LEGAL_ENTITY_ID=(exact Philippine legal employer)
+XENDIT_PAYOUT_VERIFIED_BANK_BICS_JSON=(reviewed extra bank-to-SWIFT map, optional)
 ```
 
-Current Xendit billing is separate in `src/lib/xendit-subscriptions.ts` and must remain so. Do not use subscription billing credentials for payroll.
+Set a public HTTPS Xendit payout webhook URL to `https://<your-app-host>/api/webhooks/xendit-payout` in Xendit's dashboard only in the independently authorized rollout. The callback token must never be client-side or in the GitHub repository.
 
-Source-of-truth API contracts: https://docs.xendit.co/apidocs/create-payout-v3 ; https://docs.xendit.co/apidocs/get-payout-v3-by-id ; https://docs.xendit.co/apidocs/payout-v3-webhook .
+**Separate billing:** `src/lib/xendit-subscriptions.ts` is for customer subscriptions; its credentials do not authorize employee payouts.
 
-## Verification
+## Independent acceptance gates required before real payroll
 
-Run `npx tsx --test tests/xendit-payroll-payouts.test.ts`, `npx tsc --noEmit`, `npm run lint` and the full payroll/treasury/tenant/golden suites on an isolated Postgres instance. This branch has not been runtime-tested against the target repository in a local checkout because external GitHub git clone was unavailable in this environment. CI checks must be reviewed on the exact PR commit.
+1. Apply/rehearse database migration 0111 after the existing 0110 event inbox on isolated staging. Confirm strict provider constraint, per-run exclusivity and event dedup indexes under real PostgreSQL 16.
+2. Verify current V3 payout payload and SWIFT/e-wallet routing codes in Xendit's **authorized sandbox**. Validate BDO, BPI, other bank and e-wallet destinations, name formats, amount caps and current published channel availability.
+3. Independently authorize the legal employer, Xendit account, MONEY-OUT API scopes, funding source, fees, Payout Webhook token and finance approvals. Document whether Xendit's merchant account is permitted to make each employer's salary payments; no unapproved pooled/employer-crossing money movement.
+4. Exercise at least two independent payroll cutoffs with synthetic or employer-authorized data. Validate 100% individual amounts, cutoff release, idempotency, unknown timeout, duplicate call, rejected, failed, reversed, out-of-order webhook, mid-run interruption and treasury maker-checker controls.
+5. Require signed payment-provider acceptance, bank receipt evidence, reversal reconciliation, legal-employer approval and production security signoff. Deploy under flags OFF, then separately enable only for the approved employer.
+6. Production verification: ensure never to reroute uncertain salary transfers to PayMongo or a bank file. Use Xendit dashboard/GET to resolve unknown outcomes manually; failed-only retries require an additional separately reviewed attempt workflow and are **not** automatically available here.
 
-No PR merge or real-money deployment is authorized until full payout orchestration, database migration, webhook handling, integration and reconciliation acceptance gates are completed.
+## Implementation references
+
+- `src/lib/payroll-payout-provider.ts`
+- `src/lib/xendit-payroll-payouts.ts`
+- `src/lib/xendit-payout-ledger.ts`
+- `src/lib/xendit-payroll-operations.ts`
+- `src/app/api/payroll-runs/[id]/xendit-payout/route.ts`
+- `src/app/api/webhooks/xendit-payout/route.ts`
+- `src/components/workspace/xendit-payout-panel.tsx`
+- `drizzle/0111_xendit_payout_provider.sql`
+- `tests/xendit-payroll-payouts.test.ts`
+- `tests/xendit-payroll-ledger-integration.test.ts`
+
+Official Xendit contracts: https://docs.xendit.co/apidocs/create-payout-v3 ; https://docs.xendit.co/apidocs/get-payout-v3-by-id ; https://docs.xendit.co/apidocs/payout-v3-webhook .
+
+**Verification:** check `npm run lint`, `npx tsc --noEmit`, `npm test`, source isolation, pilot QA, and all payroll golden suites from PR CI. No GitHub merge, deployment, real credentials, or real payouts were performed by the assistant.
