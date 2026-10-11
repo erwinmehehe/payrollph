@@ -101,20 +101,16 @@ async function assertNoPriorPayrollDisbursement(run: PayrollRun) {
     "PayMongo transfer webhook received",
     "bank export generated",
   ];
-  const historical = await db.select({
-    action: auditEvents.action,
-    metadata: auditEvents.metadata,
-  }).from(auditEvents).where(and(
-    eq(auditEvents.organizationId, run.organizationId),
-    inArray(auditEvents.action, disbursementActions),
-    sql`${auditEvents.metadata} ->> 'runId' = ${String(run.id)}`,
-  )).limit(10);
-  const unsafe = historical.some(event => {
-    if (event.action !== "bank export generated") return true;
-    const metadata = event.metadata as Record<string, unknown> | null;
-    return metadata?.kind === "bank" && metadata.dryRun !== true;
-  });
-  if (unsafe) {
+  const conflicts = await db.select({ id: auditEvents.id })
+    .from(auditEvents).where(and(
+      eq(auditEvents.organizationId, run.organizationId),
+      inArray(auditEvents.action, disbursementActions),
+      sql`${auditEvents.metadata} ->> 'runId' = ${String(run.id)}`,
+      sql`(${auditEvents.action} <> 'bank export generated'
+        OR (${auditEvents.metadata} ->> 'kind' = 'bank'
+          AND COALESCE(${auditEvents.metadata} ->> 'dryRun', 'false') <> 'true'))`,
+    )).limit(1);
+  if (conflicts.length > 0) {
     throw new Error("XENDIT_PREVIOUS_PAYOUT_OR_BANK_FILE_UNCERTAIN: Existing manual, PayMongo, or final bank-file payout evidence must be independently reconciled. Never send salary again through a different provider.");
   }
 }
