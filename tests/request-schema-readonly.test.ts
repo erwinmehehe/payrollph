@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   leaveSchemaSpec, payBasisSchemaSpec,
+  payrollMonthCloseSchemaSpec, doleReportingSchemaSpec,
   verifyRequestSchemaReadOnly,
   type RequestSchemaSpec,
   type RequestCatalogQuery,
@@ -10,6 +11,7 @@ import {
 
 type Variant = {
   missingTable?: string; missingColumn?: string; columnType?: string;
+  missingDefault?: string; wrongIndexKeys?: string;
   weakIndex?: string; wrongIndexTable?: string; missingConstraint?: boolean;
   transactionReadOnly?: boolean; failAt?: string; rollbackFails?: boolean;
 };
@@ -28,6 +30,8 @@ function simulate(spec: RequestSchemaSpec, variant: Variant = {}) {
         name: c.name,
         type: c.name === variant.columnType ? "text" : c.type,
         notNull: c.notNull,
+        columnDefault: c.name === variant.missingDefault
+          ? null : c.defaultTokens?.join(" ") ?? null,
       })),
     };
     if (sql.includes("pg_catalog.pg_index")) return {
@@ -35,7 +39,7 @@ function simulate(spec: RequestSchemaSpec, variant: Variant = {}) {
         name: i.name, tableName: i.name === variant.wrongIndexTable ? "payroll_runs" : i.tableName,
         isUnique: i.name === variant.weakIndex ? false : i.unique,
         isValid: true, isReady: true,
-        keys: [...i.keys],
+        keys: i.name === variant.wrongIndexKeys ? ["organization_id"] : [...i.keys],
         predicate: i.predicateTokens?.length ? i.predicateTokens.join(" ") : null,
       })),
     };
@@ -124,4 +128,77 @@ test("legacy DDL modules use shared opt-in mode before any schema DDL", () => {
     backfill.indexOf("INSERT INTO employee_pay_profiles"),
     "legacy pay profile INSERT may only run in explicit legacy mode");
   assert.ok(backfill.includes("client?.release(!rolledBack)"));
+});
+
+
+test("month-close and DOLE reporting structure has valid typed evidence, indexes and defaults", async () => {
+  for (const spec of [payrollMonthCloseSchemaSpec, doleReportingSchemaSpec]) {
+    const { query, calls } = simulate(spec);
+    await verifyRequestSchemaReadOnly(query, spec);
+    assert.equal(calls[0], "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY");
+    assert.equal(calls.at(-1), "ROLLBACK");
+    assert.ok(calls.some(sql => sql.includes("pg_catalog.pg_attrdef")));
+    assert.ok(calls.some(sql => sql.includes("pg_catalog.pg_constraint")));
+    assert.ok(calls.some(sql => sql.includes("pg_catalog.pg_index")));
+    for (const sql of calls) {
+      assert.doesNotMatch(sql, /\b(?:CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|TRUNCATE|COMMIT)\b/i);
+    }
+  }
+});
+
+test("month-close refuses absent legal employer, wrong evidence data type, weak index, or missing status default", async () => {
+  const bad: Variant[] = [
+    { missingTable: "payroll_month_closures" },
+    { missingColumn: "payroll_month_closures.legal_entity_id" },
+    { columnType: "payroll_month_closures.evidence_snapshot" },
+    { weakIndex: "payroll_month_closure_snapshot_unique" },
+    { wrongIndexKeys: "payroll_month_closure_status_idx" },
+    { missingDefault: "payroll_month_closures.status" },
+    { missingConstraint: true },
+  ];
+  for (const item of bad) {
+    const { query, calls } = simulate(payrollMonthCloseSchemaSpec, item);
+    await assert.rejects(() => verifyRequestSchemaReadOnly(query, payrollMonthCloseSchemaSpec),
+      /REQUEST_SCHEMA_READONLY_MONTH-CLOSE_INCOMPATIBLE/, JSON.stringify(item));
+    assert.equal(calls.at(-1), "ROLLBACK");
+  }
+});
+
+test("DOLE report certification refuses incomplete metadata or per-employer unique index", async () => {
+  const bad: Variant[] = [
+    { missingTable: "dole_reporting_profiles" },
+    { missingColumn: "dole_compliance_submissions.report_hash" },
+    { columnType: "dole_compliance_submissions.report_year" },
+    { missingDefault: "dole_compliance_submissions.status" },
+    { weakIndex: "dole_compliance_submission_snapshot_unique" },
+    { wrongIndexTable: "dole_compliance_submission_snapshot_unique" },
+    { missingConstraint: true },
+  ];
+  for (const item of bad) {
+    const { query, calls } = simulate(doleReportingSchemaSpec, item);
+    await assert.rejects(() => verifyRequestSchemaReadOnly(query, doleReportingSchemaSpec),
+      /REQUEST_SCHEMA_READONLY_DOLE-REPORTING_INCOMPATIBLE/, JSON.stringify(item));
+    assert.equal(calls.at(-1), "ROLLBACK");
+  }
+});
+
+test("payroll month-close and DOLE legacy writers honor read-only mode before DDL", () => {
+  for (const file of [
+    "src/lib/payroll-month-close-schema.ts",
+    "src/lib/dole-reporting-schema.ts",
+  ]) {
+    const source = readFileSync(file, "utf8");
+    assert.ok(source.includes("coreSchemaCompatibilityMode(process.env.CORE_SCHEMA_COMPATIBILITY_MODE)"));
+    assert.ok(source.includes('if (mode === "read-only")'));
+    assert.ok(source.includes("verifyRequestSchemaReadOnly("));
+    assert.ok(source.includes("client?.release(!verified)"));
+    assert.ok(source.indexOf('if (mode === "read-only")') <
+      source.indexOf('await client.query("BEGIN")'),
+      "request-path DDL must not run in read-only mode");
+  }
+  const close = readFileSync("src/lib/payroll-month-close-schema.ts", "utf8");
+  assert.ok(close.includes("UPDATE payroll_month_closures c"));
+  assert.ok(close.includes("ALTER COLUMN legal_entity_id SET NOT NULL"));
+  const dole = readFileSync("src/lib/dole-reporting-schema.ts", "utf8");
+  assert.ok(dole.includes("CREATE TABLE IF NOT EXISTS dole_compliance_submissions"));
 });

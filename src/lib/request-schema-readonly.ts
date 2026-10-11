@@ -4,16 +4,19 @@
  * check, NOT proof of applied migration receipts, role isolation or approval
  * to process live payroll.
  */
-export type RequestSchemaColumn = { name: string; type?: string; notNull?: boolean };
+export type RequestSchemaColumn = {
+  name: string; type?: string; notNull?: boolean;
+  defaultTokens?: readonly string[];
+};
 export type RequestSchemaIndex = {
   name: string; tableName: string; keys: readonly string[];
   unique: boolean; predicateTokens?: readonly string[];
 };
 export type RequestSchemaConstraint = {
-  tableName: string; kind: "f" | "c" | "u"; tokens: readonly string[];
+  tableName: string; kind: "f" | "c" | "u" | "p"; tokens: readonly string[];
 };
 export type RequestSchemaSpec = {
-  label: "leave" | "pay-basis";
+  label: "leave" | "pay-basis" | "month-close" | "dole-reporting";
   tables: readonly string[];
   columns: readonly RequestSchemaColumn[];
   indexes: readonly RequestSchemaIndex[];
@@ -68,7 +71,10 @@ export async function verifyRequestSchemaReadOnly(
     const cols = await query(
       "SELECT c.relname || '.' || a.attname AS name, " +
       "pg_catalog.format_type(a.atttypid, a.atttypmod) AS type, " +
-      "a.attnotnull AS \"notNull\" FROM pg_catalog.pg_attribute a " +
+      "a.attnotnull AS \"notNull\", " +
+      "pg_catalog.pg_get_expr(d.adbin, d.adrelid) AS \"columnDefault\" " +
+      "FROM pg_catalog.pg_attribute a " +
+      "LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum " +
       "JOIN pg_catalog.pg_class c ON c.oid = a.attrelid " +
       "JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace " +
       "WHERE n.nspname = 'public' AND c.relkind IN ('r','p') " +
@@ -111,7 +117,10 @@ export async function verifyRequestSchemaReadOnly(
     const soundColumns = spec.columns.every(required => {
       const actual = colMap.get(required.name);
       return actual && (required.type === undefined || norm(String(actual.type)) === norm(required.type))
-        && (required.notNull === undefined || actual.notNull === required.notNull);
+        && (required.notNull === undefined || actual.notNull === required.notNull)
+        && (required.defaultTokens === undefined ||
+          (typeof actual.columnDefault === "string" &&
+            required.defaultTokens.every(token => norm(String(actual.columnDefault)).includes(norm(token)))));
     });
     const soundIndexes = spec.indexes.every(expected => {
       const actual = indexMap.get(expected.name);
@@ -194,5 +203,80 @@ export const payBasisSchemaSpec: RequestSchemaSpec = {
     { tableName: "employee_pay_revisions", kind: "f", tokens: ["employee_id", "referencesemployees(id)", "ondeletecascade"] },
     { tableName: "employee_pay_retro_adjustments", kind: "f", tokens: ["revision_id", "referencesemployee_pay_revisions(id)", "ondeletecascade"] },
     { tableName: "employee_pay_retro_adjustments", kind: "f", tokens: ["source_payroll_run_id", "referencespayroll_runs(id)", "ondeletecascade"] },
+  ],
+};
+
+
+/**
+ * Employer-scoped payroll certification snapshots must not be created or
+ * widened during a request. Existing v1/v2 migrations require DBA proof.
+ */
+export const payrollMonthCloseSchemaSpec: RequestSchemaSpec = {
+  label: "month-close",
+  tables: ["payroll_month_closures"],
+  columns: [
+    { name: "payroll_month_closures.id", type: "integer", notNull: true },
+    { name: "payroll_month_closures.organization_id", type: "integer", notNull: true },
+    { name: "payroll_month_closures.legal_entity_id", type: "integer", notNull: true },
+    { name: "payroll_month_closures.applicable_month", type: "character varying(7)", notNull: true },
+    { name: "payroll_month_closures.status", type: "character varying(24)", notNull: true, defaultTokens: ["certified"] },
+    { name: "payroll_month_closures.snapshot_hash", type: "character varying(64)", notNull: true },
+    { name: "payroll_month_closures.evidence_snapshot", type: "jsonb", notNull: true },
+    { name: "payroll_month_closures.certified_by_name", type: "character varying(120)", notNull: true },
+    { name: "payroll_month_closures.certified_at", type: "timestamp with time zone", notNull: true, defaultTokens: ["now()"] },
+  ],
+  indexes: [
+    { name: "payroll_month_closure_snapshot_unique", tableName: "payroll_month_closures",
+      keys: ["organization_id", "legal_entity_id", "applicable_month", "snapshot_hash"], unique: true },
+    { name: "payroll_month_closure_status_idx", tableName: "payroll_month_closures",
+      keys: ["organization_id", "legal_entity_id", "applicable_month", "status"], unique: false },
+  ],
+  constraints: [
+    { tableName: "payroll_month_closures", kind: "p", tokens: ["primarykey(id)"] },
+    { tableName: "payroll_month_closures", kind: "f",
+      tokens: ["foreignkey(organization_id)", "referencesorganizations(id)", "ondeletecascade"] },
+    { tableName: "payroll_month_closures", kind: "f",
+      tokens: ["foreignkey(legal_entity_id)", "referenceslegal_entities(id)", "ondeleterestrict"] },
+  ],
+};
+
+/**
+ * DOLE reporting certificates and submission receipts require the same
+ * reviewed-schema boundary as monthly payroll certification. They must not be
+ * created opportunistically when an employer opens Compliance Center.
+ */
+export const doleReportingSchemaSpec: RequestSchemaSpec = {
+  label: "dole-reporting",
+  tables: ["dole_reporting_profiles", "dole_compliance_submissions"],
+  columns: [
+    { name: "dole_reporting_profiles.organization_id", type: "integer", notNull: true },
+    { name: "dole_reporting_profiles.establishment_address", type: "text", notNull: true },
+    { name: "dole_reporting_profiles.principal_business", type: "character varying(240)", notNull: true },
+    { name: "dole_reporting_profiles.contact_name", type: "character varying(160)", notNull: true },
+    { name: "dole_reporting_profiles.contact_position", type: "character varying(160)", notNull: true },
+    { name: "dole_reporting_profiles.contact_phone", type: "character varying(48)", notNull: true },
+    { name: "dole_compliance_submissions.id", type: "integer", notNull: true },
+    { name: "dole_compliance_submissions.organization_id", type: "integer", notNull: true },
+    { name: "dole_compliance_submissions.report_type", type: "character varying(48)", notNull: true },
+    { name: "dole_compliance_submissions.report_year", type: "integer", notNull: true },
+    { name: "dole_compliance_submissions.report_hash", type: "character varying(64)", notNull: true },
+    { name: "dole_compliance_submissions.status", type: "character varying(24)", notNull: true, defaultTokens: ["submitted"] },
+    { name: "dole_compliance_submissions.portal_reference", type: "character varying(160)", notNull: true },
+    { name: "dole_compliance_submissions.submitted_at", type: "timestamp with time zone", notNull: true },
+    { name: "dole_compliance_submissions.recorded_by_name", type: "character varying(120)", notNull: true },
+  ],
+  indexes: [
+    { name: "dole_compliance_submission_snapshot_unique", tableName: "dole_compliance_submissions",
+      keys: ["organization_id", "report_type", "report_year", "report_hash"], unique: true },
+    { name: "dole_compliance_submission_year_idx", tableName: "dole_compliance_submissions",
+      keys: ["organization_id", "report_year", "report_type"], unique: false },
+  ],
+  constraints: [
+    { tableName: "dole_reporting_profiles", kind: "p", tokens: ["primarykey(organization_id)"] },
+    { tableName: "dole_reporting_profiles", kind: "f",
+      tokens: ["foreignkey(organization_id)", "referencesorganizations(id)", "ondeletecascade"] },
+    { tableName: "dole_compliance_submissions", kind: "p", tokens: ["primarykey(id)"] },
+    { tableName: "dole_compliance_submissions", kind: "f",
+      tokens: ["foreignkey(organization_id)", "referencesorganizations(id)", "ondeletecascade"] },
   ],
 };
