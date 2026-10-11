@@ -90,9 +90,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   let record;
   try {
     record = await recordFilingOutcome({ organizationId, id, actor: user.name, outcome: parsed.value });
-  } catch (error) {
+  } catch {
+    // Backend errors may contain SQL, connection or source-file details.
+    // Do not reflect them through an employer-facing filing-evidence route.
     return Response.json({
-      error: error instanceof Error ? error.message : "Filing acceptance could not be verified against the released source.",
+      error: "Filing acceptance could not be verified against the released source. Refresh and regenerate the filing evidence before retrying.",
     }, { status: 409 });
   }
   // Lost a race with another person recording the same record.
