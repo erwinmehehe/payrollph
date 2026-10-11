@@ -119,11 +119,6 @@
       "count": 1
     }
   },
-  "src/components/payout-profiles-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 2
-    }
-  },
   "src/components/payroll-overpayment-preview-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -360,11 +355,6 @@
     }
   },
   "src/components/workspace/workforce-schedule-guardrails-panel.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/workspace/workforce-schedule-receipt-review.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }

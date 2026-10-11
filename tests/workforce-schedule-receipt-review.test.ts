@@ -187,8 +187,8 @@ test("manager roster surfaces review only behind the employee-receipt UI gate", 
   assert.ok(roster.includes("payload?.rows.some(row => row.employee.id === receiptSelection.employee.id)"));
   assert.ok(roster.includes("receiptSelection.scopeKey === scopeKey"));
   assert.ok(component.includes('fetch("/api/workforce/schedule-receipt-review?"'));
-  assert.ok(component.includes("pending.current?.abort()"));
-  assert.ok(component.includes("snapshot?.scope === scope"));
+  assert.ok(component.includes("useScopedAsyncResource(scope, load)"));
+  assert.ok(component.includes("cache: \"no-store\", signal"));
   assert.ok(!component.includes('/api/payroll'));
   assert.ok(!component.includes('method: "POST"'));
 });
