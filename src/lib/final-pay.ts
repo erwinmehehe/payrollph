@@ -152,10 +152,22 @@ export function computeFinalPay(input: {
       + Math.max(0, input.retirementPay)
       + Math.max(0, input.otherBenefits),
   );
-  const preLoanNet = round2(Math.max(
-    0,
-    grossFinalPay + taxAdjustment - finalStatutoryDeductions,
-  ));
+  // Mandatory collection can exceed the payable final-pay balance. Never
+  // silently discard the difference when net pay is floored to zero.
+  // Tax-first allocation is an auditable *provisional* accounting order, not
+  // a legal conclusion; packages with any shortfall are blocked from approval
+  // until a Philippine payroll reviewer reconciles the liabilities.
+  const availableBeforeMandatoryDeductions = round2(
+    grossFinalPay + Math.max(0, taxAdjustment),
+  );
+  const requestedTaxCollection = round2(Math.max(0, -taxAdjustment));
+  const appliedTaxCollection = round2(Math.min(availableBeforeMandatoryDeductions, requestedTaxCollection));
+  const unpaidTaxWithholding = round2(Math.max(0, requestedTaxCollection - appliedTaxCollection));
+  const remainingAfterTax = round2(Math.max(0, availableBeforeMandatoryDeductions - appliedTaxCollection));
+  const appliedStatutoryDeductions = round2(Math.min(remainingAfterTax, finalStatutoryDeductions));
+  const unpaidStatutoryDeductions = round2(Math.max(0, finalStatutoryDeductions - appliedStatutoryDeductions));
+  const unpaidMandatoryDeductions = round2(unpaidTaxWithholding + unpaidStatutoryDeductions);
+  const preLoanNet = round2(Math.max(0, remainingAfterTax - appliedStatutoryDeductions));
   const requestedLoanDeductions = round2(Math.max(0, input.loanDeductions));
   const loanDeductions = round2(Math.min(preLoanNet, requestedLoanDeductions));
   const deferredLoanBalance = round2(Math.max(0, requestedLoanDeductions - loanDeductions));
@@ -177,9 +189,33 @@ export function computeFinalPay(input: {
     retirementPay: round2(Math.max(0, input.retirementPay)),
     otherBenefits: round2(Math.max(0, input.otherBenefits)),
     finalStatutoryDeductions,
+    availableBeforeMandatoryDeductions,
+    requestedTaxCollection,
+    appliedTaxCollection,
+    unpaidTaxWithholding,
+    appliedStatutoryDeductions,
+    unpaidStatutoryDeductions,
+    unpaidMandatoryDeductions,
     requestedLoanDeductions,
     loanDeductions,
     deferredLoanBalance,
     netFinalPay,
   };
+}
+
+/**
+ * Source-of-truth release preflight for both new and legacy separation records.
+ * Do not rely solely on optional JSON snapshots: historical rows may predate
+ * shortfall evidence. Non-finite/negative mandatory source values fail closed.
+ */
+export function unresolvedFinalPayMandatoryShortfall(input: {
+  grossFinalPay: string | number;
+  taxAdjustment: string | number;
+  finalStatutoryDeductions: string | number;
+}): number | null {
+  const gross = Number(input.grossFinalPay);
+  const adjustment = Number(input.taxAdjustment);
+  const statutory = Number(input.finalStatutoryDeductions);
+  if (![gross, adjustment, statutory].every(Number.isFinite) || gross < 0 || statutory < 0) return null;
+  return round2(Math.max(0, statutory - gross - adjustment));
 }
