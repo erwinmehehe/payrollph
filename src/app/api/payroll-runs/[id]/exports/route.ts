@@ -86,6 +86,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   if (kind === "bank" && !dryRun) {
+    const [existingBatch] = await db.select({ provider: payoutBatches.provider })
+      .from(payoutBatches).where(and(
+        eq(payoutBatches.organizationId, run.organizationId),
+        eq(payoutBatches.payrollRunId, run.id),
+      )).limit(1);
+    if (existingBatch) {
+      return Response.json({
+        error: "An employee payout ledger already owns this payroll run. Generating another final bank file could pay the same salaries twice. Reconcile the original provider instead.",
+        code: "PAYROLL_PAYOUT_LEDGER_ALREADY_CLAIMED",
+      }, { status: 409 });
+    }
     const treasury = await authorizeTreasuryOperation({
       organizationId: run.organizationId,
       runId: run.id,
