@@ -136,7 +136,7 @@ export async function readSquareSandboxDay(input:{
     if(!record(body)||("errors" in body && (!Array.isArray(body.errors) ||
         body.errors.length>0)) ||
       (body.payments!==undefined && !Array.isArray(body.payments)) ||
-      (body.payments as unknown[]|undefined)?.length!>100) {
+      (Array.isArray(body.payments) && body.payments.length>100)) {
       throw new SquareDemandSourceError("SOURCE_REVIEW");
     }
     for(const raw of (body.payments as unknown[]|undefined)??[]) {
@@ -207,7 +207,7 @@ export function selectSquareDemandRevisions(input:{
     if(!old||row.revision>old.revision)previous.set(instant,row);
   }
   const rows=[];
-  const start=squareDayWindow(a.workDate,input.now??new Date())[0];
+  const {start}=squareDayWindow(a.workDate,input.now??new Date());
   for(let i=0;i<a.counts.length;i++){
     const iso=new Date(start+i*a.intervalMinutes*SLOT).toISOString();
     const old=previous.get(iso);
