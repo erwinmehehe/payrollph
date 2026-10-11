@@ -720,25 +720,27 @@
   .premium-dashboard .pd-step strong { font-size: 10px; }
   .premium-dashboard .pd-figure { padding: 0 10px; }
   .premium-dashboard .pd-figure strong { font-size: clamp(13px, 3.8vw, 16px); }
-  .app-shell.clean-shell.premium-phase-one .mobile-bottom-nav {
-    background: rgba(255, 255, 255, .98);
-    border-top: 1px solid #e3ebe5;
-  }
-  .app-shell.clean-shell.premium-phase-one .mobile-bottom-nav button {
-    color: #4a625d;
-    opacity: 1;
-  }
-  .app-shell.clean-shell.premium-phase-one .mobile-bottom-nav button.active {
-    color: #086b5b;
-    background: #eaf5ef;
-  }
-  .app-shell.clean-shell.premium-phase-one .mobile-bottom-nav .nav-icon,
-  .app-shell.clean-shell.premium-phase-one .mobile-bottom-nav .nav-icon svg {
-    color: inherit;
-  }
+
   .premium-dashboard .pd-action-link { font-size: 0; }
   .premium-dashboard .pd-action-link svg { font-size: initial; }
   .premium-dashboard .pd-activity-list time { font-size: 10px; }
+}
+/* The bottom navigation is shown only at smaller viewports by the existing shell. */
+.app-shell.clean-shell.premium-phase-one .mobile-bottom-nav {
+  background: rgba(255, 255, 255, .98);
+  border-top: 1px solid #e3ebe5;
+}
+.app-shell.clean-shell.premium-phase-one .mobile-bottom-nav button {
+  color: #4a625d;
+  opacity: 1;
+}
+.app-shell.clean-shell.premium-phase-one .mobile-bottom-nav button.active {
+  color: #086b5b;
+  background: #eaf5ef;
+}
+.app-shell.clean-shell.premium-phase-one .mobile-bottom-nav .nav-icon,
+.app-shell.clean-shell.premium-phase-one .mobile-bottom-nav .nav-icon svg {
+  color: inherit;
 }
 @media (prefers-reduced-motion: reduce) {
   .app-shell.clean-shell.premium-phase-one .pd-primary-action,
