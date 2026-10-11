@@ -70,7 +70,7 @@ export function leaveConversionTaxReviewAcknowledged(
   return (env.LEAVE_CONVERSION_TAX_REVIEWED_ORG_IDS ?? "")
     .split(",")
     .map((id) => id.trim())
-    .filter((id) => /^[1-9]\\d*$/.test(id))
+    .filter((id) => /^[1-9]\d*$/.test(id))
     .map(Number)
     .filter(Number.isSafeInteger)
     .includes(organizationId);
