@@ -1,6 +1,6 @@
-# Linaw HCM Manager Decision Inbox — read-only pilot checklist
+# Linaw HCM Manager Decision Inbox — read-only source acceptance
 
-**Status:** draft, feature flags OFF, not live, not a new approval engine.
+**Status:** draft source integration, feature flags OFF, not live, not a new approval engine. Reintegrated from closed-unmerged PR #730 on the current main with stricter activation scope and React request isolation.
 
 ## Purpose
 
@@ -16,9 +16,9 @@ Payroll approval tasks, compensation-change HCM processes and termination proces
 
 ## Security and release flags
 
-- HCM_MANAGER_DECISION_INBOX_ENABLED=true gates API and page; missing server flag returns 404.
-- NEXT_PUBLIC_HCM_MANAGER_DECISION_INBOX_ENABLED=true is optional Approvals workspace navigation only. It cannot grant API access.
-- Both remain OFF in production until independently approved staging. Rollback requires disabling the server flag, not merely hiding navigation.
+- Server-only `HCM_MANAGER_DECISION_INBOX_ENABLED=true` **and** an exact employer ID in `HCM_MANAGER_DECISION_INBOX_ORG_IDS` must both be set before the API or page can read data. No wildcard or implicit first-employer choice.
+- Public `NEXT_PUBLIC_HCM_MANAGER_DECISION_INBOX_ENABLED=true` plus `NEXT_PUBLIC_HCM_MANAGER_DECISION_INBOX_ORG_IDS` only show the Approvals workspace link to a matching employer; public variables never grant server permission.
+- All flags remain unset for production. Rollback is the server flag disable/redeployment; hiding navigation alone is insufficient.
 - Requires authenticated membership, valid organization session, deny-only workforce.manage permission, and a manager scoped to one concrete active org unit, or owner/admin/hr within authorized company-wide/exact-unit scope.
 - Company-wide managers, unitless managers, bookkeepers, checkers, payroll processors and employees do not gain this HR preview.
 - Every join to source requests, approval tasks, HCM process instances and employee identity uses the explicitly requested employer ID in SQL. Scoped managers see verified workers in their exact unit, not inferred descendants or employer-wide position-only processes.
@@ -38,17 +38,21 @@ Payroll approval tasks, compensation-change HCM processes and termination proces
 - Stale browser requests are aborted; response envelope must match employer/source/cursor; switching employers remounts the client to reset its state.
 - The UI is read-only; decision controls and any per-task deep links remain with source applications.
 
-## Merge/activation NO-GO checklist
+## Pre-client source integration
 
-- [ ] Exact-head CI, TypeScript, synthetic PostgreSQL two-employer tests, build, CodeQL, security HTTP, financial isolation and DR checks pass.
-- [ ] Independent HR reviewer matches cases to real source tasks and verifies payroll/compensation/termination exclusions.
-- [ ] Independent security review tests member permission denials, same-name collision, delegation expiry, scoped units, source FK integrity, maker exclusion, session downgrade and direct URL substitution.
-- [ ] DBA reviews bounded 20+1 queries, delegation ceiling, source join query plans and real latency.
-- [ ] Protected two-employer staging with overlapping names/task IDs, source status races, missing approval linkage, dueAt null, gaps between authorized candidates and three-tab cursor behavior.
-- [ ] Mobile, keyboard/screen-reader, loading/error and rapid tenant switching QA.
-- [ ] Release owner approves server flag rollout, rollback rehearsal and data minimization.
+- [ ] Exact-head CI, TypeScript, synthetic PostgreSQL two-employer tests, production build, CodeQL, security HTTP, payroll isolation and DR checks pass.
+- [ ] Maintainer source diff review confirms no writes, employer predicates, maker/checker exclusions, source status checks, fixed ceilings and privacy-minimized response.
+- [ ] Synthetic-source role, cross-tenant, duplicate named approver, expired delegation and stale browser request tests pass.
 
-**Code merge alone is not production enablement.** No feature flags are changed by this branch.
+## Separate real-employer activation checks — not source merge prerequisites
+
+- [ ] HR reviewer validates assignment labels and that compensation, termination and payroll approval sources remain excluded.
+- [ ] Security/privacy reviewer checks current role/permission deny, delegation expiry, maker exclusion, unit/supervisory scope and client switching.
+- [ ] Data reviewer reviews bounded 20+1 SQL query plans, delegation cap and response-time evidence.
+- [ ] Authorized QA operator tests actual workflow status changes, incomplete candidate pages, rapid employer/role switch, keyboard/mobile/screen reader and no-store behavior in an appropriate test environment.
+- [ ] Release owner records exact deployment SHA, server/public employer allowlists, rollback, and explicit feature activation authorization.
+
+**Pre-client source merge does not require a separate staging project; it also does not enable a live employer workflow.** No feature flags or production data are changed by this PR.
 
 ## Later work
 
