@@ -74,7 +74,8 @@ export function buildXenditPayrollPayout(
   const holder = row.employeeName.trim().replace(/\s+/g, " ");
   if (!first || !last || first.length > 50 || last.length > 50
     || !holder || holder.length > 255
-    || holder.toLowerCase() !== `${first} ${last}`.replace(/\s+/g, " ").toLowerCase()) {
+    || !holder.toLowerCase().startsWith(first.toLowerCase() + " ")
+    || !holder.toLowerCase().endsWith(" " + last.toLowerCase())) {
     throw new Error("Xendit payroll recipient name differs from the released payroll snapshot; no payout sent.");
   }
   if (!/^\d{7,24}$/.test(row.accountNumber)) {
@@ -133,7 +134,7 @@ export function normalizeXenditPayout(
   const dest = payload.destination_currency;
   const businessId = payload.business_id;
   const allowed = [
-    "ACCEPTED", "PENDING_COMPLIANCE_ASSESSMENT", "REJECTED",
+    "ACCEPTED", "PENDING_COMPLIANCE_ASSESSMENT", "PENDING_COMPLIANCE_REVIEW", "REJECTED",
     "ROUTING", "REQUESTED", "READY", "LOCKED", "EXPIRED",
     "FAILED", "SUCCEEDED", "CANCELLED", "REVERSED",
   ];
@@ -167,7 +168,8 @@ export function xenditPayoutState(status: string) {
     case "ROUTING":
     case "READY":
     case "LOCKED":
-    case "PENDING_COMPLIANCE_ASSESSMENT": return "pending" as const;
+    case "PENDING_COMPLIANCE_ASSESSMENT":
+    case "PENDING_COMPLIANCE_REVIEW": return "pending" as const;
     default: return "unknown" as const;
   }
 }
@@ -200,7 +202,8 @@ export function normalizeXenditPayoutWebhook(
     "v3_payout.pending_compliance": "PENDING_COMPLIANCE_ASSESSMENT",
   };
   const expectedStatus = events[data.event];
-  if (!expectedStatus || payload.status !== expectedStatus
+  if (!expectedStatus || (payload.status !== expectedStatus
+    && !(expectedStatus === "PENDING_COMPLIANCE_ASSESSMENT" && payload.status === "PENDING_COMPLIANCE_REVIEW"))
     || typeof payload.payout_id !== "string" || !PAYOUT_ID.test(payload.payout_id)
     || typeof payload.reference_id !== "string" || !REFERENCE.test(payload.reference_id)
     || !Number.isSafeInteger(payload.source_amount) || Number(payload.source_amount) <= 0
