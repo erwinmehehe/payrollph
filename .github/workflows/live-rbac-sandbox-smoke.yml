@@ -15,13 +15,14 @@ jobs:
     env:
       BASE_URL: https://erwinmehehe-payrollph.vercel.app
       EXPECTED_COMMIT_SHA: ${{ github.sha }}
-      PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
     steps:
       - name: Wait for exact production deployment
+        env:
+          PRODUCTION_READINESS_TOKEN: ${{ secrets.PRODUCTION_READINESS_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "${PRODUCTION_READINESS_TOKEN:-}" ]; then
-            echo "PRODUCTION_READINESS_TOKEN is required for private deployment verification."
+          if [ "${#PRODUCTION_READINESS_TOKEN}" -lt 32 ]; then
+            echo "::error title=Production RBAC verification blocked::GitHub Actions secret PRODUCTION_READINESS_TOKEN is missing or shorter than 32 bytes. It must match the separately managed Vercel READINESS_TOKEN. See docs/engineering/production-verification-operator-handoff.md."
             exit 1
           fi
           for attempt in {1..24}; do
