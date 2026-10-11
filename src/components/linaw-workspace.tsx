@@ -64,6 +64,7 @@ import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll,
 import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
+import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean }) {
   const searchParams = useSearchParams();
@@ -97,7 +98,18 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
   const [busy, setBusy] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<"organization" | "team">("organization");
-  const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(null);
+  // A source-link can focus only a worker already in this selected employer's
+  // authorized People snapshot. A stale or cross-employer URL opens no drawer.
+  const [focusEmployeeId, setFocusEmployeeId] = useState<number | null>(() =>
+    resolvePeopleEmployeeFocus({
+      requestedPage: requestedWorkspacePage,
+      requestedOrganizationId: searchParams.get("organizationId"),
+      requestedEmployeeId: searchParams.get("focusEmployeeId"),
+      selectedOrganizationId: initialData.selectedOrganization.id,
+      access: initialData.access,
+      authorizedEmployees: initialData.employees,
+      demoMode: Boolean(demoRole),
+    }));
 
   // Modals kept from the original build, all still server-authorised.
   const [newPayrollOpen, setNewPayrollOpen] = useState(false);
