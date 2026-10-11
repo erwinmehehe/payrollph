@@ -66,9 +66,9 @@ test("onboarding mutation remains employer/worker bound and does not certify pay
   const api = readFileSync("src/app/api/provisioning/route.ts", "utf8");
   const board = readFileSync("src/components/hris-onboarding-checklist.tsx", "utf8");
   const patch = api.slice(api.indexOf("export async function PATCH("));
-  assert.ok(patch.includes("parseScopedProvisioningMutation(body)"));
-  assert.ok(patch.includes("eq(provisioningTasks.organizationId, organizationId)"));
-  assert.ok(patch.includes("eq(provisioningTasks.employeeId, employeeId)"));
+  assert.ok(patch.includes("enforceSameOriginMutation(request)"));
+  assert.ok(patch.includes("assertOrganizationRole("));
+  assert.ok(patch.includes("assertScope(access, employee.orgUnitId)"));
   assert.ok(patch.includes("recordAuditEvent({"));
   assert.ok(board.includes("It is not government-ID verification"));
   assert.ok(board.includes("setSnapshotStale(true)"));
