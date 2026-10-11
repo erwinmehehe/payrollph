@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { auditEvents, employees, expenseClaims, expenseReports, expenseReportItems, spendCards, spendCardTransactions } from "@/db/schema";
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { enforceSameOriginMutation } from "@/lib/security-request";
+import { enforceSameOriginMutation, requireSensitiveActionMfa, enforceSensitiveActionRateLimit } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
 import { storedMoneyCentavos } from "@/lib/stored-money-centavos";
 
@@ -161,6 +161,13 @@ export async function PATCH(request: Request) {
   const status = body.status === "approved" || body.status === "rejected" ? body.status : null;
   if (!status) return Response.json({ error: "Approved or rejected required." }, { status: 422 });
   if (existing.submittedByUserId === user.id) return Response.json({ error: "Report submitter cannot decide their own report." }, { status: 403 });
+  const mfaDenied = requireSensitiveActionMfa(user);
+  if (mfaDenied) return mfaDenied;
+  const rateDenied = await enforceSensitiveActionRateLimit(request, {
+    userId: user.id, action: "expense-report-decision",
+    resourceId: String(id), limit: 10, windowMs: 15 * 60_000,
+  });
+  if (rateDenied) return rateDenied;
   const outcome = await db.transaction(async tx => {
     const [report] = await tx.update(expenseReports).set({ status, decidedByUserId: user.id, decidedAt: new Date(), decisionNote: String(body.note ?? "").slice(0, 240) })
       .where(and(eq(expenseReports.id, id), eq(expenseReports.organizationId, existing.organizationId), eq(expenseReports.status, "submitted"))).returning();
