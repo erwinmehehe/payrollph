@@ -31,6 +31,7 @@ export function WorkforceSquareSandboxPanel({organizationId,worksites}:{
   const [busy,setBusy]=useState<"preview"|"import"|null>(null);
   const [lastScan,setLastScan]=useState<Scan|null>(null);
   const [message,setMessage]=useState("");
+  const [freshnessError,setFreshnessError]=useState("");
   const site=worksites.find(w=>w.active&&w.id===requestedSite) ??
     worksites.find(w=>w.active)??null;
   const worksiteId=site?.id??0;
@@ -56,12 +57,12 @@ export function WorkforceSquareSandboxPanel({organizationId,worksites}:{
           throw new Error(value.error??"Square sandbox source unavailable for this worksite.");
         }
         if(!controller.signal.aborted){
-          setFreshness({key,value:value as Freshness});setMessage("");
+          setFreshness({key,value:value as Freshness});setFreshnessError("");
         }
       }catch(e){
         if(!controller.signal.aborted){
           setFreshness(null);
-          setMessage(e instanceof Error?e.message:"Sandbox freshness status unavailable.");
+          setFreshnessError(e instanceof Error?e.message:"Sandbox freshness status unavailable.");
         }
       }finally{
         if(!controller.signal.aborted)setLoading(false);
@@ -116,7 +117,7 @@ export function WorkforceSquareSandboxPanel({organizationId,worksites}:{
           <label>Authorized worksite
             <select aria-label="Square sandbox worksite" value={worksiteId||""}
               onChange={e=>{setRequestedSite(Number(e.target.value));
-                setLastScan(null);setAcknowledged(false);}}>
+                setLastScan(null);setMessage("");setAcknowledged(false);}}>
               {worksites.filter(w=>w.active).map(w=>
                 <option key={w.id} value={w.id}>{w.code} · {w.name}</option>)}
             </select>
@@ -163,6 +164,8 @@ export function WorkforceSquareSandboxPanel({organizationId,worksites}:{
             Refresh source freshness
           </button>
         </div>
+        {freshnessError&&<div className="notice notice-amber" role="alert"
+          style={{margin:"0 18px 16px"}}>{freshnessError}</div>}
         {message&&<div className="notice notice-slate" role="status"
           style={{margin:"0 18px 16px"}}>{message}</div>}
         {lastScan&&<div className="notice notice-slate" data-square-sync-result
