@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { AlertTriangle, ArrowRight, Check, ClipboardCheck, Clock3, Settings2, ShieldCheck, UserCheck, X } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { CheckerVarianceCenter } from "./checker-variance";
@@ -67,6 +68,17 @@ export function ApprovalsView({
     : [];
   const handoffRole = handoffViewerRole(role);
   const checkerMode = role === "checker";
+  // Discovery only; the server separately checks the exact employer allowlist,
+  // active membership, workforce.manage deny overlay, scope and session.
+  const decisionPreviewVisible =
+    process.env.NEXT_PUBLIC_HCM_MANAGER_DECISION_INBOX_ENABLED === "true" &&
+    (process.env.NEXT_PUBLIC_HCM_MANAGER_DECISION_INBOX_ORG_IDS ?? "").split(",")
+      .some((id) => id.trim() === String(data.selectedOrganization.id)) &&
+    !!data.access && (
+      ["owner", "admin", "hr"].includes(data.access.role) ||
+      (data.access.role === "manager" && !data.access.companyWide)
+    );
+
 
   const draftTask = decisionDraft ? data.tasks.find((task) => task.id === decisionDraft.id) : null;
   const draftPermitted = Boolean(draftTask && canDecideTask(draftTask));
@@ -115,6 +127,23 @@ export function ApprovalsView({
           ) : undefined
         }
       />
+
+      {decisionPreviewVisible && (
+        <section className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Manager Decision Inbox</p>
+            <p className="mt-1 text-xs text-slate-600">
+              Source-linked pending HCM, leave and overtime decisions. Review and authorization remain in their existing workflows.
+            </p>
+          </div>
+          <Link
+            href={"/hcm/manager-decision-inbox?organizationId=" + data.selectedOrganization.id}
+            className="inline-flex min-h-10 items-center rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900"
+          >
+            Open decision preview
+          </Link>
+        </section>
+      )}
 
       {currentRun && (
         <PayrollHandoff

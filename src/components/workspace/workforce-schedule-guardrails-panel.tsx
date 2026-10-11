@@ -1,10 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import type { ScheduleGuardrailPolicy } from "@/lib/workforce-schedule-guardrails";
 import type { DashboardData, Notify } from "./types";
 import { Spinner, Status } from "./ui";
+import { useScopedAsyncResource } from "./use-scoped-async-resource";
+import { currentEditableValue, type ScopedEditableDraft } from "@/lib/scoped-editable-draft";
+
+type GuardrailPayload = { policy: ScheduleGuardrailPolicy; configured: boolean };
 
 export function WorkforceScheduleGuardrailsPanel({
   data,
@@ -18,29 +22,36 @@ export function WorkforceScheduleGuardrailsPanel({
   onSaved?: () => void;
 }) {
   const organizationId = data.selectedOrganization.id;
-  const [policy, setPolicy] = useState<ScheduleGuardrailPolicy | null>(null);
-  const [configured, setConfigured] = useState(false);
+  const [draft, setDraft] = useState<ScopedEditableDraft<GuardrailPayload> | null>(null);
   const [saving, setSaving] = useState(false);
-
-  const load = useCallback(async () => {
+  const scopeKey = JSON.stringify([organizationId, canManage, data.access?.role, data.access?.companyWide, data.access?.orgUnitName]);
+  const fetchPolicy = useCallback(async (signal: AbortSignal): Promise<GuardrailPayload> => {
     const response = await fetch(
       `/api/workforce/schedule-guardrails?organizationId=${organizationId}`,
-      { cache: "no-store" },
+      { cache: "no-store", signal },
     );
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error ?? "Could not load schedule guardrails.");
-    setPolicy(body.policy as ScheduleGuardrailPolicy);
-    setConfigured(Boolean(body.configured));
+    return { policy: body.policy as ScheduleGuardrailPolicy, configured: Boolean(body.configured) };
   }, [organizationId]);
+  const onLoadError = useCallback((error: Error) => notify(error.message, "err"), [notify]);
+  const { data: payload, error: loadError, loading, reload, isCurrent } =
+    useScopedAsyncResource(scopeKey, fetchPolicy, onLoadError);
+  const current = currentEditableValue(draft, payload);
+  const policy = current?.policy;
+  const configured = current?.configured === true;
+  const editable = canManage && data.access?.companyWide === true;
 
-  useEffect(() => {
-    void load().catch((error) => {
-      notify(error instanceof Error ? error.message : "Could not load schedule guardrails.", "err");
-    });
-  }, [load, notify]);
+  function setPolicy(update: (policy: ScheduleGuardrailPolicy) => ScheduleGuardrailPolicy) {
+    if (!payload || !editable || saving) return;
+    setDraft((previous) => ({ source: payload, value: {
+      ...currentEditableValue(previous, payload)!,
+      policy: update(currentEditableValue(previous, payload)!.policy),
+    } }));
+  }
 
   async function save() {
-    if (!policy) return;
+    if (!policy || !payload || !editable || !isCurrent()) return;
     setSaving(true);
     try {
       const response = await fetch("/api/workforce/schedule-guardrails", {
@@ -54,20 +65,21 @@ export function WorkforceScheduleGuardrailsPanel({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Could not save schedule guardrails.");
-      setPolicy(body.policy as ScheduleGuardrailPolicy);
-      setConfigured(true);
+      if (!isCurrent()) return;
+      setDraft({ source: payload, value: { policy: body.policy as ScheduleGuardrailPolicy, configured: true } });
       notify("WFM schedule guardrails saved.", "ok");
       onSaved?.();
     } catch (error) {
-      notify(error instanceof Error ? error.message : "Could not save schedule guardrails.", "err");
+      if (isCurrent()) notify(error instanceof Error ? error.message : "Could not save schedule guardrails.", "err");
     } finally {
       setSaving(false);
     }
   }
 
-  if (!policy) return null;
-
-  const editable = canManage && data.access?.companyWide === true;
+  if (!policy) return <article className="card" style={{ marginTop: 16 }} data-wfm-schedule-guardrails>
+    {loading ? <Spinner label="Loading schedule guardrails" /> : <div className="notice notice-red" role="alert">{loadError?.message ?? "Schedule guardrails unavailable."}</div>}
+    {!loading && <button className="secondary-button" onClick={() => void reload()}>Retry guardrails</button>}
+  </article>;
 
   return (
     <article className="card" style={{ marginTop: 16 }} data-wfm-schedule-guardrails>
@@ -91,9 +103,9 @@ export function WorkforceScheduleGuardrailsPanel({
             min={0}
             max={1440}
             step={30}
-            disabled={!editable}
+            disabled={!editable || saving}
             value={policy.minimumRestMinutes}
-            onChange={(event) => setPolicy((current) => current && ({
+            onChange={(event) => setPolicy((current) => ({
               ...current,
               minimumRestMinutes: Number(event.target.value),
             }))}
@@ -106,9 +118,9 @@ export function WorkforceScheduleGuardrailsPanel({
             type="number"
             min={0}
             max={31}
-            disabled={!editable}
+            disabled={!editable || saving}
             value={policy.maxConsecutiveWorkingDays}
-            onChange={(event) => setPolicy((current) => current && ({
+            onChange={(event) => setPolicy((current) => ({
               ...current,
               maxConsecutiveWorkingDays: Number(event.target.value),
             }))}
@@ -122,9 +134,9 @@ export function WorkforceScheduleGuardrailsPanel({
             min={0}
             max={10080}
             step={60}
-            disabled={!editable}
+            disabled={!editable || saving}
             value={policy.rollingSevenDayMinutes}
-            onChange={(event) => setPolicy((current) => current && ({
+            onChange={(event) => setPolicy((current) => ({
               ...current,
               rollingSevenDayMinutes: Number(event.target.value),
             }))}
@@ -134,9 +146,9 @@ export function WorkforceScheduleGuardrailsPanel({
         <label>
           Enforcement
           <select
-            disabled={!editable}
+            disabled={!editable || saving}
             value={policy.enforcementMode}
-            onChange={(event) => setPolicy((current) => current && ({
+            onChange={(event) => setPolicy((current) => ({
               ...current,
               enforcementMode: event.target.value === "block" ? "block" : "advisory",
             }))}
@@ -148,9 +160,9 @@ export function WorkforceScheduleGuardrailsPanel({
         <label>
           Guardrails
           <select
-            disabled={!editable}
+            disabled={!editable || saving}
             value={policy.active ? "active" : "inactive"}
-            onChange={(event) => setPolicy((current) => current && ({
+            onChange={(event) => setPolicy((current) => ({
               ...current,
               active: event.target.value === "active",
             }))}

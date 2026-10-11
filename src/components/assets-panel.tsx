@@ -31,7 +31,7 @@ const ASSET_TYPES = [
   "Other",
 ];
 
-export function AssetsPanel({ organizationId }: { organizationId: number }) {
+export function AssetsPanel({ organizationId, managedAssetIds = [] }: { organizationId: number; managedAssetIds?: number[] }) {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -257,14 +257,14 @@ export function AssetsPanel({ organizationId }: { organizationId: number }) {
                       <span className={`status status-${asset.status}`}>{asset.status}</span>
                     </td>
                     <td style={{ display: "flex", gap: 4 }}>
-                      {asset.status === "assigned" && (
+                      {asset.status === "assigned" && !managedAssetIds.includes(asset.id) && (
                         <button className="icon-button" onClick={() => handleReturn(asset.id)} title="Mark as returned">
                           <CheckCircle2 size={14} className="i-green" />
                         </button>
                       )}
-                      <button className="icon-button" onClick={() => handleDelete(asset.id)} title="Remove">
+                      {!managedAssetIds.includes(asset.id) ? <button className="icon-button" onClick={() => handleDelete(asset.id)} title="Remove">
                         <X size={14} />
-                      </button>
+                      </button> : <span title="Device custody is managed in IT operations">Managed by IT</span>}
                     </td>
                   </tr>
                 );

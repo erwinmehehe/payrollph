@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { canOpenPeopleHome } from "@/lib/hcm-people-home-scope";
 import { Clock, ShieldCheck, Sparkles } from "lucide-react";
-import { AssetsPanel } from "@/components/assets-panel";
+import { ItOperationsPanel } from "@/components/it-operations-panel";
 import { AutomationStudioPanel } from "@/components/automation-studio-panel";
 import { BenefitsPanel } from "@/components/benefits-panel";
 import { ContractorsPanel } from "@/components/contractors-panel";
@@ -13,6 +13,8 @@ import { HcmDocumentsPanel } from "@/components/hcm-documents-panel";
 import { DeMinimisPanel } from "@/components/de-minimis-panel";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { SaasOnboardingQuickstart } from "@/components/saas-onboarding-quickstart";
+import { HrisHomeShortcuts } from "@/components/hris-home-shortcuts";
+import { HrisOnboardingChecklist } from "@/components/hris-onboarding-checklist";
 import { DisciplinePanel } from "@/components/discipline-panel";
 import { LoansPanel } from "@/components/loans-panel";
 import { LegalEntitiesPanel } from "@/components/legal-entities-panel";
@@ -23,7 +25,8 @@ import { RecruitmentPanel } from "@/components/recruitment-panel";
 import { PerformancePanel } from "@/components/performance-panel";
 import { EnterpriseControlsPanel } from "@/components/enterprise-controls-panel";
 import { SeparationPanel } from "@/components/separation-panel";
-import { EwaPanel, ExpensesPanel } from "@/components/wallet-panel";
+import { EwaPanel } from "@/components/wallet-panel";
+import { SpendOperationsPanel } from "@/components/spend-operations-panel";
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { LaunchReadinessPanel } from "@/components/workspace/launch-readiness-panel";
 import { AnalyticsView } from "@/components/workspace/analytics";
@@ -60,6 +63,7 @@ import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, roleHasPeopleWorkspace, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
 import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
+import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean }) {
   const searchParams = useSearchParams();
@@ -115,6 +119,12 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       : roleAllowedPages;
   }, [isFreelancer, rolePages, pilotFocusEnabled, demoRole]);
 
+  // Only surface existing HR modules that this role, plan and pilot menu permit.
+  const hrisShortcuts = useMemo(
+    () => hrisHomeShortcutsForRole(effectiveRole, availablePages),
+    [effectiveRole, availablePages],
+  );
+
   const notifications = useMemo(
     () => buildNotifications(data, effectiveRole).filter((item) => !item.page || availablePages.includes(item.page)),
     [data, effectiveRole, availablePages],
@@ -129,6 +139,15 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
   const canManageDeliveryOutbox = effectiveRole === "owner" || effectiveRole === "admin";
   const canUsePayrollOps = canManagePayroll && availablePages.includes("Payroll");
   const canUsePeopleOps = canManagePeople && availablePages.includes("People");
+
+  function openHrEmployee(employeeId: number) {
+    // The dashboard can only focus a worker already present in the current
+    // authorized employer snapshot; it cannot query or guess another worker.
+    if (!canUsePeopleOps || !Number.isSafeInteger(employeeId) || employeeId <= 0 ||
+        !data.employees.some((employee) => employee.id === employeeId)) return;
+    setFocusEmployeeId(employeeId);
+    setPage("People");
+  }
 
   usePaletteShortcut(() => setPaletteOpen(true));
 
@@ -393,6 +412,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
                 onAddEmployee={() => setNewHireOpen(true)}
               />
             )}
+            {hrisShortcuts.length > 0 && (
+              <HrisHomeShortcuts actions={hrisShortcuts} onPage={setPage} />
+            )}
             {dashboardRole ? (
               <RoleOverviewView
                 data={data}
@@ -400,6 +422,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
                 role={dashboardRole}
                 onNewRun={() => setNewPayrollOpen(true)}
                 onPage={setPage}
+                onFocusEmployee={openHrEmployee}
               />
             ) : (
               <OverviewView
@@ -536,14 +559,35 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         {page === "Benefits" && <BenefitsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Documents" && <HcmDocumentsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "De minimis" && <DeMinimisPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
-        {page === "Expenses" && <ExpensesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Expenses" && <SpendOperationsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Earned wage" && <EwaPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
-        {page === "Recruitment" && <RecruitmentPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Recruitment" && (
+          <>
+            {availablePages.includes("Recruitment") &&
+              ["owner", "admin", "hr"].includes(effectiveRole ?? "") && (
+                <HrisOnboardingChecklist
+                  key={data.selectedOrganization.id}
+                  organizationId={data.selectedOrganization.id}
+                  employees={data.employees}
+                  provisioning={data.provisioning}
+                  onRefresh={async () => { await refresh(data.selectedOrganization.id); }}
+                  onOpenEmployee={openHrEmployee}
+                  onOpenDocuments={availablePages.includes("Documents") ? () => setPage("Documents") : undefined}
+                />
+              )}
+            <RecruitmentPanel
+              key={data.selectedOrganization.id}
+              organizationId={data.selectedOrganization.id}
+              setNotice={noticeAdapter}
+              onHired={async () => { await refresh(data.selectedOrganization.id); }}
+            />
+          </>
+        )}
         {page === "Performance" && <PerformancePanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Discipline" && <DisciplinePanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Separation" && <SeparationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Contractors" && <ContractorsPanel organizationId={data.selectedOrganization.id} />}
-        {page === "Assets" && <AssetsPanel organizationId={data.selectedOrganization.id} />}
+        {page === "Assets" && <ItOperationsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Freelancer hub" && <FreelancerPage data={data} setNotice={noticeAdapter} />}
 
         {page === "Integrations" && <IntegrationsPage onOpenOutbox={canManageDeliveryOutbox ? () => setOutboxOpen(true) : undefined} />}

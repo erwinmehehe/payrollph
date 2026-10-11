@@ -19,7 +19,7 @@ const pilotEnv = {
 } as const;
 const hr = { role: "hr", companyWide: true };
 const bookkeeper = { role: "bookkeeper", companyWide: true };
-function links(org = 17, current: "peopleHome" | "processMonitor" | "worker360" | "actionCenter" = "peopleHome",
+function links(org = 17, current: "peopleHome" | "processMonitor" | "worker360" | "actionCenter" | "orgExplorer" = "peopleHome",
   access = hr, env: Record<string, string> = pilotEnv, employeeId: number | null = null) {
   return buildHcmNavigation({
     organizationId: org, access, current, employeeId,
@@ -63,6 +63,36 @@ test("only exact company/role/flags allow cross-module HCM links", () => {
   assert.deepEqual(links(17, "peopleHome", hr, {
     ...pilotEnv, HCM_PEOPLE_HOME_ENABLED: "false",
   }).map((link) => link.id), ["processMonitor", "inbox", "directory"]);
+});
+
+test("Organization Explorer navigation is tenant-allowlisted, role-scoped and default-off", () => {
+  const explorer = {
+    ...pilotEnv,
+    HCM_ORG_EXPLORER_ENABLED: "true",
+    HCM_ORG_EXPLORER_ORG_IDS: "17,18",
+    NEXT_PUBLIC_HCM_ORG_EXPLORER_ENABLED: "true",
+    NEXT_PUBLIC_HCM_ORG_EXPLORER_ORG_IDS: "17,18",
+  };
+  const selected = links(17, "orgExplorer", hr, explorer);
+  const org = selected.find((link) => link.id === "orgExplorer");
+  assert.equal(org?.href, "/hcm/org-explorer?organizationId=17");
+  assert.equal(org?.current, true);
+  assert.equal(links(18, "peopleHome", hr, explorer).find(
+    (link) => link.id === "orgExplorer",
+  )?.href, "/hcm/org-explorer?organizationId=18");
+  assert.ok(!links(19, "orgExplorer", hr, explorer).some((link) => link.id === "orgExplorer"));
+  assert.ok(!links(17, "orgExplorer", bookkeeper, explorer)
+    .some((link) => link.id === "orgExplorer"));
+  for (const changed of [
+    { ...explorer, HCM_ORG_EXPLORER_ENABLED: "false" },
+    { ...explorer, HCM_ORG_EXPLORER_ORG_IDS: "18" },
+    { ...explorer, NEXT_PUBLIC_HCM_ORG_EXPLORER_ENABLED: "false" },
+    { ...explorer, NEXT_PUBLIC_HCM_ORG_EXPLORER_ORG_IDS: "18" },
+    { ...explorer, HCM_ORG_EXPLORER_ORG_IDS: "017" },
+  ]) {
+    assert.ok(!links(17, "orgExplorer", hr, changed)
+      .some((link) => link.id === "orgExplorer"));
+  }
 });
 
 test("People directory links follow the workspace role page entitlement", () => {

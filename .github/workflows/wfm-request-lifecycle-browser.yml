@@ -1,0 +1,40 @@
+name: WFM Request Lifecycle Browser QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/components/workspace/workforce-schedule-guardrails-panel.tsx"
+      - "src/components/workspace/workforce-overtime-panel.tsx"
+      - "src/components/workspace/workforce-schedule-swap-panel.tsx"
+      - "src/components/workspace/use-scoped-async-resource.ts"
+      - "src/lib/scoped-*.ts"
+      - "scripts/wfm-request-lifecycle-browser.mjs"
+      - "tests/fixtures/wfm-request-lifecycle.jsx"
+      - ".github/workflows/wfm-request-lifecycle-browser.yml"
+  pull_request:
+    paths:
+      - "src/components/workspace/workforce-schedule-guardrails-panel.tsx"
+      - "src/components/workspace/workforce-overtime-panel.tsx"
+      - "src/components/workspace/workforce-schedule-swap-panel.tsx"
+      - "src/components/workspace/use-scoped-async-resource.ts"
+      - "src/lib/scoped-*.ts"
+      - "scripts/wfm-request-lifecycle-browser.mjs"
+      - "tests/fixtures/wfm-request-lifecycle.jsx"
+      - ".github/workflows/wfm-request-lifecycle-browser.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  wfm-request-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save --ignore-scripts playwright@1.55.0
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/wfm-request-lifecycle-browser.mjs
