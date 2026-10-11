@@ -21,7 +21,8 @@ export class DemandEvidenceConflict extends Error {
 async function databaseNow(tx: Parameters<Parameters<typeof db.transaction>[0]>[0]) {
   const result = await tx.execute(sql<{ issued_at: Date }>`SELECT clock_timestamp() AS issued_at`);
   const value = result.rows?.[0]?.issued_at;
-  const now = new Date(value);
+  const now = value instanceof Date ? value : typeof value === "string"
+    ? new Date(value) : new Date(Number.NaN);
   if (!Number.isFinite(now.getTime())) throw new DemandEvidenceConflict("Database issue time is unavailable.");
   return now;
 }
