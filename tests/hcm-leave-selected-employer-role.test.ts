@@ -17,7 +17,7 @@ test("mixed-role employer sessions use selected employer membership for all leav
     assert.ok(!section.includes('user.role !== "employee"'));
   }
   // Includes the early employee-profile validation before schema initialization.
-  assert.equal((route.match(/access\\.role === "employee"/g) ?? []).length, 4);
+  assert.equal((route.match(/access\.role === "employee"/g) ?? []).length, 4);
   assert.ok((route.match(/access\.role !== "employee"/g) ?? []).length >= 4);
   assert.ok(route.includes("eq(employees.organizationId, organizationId)"));
   assert.ok(route.includes("eq(leaveRequests.organizationId, organizationId)"));
