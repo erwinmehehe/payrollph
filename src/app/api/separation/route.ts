@@ -35,6 +35,7 @@ import {
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
 import { resolvePayProfile } from "@/lib/pay-basis";
 import { calculateLeaveMonetizationPay, computeFinalPay, finalPayDueDate, readBasicAndThirteenth, unresolvedFinalPayMandatoryShortfall } from "@/lib/final-pay";
+import { reviewFinalPayLoans, matchesRecordedFinalPayLoanReview } from "@/lib/final-pay-loan-authority";
 import { ensureMigrationSchema } from "@/lib/migration-schema";
 import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
@@ -472,7 +473,17 @@ export async function POST(request: Request) {
         error: "Leave monetization tax treatment must be reviewed before computing final pay. Confirm whether the convertible leave cash amount is taxable or exempt.",
       }, { status: 422 });
     }
-    const loanDeductions = deductOutstandingLoans ? sources.totals.activeLoanBalance : 0;
+    const loanAuthority = reviewFinalPayLoans(sources.loans);
+    if (loanAuthority.invalidLoanIds.length) {
+      return Response.json({
+        code: "FINAL_PAY_LOAN_BALANCE_INVALID",
+        error: "A recorded active loan has an invalid remaining balance. Resolve the loan ledger before computing final pay.",
+      }, { status: 422 });
+    }
+    // An active loan is not by itself an authorization to deduct final pay.
+    // Any loan without recorded independent signed-authority review stays
+    // unrecovered, visible in the finance review and unchanged at release.
+    const loanDeductions = deductOutstandingLoans ? loanAuthority.eligibleBalance : 0;
 
     const result = computeFinalPay({
       releasedBasicYtd: sources.totals.releasedBasicYtd,
@@ -520,6 +531,7 @@ export async function POST(request: Request) {
       deMinimisExcessYtd: sources.totals.deMinimisExcessYtd,
       mweTaxableSupplementaryCompensationYtd: sources.totals.mweTaxableSupplementaryCompensationYtd,
       deductOutstandingLoans,
+      loanAuthority,
       separationLeave: leaveAllowance ? { ...leaveAllowance, credits: unusedLeaveCredits } : null,
       requestedLoanDeductions: result.requestedLoanDeductions,
       collectibleLoanDeductions: result.loanDeductions,
@@ -897,6 +909,8 @@ export async function POST(request: Request) {
             finalStatutoryReviewed,
             taxAdjustment: result.taxAdjustment,
             requestedLoanDeductions: result.requestedLoanDeductions,
+            unrecoveredLoanBalance: loanAuthority.unrecoveredBalance,
+            unrecoveredLoanCount: loanAuthority.unrecoveredLoans.length,
             loanDeductions: result.loanDeductions,
             deferredLoanBalance: result.deferredLoanBalance,
             netFinalPay: result.netFinalPay,
@@ -1180,6 +1194,15 @@ export async function PATCH(request: Request) {
       lastDay: String(sep.lastDay),
     });
     const currentFingerprint = fingerprint(sources);
+    const currentLoanAuthority = reviewFinalPayLoans(sources.loans);
+    if (currentLoanAuthority.invalidLoanIds.length
+      || ((snapshot.deductOutstandingLoans === true || Number(sep.loanDeductions) > 0)
+        && !matchesRecordedFinalPayLoanReview(snapshot.loanAuthority, currentLoanAuthority))) {
+      return Response.json({
+        code: "FINAL_PAY_LOAN_AUTHORITY_REVIEW_REQUIRED",
+        error: "Outstanding loan or signed-authority review evidence is missing or changed. Recompute final pay and obtain independent payroll/HR verification before approval or release.",
+      }, { status: 409 });
+    }
     if (!sameSnapshot(storedFingerprint, currentFingerprint)) {
       return Response.json({
         error: "Payroll, pay-profile, imported-history, or loan data changed after final pay was computed. Recompute the final pay package before approval or release.",
@@ -1221,6 +1244,12 @@ export async function PATCH(request: Request) {
             { executor: tx as unknown as Pick<typeof db, "select">, skipSchemaSetup: true },
           );
           const transactionFingerprint = fingerprint(transactionSources);
+          const transactionLoanAuthority = reviewFinalPayLoans(transactionSources.loans);
+          if (transactionLoanAuthority.invalidLoanIds.length
+            || ((frozen.deductOutstandingLoans === true || Number(fresh.loanDeductions) > 0)
+              && !matchesRecordedFinalPayLoanReview(frozen.loanAuthority, transactionLoanAuthority))) {
+            throw new Error("FINAL_PAY_LOAN_AUTHORITY_REVIEW_REQUIRED");
+          }
           if (!sameSnapshot(frozen.sourceFingerprint, transactionFingerprint)
             || !sameSnapshot(currentFingerprint, transactionFingerprint)) {
             throw new Error("FINAL_PAY_SOURCE_CHANGED");
@@ -1260,7 +1289,9 @@ export async function PATCH(request: Request) {
         if (code.startsWith("FINAL_PAY_")) {
           return Response.json({
             code,
-            error: code === "FINAL_PAY_MANDATORY_SHORTFALL_REVIEW_REQUIRED"
+            error: code === "FINAL_PAY_LOAN_AUTHORITY_REVIEW_REQUIRED"
+              ? "Active loan authority evidence is missing or changed. Recompute the final-pay package before approval."
+              : code === "FINAL_PAY_MANDATORY_SHORTFALL_REVIEW_REQUIRED"
               ? "Mandatory tax or statutory deductions exceed the payable final amount. Recompute and reconcile the outstanding obligations before approval."
               : code === "FINAL_PAY_MAKER_EVIDENCE_MISSING"
               ? "This legacy final-pay draft has no stable preparer identity. Recompute against verified source records before independent approval."
@@ -1331,6 +1362,12 @@ export async function PATCH(request: Request) {
         { executor: tx as unknown as Pick<typeof db, "select">, skipSchemaSetup: true },
       );
       const transactionFingerprint = fingerprint(transactionSources);
+      const transactionLoanAuthority = reviewFinalPayLoans(transactionSources.loans);
+      if (transactionLoanAuthority.invalidLoanIds.length
+        || ((freshSnapshot.deductOutstandingLoans === true || Number(fresh.loanDeductions) > 0)
+          && !matchesRecordedFinalPayLoanReview(freshSnapshot.loanAuthority, transactionLoanAuthority))) {
+        throw new Error("FINAL_PAY_LOAN_AUTHORITY_REVIEW_REQUIRED");
+      }
       if (!sameSnapshot(freshSnapshot.sourceFingerprint, transactionFingerprint)
         || !sameSnapshot(currentFingerprint, transactionFingerprint)) {
         throw new Error("FINAL_PAY_SOURCE_CHANGED: source payroll, imported history, pay profile, or outstanding loans changed during release.");
@@ -1390,7 +1427,10 @@ export async function PATCH(request: Request) {
       const deductOutstandingLoans = Boolean(freshSnapshot.deductOutstandingLoans);
       if (deductOutstandingLoans) {
         let collectible = Number(fresh.loanDeductions);
-        const orderedLoans = [...transactionSources.loans].sort((a, b) => {
+        const eligibleLoanIds = new Set(transactionLoanAuthority.eligibleLoanIds);
+        const orderedLoans = transactionSources.loans
+          .filter((loan) => eligibleLoanIds.has(loan.id))
+          .sort((a, b) => {
           const aGovernment = /SSS|Pag-IBIG|HDMF/i.test(a.loanType) ? 0 : 1;
           const bGovernment = /SSS|Pag-IBIG|HDMF/i.test(b.loanType) ? 0 : 1;
           return aGovernment - bGovernment || a.id - b.id;
@@ -1419,6 +1459,9 @@ export async function PATCH(request: Request) {
             eq(employeeLoans.id, loan.id),
             eq(employeeLoans.status, "active"),
             eq(employeeLoans.remainingBalance, loan.remainingBalance),
+            eq(employeeLoans.deductionAuthorizationReference, loan.deductionAuthorizationReference!),
+            eq(employeeLoans.reviewEvidenceReference, loan.reviewEvidenceReference!),
+            eq(employeeLoans.reviewedByUserId, loan.reviewedByUserId!),
           )).returning({ id: employeeLoans.id });
 
           if (!settledLoan) {

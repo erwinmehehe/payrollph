@@ -198,7 +198,12 @@ test("all three source-money decisions read from their own transaction and never
   assert.ok(!loader.includes("await db.select("));
   assert.equal((api.match(/const transactionSources = await loadFinalPaySources\(/g) ?? []).length, 3);
   assert.equal((api.match(/isolationLevel: "serializable"/g) ?? []).length, 3);
-  assert.ok(api.includes("const orderedLoans = [...transactionSources.loans]"));
+  // Loan settlement now preserves the lock-bound snapshot but applies only
+  // to independently reviewed, still-authorized loan IDs.
+  assert.ok(api.includes("const eligibleLoanIds = new Set(transactionLoanAuthority.eligibleLoanIds);"));
+  assert.ok(api.includes("const orderedLoans = transactionSources.loans"));
+  assert.ok(api.includes(".filter((loan) => eligibleLoanIds.has(loan.id))"));
+  assert.ok(api.includes("matchesRecordedFinalPayLoanReview(freshSnapshot.loanAuthority, transactionLoanAuthority)"));
   assert.ok(api.includes("isRetryableFinalPayConflict(error)"));
   assert.ok(api.includes("FINAL_PAY_CONCURRENT_SOURCE_CONFLICT"));
   assert.ok(api.includes("skipSchemaSetup: true"));

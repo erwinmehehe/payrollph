@@ -1,4 +1,5 @@
 import type { SeparationLeaveSources } from "@/lib/separation-leave";
+import { reviewFinalPayLoans } from "@/lib/final-pay-loan-authority";
 /**
  * Frozen, deterministic final-pay source evidence. Includes every source
  * field used for 13th month, annualized tax/statutory contributions, loan
@@ -31,6 +32,11 @@ export type FinalPayFingerprintInputs = {
   loans: Array<{
     id: number; loanType: string; totalPaid: string | number;
     remainingBalance: string | number; status: string;
+    requestedByUserId?: number | null;
+    reviewedByUserId?: number | null;
+    reviewedAt?: Date | string | null;
+    deductionAuthorizationReference?: string | null;
+    reviewEvidenceReference?: string | null;
   }>;
 };
 
@@ -83,6 +89,9 @@ export function finalPaySourceFingerprint(sources: FinalPayFingerprintInputs) {
         pagIbigEmployee: Number(row.pagIbigEmployee),
         payDate: String(row.payDate),
       })),
+    // Comparisons detect changes to loan deduction review evidence without
+    // disclosing private external document references in the stored snapshot.
+    loanAuthorityEvidenceDigest: reviewFinalPayLoans(sources.loans).evidenceDigest,
     loans: [...sources.loans]
       .sort((a, b) => a.id - b.id)
       .map((loan) => ({

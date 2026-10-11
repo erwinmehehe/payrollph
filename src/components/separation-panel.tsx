@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Check, CheckCircle2, Download, FileCheck, FileText, HelpCircle, Plus, Shield, UserX, X } from "lucide-react";
-import { finalPayReviewCsv, finalPayReviewShortfall } from "@/lib/final-pay-review-evidence";
+import { finalPayReviewCsv, finalPayReviewShortfall, finalPayLoanReviewSummary } from "@/lib/final-pay-review-evidence";
 
 type ReadyTermHandoff = {
   employeeId: number;
@@ -600,6 +600,19 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                 <span>Authorized Outstanding Employee Loans</span>
                 <strong style={{ color: "var(--danger)" }}>-{peso(selectedRecord.loanDeductions)}</strong>
               </div>
+              {finalPayLoanReviewSummary(selectedRecord).recorded && (
+                <div style={{ border: "1px solid #e2b668", borderRadius: 8, padding: 10, marginTop: 8, fontSize: 11.5 }} role="note">
+                  <strong>Active loans excluded from final-pay deduction pending authority review: {peso(finalPayLoanReviewSummary(selectedRecord).unrecoveredBalance ?? 0)}</strong>
+                  <p style={{ margin: "5px 0" }}>Recorded evidence references are not proof of a signed authorization. HR and payroll must verify before deductions can be approved.</p>
+                  {finalPayLoanReviewSummary(selectedRecord).unrecovered.slice(0, 15).map((loan) => (
+                    <p key={loan.id} style={{ margin: "3px 0" }}>Loan #{loan.id} · {loan.loanType} · {loan.balance === null ? "Invalid balance" : peso(loan.balance)} · Evidence review required</p>
+                  ))}
+                  {finalPayLoanReviewSummary(selectedRecord).unrecovered.length > 15 && <p>Additional loans are listed in the review CSV.</p>}
+                </div>
+              )}
+              {!finalPayLoanReviewSummary(selectedRecord).recorded && Number(selectedRecord.loanDeductions) > 0 && (
+                <p role="alert" style={{ fontSize: 11.5, color: "var(--danger)" }}>Legacy loan deductions have no recorded authorization review. Recompute this final-pay package before approval or release.</p>
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 11.5 }}>
                 <span>Other Accounts Due</span>
                 <span>₱0.00</span>
