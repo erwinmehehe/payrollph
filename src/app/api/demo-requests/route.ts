@@ -69,8 +69,9 @@ export async function POST(request: Request) {
       sourcePath: requestType === "trial-access" ? "/signup" : body.sourcePath === "/contact" ? "/contact" : "/book-demo",
       attribution,
     });
-  } catch (error) {
-    console.error("marketing-lead: could not persist demo/trial request", error);
+  } catch {
+    // Database/transport exceptions may contain applicant data; log only a fixed code.
+    console.error("marketing-lead: could not persist demo/trial request");
     return Response.json(
       { error: "We could not record your request right now. Please try again shortly." },
       { status: 503 },
@@ -81,8 +82,8 @@ export async function POST(request: Request) {
   try {
     const notification = await notifyMarketingLead(lead.id);
     status = notification.status;
-  } catch (error) {
-    console.error("marketing-lead: notification failed after durable demo/trial capture", error);
+  } catch {
+    console.error("marketing-lead: notification failed after durable demo/trial capture");
     status = "failed";
     await updateMarketingLeadNotification({ id: lead.id, status }).catch(() => {});
   }
