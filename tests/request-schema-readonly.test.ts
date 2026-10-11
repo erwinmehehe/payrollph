@@ -270,4 +270,8 @@ test("separation read-only failure and ROLLBACK errors propagate, and legacy DDL
   assert.ok(source.indexOf('if (mode === "read-only")') < source.indexOf('await client.query("BEGIN")'));
   assert.ok(source.includes("ALTER TABLE separation_records"),
     "Legacy mode retains its prior operation until DBA migration cutover");
+  assert.ok(source.includes("client?.release(!safeToReuse)"),
+    "legacy rollback failure must discard the possibly open pooled transaction");
+  assert.ok(source.includes("separationSchemaPromise = null"),
+    "failed legacy connection or DDL should be retried after remediation");
 });

@@ -76,3 +76,29 @@ missing and wrong object shapes, including a status default that merely
 contains the expected status name. Neither synthetic test proves real employer
 schema completeness or authorizes a DOLE filing or monthly certification.
 The global flag remains **unset** in production.
+
+
+## Separation/final-pay read-only boundary
+
+The opt-in `CORE_SCHEMA_COMPATIBILITY_MODE=read-only` flag now gates
+`ensureSeparationSchema()` independently of the legacy DDL promise. It checks
+the eighteen previously runtime-added final-pay columns (money precision,
+signed amounts, computed JSON, payment due date, approval/release evidence,
+maker/checker/releaser identities), critical NOT NULL/defaults, tenant/employee
+foreign keys, reviewer `ON DELETE SET NULL` foreign keys, the
+`separation_review_identity_separation_check` actor-separation constraint,
+and the employer/status lookup index against PostgreSQL catalogs in a
+rollback-only transaction.
+
+The read-only path never runs ALTER TABLE or mutates final-pay records. It
+rejects missing fields, incorrect numeric precision, weakened identity checks
+and failed rollback. A failed verification discards its PostgreSQL connection.
+Even the legacy path now discards a connection if COMMIT/ROLLBACK becomes
+indeterminate instead of returning an open transaction to the pool.
+
+**This is not approval to release final pay or enable the flag.** It tests a
+critical structural subset, not historical data transformations, payroll
+liabilities, electronic payout authority, every database writer or production
+migration receipts. Validate the actual database against a restored isolated
+clone and the DBA-controlled migration journal; obtain independent finance,
+security and release sign-off before a production cutover.
