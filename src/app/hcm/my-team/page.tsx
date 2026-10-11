@@ -3,6 +3,7 @@ import { HcmMyTeamClient } from "@/components/hcm-my-team";
 import { assertOrganizationRole, getAccess, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
+import { pilotFocusEnabledForOrganization } from "@/lib/pilot-navigation";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -39,5 +40,6 @@ export default async function MyTeamPage({
   if (denied || !deriveMyTeamScope(access)) notFound();
 
   // Reset client-side cursor and filters when switching legal employers.
-  return <HcmMyTeamClient key={organizationId} organizationId={organizationId} />;
+  return <HcmMyTeamClient key={organizationId} organizationId={organizationId}
+    pilotFocusEnabled={pilotFocusEnabledForOrganization(organizationId)} />;
 }

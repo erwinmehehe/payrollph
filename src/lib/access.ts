@@ -1,8 +1,9 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, gte, isNull, lte, ne, or } from "drizzle-orm";
 import { db } from "@/db";
 import { orgUnits, userOrganizations } from "@/db/schema";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 import { roleGateAllowed, type RoleGatePermission } from "@/lib/permissions";
+import { manilaCalendarDate } from "@/lib/payroll-period-ui";
 
 export type AccessScope = {
   organizationId: number;
@@ -25,13 +26,25 @@ export async function getAccess(userId: number, organizationId: number): Promise
   )).limit(1);
 
   if (!membership) return null;
+  // A manager without a supervisor-unit assignment is NOT a company-wide
+  // administrator. Fail closed for every route that resolves effective access.
+  if (membership.role === "manager" &&
+      (!Number.isSafeInteger(membership.orgUnitId) || !membership.orgUnitId ||
+        membership.orgUnitId <= 0)) return null;
 
   let orgUnitName: string | null = null;
   if (membership.orgUnitId) {
+    const today = manilaCalendarDate();
     const [unit] = await db.select().from(orgUnits).where(and(
       eq(orgUnits.id, membership.orgUnitId),
       eq(orgUnits.organizationId, organizationId),
+      membership.role === "manager" ? eq(orgUnits.active, true) : undefined,
+      membership.role === "manager" ? or(isNull(orgUnits.effectiveFrom), lte(orgUnits.effectiveFrom, today)) : undefined,
+      membership.role === "manager" ? or(isNull(orgUnits.effectiveUntil), gte(orgUnits.effectiveUntil, today)) : undefined,
     )).limit(1);
+    // A manager may act only for a unit that actually belongs to the selected
+    // employer and is active. Stale or cross-employer assignments fail closed.
+    if (membership.role === "manager" && (!unit || !unit.active)) return null;
     orgUnitName = unit?.name ?? null;
   }
 
@@ -112,7 +125,11 @@ export async function assertMembership(userId: number, organizationId: number): 
     return Response.json({ error: "A valid organizationId is required." }, { status: 400 });
   }
   const [row] = await db
-    .select({ id: userOrganizations.id })
+    .select({
+      id: userOrganizations.id,
+      role: userOrganizations.role,
+      orgUnitId: userOrganizations.orgUnitId,
+    })
     .from(userOrganizations)
     .where(and(
       eq(userOrganizations.userId, userId),
@@ -121,6 +138,24 @@ export async function assertMembership(userId: number, organizationId: number): 
     ))
     .limit(1);
   if (!row) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  // Enforce the same manager unit gate for APIs that use membership directly
+  // instead of resolving access through getAccess().
+  if (row.role === "manager") {
+    if (!Number.isSafeInteger(row.orgUnitId) || !row.orgUnitId || row.orgUnitId <= 0) {
+      return Response.json({ error: "An assigned organizational unit is required for manager access." }, { status: 403 });
+    }
+    const today = manilaCalendarDate();
+    const [unit] = await db.select({ id: orgUnits.id }).from(orgUnits).where(and(
+      eq(orgUnits.id, row.orgUnitId),
+      eq(orgUnits.organizationId, organizationId),
+      eq(orgUnits.active, true),
+      or(isNull(orgUnits.effectiveFrom), lte(orgUnits.effectiveFrom, today)),
+      or(isNull(orgUnits.effectiveUntil), gte(orgUnits.effectiveUntil, today)),
+    )).limit(1);
+    if (!unit) {
+      return Response.json({ error: "The assigned manager unit is not active in this employer." }, { status: 403 });
+    }
+  }
   return assertOrganizationSessionPolicy(userId, organizationId);
 }
 
