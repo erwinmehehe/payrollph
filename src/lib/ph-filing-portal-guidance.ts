@@ -21,11 +21,11 @@ export const PH_FILING_PORTALS: readonly FilingPortalGuidance[] = [
     officialPortalUrl: "https://www.sss.gov.ph/",
     acceptanceEvidence: "My.SSS employer contribution collection acknowledgement, PRN and payment/posting evidence.",
     worksheetStatus: "reconciliation-only",
-    notes: "SSS current employer workflow uses electronic contribution collection lists and PRNs; the PayrollPH R-3 CSV is not an authorized My.SSS import file.",
+    notes: "SSS employer reporting uses electronic contribution lists and PRNs; an official SSS R-3 File Generator is also published. The PayrollPH R-3 CSV has no verified agency import acceptance and must not be presented as an SSS upload file.",
   },
   {
     agency: "BIR", form: "1601-C", workflow: "eBIRForms or eFPS monthly withholding filing",
-    officialInstructionsUrl: "https://efps.bir.gov.ph/efps-war/efpsJobaids.xhtml",
+    officialInstructionsUrl: "https://efps.bir.gov.ph/efps-war/EFPSWeb_war/help/help1601c_v2.html",
     officialPortalUrl: "https://www.bir.gov.ph/",
     acceptanceEvidence: "BIR filing acknowledgement/confirmation and distinct payment confirmation for the correct withholding month.",
     worksheetStatus: "reconciliation-only",
