@@ -79,7 +79,16 @@ try {
 
   await checkpoint(page, "HR Home and one-step scoped employee quick-find", async () => {
     await workspace(page, 1);
-    await page.getByRole("heading", { name: "People operations" }).waitFor();
+    await page.getByRole("heading", { name: "Everyday HR" }).waitFor();
+    // The default path shows daily actions, while secondary tools stay collapsed.
+    await page.getByRole("button", { name: "Open Hire & onboard" }).waitFor();
+    await page.getByRole("button", { name: "Open Leave requests" }).waitFor();
+    await page.getByRole("button", { name: "Open Approvals" }).waitFor();
+    const additional = page.getByText("More HR tools", { exact: true });
+    await additional.waitFor();
+    const moreTools = page.locator("details").filter({ has: additional });
+    assert.equal(await moreTools.evaluate(node => node.open), false,
+      "Secondary HR navigation should not crowd the everyday experience");
     const quickFind = page.getByRole("searchbox", { name: "Find an employee" });
     await quickFind.fill("BetaPrivate");
     await page.getByText("No matching employee in your authorized directory.").waitFor();
