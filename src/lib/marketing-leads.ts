@@ -124,9 +124,12 @@ export async function ensureMarketingLeadSchema() {
       throw error;
     } finally {
       client.release(!safeToReuse);
-      schemaInFlight = null;
     }
-  })();
+  })().finally(() => {
+    // A failed pool.connect() or prerequisite schema preflight must not
+    // permanently poison this module's in-flight promise.
+    schemaInFlight = null;
+  });
 
   return schemaInFlight;
 }
