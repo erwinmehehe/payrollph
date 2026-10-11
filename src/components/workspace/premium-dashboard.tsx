@@ -78,7 +78,7 @@ export function PremiumDashboard({ data, currentRun: run, role, onPage, onNewRun
   const issueCount = view.issues.length;
 
   return (
-    <section className="premium-dashboard" aria-label="Workspace dashboard">
+    <section className="premium-dashboard" data-role-dashboard={role} aria-label="Workspace dashboard">
       <header className="pd-page-heading">
         <div>
           <p className="pd-eyebrow">{data.selectedOrganization.name} · {role === "owner" ? "Owner" : "Payroll officer"} workspace</p>
