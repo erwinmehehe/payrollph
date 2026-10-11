@@ -95,6 +95,13 @@ function ScopedMyTeam({ organizationId }: { organizationId: number }) {
   const active = stored?.scopeKey === scopeKey ? stored : null;
   const data = active?.status === "ready" ? active.value : null;
   const hasPrevious = cursors.length > 1;
+  // This is only navigation discovery. The calendar verifies the employer,
+  // current unit, permission set and live server feature gate independently.
+  const canOpenLeaveCalendar =
+    process.env.NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ENABLED === "true" &&
+    (process.env.NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ORG_IDS ?? "").split(",")
+      .some((id) => id.trim() === String(organizationId));
+
 
   function applySearch() {
     setRefreshCount((value) => value + 1);
@@ -139,6 +146,23 @@ function ScopedMyTeam({ organizationId }: { organizationId: number }) {
             </div>
           </div>
         </header>
+
+        {canOpenLeaveCalendar && data && (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Team Leave Calendar</p>
+              <p className="mt-1 text-xs text-slate-700">
+                Review approved and pending leave request date spans, not confirmed absences or shift coverage.
+              </p>
+            </div>
+            <Link
+              href={`/hcm/team-leave-calendar?organizationId=${organizationId}`}
+              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-800 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-900"
+            >
+              <CalendarClock size={16} aria-hidden="true" /> Open leave calendar
+            </Link>
+          </div>
+        )}
 
         <section aria-label="Scope information" className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
           <div className="flex items-start gap-3">
