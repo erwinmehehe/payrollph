@@ -10,8 +10,33 @@ import {
   summarizeTeamLeaveMonth,
   teamLeaveMonthCells,
   teamLeaveMonthWindow,
+  teamLeaveEnabledForEmployer,
   type TeamLeaveCase,
 } from "../src/lib/hcm-team-leave-calendar-contract";
+
+test("Team Leave Calendar requires explicit matching employer allowlist", () => {
+  const enabled = {
+    HCM_TEAM_LEAVE_CALENDAR_ENABLED: "true",
+    HCM_TEAM_LEAVE_CALENDAR_ORG_IDS: "8, 19",
+  };
+  assert.equal(teamLeaveEnabledForEmployer(8, enabled), true);
+  assert.equal(teamLeaveEnabledForEmployer(19, enabled), true);
+  for (const org of [0, -1, 7, 18, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.equal(teamLeaveEnabledForEmployer(org, enabled), false);
+  }
+  assert.equal(teamLeaveEnabledForEmployer(8, {
+    HCM_TEAM_LEAVE_CALENDAR_ENABLED: "true",
+  }), false);
+  assert.equal(teamLeaveEnabledForEmployer(8, {
+    ...enabled, HCM_TEAM_LEAVE_CALENDAR_ENABLED: "false",
+  }), false);
+  assert.equal(teamLeaveEnabledForEmployer(8, {
+    ...enabled, HCM_TEAM_LEAVE_CALENDAR_ORG_IDS: "008",
+  }), false);
+  assert.equal(teamLeaveEnabledForEmployer(8, {
+    ...enabled, HCM_TEAM_LEAVE_CALENDAR_ORG_IDS: "*",
+  }), false);
+});
 
 test("manager calendar fails closed without explicit active unit membership", () => {
   assert.equal(deriveTeamLeaveScope(null), null);
@@ -96,6 +121,9 @@ test("calendar route and page enforce source gate, explicit tenant and private n
     assert.match(source, /WORKFORCE_MANAGER_ROLES/);
     assert.match(source, /deriveTeamLeaveScope/);
     assert.ok(!source.includes("primaryCompanyOrganizationId"));
+    assert.ok(source.includes("teamLeaveEnabledForEmployer(organizationId)"));
+    assert.ok(source.indexOf("teamLeaveEnabledForEmployer(organizationId)") <
+      source.indexOf("assertOrganizationRole("));
   }
   assert.match(api, /getAccess\(user\.id, organizationId\)/);
   assert.match(api, /private, no-store/);
@@ -129,14 +157,17 @@ test("calendar SQL filters request AND employee tenant before bounded complete s
 
 test("client hides stale tenant/month responses and shows only recorded request statuses", () => {
   const ui = readFileSync("src/components/hcm-team-leave-calendar.tsx", "utf8");
-  const nav = readFileSync("src/components/workspace/approvals.tsx", "utf8");
+  const nav = readFileSync("src/components/hcm-my-team.tsx", "utf8");
   assert.match(ui, /new AbortController\(\)/);
   assert.match(ui, /controller\.abort\(\)/);
   assert.match(ui, /result\.organizationId !== organizationId/);
   assert.match(ui, /result\.month !== month/);
   assert.match(ui, /loaded\?\.requestKey === requestKey/);
   assert.match(nav, /NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ENABLED === "true"/);
-  assert.match(nav, /data\.selectedOrganization\.id/);
+  assert.match(nav, /NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ORG_IDS/);
+  assert.ok(nav.includes('/hcm/team-leave-calendar?organizationId=${organizationId}'));
+  assert.ok(ui.includes("/app?organizationId=${organizationId}&workspacePage=Approvals"));
+  assert.ok(!ui.includes('setLoaded({ requestKey, status: "loading"'));
   for (const word of ["method: \"POST\"", "method: \"PATCH\"", "bankAccount", "leaveType"]) {
     assert.ok(!ui.includes(word), "Unexpected client source field or mutation: " + word);
   }
