@@ -23,7 +23,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const PAYOUT_METHODS = new Set(["bank_file", "paymongo", "manual"]);
+const PAYOUT_METHODS = new Set(["bank_file", "paymongo", "xendit", "manual"]);
 
 function optionalText(value: unknown, max: number) {
   const text = String(value ?? "").trim().slice(0, max);
@@ -168,9 +168,9 @@ export async function PATCH(request: Request) {
   )).limit(1);
   if (!entity) return Response.json({ error: "Legal employer not found in this workspace." }, { status: 404 });
 
-  const defaultMethod = String(body.defaultMethod ?? "bank_file");
+  const defaultMethod = String(body.defaultMethod ?? "xendit");
   if (!PAYOUT_METHODS.has(defaultMethod)) {
-    return Response.json({ error: "defaultMethod must be bank_file, paymongo, or manual." }, { status: 400 });
+    return Response.json({ error: "defaultMethod must be xendit, paymongo, bank_file, or manual." }, { status: 400 });
   }
 
   const bankTemplateId = body.bankTemplateId === null || body.bankTemplateId === undefined || body.bankTemplateId === ""
