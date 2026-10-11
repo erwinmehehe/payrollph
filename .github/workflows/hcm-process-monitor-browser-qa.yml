@@ -1,6 +1,27 @@
 name: HCM Process Monitor Browser QA (Synthetic Only)
 
 on:
+  # Post-merge acceptance uses a disposable PostgreSQL database and fictional workers.
+  # No live endpoints, remote staging or production credentials are involved.
+  push:
+    branches: [main]
+    paths:
+      - 'src/app/api/hcm/process-monitor/**'
+      - 'src/app/hcm/process-monitor/**'
+      - 'src/lib/hcm-process-monitor*.ts'
+      - 'src/lib/hcm-context-navigation.ts'
+      - 'src/components/hcm-context-navigation.tsx'
+      - 'src/app/hcm/command-center/**'
+      - 'src/app/hcm/worker-360/**'
+      - 'src/components/hcm-worker-360.tsx'
+      - 'src/components/linaw-workspace.tsx'
+      - 'src/lib/workspace-role-ui.ts'
+      - 'tests/hcm-context-navigation.test.ts'
+      - 'src/components/hcm-business-process-inbox.tsx'
+      - 'scripts/hcm-process-monitor-synthetic-*.ts'
+      - 'scripts/hcm-process-monitor-synthetic-*.mjs'
+      - 'tests/hcm-process-monitor*.test.ts'
+      - '.github/workflows/hcm-process-monitor-browser-qa.yml'
   pull_request:
     branches: [main]
     paths:
