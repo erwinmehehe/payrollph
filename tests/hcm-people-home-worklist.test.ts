@@ -93,6 +93,8 @@ test("All People Home query workloads are tenant-qualified, capped and private",
   assert.match(batchedRoles, /eq\(userOrganizations.organizationId, organizationId\)/);
   assert.match(batchedRoles, /eq\(userOrganizations.active, true\)/);
   assert.match(batchedRoles, /gte\(approvalDelegations.endsOn, onDate\)/);
+  assert.match(batchedRoles, /limit\(PEOPLE_HOME_DELEGATION_LIMIT \+ 1\)/);
+  assert.match(batchedRoles, /delegations.length > PEOPLE_HOME_DELEGATION_LIMIT/);
   assert.ok(!projection.includes("db.select().from("));
   assert.ok(!projection.includes("loadEmploymentLifecycleReadiness"));
   assert.ok(!projection.includes("employeeName"));

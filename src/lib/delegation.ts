@@ -120,6 +120,8 @@ export function canPreviewHcmAssignment(
     resolved.allowed.includes(actorName.toLowerCase());
 }
 
+const PEOPLE_HOME_DELEGATION_LIMIT = 250;
+
 /** Two tenant-qualified queries for all candidate assignees, not 2 queries per step. */
 export async function loadPeopleHomeAssigneePermissions(
   organizationId: number,
@@ -147,8 +149,13 @@ export async function loadPeopleHomeAssigneePermissions(
       eq(approvalDelegations.active, true),
       lte(approvalDelegations.startsOn, onDate),
       gte(approvalDelegations.endsOn, onDate),
-    )),
+    )).limit(PEOPLE_HOME_DELEGATION_LIMIT + 1),
   ]);
+  // If the employer has more delegations than this safe snapshot limit, do
+  // not guess who can decide: the People Home source is marked unavailable.
+  if (delegations.length > PEOPLE_HOME_DELEGATION_LIMIT) {
+    throw new Error("People Home delegation preview requires source review.");
+  }
   const actorRole = memberships[0]?.role ?? null;
   return new Map(assignees.map((assignee) => [
     assignee,

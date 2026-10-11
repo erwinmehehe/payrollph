@@ -10,7 +10,7 @@ Status: source-only implementation on draft PR #755. Not production acceptance o
   - People Ops follow-ups: bounded samples of unresolved lifecycle notifications and incomplete onboarding/offboarding provisioning only. These are NOT assigned approvals and do NOT represent the complete HR triage source.
   - Cases assigned to me: unresolved operational cases with the user explicitly recorded as owner.
 - Decisions, HR source corrections and case updates remain in existing governed modules. No new action mutation, worker master, payroll rule, bank or schema migration is introduced.
-- HCM decision preview examines at most 30 source candidates, batches membership/delegation checks in two tenant-qualified queries, and returns up to five authorized rows. People Ops reads at most seven lifecycle rows and seven provisioning rows; owned cases read at most six rows. The UI presents only five per group, never a complete count.
+- HCM decision preview examines at most 30 source candidates, batches membership/delegation checks in two tenant-qualified queries and fails the preview closed above 250 active delegation records, and returns up to five authorized rows. People Ops reads at most seven lifecycle rows and seven provisioning rows; owned cases read at most six rows. The UI presents only five per group, never a complete count.
 - Source outages are rendered as unavailable, not an empty queue. Date-only lifecycle milestones are distinguished from true timed workflow deadlines. People Ops is always shown as a partial source sample.
 - Payroll amounts, bank accounts, statutory IDs, performance scores, private notes and employee identifying fields are excluded from the People Home task projection.
 
