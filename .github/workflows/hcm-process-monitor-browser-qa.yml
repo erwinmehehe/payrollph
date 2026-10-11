@@ -7,6 +7,14 @@ on:
       - 'src/app/api/hcm/process-monitor/**'
       - 'src/app/hcm/process-monitor/**'
       - 'src/lib/hcm-process-monitor*.ts'
+      - 'src/lib/hcm-context-navigation.ts'
+      - 'src/components/hcm-context-navigation.tsx'
+      - 'src/app/hcm/command-center/**'
+      - 'src/app/hcm/worker-360/**'
+      - 'src/components/hcm-worker-360.tsx'
+      - 'src/components/linaw-workspace.tsx'
+      - 'src/lib/workspace-role-ui.ts'
+      - 'tests/hcm-context-navigation.test.ts'
       - 'src/components/hcm-business-process-inbox.tsx'
       - 'scripts/hcm-process-monitor-synthetic-*.ts'
       - 'scripts/hcm-process-monitor-synthetic-*.mjs'
@@ -26,6 +34,11 @@ jobs:
       HCM_MONITOR_ACCEPTANCE_MODE: synthetic-postgres-only
       HCM_PROCESS_MONITOR_ENABLED: 'true'
       HCM_PROCESS_MONITOR_ORG_IDS: '1,2'
+      HCM_PEOPLE_HOME_ENABLED: 'true'
+      NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED: 'true'
+      HCM_PEOPLE_HOME_ORG_IDS: '1,2'
+      HCM_WORKER_360_ENABLED: 'true'
+      NEXT_PUBLIC_HCM_WORKER_360_ENABLED: 'true'
       NEXT_PUBLIC_HCM_PROCESS_MONITOR_ENABLED: 'true'
       NEXT_PUBLIC_HCM_PROCESS_MONITOR_ORG_IDS: '1,2'
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
@@ -69,12 +82,12 @@ jobs:
       # suite, so HCM regressions have an actionable, exact-commit signal.
       # Run after fixture creation: the browser fixture assumes employer IDs 1/2.
       - name: Verify monitor contract and two-employer PostgreSQL integration
-        run: npx tsx --test --test-concurrency=1 tests/hcm-process-monitor.test.ts tests/hcm-process-monitor-tenant-integration.test.ts
+        run: npx tsx --test --test-concurrency=1 tests/hcm-process-monitor.test.ts tests/hcm-process-monitor-tenant-integration.test.ts tests/hcm-context-navigation.test.ts
       - name: Build local Next.js without external deployment
         run: npm run build
-      - name: Install pinned local Chromium
+      - name: Install pinned local Chromium and automated accessibility rules
         run: |
-          npm install --no-save --ignore-scripts playwright@1.55.0
+          npm install --no-save --ignore-scripts playwright@1.55.0 axe-core@4.10.3
           npx playwright install --with-deps chromium
       - name: Start local app
         shell: bash
@@ -90,6 +103,7 @@ jobs:
         shell: bash
         env:
           HCM_PROCESS_MONITOR_ENABLED: 'false'
+          HCM_WORKER_360_ENABLED: 'false'
           APP_BASE_URL: http://127.0.0.1:3001
           TRUSTED_APP_ORIGINS: http://127.0.0.1:3001
         run: |
@@ -100,5 +114,5 @@ jobs:
           done
           echo 'Local disabled monitor unavailable'
           exit 1
-      - name: Browser QA — role/tenant/paging/mobile/default-off
+      - name: Browser QA — HCM navigation/role/tenant/a11y/reflow/default-off
         run: node scripts/hcm-process-monitor-synthetic-browser.mjs

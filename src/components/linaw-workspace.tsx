@@ -58,7 +58,7 @@ import { WorkforcePlanningPanel } from "@/components/workforce-planning-panel";
 import type { DashboardData, PayrollReleaseReceipt, PricingPlan } from "@/components/workspace/types";
 import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
-import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
+import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, roleHasPeopleWorkspace, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
 import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean }) {
@@ -72,7 +72,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       : null;
   const demoInfo = demoRoleInfo(demoRole);
   const initialPage = demoInfo?.landingPage ??
-    (searchParams.get("workspacePage") === "People" && canOpenPeopleHome(initialData.access)
+    (searchParams.get("workspacePage") === "People" &&
+      canOpenPeopleHome(initialData.access) &&
+      roleHasPeopleWorkspace(initialData.access?.role)
       ? "People" : "Overview");
   const dashboardRole = normalizeDashboardRole(demoRole ?? initialData.access?.role ?? initialData.user?.role);
 

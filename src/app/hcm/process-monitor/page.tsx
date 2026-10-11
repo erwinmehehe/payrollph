@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HcmContextNavigation } from "@/components/hcm-context-navigation";
 import { notFound, redirect } from "next/navigation";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
@@ -166,6 +167,7 @@ export default async function HcmProcessMonitorPage({
       </div>
 
       <div className="mx-auto max-w-7xl space-y-5 px-5 py-7 sm:px-8">
+        <HcmContextNavigation organizationId={organizationId} access={access} current="processMonitor" />
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">
           <div>
             <p className="text-xs font-semibold text-slate-500">Employer context</p>

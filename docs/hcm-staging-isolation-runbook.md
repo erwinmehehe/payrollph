@@ -1,38 +1,27 @@
-# HCM isolated staging — operator runbook
+# Optional remote HCM staging reference (not a release requirement)
 
-**Status (October 11, 2026): NO-GO for deployed staging.**
+**Policy (October 11, 2026):** During pre-client HCM development, a standalone Vercel staging project, remote PostgreSQL staging instance, protected remote UAT and the manual HCM staging attestation are **OPTIONAL**. None is a prerequisite for HCM pull-request review, source merge or local synthetic acceptance.
 
-## Observed blocker
+## Default pre-client workflow
 
-The connected Vercel project erwinmehehe-payrollph has DATABASE_URL and DATABASE_URL_UNPOOLED configured with both Preview and Production targets; no branch-specific DB override was visible. Vercel Authentication protection exists, but does not prove database isolation.
+Use GitHub Actions with disposable localhost PostgreSQL 16, fictional employers, isolated feature flags, browser-based role and tenant tests, TypeScript, CodeQL/security and payroll isolation. Review each PR's exact commit and source diff. Retain default-off production flags unless the owner explicitly authorizes an internal configuration change. Do not use live employer information, a shared remote database or payment services to seed test fixtures.
 
-An attempt to create a separate, protected Vercel staging project under the payrollph team was rejected with HTTP 403 (insufficient create-project permission). No project or live environment was created or modified.
+The existing `.github/workflows/hcm-staging-isolation.yml` stays available as an **opt-in** diagnostic. It is not a required branch check, merge gate or feature-enablement prerequisite. No user action or Vercel project creation is needed for the normal HCM development workflow.
 
-## Operator setup (requires an authorized team owner)
+## Only if a remote synthetic test environment is intentionally created later
 
-1. Create a *separate* Vercel project named payrollph-hcm-isolated-staging with Vercel Authentication protection, previews disabled until review and NO copied/inherited production environment variables. Use synthetic data only.
-2. Create a *new empty* PostgreSQL staging database with independent ownership, users, credentials, network access, and backups. Do NOT use the current production project database, a replica with real employee data, or inherited environment credentials.
-3. As staging DB owner, set a persistent database-side environment marker using SQL:
+The current Vercel project's `DATABASE_URL` and `DATABASE_URL_UNPOOLED` environment entries target both Preview and Production, so that project's preview URLs are **not suitable** for populating synthetic fixtures without an independently isolated DB.
 
-    ALTER DATABASE hcm_synthetic SET "payrollph.environment" = 'payrollph_hcm_qa';
+An authorized environment owner can optionally:
+1. Create an independent protected Vercel project with no inherited production secrets, plus a new disposable PostgreSQL database containing no real employer data.
+2. Configure a database-side synthetic marker, a read-only verifier, and GitHub's `hcm-staging` environment for the existing optional attestation workflow.
+3. Run the manual attestation from protected main. It verifies project identity, configured production-URL fingerprint mismatch, marker and read-only login; it does not deploy, migrate, seed or enable anything.
+4. Restrict the remote test URL, review the exact tested source SHA and shut down the environment after use.
 
-   Create a dedicated read-only verifier role. Restrict it to CONNECT on the staging database; its default_transaction_read_only setting must be on. No table write permissions should be granted. Verify this configuration independently from app-controlled flags. This marker is not sufficient by itself to prove network separation.
-4. In GitHub, create protected environment **hcm-staging**, require an independent reviewer and restrict it to the protected main branch. Supply environment variables HCM_STAGING_PROJECT_ID, EXPECTED_HCM_STAGING_PROJECT_ID (both set to the real, separately created Vercel project ID), and HCM_STAGING_EXPECTED_DB_MARKER=payrollph_hcm_qa.
-5. Supply protected environment secrets HCM_STAGING_READONLY_DATABASE_URL (dedicated staging verifier) and PRODUCTION_DATABASE_URL_SHA256 (SHA-256 fingerprint of the *exact* production URL, computed by an approved credential owner without printing or committing the URL). Protect these separately; do not expose URL values in PRs, logs or artifacts.
-6. After this PR is reviewed and its offline tests pass, merge the isolation-only workflow. Then manually run **HCM Staging Isolation Attestation (No Deploy)** from protected main. The approved job checks project ID, production URL fingerprint mismatch, database-side marker and read-only DB login. It does not deploy, migrate, seed or enable any feature.
-7. Only after an independently approved isolation attestation, configure a protected staging deployment with separately scoped synthetic application credentials. Verify deployment SHA, protected access, staging-only DB identity, authorized roles, keyboard/mobile/screen-reader behavior, source errors and independent HR/security sign-off.
+These instructions describe a future **choice**, not a to-do list blocking PR #773 or other pre-client HCM integration work. Never print credentials or use the production database for fixtures.
 
-## Hard blockers and prohibited shortcuts
+## Separate live-operation controls
 
-- No production secrets are necessary to run the offline contract tests.
-- The isolation test is *not* a deployment or a substitute for two-person staging and HR/security approval.
-- Do not enable HCM People Home, WFM bulk writes, bank/payout functions or payroll releases from this change.
-- Do not silently reuse Preview variables from the production Vercel project.
-- Do not run a synthetic fixture against an external or production database.
-- Do not claim issue #695, #112, #744 or the WFM pilot accepted based only on synthetic browser tests.
+Code merge and local synthetic QA do not authorize migrating historical bank data, introducing live worker records, executing payroll or payouts, or bypassing maker/checker/release controls. Such actions must follow their domain-specific requirements when actual employers are onboarded.
 
-## Evidence
-
-Successful offline tests demonstrate that missing staging identity, reused production URL, missing database marker, feature enablement, or write-capable verifier all fail closed. The manual attestation returns only pass/fail values and truncated hashes of database host and name. No credentials or employee data are included.
-
-Related: draft PR #755, issues #695, #112, #744, #691.
+See `docs/hcm-connected-navigation-acceptance.md` and `docs/engineering/change-risk-policy.md`.

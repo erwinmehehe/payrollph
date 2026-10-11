@@ -1,5 +1,31 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { chromium } from "playwright";
+
+const require = createRequire(import.meta.url);
+const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+
+/** Automated semantic checks complement, but do not replace, human screen-reader QA.
+ * Output rule identifiers/counts only; never serialize payroll/worker DOM contents.
+ */
+async function assertHcmSemantics(page, label) {
+  await page.addScriptTag({ content: axeSource });
+  const violations = await page.evaluate(async () => {
+    const result = await window.axe.run(document, {
+      runOnly: { type: "rule", values: [
+        "aria-valid-attr", "aria-valid-attr-value", "button-name", "link-name",
+        "label", "duplicate-id", "document-title", "html-has-lang",
+        "landmark-one-main",
+      ] },
+    });
+    return result.violations.map(({ id, impact, nodes }) => ({
+      id, impact, count: nodes.length,
+    }));
+  });
+  assert.deepEqual(violations, [], label + " semantic accessibility failures");
+}
+
 
 const app = "http://127.0.0.1:3000";
 const off = "http://127.0.0.1:3001";
@@ -61,6 +87,42 @@ async function main() {
     const page = await context.newPage();
     assert.equal(await visit(page), 200, "Signed-in HR monitor page must load");
     await page.getByRole("heading", { level: 1, name: "Business Process Monitor" }).waitFor();
+    const navigation = page.getByRole("navigation", { name: "HCM workspace navigation" });
+    assert.equal(await navigation.getByRole("link", { name: "People Home" })
+      .getAttribute("href"), "/hcm/command-center?organizationId=1");
+    assert.equal(await navigation.getByRole("link", { name: "Process monitor" })
+      .getAttribute("aria-current"), "page");
+    assert.equal(await navigation.getByRole("link", { name: "HCM Inbox" })
+      .getAttribute("href"), "/app?organizationId=1&workspacePage=People&hcmPanel=bp");
+    await assertHcmSemantics(page, "Process Monitor");
+    // Keyboard activation, not programmatic click-only navigation.
+    await navigation.getByRole("link", { name: "People Home" }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("heading", { level: 1, name: "People Home" }).waitFor();
+    const homeNav = page.getByRole("navigation", { name: "HCM workspace navigation" });
+    assert.equal(await homeNav.getByRole("link", { name: "People Home" })
+      .getAttribute("aria-current"), "page");
+    assert.equal(await homeNav.getByRole("link", { name: "Process monitor" })
+      .getAttribute("href"), "/hcm/process-monitor?organizationId=1");
+    await assertHcmSemantics(page, "People Home");
+    await homeNav.getByRole("link", { name: "Process monitor" }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("heading", { level: 1, name: "Business Process Monitor" }).waitFor();
+    await page.getByRole("navigation", { name: "HCM workspace navigation" })
+      .getByRole("link", { name: "HCM Inbox" }).click();
+    await page.getByRole("heading", { level: 1, name: "Employees" }).waitFor();
+    const inboxUrl = new URL(page.url());
+    assert.equal(inboxUrl.searchParams.get("organizationId"), "1");
+    assert.equal(inboxUrl.searchParams.get("workspacePage"), "People");
+    assert.equal(inboxUrl.searchParams.get("hcmPanel"), "bp");
+    const administration = page.locator("details.panel-disclosure")
+      .filter({ has: page.locator("summary", { hasText: "Employee administration" }) })
+      .first();
+    await administration.waitFor();
+    assert.equal(await administration.evaluate((element) => element.open), true,
+      "HCM Inbox deep link must open its authoritative People administration panel");
+    assert.equal(await visit(page), 200);
+    await page.getByRole("heading", { level: 1, name: "Business Process Monitor" }).waitFor();
     const main = await page.locator("main").innerText();
     assert.ok(main.includes("Recorded workflows") && main.includes("Step timeline"));
     assert.equal(await page.locator("a[href*='processId=']").count(), 20);
@@ -93,8 +155,50 @@ async function main() {
       "/api/hcm/process-monitor?organizationId=1&processId=" + beta.data.items[0].id);
     assert.equal(foreign.status, 200, "Foreign process lookup must produce safe not_found detail");
     assert.equal(foreign.data.detail.state, "not_found");
+    // Switching between two permitted employers must never retain links
+    // to the previously selected employer.
+    assert.equal(await visit(page, 2), 200);
+    const betaNav = page.getByRole("navigation", { name: "HCM workspace navigation" });
+    assert.equal(await betaNav.getByRole("link", { name: "People Home" })
+      .getAttribute("href"), "/hcm/command-center?organizationId=2");
+    assert.equal(await betaNav.getByRole("link", { name: "Process monitor" })
+      .getAttribute("href"), "/hcm/process-monitor?organizationId=2");
+    assert.ok((await betaNav.locator("a").all()).length >= 3);
     assert.equal(await visit(page, 0), 404);
     assert.equal(await visit(page, "abc"), 404);
+    const workerPage = await context.newPage();
+    const workerResponse = await workerPage.goto(
+      app + "/hcm/worker-360?organizationId=1&employeeId=1",
+      { waitUntil: "domcontentloaded", timeout: 60000 },
+    );
+    assert.equal(workerResponse?.status(), 200);
+    await workerPage.getByRole("heading", { level: 1, name: "Worker 360" }).waitFor();
+    await workerPage.getByRole("heading", { level: 2, name: "Fictional Employee" }).waitFor();
+    await workerPage.getByLabel("History as of (Philippine date)").waitFor();
+    await workerPage.getByRole("button", { name: "Refresh" }).waitFor();
+    await assertHcmSemantics(workerPage, "Worker 360");
+    // The source must be tenant-qualified, private and independent of the UI shell.
+    const workerApi = await browserGet(workerPage,
+      "/api/hcm/worker-360?organizationId=1&employeeId=1&asOfDate=2026-10-11");
+    assert.equal(workerApi.status, 200);
+    assert.equal(workerApi.data.tenantId, 1);
+    assert.equal(workerApi.data.employeeId, 1);
+    assert.ok(workerApi.cacheControl?.includes("no-store"));
+    assert.ok(!JSON.stringify(workerApi.data).includes("30000.00"),
+      "Worker 360 projection must not disclose the synthetic payroll rate");
+    const crossEmployer = await browserGet(workerPage,
+      "/api/hcm/worker-360?organizationId=2&employeeId=1&asOfDate=2026-10-11");
+    assert.equal(crossEmployer.status, 404,
+      "Worker ID from employer 1 must not resolve under employer 2");
+    const workerNav = workerPage.getByRole("navigation", { name: "HCM workspace navigation" });
+    assert.equal(await workerNav.getByRole("link", { name: "Worker 360" })
+      .getAttribute("aria-current"), "page");
+    assert.equal(await workerNav.getByRole("link", { name: "People Home" })
+      .getAttribute("href"), "/hcm/command-center?organizationId=1");
+    assert.equal(await workerPage.getByRole("link", { name: "Return to People workspace" })
+      .getAttribute("href"), "/app?organizationId=1&workspacePage=People");
+    await workerNav.getByRole("link", { name: "Process monitor" }).click();
+    await workerPage.getByRole("heading", { level: 1, name: "Business Process Monitor" }).waitFor();
     await context.close();
 
     const mobile = await browser.newContext({ viewport: { width: 375, height: 790 } });
@@ -111,7 +215,61 @@ async function main() {
     await phone.getByRole("button", { name: "Apply" }).click();
     await phone.waitForURL("**/hcm/process-monitor?organizationId=1&status=approved");
     assert.equal(await phone.locator("a[href*='processId=']").count(), 1);
+    const mobileWorker = await phone.goto(
+      app + "/hcm/worker-360?organizationId=1&employeeId=1");
+    assert.equal(mobileWorker?.status(), 200);
+    await phone.getByRole("heading", { level: 2, name: "Fictional Employee" }).waitFor();
+    const workerWidths = await phone.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      content: document.documentElement.scrollWidth,
+    }));
+    assert.ok(workerWidths.content <= workerWidths.viewport + 1,
+      "375px Worker 360 overflow: " + JSON.stringify(workerWidths));
+    // 320 CSS px reflow is an automated narrow-layout proxy, not a manual 200% zoom test.
+    await phone.setViewportSize({ width: 320, height: 800 });
+    const reflow = await phone.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      content: document.documentElement.scrollWidth,
+    }));
+    assert.ok(reflow.content <= reflow.viewport + 1,
+      "320px Worker 360 reflow failure: " + JSON.stringify(reflow));
     await mobile.close();
+
+    // Company-wide bookkeeper can view People Home but cannot discover
+    // HR-only monitor or Worker 360 from its navigation.
+    const finance = await browser.newContext();
+    await login(finance, "monitor-bookkeeper@example.test");
+    const financePage = await finance.newPage();
+    const financeHome = await financePage.goto(
+      app + "/hcm/command-center?organizationId=1",
+    );
+    assert.equal(financeHome?.status(), 200);
+    await financePage.getByRole("heading", { level: 1, name: "People Home" }).waitFor();
+    const financeNav = financePage.getByRole("navigation", {
+      name: "HCM workspace navigation",
+    });
+    assert.equal(await financeNav.getByRole("link", { name: "Process monitor" }).count(), 0);
+    assert.equal(await financeNav.getByRole("link", { name: "Worker 360" }).count(), 0);
+    assert.equal(await financeNav.getByRole("link", { name: "HCM Inbox" }).count(), 0);
+    assert.equal(await financeNav.getByRole("link", { name: "People directory" }).count(), 0);
+    assert.equal(await financePage.getByRole("link", { name: "Open HCM Inbox" }).count(), 0);
+    const financeWorker = await browserGet(financePage,
+      "/api/hcm/worker-360?organizationId=1&employeeId=1");
+    assert.equal(financeWorker.status, 403, "Bookkeeper cannot access Worker 360 API");
+    const financeWorkspace = await financePage.goto(
+      app + "/app?organizationId=1&workspacePage=People&hcmPanel=bp",
+      { waitUntil: "domcontentloaded", timeout: 60000 },
+    );
+    assert.equal(financeWorkspace?.status(), 200);
+    const landing = financePage.getByRole("heading", { level: 1 }).first();
+    await landing.waitFor();
+    assert.notEqual(await landing.innerText(), "Employees",
+      "Bookkeeper deep link must not bypass hidden People workspace role pages");
+    const financeMonitor = await financePage.goto(
+      app + "/hcm/process-monitor?organizationId=1",
+    );
+    assert.equal(financeMonitor?.status(), 404);
+    await finance.close();
 
     for (const email of [
       "monitor-manager@example.test", "monitor-payroll@example.test",
@@ -134,13 +292,21 @@ async function main() {
     const disabledPage = await session.newPage();
     const disabledResponse = await disabledPage.goto(off + "/hcm/process-monitor?organizationId=1");
     assert.equal(disabledResponse?.status(), 404);
+    const disabledWorker = await session.request.get(
+      off + "/api/hcm/worker-360?organizationId=1&employeeId=1");
+    assert.equal(disabledWorker.status(), 404);
+    const disabledWorkerPage = await disabledPage.goto(
+      off + "/hcm/worker-360?organizationId=1&employeeId=1");
+    assert.equal(disabledWorkerPage?.status(), 404);
     await session.close();
 
     console.log(JSON.stringify({
       status: "PASS", syntheticOnly: true, realEmployerProof: false,
       tenantIsolation: true, roleDenials: true, responsive375: true,
       keyboard: true, keysetPagination: true, statusFilter: true,
-      serverKillSwitch: true, productionCertified: false,
+      serverKillSwitch: true, semanticA11y: true, reflow320: true,
+      humanScreenReaderAccepted: false, stagingIsolationAttested: false,
+      productionCertified: false,
     }));
   } finally {
     await browser.close();
