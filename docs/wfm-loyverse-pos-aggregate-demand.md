@@ -58,3 +58,9 @@ Dedicated `.github/workflows/wfm-loyverse-pos-qa.yml` runs lint, TypeScript, sou
 To move beyond the draft, obtain: exact-head full repository CI; independent security/privacy source permission review; merchant OAuth authorization and verifiable store mapping; actual consented API-vs-export reconciliation on a staged merchant; BIR compliance assessment separate from payroll; controlled data-retention agreement; independently witnessed WFM-01–14 real-device QA (#691), additional DSP signoff (#840), a real employer's no-money shadow payroll (#579), and production gate #112. All are separate from synthetic green CI.
 
 **Release decision: source-only draft, pilot activation NO-GO; production scheduling and payroll/payout OFF.**
+
+## Independent receipt-count reconciliation helper
+
+An authorized People admin's dry-run response contains a `scope` and a `intervalCounts` array, with 24, 48, or 96 bins. A different operator can aggregate the same day's Loyverse Back Office sales by store and receipt date into a sanitized JSON report. The report must have fields `source` (value `independent_loyverse_backoffice_aggregate`), `scope`, `workDate`, `intervalMinutes`, `intervalCounts`, and `generatedAt`.
+
+Run `node scripts/wfm-loyverse-reconcile.mjs SOURCE_JSON REPORT_JSON` only on approved local evidence. It rejects mismatched tenants, malformed periods, extra fields, or count differences, and compares every interval—not merely daily totals. Even a perfect match returns `count_match_unattested` and `humanSignoff=NOT_EXECUTED`. Do not commit merchant reports or identifiers. Actual merchant reconciliation and independent witness signatures have not occurred.
