@@ -5,6 +5,7 @@ Status: source-only implementation on draft PR #755. Not production acceptance o
 ## Scope
 
 - One employer context chosen by the authenticated user; no implicit first-employer fallback on People Home.
+- The server-side loader independently revalidates active company membership, company-wide People role, SSO/session policy, custom permission-set denials and the explicit tenant feature gate before reading source rows.
 - Three distinct read-only source previews:
   - My HCM decisions: currently pending steps whose recorded assignee matches the signed-in user or their legitimate delegated role using the existing decision resolver.
   - People Ops follow-ups: bounded samples of unresolved lifecycle notifications and incomplete onboarding/offboarding provisioning only. These are NOT assigned approvals and do NOT represent the complete HR triage source.

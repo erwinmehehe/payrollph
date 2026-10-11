@@ -7,6 +7,10 @@ const read = (path: string) => readFileSync(path, "utf8");
 test("People Home aggregates only source-owned work, never creates approvals or pay changes", () => {
   const projection = read("src/lib/hcm-people-home-worklist.ts");
   assert.match(projection, /loadPeopleHomeAssigneePermissions/);
+  assert.match(projection, /assertOrganizationRole\(user.id, organizationId, PEOPLE_ADMIN_ROLES\)/);
+  assert.match(projection, /getAccess\(user.id, organizationId\)/);
+  assert.match(projection, /peopleHomeEnabledForOrganization\(organizationId\)/);
+  assert.match(projection, /if \(denied \|\| !canOpenPeopleHome\(access\)\)/);
   assert.ok(!projection.includes("loadPeopleOperationsInbox"), "People Home must not load unbounded People Ops sources");
   assert.match(projection, /const permissions = await loadPeopleHomeAssigneePermissions/);
   assert.match(projection, /assigned_owner_user_id = \$2/);

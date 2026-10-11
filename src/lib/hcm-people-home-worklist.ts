@@ -7,6 +7,8 @@ import {
   provisioningTasks,
 } from "@/db/schema";
 import { loadPeopleHomeAssigneePermissions } from "@/lib/delegation";
+import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
+import { canOpenPeopleHome, peopleHomeEnabledForOrganization } from "@/lib/hcm-people-home-scope";
 
 /**
  * Source-minimized, server-only People Home projection. It provides previews,
@@ -250,6 +252,16 @@ export async function loadPeopleHomeWorklist(
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
       !Number.isSafeInteger(user.id) || user.id <= 0) {
     throw new Error("Valid HCM employer and actor are required.");
+  }
+  if (!peopleHomeEnabledForOrganization(organizationId)) {
+    throw new Error("People Home pilot is disabled for this employer.");
+  }
+  // Guard again at the projection boundary: a future caller cannot bypass
+  // company-wide People administration, custom deny permissions, or SSO.
+  const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES);
+  const access = denied ? null : await getAccess(user.id, organizationId);
+  if (denied || !canOpenPeopleHome(access)) {
+    throw new Error("People Home access is not authorized.");
   }
   const [decisions, followUps, ownedCases] = await Promise.allSettled([
     assignedHcmDecisions(organizationId, user),
