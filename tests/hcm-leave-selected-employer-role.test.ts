@@ -34,6 +34,9 @@ test("employee membership remains self-service only; manager membership does not
   assert.match(get, /if \(access\.role === "employee"\)\s*\{/);
   assert.match(get, /scopeConditions\.push\(eq\(leaveRequests\.employeeId, user\.employeeId\)\)/);
   assert.match(get, /eq\(employees\.organizationId, organizationId\)/);
+  assert.match(get, /where\(and\(\.\.\.scopeConditions\)\)/);
+  assert.ok(!get.includes("rows.filter("), "Team scope must be enforced by SQL before any row is returned.");
+  assert.ok(!get.includes("employee: employees"), "Leave list must avoid reading private worker columns.");
   assert.match(post, /if \(access\.role === "employee"\)/);
   assert.match(post, /user\.employeeId !== leave\.employeeId/);
   assert.match(post, /employeeId = user\.employeeId/);
