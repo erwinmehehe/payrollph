@@ -36,6 +36,82 @@ export const requiredReleaseIndexes = [
   "comp_automation_intent_key_unique",
 ] as const;
 
+
+/**
+ * PostgreSQL catalog signature of a present index. A reused index name on the
+ * wrong table, invalid CONCURRENTLY-created index, non-unique replacement, or
+ * a changed partial predicate must NOT pass the payroll release canary.
+ */
+export type ReleaseIndexMetadata = {
+  name: string;
+  tableName: string;
+  isUnique: boolean;
+  isValid: boolean;
+  isReady: boolean;
+  keys: readonly string[];
+  predicate: string | null;
+};
+
+type IndexExpectation = {
+  tableName: string;
+  keys: readonly string[];
+  predicateTokens: readonly string[];
+};
+
+const releaseIndexExpectations: Record<(typeof requiredReleaseIndexes)[number], IndexExpectation> = {
+  saas_billing_one_open_checkout: {
+    tableName: "saas_billing_checkouts",
+    keys: ["organization_id"],
+    predicateTokens: ["status", "creating", "awaiting_payment", "review_required"],
+  },
+  audit_events_chain_seq_unique: {
+    tableName: "audit_events",
+    keys: ["coalesce(organization_id, 0)", "chain_seq"],
+    predicateTokens: ["chain_seq", "is not null"],
+  },
+  provider_events_provider_event_id_unique: {
+    tableName: "provider_events",
+    keys: ["provider", "event_id"],
+    predicateTokens: [],
+  },
+  comp_automation_intent_key_unique: {
+    tableName: "compensation_automation_intents",
+    keys: ["organization_id", "trigger", "event_key"],
+    predicateTokens: [],
+  },
+};
+
+function normalizeIndexExpression(expression: string) {
+  let normalized = expression.toLowerCase().replace(/"/g, "").replace(/\s+/g, "");
+  // PostgreSQL may deparse expressions with an extra wrapper pair.
+  if (normalized.startsWith("(") && normalized.endsWith(")")) {
+    normalized = normalized.slice(1, -1);
+  }
+  return normalized;
+}
+
+/** Only validated signatures are supplied to the existing inventory evaluator. */
+export function validatedReleaseIndexes(rows: readonly ReleaseIndexMetadata[]): string[] {
+  return requiredReleaseIndexes.filter((name) => {
+    const shape = releaseIndexExpectations[name];
+    const actual = rows.find((row) => row.name === name);
+    if (!actual || actual.tableName !== shape.tableName
+      || !actual.isUnique || !actual.isValid || !actual.isReady
+      || !Array.isArray(actual.keys) || actual.keys.length !== shape.keys.length) {
+      return false;
+    }
+    if (shape.keys.some((expected, i) =>
+      normalizeIndexExpression(actual.keys[i]) !== normalizeIndexExpression(expected))) {
+      return false;
+    }
+    if (shape.predicateTokens.length === 0) return actual.predicate === null;
+    if (!actual.predicate) return false;
+    const predicate = normalizeIndexExpression(actual.predicate);
+    return shape.predicateTokens.every((token) =>
+      predicate.includes(normalizeIndexExpression(token)));
+  });
+}
+
 export const requiredReleaseFunctions = ["seal_audit_events(integer)"] as const;
 export const requiredReleaseTriggers = ["audit_events.audit_events_protect_mutation"] as const;
 

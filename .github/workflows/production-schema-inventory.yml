@@ -8,6 +8,10 @@ on:
         description: Exact reviewed 40-character main commit SHA
         required: true
         type: string
+      expected_database_name:
+        description: Reviewed production database name from the DBA release record (never a URL or password)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -25,12 +29,13 @@ jobs:
     environment: production
     env:
       REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+      EXPECTED_PRODUCTION_DATABASE_NAME: ${{ inputs.expected_database_name }}
     steps:
       - name: Enforce reviewed exact main SHA before dependency installation
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$REVIEWED_SHA" != "$GITHUB_SHA" ]; then
+          if [[ ! "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$REVIEWED_SHA" != "$GITHUB_SHA" ] || [ -z "$EXPECTED_PRODUCTION_DATABASE_NAME" ]; then
             echo "Reviewed SHA must exactly match the main workflow commit."
             exit 1
           fi

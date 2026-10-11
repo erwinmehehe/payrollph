@@ -11,12 +11,14 @@ A successful build, GitHub source merge, or isolated CI db:push does **not** dem
 ## Operator checklist
 
 1. A qualified DBA verifies the exact target production database, current applied migration journal/checksums, ordered DDL, schema compatibility, and an isolated restore/rollback rehearsal. Do not run db:push against production.
-2. Arrange a read-only, least-privilege production catalog account through approved secret handling. If possible use this account for the protected GitHub Actions PRODUCTION_DATABASE_URL secret instead of a writer connection. Never paste or print the connection string in chat, issues, logs, or artifacts.
-3. Review the exact main commit and run the workflow "Production Schema Inventory (Read Only)" manually using its full 40-character SHA. The workflow requires the GitHub production environment and performs SQL inside a repeatable-read READ ONLY transaction; only PostgreSQL catalog metadata is queried, not tenant records.
+2. Arrange a dedicated read-only, least-privilege PostgreSQL catalog account through approved secret handling and use this account for the protected GitHub Actions PRODUCTION_DATABASE_URL secret. **Writer, superuser, role/database admin and inherited table write permissions are rejected**, even though SQL also runs in a READ ONLY transaction. Unlike information_schema, pg_catalog can inspect column metadata without SELECT grants on employee/payroll tables. Never paste or print the connection string in chat, issues, logs, or artifacts.
+3. A DBA supplies the **expected PostgreSQL database name** from the verified release record, not a connection string. Review the exact main commit and run the workflow "Production Schema Inventory (Read Only)" manually using its full 40-character SHA and that database name. The script rejects another database name. This name check alone does not prove that the connection reaches the intended production host; the DBA must verify host/environment separately. The workflow requires the GitHub production environment and performs SQL inside a repeatable-read READ ONLY transaction; only PostgreSQL catalog metadata is queried, not tenant records.
 4. Check schemaCompatible and the reported missing object names. On any missing element, unexpected connection error, or incomplete result, stop and request DBA review of actual migration receipts. Do not auto-apply or rename SQL files.
 5. Even with schemaCompatible=true, require independent DBA migration evidence, security/privacy sign-off, employer payroll authorization, a staged production build, and a verified exact deployed SHA before promoting anything.
 
-This structural preflight does not verify applied migration journal receipts, all constraint definitions and index predicates, bank encryption/backfill, bank/provider acceptance, actual government filings, or independent payroll GA approval.
+The preflight checks **index table, uniqueness, validity, readiness, indexed keys, and expected partial-predicate tokens**, as well as an enabled BEFORE ROW UPDATE/DELETE audit-protection trigger bound to the expected function. It does not establish full semantic equivalence of every database constraint, function body, index predicate, or migration script.
+
+This structural preflight does **not** verify applied migration journal receipts/checksums, bank encryption/backfill, bank/provider acceptance, actual government filings, or independent payroll GA approval. A green result never authorizes a release.
 
 ## Safe operation and rollback
 
