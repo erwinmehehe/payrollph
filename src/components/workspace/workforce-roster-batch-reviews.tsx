@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { RefreshCcw, ShieldCheck } from "lucide-react";
 import { Status } from "./ui";
+import { useScopedAsyncResource } from "./use-scoped-async-resource";
 
 type Batch = {
   id: number;
@@ -19,27 +20,33 @@ type Batch = {
   employees: Array<{ id: number; employeeNo: string; name: string }>;
   overrideCount: number;
 };
-type BatchSnapshot = { employer: number; batches: Batch[] };
-
-export function WorkforceRosterBatchReviews({
-  organizationId,
-  currentUserId,
-  enabled,
-  refreshKey,
-}: {
+type Props = {
   organizationId: number;
   currentUserId: number;
   enabled: boolean;
   refreshKey: number;
-}) {
-  const [snapshot, setSnapshot] = useState<BatchSnapshot | null>(null);
-  const [error, setError] = useState<{ employer: number; message: string } | null>(null);
+};
+
+export function WorkforceRosterBatchReviews(props: Props) {
+  return <ScopedRosterBatchReviews key={JSON.stringify([props.organizationId, props.currentUserId, props.enabled])} {...props}/>;
+}
+
+function ScopedRosterBatchReviews({
+  organizationId,
+  currentUserId,
+  enabled,
+  refreshKey,
+}: Props) {
+  const [decisionError, setDecisionError] = useState("");
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<{ employer: number; id: number } | null>(null);
   const [note, setNote] = useState("");
   const [acknowledged, setAcknowledged] = useState(false);
-  const [reload, setReload] = useState(0);
-  const request = useRef<AbortController | null>(null);
+  const mounted = useRef(false);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const load = useCallback(async (signal: AbortSignal) => {
     const response = await fetch(
@@ -53,26 +60,13 @@ export function WorkforceRosterBatchReviews({
       !Array.isArray(raw.batches) || raw.batches.length > 50) {
       throw new Error("Invalid roster approval response.");
     }
-    if (!signal.aborted && request.current?.signal === signal) {
-      setSnapshot({ employer: organizationId, batches: raw.batches as Batch[] });
-      setError(null);
-    }
+    return raw.batches as Batch[];
   }, [organizationId]);
 
-  useEffect(() => {
-    request.current?.abort();
-    if (!enabled) return;
-    const controller = new AbortController();
-    request.current = controller;
-    void load(controller.signal).catch((cause: unknown) => {
-      if (controller.signal.aborted || request.current !== controller) return;
-      setSnapshot(null);
-      setError({ employer: organizationId, message: cause instanceof Error ? cause.message : "Roster batch list unavailable." });
-    });
-    return () => controller.abort();
-  }, [load, enabled, refreshKey, reload]);
-
-  const batches = enabled && snapshot?.employer === organizationId ? snapshot.batches : [];
+  const scope = JSON.stringify([organizationId, currentUserId, refreshKey]);
+  const { data, error: readError, loading, reload } = useScopedAsyncResource(scope, load, undefined, enabled);
+  const batches = data ?? [];
+  const error = decisionError || readError?.message || "";
   const chosen = selected?.employer === organizationId
     ? batches.find(batch => batch.id === selected.id && batch.status === "pending") : null;
 
@@ -90,19 +84,21 @@ export function WorkforceRosterBatchReviews({
         }),
       });
       const body: unknown = await response.json().catch(() => ({}));
+      if (!mounted.current) return;
       const message = body && typeof body === "object" && "error" in body
         && typeof body.error === "string" ? body.error : "Roster batch decision could not be completed.";
       if (!response.ok) throw new Error(message);
       setSelected(null);
       setNote("");
       setAcknowledged(false);
-      setError(null);
-      setReload(n => n + 1);
+      setDecisionError("");
+      await reload();
     } catch (cause) {
-      setError({ employer: organizationId, message: cause instanceof Error ? cause.message : "Roster decision unavailable." });
-      setReload(n => n + 1);
+      if (!mounted.current) return;
+      setDecisionError(cause instanceof Error ? cause.message : "Roster decision unavailable.");
+      await reload();
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   }
 
@@ -114,13 +110,13 @@ export function WorkforceRosterBatchReviews({
           <h3>Governed roster batch review</h3>
           <p>A second company-wide People administrator must review source records before publication. One failed eligibility, lock, or race check stops the entire batch.</p>
         </div>
-        <button type="button" className="secondary-button" disabled={!enabled || busy} onClick={() => setReload(n => n + 1)}>
+        <button type="button" className="secondary-button" disabled={!enabled || busy || loading} onClick={() => { setDecisionError(""); void reload(); }}>
           <RefreshCcw size={15} aria-hidden="true" /> Refresh
         </button>
       </div>
-      {error?.employer === organizationId && <div role="alert" className="notice notice-amber" style={{ margin: "0 18px 16px" }}>{error.message}</div>}
-      {enabled && snapshot?.employer !== organizationId && error?.employer !== organizationId && <div role="status" className="notice notice-slate">Loading authorized review queue…</div>}
-      {enabled && batches.length === 0 && snapshot && <div className="notice notice-slate" style={{ margin: "0 18px 16px" }}>No staged roster batches in this employer.</div>}
+      {enabled && error && <div role="alert" className="notice notice-amber" style={{ margin: "0 18px 16px" }}>{error}</div>}
+      {loading && <div role="status" className="notice notice-slate">Loading authorized review queue…</div>}
+      {enabled && data && batches.length === 0 && <div className="notice notice-slate" style={{ margin: "0 18px 16px" }}>No staged roster batches in this employer.</div>}
       {enabled && batches.length > 0 && <div className="data-table-wrap slim-scroll">
         <table className="data-table" aria-label="Governed bulk roster batch queue">
           <thead><tr><th>Batch</th><th>Shift date</th><th>Proposed workers</th><th>Source review</th><th>Status</th><th>Review</th></tr></thead>

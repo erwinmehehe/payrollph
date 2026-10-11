@@ -363,10 +363,5 @@
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
-  },
-  "src/components/workspace/workforce-schedule-receipt-review.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
   }
 }
