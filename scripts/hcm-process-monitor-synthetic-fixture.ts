@@ -24,7 +24,7 @@ async function main() {
   assert.equal(process.env.OPENAI_API_KEY ?? "", "");
 
   const [alpha, beta] = await db.insert(organizations).values([
-    { name: "Monitor Fictional Alpha", legalName: "Monitor Fictional Alpha", plan: "Core" },
+    { name: "Monitor Fictional Alpha", legalName: "Monitor Fictional Alpha", plan: "Enterprise", accountType: "enterprise" },
     { name: "Monitor Fictional Beta", legalName: "Monitor Fictional Beta", plan: "Core" },
   ]).returning();
   assert.deepEqual([alpha.id, beta.id], [1, 2], "Must be an empty CI database");
