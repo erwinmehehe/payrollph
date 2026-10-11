@@ -10,6 +10,7 @@ on:
       - 'src/components/hcm-business-process-inbox.tsx'
       - 'scripts/hcm-process-monitor-synthetic-*.ts'
       - 'scripts/hcm-process-monitor-synthetic-*.mjs'
+      - 'tests/hcm-process-monitor*.test.ts'
       - '.github/workflows/hcm-process-monitor-browser-qa.yml'
   workflow_dispatch:
 
@@ -64,6 +65,11 @@ jobs:
       - run: npm run db:push
       - name: Seed two fictional employers in local PostgreSQL
         run: npx tsx scripts/hcm-process-monitor-synthetic-fixture.ts
+      # These isolated tests complete before the full repository's serialized
+      # suite, so HCM regressions have an actionable, exact-commit signal.
+      # Run after fixture creation: the browser fixture assumes employer IDs 1/2.
+      - name: Verify monitor contract and two-employer PostgreSQL integration
+        run: npx tsx --test --test-concurrency=1 tests/hcm-process-monitor.test.ts tests/hcm-process-monitor-tenant-integration.test.ts
       - name: Build local Next.js without external deployment
         run: npm run build
       - name: Install pinned local Chromium
