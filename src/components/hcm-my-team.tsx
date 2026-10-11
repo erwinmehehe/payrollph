@@ -33,6 +33,10 @@ function observedInManila(value: string) {
  * approvals and staffing changes remain in the owning source workflows.
  */
 export function HcmMyTeamClient({ organizationId }: { organizationId: number }) {
+  return <ScopedMyTeam key={organizationId} organizationId={organizationId}/>;
+}
+
+function ScopedMyTeam({ organizationId }: { organizationId: number }) {
   const [searchDraft, setSearchDraft] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<MyTeamStatusFilter>("all");
@@ -45,7 +49,7 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
 
   useEffect(() => {
     const controller = new AbortController();
-    setStored({ scopeKey, status: "loading", value: null });
+    // A new scope has no completed response; loading is derived during render.
     const query = new URLSearchParams({
       organizationId: String(organizationId),
       cursor: String(cursor),
@@ -93,11 +97,13 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
   const hasPrevious = cursors.length > 1;
 
   function applySearch() {
+    setRefreshCount((value) => value + 1);
     setSearchQuery(searchDraft.trim());
     setCursors([0]);
   }
 
   function clearFilters() {
+    setRefreshCount((value) => value + 1);
     setSearchDraft("");
     setSearchQuery("");
     setStatusFilter("all");
@@ -229,6 +235,7 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
               <label htmlFor="hcm-team-status" className="block text-xs font-semibold text-slate-700">Employment status</label>
               <select id="hcm-team-status" value={statusFilter}
                 onChange={(event) => {
+                  setRefreshCount((value) => value + 1);
                   setStatusFilter(event.target.value as MyTeamStatusFilter);
                   setCursors([0]);
                 }}
@@ -302,7 +309,7 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
 
               <nav aria-label="Team directory pages" className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
                 <button type="button" disabled={!hasPrevious}
-                  onClick={() => setCursors((history) => history.length > 1 ? history.slice(0, -1) : history)}
+                  onClick={() => { setCursors((history) => history.length > 1 ? history.slice(0, -1) : history); setRefreshCount((value) => value + 1); }}
                   className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40">
                   <ArrowLeft aria-hidden="true" size={16} /> Newer
                 </button>
@@ -310,7 +317,7 @@ export function HcmMyTeamClient({ organizationId }: { organizationId: number }) 
                 <button type="button"
                   disabled={!data.page.hasMore || data.page.nextCursor === null}
                   onClick={() => {
-                    if (data.page.nextCursor !== null) setCursors((history) => [...history, data.page.nextCursor!]);
+                    if (data.page.nextCursor !== null) { setCursors((history) => [...history, data.page.nextCursor!]); setRefreshCount((value) => value + 1); }
                   }}
                   className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40">
                   Older <ArrowRight aria-hidden="true" size={16} />

@@ -1,9 +1,4 @@
 {
-  "src/app/hcm/work-items/page.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/approval-chain-admin.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -89,16 +84,6 @@
       "count": 1
     }
   },
-  "src/components/hcm-my-team.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/hcm-people-operations-inbox.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
   "src/components/hcm-probation-review-panel.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
@@ -110,11 +95,6 @@
     }
   },
   "src/components/hcm-self-probation-reviews.tsx": {
-    "react-hooks/set-state-in-effect": {
-      "count": 1
-    }
-  },
-  "src/components/hcm-worker-360.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 1
     }
