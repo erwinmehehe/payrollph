@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { HcmContextNavigation } from "@/components/hcm-context-navigation";
+import { buildHcmNavigation, type HcmNavigationLink } from "@/lib/hcm-context-navigation";
+import { advancedHcmLinks } from "@/lib/hcm-advanced-discovery";
+import { getEntitlements } from "@/lib/billing";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/db";
 import { eq, sql } from "drizzle-orm";
@@ -45,6 +48,20 @@ export default async function HcmCommandCenter({
   ]);
   if (!employer[0]) notFound();
 
+  // Advanced navigation is optional, collapses by default, and fails closed
+  // if billing metadata is unavailable. It cannot authorize a target route.
+  let advancedLinks: HcmNavigationLink[] = [];
+  try {
+    const entitlements = await getEntitlements(organizationId);
+    advancedLinks = advancedHcmLinks(
+      access,
+      entitlements,
+      buildHcmNavigation({ organizationId, access, current: "peopleHome" }),
+    );
+  } catch {
+    // A billing outage must not hide the ordinary HR workspace or expose depth.
+  }
+
   const worklist = await loadPeopleHomeWorklist(organizationId, { id: user.id, name: user.name });
   const previewLabel = (section: typeof worklist.decisions) =>
     section.state === "unavailable" ? "Unavailable" : String(section.items.length) + " shown";
@@ -83,7 +100,7 @@ export default async function HcmCommandCenter({
   ];
 
   return <main className="mx-auto max-w-7xl px-6 py-10 text-slate-900">
-    <HcmContextNavigation organizationId={organizationId} access={access} current="peopleHome" />
+    <HcmContextNavigation organizationId={organizationId} access={access} current="peopleHome" simpleHome />
     <header className="mb-8 mt-8">
       <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">People operations · {employer[0].name}</p>
       <h1 className="mt-2 text-3xl font-bold">People Home</h1>
@@ -111,6 +128,31 @@ export default async function HcmCommandCenter({
         <p className="mt-2 text-3xl font-bold">{item.value}</p>
       </article>)}
     </div>
+
+    {advancedLinks.length > 0 && (
+      <details className="mt-6 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+        <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-emerald-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+          Advanced HCM tools
+          <span className="ml-2 font-normal text-slate-600">
+            Jobs, organizational structure and governed workflow monitoring
+          </span>
+        </summary>
+        <p className="mt-3 text-sm text-slate-600">
+          Enterprise navigation for authorized HR administrators. Each tool enforces
+          its own employer, role, permission and rollout policy when opened.
+        </p>
+        <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {advancedLinks.map((link) => (
+            <li key={link.id}>
+              <Link href={link.href}
+                className="flex min-h-11 items-center rounded-xl border border-emerald-100 bg-emerald-50/40 px-4 py-3 text-sm font-semibold text-emerald-900 hover:border-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+                {link.label}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </details>
+    )}
 
     <section className="mt-8" aria-labelledby="people-home-worklist">
       <header>
