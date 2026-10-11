@@ -20,6 +20,15 @@ test("unassigned and company-wide manager memberships never imply company-wide s
   }), { kind: "company", orgUnitId: null });
 });
 
+test("shared access resolution never promotes unassigned manager to company-wide role", () => {
+  const access = readFileSync("src/lib/access.ts", "utf8");
+  assert.ok(access.includes('membership.role === "manager" &&'));
+  assert.ok(access.includes('Number.isSafeInteger(membership.orgUnitId)'));
+  assert.ok(access.includes('membership.orgUnitId <= 0)) return null;'));
+  assert.ok(access.indexOf('membership.role === "manager" &&') <
+    access.indexOf('companyWide: membership.orgUnitId == null'));
+});
+
 test("dashboard requires a valid manager unit before loading any employer records", () => {
   const source = readFileSync("src/lib/dashboard-data.ts", "utf8");
   const accessIndex = source.indexOf("const access = await getAccess(");
@@ -33,7 +42,8 @@ test("dashboard requires a valid manager unit before loading any employer record
   assert.ok(api.includes('access.role === "manager" && deriveMyTeamScope(access)?.kind !== "unit"'));
   assert.ok(api.includes("status: 403"));
   const page = readFileSync("src/app/app/page.tsx", "utf8");
-  assert.ok(page.includes('managerAccess?.role === "manager" && deriveMyTeamScope(managerAccess)?.kind !== "unit"'));
+  assert.ok(page.includes('managerAccess.role === "manager" && deriveMyTeamScope(managerAccess)?.kind !== "unit"'));
+  assert.ok(page.includes("if (!managerAccess ||"));
   assert.ok(page.includes("notFound()"));
 });
 
