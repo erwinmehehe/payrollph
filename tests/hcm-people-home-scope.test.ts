@@ -38,7 +38,9 @@ test("Workspace preserves chosen employer and validates membership", () => {
   const page = readFileSync("src/app/app/page.tsx", "utf8");
   assert.match(page, /explicitHcmEmployerId\(requestedValue\)/);
   assert.match(page, /getAccess\(user.id, requestedOrganizationId\)/);
-  assert.match(page, /if \(!requestedOrganizationId \|\| !\(await getAccess\(user.id, requestedOrganizationId\)\)\) notFound\(\)/);
+  assert.match(page, /const requestedAccess = requestedOrganizationId \? await getAccess\(user.id, requestedOrganizationId\) : null/);
+  assert.match(page, /if \(!requestedAccess \|\| requestedAccess\.role === "employee"\) notFound\(\)/,
+    "Employee-only membership in another employer cannot access its company workspace");
   assert.match(page, /assertOrganizationSessionPolicy\(user.id, companyOrganizationId\)/);
   assert.ok(page.includes("hcm/command-center?organizationId="));
   assert.match(page, /canOpenPeopleHome\(access\)/);
