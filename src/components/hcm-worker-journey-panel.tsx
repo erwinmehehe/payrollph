@@ -37,7 +37,13 @@ export function HcmWorkerJourneyPanel({
         Missing or restricted records are never counted as complete.
       </p>
       {journey.stages.map((item) => (
-        <div className="payslip-line" key={item.id} style={{ gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "start" }}>
+        <div
+          className="payslip-line" key={item.id}
+          id={item.id === "compensation" || item.id === "payroll"
+            ? "employee-360-" + item.id : undefined}
+          tabIndex={item.id === "compensation" || item.id === "payroll" ? -1 : undefined}
+          style={{ gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "start" }}
+        >
           <span style={{ minWidth: 0 }}>
             <strong style={{ display: "block", fontSize: 13 }}>{item.label}</strong>
             <em style={{ whiteSpace: "normal", overflowWrap: "anywhere", display: "block", marginTop: 3 }}>
