@@ -58,6 +58,16 @@ test("assigned inbox GET and governed POST remain accessible under existing sour
   assert.ok(source.includes("completeHcmBusinessProcessWorkItemTx("));
   assert.ok(!source.includes("denyOptInEnterpriseHcmPlan"),
     "Do not accidentally paywall assigned reviews/approvals needed by ordinary HR users");
+  const roleBoundHistory = source.indexOf("canReadCompanyHcmHistory(access)");
+  const planBoundHistory = source.indexOf("resolveEnterpriseHcmPlan(organizationId, process.env, getEntitlements)");
+  const historyRows = source.indexOf("const recentRows = recentAllowed");
+  assert.ok(roleBoundHistory >= 0 && planBoundHistory > roleBoundHistory &&
+    historyRows > planBoundHistory, "Paid-depth applies only after HR history authorization");
+  assert.ok(source.includes('companyHistoryAvailable: recentAllowed'));
+  assert.ok(source.includes('historyPlan === "allowed" || historyPlan === "not-enforced"'));
+  const decisionPost = source.slice(source.indexOf("export async function POST("));
+  assert.ok(!decisionPost.includes("resolveEnterpriseHcmPlan"),
+    "Actual assigned HCM review and approval decisions must not be paywalled");
   const app = read("src/components/workspace/people.tsx");
   assert.ok(app.includes("HcmBusinessProcessInbox"));
 });
