@@ -182,7 +182,7 @@ test("released payroll payout completion is audit-derived and ordered", () => {
   assert.equal(state.payout.reference, "BDO-BATCH-004821");
 });
 
-test("payout completion UX is PayMongo-first while manual bank completion remains fallback-only", () => {
+test("payout completion UX uses a gated Xendit default and preserves historical PayMongo and bank fallback", () => {
   const route = read("src/app/api/payroll-runs/[id]/exports/route.ts");
   const exportsView = read("src/components/workspace/exports.tsx");
   const payrollView = read("src/components/workspace/payroll-run.tsx");
@@ -200,9 +200,8 @@ test("payout completion UX is PayMongo-first while manual bank completion remain
 
   for (const marker of [
     "PAYOUT COMPLETION",
-    "Primary payout: PayMongo",
-    "Run PayMongo preflight",
-    "Submit via PayMongo",
+    "Xendit is Linaw&apos;s default selected payroll payout rail.",
+    "<XenditPayoutPanel",
     'data-payout-stage="paymongo-preflight"',
     'data-payout-stage="completed"',
   ]) {
