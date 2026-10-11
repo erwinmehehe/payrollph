@@ -31,8 +31,8 @@ try {
   await page.getByLabel("Hypothetical productive activities per worker-hour").fill("10");
   await page.getByLabel("Hypothetical service coverage percentage").fill("100");
   await page.getByRole("checkbox").first().check();
-  await page.getByRole("heading",{name:"Baseline demand scenario"}).waitFor();
-  await page.getByRole("heading",{name:"Higher activity scenario"}).waitFor();
+  await page.getByText("Baseline demand scenario").waitFor();
+  await page.getByText("Higher activity scenario").waitFor();
   await page.getByText("₱300.00").first().waitFor();
   assert.equal(await page.locator("[data-wfm-demand-staffing] tbody tr").count(),1);
   assert.match(await page.locator("[data-wfm-demand-staffing] tbody").innerText(),/4 \/ 5/);
