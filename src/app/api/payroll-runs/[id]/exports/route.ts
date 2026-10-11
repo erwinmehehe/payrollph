@@ -1,6 +1,6 @@
 import { configuredPayrollPayoutProvider, xenditPayrollLiveReadiness } from "@/lib/payroll-payout-provider";
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents,
@@ -620,9 +620,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const result = await withPayrollPayoutSubmissionLock(
-      () => createPaymongoPayrollDisbursement(runId),
-    );
+    return await withPayrollRunPayoutLock(run.organizationId, run.id, async () => {
+      // A final bank file has an unknown external outcome; do not pay
+      // again through a provider while that evidence exists. Check inside
+      // the shared per-run lock to close the bank-file/provider race.
+      const [legacyFile] = await db.select({ id: auditEvents.id })
+        .from(auditEvents).where(and(
+          eq(auditEvents.organizationId, run.organizationId),
+          inArray(auditEvents.action, [
+            "bank export generated", "Payroll payout completed manually",
+          ]),
+          sql`${auditEvents.metadata} ->> 'runId' = ${String(run.id)}`,
+          sql`(${auditEvents.action} <> 'bank export generated'
+             OR (${auditEvents.metadata} ->> 'kind' = 'bank'
+               AND COALESCE(${auditEvents.metadata} ->> 'dryRun', 'false') <> 'true'))`,
+        )).limit(1);
+      if (legacyFile) {
+        throw new Error("PAYROLL_PREVIOUS_FINAL_BANK_FILE_OR_MANUAL_PAYMENT: Reconcile historical bank/payment evidence before sending another payroll.");
+      }
+      const [claim] = await db.select({ provider: payoutBatches.provider })
+        .from(payoutBatches).where(and(
+          eq(payoutBatches.organizationId, run.organizationId),
+          eq(payoutBatches.payrollRunId, run.id),
+        )).limit(1);
+      if (claim && claim.provider !== "paymongo") {
+        throw new Error("PAYROLL_PAYOUT_CLAIMED_BY_XENDIT: Reconcile existing provider payments; never switch money-out rails.");
+      }
+      const result = await withPayrollPayoutSubmissionLock(
+        () => createPaymongoPayrollDisbursement(runId),
+      );
     const everyTransferCompleted =
       result.transfers.length > 0 &&
       result.transfers.every((transfer) => transfer.status.toLowerCase() === "succeeded");
@@ -646,7 +672,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         treasury: treasuryEvidence,
       },
     });
-    return Response.json({ ...result, completed: everyTransferCompleted, completedAt });
+      return Response.json({ ...result, completed: everyTransferCompleted, completedAt });
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Disbursement failed.";
     await recordAuditEvent({
