@@ -22,6 +22,7 @@ test("JSONB object order and serialized Dates do not stale unchanged final-pay e
   const stored = reorder(JSON.parse(JSON.stringify(current)));
   assert.notEqual(JSON.stringify(current), JSON.stringify(stored));
   assert.equal(sameFinalPaySource(stored, current), true);
+  assert.equal(sameFinalPaySource({ "é": 1, "e\u0301": 2 }, { "e\u0301": 2, "é": 1 }), true);
 });
 test("comparison still rejects financial, employment, timestamp and payment source changes", () => {
   const frozen = JSON.parse(JSON.stringify(source()));

@@ -118,7 +118,8 @@ export function sameFinalPaySource(left: unknown, right: unknown): boolean {
     // JSON.stringify normalizes Date via toJSON before calling this replacer,
     // matching timestamps read back from JSONB without dropping their value.
     if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-      return Object.fromEntries(Object.entries(nested).sort(([a], [b]) => a.localeCompare(b)));
+      const record = nested as Record<string, unknown>;
+      return Object.fromEntries(Object.keys(record).sort().map(key => [key, record[key]]));
     }
     return nested;
   });
