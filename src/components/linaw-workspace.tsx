@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { canOpenPeopleHome } from "@/lib/hcm-people-home-scope";
 import { Clock, ShieldCheck, Sparkles } from "lucide-react";
-import { AssetsPanel } from "@/components/assets-panel";
+import { ItOperationsPanel } from "@/components/it-operations-panel";
 import { AutomationStudioPanel } from "@/components/automation-studio-panel";
 import { BenefitsPanel } from "@/components/benefits-panel";
 import { ContractorsPanel } from "@/components/contractors-panel";
@@ -23,7 +23,8 @@ import { RecruitmentPanel } from "@/components/recruitment-panel";
 import { PerformancePanel } from "@/components/performance-panel";
 import { EnterpriseControlsPanel } from "@/components/enterprise-controls-panel";
 import { SeparationPanel } from "@/components/separation-panel";
-import { EwaPanel, ExpensesPanel } from "@/components/wallet-panel";
+import { EwaPanel } from "@/components/wallet-panel";
+import { SpendOperationsPanel } from "@/components/spend-operations-panel";
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { LaunchReadinessPanel } from "@/components/workspace/launch-readiness-panel";
 import { AnalyticsView } from "@/components/workspace/analytics";
@@ -536,14 +537,14 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         {page === "Benefits" && <BenefitsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Documents" && <HcmDocumentsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "De minimis" && <DeMinimisPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
-        {page === "Expenses" && <ExpensesPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
+        {page === "Expenses" && <SpendOperationsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Earned wage" && <EwaPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Recruitment" && <RecruitmentPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Performance" && <PerformancePanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Discipline" && <DisciplinePanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Separation" && <SeparationPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Contractors" && <ContractorsPanel organizationId={data.selectedOrganization.id} />}
-        {page === "Assets" && <AssetsPanel organizationId={data.selectedOrganization.id} />}
+        {page === "Assets" && <ItOperationsPanel organizationId={data.selectedOrganization.id} setNotice={noticeAdapter} />}
         {page === "Freelancer hub" && <FreelancerPage data={data} setNotice={noticeAdapter} />}
 
         {page === "Integrations" && <IntegrationsPage onOpenOutbox={canManageDeliveryOutbox ? () => setOutboxOpen(true) : undefined} />}
