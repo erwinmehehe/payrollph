@@ -1105,7 +1105,7 @@ export async function PATCH(request: Request) {
           ]);
           if (grants.some(g => g.state !== "revoked")
             || devices.some(d => !["returned", "available", "retired"].includes(d.state))
-            || assignedAssets.some(a => a.status === "assigned")) {
+            || assignedAssets.length > 0) {
             throw new Error("SEPARATION_IT_RECOVERY_PENDING");
           }
         }
