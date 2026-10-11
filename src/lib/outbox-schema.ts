@@ -71,9 +71,12 @@ export async function ensureOutboxDeliverySchema() {
       throw error;
     } finally {
       client.release(!safeToReuse);
-      outboxSchemaInFlight = null;
     }
-  })();
+  })().finally(() => {
+    // A failed pool.connect() or prerequisite schema preflight must not
+    // permanently poison this module's in-flight promise.
+    outboxSchemaInFlight = null;
+  });
 
   return outboxSchemaInFlight;
 }

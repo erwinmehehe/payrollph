@@ -80,9 +80,12 @@ export async function ensureStatutoryRemittanceMonthCloseSchema() {
       throw error;
     } finally {
       client.release(!safeToReuse);
-      inFlight = null;
     }
-  })();
+  })().finally(() => {
+    // A failed pool.connect() or prerequisite schema preflight must not
+    // permanently poison this module's in-flight promise.
+    inFlight = null;
+  });
 
   return inFlight;
 }
