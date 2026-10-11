@@ -5,6 +5,12 @@ import {
   payrollMonthCloseSchemaSpec,
   doleReportingSchemaSpec,
   separationSchemaSpec,
+  marketingLeadSchemaSpec,
+  workforceAttendanceSchemaSpec,
+  migrationSchemaSpec,
+  outboxDeliverySchemaSpec,
+  statutoryCorrectionSchemaSpec,
+  statutoryMonthCloseSchemaSpec,
   verifyRequestSchemaReadOnly,
 } from "../src/lib/request-schema-readonly";
 
@@ -44,6 +50,43 @@ test("PostgreSQL 16 catalog accepts money-close, DOLE and separation schema afte
     );
     assert.equal(status.rows[0]?.normal, true,
       "Preflight transaction must not leak to following operations");
+  } finally {
+    await client.end();
+  }
+});
+
+
+test("PostgreSQL 16 catalog audits all six additional request-schema writers after disposable db:push", {
+  skip: !isolated,
+}, async () => {
+  const client = new Client({ connectionString: url, connectionTimeoutMillis: 4000, query_timeout: 8000 });
+  await client.connect();
+  try {
+    const specs = [
+      marketingLeadSchemaSpec,
+      workforceAttendanceSchemaSpec,
+      migrationSchemaSpec,
+      outboxDeliverySchemaSpec,
+      statutoryCorrectionSchemaSpec,
+      statutoryMonthCloseSchemaSpec,
+    ];
+    const incompatible: string[] = [];
+    for (const spec of specs) {
+      try {
+        await verifyRequestSchemaReadOnly(
+          (sql, parameters) => client.query(sql, parameters),
+          spec,
+        );
+      } catch (error) {
+        incompatible.push(spec.label + ": " + (error instanceof Error ? error.message : String(error)));
+      }
+      const after = await client.query(
+        "SELECT current_setting('transaction_read_only') = 'off' AS normal",
+      );
+      assert.equal(after.rows[0]?.normal, true,
+        "A failed " + spec.label + " catalog preflight must still roll back");
+    }
+    assert.deepEqual(incompatible, [], "Drizzle-pushed source schema requires reviewed migration adoption");
   } finally {
     await client.end();
   }
