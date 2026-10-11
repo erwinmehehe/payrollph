@@ -5,7 +5,7 @@ import { LinawWorkspace } from "@/components/linaw-workspace";
 import { SelfServicePortal } from "@/components/self-service-portal";
 import { getSessionUser } from "@/lib/auth";
 import { getDashboardData } from "@/lib/dashboard-data";
-import { getAccess, primaryCompanyOrganizationId, primaryEmployeeOrganizationId } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, primaryCompanyOrganizationId, primaryEmployeeOrganizationId } from "@/lib/access";
 import { explicitHcmEmployerId, canOpenPeopleHome, peopleHomeEnabledForOrganization } from "@/lib/hcm-people-home-scope";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -14,6 +14,7 @@ import { isSelfServeOrganization } from "@/lib/saas-workspace-access";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 import { pilotFocusEnabledForOrganization } from "@/lib/pilot-navigation";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
+import { hirePayrollReviewEnabledForEmployer } from "@/lib/hcm-hire-payroll-review";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,12 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
   const data = await getDashboardData(companyOrganizationId);
   const pilotFocusEnabled = pilotFocusEnabledForOrganization(companyOrganizationId);
   const access = data.access;
+  // Source-review navigation is not a permission grant. Apply the same
+  // selected-employer, private pilot and custom-deny gate as its server route.
+  const allowHirePayrollReview = !pilotFocusEnabled &&
+    hirePayrollReviewEnabledForEmployer(companyOrganizationId) &&
+    !!access?.companyWide && ["owner", "admin", "hr"].includes(access.role) &&
+    (await assertOrganizationRole(user.id, companyOrganizationId, PEOPLE_ADMIN_ROLES)) === null;
   const canSeeMyTeam = !pilotFocusEnabled && process.env.HCM_MY_TEAM_ENABLED === "true" &&
     process.env.NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true" &&
     !!access && (
@@ -98,7 +105,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       )}
       {!pilotFocusEnabled && peopleHomeEnabledForOrganization(data.selectedOrganization.id) && canOpenPeopleHome(access) && (<Link href={`/hcm/command-center?organizationId=${data.selectedOrganization.id}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>) }
     </div>
-    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} pilotFocusEnabled={pilotFocusEnabled} />
+    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} pilotFocusEnabled={pilotFocusEnabled} allowHirePayrollReview={allowHirePayrollReview} />
   </>;
 }
 
