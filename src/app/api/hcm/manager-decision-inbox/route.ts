@@ -1,7 +1,7 @@
 import { assertOrganizationRole, getAccess, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import {
-  DECISION_SOURCES, deriveManagerDecisionScope,
+  DECISION_SOURCES, deriveManagerDecisionScope, managerDecisionEnabledForEmployer,
   type DecisionSource,
 } from "@/lib/hcm-manager-decision-contract";
 import {
@@ -41,11 +41,15 @@ export async function GET(request: Request) {
     return respond({ error: "Valid employer, source and cursor are required." }, 400);
   }
 
+  if (!managerDecisionEnabledForEmployer(organizationId)) {
+    return respond({ error: "Not found." }, 404);
+  }
+
   const denied = await assertOrganizationRole(
     user.id, organizationId, WORKFORCE_MANAGER_ROLES,
     "A workforce manager or HR role is required.",
   );
-  if (denied) return denied;
+  if (denied) return respond({ error: "Workspace access denied." }, denied.status);
   const access = await getAccess(user.id, organizationId);
   const scope = deriveManagerDecisionScope(access);
   if (!scope) return respond({
