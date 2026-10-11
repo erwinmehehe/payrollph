@@ -25,18 +25,13 @@ jobs:
     environment: production
     env:
       REVIEWED_SHA: ${{ inputs.reviewed_sha }}
-      PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
     steps:
-      - name: Enforce reviewed exact main SHA before touching credentials
+      - name: Enforce reviewed exact main SHA before dependency installation
         shell: bash
         run: |
           set -euo pipefail
           if [[ ! "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$REVIEWED_SHA" != "$GITHUB_SHA" ]; then
             echo "Reviewed SHA must exactly match the main workflow commit."
-            exit 1
-          fi
-          if [ -z "$PRODUCTION_DATABASE_URL" ]; then
-            echo "Missing protected production database credential. Nothing was queried."
             exit 1
           fi
 
@@ -52,7 +47,16 @@ jobs:
       - run: npm ci
 
       - name: Check catalog without reading employee records or writing DDL
-        run: npx tsx scripts/check-production-schema-preflight.ts
+        env:
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$PRODUCTION_DATABASE_URL" ]; then
+            echo "Missing protected production database credential. Nothing was queried."
+            exit 1
+          fi
+          ./node_modules/.bin/tsx scripts/check-production-schema-preflight.ts
 
       - name: Clarify evidence boundary
         if: always()
