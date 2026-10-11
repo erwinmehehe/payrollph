@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowRight, Check, Clock3, FileCheck2, ShieldCheck, Wall
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { payrollRunPresentation } from "@/lib/payroll-workflow-presentation";
 import type { DashboardData, PayrollRun, Task } from "./types";
-import { formatDate, money, Status } from "./ui";
+import { formatDate, moneyExact, Status } from "./ui";
 
 type ChecklistItem = { blocking: boolean; passed: boolean; acknowledgeable?: boolean };
 
@@ -59,9 +59,9 @@ export function PayrollPhaseTwoOverview({
       </div>
 
       <div className="p2-payroll-values">
-        <div><span>Gross pay</span><strong>{view.grossPay == null ? "—" : money(view.grossPay)}</strong></div>
-        <div><span>Employee deductions</span><strong>{view.employeeDeductions == null ? "—" : money(view.employeeDeductions)}</strong></div>
-        <div className="p2-net"><span>{view.preliminary ? "Estimated net payouts" : "Net employee payouts"}</span><strong>{view.netPay == null ? "—" : money(view.netPay)}</strong></div>
+        <div><span>Gross pay</span><strong>{view.grossPay == null ? "—" : moneyExact(view.grossPay)}</strong></div>
+        <div><span>Employee deductions</span><strong>{view.employeeDeductions == null ? "—" : moneyExact(view.employeeDeductions)}</strong></div>
+        <div className="p2-net"><span>{view.preliminary ? "Estimated net payouts" : "Net employee payouts"}</span><strong>{view.netPay == null ? "—" : moneyExact(view.netPay)}</strong></div>
         <div><span>Payroll exceptions</span><strong>{view.exceptionCount}</strong></div>
       </div>
 
