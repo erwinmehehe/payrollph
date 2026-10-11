@@ -457,6 +457,8 @@ export function PeopleView({
       )}
 
       {process.env.NEXT_PUBLIC_HCM_ORG_EXPLORER_ENABLED === "true" &&
+        (process.env.NEXT_PUBLIC_HCM_ORG_EXPLORER_ORG_IDS ?? "").split(",")
+          .some((part) => part.trim() === String(data.selectedOrganization.id)) &&
         data.access?.companyWide &&
         ["owner", "admin", "hr"].includes(data.access.role) && (
           <div className="mb-4 flex justify-end">
