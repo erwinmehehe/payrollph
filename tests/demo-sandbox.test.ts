@@ -96,13 +96,22 @@ test("real workspace action controls follow server role families", () => {
   assert.equal(roleCanManageDelegations("payroll"), false);
 });
 
-test("payroll approvals render as review-only instead of exposing forbidden decision controls", () => {
+test("approval decisions require a pending, assigned task and server-side authority", () => {
   const approvals = read("src/components/workspace/approvals.tsx");
+  const assignment = read("src/lib/workspace-approval-eligibility.ts");
+  const handler = read("src/app/api/approvals/[id]/route.ts");
   const workspace = read("src/components/linaw-workspace.tsx");
 
-  assert.ok(approvals.includes("canDecide"), "approvals view needs an explicit decision capability");
+  assert.ok(approvals.includes("canDecide"), "approvals view needs an explicit role decision capability");
   assert.ok(approvals.includes("canManageDelegations"), "delegation controls need a separate capability");
-  assert.ok(approvals.includes('task.status === "Pending" && canDecide'), "pending decision buttons must be capability-gated");
+  assert.ok(approvals.includes("canDecideTask(task)"), "decision actions must check assignment for each task");
+  assert.ok(approvals.includes("decisionVisibleToViewer"), "UI decisions must reuse task assignment eligibility");
+  assert.ok(assignment.includes('input.task.status === "Pending"'), "a decided task must not offer approval actions");
+  assert.ok(assignment.includes("assignedToViewer(input.task.approver"), "role alone must not grant a named approver task");
+  assert.ok(approvals.includes("draftPermitted"), "confirmation must recheck the draft decision's eligibility");
+  assert.ok(approvals.includes("!draftPermitted"), "confirmation must be disabled if task eligibility changes");
+  assert.ok(handler.includes("canDecide(task.organizationId, task.approver, actor, sessionUser.id)"),
+    "the approvals API must remain the authoritative authorization gate");
   assert.ok(workspace.includes("roleCanDecideApprovals(effectiveRole)"), "workspace must derive approval controls from the real role");
   assert.ok(workspace.includes("workspacePagesForRole(effectiveRole)"), "real user navigation must be role-scoped");
 });

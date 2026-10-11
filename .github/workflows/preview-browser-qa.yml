@@ -10,9 +10,15 @@ on:
       # Stacked ESS and billing PRs also require browser/security assurance.
       - feat/hcm-work-item-ownership-sla
       - ui/ess-mobile-ux
+      # Stacked Phase 2 UI PR is reviewed against the Phase 1 feature branch.
+      - design/gusto-inspired-ux-2026-10-11
     paths:
       - "src/components/marketing/**"
       - "src/app/workspace-theme.css"
+      - "src/app/phase-two.css"
+      - "src/lib/payroll-workflow-presentation.ts"
+      - "src/lib/workspace-approval-eligibility.ts"
+      - "tests/payroll-approvals-phase-two.test.ts"
       - "src/components/workspace/**"
       - "src/components/linaw-workspace.tsx"
       - "src/components/self-service-portal.tsx"
@@ -816,7 +822,131 @@ jobs:
                 check((await page.locator(".demo-sandbox:visible").count()) === 0, "HR: secondary module reintroduced the bulky demo tools strip");
                 // People was already exercised above. This verifies the promoted Time route
                 // while the More group retains access to advanced Planning features.
+                // HR can review workspace approvals, but the synthetic fixture
+                // assigns all pending decisions to Mariel (Checker). HR must
+                // see their status without receiving decision controls.
+                const hrApprovalNav = demoSidebar.locator(".nav-item").filter({ hasText: /^Approvals/ }).first();
+                check((await hrApprovalNav.count()) === 1, "Phase 2 HR: Approvals navigation missing");
+                await hrApprovalNav.click();
+                const hrApprovalQueue = page.locator(".p2-approval-queue");
+                await hrApprovalQueue.waitFor({ state: "visible", timeout: 30000 });
+                const hrPending = page.getByRole("group", { name: "Approval filter" }).getByRole("button", { name: /All pending/ });
+                await hrPending.click();
+                const hrApprovalRows = hrApprovalQueue.locator(".p2-approval-row");
+                check((await hrApprovalRows.count()) >= 1, "Phase 2 HR: seeded pending approval tasks missing");
+                check((await hrApprovalRows.locator(".p2-approval-actions").count()) === 0, "Phase 2 HR: unrelated tasks expose approval actions");
+                check((await hrApprovalRows.locator(".p2-approval-readonly").count()) === (await hrApprovalRows.count()), "Phase 2 HR: unrelated tasks must all be read-only");
+                await page.screenshot({ path: outDir + "/phase2-hr-approvals-readonly-desktop-1440.png", fullPage: true });
+
               }
+            }
+
+            // Phase 2: these checks are read-only except for opening/cancelling
+            // the confirmation modal. The GitHub runner uses seeded demo Postgres.
+            if (persona.id === "owner") {
+              const ownerPayroll = page.locator('aside .nav-item[data-nav-name="Payroll"]').first();
+              check((await ownerPayroll.count()) === 1, "Phase 2 Owner: payroll navigation is missing");
+              await ownerPayroll.click();
+              await page.waitForTimeout(200);
+            }
+            if (persona.id === "owner" || persona.id === "payroll") {
+              const guided = page.locator(".p2-payroll-overview");
+              await guided.waitFor({ state: "visible", timeout: 30000 });
+              check((await guided.count()) === 1, "Phase 2: premium payroll lifecycle is missing");
+              check((await guided.locator(".p2-payroll-step").count()) === 5, "Phase 2: five payroll stages are required");
+              const stageLabels = (await guided.locator(".p2-payroll-step strong").allTextContents()).map(value => value.trim());
+              check(
+                JSON.stringify(stageLabels) === JSON.stringify(["Prepare", "Review", "Approve", "Release", "Bank payout"]),
+                "Phase 2: payroll stage order or labels changed",
+              );
+              check((await guided.locator(".p2-payroll-values > div").count()) === 4, "Phase 2: stored payroll metrics missing");
+              check((await guided.locator(".p2-payroll-disclaimer").innerText()).includes("stored run figures"), "Phase 2: client-only calculation disclaimer missing");
+              check((await page.locator("button.run-item").count()) >= 1, "Phase 2: original payroll runs/register was removed");
+              const actions = guided.locator(".p2-payroll-actions button");
+              check((await actions.count()) >= 1, "Phase 2: no navigation back to existing guarded controls");
+              await guided.screenshot({ path: outDir + "/phase2-" + persona.id + "-payroll-desktop-1440.png" });
+
+              for (const viewport of [{ width: 768, height: 1024 }, { width: 390, height: 844 }]) {
+                await page.setViewportSize(viewport);
+                await page.waitForTimeout(180);
+                const fitting = await guided.evaluate((element) => {
+                  const bounds = element.getBoundingClientRect();
+                  const figures = Array.from(element.querySelectorAll(".p2-payroll-values strong"));
+                  return {
+                    left: bounds.left,
+                    right: bounds.right,
+                    pageWidth: window.innerWidth,
+                    amountsFit: figures.every(figure => figure.scrollWidth <= figure.clientWidth + 1),
+                  };
+                });
+                check(fitting.left >= -1 && fitting.right <= fitting.pageWidth + 1, "Phase 2: payroll card exceeds " + viewport.width + "px viewport");
+                check(fitting.amountsFit, "Phase 2: financial amounts clip at " + viewport.width + "px");
+                await guided.screenshot({ path: outDir + "/phase2-" + persona.id + "-payroll-" + viewport.width + ".png" });
+              }
+              await page.setViewportSize({ width: 1440, height: 1000 });
+            }
+            if (persona.id === "checker") {
+              const queue = page.locator(".p2-approval-queue");
+              await queue.waitFor({ state: "visible", timeout: 30000 });
+              check((await queue.count()) === 1, "Phase 2 Checker: approval queue is missing");
+              const filters = page.getByRole("group", { name: "Approval filter" });
+              check((await filters.count()) === 1, "Phase 2 Checker: approval filters are missing");
+              check((await filters.getByRole("button", { name: /Assigned to me/ }).count()) === 1, "Phase 2 Checker: per-assignee filter is missing");
+              check((await filters.getByRole("button", { name: /All pending/ }).count()) === 1, "Phase 2 Checker: workspace-wide pending option is missing");
+              const checkerPayrollRow = queue.locator(".p2-approval-row").filter({ hasText: "Review Sep 1–15 payroll" }).first();
+              check((await checkerPayrollRow.count()) === 1, "Phase 2 Checker: assigned payroll review is missing");
+              const openEvidence = checkerPayrollRow.getByRole("button", { name: "Review payroll evidence" });
+              check((await openEvidence.count()) === 1, "Phase 2 Checker: payroll decision must first lead to variance evidence");
+              check((await checkerPayrollRow.getByRole("button", { name: "Review & approve", exact: true }).count()) === 0, "Phase 2 Checker: direct payroll approval bypasses variance evidence");
+              await openEvidence.click();
+              const evidence = page.locator("#p2-checker-evidence .checker-variance-center");
+              await evidence.waitFor({ state: "visible", timeout: 30000 });
+              check((await evidence.count()) === 1, "Phase 2 Checker: payroll variance evidence cannot be opened");
+
+
+              const approve = page.getByRole("button", { name: "Review & approve", exact: true }).first();
+              if (await approve.count()) {
+                await approve.click();
+                const confirmation = page.getByRole("dialog", { name: "Confirm approval" });
+                check((await confirmation.count()) === 1, "Phase 2 Checker: approval must show explicit confirmation");
+                check((await confirmation.innerText()).toLowerCase().includes("server"), "Phase 2 Checker: guard explanation is missing");
+                await confirmation.getByRole("button", { name: "Cancel" }).click();
+                await page.locator("dialog.p2-approval-confirm[open]").waitFor({ state: "hidden", timeout: 5000 });
+                check((await page.locator("dialog.p2-approval-confirm[open]").count()) === 0, "Phase 2 Checker: cancel must close without deciding");
+                const decline = page.getByRole("button", { name: "Decline", exact: true }).first();
+                if (await decline.count()) {
+                  await decline.click();
+                  const declineDialog = page.getByRole("dialog", { name: "Confirm decline" });
+                  check((await declineDialog.count()) === 1, "Phase 2 Checker: decline must require confirmation");
+                  await declineDialog.getByRole("button", { name: "Cancel" }).click();
+                  await page.locator("dialog.p2-approval-confirm[open]").waitFor({ state: "hidden", timeout: 5000 });
+                }
+              }
+              await filters.getByRole("button", { name: /All pending/ }).click();
+              check((await page.locator(".p2-approval-row").count()) >= 1, "Phase 2 Checker: pending task history missing");
+              const shown = await page.locator(".p2-approval-row").count();
+              const actionable = await page.locator(".p2-approval-row .p2-approval-actions").count();
+              const readonly = await page.locator(".p2-approval-row .p2-approval-readonly").count();
+              check(actionable + readonly === shown, "Phase 2 Checker: every task must be either actionable or read-only");
+              await page.evaluate(() => window.scrollTo(0, 0));
+              await page.screenshot({ path: outDir + "/phase2-checker-approvals-desktop-1440.png", fullPage: true });
+              for (const viewport of [{ width: 768, height: 1024 }, { width: 390, height: 844 }]) {
+                await page.setViewportSize(viewport);
+                await page.waitForTimeout(160);
+                const viewportFit = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+                check(viewportFit, "Phase 2 Checker: Approvals causes horizontal overflow at " + viewport.width + "px");
+                const buttonsFit = await page.locator(".p2-approval-row").evaluateAll((rows) => rows.every((row) => {
+                  const parent = row.getBoundingClientRect();
+                  return Array.from(row.querySelectorAll(".p2-approval-actions button")).every((button) => {
+                    const rect = button.getBoundingClientRect();
+                    return rect.left >= parent.left - 1 && rect.right <= parent.right + 1;
+                  });
+                }));
+                check(buttonsFit, "Phase 2 Checker: approval buttons clip outside task cards at " + viewport.width + "px");
+                await page.evaluate(() => window.scrollTo(0, 0));
+                await page.screenshot({ path: outDir + "/phase2-checker-approvals-" + viewport.width + ".png", fullPage: true });
+              }
+              await page.setViewportSize({ width: 1440, height: 1000 });
             }
 
             await page.screenshot({
