@@ -5,6 +5,12 @@ import {
   payrollMonthCloseSchemaSpec,
   doleReportingSchemaSpec,
   separationSchemaSpec,
+  marketingLeadSchemaSpec,
+  workforceAttendanceSchemaSpec,
+  migrationSchemaSpec,
+  outboxDeliverySchemaSpec,
+  statutoryCorrectionSchemaSpec,
+  statutoryMonthCloseSchemaSpec,
   verifyRequestSchemaReadOnly,
 } from "../src/lib/request-schema-readonly";
 
@@ -44,6 +50,83 @@ test("PostgreSQL 16 catalog accepts money-close, DOLE and separation schema afte
     );
     assert.equal(status.rows[0]?.normal, true,
       "Preflight transaction must not leak to following operations");
+  } finally {
+    await client.end();
+  }
+});
+
+
+test("PostgreSQL 16 catalog audits all six additional request-schema writers after disposable db:push", {
+  skip: !isolated,
+}, async () => {
+  const client = new Client({ connectionString: url, connectionTimeoutMillis: 4000, query_timeout: 8000 });
+  await client.connect();
+  try {
+    const specs = [
+      marketingLeadSchemaSpec,
+      workforceAttendanceSchemaSpec,
+      migrationSchemaSpec,
+      outboxDeliverySchemaSpec,
+      statutoryCorrectionSchemaSpec,
+      statutoryMonthCloseSchemaSpec,
+    ];
+    const incompatible: string[] = [];
+    for (const spec of specs) {
+      try {
+        await verifyRequestSchemaReadOnly(
+          (sql, parameters) => client.query(sql, parameters),
+          spec,
+        );
+      } catch (error) {
+        if (spec.label === "marketing") {
+          // Synthetic, disposable PostgreSQL only; metadata, never employer
+          // records or SQL parameter values. Useful when Drizzle drifts.
+          const indexes = await client.query(
+            "SELECT idx.relname AS name, pg_catalog.pg_get_indexdef(i.indexrelid) AS ddl " +
+            "FROM pg_catalog.pg_index i JOIN pg_catalog.pg_class idx ON idx.oid=i.indexrelid " +
+            "JOIN pg_catalog.pg_class t ON t.oid=i.indrelid " +
+            "WHERE t.relname='marketing_leads' ORDER BY idx.relname",
+          );
+          const constraints = await client.query(
+            "SELECT conname AS name, pg_catalog.pg_get_constraintdef(oid) AS definition " +
+            "FROM pg_catalog.pg_constraint WHERE conrelid='public.marketing_leads'::regclass " +
+            "ORDER BY conname",
+          );
+          const indexKeys = await client.query(
+            "SELECT idx.relname AS name, tbl.relname AS \"tableName\", " +
+            "i.indisunique AS \"isUnique\", i.indisvalid AS \"isValid\", " +
+            "i.indisready AS \"isReady\", " +
+            "ARRAY(SELECT pg_catalog.pg_get_indexdef(i.indexrelid, n, true) " +
+            "FROM pg_catalog.generate_series(1, i.indnkeyatts) AS n ORDER BY n) AS keys, " +
+            "pg_catalog.pg_get_expr(i.indpred, i.indrelid) AS predicate " +
+            "FROM pg_catalog.pg_index i " +
+            "JOIN pg_catalog.pg_class idx ON idx.oid=i.indexrelid " +
+            "JOIN pg_catalog.pg_class tbl ON tbl.oid=i.indrelid " +
+            "WHERE tbl.relname='marketing_leads' ORDER BY idx.relname",
+          );
+          const columns = await client.query(
+            "SELECT a.attname AS name, pg_catalog.format_type(a.atttypid, a.atttypmod) AS type, " +
+            "a.attnotnull AS \"notNull\", pg_catalog.pg_get_expr(d.adbin, d.adrelid) AS \"columnDefault\" " +
+            "FROM pg_catalog.pg_attribute a " +
+            "JOIN pg_catalog.pg_class t ON t.oid=a.attrelid " +
+            "LEFT JOIN pg_catalog.pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum " +
+            "WHERE t.relname='marketing_leads' AND a.attnum>0 AND NOT a.attisdropped ORDER BY a.attnum",
+          );
+          console.error("Synthetic marketing catalog mismatch:", JSON.stringify({
+            indexKeys: indexKeys.rows, columns: columns.rows,
+            constraints: constraints.rows,
+            expectedIndexKeys: marketingLeadSchemaSpec.indexes,
+          }));
+        }
+        incompatible.push(spec.label + ": " + (error instanceof Error ? error.message : String(error)));
+      }
+      const after = await client.query(
+        "SELECT current_setting('transaction_read_only') = 'off' AS normal",
+      );
+      assert.equal(after.rows[0]?.normal, true,
+        "A failed " + spec.label + " catalog preflight must still roll back");
+    }
+    assert.deepEqual(incompatible, [], "Drizzle-pushed source schema requires reviewed migration adoption");
   } finally {
     await client.end();
   }

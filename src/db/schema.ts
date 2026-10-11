@@ -1975,7 +1975,8 @@ export const outbox = pgTable("outbox", {
   sentAt: timestamp("sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
-  uniqueIndex("outbox_dedupe_key_unique").on(table.dedupeKey),
+  uniqueIndex("outbox_dedupe_key_unique").on(table.dedupeKey)
+    .where(sql`${table.dedupeKey} is not null`),
   index("outbox_org_created_idx").on(table.organizationId, table.createdAt),
   index("outbox_retry_idx").on(table.status, table.nextAttemptAt),
 ]);
@@ -2003,8 +2004,14 @@ export const marketingLeads = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    index("marketing_leads_status_created_idx").on(table.status, table.createdAt),
-    index("marketing_leads_kind_created_idx").on(table.kind, table.createdAt),
+    index("marketing_leads_status_created_idx").on(table.status, table.createdAt.desc()),
+    index("marketing_leads_kind_created_idx").on(table.kind, table.createdAt.desc()),
+    check("marketing_leads_kind_check",
+      sql`${table.kind} in ('demo','trial-access','payroll-outsourcing')`),
+    check("marketing_leads_status_check",
+      sql`${table.status} in ('new','contacted','qualified','closed')`),
+    check("marketing_leads_notification_status_check",
+      sql`${table.notificationStatus} in ('not-configured','queued','sent','failed')`),
   ],
 );
 
