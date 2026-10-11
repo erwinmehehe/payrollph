@@ -1,3 +1,5 @@
+import type { Pool, PoolClient } from "pg";
+
 /**
  * Catalog-only preflight for request-path legacy schema creators. This never
  * reads employee rows or changes the database. Passing is a structural subset
@@ -20,7 +22,9 @@ export type RequestSchemaConstraint = {
   exactCheckDefinition?: string;
 };
 export type RequestSchemaSpec = {
-  label: "leave" | "pay-basis" | "month-close" | "dole-reporting" | "separation";
+  label: "leave" | "pay-basis" | "month-close" | "dole-reporting" | "separation"
+    | "marketing" | "workforce-attendance" | "migration" | "outbox"
+    | "remittance-correction" | "remittance-month-close";
   tables: readonly string[];
   columns: readonly RequestSchemaColumn[];
   indexes: readonly RequestSchemaIndex[];
@@ -167,6 +171,24 @@ export async function verifyRequestSchemaReadOnly(
     }
   } finally {
     if (began) await query("ROLLBACK");
+  }
+}
+
+/**
+ * Every preflight owns exactly one pooled client. Any catalog/transaction
+ * failure discards the client rather than returning a possibly open transaction.
+ * No SQL from legacy schema repair paths is executed here.
+ */
+export async function verifyRequestSchemaReadOnlyFromPool(pool: Pool, spec: RequestSchemaSpec) {
+  let client: PoolClient | null = null;
+  let verified = false;
+  try {
+    client = await pool.connect();
+    const connected = client;
+    await verifyRequestSchemaReadOnly((sql, args) => connected.query(sql, args), spec);
+    verified = true;
+  } finally {
+    client?.release(!verified);
   }
 }
 
@@ -365,5 +387,186 @@ export const separationSchemaSpec: RequestSchemaSpec = {
       exactCheckDefinition:
         "CHECK (prepared_by_user_id IS NULL OR approved_by_user_id IS NULL OR prepared_by_user_id <> approved_by_user_id)",
       tokens: ["prepared_by_user_id", "approved_by_user_id", "<>"] },
+  ],
+};
+
+
+/** These add-on specifications prevent request-time DDL in independently
+ * approved read-only mode. They are structural checks, not migration receipts. */
+export const marketingLeadSchemaSpec: RequestSchemaSpec = {
+  label: "marketing",
+  tables: ["marketing_leads"],
+  columns: [
+    { name: "marketing_leads.id", type: "integer", notNull: true },
+    { name: "marketing_leads.kind", type: "character varying(32)", notNull: true },
+    { name: "marketing_leads.name", type: "character varying(120)", notNull: true },
+    { name: "marketing_leads.email", type: "character varying(180)", notNull: true },
+    { name: "marketing_leads.company", type: "character varying(160)", notNull: true },
+    { name: "marketing_leads.source_path", type: "character varying(120)", notNull: true },
+    { name: "marketing_leads.attribution", type: "jsonb", notNull: true, defaultTokens: ["{}", "jsonb"] },
+    { name: "marketing_leads.status", type: "character varying(24)", notNull: true, defaultTextLiteral: "new" },
+    { name: "marketing_leads.notification_status", type: "character varying(24)", notNull: true, defaultTextLiteral: "not-configured" },
+    { name: "marketing_leads.notification_attempts", type: "integer", notNull: true, defaultNumericZero: true },
+    { name: "marketing_leads.notification_outbox_id", type: "integer" },
+  ],
+  indexes: [
+    { name: "marketing_leads_status_created_idx", tableName: "marketing_leads", keys: ["status", "created_at DESC"], unique: false },
+    { name: "marketing_leads_kind_created_idx", tableName: "marketing_leads", keys: ["kind", "created_at DESC"], unique: false },
+  ],
+  constraints: [
+    { tableName: "marketing_leads", kind: "p", tokens: ["primarykey(id)"] },
+    { tableName: "marketing_leads", kind: "c", name: "marketing_leads_kind_check",
+      tokens: ["kind", "demo", "trial-access", "payroll-outsourcing"] },
+    { tableName: "marketing_leads", kind: "c", name: "marketing_leads_status_check",
+      tokens: ["status", "new", "contacted", "qualified", "closed"] },
+    { tableName: "marketing_leads", kind: "c", name: "marketing_leads_notification_status_check",
+      tokens: ["notification_status", "not-configured", "queued", "sent", "failed"] },
+  ],
+};
+
+export const workforceAttendanceSchemaSpec: RequestSchemaSpec = {
+  label: "workforce-attendance",
+  tables: ["workforce_attendance_lock_policies", "workforce_attendance_period_locks"],
+  columns: [
+    { name: "workforce_attendance_lock_policies.organization_id", type: "integer", notNull: true },
+    { name: "workforce_attendance_lock_policies.require_payroll_cutoff_lock", type: "boolean", notNull: true, defaultTokens: ["false"] },
+    { name: "workforce_attendance_period_locks.id", type: "integer", notNull: true },
+    { name: "workforce_attendance_period_locks.organization_id", type: "integer", notNull: true },
+    { name: "workforce_attendance_period_locks.period_start", type: "date", notNull: true },
+    { name: "workforce_attendance_period_locks.period_end", type: "date", notNull: true },
+    { name: "workforce_attendance_period_locks.lock_type", type: "character varying(24)", notNull: true, defaultTextLiteral: "attendance" },
+    { name: "workforce_attendance_period_locks.status", type: "character varying(16)", notNull: true, defaultTextLiteral: "locked" },
+    { name: "workforce_attendance_period_locks.reason", type: "character varying(240)", notNull: true },
+    { name: "workforce_attendance_period_locks.locked_by", type: "character varying(120)", notNull: true },
+  ],
+  indexes: [
+    { name: "workforce_attendance_period_locks_period_unique", tableName: "workforce_attendance_period_locks",
+      keys: ["organization_id", "period_start", "period_end", "lock_type"], unique: true },
+    { name: "workforce_attendance_period_locks_active_idx", tableName: "workforce_attendance_period_locks",
+      keys: ["organization_id", "status", "period_start", "period_end"], unique: false },
+  ],
+  constraints: [
+    { tableName: "workforce_attendance_lock_policies", kind: "p", tokens: ["primarykey(organization_id)"] },
+    { tableName: "workforce_attendance_lock_policies", kind: "f", tokens: ["organization_id", "referencesorganizations(id)", "ondeletecascade"] },
+    { tableName: "workforce_attendance_period_locks", kind: "p", tokens: ["primarykey(id)"] },
+    { tableName: "workforce_attendance_period_locks", kind: "f", tokens: ["organization_id", "referencesorganizations(id)", "ondeletecascade"] },
+    { tableName: "workforce_attendance_period_locks", kind: "c", name: "workforce_attendance_period_locks_date_check", tokens: ["period_end", ">=", "period_start"] },
+    { tableName: "workforce_attendance_period_locks", kind: "c", name: "workforce_attendance_period_locks_type_check", tokens: ["lock_type", "attendance", "payroll_cutoff"] },
+    { tableName: "workforce_attendance_period_locks", kind: "c", name: "workforce_attendance_period_locks_status_check", tokens: ["status", "locked", "unlocked"] },
+  ],
+};
+
+export const migrationSchemaSpec: RequestSchemaSpec = {
+  label: "migration",
+  tables: ["import_batches", "historical_payroll_entries"],
+  columns: [
+    { name: "import_batches.source_system", type: "character varying(64)", notNull: true, defaultTextLiteral: "generic" },
+    { name: "import_batches.import_kind", type: "character varying(40)", notNull: true, defaultTextLiteral: "employees" },
+    { name: "historical_payroll_entries.id", type: "integer", notNull: true },
+    { name: "historical_payroll_entries.organization_id", type: "integer", notNull: true },
+    { name: "historical_payroll_entries.employee_id", type: "integer", notNull: true },
+    { name: "historical_payroll_entries.import_batch_id", type: "integer", notNull: false },
+    { name: "historical_payroll_entries.source_system", type: "character varying(64)", notNull: true, defaultTextLiteral: "generic" },
+    { name: "historical_payroll_entries.source_reference", type: "character varying(180)", notNull: true },
+    { name: "historical_payroll_entries.pay_date", type: "date", notNull: true },
+    { name: "historical_payroll_entries.gross_pay", type: "numeric(14,2)", notNull: true },
+    { name: "historical_payroll_entries.basic_salary", type: "numeric(14,2)", notNull: false },
+    { name: "historical_payroll_entries.net_pay", type: "numeric(14,2)", notNull: true },
+    { name: "historical_payroll_entries.thirteenth_month", type: "numeric(14,2)", notNull: true, defaultNumericZero: true },
+  ],
+  indexes: [
+    { name: "historical_payroll_source_unique", tableName: "historical_payroll_entries",
+      keys: ["organization_id", "employee_id", "source_system", "source_reference"], unique: true },
+  ],
+  constraints: [
+    { tableName: "historical_payroll_entries", kind: "p", tokens: ["primarykey(id)"] },
+    { tableName: "historical_payroll_entries", kind: "f", tokens: ["organization_id", "referencesorganizations(id)", "ondeletecascade"] },
+    { tableName: "historical_payroll_entries", kind: "f", tokens: ["employee_id", "referencesemployees(id)", "ondeletecascade"] },
+    { tableName: "historical_payroll_entries", kind: "f", tokens: ["import_batch_id", "referencesimport_batches(id)", "ondeletesetnull"] },
+  ],
+};
+
+export const outboxDeliverySchemaSpec: RequestSchemaSpec = {
+  label: "outbox",
+  tables: ["outbox"],
+  columns: [
+    { name: "outbox.organization_id", type: "integer" },
+    { name: "outbox.dedupe_key", type: "character varying(200)", notNull: false },
+    { name: "outbox.provider_message_id", type: "character varying(200)", notNull: false },
+    { name: "outbox.delivery_status", type: "character varying(32)", notNull: false },
+    { name: "outbox.delivery_detail", type: "text", notNull: false },
+    { name: "outbox.delivery_updated_at", type: "timestamp with time zone", notNull: false },
+    { name: "outbox.metadata", type: "jsonb", notNull: true, defaultTokens: ["{}", "jsonb"] },
+    { name: "outbox.attempts", type: "integer", notNull: true, defaultNumericZero: true },
+    { name: "outbox.max_attempts", type: "integer", notNull: true, defaultTokens: ["4"] },
+    { name: "outbox.last_attempt_at", type: "timestamp with time zone", notNull: false },
+    { name: "outbox.next_attempt_at", type: "timestamp with time zone", notNull: false },
+  ],
+  indexes: [
+    { name: "outbox_dedupe_key_unique", tableName: "outbox", keys: ["dedupe_key"], unique: true, predicateTokens: ["dedupe_key", "IS NOT NULL"] },
+    { name: "outbox_org_created_idx", tableName: "outbox", keys: ["organization_id", "created_at"], unique: false },
+    { name: "outbox_retry_idx", tableName: "outbox", keys: ["status", "next_attempt_at"], unique: false },
+  ],
+  constraints: [],
+};
+
+export const statutoryCorrectionSchemaSpec: RequestSchemaSpec = {
+  label: "remittance-correction",
+  tables: ["statutory_remittance_correction_requests"],
+  columns: [
+    { name: "statutory_remittance_correction_requests.id", type: "integer", notNull: true },
+    { name: "statutory_remittance_correction_requests.organization_id", type: "integer", notNull: true },
+    { name: "statutory_remittance_correction_requests.target_type", type: "character varying(32)", notNull: true },
+    { name: "statutory_remittance_correction_requests.batch_id", type: "integer", notNull: true },
+    { name: "statutory_remittance_correction_requests.member_id", type: "integer", notNull: false },
+    { name: "statutory_remittance_correction_requests.original_snapshot", type: "jsonb", notNull: true },
+    { name: "statutory_remittance_correction_requests.proposed_snapshot", type: "jsonb", notNull: true },
+    { name: "statutory_remittance_correction_requests.status", type: "character varying(24)", notNull: true, defaultTextLiteral: "pending" },
+    { name: "statutory_remittance_correction_requests.requested_by_user_id", type: "integer", notNull: false },
+    { name: "statutory_remittance_correction_requests.decided_by_user_id", type: "integer", notNull: false },
+  ],
+  indexes: [
+    { name: "statutory_remittance_corrections_status_idx", tableName: "statutory_remittance_correction_requests",
+      keys: ["organization_id", "status", "created_at"], unique: false },
+    { name: "statutory_remittance_corrections_batch_idx", tableName: "statutory_remittance_correction_requests",
+      keys: ["organization_id", "batch_id"], unique: false },
+    { name: "statutory_remittance_corrections_member_idx", tableName: "statutory_remittance_correction_requests",
+      keys: ["organization_id", "member_id"], unique: false },
+  ],
+  constraints: [
+    { tableName: "statutory_remittance_correction_requests", kind: "p", tokens: ["primarykey(id)"] },
+    { tableName: "statutory_remittance_correction_requests", kind: "f", tokens: ["organization_id", "referencesorganizations(id)", "ondeletecascade"] },
+    { tableName: "statutory_remittance_correction_requests", kind: "f", tokens: ["batch_id", "referencesstatutory_remittance_batches(id)", "ondeletecascade"] },
+    { tableName: "statutory_remittance_correction_requests", kind: "f", tokens: ["member_id", "referencesstatutory_remittance_members(id)", "ondeletecascade"] },
+    { tableName: "statutory_remittance_correction_requests", kind: "f", tokens: ["requested_by_user_id", "referencesusers(id)", "ondeletesetnull"] },
+    { tableName: "statutory_remittance_correction_requests", kind: "f", tokens: ["decided_by_user_id", "referencesusers(id)", "ondeletesetnull"] },
+  ],
+};
+
+export const statutoryMonthCloseSchemaSpec: RequestSchemaSpec = {
+  label: "remittance-month-close",
+  tables: ["statutory_remittance_month_closures"],
+  columns: [
+    { name: "statutory_remittance_month_closures.id", type: "integer", notNull: true },
+    { name: "statutory_remittance_month_closures.organization_id", type: "integer", notNull: true },
+    { name: "statutory_remittance_month_closures.legal_entity_id", type: "integer", notNull: true },
+    { name: "statutory_remittance_month_closures.applicable_month", type: "character varying(7)", notNull: true },
+    { name: "statutory_remittance_month_closures.status", type: "character varying(24)", notNull: true, defaultTextLiteral: "certified" },
+    { name: "statutory_remittance_month_closures.snapshot_hash", type: "character varying(64)", notNull: true },
+    { name: "statutory_remittance_month_closures.certified_by_user_id", type: "integer", notNull: false },
+    { name: "statutory_remittance_month_closures.certified_by_name", type: "character varying(120)", notNull: true },
+    { name: "statutory_remittance_month_closures.invalidated_at", type: "timestamp with time zone", notNull: false },
+    { name: "statutory_remittance_month_closures.invalidation_reason", type: "character varying(280)", notNull: false },
+  ],
+  indexes: [
+    { name: "statutory_remittance_month_closure_snapshot_unique", tableName: "statutory_remittance_month_closures",
+      keys: ["organization_id", "legal_entity_id", "applicable_month", "snapshot_hash"], unique: true },
+    { name: "statutory_remittance_month_closure_status_idx", tableName: "statutory_remittance_month_closures",
+      keys: ["organization_id", "legal_entity_id", "status"], unique: false },
+  ],
+  constraints: [
+    { tableName: "statutory_remittance_month_closures", kind: "p", tokens: ["primarykey(id)"] },
+    { tableName: "statutory_remittance_month_closures", kind: "f", tokens: ["organization_id", "referencesorganizations(id)", "ondeletecascade"] },
+    { tableName: "statutory_remittance_month_closures", kind: "f", tokens: ["legal_entity_id", "referenceslegal_entities(id)", "ondeleterestrict"] },
   ],
 };
