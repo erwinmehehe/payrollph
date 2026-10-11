@@ -76,8 +76,7 @@ export function ApprovalsView({
       .some((id) => id.trim() === String(data.selectedOrganization.id)) &&
     !!data.access && (
       ["owner", "admin", "hr"].includes(data.access.role) ||
-      (data.access.role === "manager" && !data.access.companyWide &&
-        Number.isSafeInteger(data.access.orgUnitId) && (data.access.orgUnitId ?? 0) > 0)
+      (data.access.role === "manager" && !data.access.companyWide)
     );
 
 
