@@ -40,7 +40,11 @@ export async function recordGeneratedFiling(input: {
 
   const file = await generateGovernmentDraft(run.id, input.definition.kind);
   const fileSha256 = sha256Hex(file.body);
-  const applicableMonth = String(run.periodEnd).slice(0, 7);
+  // 1601-C aggregates withholding by pay date in generateGovernmentDraft.
+  // A September cutoff paid in October must bind to its October worksheet,
+  // while contribution worksheets retain their payroll-period month.
+  const applicableMonth = String(input.definition.agency === "BIR" && input.definition.form === "1601-C"
+    ? run.payDate : run.periodEnd).slice(0, 7);
   const remittanceSnapshot = summarizeMonthlyContributionFile({
     agency: input.definition.agency,
     form: input.definition.form,
