@@ -8,6 +8,7 @@ import {
   provisioningTasks, userOrganizations, users,
 } from "../src/db/schema";
 import { loadPeopleHomeWorklist } from "../src/lib/hcm-people-home-worklist";
+import { resolvePeopleEmployeeFocus } from "../src/lib/hcm-people-employee-focus";
 import { loadHirePayrollInputReview } from "../src/lib/hcm-hire-payroll-review-server";
 import { buildHcmWorkerJourney, type WorkerJourneyInput } from "../src/lib/hcm-worker-journey";
 
@@ -69,6 +70,33 @@ test("an HCM onboarding source flows from People Home into worker and pay-input 
     assert.equal(item.subjectEmployeeId, a.id);
     assert.equal(item.sourceUrl,
       "/app?organizationId=" + alpha.id + "&workspacePage=People&focusEmployeeId=" + a.id);
+    // Follow the exact generated URL through the real Employee 360 focus
+    // resolver using the selected-employer snapshot, not a guessed ID.
+    const params = new URL(item.sourceUrl, "https://synthetic.example").searchParams;
+    const handoff = {
+      requestedPage: params.get("workspacePage"),
+      requestedOrganizationId: params.get("organizationId"),
+      requestedEmployeeId: params.get("focusEmployeeId"),
+      selectedOrganizationId: alpha.id,
+      access: { role: "hr", companyWide: true },
+      authorizedEmployees: [{ id: a.id }],
+      serverAuthorized: true,
+      demoMode: false,
+    };
+    assert.equal(resolvePeopleEmployeeFocus(handoff), a.id);
+    assert.equal(resolvePeopleEmployeeFocus({
+      ...handoff, selectedOrganizationId: beta.id,
+      authorizedEmployees: [{ id: b.id }],
+    }), null, "Tenant switch invalidates the old source link");
+    assert.equal(resolvePeopleEmployeeFocus({
+      ...handoff, authorizedEmployees: [{ id: b.id }],
+    }), null, "Outdated/foreign roster cannot activate the worker drawer");
+    assert.equal(resolvePeopleEmployeeFocus({
+      ...handoff, access: { role: "manager", companyWide: false },
+    }), null, "Manager-role downgrade cannot reuse an HR link");
+    assert.equal(resolvePeopleEmployeeFocus({
+      ...handoff, serverAuthorized: false,
+    }), null, "A disabled pilot or explicit permission denial must fail closed");
     assert.ok(!JSON.stringify(home).includes("BetaSynthetic"));
     await assert.rejects(loadPeopleHomeWorklist(beta.id, context), /not authorized/i);
 
