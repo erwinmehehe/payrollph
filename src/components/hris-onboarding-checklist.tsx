@@ -39,6 +39,7 @@ export function HrisOnboardingChecklist({
   const [busyId, setBusyId] = useState<number | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [snapshotStale, setSnapshotStale] = useState(false);
   const mutationInFlight = useRef(false);
   const mounted = useRef(true);
 
@@ -71,13 +72,14 @@ export function HrisOnboardingChecklist({
     setError("");
     try {
       await onRefresh();
+      if (mounted.current) setSnapshotStale(false);
     } catch {
       if (mounted.current) setError("Could not reload the onboarding snapshot. Try again.");
     }
   }
 
   async function setTaskDone(employeeId: number, task: OnboardingTask, done: boolean) {
-    if (mutationInFlight.current || !Number.isSafeInteger(organizationId) ||
+    if (mutationInFlight.current || snapshotStale || !Number.isSafeInteger(organizationId) ||
         organizationId <= 0) return;
     // A forged or stale client record cannot introduce a new task ID.
     if (!groups.some((group) => group.employee.id === employeeId &&
@@ -107,6 +109,7 @@ export function HrisOnboardingChecklist({
           payload.id !== task.id ||
           payload.kind !== "onboarding" ||
           payload.done !== done) {
+        if (mounted.current) setSnapshotStale(true);
         throw new Error("The task update did not match this employee and employer. Reload the workspace.");
       }
       recorded = true;
@@ -117,9 +120,12 @@ export function HrisOnboardingChecklist({
           : "Checklist item reopened in the source workflow.",
       );
     } catch (cause) {
-      if (mounted.current) setError(recorded
-        ? "The checklist was updated, but the dashboard could not refresh. Reload before making further changes."
-        : cause instanceof Error ? cause.message : "The checklist update failed.");
+      if (mounted.current) {
+        if (recorded) setSnapshotStale(true);
+        setError(recorded
+          ? "The checklist was updated, but the dashboard could not refresh. Reload before making further changes."
+          : cause instanceof Error ? cause.message : "The checklist update failed.");
+      }
     } finally {
       mutationInFlight.current = false;
       if (mounted.current) setBusyId(null);
@@ -190,6 +196,9 @@ export function HrisOnboardingChecklist({
             </label>
           </div>
           {error && <p role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{error}</p>}
+          {snapshotStale && <p role="status" className="mt-3 text-xs font-semibold text-amber-900">
+            Checklist edits are paused until a fresh employer snapshot is loaded. Use Refresh above.
+          </p>}
           {notice && <p role="status" className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{notice}</p>}
 
           {groups.length === 0 && (
@@ -232,7 +241,7 @@ export function HrisOnboardingChecklist({
                     <li key={task.id} className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
                       <label className="flex cursor-pointer items-start gap-3">
                         <input type="checkbox" checked={task.done}
-                          disabled={busyId !== null}
+                          disabled={busyId !== null || snapshotStale}
                           onChange={() => void setTaskDone(group.employee.id, task, !task.done)}
                           aria-label={(task.done ? "Reopen: " : "Mark complete: ") + task.title + " for " + group.employee.firstName + " " + group.employee.lastName}
                           className="mt-0.5 size-4 shrink-0 accent-emerald-700"/>
