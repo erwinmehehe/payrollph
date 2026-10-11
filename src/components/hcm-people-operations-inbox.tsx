@@ -64,7 +64,15 @@ export function HcmPeopleOperationsInbox({
   onOpenWorker: (employeeId: number) => boolean;
   onPage: (page: PeopleOpsPage) => void;
 }) {
-  const [filters, setFilters] = useState<{
+  return <ScopedPeopleOperationsInbox key={organizationId} organizationId={organizationId} onOpenWorker={onOpenWorker} onPage={onPage}/>;
+}
+
+function ScopedPeopleOperationsInbox({ organizationId, onOpenWorker, onPage }: {
+  organizationId: number;
+  onOpenWorker: (employeeId: number) => boolean;
+  onPage: (page: PeopleOpsPage) => void;
+}) {
+  const [filters, updateFilters] = useState<{
     priority: PeopleOpsPriority | "all";
     category: PeopleOpsCategory | "all";
     dueWindow: PeopleOpsDueWindow;
@@ -74,9 +82,12 @@ export function HcmPeopleOperationsInbox({
   }>({ priority: "all", category: "all", dueWindow: "all", team: "all", query: "", page: 1 });
   const [draftQuery, setDraftQuery] = useState("");
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const [response, setResponse] = useState<{ organizationId: number; data: PeopleOpsPayload } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const setFilters: typeof updateFilters = (value) => {
+    updateFilters(value);
+    setRefreshVersion((version) => version + 1);
+  };
+  const [response, setResponse] = useState<{ key: string; data: PeopleOpsPayload | null; error: string } | null>(null);
+  const requestKey = JSON.stringify([organizationId, filters, refreshVersion]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -91,10 +102,6 @@ export function HcmPeopleOperationsInbox({
     });
     if (filters.query) params.set("q", filters.query);
 
-    setLoading(true);
-    setResponse(null);
-    setError("");
-
     void (async () => {
       try {
         const result = await fetch("/api/hcm/people-operations-inbox?" + params.toString(), {
@@ -104,19 +111,21 @@ export function HcmPeopleOperationsInbox({
         const body = await result.json().catch(() => ({}));
         if (!result.ok) throw new Error(body.error ?? "The People Operations Inbox could not be loaded.");
         if (controller.signal.aborted) return;
-        setResponse({ organizationId, data: body as PeopleOpsPayload });
+        setResponse({ key: requestKey, data: body as PeopleOpsPayload, error: "" });
       } catch (loadError) {
         if (controller.signal.aborted) return;
-        setError(loadError instanceof Error ? loadError.message : "Could not load the HR worklist.");
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        setResponse({ key: requestKey, data: null,
+          error: loadError instanceof Error ? loadError.message : "Could not load the HR worklist." });
       }
     })();
 
     return () => controller.abort();
-  }, [organizationId, filters.page, filters.category, filters.priority, filters.dueWindow, filters.team, filters.query, refreshVersion]);
+  }, [organizationId, filters.page, filters.category, filters.priority, filters.dueWindow, filters.team, filters.query, requestKey]);
 
-  const data = response?.organizationId === organizationId ? response.data : null;
+  const active = response?.key === requestKey ? response : null;
+  const data = active?.data ?? null;
+  const loading = active === null;
+  const error = active?.error ?? "";
   const dueTiles: Array<{ label: string; count: number; window: PeopleOpsDueWindow; note: string }> = data ? [
     { label: "PAST SOURCE DATE", count: data.attention.overdue, window: "overdue", note: "Review source status before action" },
     { label: "DUE TODAY", count: data.attention.dueToday, window: "today", note: "Based on Philippine business date" },
