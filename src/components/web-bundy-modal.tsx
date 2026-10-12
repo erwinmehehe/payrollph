@@ -225,7 +225,8 @@ function WebBundyView({
 
   return (
     <div className="modal-backdrop linaw-dialog" role="presentation">
-      <section className="modal" role="dialog" aria-modal="true" aria-label="Web Bundy Time Clock">
+      <section className="modal" role="dialog" aria-modal="true" aria-label="Web Bundy Time Clock"
+        style={faceOfflineEnabled ? { width:"min(95vw,560px)", maxHeight:"90vh", overflowY:"auto" } : undefined}>
         <button className="modal-close" type="button" aria-label={t("Close time clock")} onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Clock size={22} className="i-cyan" /></div>
         <div className="card-kicker">{t("WEB & TEAM TIME CLOCK")}</div>
