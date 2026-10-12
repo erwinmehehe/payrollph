@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  wfmRosterScaleRules: {
+    env: "WFM_ROSTER_SCALE_RULES_ENABLED",
+    owner: "WFM Operations / Philippine Payroll",
+    risk: "P1 large-roster notification completeness and labor-rule schedule publish",
+    approval: "Synthetic 1000-assignment pagination, verified roster publish UAT, payroll review and operational sign-off",
+  },
   orderedReleaseMigrations: {
     env: "ORDERED_RELEASE_MIGRATIONS_ENABLED", owner: "Database Operations",
     risk: "P0 deployment-only schema changes",
