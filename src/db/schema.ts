@@ -3043,6 +3043,12 @@ export const applicantPrivacyEvidence = pgTable("applicant_privacy_evidence", {
   legalHold: boolean("legal_hold").notNull().default(false),
   purgedAt: timestamp("purged_at", { withTimezone: true }),
   purgedByUserId: integer("purged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  deletionRequestedByUserId: integer("deletion_requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  deletionRequestedAt: timestamp("deletion_requested_at", { withTimezone: true }),
+  deletionReason: varchar("deletion_reason", { length: 500 }),
+  deletionReviewedByUserId: integer("deletion_reviewed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  deletionReviewedAt: timestamp("deletion_reviewed_at", { withTimezone: true }),
+  deletionReviewEvidenceReference: varchar("deletion_review_evidence_reference", { length: 200 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   uniqueIndex("applicant_privacy_org_candidate_unique").on(table.organizationId, table.applicantId),
