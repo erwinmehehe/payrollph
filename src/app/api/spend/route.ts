@@ -65,6 +65,9 @@ export async function GET(request: Request) {
       return { ...r, claimIds, reimbursementStatus };
     }),
     unreportedClaims: claims.filter(c => visible.has(c.employeeId) && c.status === "pending" && !items.some(i => i.claimId === c.id)),
+    spendPayrollEnabled: criticalReleaseFlagEnabled("spendPayroll"),
+    canReviewCategories: criticalReleaseFlagEnabled("spendPayroll") &&
+      context.access!.companyWide && ["owner", "admin"].includes(context.access!.role),
     categoryPolicies: criticalReleaseFlagEnabled("spendPayroll") ?
       await db.select().from(expenseCategoryPolicies).where(eq(expenseCategoryPolicies.organizationId, organizationId)) : [],
   });

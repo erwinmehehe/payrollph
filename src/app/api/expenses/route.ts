@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { auditEvents, employees, expenseCategoryPolicies, expenseClaims, expenseReportItems } from "@/db/schema";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { approvedReimbursementAmount } from "@/lib/spend-payroll-reimbursement";
+import { documentUploadsEnabled } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
@@ -68,7 +69,14 @@ export async function GET(request: Request) {
   const approved = visibleRows.filter((row) => row.status === "approved" && row.payrollRunId == null);
   const spendEnabled = criticalReleaseFlagEnabled("spendPayroll");
 
+  const policies = spendEnabled
+    ? await db.select({ category: expenseCategoryPolicies.category }).from(expenseCategoryPolicies)
+      .where(eq(expenseCategoryPolicies.organizationId, organizationId))
+    : [];
   return Response.json({
+    reimbursementReviewEnabled: spendEnabled,
+    receiptUploadsEnabled: spendEnabled && criticalReleaseFlagEnabled("employeeDocumentVault") && documentUploadsEnabled(),
+    reviewedCategories: policies.map(item => item.category),
     claims: visibleRows.map(row => ({ ...row, inExpenseReport: reportedIds.has(row.id) })),
     pendingReimbursement: Number(approved.reduce((sum, row) => sum +
       Number(spendEnabled ? row.approvedAmount ?? 0 : row.amount), 0).toFixed(2)),
