@@ -333,7 +333,7 @@ function WebBundyView({
             Direct attendance punches are disabled for this pilot employer. People administrators must use the authorized HR correction workflow; employee punches require an independent reviewer.
           </p>}
         {enhancedEmployeeCanSubmit && selectedEmployeeId !== null &&
-          <EnhancedPunchControls organizationId={organizationId} employeeId={selectedEmployeeId} />}
+          <EnhancedPunchControls key={`${organizationId}:${selectedEmployeeId}`} organizationId={organizationId} employeeId={selectedEmployeeId} />}
         {!enhancedEnabled && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
           <button className="primary-button" disabled={busy || !policyReady || !canClockIn} onClick={() => handlePunch("clock_in")} style={{ height: 42, background: "var(--green)", fontSize: 13 }}>
             <LogIn size={16} /> {t("Clock IN")}
