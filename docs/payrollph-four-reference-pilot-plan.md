@@ -20,6 +20,8 @@ Build on `/api/web-bundy`, existing worksite authorization and Manila work date,
 
 ## Philippine filings (existing system; external acceptance open)
 
+Primary implementation prompt and source register: [C-4 government formats, BIR module v7.4 and official acceptance](c4-government-filing-official-validation.md). Use RMC 25-2024 Annex A for 1604-C schedules/controls and RMC 15-2025 Annex B for annual naming; inspect the current BIR validator version before attempting acceptance. This does not change the draft-only export status.
+
 Existing draft generators: 1601-C worksheet, SSS R-3 worksheet, PhilHealth RF-1 worksheet and Pag-IBIG MCRF worksheet. Existing evidence model correctly distinguishes operational portal acknowledgement from file-format acceptance and version/hashes. Do not falsely label any worksheet agency-upload-ready. BIR 2316 is an annual employee certificate, not interchangeable with monthly 1601-C. BIR annual Alphalist source extract is not the official ADES-produced DAT.
 
 For each employer/agency, reconcile official filing period and totals to a final-cutoff payroll source, capture generator version + exact file hash, have an operator use the current official portal workflow and retain an **agency acknowledgement or rejection**. Record the actual submission method (manual portal entry versus file upload). Mark format accepted only when that precise generated version was successfully uploaded; portal manual entry proves an operational filing at most. Do not claim receipt or certification based on a local preflight. Recheck current official agency templates at time of employer pilot.
