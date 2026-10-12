@@ -155,7 +155,6 @@ test("#910 synthetic live-shaped partial catalog: repair DDL is repeatable, data
     assert.equal(before.net,"11345.66");
     // Never call the production Neon SQL interface with this DDL.
     await client.query(proposed);
-    await client.query(proposed);
     for(const name of missingLive){
       const r=await client.query("SELECT to_regclass($1) IS NOT NULL AS present",["public."+name]);
       assert.equal(r.rows[0].present,true,"missing expected forward repair object "+name);
@@ -167,6 +166,34 @@ test("#910 synthetic live-shaped partial catalog: repair DDL is repeatable, data
       assert.equal(await tableCount(client,name),0,
         "do not manufacture backdated employment, provider or positions rows");
     }
+    // A worker's CURRENT legal entity is NOT proof of historic position ownership.
+    // Once schema exists, adding a synthetic current-position relation and replaying
+    // predecessor SQL must leave unknown position employer NULL.
+    const role=await client.query(
+      "INSERT INTO job_profiles(organization_id,title) VALUES($1,'Synthetic role') RETURNING id",[tenant]);
+    const pos=await client.query(
+      "INSERT INTO positions(organization_id,code,job_profile_id,status) " +
+      "VALUES($1,'HIS-POS-A',$2,'active'),($1,'HIS-POS-B',$2,'active') RETURNING id",
+      [tenant,role.rows[0].id]);
+    await client.query(
+      "INSERT INTO position_assignments(organization_id,position_id,employee_id,effective_from) "+
+      "VALUES($1,$2,$3,'2026-01-01')",[tenant,pos.rows[0].id,worker.rows[0].id]);
+    // The 0050 active-primary constraint must reject a second simultaneous assignment.
+    await client.query("SAVEPOINT invalid_primary");
+    await assert.rejects(()=>client.query(
+      "INSERT INTO position_assignments(organization_id,position_id,employee_id,effective_from) "+
+      "VALUES($1,$2,$3,'2026-02-01')",[tenant,pos.rows[1].id,worker.rows[0].id]),
+      e=>e.code==="23505");
+    await client.query("ROLLBACK TO SAVEPOINT invalid_primary");
+    await client.query("RELEASE SAVEPOINT invalid_primary");
+    await client.query(proposed);
+    const unknownEmployer=await client.query(
+      "SELECT legal_entity_id FROM positions WHERE id=$1",[pos.rows[0].id]);
+    assert.equal(unknownEmployer.rows[0].legal_entity_id,null,
+      "historical position ownership cannot be inferred from current employee employer");
+    assert.equal(await tableCount(client,"worker_employment_events"),0);
+    assert.equal(await tableCount(client,"worker_effective_changes"),0);
+
     const afterPlan=await client.query(
       "SELECT id,organization_id,name,start_date::text,end_date::text,budget::text,status " +
       "FROM workforce_plans WHERE organization_id=$1",[tenant]);
