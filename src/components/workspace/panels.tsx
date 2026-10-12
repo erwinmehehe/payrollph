@@ -1421,6 +1421,7 @@ export function NewPayrollModal({
   onCreate,
   busy,
   orgUnits = [],
+  multiEntity,
 }: {
   organizationId: number;
   onClose: () => void;
@@ -1430,9 +1431,11 @@ export function NewPayrollModal({
     payDate: string;
     scopeOrgUnitId: number | null;
     legalEntityId: number;
+    confirmLegalEntityName?: string;
   }) => void;
   busy: boolean;
   orgUnits?: OrgUnit[];
+  multiEntity?: NonNullable<DashboardData["multiEntity"]>;
 }) {
   const now = new Date();
   const year = now.getFullYear();
@@ -1447,6 +1450,10 @@ export function NewPayrollModal({
   const [scopeOrgUnitId, setScopeOrgUnitId] = useState<number | null>(null);
   const [legalEntities, setLegalEntities] = useState<Array<{ id: number; code: string; displayName: string; primaryEntity: boolean }>>([]);
   const [legalEntityId, setLegalEntityId] = useState<number | null>(null);
+  const [typedEntityName, setTypedEntityName] = useState("");
+  const selectedEntity = multiEntity?.entities.find(entity => entity.id === legalEntityId);
+  const entityNameMatches = !multiEntity?.enabled ||
+    (selectedEntity && typedEntityName.trim() === selectedEntity.legalName.trim());
   const [legalEntitiesLoading, setLegalEntitiesLoading] = useState(true);
 
   useEffect(() => {
@@ -1488,7 +1495,10 @@ export function NewPayrollModal({
           <label>Legal employer
             <select
               value={legalEntityId ?? ""}
-              onChange={(event) => setLegalEntityId(event.target.value ? Number(event.target.value) : null)}
+              onChange={(event) => {
+                setLegalEntityId(event.target.value ? Number(event.target.value) : null);
+                setTypedEntityName("");
+              }}
               disabled={legalEntitiesLoading}
             >
               {legalEntities.length === 0 && <option value="">No active legal employer</option>}
@@ -1497,6 +1507,11 @@ export function NewPayrollModal({
               ))}
             </select>
           </label>
+          {multiEntity?.enabled && <label>Confirm exact legal employer name: {selectedEntity?.legalName ?? "Select an entity"}
+            <input aria-label="Type legal employer name" autoComplete="off"
+              value={typedEntityName} onChange={event => setTypedEntityName(event.target.value)}
+              placeholder="Type the legal name to continue" />
+          </label>}
           <label>Period start
             <input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} />
           </label>
@@ -1541,8 +1556,11 @@ export function NewPayrollModal({
           <button className="secondary-button" onClick={onClose}>Cancel</button>
           <button
             className="primary-button"
-            disabled={busy || invalidDates || invalidEntity}
-            onClick={() => legalEntityId && onCreate({ periodStart, periodEnd, payDate, scopeOrgUnitId, legalEntityId })}
+            disabled={busy || invalidDates || invalidEntity || !entityNameMatches}
+            onClick={() => legalEntityId && onCreate({
+              periodStart, periodEnd, payDate, scopeOrgUnitId, legalEntityId,
+              ...(multiEntity?.enabled ? { confirmLegalEntityName: typedEntityName } : {}),
+            })}
           >
             {busy ? "Processing…" : "Create & process"} <ArrowUpRight size={16} />
           </button>
