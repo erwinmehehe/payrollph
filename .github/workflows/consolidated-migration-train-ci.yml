@@ -11,6 +11,9 @@ on:
       - "drizzle/0120_*.sql"
       - "drizzle/0121_*.sql"
       - "tests/pending-migration-release-train.test.mjs"
+      - "tests/pending-train-preflight.test.mjs"
+      - "scripts/lib/pending-train-preflight.mjs"
+      - "docs/engineering/0115-0121-neon-preflight.md"
       - "tests/consolidated-migration-dependency-postgres.test.mjs"
       - "docs/engineering/pending-migration-release-train.md"
       - ".github/workflows/consolidated-migration-train-ci.yml"
@@ -25,6 +28,9 @@ on:
       - "drizzle/0120_*.sql"
       - "drizzle/0121_*.sql"
       - "tests/pending-migration-release-train.test.mjs"
+      - "tests/pending-train-preflight.test.mjs"
+      - "scripts/lib/pending-train-preflight.mjs"
+      - "docs/engineering/0115-0121-neon-preflight.md"
       - "tests/consolidated-migration-dependency-postgres.test.mjs"
       - ".github/workflows/consolidated-migration-train-ci.yml"
 
@@ -69,7 +75,9 @@ jobs:
       - name: Syntax and source lineage tests
         run: |
           node --check tests/pending-migration-release-train.test.mjs
+          node --check tests/pending-train-preflight.test.mjs
+          node --check scripts/lib/pending-train-preflight.mjs
           node --check tests/consolidated-migration-dependency-postgres.test.mjs
-          node --test tests/pending-migration-release-train.test.mjs
+          node --test tests/pending-migration-release-train.test.mjs tests/pending-train-preflight.test.mjs
       - name: Apply exact source SQL on disposable PostgreSQL; verify guards and rollback
         run: node --test tests/consolidated-migration-dependency-postgres.test.mjs
