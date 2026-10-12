@@ -152,7 +152,7 @@ test("proposed train is source-only; no implicit money activation", () => {
   const text = readFileSync("docs/engineering/pending-migration-release-train.md","utf8");
   assert.match(text,/DO NOT RUN ON NEON MAIN/);
   assert.match(text,/historical receipt/);
-  assert.match(text,/production connection endpoint/);
+  assert.match(text,/Original endpoint/);
   const numbered = readFileSync("drizzle/0121_multi_entity_v2_scope_transfer.sql","utf8");
   assert.doesNotMatch(numbered,/^\s*(?:BEGIN|COMMIT|ROLLBACK)\s*;/im);
   assert.match(numbered,/worker_employment_events/);
