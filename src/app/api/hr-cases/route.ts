@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
+import { documentObjectKey, putDocumentObject } from "@/lib/document-object-storage";
 import { auditEvents, documents, employeeHrCaseMessages, employeeHrCases, employees, organizations } from "@/db/schema";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
@@ -149,6 +150,9 @@ export async function PATCH(request: Request) {
     if (!access?.companyWide || !["owner", "admin", "hr"].includes(access.role)) {
       return Response.json({ error: "Company-wide HR approval required." }, { status: 403 });
     }
+    if (!criticalReleaseFlagEnabled("employeeDocumentVault")) {
+      return Response.json({ error: "COE issuance requires the audited private document vault." }, { status: 503 });
+    }
     const mfaDenied = requireSensitiveActionMfa(user);
     if (mfaDenied) return mfaDenied;
     if (existing.createdByUserId === user.id) {
@@ -176,6 +180,8 @@ export async function PATCH(request: Request) {
         approvedDate,
       });
       const content = Buffer.from(text, "utf8");
+      const objectKey = documentObjectKey(row.organizationId, row.employeeId);
+      await putDocumentObject(objectKey, content, "text/plain; charset=utf-8");
       const [document] = await tx.insert(documents).values({
         organizationId: row.organizationId, employeeId: row.employeeId,
         kind: "coe", fileName: "coe-" + worker.employeeNo + "-" + caseId + ".txt",
@@ -184,7 +190,7 @@ export async function PATCH(request: Request) {
         scannedClean: true, scanNote: "Generated and independently reviewed COE",
         sourceType: "generated", sourceKey: "hr-case-coe:" + caseId,
         generationMetadata: { caseId, template: "coe-v1", approvedByUserId: user.id, approvedDate },
-        uploadedBy: user.name, content: content.toString("base64"),
+        uploadedBy: user.name, content: "", storageKey: objectKey,
       }).returning({ id: documents.id });
       [result] = await tx.update(employeeHrCases).set({
         coeDocumentId: document.id, coeApprovedByUserId: user.id,

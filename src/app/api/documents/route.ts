@@ -1,5 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { createHash } from "node:crypto";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { deleteDocumentObject, documentObjectKey, putDocumentObject } from "@/lib/document-object-storage";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -247,7 +249,15 @@ export async function POST(request: Request) {
     }
   }
 
-  const [row] = await db.insert(documents).values({
+  const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
+  const objectKey = vaultEnabled ? documentObjectKey(organizationId, employeeId) : null;
+  if (objectKey) {
+    try { await putDocumentObject(objectKey, bytes, check.mime); }
+    catch { return Response.json({ error: "Private document storage unavailable; no document was saved." }, { status: 503 }); }
+  }
+  let saved;
+  try {
+    saved = await db.insert(documents).values({
     organizationId,
     employeeId,
     kind,
@@ -258,7 +268,8 @@ export async function POST(request: Request) {
     scannedClean: scan.scannedClean,
     scanNote: scan.note,
     uploadedBy: user.name,
-    content: Buffer.from(bytes).toString("base64"),
+    content: objectKey ? "" : Buffer.from(bytes).toString("base64"),
+    storageKey: objectKey,
   }).returning({
     id: documents.id,
     fileName: documents.fileName,
@@ -266,6 +277,11 @@ export async function POST(request: Request) {
     sha256: documents.sha256,
   });
 
+  } catch {
+    if (objectKey) await deleteDocumentObject(objectKey).catch(() => {});
+    return Response.json({ error: "Document metadata could not be committed." }, { status: 503 });
+  }
+  const [row] = saved;
   let compliance = null;
   if (requirement && complianceRow) {
     [compliance] = await db.update(hcmEmployeeDocumentCompliance).set({
@@ -304,6 +320,6 @@ export async function POST(request: Request) {
     detectedMime: check.mime,
     compliance,
     scan,
-    note: "Stored in Postgres. Configure object storage (S3/R2) before production volume.",
+    note: objectKey ? "Encrypted private object storage; 60-second signed reads." : "Legacy database storage. Private object vault is disabled.",
   }, { status: 201 });
 }

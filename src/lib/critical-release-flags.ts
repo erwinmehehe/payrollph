@@ -48,6 +48,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 consented POS source access and historical aggregate import",
     approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
   },
+  employeeDocumentVault: {
+    env: "EMPLOYEE_DOCUMENT_VAULT_ENABLED",
+    owner: "Security and Privacy",
+    risk: "P1 private employee documents in signed object storage",
+    approval: "Object storage, migration reconciliation, malware scanning and view auditing accepted",
+  },
   employeeHrCases: {
     env: "EMPLOYEE_HR_CASES_ENABLED",
     owner: "People Operations",

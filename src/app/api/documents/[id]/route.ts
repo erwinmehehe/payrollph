@@ -10,6 +10,9 @@ import {
   PEOPLE_ADMIN_ROLES,
 } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { recordAuditEvent } from "@/lib/audit";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { documentStorageConfig, signedDocumentObjectUrl } from "@/lib/document-object-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +77,26 @@ export async function GET(
     }, { status: 409 });
   }
 
+  // Record every sensitive-document access before releasing bytes or a signed URL.
+  await recordAuditEvent({
+    organizationId: document.organizationId, actor: user.name,
+    action: "Employee document viewed", resource: String(document.id),
+    metadata: { documentId: document.id, employeeId: document.employeeId,
+      userId: user.id, kind: document.kind, objectStored: Boolean(document.storageKey) },
+  });
+  if (document.storageKey) {
+    if (!criticalReleaseFlagEnabled("employeeDocumentVault")) {
+      return Response.json({ error: "Private vault is disabled." }, { status: 503 });
+    }
+    let url: URL;
+    try { url = signedDocumentObjectUrl(document.storageKey, "GET", documentStorageConfig()); }
+    catch { return Response.json({ error: "Private document storage is unavailable." }, { status: 503 }); }
+    return new Response(null, {
+      status: 302,
+      headers: { Location: url.toString(), "Cache-Control": "private, no-store",
+        "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" },
+    });
+  }
   const body = Buffer.from(document.content, "base64");
   if (document.sourceType === "generated") {
     const sha256 = createHash("sha256").update(body).digest("hex");

@@ -2055,8 +2055,11 @@ export const documents = pgTable("documents", {
   generationMetadata: jsonb("generation_metadata").notNull().default({}),
   uploadedBy: varchar("uploaded_by", { length: 120 }).notNull(),
   content: text("content").notNull(),
+  storageKey: varchar("storage_key", { length: 512 }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
+  uniqueIndex("documents_org_storage_key_unique").on(table.organizationId, table.storageKey)
+    .where(sql`${table.storageKey} is not null`),
   uniqueIndex("documents_org_source_key_unique")
     .on(table.organizationId, table.sourceKey)
     .where(sql`${table.sourceKey} is not null`),
