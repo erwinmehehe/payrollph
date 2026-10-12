@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { ImportPanel } from "@/components/import-panel";
+import { EntityBadge, EntityTransferDialog } from "@/components/workspace/multi-entity-ui";
 import { EmployeeIdentifierReviewPanel } from "@/components/employee-identifier-review-panel";
 import { HcmCapabilitiesPanel } from "@/components/hcm-capabilities-panel";
 import { HcmBusinessProcessAdmin } from "@/components/hcm-business-process-admin";
@@ -756,6 +757,7 @@ function PersonDrawer({
       && ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role),
   );
   const [editingEmployment, setEditingEmployment] = useState(false);
+  const [entityTransferOpen, setEntityTransferOpen] = useState(false);
   const [savingEmployment, setSavingEmployment] = useState(false);
   const [startDate, setStartDate] = useState(employee.startDate ?? "");
   const [employmentError, setEmploymentError] = useState("");
@@ -1222,6 +1224,20 @@ function PersonDrawer({
           </div>
         </div>
 
+        {data.multiEntity?.enabled && <section className="card" aria-label="Employee legal employer"
+          style={{ margin: "0 0 16px", padding: 16 }}>
+          <div className="card-kicker">LEGAL EMPLOYER</div>
+          <EntityBadge context={data.multiEntity} legalEntityId={employee.legalEntityId} />
+          {canManage && ["owner","admin","bookkeeper"].includes(data.access?.role ?? "") &&
+            <div style={{ marginTop: 12 }}>
+              <button className="secondary-button" onClick={() => setEntityTransferOpen(true)}>
+                Transfer to another entity
+              </button>
+            </div>}
+          {entityTransferOpen && <EntityTransferDialog employee={employee}
+            context={data.multiEntity} organizationId={data.selectedOrganization.id}
+            onClose={() => setEntityTransferOpen(false)} onRefresh={onRefresh} />}
+        </section>}
         <section id="employee-360-employment" tabIndex={-1} className="card scroll-mt-4" style={{ margin: "0 0 16px", boxShadow: "none" }}>
           <div className="card-header">
             <div>
