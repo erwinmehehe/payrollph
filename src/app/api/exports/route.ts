@@ -10,6 +10,7 @@ import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { maskGovernmentId } from "@/lib/government-id-crypto";
 import { requireSensitiveActionMfa } from "@/lib/security-request";
 import { escapeCsvCell } from "@/lib/csv";
+import { parseCompanyExportKind } from "@/lib/company-export-kind";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,8 @@ export async function GET(request: Request) {
   const organizationId = Number(searchParams.get("organizationId") ?? "1");
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  const kind = searchParams.get("kind") ?? "all";
+  const kind = parseCompanyExportKind(searchParams.get("kind"));
+  if (kind === null) return Response.json({ error: "Unsupported company export kind." }, { status: 400 });
   const allowedRoles =
     kind === "employees"
       ? ["owner", "admin", "bookkeeper", "hr"]
