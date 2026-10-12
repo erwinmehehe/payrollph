@@ -7,6 +7,7 @@ import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
 import { drainOutboxRetries } from "@/lib/mailer";
 import { purgeExpiredOperationalData } from "@/lib/data-retention";
+import { purgeExpiredPunchPhotoEvidence } from "@/lib/workforce-punch-evidence-server";
 import { drainMarketingLeadNotifications } from "@/lib/marketing-leads";
 import { runScheduledStatutoryRemittanceSync } from "@/lib/statutory-remittance-actions";
 import { runScheduledContributionCaseEscalations } from "@/lib/statutory-contribution-case-escalations";
@@ -114,6 +115,9 @@ async function runScheduledJobs(
     || now.getTime() - retentionState.lastRunAt.getTime() >= 24 * 60 * 60 * 1000;
   if (retentionDue) await assertLeaseOwnership();
   const retention = retentionDue ? await purgeExpiredOperationalData(now.getTime()) : null;
+  // Privacy-scoped selfie purge is separately default-off and follows the same lease.
+  if (retentionDue) await assertLeaseOwnership();
+  const punchPhotoPurge = retentionDue ? await purgeExpiredPunchPhotoEvidence(now) : null;
   await assertLeaseOwnership();
   const statutoryRemittanceActions = await runScheduledStatutoryRemittanceSync({
     actor: "System scheduler",
@@ -358,6 +362,7 @@ async function runScheduledJobs(
     mailRetries: mailRetried.length,
     marketingLeadNotifications: marketingLeadResults.filter((item) => item.notified).length,
     retentionPurge: retention,
+    punchPhotoPurge,
     statutoryRemittanceActions,
     contributionCaseEscalations,
     automationResumes,

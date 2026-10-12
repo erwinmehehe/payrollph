@@ -5,6 +5,7 @@ import { isWebBundyPunchList, mayClockInWebBundy, visibleWebBundyState, webBundy
 import { Check, Clock, Coffee, LogIn, LogOut, MapPin, PlayCircle, X } from "lucide-react";
 import { essText, type EssLanguage } from "@/lib/ess-language";
 import { philippineClockDate, philippineClockTime } from "@/lib/philippine-clock-display";
+import { WorkforcePunchEvidencePanel } from "@/components/workforce-punch-evidence-panel";
 
 type ClockPolicy = { key: string; required: boolean; canClockWithLocation: boolean; error?: string };
 type OneTimePosition = { latitude: number; longitude: number; accuracyMeters: number; capturedAt: string };
@@ -71,6 +72,9 @@ function WebBundyView({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [photoEvidence, setPhotoEvidence] = useState<{
+    id: string; actionType: "clock_in" | "clock_out";
+  } | null>(null);
 
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === selectedEmployeeId) ?? null,
@@ -195,6 +199,24 @@ function WebBundyView({
         clock_out: "Clock OUT recorded.",
       } as const;
       setMessage(t(labels[actionType]));
+      if (photoEvidence?.actionType === actionType && data?.punch?.id) {
+        try {
+          const linked = await fetch("/api/workforce/punch-evidence", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              organizationId, action: "link",
+              punchId: data.punch.id, photoEvidenceId: photoEvidence.id,
+              actionType,
+            }),
+          });
+          if (!linked.ok && mounted.current) {
+            setMessage("Clock recorded. Optional photo linkage needs HR review.");
+          }
+        } catch {
+          if (mounted.current) setMessage("Clock recorded. Optional photo linkage needs HR review.");
+        }
+        setPhotoEvidence(null);
+      }
       reloadPunches();
       try {
         onPunchSuccess();
@@ -333,6 +355,14 @@ function WebBundyView({
             <LogOut size={16} /> {t("Clock OUT")}
           </button>
         </div>
+
+        {employeeId && selectedEmployeeId === employeeId && (
+          <WorkforcePunchEvidencePanel
+            organizationId={organizationId}
+            employeeId={employeeId}
+            onPhotoPrepared={setPhotoEvidence}
+          />
+        )}
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, color: "var(--muted)", fontSize: 11 }}>
           <MapPin size={14} className="i-blue" />
