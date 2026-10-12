@@ -33,6 +33,7 @@ type Props = {
   canManagePeople: boolean;
   canManageTime: boolean;
   canManagePayroll: boolean;
+  allowedPages: readonly string[];
   canDecideApprovals: boolean;
   canManageDelegations: boolean;
 };
@@ -53,7 +54,7 @@ function defaultDates() {
 export function FirstPayrollInlineJourney({
   data, readiness, notify, onRefresh, onAddEmployee, onOpenBundy,
   onDecide, onCreatePayroll, busy, canManagePeople, canManageTime,
-  canManagePayroll, canDecideApprovals, canManageDelegations,
+  canManagePayroll, canDecideApprovals, canManageDelegations, allowedPages,
 }: Props) {
   const orgId = data.selectedOrganization.id;
   const role = data.access?.role ?? "";
@@ -82,8 +83,10 @@ export function FirstPayrollInlineJourney({
   const [reloadProgress, setReloadProgress] = useState(0);
 
   const canHandoff = companyWide && ["owner", "admin", "bookkeeper", "hr"].includes(role);
-  const canViewApprovals = ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(role);
-  const canViewExports = ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(role);
+  const canManageTeam = companyWide && ["owner", "admin", "bookkeeper"].includes(role);
+  const canManageCompany = canManageTeam;
+  const canViewApprovals = allowedPages.includes("Approvals") && ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(role);
+  const canViewExports = allowedPages.includes("Exports") && ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(role);
 
   useEffect(() => {
     let active = true;
@@ -172,13 +175,19 @@ export function FirstPayrollInlineJourney({
   const counts = { done:steps.filter(step=>step.state==="complete").length, total:steps.length };
 
   function inner(step: FirstPayrollJourneyStep) {
+    if (step.key !== "payroll" && !allowedPages.includes(step.page)) {
+      return <p role="status">This step belongs to {FIRST_PAYROLL_OWNER[step.key].role}.
+        Your role cannot open the underlying {step.page} records. Ask the assigned role to review them.</p>;
+    }
     switch(step.key) {
       case "company":
         return <div>
           <p>Update the registered employer, statutory registration identifiers and pay calendar right here.
             The existing settings API requires appropriate administrator authority and MFA.</p>
-          <SettingsPage key={"inline-company-" + orgId}
-            data={data} initialTab="organization" setNotice={message=>{setSettingNotice(message);notify(message,"info");}} />
+          {canManageCompany
+            ? <SettingsPage key={"inline-company-" + orgId}
+                data={data} initialTab="organization" setNotice={message=>{setSettingNotice(message);notify(message,"info");}}/>
+            : <p role="status">Read-only: registered employer setup is managed by the company owner or authorized administrator.</p>}
           {settingNotice && <p role="status">{settingNotice}</p>}
           <button type="button" className="secondary-button"
             onClick={()=>void onRefresh()}>Refresh company readiness</button>
@@ -208,8 +217,10 @@ export function FirstPayrollInlineJourney({
         return <div>
           <p>Invite or assign a payroll maker and an independent checker. Existing team settings enforce role permissions.
             One person cannot approve their own payroll run.</p>
-          <SettingsPage key={"inline-reviewers-" + orgId}
-            data={data} initialTab="team" setNotice={message=>{setSettingNotice(message);notify(message,"info");}}/>
+          {canManageTeam
+            ? <SettingsPage key={"inline-reviewers-" + orgId}
+                data={data} initialTab="team" setNotice={message=>{setSettingNotice(message);notify(message,"info");}}/>
+            : <p role="status">Only a company-wide owner, administrator or bookkeeper can edit team access; the payroll checker must remain independent.</p>}
           {settingNotice && <p role="status">{settingNotice}</p>}
           <button type="button" className="secondary-button" onClick={()=>void onRefresh()}>Refresh maker-checker readiness</button>
         </div>;
