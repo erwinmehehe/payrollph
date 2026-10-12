@@ -1,3 +1,5 @@
+**PostgreSQL tenant integrity fix (2026-10-12):** The Drizzle schema for optional employee request and offline attendance tables now matches the unnumbered SQL proposal, including composite tenant foreign keys (organization_id, employee_id) and (organization_id, case_id), plus required compound unique keys on employees and employee cases. This closes a disposable db:push gap where cross-tenant inserts could pass while the migration proposal specified fail-closed constraints. The integration test exercises each rejection. The desktop employee navigation assertion now checks conditional visibleSelfTabs and preserved base tabs. Source-only; no live Neon DDL applied.
+
 # Ten workflow frontends — role, state, mobile and screenshot acceptance
 
 **Status: DRAFT / NOT READY TO MERGE / DO NOT ACTIVATE IN PRODUCTION.**  

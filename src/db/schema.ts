@@ -5,6 +5,7 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   integer,
   index,
   jsonb,
@@ -260,7 +261,9 @@ export const employees = pgTable("employees", {
   education: varchar("education", { length: 120 }),
   startDate: date("start_date").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("employees_org_id_workflows_unique").on(table.organizationId, table.id),
+]);
 
 export const employeeMweClassifications = pgTable(
   "employee_mwe_classifications",
@@ -5960,6 +5963,12 @@ export const employeeServiceCases = pgTable("employee_service_cases", {
 }, table => [
   index("employee_service_cases_org_status_idx").on(table.organizationId, table.status, table.createdAt),
   index("employee_service_cases_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+  uniqueIndex("employee_service_cases_org_id_unique").on(table.organizationId, table.id),
+  foreignKey({
+    name: "workflow_case_employee_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id],
+  }).onDelete("restrict"),
 ]);
 
 export const employeeServiceCaseMessages = pgTable("employee_service_case_messages", {
@@ -5970,7 +5979,14 @@ export const employeeServiceCaseMessages = pgTable("employee_service_case_messag
   body: text("body").notNull(),
   internal: boolean("internal").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [index("service_case_messages_case_idx").on(table.organizationId, table.caseId, table.createdAt)]);
+}, table => [
+  index("service_case_messages_case_idx").on(table.organizationId, table.caseId, table.createdAt),
+  foreignKey({
+    name: "workflow_case_message_tenant_fk",
+    columns: [table.organizationId, table.caseId],
+    foreignColumns: [employeeServiceCases.organizationId, employeeServiceCases.id],
+  }).onDelete("cascade"),
+]);
 
 /** An offline punch is unverified evidence, never an authoritative time_punch. */
 export const offlinePunchClaims = pgTable("offline_punch_claims", {
@@ -5989,4 +6005,9 @@ export const offlinePunchClaims = pgTable("offline_punch_claims", {
 }, table => [
   uniqueIndex("offline_punch_client_event_unique").on(table.organizationId, table.employeeId, table.clientEventId),
   index("offline_punch_pending_org_idx").on(table.organizationId, table.status, table.createdAt),
+  foreignKey({
+    name: "workflow_offline_employee_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id],
+  }).onDelete("restrict"),
 ]);
