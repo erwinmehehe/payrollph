@@ -6,6 +6,11 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  orderedReleaseMigrations: {
+    env: "ORDERED_RELEASE_MIGRATIONS_ENABLED", owner: "Database Operations",
+    risk: "P0 deployment-only schema changes",
+    approval: "DBA baseline adoption, protected release and restore rehearsal",
+  },
   employeeImportPreview: {
     env: "EMPLOYEE_IMPORT_PREVIEW_ENABLED", owner: "People Operations",
     risk: "P1 atomic employee CSV intake", approval: "500-row preview and rollback acceptance",
