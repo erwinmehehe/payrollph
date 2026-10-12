@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 import pg from "pg";
+import { generateTotp } from "../src/lib/totp.ts";
 assert.equal(process.env.CI, "true");
 assert.equal(process.env.INLINE_FIRST_PAYROLL_ACCEPTANCE_MODE, "synthetic-postgres-only");
 const base = "http://127.0.0.1:3000";
@@ -20,7 +21,25 @@ async function login(role) {
   assert.equal(response.status(), 200, await response.text());
   const p = await context.newPage();
   await p.goto(base + `/app?organizationId=${fixture.organizationId}`);
-  await p.getByRole("region", { name: "Inline first payroll journey" }).waitFor();
+  const journey = p.getByRole("region", { name: "Inline first payroll journey" });
+  await journey.waitFor();
+  // Enroll the fictional member through the same inline account controls.
+  // Production MFA stays enabled throughout this acceptance journey.
+  await journey.getByText("Account security (MFA)", { exact: true }).click();
+  await journey.getByLabel("Confirm current password", { exact: true }).fill("Synthetic-Inline-QA-Only-2026!");
+  const [begin] = await Promise.all([
+    p.waitForResponse(r => r.url().includes("/api/auth/totp/setup") && r.request().method() === "POST"),
+    journey.getByRole("button", { name: "Enable two-factor", exact: true }).click(),
+  ]);
+  assert.ok(begin.ok());
+  const enrollment = await begin.json();
+  await journey.getByLabel("Authenticator code", { exact: true }).fill(generateTotp(enrollment.secret));
+  const [verified] = await Promise.all([
+    p.waitForResponse(r => r.url().includes("/api/auth/totp/setup") && r.request().method() === "POST"),
+    journey.getByRole("button", { name: "Verify & enable", exact: true }).click(),
+  ]);
+  assert.ok(verified.ok());
+  await journey.getByText("Account security (MFA)", { exact: true }).click();
   return { context, page: p };
 }
 async function mutateAndWait(button, path, method) {

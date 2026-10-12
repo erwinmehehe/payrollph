@@ -17,9 +17,10 @@ type Snapshot = {
 };
 type Preview = ReturnType<typeof firstPayrollPreviewResult>;
 
-export function InlineFirstPayrollJourney({ organizationId, workflows, onRefresh, notify, revision }: {
+export function InlineFirstPayrollJourney({ organizationId, workflows, onRefresh, notify, revision, accountSecurity }: {
   organizationId: number;
   revision: string;
+  accountSecurity?: ReactNode;
   workflows: Partial<Record<StepKey, ReactNode>>;
   onRefresh: () => Promise<void>;
   notify: Notify;
@@ -94,6 +95,7 @@ export function InlineFirstPayrollJourney({ organizationId, workflows, onRefresh
   return <section className="first-payroll-card" aria-label="Inline first payroll journey">
     <h2>Your first payroll</h2>
     <p>Work here with your team. Progress and handoffs are shared across this employer. Preview is a read-only dry run; payment needs independent approval.</p>
+    {accountSecurity && <details><summary>Account security (MFA)</summary>{accountSecurity}</details>}
     <ol className="grid gap-3 md:grid-cols-2" style={{ listStyle: "none", padding: 0 }}>
       {steps.map(step => {
         const progress = snapshot.progress.find(p => p.step === step.key);

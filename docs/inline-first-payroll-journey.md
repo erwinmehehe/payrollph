@@ -10,6 +10,9 @@ are in `src/lib/first-payroll-journey.ts`. The existing five workspace readiness
 checks remain evidence predicates; employee provisioning and initial owner-account
 creation remain separate workflows. Quickstart labels now use the same inventory.
 
+Inline account controls let each member enroll MFA without leaving the journey;
+sensitive actions retain their production MFA requirement.
+
 Company setup records employer details and a canonical semi-monthly cutoff/pay date.
 People, attendance, payroll, approval and exports embed the existing workflow controls.
 Adding employees and drafting payroll open dialogs in the current workspace. Invitation

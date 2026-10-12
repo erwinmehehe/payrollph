@@ -1,4 +1,5 @@
 "use client";
+import { AccountPanel } from "@/components/account-panel";
 import { InlineFirstPayrollJourney } from "@/components/workspace/inline-first-payroll-journey";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -472,6 +473,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
                 inlineJourney={data.inlineFirstPayrollEnabled ? <InlineFirstPayrollJourney
               key={data.selectedOrganization.id}
               organizationId={data.selectedOrganization.id}
+              accountSecurity={<AccountPanel onNotice={message => { notify(message); void refresh(); }} />}
               revision={JSON.stringify([data.firstPayrollReadiness, data.employees])}
               notify={notify}
               onRefresh={async () => { await refresh(); }}
