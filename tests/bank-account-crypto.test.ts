@@ -220,9 +220,14 @@ test("every place that reads or writes the number goes through the crypto module
   const localSeed = read("src/db/seed.ts");
   assert.ok(localSeed.includes("bankAccount: encryptBankAccount(person[8])"), "local demo seed must encrypt bank accounts when a key is available");
 
-  for (const path of ["src/lib/dashboard-data.ts", "src/app/api/employees/route.ts"]) {
-    assert.ok(read(path).includes("bankAccount: maskBankAccount(employee.bankAccount)"), `${path} must not send the account number to the browser`);
-  }
+  const dashboard = read("src/lib/dashboard-data.ts");
+  assert.ok(dashboard.includes("maskBankAccount(employee.bankAccount)"),
+    "dashboard must never send an unmasked employee bank account");
+  assert.ok(dashboard.includes("showPersonalIdentifiers ? maskBankAccount(employee.bankAccount) : null"),
+    "group HR must receive no account number at all");
+  const employeesRoute = read("src/app/api/employees/route.ts");
+  assert.ok(employeesRoute.includes("bankAccount: maskBankAccount(employee.bankAccount)"),
+    "employee API must never send an unmasked account number");
 });
 
 test("the schema, baseline and migration agree on the widened column", () => {
