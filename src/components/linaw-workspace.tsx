@@ -34,6 +34,7 @@ import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/compon
 import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
 import { MoreModulesPage } from "@/components/workspace/more-modules-page";
+import { EmployeeCaseInbox } from "@/components/workspace/employee-case-ui";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
 import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
@@ -149,14 +150,19 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
     const roleAllowedPages = NAVIGATION.flatMap((group) => group.items)
       .map((item) => item.name)
       .filter((name) => !(isFreelancer && FREELANCER_HIDDEN.has(name)))
-      .filter((name) => !rolePages || rolePages.includes(name) || (name === "More modules" && isSelfServeCustomer && workflowUi.coreOnlyNav))
-      .filter((name) => name !== "More modules" || (isSelfServeCustomer && workflowUi.coreOnlyNav));
+      .filter((name) => !rolePages || rolePages.includes(name)
+        || (name === "More modules" && isSelfServeCustomer && workflowUi.coreOnlyNav)
+        || (name === "Employee requests" && workflowUi.employeeCases &&
+          ["owner","admin","bookkeeper","hr"].includes(effectiveRole ?? "")))
+      .filter((name) => name !== "More modules" || (isSelfServeCustomer && workflowUi.coreOnlyNav))
+      .filter(name => name !== "Employee requests" || (workflowUi.employeeCases
+        && !isFreelancer && !demoRole && ["owner","admin","bookkeeper","hr"].includes(effectiveRole ?? "")));
     // Keep the pilot menu small without ever granting access outside the
     // already calculated role/plan navigation entitlement.
     return pilotFocusEnabled && !isFreelancer && !demoRole
       ? pilotCoreNavigationPages(roleAllowedPages)
       : roleAllowedPages;
-  }, [isFreelancer, rolePages, pilotFocusEnabled, demoRole, isSelfServeCustomer, workflowUi.coreOnlyNav]);
+  }, [isFreelancer, rolePages, pilotFocusEnabled, demoRole, isSelfServeCustomer, workflowUi.coreOnlyNav, workflowUi.employeeCases, effectiveRole]);
   const compactCore = workflowUi.coreOnlyNav && isSelfServeCustomer && !isFreelancer && !demoRole;
   const visiblePages = compactCore
     ? availablePages.filter(name => ["Overview", "People", "Time & attendance", "Payroll", "Analytics", "Approvals", "More modules"].includes(name))
@@ -498,6 +504,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
           </>
         )}
 
+        {page === "Employee requests" && workflowUi.employeeCases &&
+          ["owner","admin","bookkeeper","hr"].includes(effectiveRole ?? "") &&
+          <EmployeeCaseInbox organizationId={data.selectedOrganization.id}/>}
         {page === "More modules" && compactCore && <MoreModulesPage
           visiblePages={visiblePages} allowedPages={availablePages} onPage={setPage}
         />}
