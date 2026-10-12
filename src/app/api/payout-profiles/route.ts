@@ -15,6 +15,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -168,9 +169,14 @@ export async function PATCH(request: Request) {
   )).limit(1);
   if (!entity) return Response.json({ error: "Legal employer not found in this workspace." }, { status: 404 });
 
-  const defaultMethod = String(body.defaultMethod ?? "xendit");
+  const defaultMethod = String(body.defaultMethod ?? "bank_file");
   if (!PAYOUT_METHODS.has(defaultMethod)) {
     return Response.json({ error: "defaultMethod must be xendit, paymongo, bank_file, or manual." }, { status: 400 });
+  }
+  if (defaultMethod === "xendit" && !criticalReleaseFlagEnabled("xenditPayrollPayouts")) {
+    return Response.json({
+      error: "Xendit payout profile selection is disabled until the protected payroll payout pilot is authorized.",
+    }, { status: 409 });
   }
 
   const bankTemplateId = body.bankTemplateId === null || body.bankTemplateId === undefined || body.bankTemplateId === ""

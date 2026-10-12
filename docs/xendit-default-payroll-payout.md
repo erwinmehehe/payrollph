@@ -1,6 +1,6 @@
 # Xendit default Philippine payroll disbursements — controlled release
 
-**Status:** implemented on draft PR #813; source only. `PAYROLL_PAYOUT_PROVIDER` defaults to `xendit`, but **no live money movement is authorized by this change**. Keep `XENDIT_PAYOUTS_ENABLED=false` and `XENDIT_PAYOUTS_LIVE_APPROVED=false` until independent acceptance.
+**Status:** implemented on draft PR #813; source only. `PAYROLL_PAYOUT_PROVIDER` defaults to existing PayMongo while `XENDIT_PAYOUTS_ENABLED` is off; when explicitly enabled for an approved pilot, Xendit becomes the preferred provider for new batches. **No live money movement is authorized by a source merge**. Keep `XENDIT_PAYOUTS_ENABLED=false` and `XENDIT_PAYOUTS_LIVE_APPROVED=false` until independent acceptance.
 
 ## Implemented
 
@@ -32,7 +32,7 @@ Released payroll
 ## Rollout configuration
 
 ```text
-PAYROLL_PAYOUT_PROVIDER=xendit
+PAYROLL_PAYOUT_PROVIDER=paymongo
 XENDIT_PAYOUTS_ENABLED=false
 XENDIT_PAYOUTS_LIVE_APPROVED=false
 XENDIT_PAYOUT_SECRET_KEY=(dedicated MONEY-OUT API key, not billing key)
@@ -42,6 +42,8 @@ XENDIT_PAYOUT_ALLOWED_ORGANIZATION_ID=(Linaw organization)
 XENDIT_PAYOUT_ALLOWED_LEGAL_ENTITY_ID=(exact Philippine legal employer)
 XENDIT_PAYOUT_VERIFIED_BANK_BICS_JSON=(reviewed extra bank-to-SWIFT map, optional)
 ```
+
+Only after reviewed enablement, set `XENDIT_PAYOUTS_ENABLED=true` and `PAYROLL_PAYOUT_PROVIDER=xendit` for the exact authorized employer. The payout profile, PostgreSQL defaults and historical batches remain unchanged while OFF.
 
 Set a public HTTPS Xendit payout webhook URL to `https://<your-app-host>/api/webhooks/xendit-payout` in Xendit's dashboard only in the independently authorized rollout. The callback token must never be client-side or in the GitHub repository.
 

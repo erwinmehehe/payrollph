@@ -316,7 +316,7 @@ export function ExportsView({
       <div className="notice notice-blue">
         <Info size={15} className="i-blue" />
         <span>
-          Xendit is Linaw&apos;s default selected payroll payout rail. Live Xendit submissions require employer approval and completed acceptance testing. Bank files below are an
+          Xendit is an opt-in salary payout rail, disabled until approved for the exact employer. Existing PayMongo routing is preserved. Bank files below are an
           optional fallback and stay fail-closed until their exact bank-provided template has passed UAT. Government worksheets
           remain draft-only until agency acceptance evidence is recorded. See <a className="link-button" href="/api/readiness">/api/readiness</a>.
         </span>
@@ -427,7 +427,7 @@ export function ExportsView({
                 <div>
                   <div className="card-kicker">PAYOUT COMPLETION</div>
                   <h2>Close the loop after release</h2>
-                  <p>Release, provider preflight, submission and provider settlement must be separately authorized. Xendit is the selected default; its live payout workflow is not yet activated. Validated bank files remain available.</p>
+                  <p>Release, provider preflight, submission and provider settlement must be separately authorized. Xendit is opt-in and stays disabled until treasury release approval. Existing PayMongo claims remain on PayMongo; validated bank files remain available where permitted.</p>
                 </div>
                 <Status value={payoutState.payout.status === "completed" ? "Completed" : "In progress"} />
               </div>

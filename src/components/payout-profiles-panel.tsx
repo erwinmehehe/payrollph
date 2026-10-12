@@ -72,7 +72,7 @@ type FormState = {
 };
 
 const blank: FormState = {
-  defaultMethod: "xendit",
+  defaultMethod: "bank_file",
   bankTemplateId: "",
   bankProduct: "",
   sourceAccountType: "",
@@ -290,7 +290,7 @@ function PayoutProfileEditor({ organizationId, selected, adapters, setNotice, re
         <label>Default payout method
           <select value={form.defaultMethod} onChange={(e) => setForm({ ...form, defaultMethod: e.target.value })}>
             <option value="bank_file">Bank file / portal</option>
-            <option value="xendit">Xendit payroll (default)</option>
+            <option value="xendit">Xendit payroll (requires treasury enablement)</option>
             <option value="paymongo">PayMongo PESONet/InstaPay (legacy)</option>
             <option value="manual">Manual bank workflow</option>
           </select>
