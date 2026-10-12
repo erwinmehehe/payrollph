@@ -79,18 +79,25 @@ export async function POST(request:Request) {
   let result;
   try {
     result=await db.transaction(async tx=>{
+      // Serialize all approval decisions for this tenant/worker, including
+      // different pending submissions. A row lock on one submission is insufficient.
+      await tx.execute(sql`select pg_advisory_xact_lock(${organizationId}::integer, ${submission.employeeId}::integer)`);
       const locked=await tx.execute(sql`select id from workforce_punch_submissions where id = ${id} and organization_id = ${organizationId} and status = 'pending' for update`);
       if(!locked.rows.length)throw Error("Already decided.");
-      const [current]=await tx.select().from(timePunches).where(and(eq(timePunches.organizationId,organizationId),
-        eq(timePunches.employeeId,submission.employeeId),eq(timePunches.workDate,submission.workDate))).limit(1);
+      const attendanceRows=await tx.select().from(timePunches).where(and(eq(timePunches.organizationId,organizationId),
+        eq(timePunches.employeeId,submission.employeeId),eq(timePunches.workDate,submission.workDate))).limit(2);
+      if(attendanceRows.length>1)throw Error("Conflicting attendance rows require manual correction.");
+      const current=attendanceRows[0];
       let punchId:number|null=null;
       if(decision==="approved") {
         const update:Record<string,Date>={};
         if(submission.actionType==="clock_in") {
-          if(current?.timeIn||current?.timeOut)throw Error("Clock-in conflicts with existing attendance.");
+          if(current?.timeIn||current?.timeOut||current?.breakStart||current?.breakEnd)throw Error("Clock-in conflicts with existing attendance.");
           update.timeIn=target;
         } else if(submission.actionType==="clock_out"){
-          if(!current?.timeIn||current.timeOut||target<=current.timeIn||(current.breakStart&&!current.breakEnd))throw Error("Clock-out conflicts with existing attendance.");
+          if(!current?.timeIn||current.timeOut||target<=current.timeIn||
+            (current.breakStart&&!current.breakEnd)||(current.breakEnd&&target<=current.breakEnd))
+            throw Error("Clock-out conflicts with existing attendance.");
           update.timeOut=target;
         }else if(submission.actionType==="break_start"){
           if(!current?.timeIn||current.breakStart||current.timeOut||target<=current.timeIn)throw Error("Break-start conflicts with existing attendance.");

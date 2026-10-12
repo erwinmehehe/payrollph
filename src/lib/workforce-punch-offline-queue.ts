@@ -13,10 +13,29 @@ function database():Promise<IDBDatabase> {
 async function withObjectStore<T>(mode:IDBTransactionMode, fn:(store:IDBObjectStore)=>IDBRequest<T>):Promise<T>{
   const db=await database();
   return new Promise((resolve,reject)=> {
-    const transaction=db.transaction(STORE,mode);
-    const req=fn(transaction.objectStore(STORE));
-    req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
-    transaction.oncomplete=()=>db.close();transaction.onerror=()=>reject(transaction.error);
+    let settled=false;
+    const fail=(reason:unknown)=>{
+      if(settled)return;
+      settled=true;
+      db.close();
+      reject(reason instanceof Error?reason:new Error("Offline punch storage transaction failed."));
+    };
+    try{
+      const transaction=db.transaction(STORE,mode);
+      let requestResult:T;
+      transaction.oncomplete=()=>{
+        if(settled)return;
+        settled=true;
+        db.close();
+        // A successful request is not durable until this transaction commits.
+        resolve(requestResult);
+      };
+      transaction.onabort=()=>fail(transaction.error);
+      transaction.onerror=()=>fail(transaction.error);
+      const req=fn(transaction.objectStore(STORE));
+      req.onsuccess=()=>{requestResult=req.result;};
+      req.onerror=()=>fail(req.error);
+    }catch(error){fail(error);}
   });
 }
 export async function queueWebPunch(punch:QueuedWebPunch) {await withObjectStore("readwrite",store=>store.put(punch));}

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import {readFileSync} from "node:fs";
 import {randomBytes} from "node:crypto";
 import {criticalReleaseFlagEnabled} from "../src/lib/critical-release-flags";
 import {photoCaptureDecision,evaluatePunchTiming,photosDueForPurge,photoExpiry,impossibleTravel} from "../src/lib/workforce-punch-evidence";
@@ -69,4 +70,17 @@ test("newer worksite deny supersedes a past allow and does not select a fallback
   assert.equal(resolvedWorksiteDecision([{ worksiteId: 2, decision: "deny" }, { worksiteId: 1, decision: "allow" }]), null);
   assert.equal(resolvedWorksiteDecision([{ worksiteId: 2, decision: "allow" }, { worksiteId: 1, decision: "deny" }]), 2);
   assert.equal(resolvedWorksiteDecision([]), null);
+});
+
+test("staging and approval source guards preserve transaction-level safety",()=>{
+  const stage=readFileSync("src/app/api/web-bundy/evidence/route.ts","utf8");
+  const review=readFileSync("src/app/api/web-bundy/review/route.ts","utf8");
+  assert.match(stage,/await tx\.insert\(auditEvents\)/);
+  assert.doesNotMatch(stage,/await recordAuditEvent\(/);
+  assert.match(stage,/pg_advisory_xact_lock\(6108/);
+  assert.match(stage,/latestConsent\?\.choice!=="accepted"/);
+  assert.match(stage,/duplicate\.status/);
+  assert.match(review,/pg_advisory_xact_lock\(/);
+  assert.match(review,/attendanceRows\.length>1/);
+  assert.match(review,/target<=current\.breakEnd/);
 });

@@ -1,10 +1,9 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { and, desc, eq, lte, isNull, gte, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, employeeWorksiteAssignments, worksiteGeofenceBoundaries, worksites, workforcePunchPhotoConsents, workforcePunchPhotoEvidence, workforcePunchSubmissions, worksitePunchPolicies } from "@/db/schema";
+import { auditEvents, employees, employeeWorksiteAssignments, worksiteGeofenceBoundaries, worksites, workforcePunchPhotoConsents, workforcePunchPhotoEvidence, workforcePunchSubmissions, worksitePunchPolicies } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, assertOrganizationRole, getAccess, assertScope, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
-import { recordAuditEvent } from "@/lib/audit";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { attendanceMutationLock, loadActiveAttendanceLocks } from "@/lib/workforce-attendance-lock";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
@@ -175,26 +174,56 @@ export async function POST(request: Request) {
       {worksiteId:b.worksiteId,latitude:Number(b.latitude),longitude:Number(b.longitude),at:new Date(deviceOccurredAt)}))flags.push("impossible-travel");
   }
   const photoId=encrypted?randomUUID():null;
-  // Both evidence and staged submission commit together; no payable punch mutation occurs here.
-  const id=await db.transaction(async tx=>{
-    if(photoId&&encrypted)await tx.insert(workforcePunchPhotoEvidence).values({
-      id:photoId,organizationId,employeeId:employee!.id,sealedPhoto:encrypted,expiresAt:photoExpiry(now),
+  // Evidence, submission and its immutable audit receipt commit or roll back together.
+  const result=await db.transaction(async tx=>{
+    let retainedPhotoId=photoId;
+    if(retainedPhotoId) {
+      // Consent withdrawal obtains this same transaction-scoped lock. Recheck
+      // after scanning so a withdrawn selfie is never persisted on a race.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(6108, ${organizationId})`);
+      const [latestConsent]=await tx.select({choice:workforcePunchPhotoConsents.choice})
+        .from(workforcePunchPhotoConsents).where(and(
+          eq(workforcePunchPhotoConsents.organizationId,organizationId),
+          eq(workforcePunchPhotoConsents.employeeId,employee!.id),
+          eq(workforcePunchPhotoConsents.consentVersion,PUNCH_CONSENT_VERSION),
+        )).for("update").limit(1);
+      if(latestConsent?.choice!=="accepted") {
+        retainedPhotoId=null;
+        flags.push("consent-declined");
+      }
+    }
+    if(retainedPhotoId&&encrypted)await tx.insert(workforcePunchPhotoEvidence).values({
+      id:retainedPhotoId,organizationId,employeeId:employee!.id,sealedPhoto:encrypted,expiresAt:photoExpiry(now),
     });
+    const finalFlags=[...new Set(flags)];
     const [created]=await tx.insert(workforcePunchSubmissions).values({
       organizationId,employeeId:employee!.id,clientPunchId,actionType:action,workDate:date,
       deviceOccurredAt:new Date(deviceOccurredAt),serverReceivedAt:now,receivedSource:source,
-      worksiteId,photoEvidenceId:photoId,deviceDigest:digest,flags:[...new Set(flags)],
+      worksiteId,photoEvidenceId:retainedPhotoId,deviceDigest:digest,flags:finalFlags,
       requestedByUserId:user!.id,
     }).onConflictDoNothing().returning({id:workforcePunchSubmissions.id});
-    if(created)return created.id;
-    const [duplicate]=await tx.select({id:workforcePunchSubmissions.id}).from(workforcePunchSubmissions).where(and(
+    if(created) {
+      // A staged punch must not be visible without its audit event.
+      await tx.insert(auditEvents).values({
+        organizationId,actor:user!.name,action:"Enhanced Web Bundy punch queued for independent review",
+        resource:employee!.employeeNo,metadata:{
+          submissionId:created.id,action,workDate:date,flags:finalFlags,photoEvidenceId:retainedPhotoId,
+        },
+      });
+      return {id:created.id,status:"pending",flags:finalFlags,duplicate:false};
+    }
+    const [duplicate]=await tx.select({
+      id:workforcePunchSubmissions.id,status:workforcePunchSubmissions.status,flags:workforcePunchSubmissions.flags,
+    }).from(workforcePunchSubmissions).where(and(
       eq(workforcePunchSubmissions.organizationId,organizationId),eq(workforcePunchSubmissions.employeeId,employee!.id),
       eq(workforcePunchSubmissions.clientPunchId,clientPunchId))).limit(1);
     if(!duplicate)throw new Error("Punch conflict.");
-    if(photoId)await tx.delete(workforcePunchPhotoEvidence).where(eq(workforcePunchPhotoEvidence.id,photoId));
-    return duplicate.id;
+    if(retainedPhotoId)await tx.delete(workforcePunchPhotoEvidence)
+      .where(eq(workforcePunchPhotoEvidence.id,retainedPhotoId));
+    // A racing retry neither creates a duplicate audit event nor misstates a reviewed punch.
+    return {id:duplicate.id,status:duplicate.status,flags:duplicate.flags,duplicate:true};
   });
-  await recordAuditEvent({organizationId,actor:user!.name,action:"Enhanced Web Bundy punch queued for independent review",
-    resource:employee!.employeeNo,metadata:{submissionId:id,action,workDate:date,flags:[...new Set(flags)],photoEvidenceId:photoId}});
-  return respond({ok:true,id,status:"pending",flags:[...new Set(flags)],message:"Punch received; awaiting independent human review."},202);
+  return respond({ok:true,id:result.id,status:result.status,flags:result.flags,duplicate:result.duplicate,
+    message:result.duplicate?"Existing submission returned.":"Punch received; awaiting independent human review."},
+    result.duplicate?200:202);
 }
