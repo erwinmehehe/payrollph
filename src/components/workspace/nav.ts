@@ -62,6 +62,7 @@ export const NAVIGATION: NavGroup[] = [
     items: [
       { name: "Overview", icon: LayoutDashboard, hint: "Payroll status, approvals and cost at a glance", tone: "blue" },
       { name: "More modules", icon: PanelsTopLeft, hint: "Find additional authorized payroll and HR modules", tone: "teal" },
+      { name: "Employee requests", icon: ClipboardCheck, hint: "HR inbox for employee service requests and replies", tone: "purple" },
       { name: "Payroll", icon: WalletCards, hint: "Prepare, approve, release and export a run", tone: "green", badge: "runs" },
       { name: "People", icon: UsersRound, hint: "Employee directory, import and structure", tone: "purple", badge: "people" },
       { name: "Migration", icon: RefreshCcw, hint: "Switch from another payroll or HRIS with validated imports", tone: "teal" },
