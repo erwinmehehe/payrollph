@@ -220,3 +220,19 @@ test("offline queue count loads independently of remote policy fetch",()=>{
   assert.match(source,/retryablePunchHttpStatus\(res.status\)/);
   assert.match(source,/Server receipt is uncertain and local storage failed/);
 });
+
+test("idempotency collision 409 keeps the conflicting offline action for HR",async()=>{
+  const fixture=syntheticSyncQueue([example]);
+  const originalFetch=globalThis.fetch;
+  try{
+    globalThis.fetch=(async()=>new Response(JSON.stringify({
+      code:"PUNCH_IDENTITY_CONFLICT",
+      error:"Punch identifier belongs to a different original action.",
+    }),{status:409,headers:{"Content-Type":"application/json"}})) as typeof fetch;
+    const outcome=await syncQueuedWebPunches(example.organizationId,example.employeeId);
+    assert.equal(outcome.length,1);
+    assert.equal(outcome[0].status,"failed");
+    assert.deepEqual(fixture.ids(),[example.id],
+      "a rejected collision must never delete employee time evidence");
+  }finally{globalThis.fetch=originalFetch;fixture.restore();}
+});
