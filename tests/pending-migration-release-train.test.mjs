@@ -14,7 +14,7 @@ const pending = new Map([
 // Historical collisions are a separate adoption problem; never renumber them.
 test("one canonical, contiguous pending migration per new number", () => {
   const names = readdirSync(sqlDir);
-  const pendingFiles = names.filter((name) => /^011[5-9]_[a-z0-9_-]+\\.sql$/.test(name));
+  const pendingFiles = names.filter((name) => /^011[5-9]_[a-z0-9_-]+\.sql$/.test(name));
   assert.deepEqual(pendingFiles.sort(), [...pending.values()].sort());
   for (const [number, path] of pending) {
     assert.equal(Number(path.slice(0, 4)), number);
