@@ -1,26 +1,41 @@
 /**
- * Read-only, source-owned **table-name** prerequisite matrix for canonical
- * 0115-0119. A table's existence cannot certify columns, constraints,
- * historical migration receipts, application compatibility or release safety.
+ * Read-only source-owned prerequisite inventory for the seven DRAFT SQL
+ * files in #865 (0115-0121). Distinguish source-created earlier tables
+ * from external prerequisites. Neither existence nor draft plans are
+ * migration receipts, DBA approval, or permission to modify Neon.
  */
 export const CANONICAL_MIGRATION_BASE_TABLES = Object.freeze({
-  "0115_inline_first_payroll_journey.sql": ["organizations", "users"],
-  "0116_wfm_roster_scale_rules.sql": [
+  "0115_payout_profiles_foundation.sql": [
+    "organizations", "legal_entities", "bank_templates", "users",
+  ],
+  "0116_payout_ledger_foundation.sql": [
+    "organizations", "payroll_runs", "payroll_entries", "employees", "payout_profiles",
+  ],
+  "0117_inline_first_payroll_journey.sql": ["organizations", "users"],
+  "0118_wfm_roster_scale_rules.sql": [
     "organizations", "users", "employee_schedule_assignments", "employee_worksite_assignments",
   ],
-  "0117_xendit_payout_provider.sql": [
+  "0119_xendit_payout_provider.sql": [
     "payout_batches", "payout_transfers", "payout_batch_transfers", "payout_profiles",
   ],
-  "0118_wfm_punch_evidence.sql": [
+  "0120_wfm_punch_evidence.sql": [
     "organizations", "users", "employees", "worksites", "time_punches",
   ],
-  "0119_multi_entity_v2_scope_transfer.sql": [
+  "0121_multi_entity_v2_scope_transfer.sql": [
     "organizations", "users", "legal_entities", "employees", "payroll_runs",
     "payroll_entries", "payslips", "payroll_jobs", "payout_batches",
     "payout_transfers", "bank_file_validations", "historical_payroll_entries",
     "year_end_adjustments", "separation_records", "user_organizations",
     "org_units", "worker_employment_events",
   ],
+});
+
+// These are proposed earlier outputs, NOT assertions that tables are applied.
+export const CANONICAL_DRAFT_TABLE_CREATORS = Object.freeze({
+  payout_profiles: "0115",
+  payout_batches: "0116",
+  payout_transfers: "0116",
+  payout_batch_transfers: "0116",
 });
 
 const tableNames = [...new Set(Object.values(CANONICAL_MIGRATION_BASE_TABLES).flat())].sort();
@@ -47,20 +62,34 @@ export function assessCanonicalMigrationTables(rows) {
     found.set(row.table_name, row.present);
   }
   const migrations = Object.entries(CANONICAL_MIGRATION_BASE_TABLES).map(([file, dependencies]) => {
-    const missingBaseTables = dependencies.filter(name => found.get(name) !== true);
+    const migration = file.slice(0, 4);
+    const fromEarlierDraft = name =>
+      Object.hasOwn(CANONICAL_DRAFT_TABLE_CREATORS, name) &&
+      CANONICAL_DRAFT_TABLE_CREATORS[name] < migration;
+    const missingBaseTables = dependencies.filter(name =>
+      found.get(name) !== true && !fromEarlierDraft(name));
+    const pendingDraftPredecessors = dependencies.filter(name =>
+      found.get(name) !== true && fromEarlierDraft(name));
+    const structuralTargetsPresentOnly =
+      missingBaseTables.length === 0 && pendingDraftPredecessors.length === 0;
     return {
       file,
-      migration: file.slice(0, 4),
+      migration,
       missingBaseTables,
-      structuralTargetsPresentOnly: missingBaseTables.length === 0,
-      status: missingBaseTables.length === 0
-        ? "TARGET_TABLES_PRESENT_NOT_DDL_OR_RELEASE_APPROVAL"
-        : "BLOCKED_MISSING_BASE_TABLES",
+      pendingDraftPredecessors,
+      structuralTargetsPresentOnly,
+      status: missingBaseTables.length
+        ? "BLOCKED_MISSING_BASE_TABLES"
+        : pendingDraftPredecessors.length
+          ? "ORDERED_DRAFT_DDL_UNAPPLIED_NOT_APPROVED"
+          : "TARGET_TABLES_PRESENT_NOT_DDL_OR_RELEASE_APPROVAL",
     };
   });
   return {
     migrations,
     wholeTrainBaseTablesPresent: migrations.every(row => row.structuralTargetsPresentOnly),
+    externalPredecessorsPresent: migrations.every(row => row.missingBaseTables.length === 0),
+    requiresUnappliedDraftDDL: migrations.some(row => row.pendingDraftPredecessors.length > 0),
     productionMigrationApproved: false,
   };
 }
