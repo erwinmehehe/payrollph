@@ -127,3 +127,74 @@ END $$;
 
 -- DBA acceptance: demonstrate unique constraints and trigger rejection,
 -- two-worker claim race, tenant isolation and replay before any rollout.
+
+
+-- A-2 acceptance gap caught on an isolated Neon clone: independent FKs to
+-- org, run, employee and entry do NOT prove that they belong to the same
+-- tenant or payroll run. Refuse mismatched references before storing payout
+-- identity. These locks keep parent rows stable during the child write.
+-- This draft is still NOT a numbered or production-approved migration.
+CREATE OR REPLACE FUNCTION validate_payout_batch_scope()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM r.id FROM public.payroll_runs r
+    WHERE r.id = NEW.payroll_run_id AND r.organization_id = NEW.organization_id
+    FOR SHARE OF r;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PAYOUT_BATCH_TENANT_MISMATCH' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER payout_batch_tenant_guard
+  BEFORE INSERT OR UPDATE OF organization_id, payroll_run_id
+  ON payout_batches FOR EACH ROW EXECUTE FUNCTION validate_payout_batch_scope();
+
+CREATE OR REPLACE FUNCTION validate_payout_transfer_scope()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM pe.id FROM public.payroll_entries pe
+    JOIN public.payroll_runs r ON r.id = pe.payroll_run_id
+    JOIN public.employees e ON e.id = pe.employee_id
+  WHERE r.id = NEW.payroll_run_id
+    AND pe.id = NEW.payroll_entry_id
+    AND e.id = NEW.employee_id
+    AND r.organization_id = NEW.organization_id
+    AND e.organization_id = NEW.organization_id
+  FOR SHARE OF pe, r, e;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PAYOUT_TRANSFER_TENANT_OR_ENTRY_MISMATCH'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER payout_transfer_tenant_guard
+  BEFORE INSERT OR UPDATE OF organization_id, payroll_run_id, payroll_entry_id, employee_id
+  ON payout_transfers FOR EACH ROW EXECUTE FUNCTION validate_payout_transfer_scope();
+
+CREATE OR REPLACE FUNCTION validate_payout_batch_transfer_scope()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM b.id FROM public.payout_batches b
+    JOIN public.payout_transfers t
+      ON t.payroll_run_id = b.payroll_run_id
+      AND t.organization_id = b.organization_id
+  WHERE b.id = NEW.payout_batch_id
+    AND t.id = NEW.payout_transfer_id
+    AND b.organization_id = NEW.organization_id
+  FOR SHARE OF b, t;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PAYOUT_BATCH_TRANSFER_SCOPE_MISMATCH'
+      USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END $$;
+
+CREATE TRIGGER payout_batch_transfer_tenant_guard
+  BEFORE INSERT OR UPDATE OF organization_id, payout_batch_id, payout_transfer_id
+  ON payout_batch_transfers FOR EACH ROW EXECUTE FUNCTION validate_payout_batch_transfer_scope();
+
+-- For full database-level integrity, upstream organization/run/employee
+-- reassignment also needs a separate immutability or composite-FK policy.
+-- Never call these guards an RLS substitute; no payouts may be submitted.
