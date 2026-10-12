@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, gt, gte, isNull, lte, or } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "../src/db";
 import { organizations, employees, schedulePatterns, schedulePatternDays, schedulePatternSegments, shiftDefinitions, employeeScheduleAssignments } from "../src/db/schema";
 import { scanActiveRosterAssignments } from "../src/lib/workforce-roster-scale";
@@ -14,6 +14,7 @@ test("WFM-12: 1000 real assignment rows page without skipping or including anoth
     {name:"WFM-12 Synthetic A "+seed,legalName:"WFM-12 Synthetic A "+seed},
     {name:"WFM-12 Synthetic B "+seed,legalName:"WFM-12 Synthetic B "+seed},
   ]).returning();
+  const syntheticPatternDayIds:number[]=[];
   try{
     const [patternA,patternB]=await db.insert(schedulePatterns).values([
       {organizationId:a.id,code:"S-"+seed,name:"Synthetic A",cycleDays:7},
@@ -28,6 +29,7 @@ test("WFM-12: 1000 real assignment rows page without skipping or including anoth
         patternId:patternA.id,dayIndex,isRestDay:false,
       }))
     ).returning();
+    syntheticPatternDayIds.push(...days.map(row=>row.id));
     await db.insert(schedulePatternSegments).values(
       days.map(row=>({patternDayId:row.id,shiftDefinitionId:shiftA.id,segmentOrder:1}))
     );
@@ -97,6 +99,8 @@ test("WFM-12: 1000 real assignment rows page without skipping or including anoth
   }finally{
     // The test owns only these fictional tenants. Deleting the organizations
     // also deletes their synthetic employees and associated schedule rows.
+    if(syntheticPatternDayIds.length) await db.delete(schedulePatternSegments).where(
+      inArray(schedulePatternSegments.patternDayId,syntheticPatternDayIds));
     await db.delete(organizations).where(eq(organizations.id,a.id));
     await db.delete(organizations).where(eq(organizations.id,b.id));
   }
