@@ -1,7 +1,7 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
-import {queueWebPunch,pendingWebPunches,syncQueuedWebPunches} from "@/lib/workforce-punch-offline-queue";
-type Policy={geofenceRequired:boolean;photoMode:"off"|"optional"|"required";consent:"accepted"|"declined"|null;pending:{id:number}[]};
+import {installationPunchDeviceId,queueWebPunch,pendingWebPunches,syncQueuedWebPunches} from "@/lib/workforce-punch-offline-queue";
+type Policy={geofenceRequired:boolean;photoMode:"off"|"optional"|"required";consent:"accepted"|"declined"|null;consentVersion:string;pending:{id:number}[]};
 export function EnhancedPunchControls({organizationId,employeeId}:{organizationId:number;employeeId:number}){
   const [policy,setPolicy]=useState<Policy|null>(null);
   const [deviceId,setDeviceId]=useState<string|null>(null);
@@ -17,16 +17,23 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
   },[organizationId,employeeId]);
   useEffect(()=>{
     let alive=true;
-    // Never store a long-lived device identifier in clear-text sessionStorage.
-    // Each mounted browser session gets a temporary pseudonym; offline records
-    // keep their own original ID only until the reviewed server receipt.
-    const value=crypto.randomUUID();
-    void Promise.resolve().then(async()=>{
-      if(!alive)return;
-      setDeviceId(value);
-      await reload();
-    });
-    return()=>{alive=false};
+    void (async()=>{
+      try{
+        // Installation identity persists through component remount and account
+        // switching, enabling tenant-scoped human shared-device warning signals.
+        const stored=await installationPunchDeviceId();
+        if(alive)setDeviceId(stored);
+      }catch{
+        // The attendance flow must remain available on browsers that disable
+        // IndexedDB. A temporary ID simply cannot support shared-device history.
+        if(alive){
+          setDeviceId(crypto.randomUUID());
+          setMessage("Browser storage is unavailable. Online punching remains available, but shared-device signals may be incomplete.");
+        }
+      }
+      if(alive)await reload().catch(()=>undefined);
+    })();
+    return()=>{alive=false;};
   },[reload]);
   const sync=useCallback(async()=>{
     const outcome=await syncQueuedWebPunches(organizationId,employeeId).catch(()=>[]);
@@ -84,8 +91,10 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
     <h3>Review-first attendance</h3>
     <p>Every punch is staged until a separate workforce reviewer approves it. Photo evidence never automatically matches faces or deducts pay.</p>
     <p>Awaiting reviewer: {policy?.pending.length??"…"} · Saved offline on this device: {offline}</p>
+    <p>This browser keeps a random installation identifier in IndexedDB for tenant-scoped shared-device warnings. It is not a hardware fingerprint. Unsent offline punch actions remain locally until confirmed as received, or until browser data is cleared. Sharing a device can expose locally queued attendance, so use a personal device when possible.</p>
     {policy&&policy.photoMode!=="off"&&policy.consent===null&&<div>
-      <p>Optional selfie evidence helps a human verify attendance. Images are encrypted and ordinarily purged after 90 days. You may decline; your attendance can still be reviewed without a photo.</p>
+      <p>Optional selfie evidence is collected only to help authorized company attendance reviewers examine an identity or punch dispute. Encrypted photos are ordinarily purged after 90 days unless subject to an authorized legal hold; backups follow the employer's disclosed retention schedule. No automated face recognition, disciplinary decision, or pay deduction is made from a photo.</p>
+      <p>You may decline without an automatic attendance or pay penalty, or withdraw consent later. Employees can request an HR attendance correction without a photo. Contact your employer's HR or Data Protection Officer about access, deletion and applicable privacy rights. Consent notice: {policy.consentVersion}.</p>
       <button type="button" className="secondary-button" onClick={()=>void consent("accepted")}>Consent to photo evidence</button>
       <button type="button" className="secondary-button" onClick={()=>void consent("declined")}>Decline photo evidence</button>
     </div>}
