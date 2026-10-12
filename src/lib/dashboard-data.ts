@@ -1,3 +1,4 @@
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { maskGovernmentId } from "@/lib/government-id-crypto";
 import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
@@ -345,11 +346,13 @@ export async function getDashboardData(organizationId?: number) {
 
   return {
     firstPayrollReadiness,
+    employeeImportPreviewEnabled: criticalReleaseFlagEnabled("employeeImportPreview"),
+    coreModuleNavigationEnabled: criticalReleaseFlagEnabled("coreModuleNavigation"),
     user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
     capabilities,
-    organizations: orgs,
-    selectedOrganization,
+    organizations: orgs.map(org => ({ ...org, enabledModules: Array.isArray(org.enabledModules) ? org.enabledModules.filter((id): id is string => typeof id === "string") : [] })),
+    selectedOrganization: { ...selectedOrganization, enabledModules: Array.isArray(selectedOrganization.enabledModules) ? selectedOrganization.enabledModules.filter((id): id is string => typeof id === "string") : [] },
     employees: employeesWithPayBasis,
     orgUnits: units,
     payrollRuns: runRows,

@@ -20,6 +20,8 @@ import {
 export const organizations = pgTable("organizations", {
   id: serial("id").primaryKey(),
   name: varchar("name", { length: 160 }).notNull(),
+  moduleNavigationMode: varchar("module_navigation_mode", { length: 8 }).notNull().default("core"),
+  enabledModules: jsonb("enabled_modules").notNull().default([]),
   legalName: varchar("legal_name", { length: 200 }).notNull(),
   accountType: varchar("account_type", { length: 32 }).notNull().default("business"),
   plan: varchar("plan", { length: 32 }).notNull().default("Core"),

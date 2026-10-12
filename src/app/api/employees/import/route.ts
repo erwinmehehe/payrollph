@@ -1,3 +1,5 @@
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { handleEmployeeImportPreview } from "@/lib/employee-import-request";
 import { encryptBankAccount } from "@/lib/bank-account-crypto";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { and, eq, sql } from "drizzle-orm";
@@ -28,7 +30,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "CSV import exceeds the 2 MB limit." }, { status: 413 });
   }
   const fileName = String(body.fileName ?? "upload.csv").slice(0, 200);
-  const dryRun = Boolean(body.dryRun);
+  const previewEnabled = criticalReleaseFlagEnabled("employeeImportPreview");
+  if (!previewEnabled && (body.action === "preview" || body.action === "commit")) return Response.json({ error: "Employee import preview is disabled." }, { status: 404 });
+  const dryRun = Boolean(body.dryRun) || (previewEnabled && body.action === "preview");
 
   if (!Number.isInteger(organizationId) || !csv.trim()) {
     return Response.json({ error: "organizationId and csv content are required." }, { status: 400 });
@@ -56,6 +60,13 @@ export async function POST(request: Request) {
   // uploading a CSV, including a CSV that supplies valid employee numbers.
   if (await hasConfiguredHireBusinessProcess(organizationId)) {
     return Response.json(GOVERNED_HIRE_REQUIRED, { status: 409 });
+  }
+
+  if (previewEnabled) {
+    const entitlements = await getEntitlements(organizationId);
+    const gate = requireFeature(entitlements, "imports");
+    if (gate) return gate;
+    return handleEmployeeImportPreview({ body, organizationId, csv, fileName, user, seatLimit: entitlements.seatLimit });
   }
 
   await ensureMigrationSchema();
