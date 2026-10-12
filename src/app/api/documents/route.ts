@@ -1,8 +1,9 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { createHash } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   documents,
   employees,
   hcmDocumentRequirements,
@@ -10,6 +11,9 @@ import {
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { documentObjectKey, deleteDocumentObject, putDocumentObject } from "@/lib/document-object-storage";
+import { canStaffOpenEmployeeVault, validExpiryCalendarDate } from "@/lib/employee-document-vault";
 import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 
@@ -61,6 +65,9 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  if (criticalReleaseFlagEnabled("employeeDocumentVault") && !canStaffOpenEmployeeVault(access.role)) {
+    return Response.json({ error: "Private HR documents are outside your role." }, { status: 403 });
+  }
 
   const rows = await db.select({
     id: documents.id,
@@ -130,6 +137,10 @@ export async function POST(request: Request) {
   if (requirementId != null && !Number.isInteger(requirementId)) {
     return Response.json({ error: "requirementId must be an integer." }, { status: 422 });
   }
+  const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
+  if (vaultEnabled && expiresAtRaw && !validExpiryCalendarDate(expiresAtRaw)) {
+    return Response.json({ error: "expiresAt must be a real YYYY-MM-DD date." }, { status: 422 });
+  }
   const expiresAt = expiresAtRaw
     ? (/^\d{4}-\d{2}-\d{2}$/.test(expiresAtRaw) ? expiresAtRaw : null)
     : null;
@@ -159,6 +170,9 @@ export async function POST(request: Request) {
     if (denied) return denied;
     const access = await getAccess(user.id, organizationId);
     if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+    if (vaultEnabled && !canStaffOpenEmployeeVault(access.role)) {
+      return Response.json({ error: "Private HR files require People authorization." }, { status: 403 });
+    }
 
     if (employeeRaw && employeeRaw !== "null" && employeeRaw !== "") {
       const candidate = Number(employeeRaw);
@@ -244,6 +258,95 @@ export async function POST(request: Request) {
         },
         { status: 503 },
       );
+    }
+  }
+
+  if (vaultEnabled) {
+    // New vault uploads never store the file's base64 representation in SQL.
+    // Unlike legacy developer uploads, a missing scanner fails closed even in
+    // preview, and missing S3 storage fails closed before any DB mutation.
+    if (!scan.scannedClean) {
+      return Response.json({ error: "A completed clean malware scan is required for private vault storage." }, { status: 503 });
+    }
+    const hash = createHash("sha256").update(bytes).digest("hex");
+    const storageKey = documentObjectKey(organizationId, employeeId);
+    try {
+      await putDocumentObject(storageKey, bytes, check.mime);
+    } catch {
+      // A provider may time out after writing part or all of a private object.
+      // Never assume an HTTP timeout means no bytes were stored: reconcile
+      // the unique key on failure before allowing the user to retry.
+      await deleteDocumentObject(storageKey).catch(() => {
+        // Failed cleanup leaves a random, unreferenced private object for
+        // storage lifecycle reconciliation; never expose its key to clients.
+      });
+      return Response.json({ error: "Private document object storage is unavailable." }, { status: 503 });
+    }
+    try {
+      const result = await db.transaction(async tx => {
+        const [stored] = await tx.insert(documents).values({
+          organizationId, employeeId, kind,
+          fileName: safeFileName(file.name),
+          mimeType: check.mime,
+          byteSize: bytes.byteLength,
+          sha256: hash,
+          scannedClean: true,
+          scanNote: scan.note,
+          uploadedBy: user.name,
+          uploadedByUserId: user.id,
+          objectStorageKey: storageKey,
+          content: "", // non-base64 compatibility sentinel until reviewed migration
+        }).returning({
+          id: documents.id, fileName: documents.fileName,
+          byteSize: documents.byteSize, sha256: documents.sha256,
+        });
+        let documentCompliance: typeof hcmEmployeeDocumentCompliance.$inferSelect | null = null;
+        if (requirement && complianceRow) {
+          // The employee/requirement/old document must still match: a concurrent
+          // HR waiver, replacement or tenant change cannot be overwritten.
+          [documentCompliance] = await tx.update(hcmEmployeeDocumentCompliance).set({
+            documentId: stored.id, expiresAt, status: "submitted",
+            verifiedAt: null, verifiedByUserId: null,
+            verifiedByName: null, updatedAt: new Date(),
+          }).where(and(
+            eq(hcmEmployeeDocumentCompliance.id, complianceRow.id),
+            eq(hcmEmployeeDocumentCompliance.organizationId, organizationId),
+            eq(hcmEmployeeDocumentCompliance.employeeId, employeeId!),
+            eq(hcmEmployeeDocumentCompliance.requirementId, requirement.id),
+            ne(hcmEmployeeDocumentCompliance.status, "waived"),
+            eq(hcmEmployeeDocumentCompliance.status, complianceRow.status),
+            complianceRow.expiresAt === null
+              ? isNull(hcmEmployeeDocumentCompliance.expiresAt)
+              : eq(hcmEmployeeDocumentCompliance.expiresAt, String(complianceRow.expiresAt)),
+            complianceRow.documentId === null
+              ? isNull(hcmEmployeeDocumentCompliance.documentId)
+              : eq(hcmEmployeeDocumentCompliance.documentId, complianceRow.documentId),
+          )).returning();
+          if (!documentCompliance) throw new Error("COMPLIANCE_CHANGED");
+        }
+        await tx.insert(auditEvents).values({
+          organizationId, actor: user.name,
+          action: "Employee document scanned and stored in private vault",
+          resource: String(stored.id),
+          metadata: { documentId: stored.id, employeeId,
+            requirementId: requirement?.id ?? null,
+            sha256: hash, byteSize: bytes.byteLength, malwareScanClean: true,
+            uploadedByUserId: user.id },
+        });
+        return { row: stored, compliance: documentCompliance };
+      });
+      return Response.json({
+        id: result.row.id, fileName: result.row.fileName,
+        byteSize: result.row.byteSize, sha256: result.row.sha256,
+        detectedMime: check.mime, compliance: result.compliance,
+        scan: { scannedClean: true, note: scan.note, engine: scan.engine },
+        storage: "private-object",
+      }, { status: 201, headers: { "Cache-Control": "private, no-store" } });
+    } catch {
+      // The object was created but the transactional row/audit was not.
+      // Best-effort cleanup; failed cleanup requires orphan reconciliation.
+      await deleteDocumentObject(storageKey).catch(() => {});
+      return Response.json({ error: "Employee document could not be committed; refresh and retry." }, { status: 409 });
     }
   }
 

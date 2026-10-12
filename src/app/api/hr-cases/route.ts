@@ -215,7 +215,7 @@ export async function PATCH(request: Request) {
         scannedClean: true, scanNote: "Generated and independently reviewed COE",
         sourceType: "generated", sourceKey: "hr-case-coe:" + caseId,
         generationMetadata: { caseId, template: "coe-v1", approvedByUserId: user.id, approvedDate },
-        uploadedBy: user.name, content: "", storageKey: objectKey,
+        uploadedBy: user.name, uploadedByUserId: user.id, content: "", objectStorageKey: objectKey,
       }).returning({ id: documents.id });
       [result] = await tx.update(employeeHrCases).set({
         coeDocumentId: document.id, coeApprovedByUserId: user.id,

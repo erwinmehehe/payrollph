@@ -1747,12 +1747,30 @@ export const leaveBalances = pgTable("leave_balances", {
   uniqueIndex("leave_balance_unique").on(table.employeeId, table.leaveType, table.year),
 ]);
 
+export const expenseCategoryPolicies = pgTable("expense_category_policies", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  category: varchar("category", { length: 60 }).notNull(),
+  taxable: boolean("taxable").notNull(),
+  reviewReference: varchar("review_reference", { length: 200 }).notNull(),
+  reviewedByUserId: integer("reviewed_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex("expense_category_policies_org_category").on(table.organizationId, table.category)]);
+
 export const expenseClaims = pgTable("expense_claims", {
   id: serial("id").primaryKey(),
   submittedByUserId: integer("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   category: varchar("category", { length: 60 }).notNull(),
+  categoryPolicyId: integer("category_policy_id").references(() => expenseCategoryPolicies.id),
+  taxable: boolean("taxable").notNull().default(false),
+  approvedAmount: numeric("approved_amount", { precision: 12, scale: 2 }),
+  receiptStorageKey: varchar("receipt_storage_key", { length: 512 }),
+  receiptSha256: varchar("receipt_sha256", { length: 64 }),
+  receiptMime: varchar("receipt_mime", { length: 100 }),
+  receiptFileName: varchar("receipt_file_name", { length: 200 }),
+  receiptScanNote: varchar("receipt_scan_note", { length: 240 }),
   description: varchar("description", { length: 240 }).notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   incurredOn: date("incurred_on").notNull(),
@@ -2054,6 +2072,13 @@ export const documents = pgTable("documents", {
   sourceKey: varchar("source_key", { length: 160 }),
   generationMetadata: jsonb("generation_metadata").notNull().default({}),
   uploadedBy: varchar("uploaded_by", { length: 120 }).notNull(),
+  // Human uploader provenance is required for the gated independent HR checker.
+  // Historical names cannot be silently promoted to a trusted user identity.
+  uploadedByUserId: integer("uploaded_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  // A-5: null for historical Postgres-backed documents. New scanned uploads
+  // store a private object key and an empty legacy content sentinel.
+  // Historical base64 is migrated separately with verified hashes and legal holds.
+  objectStorageKey: varchar("object_storage_key", { length: 512 }),
   content: text("content").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -2061,6 +2086,7 @@ export const documents = pgTable("documents", {
     .on(table.organizationId, table.sourceKey)
     .where(sql`${table.sourceKey} is not null`),
   index("documents_org_employee_source_idx").on(table.organizationId, table.employeeId, table.sourceType, table.createdAt),
+  uniqueIndex("documents_object_storage_key_unique").on(table.objectStorageKey).where(sql`${table.objectStorageKey} is not null`),
   check("documents_source_type_check", sql`${table.sourceType} in ('upload','generated')`),
 ]);
 
@@ -2176,6 +2202,26 @@ export const hcmEmployeeDocumentCompliance = pgTable(
     index("hcm_employee_document_expiry_idx").on(table.organizationId, table.status, table.expiresAt),
   ],
 );
+
+/** Per-expiry, per-milestone HR alert ledger; idempotent across scheduler retries. */
+export const hcmDocumentExpiryNotices = pgTable("hcm_document_expiry_notices", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  complianceId: integer("compliance_id").notNull().references(() => hcmEmployeeDocumentCompliance.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  documentId: integer("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+  expiresOn: date("expires_on").notNull(),
+  milestoneDays: integer("milestone_days").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  acknowledgedByUserId: integer("acknowledged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+}, (table) => [
+  uniqueIndex("hcm_document_expiry_notice_unique").on(
+    table.complianceId, table.documentId, table.expiresOn, table.milestoneDays,
+  ),
+  index("hcm_document_expiry_notice_inbox_idx").on(table.organizationId, table.acknowledgedAt, table.createdAt),
+  check("hcm_document_expiry_notice_milestone_check", sql`${table.milestoneDays} in (30, 14, 7)`),
+]);
 
 export const invitations = pgTable("invitations", {
   id: serial("id").primaryKey(),
@@ -3026,6 +3072,71 @@ export const jobApplicants = pgTable("job_applicants", {
     .where(sql`${table.hiredEmployeeId} is not null`),
 ]);
 
+/** Confidential HR service requests, scoped to the employee and their employer. */
+export const employeeHrCases = pgTable("employee_hr_cases", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  caseType: varchar("case_type", { length: 32 }).notNull(),
+  subject: varchar("subject", { length: 160 }).notNull(),
+  description: text("description").notNull(),
+  assignedRole: varchar("assigned_role", { length: 24 }).notNull(),
+  status: varchar("status", { length: 24 }).notNull().default("open"),
+  slaDueAt: timestamp("sla_due_at", { withTimezone: true }).notNull(),
+  coeDocumentId: integer("coe_document_id").references(() => documents.id),
+  coeApprovedByUserId: integer("coe_approved_by_user_id").references(() => users.id),
+  coeApprovedAt: timestamp("coe_approved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("employee_hr_cases_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+  index("employee_hr_cases_sla_idx").on(table.organizationId, table.status, table.slaDueAt),
+  check("employee_hr_cases_status_check", sql`${table.status} in ('open','in_progress','waiting_employee','resolved','closed')`),
+]);
+
+export const employeeHrCaseMessages = pgTable("employee_hr_case_messages", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  caseId: integer("case_id").notNull().references(() => employeeHrCases.id, { onDelete: "cascade" }),
+  actorUserId: integer("actor_user_id").notNull().references(() => users.id),
+  visibility: varchar("visibility", { length: 16 }).notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("employee_hr_case_messages_case_idx").on(table.organizationId, table.caseId, table.createdAt),
+  check("employee_hr_case_messages_visibility_check", sql`${table.visibility} in ('employee','internal')`),
+]);
+
+/**
+ * A-2 applicant privacy: independent additive table so default-off recruiting
+ * does not query columns absent from the live job_applicants schema.
+ * The release migration also installs a composite employer/candidate FK.
+ */
+export const applicantPrivacyEvidence = pgTable("applicant_privacy_evidence", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  applicantId: integer("applicant_id").notNull().references(() => jobApplicants.id, { onDelete: "cascade" }),
+  legalBasis: varchar("legal_basis", { length: 32 }).notNull(),
+  privacyNoticeVersion: varchar("privacy_notice_version", { length: 64 }).notNull(),
+  consentCapturedAt: timestamp("consent_captured_at", { withTimezone: true }).notNull(),
+  sourceEvidenceReference: varchar("source_evidence_reference", { length: 200 }).notNull(),
+  rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+  legalHold: boolean("legal_hold").notNull().default(false),
+  purgedAt: timestamp("purged_at", { withTimezone: true }),
+  purgedByUserId: integer("purged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  deletionRequestedByUserId: integer("deletion_requested_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  deletionRequestedAt: timestamp("deletion_requested_at", { withTimezone: true }),
+  deletionReason: varchar("deletion_reason", { length: 500 }),
+  deletionReviewedByUserId: integer("deletion_reviewed_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  deletionReviewedAt: timestamp("deletion_reviewed_at", { withTimezone: true }),
+  deletionReviewEvidenceReference: varchar("deletion_review_evidence_reference", { length: 200 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("applicant_privacy_org_candidate_unique").on(table.organizationId, table.applicantId),
+  index("applicant_privacy_rejection_due_idx").on(table.organizationId, table.rejectedAt, table.purgedAt),
+]);
+
 export const separationRecords = pgTable("separation_records", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
@@ -3074,6 +3185,31 @@ export const separationRecords = pgTable("separation_records", {
     ${table.preparedByUserId} is null or ${table.approvedByUserId} is null
     or ${table.preparedByUserId} <> ${table.approvedByUserId}
   `),
+]);
+
+/**
+ * A governed exception is distinct from completed departmental clearance.
+ * Retain revoked waivers for audit. The partial uniqueness constraint means
+ * there can be at most one CURRENT waiver per separation and department.
+ */
+export const separationClearanceWaivers = pgTable("separation_clearance_waivers", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  separationId: integer("separation_id").notNull().references(() => separationRecords.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  department: varchar("department", { length: 16 }).notNull(),
+  reason: varchar("reason", { length: 500 }).notNull(),
+  evidenceReference: varchar("evidence_reference", { length: 200 }).notNull(),
+  authorizedByUserId: integer("authorized_by_user_id").notNull().references(() => users.id),
+  authorizedAt: timestamp("authorized_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokedByUserId: integer("revoked_by_user_id").references(() => users.id, { onDelete: "set null" }),
+}, (table) => [
+  uniqueIndex("separation_clearance_waivers_active_unique").on(table.separationId, table.department)
+    .where(sql`${table.revokedAt} is null`),
+  index("separation_clearance_waivers_org_sep_idx").on(table.organizationId, table.separationId),
+  check("separation_clearance_waivers_department_check",
+    sql`${table.department} in ('it', 'admin', 'finance', 'hr')`),
 ]);
 
 export const biometricDevices = pgTable("biometric_devices", {

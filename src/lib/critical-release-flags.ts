@@ -6,6 +6,42 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  loanSchedulePreview: {
+    env: "LOAN_SCHEDULE_PREVIEW_ENABLED",
+    owner: "Philippine Payroll / HR Operations",
+    risk: "P1 read-only employee/company and agency loan schedule previews",
+    approval: "Centavo schedule/golden tests, lawful deduction policy and independent finance review",
+  },
+  applicantPrivacy: {
+    env: "APPLICANT_PRIVACY_CONTROLS_ENABLED",
+    owner: "HR Operations / Data Protection Officer",
+    risk: "P1 applicant consent evidence, subject-rights exports and rejected-candidate deletion",
+    approval: "DPO notice/legal basis, migration, private resume deletion and two-tenant retention acceptance",
+  },
+  employeeDocumentVault: {
+    env: "EMPLOYEE_DOCUMENT_VAULT_ENABLED",
+    owner: "Security and People Operations",
+    risk: "P1 personal identity and medical documents, expiry notices, private object storage",
+    approval: "Independent access UAT, object storage/malware QA, migration reconciliation and retention/legal-hold review",
+  },
+  employeeHrCases: {
+    env: "EMPLOYEE_HR_CASES_ENABLED",
+    owner: "People Operations",
+    risk: "P1 confidential employee HR requests and COE approvals",
+    approval: "Scoped HR and ESS acceptance, SLA operations and independently signed COE review",
+  },
+  spendPayroll: {
+    env: "SPEND_PAYROLL_REIMBURSEMENTS_ENABLED",
+    owner: "Payroll and Finance",
+    risk: "P0 taxable reimbursements, receipt evidence, duplicate payouts",
+    approval: "Isolated employer payroll comparison and independent expense-review acceptance",
+  },
+  offboardingClearance: {
+    env: "OFFBOARDING_CLEARANCE_ENABLED",
+    owner: "People Operations and Payroll",
+    risk: "P0 documented clearance waivers, final-pay authority and worker access revocation",
+    approval: "Three-actor final-pay pilot, tenant isolation, waiver evidence and revoked-session rollback UAT",
+  },
   wfmGreedyRoster: {
     env: "WFM_GREEDY_ROSTER_ENABLED",
     owner: "WFM Product / PH People Operations",

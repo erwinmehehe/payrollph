@@ -44,6 +44,8 @@ import {
   yearEndAdjustments,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { reimbursementEligible } from "@/lib/spend-payroll-reimbursement";
 import { sealPayrollPaymentBankAccount } from "@/lib/payroll-snapshot-sealing";
 import { validPayrollLoanSchedule } from "@/lib/payroll-loan-approval";
 import {
@@ -949,6 +951,7 @@ async function processPayrollChunk(input: {
   const claimsByEmployee = new Map<number, typeof openClaims>();
   for (const claim of openClaims) {
     if (claim.payrollRunId != null) continue;
+    if (criticalReleaseFlagEnabled("spendPayroll") && !reimbursementEligible(claim, true)) continue;
     claimsByEmployee.set(claim.employeeId, [...(claimsByEmployee.get(claim.employeeId) ?? []), claim]);
   }
   const advancesByEmployee = new Map<number, typeof openAdvances>();
@@ -1468,7 +1471,8 @@ async function processPayrollChunk(input: {
         id: c.id,
         category: c.category,
         description: c.description,
-        amount: Number(c.amount),
+        amount: Number(criticalReleaseFlagEnabled("spendPayroll") ? c.approvedAmount ?? c.amount : c.amount),
+        taxable: criticalReleaseFlagEnabled("spendPayroll") ? c.taxable : undefined,
         incurredOn: String(c.incurredOn),
       })),
       advances: (advancesByEmployee.get(employee.id) ?? []).map((a) => ({
@@ -1720,7 +1724,7 @@ export function calculateEmployeePay(input: {
   unitName: string;
   periodLabel: string;
   benefits?: EnrollmentInput[];
-  expenses?: Array<{ id: number; category: string; description: string; amount: number; incurredOn: string }>;
+  expenses?: Array<{ id: number; category: string; description: string; amount: number; taxable?: boolean; incurredOn: string }>;
   advances?: Array<{ id: number; requestedAmount: number; fee: number }>;
   supplementaryEarnings?: Array<{
     id: number;
@@ -2861,17 +2865,20 @@ export function calculateEmployeePay(input: {
   }));
   const retroTotal = retroLines.reduce((sum, line) => sum + line.amountNum, 0);
 
-  // Approved expense reimbursements are a non-taxable addition to pay, and
-  // approved earned-wage advances are recovered here so they cannot be
-  // double-drawn. Both are excluded when not supplied, keeping the engine
-  // usable for runs that predate these features.
+  // Existing reimbursements remain non-taxable. When the optional Spend
+  // payroll policy is enabled, the independently reviewed category's tax flag
+  // is frozen on the approved claim, and its exact approved amount is paid.
   const expenseLines = (input.expenses ?? []).map((claim) => ({
     code: `EXP-${claim.id}`,
     label: `Expense, ${claim.category}`,
     amount: money(claim.amount),
-    notes: [claim.description, `incurred ${claim.incurredOn}`],
+    notes: [claim.description, `incurred ${claim.incurredOn}`,
+      ...(claim.taxable === undefined ? [] : [claim.taxable ? "Taxable reimbursement" : "Non-taxable reimbursement"])],
   }));
   const expenseTotal = (input.expenses ?? []).reduce((sum, claim) => sum + Number(claim.amount), 0);
+  const taxableExpenseTotal = (input.expenses ?? []).filter(claim => claim.taxable === true)
+    .reduce((sum, claim) => sum + Number(claim.amount), 0);
+  const exemptExpenseTotal = expenseTotal - taxableExpenseTotal;
 
   const supplementaryLines = (input.supplementaryEarnings ?? []).map((earning) => {
     const benefitPool90k = isSharedBenefitPoolEarningType(earning.earningType);
@@ -3277,6 +3284,7 @@ export function calculateEmployeePay(input: {
       + supplementaryOrdinaryTaxableTotal
       + benefitPoolTreatment.taxableCurrent
       + companyPremiumTaxable
+      + taxableExpenseTotal
       + holidayRestDayPremiumTaxable
       + overtimePremiumTaxable
       + nightDifferentialPremiumTaxable,
@@ -3286,7 +3294,7 @@ export function calculateEmployeePay(input: {
     : Math.max(
         0,
         gross
-          - expenseTotal
+          - exemptExpenseTotal
           - supplementaryNonTaxableOutsidePool
           - deMinimisExemptTotal
           - benefitPoolTreatment.exemptCurrent

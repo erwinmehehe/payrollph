@@ -1,5 +1,8 @@
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
+import { settlePayrollLoanBalance } from "@/lib/payroll-loan-settlement";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { reimbursementLineTaxMatches, reimbursementSettlementDecision, receiptObjectIdentityMatches } from "@/lib/spend-payroll-reimbursement";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
@@ -27,14 +30,16 @@ function money(value: number) {
 }
 
 function storedLines(value: unknown) {
-  if (!Array.isArray(value)) return [] as Array<{ code: string; amount: number }>;
+  if (!Array.isArray(value)) return [] as Array<{ code: string; amount: number; notes: string[] }>;
   return value.flatMap((raw) => {
     if (!raw || typeof raw !== "object") return [];
     const row = raw as Record<string, unknown>;
     if (typeof row.code !== "string") return [];
     const amount = Number(row.amount ?? 0);
     if (!Number.isFinite(amount)) return [];
-    return [{ code: row.code, amount }];
+    return [{ code: row.code, amount,
+      notes: Array.isArray(row.notes) ? row.notes.filter((v): v is string => typeof v === "string") : [],
+    }];
   });
 }
 
@@ -388,6 +393,7 @@ export async function settlePayrollRun(
       }
     }
 
+    const seenExpenseClaimIds = new Set<number>();
     let expensesSettled = 0;
     let advancesSettled = 0;
     let loanPaymentsSettled = 0;
@@ -400,6 +406,12 @@ export async function settlePayrollRun(
       for (const line of storedLines(entry.lineItems)) {
         const expenseId = numericId(line.code, "EXP-");
         if (expenseId) {
+          if (criticalReleaseFlagEnabled("spendPayroll")) {
+            if (seenExpenseClaimIds.has(expenseId)) {
+              throw new Error("The payroll register contains duplicate expense reimbursement " + expenseId + ".");
+            }
+            seenExpenseClaimIds.add(expenseId);
+          }
           const [claim] = await tx
             .select()
             .from(expenseClaims)
@@ -410,6 +422,25 @@ export async function settlePayrollRun(
             .limit(1);
           if (!claim || claim.employeeId !== entry.employeeId) {
             throw new Error(`Expense claim ${expenseId} no longer matches this payroll entry.`);
+          }
+          if (criticalReleaseFlagEnabled("spendPayroll")) {
+            if (!claim.receiptStorageKey || !receiptObjectIdentityMatches(
+                claim.receiptStorageKey, claim.organizationId, claim.employeeId)) {
+              throw new Error("Expense claim " + expenseId + " receipt belongs to another employer or worker.");
+            }
+            if (!reimbursementLineTaxMatches(claim.taxable, line.notes)) {
+              throw new Error("Expense claim " + expenseId + " has a different taxable policy from its approved payslip.");
+            }
+            const decision = reimbursementSettlementDecision({
+              status: claim.status, payrollRunId: claim.payrollRunId,
+              amount: claim.amount, approvedAmount: claim.approvedAmount,
+              categoryPolicyId: claim.categoryPolicyId,
+              receiptStorageKey: claim.receiptStorageKey, receiptSha256: claim.receiptSha256,
+            }, run.id, line.amount, true);
+            if (decision === "already_settled") continue;
+            if (decision !== "settle") {
+              throw new Error(`Expense claim ${expenseId} cannot settle: ${decision}. Recalculate before release.`);
+            }
           }
           if (claim.payrollRunId != null && claim.payrollRunId !== run.id) {
             throw new Error(`Expense claim ${expenseId} was already settled by another payroll run.`);
@@ -647,26 +678,24 @@ export async function settlePayrollRun(
             throw new Error(`Loan ${loanId} is no longer active; recalculate payroll before release.`);
           }
 
-          const remaining = Number(loan.remainingBalance);
-          if (plannedDeduction > remaining + 0.01) {
-            throw new Error(`Loan ${loanId} balance changed after calculation; recalculate payroll before release.`);
-          }
-
+          // Exact centavos, never one-cent tolerance or floating point
+          // subtraction for an authoritative employee loan ledger.
+          const posting = settlePayrollLoanBalance({
+            plannedDeduction, remainingBalance: loan.remainingBalance,
+            totalPaid: loan.totalPaid,
+          });
           await tx.insert(loanPayments).values({
             loanId,
             payrollRunId: run.id,
-            amount: money(plannedDeduction),
+            amount: posting.deduction,
             paymentDate: run.payDate,
             reference: `Auto-deduct ${run.periodLabel}`,
           });
-
-          const newBalance = Math.max(0, remaining - plannedDeduction);
-          const newPaid = Number(loan.totalPaid) + plannedDeduction;
           const [updatedLoan] = await tx.update(employeeLoans)
             .set({
-              remainingBalance: money(newBalance),
-              totalPaid: money(newPaid),
-              status: newBalance <= 0 ? "paid_off" : "active",
+              remainingBalance: posting.remainingBalance,
+              totalPaid: posting.totalPaid,
+              status: posting.status,
             })
             .where(and(
               eq(employeeLoans.id, loanId),
