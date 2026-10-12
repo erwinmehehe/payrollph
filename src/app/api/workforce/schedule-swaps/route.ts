@@ -34,6 +34,8 @@ import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import { employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
 import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
 import { rosterDateOffset } from "@/lib/workforce-team-roster";
+import { checkWfmRosterPublish, wfmRosterScaleRulesEnabled } from "@/lib/workforce-roster-rules-server";
+import { decideRosterRulePublish, type WfmRosterFinding } from "@/lib/workforce-roster-rules";
 import { DEFAULT_SCHEDULE_GUARDRAIL_POLICY, evaluateScheduleGuardrails, scheduleGuardrailBlocksMutation } from "@/lib/workforce-schedule-guardrails";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import {
@@ -548,6 +550,7 @@ export async function POST(request: Request) {
           enforcementMode: guardrailRow.enforcementMode === "block" ? "block" as const : "advisory" as const,
           active: guardrailRow.active,
         } : DEFAULT_SCHEDULE_GUARDRAIL_POLICY;
+        const rosterRuleFindings: Array<{ employeeId: number; findings: WfmRosterFinding[] }> = [];
         for (const planned of [
           {
             employeeId: existing.requesterEmployeeId,
@@ -591,6 +594,23 @@ export async function POST(request: Request) {
           if (scheduleGuardrailBlocksMutation(lockedIssues)) {
             throw new Error("Swap approval would violate binding rest or overlap controls.");
           }
+          if (wfmRosterScaleRulesEnabled()) {
+            const originalWindow = await resolveEmployeeScheduleWindow({
+              organizationId, employeeId: planned.employeeId,
+              startDate: rosterDateOffset(planned.workDate, -7),
+              endDate: rosterDateOffset(planned.workDate, 7), executor: tx,
+            });
+            const checked = await checkWfmRosterPublish({
+              organizationId, employeeId: planned.employeeId, days: lockedWindow,
+              targetDates: [planned.workDate], executor: tx,
+              baselineRestDates: originalWindow.filter(day=>day.isRestDay).map(day=>day.date),
+            });
+            if(decideRosterRulePublish({findings:checked.findings,managerMayOverride:false}).blocked) {
+              throw new Error("Swap violates binding roster rules; use a separately governed schedule change.");
+            }
+            if(checked.findings.length) rosterRuleFindings.push({employeeId:planned.employeeId,findings:checked.findings});
+          }
+
         }
 
         const [requesterCreated] = await tx.insert(scheduleOverrides).values({
@@ -642,9 +662,10 @@ export async function POST(request: Request) {
             requesterStaleTimesheetIds: requesterStaleTimesheets.map(row => row.id),
             counterpartyStaleTimesheetIds: counterpartyStaleTimesheets.map(row => row.id),
             decisionNote,
+            rosterRuleFindings,
           },
         });
-        return { updated, requesterCreated, counterpartyCreated,
+        return { updated, requesterCreated, counterpartyCreated, rosterRuleFindings,
           staleTimesheetIds: [
             ...requesterStaleTimesheets.map(row => row.id),
             ...counterpartyStaleTimesheets.map(row => row.id),
@@ -655,6 +676,7 @@ export async function POST(request: Request) {
         swap: result.updated,
         overrides: [result.requesterCreated, result.counterpartyCreated],
         staleTimesheetIds: result.staleTimesheetIds,
+        rosterRuleFindings: result.rosterRuleFindings,
       });
     } catch (error) {
       return Response.json({
