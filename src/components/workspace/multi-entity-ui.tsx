@@ -233,7 +233,8 @@ function EntityRegistrationReview({ entity, organizationId, onApplied }: {
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
+    // The editor is keyed by employer ID, so its initial loading state is
+    // sufficient. Avoid a synchronous state update within React's effect.
     (async () => {
       try {
         const response = await fetch("/api/multi-entity/registration-changes?organizationId=" +
