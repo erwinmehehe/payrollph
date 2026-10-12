@@ -1,5 +1,5 @@
 import { enhancedPunchEnabled } from "@/lib/workforce-punch-evidence";
-import { worksitePunchPolicies } from "@/db/schema";
+import { auditEvents, worksitePunchPolicies } from "@/db/schema";
 import { and, asc, eq, gte, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -238,10 +238,23 @@ export async function POST(request: Request) {
       return Response.json({error:"Choose a worksite, policy and reason (10+ characters)."},{status:400});
     const scoped=await scopedWorksite(user.id,organizationId,worksiteId);
     if(scoped.denied)return scoped.denied;
-    await db.insert(worksitePunchPolicies).values({organizationId,worksiteId,photoMode,updatedByUserId:user.id,updatedAt:new Date()})
-      .onConflictDoUpdate({target:worksitePunchPolicies.worksiteId,set:{photoMode,updatedByUserId:user.id,updatedAt:new Date()}});
-    await recordAuditEvent({organizationId,actor:user.name,action:"Worksite selfie policy changed",resource:String(worksiteId),
-      metadata:{worksiteId,photoMode,reason}});
+    if(!scoped.worksite?.active&&photoMode!=="off")
+      return Response.json({error:"An inactive worksite cannot require photo evidence."},{status:409});
+    // Shares the consent/punch-photo tenant lock. No in-flight scanned
+    // photograph can commit using a policy that was concurrently disabled.
+    await db.transaction(async tx=>{
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(6108, ${organizationId})`);
+      await tx.insert(worksitePunchPolicies).values({
+        organizationId,worksiteId,photoMode,updatedByUserId:user.id,updatedAt:new Date(),
+      }).onConflictDoUpdate({
+        target:worksitePunchPolicies.worksiteId,
+        set:{photoMode,updatedByUserId:user.id,updatedAt:new Date()},
+      });
+      await tx.insert(auditEvents).values({
+        organizationId,actor:user.name,action:"Worksite selfie policy changed",
+        resource:String(worksiteId),metadata:{worksiteId,photoMode,reason:reason.slice(0,240)},
+      });
+    });
     return Response.json({ok:true,worksiteId,photoMode});
   }
 
