@@ -72,7 +72,7 @@ function WebBundyView({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [enhancedEnabled, setEnhancedEnabled] = useState(false);
+  const [enhancedRead, setEnhancedRead] = useState<{ key: string; enabled: boolean } | null>(null);
 
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === selectedEmployeeId) ?? null,
@@ -97,10 +97,13 @@ function WebBundyView({
   const readKey = validEmployer
     ? webBundyReadKey(organizationId, selectedEmployeeId, nonce)
     : "employer-not-linked";
+  const enhancedEnabled = enhancedRead?.key === readKey && enhancedRead.enabled === true;
   const visible = validEmployer
     ? visibleWebBundyState(readKey, readState)
     : { status: "unavailable" as const, punches: [] };
-  const historyReady = validEmployer && selectedEmployeeId !== null && visible.status === "ready";
+  const previousNeedsReview = readState?.key === readKey && readState.previousShiftNeedsReview === true;
+  const historyReady = validEmployer && selectedEmployeeId !== null
+    && visible.status === "ready" && !previousNeedsReview;
   // Never reuse location policy for another employer, worker, or refresh generation.
   const policy = clockPolicy?.key === readKey ? clockPolicy : null;
   const policyReady = Boolean(policy && !policy.error && (!policy.required || policy.canClockWithLocation));
@@ -120,7 +123,7 @@ function WebBundyView({
         const data: unknown = await res.json();
         if (!alive || controller.signal.aborted) return;
         const response = data && typeof data === "object"
-          ? data as { punches?: unknown; geofence?: unknown } : {};
+          ? data as { punches?: unknown; geofence?: unknown; previousShiftNeedsReview?: unknown; enhancedPunch?: { enabled?: unknown } } : {};
         if (!isWebBundyPunchList(response.punches)) throw Error("Invalid attendance state.");
         const geo = response.geofence;
         if (!geo || typeof geo !== "object"
@@ -129,9 +132,12 @@ function WebBundyView({
           throw Error("Time-clock location policy could not be verified.");
         }
         const verified = geo as { required: boolean; canClockWithLocation: boolean };
-        setEnhancedEnabled((response as {enhancedPunch?: {enabled?:boolean}}).enhancedPunch?.enabled === true);
+        setEnhancedRead({ key: readKey, enabled: response.enhancedPunch?.enabled === true });
         setClockPolicy({ key: readKey, required: verified.required, canClockWithLocation: verified.canClockWithLocation });
-        setReadState({ key: readKey, status: "ready", punches: response.punches });
+        setReadState({
+          key: readKey, status: "ready", punches: response.punches,
+          previousShiftNeedsReview: response.previousShiftNeedsReview === true,
+        });
       } catch {
         if (alive && !controller.signal.aborted) {
           setClockPolicy({ key: readKey, required: false, canClockWithLocation: false, error: "Time-clock policy unavailable. Retry attendance check." });
@@ -149,6 +155,10 @@ function WebBundyView({
   async function handlePunch(actionType: "clock_in" | "break_start" | "break_end" | "clock_out") {
     if (!selectedEmployeeId || !historyReady || !policyReady || !policy) {
       setError(t("Verify this employee's current attendance and time-clock policy before recording a punch."));
+      return;
+    }
+    if (enhancedEnabled) {
+      setError("Use the review-first punch controls below. Legacy direct punches are disabled.");
       return;
     }
     if (submitting.current) return;
@@ -169,10 +179,6 @@ function WebBundyView({
       // The worker may close the modal while the browser is waiting for a
       // foreground GPS permission decision. Never clock after unmount.
       if (!mounted.current) return;
-      if (enhancedEnabled) {
-        setError("Use the review-first punch controls below. Legacy direct punches are disabled.");
-        return;
-      }
       const res = await fetch("/api/web-bundy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -212,6 +218,10 @@ function WebBundyView({
   }
 
   const todayPunch = visible.punches[0];
+  const todayWorkDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now);
+  const fromPreviousWorkDate = Boolean(todayPunch?.workDate && todayPunch.workDate !== todayWorkDate);
   const breakActive = Boolean(todayPunch?.breakStart && !todayPunch?.breakEnd);
   const canClockIn = mayClockInWebBundy(historyReady, todayPunch);
   const canStartBreak = Boolean(historyReady && todayPunch?.timeIn && !todayPunch?.breakStart && !todayPunch?.timeOut);
@@ -259,6 +269,16 @@ function WebBundyView({
           <div style={{ fontSize: 12, color: "#d2ece2" }}>{date}</div>
         </div>
 
+        {selectedEmployeeId && fromPreviousWorkDate && (
+          <p role="status" className="auth-copy">
+            Continuing a shift started on {todayPunch?.workDate} (Asia/Manila). Clock-out stays on that original work date.
+          </p>
+        )}
+        {selectedEmployeeId && previousNeedsReview && (
+          <div className="notice notice-amber" role="status">
+            A previous shift needs an HR attendance correction. It has not been automatically closed or counted as absence.
+          </div>
+        )}
         {selectedEmployeeId && todayPunch && (
           <div style={{ background: "var(--canvas-subtle)", padding: 12, borderRadius: 10, marginBottom: 14, fontSize: 11.5 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
@@ -307,7 +327,8 @@ function WebBundyView({
           </div>
         )}
 
-        {enhancedEnabled && selectedEmployeeId && <EnhancedPunchControls organizationId={organizationId} employeeId={selectedEmployeeId} />}
+        {enhancedEnabled && selectedEmployeeId !== null &&
+          <EnhancedPunchControls organizationId={organizationId} employeeId={selectedEmployeeId} />}
         {!enhancedEnabled && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
           <button className="primary-button" disabled={busy || !policyReady || !canClockIn} onClick={() => handlePunch("clock_in")} style={{ height: 42, background: "var(--green)", fontSize: 13 }}>
             <LogIn size={16} /> {t("Clock IN")}
@@ -322,6 +343,7 @@ function WebBundyView({
             <LogOut size={16} /> {t("Clock OUT")}
           </button>
         </div>}
+
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, color: "var(--muted)", fontSize: 11 }}>
           <MapPin size={14} className="i-blue" />
           <span>{t("Browser IP and attendance source are audit-stamped. Geofenced self-clock stores only coarse verification evidence, not raw employee GPS coordinates.")}</span>
