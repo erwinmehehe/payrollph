@@ -1,7 +1,7 @@
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { reimbursementLineTaxMatches, reimbursementSettlementDecision } from "@/lib/spend-payroll-reimbursement";
+import { reimbursementLineTaxMatches, reimbursementSettlementDecision, receiptObjectIdentityMatches } from "@/lib/spend-payroll-reimbursement";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
@@ -423,6 +423,10 @@ export async function settlePayrollRun(
             throw new Error(`Expense claim ${expenseId} no longer matches this payroll entry.`);
           }
           if (criticalReleaseFlagEnabled("spendPayroll")) {
+            if (!claim.receiptStorageKey || !receiptObjectIdentityMatches(
+                claim.receiptStorageKey, claim.organizationId, claim.employeeId)) {
+              throw new Error("Expense claim " + expenseId + " receipt belongs to another employer or worker.");
+            }
             if (!reimbursementLineTaxMatches(claim.taxable, line.notes)) {
               throw new Error("Expense claim " + expenseId + " has a different taxable policy from its approved payslip.");
             }
