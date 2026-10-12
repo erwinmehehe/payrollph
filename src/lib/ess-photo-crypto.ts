@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto";
 import { parseBankEncryptionKey } from "@/lib/bank-account-crypto";
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 
 type PhotoCryptoEnvironment = Readonly<Record<string, string | undefined>>;
 
@@ -8,8 +9,8 @@ const PURPOSE = "linaw:employee-profile-photo:v1";
 
 function deriveKey(previous = false, env: PhotoCryptoEnvironment = process.env) {
   const names = previous
-    ? ["PII_ENCRYPTION_KEY_PREVIOUS", "BANK_DATA_ENCRYPTION_KEY_PREVIOUS", "TOTP_ENCRYPTION_KEY_PREVIOUS"]
-    : ["PII_ENCRYPTION_KEY", "BANK_DATA_ENCRYPTION_KEY", "TOTP_ENCRYPTION_KEY"];
+    ? ["PII_ENCRYPTION_KEY_PREVIOUS"]
+    : ["PII_ENCRYPTION_KEY"];
   for (const name of names) {
     const raw = env[name]?.trim();
     if (!raw) continue;
@@ -22,7 +23,7 @@ function deriveKey(previous = false, env: PhotoCryptoEnvironment = process.env) 
 }
 
 /** Always fail closed: portraits must never be stored as plain base64. */
-export function encryptProfilePhoto(bytes: Uint8Array, env: PhotoCryptoEnvironment = process.env) {
+export function encryptProfilePhoto(bytes: Uint8Array, env: PhotoCryptoEnvironment = process.env, _options: { required: true } = { required: true }) {
   const key = deriveKey(false, env);
   if (!key) throw new Error("Secure profile photo encryption is not configured.");
   const iv = randomBytes(12);
@@ -40,7 +41,10 @@ export function decryptProfilePhoto(sealed: string, env: PhotoCryptoEnvironment 
   if (iv.length !== 12 || tag.length !== 16 || cipherBytes.length === 0) {
     throw new Error("Stored profile photo has invalid encryption metadata.");
   }
-  const keys = [deriveKey(false, env), deriveKey(true, env)];
+  const legacyRaw = criticalReleaseFlagEnabled("piiLegacyRead", env) ? env.PII_LEGACY_PHOTO_KEY : undefined;
+  const legacyKey = legacyRaw ? parseBankEncryptionKey(legacyRaw) : null;
+  if (legacyRaw && !legacyKey) throw new Error("Invalid legacy photo key.");
+  const keys = [deriveKey(false, env), deriveKey(true, env), legacyKey];
   for (const key of keys) {
     if (!key) continue;
     try {

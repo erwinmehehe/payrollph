@@ -6,6 +6,11 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  piiLegacyRead: {
+    env: "PII_LEGACY_READ_ENABLED", owner: "Security",
+    risk: "Temporary read-only legacy PII key compatibility",
+    approval: "Key custody, measured rewrap and retirement acceptance",
+  },
   orderedReleaseMigrations: {
     env: "ORDERED_RELEASE_MIGRATIONS_ENABLED", owner: "Database Operations",
     risk: "P0 deployment-only schema changes",
