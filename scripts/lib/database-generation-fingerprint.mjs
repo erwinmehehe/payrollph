@@ -20,6 +20,11 @@ export const DATABASE_GENERATION_FINGERPRINT_SQL = [
   "  to_regclass('public.payout_transfers') IS NOT NULL AS \"hasPayoutTransfers\",",
   "  to_regclass('public.payout_batch_transfers') IS NOT NULL AS \"hasPayoutBatchTransfers\",",
   "  to_regclass('public.payout_profiles') IS NOT NULL AS \"hasPayoutProfiles\",",
+  "  to_regclass('public.provider_events') IS NOT NULL AS \"hasProviderEvents\"",
+  "  to_regclass('public.workforce_demand_staffing_policies') IS NOT NULL AS \"hasDemandStaffingPolicies\"",
+  "  to_regclass('public.job_profiles') IS NOT NULL AS \"hasJobProfiles\"",
+  "  to_regclass('public.positions') IS NOT NULL AS \"hasPositions\"",
+  "  to_regclass('public.position_assignments') IS NOT NULL AS \"hasPositionAssignments\"",
   "  to_regclass('public.worker_employment_events') IS NOT NULL AS \"hasWorkerEmploymentEvents\",",
   "  (SELECT data_type FROM information_schema.columns",
   "   WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id') AS \"usersIdType\",",
@@ -73,9 +78,19 @@ export function assessDatabaseGeneration(row) {
     ];
     const unappliedDraftTables = proposedDraftTables
       .filter(([, exists]) => exists !== true).map(([name]) => name);
-    // 0121 references this historic table, which no 0115-0121 draft creates.
-    const missingTrainPrerequisites =
-      row.hasWorkerEmploymentEvents === true ? [] : ["worker_employment_events"];
+    // Canonical #865 has six historic source prerequisites. None of these
+    // objects is newly created by its 0115-0121 SQL. Their absence blocks
+    // even preliminary migration review regardless of payout draft ordering.
+    const historicalPrerequisites = [
+      ["provider_events", row.hasProviderEvents],
+      ["workforce_demand_staffing_policies", row.hasDemandStaffingPolicies],
+      ["job_profiles", row.hasJobProfiles],
+      ["positions", row.hasPositions],
+      ["position_assignments", row.hasPositionAssignments],
+      ["worker_employment_events", row.hasWorkerEmploymentEvents],
+    ];
+    const missingTrainPrerequisites = historicalPrerequisites
+      .filter(([, exists]) => exists !== true).map(([name]) => name);
     const journalReady = row.hasMigrationReceipts === true &&
       row.hasMigrationJournal === true && row.hasMigrationCutover === true;
     return {
