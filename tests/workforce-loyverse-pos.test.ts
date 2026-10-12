@@ -4,9 +4,16 @@ import test from "node:test";
 import {
   readLoyversePosDay,prepareLoyverseRevisions,parseLoyverseSyncRequest,
   loyverseReceiptWindow,LoyverseSourceError,LOYVERSE_WFM_SOURCE,
-  recordLoyverseScanConfirmation,
+  recordLoyverseScanConfirmation, loyversePilotEnabled,
 } from "../src/lib/workforce-loyverse-pos";
 
+test("Loyverse provider remains OFF unless the exact central flag and tenant allowlist both permit it", () => {
+  const allowed = { WFM_LOYVERSE_POS_ALLOWED_ORGANIZATION_IDS: "101" };
+  assert.equal(loyversePilotEnabled(101, allowed), false);
+  assert.equal(loyversePilotEnabled(101, { ...allowed, WFM_LOYVERSE_POS_ENABLED: "TRUE" }), false);
+  assert.equal(loyversePilotEnabled(102, { ...allowed, WFM_LOYVERSE_POS_ENABLED: "true" }), false);
+  assert.equal(loyversePilotEnabled(101, { ...allowed, WFM_LOYVERSE_POS_ENABLED: "true" }), true);
+});
 const now=new Date("2026-10-12T00:00:00.000Z");
 const day="2026-09-20";
 const storeId="11111111-1111-4111-8111-111111111111";

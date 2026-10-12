@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { parseDemandImport, type DemandImport } from "./workforce-operational-demand-import";
 import { receiptPilotAllowed, validReceiptId } from "./workforce-schedule-receipt";
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 
 const API_ROOT = "https://api.loyverse.com/v1.0";
 const DAY = 86_400_000;
@@ -91,10 +92,14 @@ export function parseLoyverseSyncRequest(input:unknown):LoyverseSyncRequest {
   }
   return input as LoyverseSyncRequest;
 }
-export function loyversePilotEnabled(organizationId:number) {
-  return receiptPilotAllowed(organizationId,
-    process.env.WFM_LOYVERSE_POS_ENABLED,
-    process.env.WFM_LOYVERSE_POS_ALLOWED_ORGANIZATION_IDS);
+export function loyversePilotEnabled(
+  organizationId: number,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+) {
+  return criticalReleaseFlagEnabled("wfmLoyversePos", env) &&
+    receiptPilotAllowed(organizationId,
+      env.WFM_LOYVERSE_POS_ENABLED,
+      env.WFM_LOYVERSE_POS_ALLOWED_ORGANIZATION_IDS);
 }
 /** A separate OAuth grant must be provisioned by the actual merchant outside the app. */
 export function loyverseConnection(org:number,site:number) {

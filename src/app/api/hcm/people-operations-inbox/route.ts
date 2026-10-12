@@ -57,5 +57,7 @@ export async function GET(request: Request) {
     search,
   });
 
-  return Response.json(payload, { headers: { "Cache-Control": "private, no-store" } });
+  // The client binds every result to the requested employer before display.
+  // Preserve that fail-closed check by returning the authorized scope.
+  return Response.json({ ...payload, organizationId }, { headers: { "Cache-Control": "private, no-store" } });
 }

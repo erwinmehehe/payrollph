@@ -7,17 +7,25 @@ on:
       - "src/components/hris-home-shortcuts.tsx"
       - "src/components/employee-360-overview.tsx"
       - "src/components/hris-onboarding-checklist.tsx"
+      - "src/components/workspace/first-payroll-readiness.tsx"
+      - "src/lib/first-payroll-*.ts"
+      - "src/app/app/page.tsx"
+      - "src/components/workspace/shell.tsx"
+      - "src/lib/saas-workspace-access.ts"
+      - "src/lib/dashboard-data.ts"
       - "src/components/hcm-my-team*.tsx"
       - "src/components/linaw-workspace.tsx"
       - "src/components/workspace/people.tsx"
       - "src/components/workspace/approvals.tsx"
       - "src/app/api/provisioning/**"
       - "src/app/api/hcm/my-team/**"
+      - "src/app/api/hcm/people-operations-inbox/**"
       - "src/app/hcm/my-team/**"
       - "src/lib/access.ts"
       - "src/lib/hcm-my-team*.ts"
       - "src/lib/hris-*.ts"
       - "scripts/hris-journey-synthetic-*"
+      - "scripts/first-payroll-mobile-synthetic-*"
       - ".github/workflows/hris-journey-browser-qa.yml"
   workflow_dispatch:
 
@@ -100,6 +108,20 @@ jobs:
           exit 1
       - name: Test HR Home, Employee 360, My Team, onboarding and approvals
         run: node scripts/hris-journey-synthetic-browser.mjs
+      - name: Add fictional self-serve owner after HRIS acceptance
+        run: npx tsx scripts/first-payroll-mobile-synthetic-fixture.ts
+      - name: Test first-payroll guide on mobile with owner and payroll roles
+        run: node scripts/first-payroll-mobile-synthetic-browser.mjs
+      - name: Upload sanitized mobile engineering receipt
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: first-payroll-mobile-synthetic
+          path: |
+            qa-artifacts/first-payroll-mobile-synthetic.json
+            qa-artifacts/first-payroll-mobile-failed.png
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload synthetic-only failure screenshot
         if: failure()
         uses: actions/upload-artifact@v7

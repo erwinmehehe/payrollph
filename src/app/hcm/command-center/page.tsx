@@ -3,7 +3,7 @@ import { HcmContextNavigation } from "@/components/hcm-context-navigation";
 import { buildHcmNavigation, type HcmNavigationLink } from "@/lib/hcm-context-navigation";
 import { advancedHcmLinks } from "@/lib/hcm-advanced-discovery";
 import { getEntitlements } from "@/lib/billing";
-import { evaluateEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-policy";
+import { enterpriseHcmPlanGateEnabled, evaluateEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-policy";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/db";
 import { eq, sql } from "drizzle-orm";
@@ -52,11 +52,16 @@ export default async function HcmCommandCenter({
   // Advanced navigation is optional, collapses by default, and fails closed
   // if billing metadata is unavailable. It cannot authorize a target route.
   let advancedLinks: HcmNavigationLink[] = [];
+  // Non-enrolled pilot employers retain the existing Action Center shortcut.
+  // For enrolled employers, suppress a link the authoritative destination
+  // will reject unless billing confirms active Enterprise depth.
+  let actionCenterAvailable = !enterpriseHcmPlanGateEnabled(organizationId, process.env);
   try {
     const entitlements = await getEntitlements(organizationId);
     const planDecision = evaluateEnterpriseHcmPlan(
       organizationId, entitlements, process.env,
     );
+    if (planDecision === "allowed") actionCenterAvailable = true;
     if (planDecision === "allowed" || planDecision === "not-enforced") {
       advancedLinks = advancedHcmLinks(
         access,
@@ -115,7 +120,7 @@ export default async function HcmCommandCenter({
       </p>
     </header>
 
-    {hasPeopleWorkspace && (
+    {hasPeopleWorkspace && actionCenterAvailable && (
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <Link href={`/hcm/action-center?organizationId=${organizationId}`}
           className="inline-flex min-h-11 items-center rounded-xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white hover:bg-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">

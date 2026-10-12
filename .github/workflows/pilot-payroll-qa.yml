@@ -37,6 +37,7 @@ on:
       - "src/lib/treasury-**"
       - "src/lib/exporters.ts"
       - "src/lib/filing-evidence-store.ts"
+      - "tests/filing-evidence-lifecycle.test.ts"
       - "src/lib/payroll-**"
       - "src/lib/workforce-**"
       - "src/app/api/workforce/**"
@@ -44,6 +45,7 @@ on:
       - "src/lib/roles.ts"
       - "src/db/**"
       - "scripts/pilot-payroll-qa.ts"
+      - "scripts/first-payroll-mobile-synthetic-*"
       - "tests/*bank*.test.ts"
       - "tests/*paymongo*.test.ts"
       - "tests/*payout*.test.ts"
@@ -134,6 +136,10 @@ jobs:
 
       - name: Authenticate synthetic bank envelopes across all four stores
         run: npx tsx scripts/verify-bank-account-envelopes.ts
+
+      # Keep the first-employer fixture intact: it binds its policy to ID 1.
+      - name: Verify filing month boundaries and missing-ID rejection
+        run: node --import tsx --test tests/filing-evidence-lifecycle.test.ts
 
       - name: Show server log on failure
         if: failure()

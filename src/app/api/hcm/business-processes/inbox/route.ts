@@ -6,6 +6,8 @@ import {
   hcmBusinessProcessInstanceSteps,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
+import { getEntitlements } from "@/lib/billing";
+import { resolveEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-policy";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { canDecide, loadPeopleHomeAssigneePermissions } from "@/lib/delegation";
@@ -142,8 +144,16 @@ export async function GET(request: Request) {
     .limit(HCM_BP_HISTORY_LIMIT + 1);
 
   // A role alone cannot override a deny-only People permission assignment.
-  const recentAllowed = canReadCompanyHcmHistory(access) &&
+  const canReadHistoryByRole = canReadCompanyHcmHistory(access) &&
     !(await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES));
+  // Only the company-wide history preview is Enterprise paid-depth. Never
+  // block assigned work, the actor's submissions or governed POST decisions.
+  // Non-enrolled employers incur zero billing queries and retain pilot access.
+  const historyPlan = canReadHistoryByRole
+    ? await resolveEnterpriseHcmPlan(organizationId, process.env, getEntitlements)
+    : "not-enforced";
+  const recentAllowed = canReadHistoryByRole &&
+    (historyPlan === "allowed" || historyPlan === "not-enforced");
   const recentRows = recentAllowed
     ? await db.select(historySelection).from(hcmBusinessProcessInstances)
       .where(eq(hcmBusinessProcessInstances.organizationId, organizationId))

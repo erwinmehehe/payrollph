@@ -5814,3 +5814,75 @@ export const workforceDemandForecastScores = pgTable(
     check("wfm_demand_score_hash_check", sql`${t.reportSha256} ~ '^[a-f0-9]{64}$'`),
   ],
 );
+
+/**
+ * Proposed and independently approved aggregate demand productivity policy.
+ * The scope and numeric assumptions are immutable after INSERT. Only status,
+ * submission and decision receipts transition in the governed application.
+ * There are NO employee schedule / time / payroll writes from this table.
+ */
+export const workforceDemandStaffingPolicies = pgTable(
+  "workforce_demand_staffing_policies",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "restrict" }),
+    jobProfileId: integer("job_profile_id").references(() => jobProfiles.id, { onDelete: "restrict" }),
+    metricKind: varchar("metric_kind", { length: 24 }).notNull(),
+    intervalMinutes: integer("interval_minutes").notNull(),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveUntil: date("effective_until").notNull(),
+    version: integer("version").notNull(),
+    productiveUnitsPerWorkerHour: numeric("productive_units_per_worker_hour", { precision: 12, scale: 4 }).notNull(),
+    serviceTargetCoveragePercent: numeric("service_target_coverage_percent", { precision: 5, scale: 2 }).notNull(),
+    rationale: varchar("rationale", { length: 400 }).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
+    contentSha256: varchar("content_sha256", { length: 64 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("draft"),
+    proposedByUserId: integer("proposed_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    submittedByUserId: integer("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    submittedAt: timestamp("submitted_at", { withTimezone: true }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  t => [
+    uniqueIndex("wfm_staffing_policy_idempotency_unique").on(t.organizationId, t.idempotencyKey),
+    uniqueIndex("wfm_staffing_policy_scope_version_unique").on(
+      t.organizationId, t.worksiteId, sql`coalesce(${t.jobProfileId}, 0)`,
+      t.metricKind, t.intervalMinutes, t.version,
+    ),
+    index("wfm_staffing_policy_dates_idx").on(t.organizationId, t.worksiteId,
+      t.metricKind, t.intervalMinutes, t.status, t.effectiveFrom, t.effectiveUntil),
+    check("wfm_staffing_policy_metric_check", sql`${t.metricKind} in ('transactions','visits','orders','appointments','calls')`),
+    check("wfm_staffing_policy_interval_check", sql`${t.intervalMinutes} in (15, 30, 60)`),
+    check("wfm_staffing_policy_dates_check", sql`${t.effectiveFrom} <= ${t.effectiveUntil}`),
+    check("wfm_staffing_policy_values_check", sql`${t.productiveUnitsPerWorkerHour} between 0.01 and 1000000 and ${t.serviceTargetCoveragePercent} between 0.01 and 100`),
+    check("wfm_staffing_policy_version_check", sql`${t.version} between 1 and 10000`),
+    check("wfm_staffing_policy_status_check", sql`${t.status} in ('draft','submitted','approved','rejected','superseded')`),
+    check("wfm_staffing_policy_sha_check", sql`${t.contentSha256} ~ '^[a-f0-9]{64}$'`),
+  ],
+);
+
+export const workforceDemandStaffingPolicyEvents = pgTable(
+  "workforce_demand_staffing_policy_events",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    policyId: integer("policy_id").notNull().references(() => workforceDemandStaffingPolicies.id, { onDelete: "restrict" }),
+    actorUserId: integer("actor_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+    action: varchar("action", { length: 20 }).notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    policySha256: varchar("policy_sha256", { length: 64 }).notNull(),
+    receiptSha256: varchar("receipt_sha256", { length: 64 }).notNull(),
+    priorPolicyId: integer("prior_policy_id").references(() => workforceDemandStaffingPolicies.id, { onDelete: "restrict" }),
+    decisionNote: varchar("decision_note", { length: 400 }).notNull().default(""),
+  },
+  t => [
+    uniqueIndex("wfm_staffing_policy_event_unique").on(t.policyId, t.action),
+    index("wfm_staffing_policy_event_scope_idx").on(t.organizationId, t.policyId, t.occurredAt),
+    check("wfm_staffing_policy_event_action_check", sql`${t.action} in ('created','submitted','approved','rejected','superseded')`),
+    check("wfm_staffing_policy_event_hash_check", sql`${t.policySha256} ~ '^[a-f0-9]{64}$' and ${t.receiptSha256} ~ '^[a-f0-9]{64}$'`),
+  ],
+);

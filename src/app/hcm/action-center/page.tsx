@@ -7,6 +7,7 @@ import { HcmBusinessProcessInbox } from "@/components/hcm-business-process-inbox
 import { HcmContextNavigation } from "@/components/hcm-context-navigation";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
 import { canOpenPeopleHome, explicitHcmEmployerId, peopleHomeEnabledForOrganization } from "@/lib/hcm-people-home-scope";
 import { loadPeopleHomeWorklist } from "@/lib/hcm-people-home-worklist";
 import { roleHasPeopleWorkspace } from "@/lib/workspace-role-ui";
@@ -36,6 +37,9 @@ export default async function HcmActionCenter({
       !access?.companyWide || !["owner", "admin", "hr"].includes(access.role)) {
     notFound();
   }
+
+  const planDenied = await denyOptInEnterpriseHcmPlan(organizationId);
+  if (planDenied) notFound();
 
   const [employer] = await db.select({ name: organizations.name })
     .from(organizations).where(eq(organizations.id, organizationId)).limit(1);

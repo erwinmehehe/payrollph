@@ -5,6 +5,13 @@ on:
   pull_request:
     paths:
       - "scripts/wfm-pilot-synthetic-evidence.mjs"
+      - "scripts/first-payroll-mobile-synthetic-*"
+      - "scripts/pilot-payroll-qa.ts"
+      - "src/app/api/web-bundy/**"
+      - "src/lib/web-bundy-*.ts"
+      - "src/components/web-bundy-modal.tsx"
+      - "tests/web-bundy-*.test.ts"
+      - "tests/wfm-web-bundy-*.test.ts"
       - ".github/workflows/wfm-pilot-synthetic-evidence.yml"
   workflow_dispatch:
 permissions:
