@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import {
-  applicantPiiEraseValues, rejectedApplicantCanPurge, requireApplicantConsent,
+  applicantPiiEraseValues, applicantErasureIndependentlyApproved, rejectedApplicantCanPurge, requireApplicantConsent,
   sixCalendarMonthsBefore, validApplicantPrivacyDecision,
 } from "../src/lib/recruitment-applicant-privacy";
 
@@ -40,4 +40,21 @@ test("candidate PII erasure preserves only a non-identifying applicant link", ()
   });
   assert.equal(validApplicantPrivacyDecision("Verified DPO deletion request decision", "DPO-REF-12345"), true);
   assert.equal(validApplicantPrivacyDecision("delete", "DPO-REF-12345"), false);
+});
+
+test("candidate erasure needs a genuine, separate reviewer action and recent evidence", () => {
+  const now = new Date("2026-10-12T20:00:00Z");
+  const record = {
+    deletionRequestedByUserId: 11, deletionRequestedAt: new Date("2026-10-11T20:00:00Z"),
+    deletionReason: "Candidate identity verified for lawful deletion",
+    deletionReviewedByUserId: 12, deletionReviewedAt: new Date("2026-10-12T19:00:00Z"),
+    deletionReviewEvidenceReference: "DPO-APPROVAL-999",
+  };
+  assert.equal(applicantErasureIndependentlyApproved(record, now), true);
+  assert.equal(applicantErasureIndependentlyApproved({ ...record, deletionReviewedByUserId: 11 }, now), false);
+  assert.equal(applicantErasureIndependentlyApproved({ ...record, deletionReviewedByUserId: null }, now), false);
+  assert.equal(applicantErasureIndependentlyApproved({ ...record, deletionReviewedAt: new Date("2026-10-10T00:00:00Z") }, now), false);
+  assert.equal(applicantErasureIndependentlyApproved({ ...record, deletionReviewEvidenceReference: "N/A" }, now), false);
+  assert.equal(applicantErasureIndependentlyApproved({ ...record, deletionReviewedAt: new Date("2026-08-11T00:00:00Z") },
+    new Date("2026-10-12T20:00:00Z")), false);
 });
