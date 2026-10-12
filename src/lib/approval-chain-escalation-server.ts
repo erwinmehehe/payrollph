@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, gt, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { approvalTasks, approvalChainInstances, approvalChainInstanceSteps, auditEvents } from "@/db/schema";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
@@ -11,6 +11,10 @@ import { shouldEscalateApprovalStep } from "@/lib/approval-human-separation";
 export async function runDueApprovalChainEscalations(now=new Date()){
  if(!criticalReleaseFlagEnabled("approvalChainEscalations"))
    return {skipped:true as const,raised:0};
+ let cursor=0;
+ let raised=0;
+ // Page through eligible pending steps. A large cohort must not block all work.
+ for (;;) {
  const rows=await db.select({
    id:approvalChainInstanceSteps.id,
    instanceId:approvalChainInstances.id,
@@ -35,9 +39,11 @@ export async function runDueApprovalChainEscalations(now=new Date()){
    eq(approvalChainInstances.status,"pending"),
    eq(approvalChainInstanceSteps.status,"pending"),
    eq(approvalTasks.status,"Pending"),
- )).limit(251);
- if(rows.length>250)return {skipped:true as const,raised:0,reason:"cohort-too-large"};
- let raised=0;
+   ne(approvalTasks.priority,"High"),
+   gt(approvalChainInstanceSteps.id,cursor),
+ )).orderBy(asc(approvalChainInstanceSteps.id)).limit(250);
+ if(!rows.length)break;
+ cursor=rows[rows.length-1].id;
  for(const row of rows){
    const snapshot=Array.isArray(row.stepsSnapshot)?row.stepsSnapshot:[];
    const step=snapshot[row.stepIndex] as {escalationAfterDays?:number}|undefined;
@@ -68,6 +74,8 @@ export async function runDueApprovalChainEscalations(now=new Date()){
    });
    if(!changed)continue;
    raised++;
+ }
+ if(rows.length<250)break;
  }
  return {skipped:false as const,raised};
 }
