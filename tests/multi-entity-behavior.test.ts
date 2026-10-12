@@ -10,7 +10,7 @@ const entities = [
   { id: 11, code: "ALPHA", legalName: "Alpha Manufacturing Inc.", displayName: "Alpha" },
   { id: 22, code: "BETA", legalName: "Beta Services Corp.", displayName: "Beta" },
 ];
-const group = { enabled: true as const, group: true, role: "owner", legalEntityId: null, entities };
+const group = { enabled: true as const, group: true, role: "group_hr", legalEntityId: null, entities };
 const scoped = { enabled: true as const, group: false, role: "hr", legalEntityId: 11, entities: [entities[0]] };
 
 test("MULTI_ENTITY_ENABLED is false for unset, wrong case and invalid values", () => {
@@ -34,19 +34,31 @@ test("entity-scoped personnel cannot escalate to another entity or All", () => {
   assert.equal(entityResourceAllowed(allow, null), false);
 });
 
-test("group roles can see all within their actual tenant, not guessed foreign entity IDs", () => {
-  for (const role of ["owner", "admin", "bookkeeper", "group_hr"]) {
-    const input = { role, availableEntityIds: [11, 22], grantedEntityIds: [] };
-    const all = decideEntityAccess({ ...input, requested: "all" });
-    assert.equal(all.ok, true);
-    assert.equal(entityResourceAllowed(all, 11), true);
-    assert.equal(entityResourceAllowed(all, 22), true);
-    assert.equal(entityResourceAllowed(all, 33), false); // Group never crosses tenant boundary.
-    const foreign = decideEntityAccess({ ...input, requested: 33 });
-    assert.equal(foreign.ok, false);
-    const selected = decideEntityAccess({ ...input, requested: 22 });
-    assert.equal(selected.ok, true);
-    assert.equal(entityResourceAllowed(selected, 11), false);
+test("only dedicated group HR can read all employers in their current tenant", () => {
+  const input = { role: "group_hr", availableEntityIds: [11, 22], grantedEntityIds: [] };
+  const all = decideEntityAccess({ ...input, requested: "all" });
+  assert.equal(all.ok, true);
+  assert.equal(entityResourceAllowed(all, 11), true);
+  assert.equal(entityResourceAllowed(all, 22), true);
+  assert.equal(entityResourceAllowed(all, 33), false);
+  assert.equal(decideEntityAccess({ ...input, requested: 33 }).ok, false);
+  const selected = decideEntityAccess({ ...input, requested: 22 });
+  assert.equal(selected.ok, true);
+  assert.equal(entityResourceAllowed(selected, 11), false);
+});
+
+test("owner/admin/bookkeeper never inherit cross-entity group access", () => {
+  for (const role of ["owner", "admin", "bookkeeper", "hr", "payroll"]) {
+    const ungranted = { role, availableEntityIds: [11, 22], grantedEntityIds: [] };
+    for (const requested of ["all", null, undefined, 11, 22]) {
+      assert.equal(decideEntityAccess({ ...ungranted, requested }).ok, false, String(role) + ":" + String(requested));
+    }
+    const granted = { ...ungranted, grantedEntityIds: [11] };
+    assert.equal(decideEntityAccess({ ...granted, requested: "all" }).ok, false);
+    const scoped = decideEntityAccess({ ...granted, requested: 11 });
+    assert.equal(entityResourceAllowed(scoped, 11), true);
+    assert.equal(entityResourceAllowed(scoped, 22), false);
+    assert.equal(decideEntityAccess({ ...granted, requested: 22 }).ok, false);
   }
 });
 

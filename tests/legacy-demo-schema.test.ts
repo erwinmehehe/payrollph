@@ -63,7 +63,11 @@ test("legacy hosted demo schema supports the current launch and workspace models
     await client.query("SELECT id, employee_id, separation_type, notice_date, last_day, status FROM separation_records LIMIT 0");
     for (const model of models) {
       const config = getTableConfig(model);
-      const columns = config.columns.map(column => `"${column.name}"`).join(", ");
+      // This fixture deliberately excludes new, feature-flagged employer
+      // attribution columns. Runtime compatibility must NOT synthesize a
+      // production legal_entity_id or attempt a schema write.
+      const columns = config.columns.filter(column => column.name !== "legal_entity_id")
+        .map(column => `"${column.name}"`).join(", ");
       await client.query(`SELECT ${columns} FROM "${config.name}" LIMIT 0`);
     }
   } finally {

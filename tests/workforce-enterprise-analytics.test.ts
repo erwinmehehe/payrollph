@@ -22,5 +22,7 @@ test("enterprise workforce analytics joins the governed WFM and payroll sources"
   assert.ok(reports.includes('"Labor cost"'));
   assert.ok(route.includes('"workforce"'));
   assert.ok(analytics.includes('name: "Workforce operations"'));
-  assert.ok(analytics.includes('useState<ReportKey>("workforce")'));
+  assert.ok(analytics.includes('const [active, setActive] = useState<ReportKey>('));
+  assert.ok(analytics.includes('data.multiEntity?.enabled && data.multiEntity.legalEntityId !== null ? "headcount" : "workforce"'));
+  assert.ok(analytics.includes('if (data.multiEntity?.enabled && data.multiEntity.role === "group_hr")'));
 });

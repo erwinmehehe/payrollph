@@ -1,5 +1,7 @@
 /** Pure, executable entity scope policy. Tenant membership is a prerequisite. */
-export const GROUP_ENTITY_ROLES = new Set(["owner", "admin", "bookkeeper", "group_hr"]);
+/** Cross-employer reads require the dedicated tenant-scoped, read-only group HR role.
+ * Owner/admin/bookkeeper membership never grants group visibility automatically. */
+export const GROUP_ENTITY_ROLES = new Set(["group_hr"]);
 
 export type EntityDecision =
   | { ok: true; group: boolean; selectedEntityId: number | null; allowedEntityIds: number[] }

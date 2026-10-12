@@ -26,14 +26,16 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
     ]).returning();
     const people = await db.insert(users).values([
       { name: "Scoped " + suffix, email: "scoped-"+suffix+"@example.test", passwordHash: "synthetic", role: "hr" },
-      { name: "Group " + suffix, email: "group-"+suffix+"@example.test", passwordHash: "synthetic", role: "owner" },
+      { name: "Group " + suffix, email: "group-"+suffix+"@example.test", passwordHash: "synthetic", role: "group_hr" },
       { name: "Foreign " + suffix, email: "foreign-"+suffix+"@example.test", passwordHash: "synthetic", role: "owner" },
+      { name: "Owner " + suffix, email: "owner-"+suffix+"@example.test", passwordHash: "synthetic", role: "owner" },
     ]).returning();
     members.push(...people.map(p=>p.id));
     await db.insert(userOrganizations).values([
       { userId: people[0].id, organizationId: tenantA.id, role: "hr", active: true },
-      { userId: people[1].id, organizationId: tenantA.id, role: "owner", active: true },
+      { userId: people[1].id, organizationId: tenantA.id, role: "group_hr", active: true },
       { userId: people[2].id, organizationId: tenantB.id, role: "owner", active: true },
+      { userId: people[3].id, organizationId: tenantA.id, role: "owner", active: true },
     ]);
     await db.insert(userLegalEntityGrants).values({
       userId: people[0].id, organizationId: tenantA.id, legalEntityId: a1.id,
@@ -57,6 +59,23 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
       });
       assert.equal(attempt.ok, false);
       if (!attempt.ok) assert.equal(attempt.response.status, 403);
+    }
+    // Tenant ownership without an explicit employer grant cannot see All.
+    const ownerAll = await resolveMultiEntityContext({
+      userId: people[3].id, organizationId: tenantA.id, requested: "all",
+    });
+    assert.equal(ownerAll.ok, false);
+    if (!ownerAll.ok) assert.equal(ownerAll.response.status, 403);
+    await db.insert(userLegalEntityGrants).values({
+      userId: people[3].id, organizationId: tenantA.id, legalEntityId: a1.id,
+    });
+    const ownerScoped = await resolveMultiEntityContext({
+      userId: people[3].id, organizationId: tenantA.id, requested: a1.id,
+    });
+    assert.equal(ownerScoped.ok, true);
+    if (ownerScoped.ok) {
+      assert.equal(assertEntityResource(ownerScoped.context, a1.id), null);
+      assert.equal(assertEntityResource(ownerScoped.context, a2.id)?.status, 403);
     }
     const group = await resolveMultiEntityContext({
       userId: people[1].id, organizationId: tenantA.id, requested: "all",
