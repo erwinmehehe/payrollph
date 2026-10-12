@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { apiKeys, webhookDeliveries, webhookEndpoints } from "@/db/schema";
 import { mintApiKey } from "@/lib/api-auth";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { dispatchWebhook, WEBHOOK_EVENTS } from "@/lib/webhooks";
@@ -55,6 +56,7 @@ export async function GET(request: Request) {
     })),
     deliveries,
     availableEvents: WEBHOOK_EVENTS,
+    availableScopes: activeApiScopes(),
   });
 }
 
@@ -176,10 +178,17 @@ export async function POST(request: Request) {
 }
 
 
-const ALLOWED_API_SCOPES = new Set(["employees:read", "employees:write", "payroll:read"]);
+const CORE_API_SCOPES = ["employees:read", "employees:write", "payroll:read"] as const;
+const EXTENDED_API_SCOPES = ["org-units:read", "payslips:read", "events:read"] as const;
+
+function activeApiScopes() {
+  return criticalReleaseFlagEnabled("publicApiV1Extended")
+    ? [...CORE_API_SCOPES, ...EXTENDED_API_SCOPES]
+    : [...CORE_API_SCOPES];
+}
 
 function normalizeScopes(value: unknown) {
   if (!Array.isArray(value) || value.length === 0) return ["employees:read", "payroll:read"];
-  const scopes = value.filter((scope): scope is string => typeof scope === "string" && ALLOWED_API_SCOPES.has(scope));
+  const scopes = value.filter((scope): scope is string => typeof scope === "string" && activeApiScopes().includes(scope as "employees:read" | "employees:write" | "payroll:read" | "org-units:read" | "payslips:read" | "events:read"));
   return scopes.length ? [...new Set(scopes)] : ["employees:read", "payroll:read"];
 }

@@ -1,0 +1,161 @@
+name: HCM Gaps Focused Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "src/lib/hcm-report-*.ts"
+      - "src/lib/hcm-single-entity-scope.ts"
+      - "tests/hcm-goals-entity-scope.test.ts"
+      - "src/lib/engagement-survey*.ts"
+      - "src/lib/public-api-v1-extended.ts"
+      - "src/app/api/hcm-report-builder/**"
+      - "src/app/api/hcm/engagement-surveys/**"
+      - "src/app/api/v1/**"
+      - "drizzle/*engagement_survey*.sql"
+      - "tests/hcm-report*.test.ts"
+      - "tests/engagement-survey*.test.ts"
+      - "tests/public-api-v1-extended*.test.ts"
+      - "tests/approval-delegated-sod-behavior.test.ts"
+      - ".github/workflows/hcm-gaps-focused.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hcm-focused-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hcm-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TZ: Asia/Manila
+      CI: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hcm_test
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hcm_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hcm_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Provision synthetic CI bank encryption key
+        shell: bash
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Prepare isolated test schema
+        run: npm run db:push
+      - name: HCM focused behavioral tests
+        run: |
+          npx tsx --test --test-concurrency=1 \
+            tests/hcm-report-builder.test.ts \
+            tests/hcm-report-source-db.test.ts \
+            tests/engagement-survey-privacy.test.ts \
+            tests/engagement-survey-db.test.ts \
+            tests/public-api-v1-extended-db.test.ts \
+            tests/approval-delegated-sod-behavior.test.ts \
+            tests/hcm-goals-entity-scope.test.ts
+
+  hcm-production-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TZ: Asia/Manila
+      CI: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hcm_build
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hcm_build
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hcm_build"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Provision synthetic build bank key
+        shell: bash
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Prepare isolated build database
+        run: npm run db:push
+      - name: Build production Next.js application
+        run: npx next build
+
+  hcm-golden-payroll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TZ: Asia/Manila
+      CI: "true"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hcm_golden
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hcm_golden
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hcm_golden"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Provision synthetic CI bank encryption key
+        shell: bash
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Prepare isolated golden certification schema
+        run: npm run db:push
+      - name: Certify statutory payroll golden cases
+        run: npm run payroll:golden
+      - name: Reconcile employee-level Phase 2A
+        run: npm run payroll:golden:phase2a
+      - name: Reconcile complex lifecycle Phase 2B
+        run: npm run payroll:golden:phase2b
+      - name: Reconcile configurable payroll policies
+        run: npm run payroll:golden:pay-rules
+      - name: Upload golden reconciliation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: hcm-pr-golden-payroll-evidence
+          path: |
+            qa-artifacts/golden-payroll-certification.json
+            qa-artifacts/golden-payroll-phase2a-reconciliation.json
+            qa-artifacts/golden-payroll-phase2b-reconciliation.json
+            qa-artifacts/golden-pay-rules-phase3-reconciliation.json
+          if-no-files-found: warn
+          retention-days: 14
