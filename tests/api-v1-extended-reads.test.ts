@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
   buildReleasedPayrollJournal, journalMoneyCentavos, payrollJournalToCsv,
 } from "../src/lib/payroll-journal-export";
-import { apiV1Page, validApiV1DateOnly, extendedV1NeedsEntityScope } from "../src/lib/api-v1-extended";
+import { apiV1Page, validApiV1DateOnly, extendedV1NeedsEntityScope, scopedJournalEntityId } from "../src/lib/api-v1-extended";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 
 const run = { id: 12, organizationId: 4, legalEntityId: 9, status: "Released",
@@ -59,4 +60,26 @@ test("journal export rejects malformed dates without throwing a server error", (
  for (const valid of ["2026-10-12", "2024-02-29", "2026-12-31"]) {
    assert.equal(validApiV1DateOnly(valid), true, valid);
  }
+});
+
+test("journal scope cannot be broadened using legalEntityId filters", () => {
+  assert.equal(scopedJournalEntityId(null, 9), 9);
+  assert.equal(scopedJournalEntityId("9", 9), 9);
+  for (const id of ["1", "0", "-9", "10", "9 ", "999999999999999999999"]) {
+    assert.equal(scopedJournalEntityId(id, 9), null, id);
+  }
+  assert.equal(scopedJournalEntityId(null, 0), null);
+});
+
+test("additive API never replaces the existing employer-scoped public endpoints", () => {
+  const units = readFileSync("src/app/api/v1/org-units/route.ts", "utf8");
+  const payslips = readFileSync("src/app/api/v1/payslips/route.ts", "utf8");
+  const events = readFileSync("src/app/api/v1/events/route.ts", "utf8");
+  const journal = readFileSync("src/app/api/v1/journal-entries/route.ts", "utf8");
+  const inbox = readFileSync("src/app/api/v1/provider-events/route.ts", "utf8");
+  assert.match(units, /authorizeExtendedApi/);
+  assert.match(payslips, /authorizeExtendedApi/);
+  assert.match(events, /authorizeExtendedApi/);
+  assert.match(journal, /scopedJournalEntityId/);
+  assert.match(inbox, /innerJoin\(payrollRuns/);
 });

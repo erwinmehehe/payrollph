@@ -2,7 +2,7 @@ import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
-import { authorizeExtendedV1Read, validApiV1DateOnly } from "@/lib/api-v1-extended";
+import { authorizeExtendedV1Read, validApiV1DateOnly, scopedJournalEntityId } from "@/lib/api-v1-extended";
 import { buildReleasedPayrollJournal, payrollJournalToCsv } from "@/lib/payroll-journal-export";
 
 export const dynamic = "force-dynamic";
@@ -18,10 +18,9 @@ export async function GET(request: Request) {
     || Date.parse(endDate + "T00:00:00Z") - Date.parse(startDate + "T00:00:00Z") > 366 * 86_400_000) {
     return Response.json({ error: "Use a valid date window of at most 366 days." }, { status: 400 });
   }
-  const legalEntityIdText = params.get("legalEntityId");
-  const legalEntityId = legalEntityIdText === null ? null : Number(legalEntityIdText);
-  if (legalEntityId !== null && (!Number.isSafeInteger(legalEntityId) || legalEntityId < 1)) {
-    return Response.json({ error: "Invalid legalEntityId." }, { status: 400 });
+  const legalEntityId = scopedJournalEntityId(params.get("legalEntityId"), gate.auth.legalEntityId);
+  if (legalEntityId === null) {
+    return Response.json({ error: "Legal employer scope not authorized." }, { status: 403 });
   }
   const rows = await db.select({
     id: payrollRuns.id, organizationId: payrollRuns.organizationId,
@@ -32,7 +31,7 @@ export async function GET(request: Request) {
     eq(payrollRuns.organizationId, gate.auth.organizationId),
     eq(payrollRuns.status, "Released"),
     gte(payrollRuns.payDate, startDate), lte(payrollRuns.payDate, endDate),
-    legalEntityId !== null ? eq(payrollRuns.legalEntityId, legalEntityId) : undefined,
+    eq(payrollRuns.legalEntityId, legalEntityId),
   )).orderBy(asc(payrollRuns.id)).limit(2_001);
   let csv: string;
   let lineCount: number;

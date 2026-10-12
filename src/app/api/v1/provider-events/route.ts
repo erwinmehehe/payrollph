@@ -1,6 +1,6 @@
-import { asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { providerEvents } from "@/db/schema";
+import { providerEvents, payrollRuns } from "@/db/schema";
 import { authorizeExtendedV1Read, apiV1Page } from "@/lib/api-v1-extended";
 
 export const dynamic = "force-dynamic";
@@ -15,15 +15,24 @@ export async function GET(request: Request) {
   if (!auth.ok) return auth.response;
   const page = apiV1Page(new URL(request.url).searchParams);
   if (!page) return Response.json({ error: "Invalid limit or offset." }, { status: 400 });
-  const scope = eq(providerEvents.organizationId, auth.auth.organizationId);
+  // Unattributed inbox messages are excluded, not silently inferred to belong
+  // to the current employer. Require a verified payroll run/legal entity join.
+  const scope = and(
+    eq(providerEvents.organizationId, auth.auth.organizationId),
+    eq(payrollRuns.organizationId, auth.auth.organizationId),
+    eq(payrollRuns.legalEntityId, auth.auth.legalEntityId),
+  );
   const [rows, totals] = await Promise.all([
     db.select({
       id: providerEvents.id, provider: providerEvents.provider,
       eventType: providerEvents.eventType, payrollRunId: providerEvents.payrollRunId,
       createdAt: providerEvents.createdAt,
-    }).from(providerEvents).where(scope).orderBy(asc(providerEvents.id))
+    }).from(providerEvents).innerJoin(payrollRuns, eq(providerEvents.payrollRunId, payrollRuns.id))
+      .where(scope).orderBy(asc(providerEvents.id))
       .limit(page.limit).offset(page.offset),
-    db.select({ value: count() }).from(providerEvents).where(scope),
+    db.select({ value: count() }).from(providerEvents)
+      .innerJoin(payrollRuns, eq(providerEvents.payrollRunId, payrollRuns.id))
+      .where(scope),
   ]);
   const total = totals[0]?.value ?? 0;
   return Response.json({

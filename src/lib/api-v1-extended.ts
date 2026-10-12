@@ -1,39 +1,20 @@
-import { authenticateApiKey, requireScope } from "@/lib/api-auth";
-import { and, eq } from "drizzle-orm";
-import { db } from "@/db";
-import { legalEntities } from "@/db/schema";
+import { authorizeExtendedApi } from "@/lib/public-api-v1-extended";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 
-/** Fail closed at the route boundary; existing /v1 endpoints are unchanged. */
+/** Additive API feeds require BOTH the existing scoped public API gate and
+ * the independent extension flag. The canonical API token authorization and
+ * exact one-legal-employer boundary are reused, never reimplemented. */
 export async function authorizeExtendedV1Read(request: Request, scope: string) {
   if (!criticalReleaseFlagEnabled("apiV1ExtendedReads")) {
     return { ok: false as const, response: Response.json({ error: "API extension unavailable." }, { status: 404 }) };
   }
-  const limit = await rateLimitDistributed(`api-v1-extended:${clientIp(request)}`, {
-    limit: 120, windowMs: 60_000,
-  });
-  if (!limit.allowed) {
-    return { ok: false as const, response: Response.json({ error: "Rate limit exceeded." }, { status: 429 }) };
-  }
-  const auth = await authenticateApiKey(request);
-  if (!auth.ok) {
-    return { ok: false as const, response: Response.json({ error: auth.error }, { status: auth.status }) };
-  }
-  if (!requireScope(auth.scopes, scope)) {
-    return { ok: false as const, response: Response.json({ error: "Missing required API scope." }, { status: 403 }) };
-  }
-  // API tokens are tenant-scoped, not legal-employer scoped. Do not expose
-  // multi-employer payroll data until RFC B-8 defines group-HR token grants.
-  const employerRows = await db.select({id:legalEntities.id}).from(legalEntities)
-    .where(and(eq(legalEntities.organizationId,auth.organizationId),
-      eq(legalEntities.active,true))).limit(2);
-  if (extendedV1NeedsEntityScope(employerRows.length)) {
-    return { ok: false as const, response: Response.json({
-      error:"Exactly one verified active legal employer is required for this tenant-scoped API extension.",
-    },{status:403}) };
-  }
-  return { ok: true as const, auth };
+  const gate = await authorizeExtendedApi(request, scope);
+  if (!gate.ok) return { ok: false as const, response: gate.response };
+  return { ok: true as const, auth: {
+    organizationId: gate.organizationId,
+    legalEntityId: gate.legalEntityId,
+    keyId: gate.keyId,
+  } };
 }
 
 export function apiV1Page(searchParams: URLSearchParams, maxPageSize = 100) {
@@ -44,12 +25,18 @@ export function apiV1Page(searchParams: URLSearchParams, maxPageSize = 100) {
   return { limit, offset };
 }
 
-/** Tenant-level API keys cannot infer employer ownership from zero or multiple active entities. */
+/** A tenant-only token cannot choose a second or unverified employer. */
 export function extendedV1NeedsEntityScope(activeLegalEmployers: number) {
   return !Number.isSafeInteger(activeLegalEmployers) || activeLegalEmployers !== 1;
 }
 
-/** Invalid ISO dates return HTTP 400; do not throw from toISOString on NaN. */
+export function scopedJournalEntityId(raw: string | null, authorized: number): number | null {
+  if (!Number.isSafeInteger(authorized) || authorized <= 0) return null;
+  if (raw === null) return authorized;
+  if (!/^[1-9]\d*$/.test(raw)) return null;
+  return Number(raw) === authorized ? authorized : null;
+}
+
 export function validApiV1DateOnly(input: unknown): input is string {
   if (typeof input !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(input)) return false;
   const timestamp = Date.parse(input + "T00:00:00Z");

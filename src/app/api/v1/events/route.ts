@@ -1,28 +1,25 @@
-import { asc, eq, count } from "drizzle-orm";
+import { and, asc, eq, gt } from "drizzle-orm";
 import { db } from "@/db";
-import { webhookDeliveries } from "@/db/schema";
-import { authorizeExtendedV1Read, apiV1Page } from "@/lib/api-v1-extended";
+import { providerEvents } from "@/db/schema";
+import { authorizeExtendedApi, pagination } from "@/lib/public-api-v1-extended";
 
 export const dynamic = "force-dynamic";
-
-/** Tenant-scoped webhook delivery receipts; secret and event payload stay private. */
 export async function GET(request: Request) {
-  const gate = await authorizeExtendedV1Read(request, "payroll:read");
-  if (!gate.ok) return gate.response;
-  const page = apiV1Page(new URL(request.url).searchParams);
-  if (!page) return Response.json({ error: "Invalid limit or offset." }, { status: 400 });
-  const predicate = eq(webhookDeliveries.organizationId, gate.auth.organizationId);
-  const [rows, totals] = await Promise.all([
-    db.select({
-      id: webhookDeliveries.id, event: webhookDeliveries.event,
-      status: webhookDeliveries.status, attempts: webhookDeliveries.attempts,
-      createdAt: webhookDeliveries.createdAt, deliveredAt: webhookDeliveries.deliveredAt,
-    }).from(webhookDeliveries).where(predicate)
-      .orderBy(asc(webhookDeliveries.id)).limit(page.limit).offset(page.offset),
-    db.select({ value: count() }).from(webhookDeliveries).where(predicate),
-  ]);
-  const total = totals[0]?.value ?? 0;
-  return Response.json({ object: "list", ...page, total,
-    hasMore: page.offset + rows.length < total, data: rows,
-  }, { headers: { "Cache-Control": "no-store" } });
+  const auth = await authorizeExtendedApi(request, "events:read");
+  if (!auth.ok) return auth.response;
+  const page = pagination(new URL(request.url), 100);
+  if (!page) return Response.json({ error: "Invalid limit or after cursor." }, { status: 400 });
+  const rows = await db.select({
+    cursor: providerEvents.id, eventId: providerEvents.eventId,
+    eventType: providerEvents.eventType, createdAt: providerEvents.createdAt,
+  }).from(providerEvents).where(and(
+    eq(providerEvents.organizationId, auth.organizationId),
+    eq(providerEvents.provider, "linaw"),
+    gt(providerEvents.id, page.after),
+  )).orderBy(asc(providerEvents.id)).limit(page.limit + 1);
+  const selected = rows.slice(0, page.limit);
+  return Response.json({
+    object: "event_list", data: selected, hasMore: rows.length > page.limit,
+    nextCursor: rows.length > page.limit ? selected[selected.length - 1]?.cursor ?? null : null,
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
