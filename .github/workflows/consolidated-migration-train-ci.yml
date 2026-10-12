@@ -1,0 +1,75 @@
+name: P0-4 Proposed 0115-0121 Dependency Train (Disposable PostgreSQL)
+
+on:
+  pull_request:
+    paths:
+      - "drizzle/0115_*.sql"
+      - "drizzle/0116_*.sql"
+      - "drizzle/0117_*.sql"
+      - "drizzle/0118_*.sql"
+      - "drizzle/0119_*.sql"
+      - "drizzle/0120_*.sql"
+      - "drizzle/0121_*.sql"
+      - "tests/pending-migration-release-train.test.mjs"
+      - "tests/consolidated-migration-dependency-postgres.test.mjs"
+      - "docs/engineering/pending-migration-release-train.md"
+      - ".github/workflows/consolidated-migration-train-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "drizzle/0115_*.sql"
+      - "drizzle/0116_*.sql"
+      - "drizzle/0117_*.sql"
+      - "drizzle/0118_*.sql"
+      - "drizzle/0119_*.sql"
+      - "drizzle/0120_*.sql"
+      - "drizzle/0121_*.sql"
+      - "tests/pending-migration-release-train.test.mjs"
+      - "tests/consolidated-migration-dependency-postgres.test.mjs"
+      - ".github/workflows/consolidated-migration-train-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-train:
+    name: Synthetic dependency train and SQL constraint checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      PAYOUT_TRAIN_REHEARSAL: isolated-localhost-pg-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout source (no persisted credentials)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Syntax and source lineage tests
+        run: |
+          node --check tests/pending-migration-release-train.test.mjs
+          node --check tests/consolidated-migration-dependency-postgres.test.mjs
+          node --test tests/pending-migration-release-train.test.mjs
+      - name: Apply exact source SQL on disposable PostgreSQL; verify guards and rollback
+        run: node --test tests/consolidated-migration-dependency-postgres.test.mjs

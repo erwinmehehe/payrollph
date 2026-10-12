@@ -1,4 +1,4 @@
--- 0118: enhanced workforce punch evidence (default OFF).
+-- 0120: enhanced workforce punch evidence (default OFF).
 -- Stage all enhanced employee web/mobile punches for independent review.
 -- This must be applied and rehearsed BEFORE WFM_PUNCH_EVIDENCE_ENABLED=true.
 CREATE TABLE IF NOT EXISTS worksite_punch_policies (
