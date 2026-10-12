@@ -62,12 +62,18 @@ function CaseWorkspace({ organizationId, mode }: { organizationId: number; mode:
     }
   }, [organizationId]);
 
-  useEffect(() => { void load(); }, [load, reload]);
+  useEffect(() => {
+    let alive = true;
+    void Promise.resolve().then(() => { if (alive) void load(); });
+    return () => { alive = false; };
+  }, [load, reload]);
 
   useEffect(() => {
     if (!chosen) return;
     let alive = true;
     (async () => {
+      await Promise.resolve();
+      if (!alive) return;
       setDetailLoading(true);
       try {
         const response = await fetch("/api/employee-cases?organizationId=" + organizationId + "&id=" + chosen,
