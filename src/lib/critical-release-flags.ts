@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  offboardingClearance: {
+    env: "OFFBOARDING_CLEARANCE_ENABLED",
+    owner: "People Operations and Payroll",
+    risk: "P0 documented clearance waivers, final-pay authority and worker access revocation",
+    approval: "Three-actor final-pay pilot, tenant isolation, waiver evidence and revoked-session rollback UAT",
+  },
   employeeImportPreview: {
     env: "EMPLOYEE_IMPORT_PREVIEW_ENABLED", owner: "People Operations",
     risk: "P1 atomic employee CSV intake", approval: "500-row preview and rollback acceptance",

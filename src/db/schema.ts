@@ -3076,6 +3076,31 @@ export const separationRecords = pgTable("separation_records", {
   `),
 ]);
 
+/**
+ * A governed exception is distinct from completed departmental clearance.
+ * Retain revoked waivers for audit. The partial uniqueness constraint means
+ * there can be at most one CURRENT waiver per separation and department.
+ */
+export const separationClearanceWaivers = pgTable("separation_clearance_waivers", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  separationId: integer("separation_id").notNull().references(() => separationRecords.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  department: varchar("department", { length: 16 }).notNull(),
+  reason: varchar("reason", { length: 500 }).notNull(),
+  evidenceReference: varchar("evidence_reference", { length: 200 }).notNull(),
+  authorizedByUserId: integer("authorized_by_user_id").notNull().references(() => users.id),
+  authorizedAt: timestamp("authorized_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokedByUserId: integer("revoked_by_user_id").references(() => users.id, { onDelete: "set null" }),
+}, (table) => [
+  uniqueIndex("separation_clearance_waivers_active_unique").on(table.separationId, table.department)
+    .where(sql`${table.revokedAt} is null`),
+  index("separation_clearance_waivers_org_sep_idx").on(table.organizationId, table.separationId),
+  check("separation_clearance_waivers_department_check",
+    sql`${table.department} in ('it', 'admin', 'finance', 'hr')`),
+]);
+
 export const biometricDevices = pgTable("biometric_devices", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
