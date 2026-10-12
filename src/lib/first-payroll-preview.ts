@@ -209,12 +209,17 @@ export async function loadFirstPayrollPreview(input: {
       periodEnd:payrollRuns.periodEnd }).from(payrollRuns).where(and(eq(payrollRuns.organizationId,organizationId),
       legalEntityId ? eq(payrollRuns.legalEntityId,legalEntityId) : undefined)),
     Promise.all([
-      benefitEnrollments, deMinimisGrants, earnedWageRequests, employeeCompensationComponents,
-      employeePayRetroAdjustments, expenseClaims, leaveConversions, overtimeRequests,
-      supplementaryEarnings, yearEndAdjustments,
-    ].map(table=>db.select({employeeId:table.employeeId}).from(table).where(and(
-      eq(table.organizationId,organizationId),inArray(table.employeeId,ids),
-    )))).then(groups=>new Set(groups.flat().map(item=>item.employeeId))),
+      db.select({employeeId:benefitEnrollments.employeeId}).from(benefitEnrollments).where(and(eq(benefitEnrollments.organizationId,organizationId),inArray(benefitEnrollments.employeeId,ids))),
+      db.select({employeeId:deMinimisGrants.employeeId}).from(deMinimisGrants).where(and(eq(deMinimisGrants.organizationId,organizationId),inArray(deMinimisGrants.employeeId,ids))),
+      db.select({employeeId:earnedWageRequests.employeeId}).from(earnedWageRequests).where(and(eq(earnedWageRequests.organizationId,organizationId),inArray(earnedWageRequests.employeeId,ids))),
+      db.select({employeeId:employeeCompensationComponents.employeeId}).from(employeeCompensationComponents).where(and(eq(employeeCompensationComponents.organizationId,organizationId),inArray(employeeCompensationComponents.employeeId,ids))),
+      db.select({employeeId:employeePayRetroAdjustments.employeeId}).from(employeePayRetroAdjustments).where(and(eq(employeePayRetroAdjustments.organizationId,organizationId),inArray(employeePayRetroAdjustments.employeeId,ids))),
+      db.select({employeeId:expenseClaims.employeeId}).from(expenseClaims).where(and(eq(expenseClaims.organizationId,organizationId),inArray(expenseClaims.employeeId,ids))),
+      db.select({employeeId:leaveConversions.employeeId}).from(leaveConversions).where(and(eq(leaveConversions.organizationId,organizationId),inArray(leaveConversions.employeeId,ids))),
+      db.select({employeeId:overtimeRequests.employeeId}).from(overtimeRequests).where(and(eq(overtimeRequests.organizationId,organizationId),inArray(overtimeRequests.employeeId,ids))),
+      db.select({employeeId:supplementaryEarnings.employeeId}).from(supplementaryEarnings).where(and(eq(supplementaryEarnings.organizationId,organizationId),inArray(supplementaryEarnings.employeeId,ids))),
+      db.select({employeeId:yearEndAdjustments.employeeId}).from(yearEndAdjustments).where(and(eq(yearEndAdjustments.organizationId,organizationId),inArray(yearEndAdjustments.employeeId,ids))),
+    ]).then(groups=>new Set(groups.flat().map(item=>item.employeeId))),
     db.select({id:payPolicies.id}).from(payPolicies).where(and(
       eq(payPolicies.organizationId,organizationId),eq(payPolicies.active,true),
       lte(payPolicies.effectiveFrom,periodEnd),
