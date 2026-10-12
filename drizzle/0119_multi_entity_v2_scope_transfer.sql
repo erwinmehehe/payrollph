@@ -3,7 +3,6 @@
 -- a DBA-approved applied-SHA journal, backup, clone rehearsal and evidence.
 -- All new behavior is gated by MULTI_ENTITY_ENABLED (default off).
 -- Reuses the existing 0045 legal_entities table and 0065 compliance scopes.
-BEGIN;
 INSERT INTO legal_entities (
   organization_id, code, legal_name, display_name, bir_tin, bir_branch_code,
   sss_employer_no, philhealth_employer_no, pagibig_employer_no,
@@ -169,4 +168,3 @@ WHERE e.legal_entity_id IS NOT NULL
       AND (pr.legal_entity_id IS NULL OR pr.legal_entity_id IS DISTINCT FROM e.legal_entity_id)
   )
 ON CONFLICT DO NOTHING;
-COMMIT;

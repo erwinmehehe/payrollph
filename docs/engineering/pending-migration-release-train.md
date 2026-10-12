@@ -44,3 +44,9 @@ Catalog-only verification found **112 live public application tables** versus **
 - 0115 and 0116 reference existing core tables, but remain NOT APPROVED: prerequisites, source receipts, application/schema integration and a restored-clone rehearsal are outstanding.
 
 **STOP:** The source CI checker passed on the draft #865 branch, but that does not certify live schema compatibility or permission to apply SQL. Do NOT run drizzle-kit push, replay all historical SQL, write inferred receipts, or apply 0115-0119 on main. First reconstruct reviewed historical and runtime DDL provenance, obtain explicit approval for an isolated disposable clone of this correct Neon branch, build/additively stage missing dependencies, verify #867 safety and centavo reconciliation, and collect DBA/security/payroll sign-offs. All production release flags remain OFF until separately authorized. Diagnostic source PR #892 provides a read-only prerequisite fingerprint; this is not a substitute for independent audit evidence.
+
+### Migration transaction ownership (2026-10-12)
+
+The reviewed forward executor in #867 owns the complete transaction and the atomic migration receipt. `0119` no longer includes a top-level `BEGIN;` or `COMMIT;`. This changes the exact migration-file SHA-256; the DBA must review the final byte hash (never reuse a previous reservation/checksum). Its `UPDATE ... SET` statements and grant/backfill logic remain intact and **are not approved for production**; #867 separately corrected the SQL scanner to allow ordinary transactional DML without allowing session-level `SET` or transaction escapes.
+
+**Hard prerequisites remain:** independently adopted migration history, `payout_batches`, `payout_transfers`, `worker_employment_events`, cross-tenant authorization consistency and independently reconciled historical payroll allocations. This source edit only makes transaction ownership compatible; it is not a clone rehearsal or a production release.

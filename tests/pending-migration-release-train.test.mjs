@@ -44,3 +44,13 @@ test("feature-specific SQL remains source-gated and no payout or employer transf
   assert.match(docs, /DO NOT RUN ON NEON/);
   assert.match(docs, /runtime DDL/);
 });
+
+test("0119 leaves the transaction boundary to the reviewed forward executor", () => {
+  const text = readFileSync(new URL("../drizzle/0119_multi_entity_v2_scope_transfer.sql", import.meta.url), "utf8");
+  const topLevelLines = text.split("\n").map(line => line.trim());
+  assert.equal(topLevelLines.includes("BEGIN;"), false);
+  assert.equal(topLevelLines.includes("COMMIT;"), false);
+  // Business attribution and grant checks remain for a separate payroll review.
+  assert.match(text, /UPDATE payroll_entries e SET legal_entity_id/);
+  assert.match(text, /DO \$checks\$/);
+});
