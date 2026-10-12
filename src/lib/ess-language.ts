@@ -22,7 +22,6 @@ const taglishCopy: Readonly<Record<string, string>> = {
   "Reply": "Sumagot",
   "Could not load HR requests.": "Hindi ma-load ang mga request sa HR.",
   "Could not submit HR request.": "Hindi maisumite ang request sa HR.",
-  "Submitting…": "Isinusumite…",
   "Language": "Wika",
   "Display language": "Wika ng display",
   "English": "English",
