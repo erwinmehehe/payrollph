@@ -1,6 +1,6 @@
 # Core module navigation
 
-Default off: CORE_MODULE_NAVIGATION_ENABLED=true. Apply drizzle/0116_tenant_module_disclosure.sql before any schema push on a populated database: old rows become all, future rows default core.
+Default off: CORE_MODULE_NAVIGATION_ENABLED=true. DEPENDS ON #865 canonical 0115-0119 source train; 0120 is not valid for isolated apply until the preceding migrations have reviewed journal receipts and a rehearsed database cutover. Apply drizzle/0120_tenant_module_disclosure.sql before any schema push on a populated database: old rows become all, future rows default core.
 
 ## Modules
 

@@ -13,7 +13,7 @@ test("PostgreSQL migration preserves legacy navigation and defaults only new ten
   const { db } = await import("../src/db");
   const { sql } = await import("drizzle-orm");
   const schema = `modules_${randomUUID().replaceAll("-", "")}`;
-  const migration = readFileSync("drizzle/0116_tenant_module_disclosure.sql", "utf8");
+  const migration = readFileSync("drizzle/0120_tenant_module_disclosure.sql", "utf8");
   await db.transaction(async tx => {
     await tx.execute(sql.raw(`CREATE SCHEMA ${schema}; SET LOCAL search_path TO ${schema}, public; CREATE TABLE organizations (id serial PRIMARY KEY, name text NOT NULL); INSERT INTO organizations (name) VALUES ('Existing tenant');`));
     await tx.execute(sql.raw(migration));
