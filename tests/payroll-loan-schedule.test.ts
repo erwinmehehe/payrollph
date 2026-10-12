@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { reviewFinalPayLoans } from "../src/lib/final-pay-loan-authority";
 import {
   buildCompanyLoanSchedule, validateAgencyAmortizationSchedule, previewDiscretionaryLoanDeduction,
 } from "../src/lib/payroll-loan-schedule";
@@ -50,4 +51,29 @@ test("floor defers deductions, caps to loan balance and independent approved ove
     reason: "Specific reviewed employee written authorization", approvalEvidenceReference: "REVIEW-1234" } }),
     { deductedCents: 100000, deferredCents: 0, netAfterCents: 150000, overrideUsed: true });
   assert.equal(previewDiscretionaryLoanDeduction({ ...base, disposablePayCents: 0 }).deductedCents, 0);
+});
+
+test("early resignation carries the outstanding balance to existing reviewed final-pay authority", () => {
+  const schedule = buildCompanyLoanSchedule({ principal: "1025.03", months: 3,
+    annualFlatInterestBasisPoints: 0, installmentsPerMonth: 2 });
+  const afterTwo = schedule.installments[1].remainingPrincipalCents;
+  const outstanding = (afterTwo / 100).toFixed(2);
+  const pending = reviewFinalPayLoans([{
+    id: 55, loanType: "Company Emergency Loan", status: "active",
+    remainingBalance: outstanding, requestedByUserId: 10,
+    deductionAuthorizationReference: "signed-contract-55",
+  }]);
+  assert.deepEqual(pending.eligibleLoanIds, []);
+  assert.equal(pending.unrecoveredBalance, afterTwo / 100);
+  const reviewed = reviewFinalPayLoans([{
+    id: 55, loanType: "Company Emergency Loan", status: "active",
+    remainingBalance: outstanding, requestedByUserId: 10, reviewedByUserId: 11,
+    reviewedAt: "2026-10-12T00:00:00.000Z",
+    deductionAuthorizationReference: "signed-contract-55",
+    reviewEvidenceReference: "independent-checker-55",
+  }]);
+  assert.deepEqual(reviewed.eligibleLoanIds, [55]);
+  assert.equal(reviewed.eligibleBalance, afterTwo / 100);
+  assert.equal(reviewed.unrecoveredBalance, 0);
+  assert.equal(schedule.installments.at(-1)?.remainingPrincipalCents, 0);
 });
