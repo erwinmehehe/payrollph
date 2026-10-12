@@ -181,7 +181,7 @@ export function decideRosterRulePublish(input:{
   const blocking=input.findings.filter(f=>f.severity==="blocking");
   const unwaivable=blocking.filter(f=>!f.overrideEligible);
   const reason=(input.overrideReason??"").trim();
-  const mayOverride=Boolean(input.managerMayOverride&&reason.length>=12&&reason.length<=240);
+  const mayOverride=Boolean(input.managerMayOverride&&reason.length>=20&&reason.length<=240);
   const overriddenCodes=mayOverride&&unwaivable.length===0
     ? [...new Set(blocking.filter(f=>f.overrideEligible).map(f=>f.code))] : [];
   return {blocked:unwaivable.length>0||(blocking.length>0&&!mayOverride),
