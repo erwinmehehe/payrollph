@@ -64,6 +64,18 @@ try {
             assert.ok(await inline.getByRole("button", { name: /Send to hr/ }).count() >= 1);
           } else {
             assert.equal(await inline.getByRole("button", { name: /^Send to / }).count(), 0);
+            const foreignPreview = await page.evaluate(async () => {
+              const response = await fetch("/api/first-payroll/preview", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  organizationId: 2, periodStart: "2026-10-01",
+                  periodEnd: "2026-10-15", payDate: "2026-10-15",
+                }),
+              });
+              return response.status;
+            });
+            assert.equal(foreignPreview, 403,
+              "A payroll officer cannot preview an unassigned second tenant.");
           }
           await topSteps.nth(4).getByRole("button", { name: "Open step" }).click();
           const payrollStep = inline.locator("#first-payroll-step-payroll");
