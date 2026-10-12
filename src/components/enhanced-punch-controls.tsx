@@ -20,8 +20,15 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
     let value:string;
     try{
       const k="wfm-employee-device-id";
-      value=sessionStorage.getItem(k)??crypto.randomUUID();
-      sessionStorage.setItem(k,value);
+      const existing=sessionStorage.getItem(k);
+      // Preserve a valid session-scoped pseudonym without writing data read
+      // from storage back to clear-text browser storage.
+      if(existing&&/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(existing)){
+        value=existing;
+      }else{
+        value=crypto.randomUUID();
+        sessionStorage.setItem(k,value);
+      }
     }catch{value=crypto.randomUUID();}
     // Async boundary prevents cascading React state writes during effect setup.
     void Promise.resolve().then(async()=>{
