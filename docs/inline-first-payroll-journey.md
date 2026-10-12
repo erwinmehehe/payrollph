@@ -1,9 +1,19 @@
-# Inline first payroll
+# Inline first payroll — source-only integration draft
 
-Apply `drizzle/0115_inline_first_payroll_journey.sql` to the target database,
-then set `INLINE_FIRST_PAYROLL_ENABLED=true` on the server and restart/redeploy.
-Missing or any other flag value leaves the existing workspace experience intact.
-CI uses disposable PostgreSQL with `db:push`; production must apply the migration.
+**Do not apply SQL, enable flags, or deploy this draft to a live employer.** The
+canonical source-only migration train merged into `main` through #865 reserves
+`drizzle/0117_inline_first_payroll_journey.sql` for the first-payroll foundation;
+`0115_inline_first_payroll_journey.sql` is obsolete and must never be replayed.
+A passing synthetic `db:push` or local PostgreSQL test does not prove historical
+Neon migration receipts, a witnessed backup/restore, production DB compatibility,
+or release authorization. DBA-controlled forward migration and independent payroll,
+security and two-role employer acceptance must precede a separately approved rollout.
+
+`INLINE_FIRST_PAYROLL_ENABLED` remains default OFF. This branch overlaps the newer
+first-payroll designs in PRs #868 and #915; reconcile to one vetted read-only preview
+and single seven-step workflow before merging competing feature implementations.
+Missing or any nonexact feature-flag value leaves the existing workspace unchanged.
+CI may use `db:push` only against disposable PostgreSQL, never live Neon.
 
 The journey's seven step definitions, default responsible roles and descriptions
 are in `src/lib/first-payroll-journey.ts`. The existing five workspace readiness
