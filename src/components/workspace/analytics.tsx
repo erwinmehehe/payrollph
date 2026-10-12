@@ -40,7 +40,9 @@ type ReportResult = {
 };
 
 export function AnalyticsView({ data, notify }: { data: DashboardData; notify: Notify }) {
-  const [active, setActive] = useState<ReportKey>("workforce");
+  const [active, setActive] = useState<ReportKey>(
+    data.multiEntity?.enabled && data.multiEntity.legalEntityId !== null ? "headcount" : "workforce",
+  );
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [result, setResult] = useState<ReportResult | null>(null);
   const [error, setError] = useState("");
