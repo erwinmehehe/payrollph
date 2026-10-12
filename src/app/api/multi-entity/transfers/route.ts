@@ -11,7 +11,7 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { manilaCalendarDate } from "@/lib/payroll-period-ui";
 import { readBasicAndThirteenth } from "@/lib/final-pay";
-import { canActOnEntityTransfer, type TransferAction } from "@/lib/multi-entity-policy";
+import { canActOnEntityTransfer, summarizeEntityTransfer, type TransferAction } from "@/lib/multi-entity-policy";
 
 export const dynamic = "force-dynamic";
 const disabled = () => Response.json({ error: "Entity transfers are unavailable." }, { status: 404 });
@@ -71,7 +71,7 @@ export async function GET(request: Request) {
   const mutationsEnabled = criticalReleaseFlagEnabled("multiEntityTransfers");
   return Response.json({
     transfers: rows.map(row => ({
-      ...row,
+      ...summarizeEntityTransfer(row),
       canReview: mutationsEnabled && canActOnEntityTransfer({
         role: scope.context.role, action: "approve",
         selectedEntityId: scope.context.legalEntityId,
@@ -231,7 +231,7 @@ export async function POST(request: Request) {
       });
       return [row];
     });
-    return Response.json({ transfer: created }, { status: 201 });
+    return Response.json({ transfer: summarizeEntityTransfer(created) }, { status: 201 });
   } catch (error) {
     return fail(error instanceof Error ? error.message : "Could not request transfer.");
   }
@@ -370,7 +370,7 @@ export async function PATCH(request: Request) {
       });
       return updated;
     });
-    return Response.json({ transfer: result });
+    return Response.json({ transfer: summarizeEntityTransfer(result) });
   } catch (error) {
     return fail(error instanceof Error ? error.message : "Transfer could not be decided.");
   }
