@@ -29,6 +29,7 @@ export async function audit(env = process.env) {
       serverVersionNum: row?.serverVersionNum ?? null,
       publicTableCount: row?.publicTableCount ?? null,
       generation: assessment.generation,
+      missingTrainPrerequisites: assessment.missingTrainPrerequisites ?? [],
       eligibleForMigrationReview: assessment.eligibleForMigrationReview,
       productionMigrationApproved: false,
       reason: assessment.reason,
