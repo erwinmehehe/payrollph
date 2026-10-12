@@ -2195,7 +2195,9 @@ export const hcmDocumentExpiryNotices = pgTable("hcm_document_expiry_notices", {
   acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
   acknowledgedByUserId: integer("acknowledged_by_user_id").references(() => users.id, { onDelete: "set null" }),
 }, (table) => [
-  uniqueIndex("hcm_document_expiry_notice_unique").on(table.complianceId, table.expiresOn, table.milestoneDays),
+  uniqueIndex("hcm_document_expiry_notice_unique").on(
+    table.complianceId, table.documentId, table.expiresOn, table.milestoneDays,
+  ),
   index("hcm_document_expiry_notice_inbox_idx").on(table.organizationId, table.acknowledgedAt, table.createdAt),
   check("hcm_document_expiry_notice_milestone_check", sql`${table.milestoneDays} in (30, 14, 7)`),
 ]);

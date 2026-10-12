@@ -96,6 +96,31 @@ test("Manila 30/14/7-day HR notices insert once per milestone and never auto-ver
     ));
     assert.equal(freshNotices.length, 1);
     assert.equal(freshNotices[0].milestoneDays, 30);
+    // A replacement document that shares the original expiry date is a new
+    // reviewed artifact and must not inherit/suppress its predecessor's alerts.
+    const [replacement] = await db.insert(documents).values({
+      organizationId: org.id, employeeId: verifiedEmployee.id,
+      kind: "professional_license", fileName: "renewed-license.pdf",
+      mimeType: "application/pdf", byteSize: 8,
+      sha256: "c".repeat(64), scannedClean: true, scanNote: "Synthetic replacement",
+      uploadedBy: "Synthetic QA", content: "",
+      objectStorageKey: "private-documents/" + org.id + "/" + verifiedEmployee.id +
+        "/00000000-0000-4000-8000-000000000003",
+    }).returning();
+    await db.update(hcmEmployeeDocumentCompliance).set({
+      documentId: replacement.id, status: "current", verifiedAt: new Date("2026-11-01T00:00:00Z"),
+    }).where(eq(hcmEmployeeDocumentCompliance.id, verified.id));
+    await runScheduledHcmDocumentExpiry({
+      actor: "A5 QA", now: new Date("2026-11-02T16:01:00Z"), organizationId: org.id,
+    });
+    const withSameExpiry = await db.select().from(hcmDocumentExpiryNotices).where(and(
+      eq(hcmDocumentExpiryNotices.organizationId, org.id),
+      eq(hcmDocumentExpiryNotices.complianceId, verified.id),
+      eq(hcmDocumentExpiryNotices.expiresOn, "2026-12-03"),
+    ));
+    assert.equal(withSameExpiry.length, 2, "new document should get a new HR reminder");
+    assert.deepEqual(new Set(withSameExpiry.map(n => n.documentId)),
+      new Set([files[0].id, replacement.id]));
   } finally {
     await db.delete(organizations).where(eq(organizations.id, org.id));
     if (previous === undefined) delete process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED;

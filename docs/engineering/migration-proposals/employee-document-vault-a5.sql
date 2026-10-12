@@ -18,6 +18,6 @@ CREATE TABLE IF NOT EXISTS "hcm_document_expiry_notices" (
   "acknowledged_by_user_id" integer REFERENCES "users"("id")
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "hcm_document_expiry_notice_unique"
-  ON "hcm_document_expiry_notices" ("compliance_id", "expires_on", "milestone_days");
+  ON "hcm_document_expiry_notices" ("compliance_id", "document_id", "expires_on", "milestone_days");
 CREATE INDEX IF NOT EXISTS "hcm_document_expiry_notice_inbox_idx"
   ON "hcm_document_expiry_notices" ("organization_id", "acknowledged_at", "created_at");
