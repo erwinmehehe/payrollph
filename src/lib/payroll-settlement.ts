@@ -1,5 +1,7 @@
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { reimbursementSettlementDecision } from "@/lib/spend-payroll-reimbursement";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
@@ -410,6 +412,18 @@ export async function settlePayrollRun(
             .limit(1);
           if (!claim || claim.employeeId !== entry.employeeId) {
             throw new Error(`Expense claim ${expenseId} no longer matches this payroll entry.`);
+          }
+          if (criticalReleaseFlagEnabled("spendPayroll")) {
+            const decision = reimbursementSettlementDecision({
+              status: claim.status, payrollRunId: claim.payrollRunId,
+              amount: claim.amount, approvedAmount: claim.approvedAmount,
+              categoryPolicyId: claim.categoryPolicyId,
+              receiptStorageKey: claim.receiptStorageKey, receiptSha256: claim.receiptSha256,
+            }, run.id, line.amount, true);
+            if (decision === "already_settled") continue;
+            if (decision !== "settle") {
+              throw new Error(`Expense claim ${expenseId} cannot settle: ${decision}. Recalculate before release.`);
+            }
           }
           if (claim.payrollRunId != null && claim.payrollRunId !== run.id) {
             throw new Error(`Expense claim ${expenseId} was already settled by another payroll run.`);
