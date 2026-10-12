@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  assessDatabaseGeneration, DATABASE_GENERATION_FINGERPRINT_SQL,
+  assessDatabaseGeneration,
 } from "../scripts/lib/database-generation-fingerprint.mjs";
 
 const old = {
@@ -34,10 +34,11 @@ const app = {
   payrollRunsIdType: "integer",
 };
 
-test("read-only fingerprint inspects PostgreSQL catalog metadata only", () => {
-  assert.match(DATABASE_GENERATION_FINGERPRINT_SQL, /information_schema\.columns/);
-  assert.match(DATABASE_GENERATION_FINGERPRINT_SQL, /to_regclass\('public\.organizations'\)/);
-  assert.doesNotMatch(DATABASE_GENERATION_FINGERPRINT_SQL, /\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE)\b/i);
+test("organization-integer catalog can never authorize production release", () => {
+  const out=assessDatabaseGeneration(app);
+  assert.equal(out.generation,"organization-integer");
+  assert.equal(out.eligibleForMigrationReview,true);
+  assert.equal(out.productionMigrationApproved,false);
 });
 
 test("legacy UUID/client signature rejects numbered forward migration", () => {
@@ -106,11 +107,14 @@ test("one missing source prerequisite blocks migration review despite journals",
   assert.equal(outcome.reason, "NUMBERED_TRAIN_PREREQUISITES_MISSING");
 });
 
-test("fingerprint catalogs direct dependencies of 0117 and 0119", () => {
-  for (const path of [
-    "payout_batches", "payout_transfers", "payout_batch_transfers",
-    "payout_profiles", "worker_employment_events",
+test("each payout and worker-history table separately blocks numbered migration review when absent", () => {
+  for (const key of [
+    "hasPayoutBatches", "hasPayoutTransfers", "hasPayoutBatchTransfers",
+    "hasPayoutProfiles", "hasWorkerEmploymentEvents",
   ]) {
-    assert.ok(DATABASE_GENERATION_FINGERPRINT_SQL.includes("public." + path));
+    const out=assessDatabaseGeneration({...app,[key]:false});
+    assert.equal(out.eligibleForMigrationReview,false);
+    assert.equal(out.reason,"NUMBERED_TRAIN_PREREQUISITES_MISSING");
+    assert.equal(out.productionMigrationApproved,false);
   }
 });
