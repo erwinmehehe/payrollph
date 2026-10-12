@@ -103,16 +103,19 @@ export function summarize(session) {
   // The local session file is editable JSON. Never allow a tampered source SHA
   // to become a path component during archival or to label untrusted evidence.
   assert.match(session?.sourceSha ?? "", /^[a-f0-9]{40}$/, "Invalid stored source SHA; evidence must be archived manually");
-  // Owner self-reports cannot grant any of the independent external gates.
-  for (const gate of ["independentHumanAccepted", "realEmployerReconciled", "hardwareCertified",
-    "agencyAccepted", "moneyMoved", "productionAuthorized"]) {
-    assert.equal(session[gate], false, "Local UAT cannot assert external acceptance: " + gate);
-  }
+  // Validate every canonical scenario before checking external gates so a
+  // truncated/tampered archive reports a structural integrity error. Neither
+  // validation path may rename or delete the original evidence file.
   const counts = Object.fromEntries(STATES.map(s => [s, 0]));
   for (const scenario of SCENARIOS) {
     const status = session.outcomes?.[scenario.id]?.status;
     assert.ok(STATES.includes(status), "Incomplete or corrupted UAT record");
     counts[status] += 1;
+  }
+  // Owner self-reports cannot grant any of the independent external gates.
+  for (const gate of ["independentHumanAccepted", "realEmployerReconciled", "hardwareCertified",
+    "agencyAccepted", "moneyMoved", "productionAuthorized"]) {
+    assert.equal(session[gate], false, "Local UAT cannot assert external acceptance: " + gate);
   }
   return { total: SCENARIOS.length, counts,
     p0SelfTested: SCENARIOS.filter(s => s.priority === "P0").every(s =>
