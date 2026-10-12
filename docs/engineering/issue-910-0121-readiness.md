@@ -8,6 +8,14 @@ Correct Neon: project `calm-wave-70219564` (`neon-almond-ridge`), existing defau
 
 **Absent:** `job_profiles`, `positions`, `position_assignments` (historical 0022); `worker_employment_events` (0050); `worker_effective_changes` (0052); `provider_events` (0110); WFM observation/forecast/policy tables (0112–0114); `payout_profiles`, `payout_batches`, `payout_transfers` (proposed 0115–0116); `user_legal_entity_grants`, `employee_entity_assignments` (0121). `legal_entities`, `employees`, `payroll_runs`, `payroll_entries`, `payslips`, `payroll_jobs`, `bank_file_validations`, `historical_payroll_entries`, `year_end_adjustments`, and `separation_records` are present. No authentic `payrollph_release_migration_receipts` / `payrollph_schema_migrations` / `payrollph_migration_cutover` journal is present. **Presence is not execution evidence, and absence is not permission to replay an old migration.**
 
+## Aggregate-only attribution preflight — October 12, 2026
+
+A read-only, aggregate-only live query found **1 tenant, 1 legal entity, 1 PRIMARY entity, 8 employees, 3 payroll runs, and 18 payroll entries**. It also found **0** employees missing current legal-entity attribution; **0** payroll runs or child entries whose run has a missing employer; **0** cross-tenant employee/payroll-run links; and **0** observed mismatches between run employer and the worker's *current* employer. These are structural counts, not a historical transfer, tax or released-payroll certification. The absence of `worker_employment_events` cannot be construed as evidence that no real historical transfers happened. Independently reconcile documents, transfer approvals, statutory allocations and payroll centavos before any backfill.
+
+## Historical production request-log retention blocker
+
+Vercel project `erwinmehehe-payrollph` (project ID `prj_DCCuaGyRvRNJ7hOybLLdJq0jdGhh`) refused a read-only production runtime-log query for October 12, 2026, 05:25–05:37 UTC with HTTP 400: **Hobby plan does not retain runtime logs for the requested historical window**. This cannot establish zero errors, uninterrupted service or absence of lost retries during the 05:30–05:32 incident #899. Recover request/WFM worker evidence from independently retained, privacy-reviewed drains, edge request analytics, application traces or customer-reported evidence if available. **Do not close #899 based solely on snapshot parity or absent expired logs.**
+
 ## Five independent, review-only source extracts
 
 Every file in `docs/sql/issue-910-review-only-0121-*.sql` was copied from the original 0121 source, without semantic rewrites. None is in the executable `drizzle/` directory:
@@ -39,13 +47,13 @@ Feature flags stay OFF: `MULTI_ENTITY_ENABLED`, `MULTI_ENTITY_TRANSFERS_ENABLED`
 
 ## Non-authorizing scope integrity candidate (new)
 
-\`docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql\` proposes **13 composite tenant/employer foreign keys** and narrowly scoped unique reference indexes. Its use is demonstrated only in fictional, disposable PostgreSQL 16/18 tests. This candidate is **not** a new numbered migration and has **not** been approved by DBA/security; do not apply it to a real Neon branch or production. It does not claim that source migration \`0121\` alone provides a complete authorization boundary.
+`docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql` proposes **13 composite tenant/employer foreign keys** and narrowly scoped unique reference indexes. Its use is demonstrated only in fictional, disposable PostgreSQL 16/18 tests. This candidate is **not** a new numbered migration and has **not** been approved by DBA/security; do not apply it to a real Neon branch or production. It does not claim that source migration `0121` alone provides a complete authorization boundary.
 
 The proposal closes *potential new-write* ambiguity for:
 - employee/current employer, payroll-run employer, person-to-assignment, and source/target transfer person-to-tenant matches;
 - user entity grants/preferences tied to an active tenant membership;
 - entry/run, payslip/entry, payroll job/run, payout batch/run, payout transfer/run, bank-file/run and year-end run/employer snapshots.
 
-These FKs are deliberately **NOT VALID**: PostgreSQL enforces them on new writes/updated keys but does not scan/rewrite existing historical rows. A named DBA must reconcile preexisting bad rows and separately run \`VALIDATE CONSTRAINT\` after every row is attributable; do not treat \`NOT VALID\` as a complete historical-isolation certificate. Nullable historical filing, bank and year-end scope remains blocked under the RFC until separately attributed.
+These FKs are deliberately **NOT VALID**: PostgreSQL enforces them on new writes/updated keys but does not scan/rewrite existing historical rows. A named DBA must reconcile preexisting bad rows and separately run `VALIDATE CONSTRAINT` after every row is attributable; do not treat `NOT VALID` as a complete historical-isolation certificate. Nullable historical filing, bank and year-end scope remains blocked under the RFC until separately attributed.
 
 Existing pending PR #860 proposes overlapping employee/transfer tenant FKs. Reconcile duplicate names and exact current-head migration ordering before assigning a new SQL number. This review candidate must not be independently applied or mixed into 0121 without a forward-release plan and signed SQL hash.
