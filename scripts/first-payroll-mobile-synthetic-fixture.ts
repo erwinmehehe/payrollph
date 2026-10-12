@@ -26,6 +26,7 @@ async function main() {
   })));
   // Fictional paid access exercises the real self-serve gate without a provider.
   // Beta deliberately stays a legacy pilot to catch stale guided-mode props.
+  await db.update(organizations).set({ moduleVisibility: "core_only" }).where(eq(organizations.id, 1));
   await db.update(organizations).set({ moduleVisibility: "all" }).where(eq(organizations.id, 2));
   await db.insert(saasSignupVerifications).values({
     organizationId: 1, userId: owner.id, tokenHash: "a".repeat(64),

@@ -53,7 +53,7 @@ export function FirstPayrollInlinePanel({
       const owner=p?.stepOwners?.[step];if(owner&&permittedOwners.includes(owner))setTarget(owner);
    }).catch(()=>{if(!cancelled)setError("Could not load saved progress for this employer.");});
   return ()=>{cancelled=true;};
- },[organizationId,step]);
+ },[organizationId,step,permittedOwners]);
  useEffect(()=>{
   if(step!=="company")return;
   let cancelled=false;
@@ -179,9 +179,9 @@ export function FirstPayrollInlinePanel({
    </div>}
    {step==="payroll"&&<div className="grid gap-3">
      <p>First payroll preview reads actual employer records and reuses the payroll calculator. It never creates a run or a ledger entry. Creating a draft is a separate, explicit action.</p>
-     <label>Period start<input type="date" value={start} onChange={e=>setStart(e.target.value)}/></label>
-     <label>Period end<input type="date" value={end} onChange={e=>setEnd(e.target.value)}/></label>
-     <label>Pay date<input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)}/></label>
+     <label>Period start<input type="date" value={start} onChange={e=>{setStart(e.target.value);setPreview(null);setDraftId(null);}}/></label>
+     <label>Period end<input type="date" value={end} onChange={e=>{setEnd(e.target.value);setPreview(null);setDraftId(null);}}/></label>
+     <label>Pay date<input type="date" value={payDate} onChange={e=>{setPayDate(e.target.value);setPreview(null);setDraftId(null);}}/></label>
      <button type="button" className="primary-button" disabled={busy||!start||!end||!payDate} onClick={()=>void dryRun()}>Preview first payroll (no writes)</button>
      {preview&&<>
        <p role="status">{preview.previewReady?"Preview ready for reconciliation":"Preview has blockers"}</p>
@@ -191,7 +191,7 @@ export function FirstPayrollInlinePanel({
        <tbody>{preview.rows.map(row=><tr key={row.employeeId}>
          <td>{row.name}</td>{[row.gross,row.sss,row.philHealth,row.pagIbig,row.withholding,row.net].map((n,i)=><td key={i}>{n==null?"—":n.toFixed(2)}</td>)}
          <td>{row.blockers.join("; ")||"None"}</td></tr>)}</tbody></table></div>
-       {preview.previewReady&&<button type="button" className="secondary-button" disabled={busy} onClick={()=>void send("/api/payroll-runs","POST",{
+       {preview.previewReady&&<button type="button" className="secondary-button" disabled={busy||draftId!==null} onClick={()=>void send("/api/payroll-runs","POST",{
          periodStart:start,periodEnd:end,payDate,processNow:false,
        },"A draft payroll record was created. It is not calculated, approved or released.")}>Create actual draft payroll (writes a draft record)</button>}
        {draftId&&<p role="status">Draft run #{draftId} created. Existing independent calculation and approval gates still apply.</p>}
