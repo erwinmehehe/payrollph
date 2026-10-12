@@ -75,3 +75,15 @@ test("grouping by status never aliases department to the status string", () => {
   );
   assert.deepEqual(report.rows, [{ status: "Active", department: "Mixed", headcount: 2 }]);
 });
+
+test("payroll totals use centavo-safe aggregation without floating point drift", () => {
+  const spec = { dataset: "payroll" as const, fields: ["grossPay"] };
+  const report = buildWhitelistedReport(spec, "payroll", [
+    { grossPay: 0.01 }, { grossPay: 0.02 }, { grossPay: 0.03 },
+  ]);
+  assert.equal(report.rows[0]?.grossPay, 0.06);
+  assert.throws(
+    () => buildWhitelistedReport(spec, "payroll", [{ grossPay: Number.MAX_SAFE_INTEGER }]),
+    /centavo-unsafe/,
+  );
+});
