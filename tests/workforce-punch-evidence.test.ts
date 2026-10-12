@@ -51,3 +51,10 @@ test("travel uses worksite centre distances without device location history",()=
   assert.equal(impossibleTravel(a,{worksiteId:2,latitude:10.3157,longitude:123.8854,at:new Date("2026-10-12T00:05:00Z")}),true);
   assert.equal(impossibleTravel(a,{...a,at:new Date("2026-10-12T00:05:00Z")}),false);
 });
+
+test("newer worksite deny supersedes a past allow and does not select a fallback site", async () => {
+  const { resolvedWorksiteDecision } = await import("../src/lib/workforce-punch-evidence");
+  assert.equal(resolvedWorksiteDecision([{ worksiteId: 2, decision: "deny" }, { worksiteId: 1, decision: "allow" }]), null);
+  assert.equal(resolvedWorksiteDecision([{ worksiteId: 2, decision: "allow" }, { worksiteId: 1, decision: "deny" }]), 2);
+  assert.equal(resolvedWorksiteDecision([]), null);
+});
