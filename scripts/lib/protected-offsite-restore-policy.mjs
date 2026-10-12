@@ -8,7 +8,7 @@ export function validateProtectedRestoreRequest(values) {
   }
   const {
     eventName,repository,ref,githubSha,reviewedSha,
-    workflowEnvironment,changeRef,confirmation,
+    workflowEnvironment,changeRef,confirmation,actor,allowedActors,
     archiveSourceSha,objectKey,expectedEncryptedSha256,
     awsRegion,s3Bucket,
   }=values;
@@ -17,6 +17,10 @@ export function validateProtectedRestoreRequest(values) {
      ref!==PINNED_SOURCE.ref || !SHA.test(githubSha??"") ||
      reviewedSha!==githubSha ||
      workflowEnvironment!=="payrollph-production-restore" ||
+     typeof actor!=="string" || !/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/.test(actor) ||
+     typeof allowedActors!=="string" ||
+     !/^[A-Za-z0-9][A-Za-z0-9,-]{0,256}$/.test(allowedActors) ||
+     !allowedActors.split(",").includes(actor) ||
      confirmation!=="RESTORE_IN_DISPOSABLE_POSTGRES_ONLY" ||
      typeof changeRef!=="string" || !/^P0-4-[A-Za-z0-9-]{8,100}$/.test(changeRef)) {
     refuse("UNAPPROVED_OPERATOR_OR_SOURCE");
