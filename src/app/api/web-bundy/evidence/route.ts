@@ -10,7 +10,7 @@ import { authorizedGeofenceSites } from "@/lib/workforce-geofence-server";
 import { evaluateGeofenceFix, geofencePilotEnabledForOrganization } from "@/lib/workforce-geofence";
 import { encryptPunchPhoto, stripJpegMetadata } from "@/lib/workforce-punch-photo-crypto";
 import { documentUploadsEnabled, scanUpload } from "@/lib/storage";
-import { enhancedPunchEnabled, photoCaptureDecision, photoExpiry, evaluatePunchTiming, impossibleTravel, resolvedWorksiteDecision, PUNCH_CONSENT_VERSION, PUNCH_MAX_IMAGE_BYTES, PUNCH_ACTIONS, validPunchUuid, type PhotoMode } from "@/lib/workforce-punch-evidence";
+import { enhancedPunchEnabled, enhancedPunchEnabledForOrganization, photoCaptureDecision, photoExpiry, evaluatePunchTiming, impossibleTravel, resolvedWorksiteDecision, PUNCH_CONSENT_VERSION, PUNCH_MAX_IMAGE_BYTES, PUNCH_ACTIONS, validPunchUuid, type PhotoMode } from "@/lib/workforce-punch-evidence";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -62,6 +62,7 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const organizationId = Number(params.get("organizationId"));
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0) return respond({error:"Invalid employer."},400);
+  if (!enhancedPunchEnabledForOrganization(organizationId)) return respond({error:"Not found."},404);
   const context = await employeeSession(organizationId);
   if (context.denied) return context.denied;
   const employeeId = context.employee!.id;
@@ -91,6 +92,7 @@ export async function POST(request: Request) {
   if(!form) return respond({error:"Invalid punch submission."},400);
   const organizationId=Number(form.get("organizationId"));
   if(!Number.isSafeInteger(organizationId)||organizationId<=0) return respond({error:"Invalid employer."},400);
+  if(!enhancedPunchEnabledForOrganization(organizationId)) return respond({error:"Not found."},404);
   const context=await employeeSession(organizationId);if(context.denied) return context.denied;
   const {user,employee}=context;
   // A shared browser can retain queues from several workers. Do not replay a

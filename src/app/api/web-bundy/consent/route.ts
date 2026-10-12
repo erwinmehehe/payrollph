@@ -4,7 +4,7 @@ import { auditEvents, employees, workforcePunchPhotoConsents, workforcePunchPhot
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership } from "@/lib/access";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit } from "@/lib/security-request";
-import { enhancedPunchEnabled,PUNCH_CONSENT_VERSION } from "@/lib/workforce-punch-evidence";
+import { enhancedPunchEnabled,enhancedPunchEnabledForOrganization,PUNCH_CONSENT_VERSION } from "@/lib/workforce-punch-evidence";
 export const dynamic="force-dynamic";
 
 /**
@@ -22,6 +22,7 @@ export async function POST(request:Request) {
   const org=Number(body.organizationId),choice=body.choice;
   if(!Number.isSafeInteger(org)||org<=0||!["accepted","declined"].includes(choice))
     return Response.json({error:"Invalid consent decision."},{status:400});
+  if(!enhancedPunchEnabledForOrganization(org))return Response.json({error:"Not found."},{status:404});
   const denied=await assertMembership(user.id,org);if(denied)return denied;
   const [employee]=await db.select({id:employees.id}).from(employees).where(and(
     eq(employees.id,user.employeeId),eq(employees.organizationId,org),

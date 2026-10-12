@@ -72,7 +72,7 @@ function WebBundyView({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [enhancedRead, setEnhancedRead] = useState<{ key: string; enabled: boolean } | null>(null);
+  const [enhancedRead, setEnhancedRead] = useState<{ key: string; enabled: boolean; employeeCanSubmit: boolean } | null>(null);
 
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === selectedEmployeeId) ?? null,
@@ -98,6 +98,7 @@ function WebBundyView({
     ? webBundyReadKey(organizationId, selectedEmployeeId, nonce)
     : "employer-not-linked";
   const enhancedEnabled = enhancedRead?.key === readKey && enhancedRead.enabled === true;
+  const enhancedEmployeeCanSubmit = enhancedEnabled && enhancedRead?.employeeCanSubmit === true;
   const visible = validEmployer
     ? visibleWebBundyState(readKey, readState)
     : { status: "unavailable" as const, punches: [] };
@@ -123,7 +124,7 @@ function WebBundyView({
         const data: unknown = await res.json();
         if (!alive || controller.signal.aborted) return;
         const response = data && typeof data === "object"
-          ? data as { punches?: unknown; geofence?: unknown; previousShiftNeedsReview?: unknown; enhancedPunch?: { enabled?: unknown } } : {};
+          ? data as { punches?: unknown; geofence?: unknown; previousShiftNeedsReview?: unknown; enhancedPunch?: { enabled?: unknown; employeeCanSubmit?: unknown } } : {};
         if (!isWebBundyPunchList(response.punches)) throw Error("Invalid attendance state.");
         const geo = response.geofence;
         if (!geo || typeof geo !== "object"
@@ -132,7 +133,7 @@ function WebBundyView({
           throw Error("Time-clock location policy could not be verified.");
         }
         const verified = geo as { required: boolean; canClockWithLocation: boolean };
-        setEnhancedRead({ key: readKey, enabled: response.enhancedPunch?.enabled === true });
+        setEnhancedRead({ key: readKey, enabled: response.enhancedPunch?.enabled === true, employeeCanSubmit: response.enhancedPunch?.employeeCanSubmit === true });
         setClockPolicy({ key: readKey, required: verified.required, canClockWithLocation: verified.canClockWithLocation });
         setReadState({
           key: readKey, status: "ready", punches: response.punches,
@@ -327,7 +328,11 @@ function WebBundyView({
           </div>
         )}
 
-        {enhancedEnabled && selectedEmployeeId !== null &&
+        {enhancedEnabled && !enhancedEmployeeCanSubmit &&
+          <p role="status" style={{ marginTop: 16, color: "var(--muted)" }}>
+            Direct attendance punches are disabled for this pilot employer. People administrators must use the authorized HR correction workflow; employee punches require an independent reviewer.
+          </p>}
+        {enhancedEmployeeCanSubmit && selectedEmployeeId !== null &&
           <EnhancedPunchControls organizationId={organizationId} employeeId={selectedEmployeeId} />}
         {!enhancedEnabled && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
           <button className="primary-button" disabled={busy || !policyReady || !canClockIn} onClick={() => handlePunch("clock_in")} style={{ height: 42, background: "var(--green)", fontSize: 13 }}>

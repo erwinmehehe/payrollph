@@ -3,13 +3,29 @@ import test from "node:test";
 import {readFileSync} from "node:fs";
 import {randomBytes} from "node:crypto";
 import {criticalReleaseFlagEnabled} from "../src/lib/critical-release-flags";
-import {photoCaptureDecision,evaluatePunchTiming,photosDueForPurge,photoExpiry,impossibleTravel,validPunchUuid,validDevicePunchTimestamp,drainExpiredPunchPhotoBatches} from "../src/lib/workforce-punch-evidence";
+import {photoCaptureDecision,evaluatePunchTiming,photosDueForPurge,photoExpiry,impossibleTravel,validPunchUuid,validDevicePunchTimestamp,drainExpiredPunchPhotoBatches,enhancedPunchEnabledForOrganization} from "../src/lib/workforce-punch-evidence";
 import {encryptPunchPhoto,decryptPunchPhoto,stripJpegMetadata} from "../src/lib/workforce-punch-photo-crypto";
 import {resolveWebBundyPunchAnchor} from "../src/lib/web-bundy-overnight-anchor";
 
 test("flag stays OFF unless explicitly enabled",()=>{
   assert.equal(criticalReleaseFlagEnabled("workforcePunchEvidence",{}),false);
   assert.equal(criticalReleaseFlagEnabled("workforcePunchEvidence",{WFM_PUNCH_EVIDENCE_ENABLED:"true"}),true);
+});
+test("selfie/offline pilot is explicitly tenant-allowlisted and cannot hijack legacy punches",()=>{
+  const pilot={WFM_PUNCH_EVIDENCE_ENABLED:"true",WFM_PUNCH_EVIDENCE_ORG_IDS:" 2,17,29 "};
+  assert.equal(enhancedPunchEnabledForOrganization(17,pilot),true);
+  assert.equal(enhancedPunchEnabledForOrganization(18,pilot),false);
+  assert.equal(enhancedPunchEnabledForOrganization(17,{
+    WFM_PUNCH_EVIDENCE_ENABLED:"true",
+  }),false,"global true alone must not affect unrelated employers");
+  assert.equal(enhancedPunchEnabledForOrganization(17,{
+    ...pilot,WFM_PUNCH_EVIDENCE_ENABLED:"false",
+  }),false);
+  assert.equal(enhancedPunchEnabledForOrganization(17,{
+    ...pilot,WFM_PUNCH_EVIDENCE_ORG_IDS:"x,-1,017,0,9999999999999999999",
+  }),false,"invalid IDs must never grant a tenant");
+  assert.equal(enhancedPunchEnabledForOrganization(-1,pilot),false);
+  assert.equal(enhancedPunchEnabledForOrganization(0,pilot),false);
 });
 test("consent declined: no image may be captured; time evidence remains reviewable",()=>{
   assert.deepEqual(photoCaptureDecision("required","declined",true),{capture:false,review:true,flags:["consent-declined"]});

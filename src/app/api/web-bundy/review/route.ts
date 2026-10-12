@@ -8,7 +8,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { attendanceMutationLock } from "@/lib/workforce-attendance-lock";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import { reconcileAttendanceExceptionEvents } from "@/lib/workforce-attendance-exception-events";
-import { enhancedPunchEnabled, validPunchUuid } from "@/lib/workforce-punch-evidence";
+import { enhancedPunchEnabled, enhancedPunchEnabledForOrganization, validPunchUuid } from "@/lib/workforce-punch-evidence";
 import { decryptPunchPhoto } from "@/lib/workforce-punch-photo-crypto";
 import { previousManilaWorkDate, resolveWebBundyPunchAnchor } from "@/lib/web-bundy-overnight-anchor";
 export const dynamic="force-dynamic";
@@ -40,6 +40,7 @@ export async function GET(request:Request) {
   if(!enhancedPunchEnabled())return Response.json({error:"Not found."},{status:404});
   const params=new URL(request.url).searchParams,organizationId=Number(params.get("organizationId"));
   if(!Number.isSafeInteger(organizationId)||organizationId<=0)return Response.json({error:"Invalid employer."},{status:400});
+  if(!enhancedPunchEnabledForOrganization(organizationId))return Response.json({error:"Not found."},{status:404});
   const context=await reviewer(organizationId);if(context.denied)return context.denied;
   const photoId=params.get("photoId");
   if(photoId) {
@@ -82,6 +83,7 @@ export async function POST(request:Request) {
   const body=await request.json().catch(()=>({}));
   const organizationId=Number(body.organizationId),id=Number(body.id);
   if(!Number.isSafeInteger(organizationId)||organizationId<=0||!Number.isSafeInteger(id)||id<=0)return Response.json({error:"Invalid request."},{status:400});
+  if(!enhancedPunchEnabledForOrganization(organizationId))return Response.json({error:"Not found."},{status:404});
   const context=await reviewer(organizationId);if(context.denied)return context.denied;
   const mfa=requireSensitiveActionMfa(context.user!);if(mfa)return mfa;
   const limit=await enforceSensitiveActionRateLimit(request,{userId:context.user!.id,action:"review-enhanced-punch",resourceId:organizationId,limit:40,windowMs:5*60_000});if(limit)return limit;

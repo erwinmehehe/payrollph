@@ -1,4 +1,4 @@
-import { enhancedPunchEnabled } from "@/lib/workforce-punch-evidence";
+import { enhancedPunchEnabledForOrganization } from "@/lib/workforce-punch-evidence";
 import { auditEvents, worksitePunchPolicies } from "@/db/schema";
 import { and, asc, eq, gte, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -163,7 +163,7 @@ export async function GET(request: Request) {
     ? await db.select().from(worksiteGeofenceBoundaries)
         .where(eq(worksiteGeofenceBoundaries.organizationId, organizationId))
     : [];
-  const enhancedEnabled = enhancedPunchEnabled();
+  const enhancedEnabled = enhancedPunchEnabledForOrganization(organizationId);
   const photoPolicies = enhancedEnabled
     ? await db.select().from(worksitePunchPolicies).where(eq(worksitePunchPolicies.organizationId,organizationId))
     : [];
@@ -231,7 +231,7 @@ export async function POST(request: Request) {
   if (rateDenied) return rateDenied;
 
   if (action === "configure_punch_photo") {
-    if(!enhancedPunchEnabled())return Response.json({error:"Not found."},{status:404});
+    if(!enhancedPunchEnabledForOrganization(organizationId))return Response.json({error:"Not found."},{status:404});
     if(!access.companyWide)return Response.json({error:"Company-wide authority required."},{status:403});
     const worksiteId=Number(body.worksiteId),photoMode=String(body.photoMode??""),reason=String(body.reason??"").trim();
     if(!Number.isSafeInteger(worksiteId)||worksiteId<=0||!["off","optional","required"].includes(photoMode)||reason.length<10)

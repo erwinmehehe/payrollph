@@ -16,6 +16,23 @@ export type PunchFlag = "offline-synced" | "clock-skew" | "shared-device" | "imp
 export function enhancedPunchEnabled(): boolean {
   return criticalReleaseFlagEnabled("workforcePunchEvidence");
 }
+/**
+ * A global feature flag alone must NEVER switch other employers to staged
+ * punches. An explicit per-organization server allowlist is also required.
+ * This is deliberately independent of each worksite's optional photo policy:
+ * a pilot worker can decline photos and still submit reviewable time evidence.
+ */
+export function enhancedPunchEnabledForOrganization(
+  organizationId: number,
+  env: Readonly<Record<string,string|undefined>> = process.env,
+): boolean {
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
+    !criticalReleaseFlagEnabled("workforcePunchEvidence",env)) return false;
+  return (env.WFM_PUNCH_EVIDENCE_ORG_IDS ?? "")
+    .split(",").map(value=>value.trim())
+    .filter(value=>/^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value)))
+    .some(value=>Number(value)===organizationId);
+}
 export function photoConsentAllowsCapture(choice: "accepted" | "declined" | null): boolean {
   return choice === "accepted";
 }
