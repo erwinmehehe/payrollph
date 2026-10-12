@@ -1,7 +1,7 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, employees, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforceTimesheets, workforcePlanningScenarios, workforcePlans } from "@/db/schema";
+import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, employees, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforceTimesheets, workforcePlanningScenarios, workforcePlans, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
 import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
@@ -42,17 +42,26 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return Response.json({ error: "A valid task and decision are required." }, { status: 400 });
   }
 
-  const [task] = await db.select().from(approvalTasks).where(eq(approvalTasks.id, taskId));
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) return Response.json({ error: "Authentication required." }, { status: 401 });
+
+  // Do not probe task status or disclose a foreign tenant's approval ID before
+  // authentication and ACTIVE tenant membership. A foreign task is identical
+  // to a nonexistent ID; independent entity-resource guards follow below.
+  const [visibleTask] = await db.select({ task: approvalTasks })
+    .from(approvalTasks).innerJoin(userOrganizations, and(
+      eq(userOrganizations.organizationId, approvalTasks.organizationId),
+      eq(userOrganizations.userId, sessionUser.id),
+      eq(userOrganizations.active, true),
+    )).where(eq(approvalTasks.id, taskId)).limit(1);
+  const task = visibleTask?.task;
   if (!task) return Response.json({ error: "Approval task not found." }, { status: 404 });
+  const deniedOrg = await assertMembership(sessionUser.id, task.organizationId);
+  if (deniedOrg) return deniedOrg;
   if (task.status !== "Pending") {
     return Response.json({ error: `This task was already ${task.status.toLowerCase()}.` }, { status: 409 });
   }
-
-  const sessionUser = await getSessionUser();
-  if (!sessionUser) return Response.json({ error: "Authentication required." }, { status: 401 });
   const sharedDemo = isPublicDemoIdentity(sessionUser.email);
-  const deniedOrg = await assertMembership(sessionUser.id, task.organizationId);
-  if (deniedOrg) return deniedOrg;
   if (criticalReleaseFlagEnabled("multiEntity")) {
     // The group_hr principal may read authorized employer history, but may
     // NEVER approve leave, payroll, effective changes or arbitrary tasks through
