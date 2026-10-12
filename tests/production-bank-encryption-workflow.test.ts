@@ -145,7 +145,8 @@ test("P0-2 adds current-key authentication before any bank write and an independ
   assert.ok(dry > 0 && dry < encrypt);
   assert.ok(post > encrypt && post < readiness);
 
-  const drySection = workflow.slice(dry, encrypt);
+  const dryNextStep = workflow.indexOf("\n      - name: ", dry + 10);
+  const drySection = workflow.slice(dry, dryNextStep);
   const postSection = workflow.slice(post, readiness);
   assert.match(drySection, /if: \${{ inputs\.mode == 'dry-run' }}/);
   assert.match(postSection, /if: \${{ inputs\.mode == 'apply' }}/);
