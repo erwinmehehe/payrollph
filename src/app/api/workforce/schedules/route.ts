@@ -19,6 +19,7 @@ import {
   assertScope,
   getAccess,
   PEOPLE_ADMIN_ROLES,
+  WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { rosterRuleOverrideAuditMetadata } from "@/lib/audit-chain";
@@ -369,8 +370,8 @@ export async function POST(request: Request) {
   const denied = await assertOrganizationRole(
     user.id,
     organizationId,
-    PEOPLE_ADMIN_ROLES,
-    "Only People administrators can manage workforce schedules.",
+    action === "create_override" && wfmRosterScaleRulesEnabled() ? WORKFORCE_MANAGER_ROLES : PEOPLE_ADMIN_ROLES,
+    "Only authorized People or workforce managers can change schedules.",
   );
   if (denied) return denied;
 
