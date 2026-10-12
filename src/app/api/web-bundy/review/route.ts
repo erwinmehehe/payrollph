@@ -94,6 +94,9 @@ export async function POST(request:Request) {
   let result;
   try {
     result=await db.transaction(async tx=>{
+      // Order is organization cutoff lock, then employee review lock.
+      // Attendance cutoff administrators take the same organization lock.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(6109, ${organizationId})`);
       // Serialize reviews for the entire employee, not only the selected
       // submission. The existing Web Bundy endpoint is disabled in pilot mode.
       await tx.execute(sql`select pg_advisory_xact_lock(${organizationId}::integer, ${submission.employeeId}::integer)`);
