@@ -10,9 +10,13 @@ export function requireExpectedSchemaAuditTarget(env) {
   const connectionString = env.PRODUCTION_SCHEMA_AUDIT_DATABASE_URL;
   const host = env.PRODUCTION_SCHEMA_AUDIT_EXPECTED_HOST;
   const database = env.PRODUCTION_SCHEMA_AUDIT_EXPECTED_DATABASE_NAME;
+  const expectedProjectId = env.PRODUCTION_SCHEMA_AUDIT_EXPECTED_PROJECT_ID;
+  const expectedBranchId = env.PRODUCTION_SCHEMA_AUDIT_EXPECTED_BRANCH_ID;
   if (typeof connectionString !== "string" || !connectionString ||
       typeof host !== "string" || !/^ep-[a-z0-9-]+\.[a-z0-9.-]+\.neon\.tech$/.test(host) ||
-      typeof database !== "string" || !/^[A-Za-z0-9_]{1,63}$/.test(database)) {
+      typeof database !== "string" || !/^[A-Za-z0-9_]{1,63}$/.test(database) ||
+      typeof expectedProjectId !== "string" || !/^[a-z0-9-]{1,60}$/.test(expectedProjectId) ||
+      typeof expectedBranchId !== "string" || !/^br-[a-z0-9-]{6,60}$/.test(expectedBranchId)) {
     throw new Error("NEON_AUDIT_PINNED_TARGET_REQUIRED");
   }
   let parsed;
@@ -28,11 +32,18 @@ export function requireExpectedSchemaAuditTarget(env) {
       (parsed.port !== "" && parsed.port !== "5432")) {
     throw new Error("NEON_AUDIT_TARGET_MISMATCH");
   }
-  return { connectionString, expectedDatabaseName: database };
+  return {
+    connectionString, expectedDatabaseName: database,
+    expectedProjectId, expectedBranchId,
+    expectedEndpointId: parsed.hostname.split(".")[0],
+  };
 }
 
 export const SCHEMA_AUDIT_ROLE_SQL = [
   'SELECT current_database() AS "databaseName",',
+  '  current_setting(\'neon.project_id\',true) AS "neonProjectId",',
+  '  current_setting(\'neon.branch_id\',true) AS "neonBranchId",',
+  '  current_setting(\'neon.endpoint_id\',true) AS "neonEndpointId",',
   '  current_setting(\'transaction_read_only\') = \'on\' AS "readOnly",',
   '  (SELECT r.rolsuper OR r.rolcreatedb OR r.rolcreaterole OR r.rolbypassrls',
   '     FROM pg_catalog.pg_roles r WHERE r.rolname = current_user) AS "elevated",',
@@ -56,8 +67,12 @@ export const SCHEMA_AUDIT_ROLE_SQL = [
   '  ) AS "canReadSensitiveRows"',
 ].join("\n");
 
-export function assertSchemaAuditRole(row, expectedDatabaseName) {
-  if (row?.databaseName !== expectedDatabaseName || row.readOnly !== true ||
+export function assertSchemaAuditRole(row, expected) {
+  if (row?.databaseName !== expected?.expectedDatabaseName ||
+      row.neonProjectId !== expected?.expectedProjectId ||
+      row.neonBranchId !== expected?.expectedBranchId ||
+      row.neonEndpointId !== expected?.expectedEndpointId ||
+      row.readOnly !== true ||
       row.elevated !== false || row.canCreate !== false ||
       row.canWriteApplicationTables !== false ||
       row.canReadSensitiveRows !== false) {

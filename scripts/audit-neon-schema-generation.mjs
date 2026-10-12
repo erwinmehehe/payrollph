@@ -21,7 +21,8 @@ import {
 } from "./lib/foundation-migration-objects.mjs";
 
 export async function audit(env = process.env) {
-  const { connectionString, expectedDatabaseName } = requireExpectedSchemaAuditTarget(env);
+  const expected = requireExpectedSchemaAuditTarget(env);
+  const { connectionString, expectedDatabaseName } = expected;
   const client = new pg.Client({
     connectionString, connectionTimeoutMillis: 5000, query_timeout: 10000,
   });
@@ -31,7 +32,7 @@ export async function audit(env = process.env) {
     connected = true;
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     const roleIdentity = await client.query(SCHEMA_AUDIT_ROLE_SQL);
-    assertSchemaAuditRole(roleIdentity.rows[0], expectedDatabaseName);
+    assertSchemaAuditRole(roleIdentity.rows[0], expected);
     const result = await client.query(DATABASE_GENERATION_FINGERPRINT_SQL);
     const row = result.rows[0];
     const assessment = assessDatabaseGeneration(row);
