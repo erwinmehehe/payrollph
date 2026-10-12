@@ -17,8 +17,8 @@ async function main() {
   assert.equal(process.env.OPENAI_API_KEY ?? "", "");
 
   const [alpha, beta] = await db.insert(organizations).values([
-    { name: "Synthetic Alpha Employer", legalName: "Synthetic Alpha Employer", plan: "Core", moduleVisibility: "all" },
-    { name: "Synthetic Beta Employer", legalName: "Synthetic Beta Employer", plan: "Core", moduleVisibility: "all" },
+    { name: "Synthetic Alpha Employer", legalName: "Synthetic Alpha Employer", plan: "Core" },
+    { name: "Synthetic Beta Employer", legalName: "Synthetic Beta Employer", plan: "Core" },
   ]).returning();
   assert.deepEqual([alpha.id, beta.id], [1, 2], "CI database must be empty");
   const passwordHash = hashPassword("Synthetic-HCM-QA-Password-Only-2026!");

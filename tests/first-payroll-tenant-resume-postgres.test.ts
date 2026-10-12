@@ -26,7 +26,7 @@ test("disposable PG16: owner -> HR -> payroll resume, ready preview, zero payrol
   const suffix = randomUUID().slice(0, 8);
   const [tenant] = await db.insert(organizations).values({
     name: "Disposable First Payroll " + suffix, legalName: "Disposable First Payroll " + suffix,
-    payrollCalendarMode: "ph_semi_monthly", moduleVisibility: "core_only",
+    payrollCalendarMode: "ph_semi_monthly",
   }).returning({ id: organizations.id });
   try {
     const people = await db.insert(users).values(["owner","hr","payroll","checker","bookkeeper"].map(role => ({

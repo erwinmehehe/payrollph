@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { mkdir, writeFile } from "node:fs/promises";
 import { db } from "../src/db";
 import { hashPassword } from "../src/lib/crypto";
@@ -28,8 +28,6 @@ async function main() {
   })));
   // Fictional paid access exercises the real self-serve gate without a provider.
   // Beta deliberately stays a legacy pilot to catch stale guided-mode props.
-  await db.update(organizations).set({ moduleVisibility: "core_only" }).where(eq(organizations.id, 1));
-  await db.update(organizations).set({ moduleVisibility: "all" }).where(eq(organizations.id, 2));
   await db.insert(saasSignupVerifications).values({
     organizationId: 1, userId: owner.id, tokenHash: "a".repeat(64),
     expiresAt: new Date(Date.now() + 86400000), verifiedAt: new Date(),
@@ -39,7 +37,7 @@ async function main() {
   // legacy-tenant browser tests, so those regression snapshots stay unchanged.
   const [gamma] = await db.insert(organizations).values({
     name: "Synthetic Gamma First Payroll", legalName: "Synthetic Gamma First Payroll",
-    plan: "Core", payrollCalendarMode: "flexible", moduleVisibility: "core_only",
+    plan: "Core", payrollCalendarMode: "flexible",
   }).returning({ id: organizations.id });
   const colleagues = await db.select({ id: users.id, email: users.email, role: users.role })
     .from(users).where(inArray(users.email, [

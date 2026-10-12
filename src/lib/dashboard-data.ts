@@ -72,11 +72,7 @@ export async function getDashboardData(organizationId?: number) {
     .from(organizations)
     .where(inArray(organizations.id, organizationIds))
     .orderBy(asc(organizations.id));
-  const orgs = storedOrganizations.map(organization => ({
-    ...organization,
-    moduleVisibility: organization.moduleVisibility === "all"
-      ? "all" as const : "core_only" as const,
-  }));
+  const orgs = storedOrganizations;
 
   const selectedOrganization = organizationId
     ? orgs.find((organization) => organization.id === organizationId)

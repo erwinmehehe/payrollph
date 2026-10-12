@@ -66,7 +66,7 @@ test("self-serve owners receive a single guided journey without duplicate setup 
   const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
   const page = readFileSync("src/app/app/page.tsx", "utf8");
   assert.ok(page.includes("isSelfServeCustomer={isSelfServe}"));
-  assert.ok(workspace.includes('guided={isSelfServeCustomer || data.selectedOrganization.moduleVisibility === "core_only"}'));
+  assert.ok(workspace.includes("guided={isSelfServeCustomer}"));
 });
 
 test("seven canonical journey steps own role handoff metadata, not duplicated component arrays",()=>{

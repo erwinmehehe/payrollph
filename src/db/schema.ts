@@ -33,8 +33,6 @@ export const organizations = pgTable("organizations", {
   statutoryDeductionTiming: varchar("statutory_deduction_timing", { length: 24 }).notNull().default("split"),
   payrollCalendarMode: varchar("payroll_calendar_mode", { length: 24 }).notNull().default("flexible"),
   // Existing organizations retain all modules after the 0115 backfill.
-  moduleVisibility: varchar("module_visibility", { length: 16 }).notNull().default("core_only"),
-  enabledModules: jsonb("enabled_modules").$type<string[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
