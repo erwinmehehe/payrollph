@@ -68,7 +68,7 @@ function leaveBlocks(input:{
     const intervals=input.intervalsBySet.get(setId);
     if(!intervals||intervals.length===0)return "unknown";
     const evaluation=approvedLeaveCoverageImpact({
-      employeeId:leave.employeeId,startDate:String(leave.startDate),
+      id:leave.id,employeeId:leave.employeeId,startDate:String(leave.startDate),
       endDate:String(leave.endDate),days:Number(leave.days),
     });
     if(evaluation.kind==="invalid")return "unknown";
