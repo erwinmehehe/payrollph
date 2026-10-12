@@ -13,3 +13,5 @@ Status: **draft; feature OFF and no release acceptance implied**.
 - No cross-entity group HR scoping is implied before multi-entity RFC approval.
 
 Run `TZ=Asia/Manila npx tsx --test tests/tenant-report-builder.test.ts`, `npx tsc --noEmit`, `npm run lint`, all golden payroll suites and the full Asia/Manila suite prior to merge. Human security and payroll UAT are independent gates.
+
+**Multi-entity boundary:** The report builder rejects organizations with more than one active legal employer until a separately reviewed group HR/Payroll entity-grant model exists. Company-wide tenant membership does not imply cross-entity salary export permission.
