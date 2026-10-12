@@ -1412,7 +1412,21 @@ export async function PATCH(request: Request) {
         unpaidMandatoryDeductions: shortfall,
       }, { status: 409 });
     }
-    if (!(sep.itCleared && sep.adminCleared && sep.financeCleared && sep.hrCleared)) {
+    if (criticalReleaseFlagEnabled("offboardingClearance")) {
+      const currentWaivers = await db.select().from(separationClearanceWaivers).where(and(
+        eq(separationClearanceWaivers.organizationId, sep.organizationId),
+        eq(separationClearanceWaivers.separationId, sep.id),
+        isNull(separationClearanceWaivers.revokedAt),
+      ));
+      const progress = offboardingClearanceStatus(sep, currentWaivers);
+      if (!progress.ready) {
+        return Response.json({
+          code: "FINAL_PAY_CLEARANCE_PENDING",
+          error: "Complete or independently waive all department clearances before approval or release.",
+          missingDepartments: progress.missing,
+        }, { status: 409 });
+      }
+    } else if (!(sep.itCleared && sep.adminCleared && sep.financeCleared && sep.hrCleared)) {
       return Response.json({ error: "IT, Admin, Finance, and HR clearance must all be complete first." }, { status: 409 });
     }
 
@@ -1465,7 +1479,22 @@ export async function PATCH(request: Request) {
           if (fresh.preparedByUserId === user.id) {
             throw new Error("FINAL_PAY_MAKER_CHECKER_REQUIRED");
           }
-          if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
+          if (criticalReleaseFlagEnabled("offboardingClearance")) {
+            const waivers = await tx.select().from(separationClearanceWaivers).where(and(
+              eq(separationClearanceWaivers.organizationId, fresh.organizationId),
+              eq(separationClearanceWaivers.separationId, fresh.id),
+              isNull(separationClearanceWaivers.revokedAt),
+            ));
+            if (!offboardingClearanceStatus(fresh, waivers).ready) {
+              throw new Error("FINAL_PAY_CLEARANCE_STALE");
+            }
+            const grants = await tx.select({ state: itAccessGrants.state }).from(itAccessGrants)
+              .where(and(eq(itAccessGrants.organizationId, fresh.organizationId),
+                eq(itAccessGrants.employeeId, fresh.employeeId)));
+            if (!externalAccessRevoked(grants.map(grant => grant.state))) {
+              throw new Error("FINAL_PAY_IT_ACCESS_PENDING");
+            }
+          } else if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
             throw new Error("FINAL_PAY_CLEARANCE_STALE");
           }
           const frozen = (fresh.computationSnapshot ?? {}) as Record<string, unknown>;
@@ -1569,7 +1598,22 @@ export async function PATCH(request: Request) {
         || fresh.preparedByUserId === fresh.approvedByUserId) {
         throw new Error("FINAL_PAY_THREE_ACTOR_REQUIRED: preparer, checker, and releaser must be three distinct accounts.");
       }
-      if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
+      if (criticalReleaseFlagEnabled("offboardingClearance")) {
+        const waivers = await tx.select().from(separationClearanceWaivers).where(and(
+          eq(separationClearanceWaivers.organizationId, fresh.organizationId),
+          eq(separationClearanceWaivers.separationId, fresh.id),
+          isNull(separationClearanceWaivers.revokedAt),
+        ));
+        if (!offboardingClearanceStatus(fresh, waivers).ready) {
+          throw new Error("FINAL_PAY_CLEARANCE_STALE");
+        }
+        const grants = await tx.select({ state: itAccessGrants.state }).from(itAccessGrants)
+          .where(and(eq(itAccessGrants.organizationId, fresh.organizationId),
+            eq(itAccessGrants.employeeId, fresh.employeeId)));
+        if (!externalAccessRevoked(grants.map(grant => grant.state))) {
+          throw new Error("FINAL_PAY_IT_ACCESS_PENDING");
+        }
+      } else if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
         throw new Error("Final-pay operational clearances changed after approval. Refresh and reapprove.");
       }
 
@@ -1724,6 +1768,47 @@ export async function PATCH(request: Request) {
         eq(employees.status, "Separating"),
       )).returning({ id: employees.id });
       if (!separatedWorker) throw new Error("FINAL_PAY_WORKER_STATE_CHANGED: worker status changed during release.");
+
+      if (criticalReleaseFlagEnabled("offboardingClearance")) {
+        // Employee ESS logins belong to one worker. Staff identities may span
+        // companies: revoke only the departing worker's employer membership.
+        // External SSO/MDM calls are not made or claimed completed here.
+        const employeeAccounts = await tx.select({ id: users.id }).from(users).where(and(
+          eq(users.employeeId, fresh.employeeId), eq(users.role, "employee"),
+        ));
+        const employeeUserIds = employeeAccounts.map(row => row.id);
+        const disabledLogins = employeeUserIds.length
+          ? await tx.update(users).set({ active: false, localPasswordEnabled: false })
+            .where(and(inArray(users.id, employeeUserIds), eq(users.role, "employee")))
+            .returning({ id: users.id })
+          : [];
+        const revokedSessions = employeeUserIds.length
+          ? await tx.update(sessions).set({ revokedAt: new Date() }).where(and(
+              inArray(sessions.userId, employeeUserIds),
+              isNull(sessions.revokedAt),
+            )).returning({ id: sessions.id })
+          : [];
+        const workerMemberships = await tx.update(userOrganizations).set({ active: false })
+          .where(and(
+            eq(userOrganizations.organizationId, fresh.organizationId),
+            eq(userOrganizations.workerEmployeeId, fresh.employeeId),
+            eq(userOrganizations.active, true),
+          )).returning({ id: userOrganizations.id });
+        await tx.insert(auditEvents).values({
+          organizationId: fresh.organizationId,
+          actor: user.name,
+          action: "Separated worker application access revoked",
+          resource: "Employee " + fresh.employeeId,
+          metadata: {
+            separationId: fresh.id, actorUserId: user.id,
+            disabledEmployeeLoginIds: disabledLogins.map(row => row.id),
+            revokedSessionCount: revokedSessions.length,
+            revokedEmployerMembershipIds: workerMemberships.map(row => row.id),
+            externalITGrantsVerifiedRevoked: true,
+            externalProviderCallsMade: false,
+          },
+        });
+      }
 
       if (activeAssignment) {
         const [closedAssignment] = await tx.update(positionAssignments).set({
