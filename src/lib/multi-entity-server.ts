@@ -65,12 +65,19 @@ export async function resolveMultiEntityContext(input: {
   const requested = explicit !== undefined
     ? explicit : preference[0]
       ? (preference[0].legalEntityId ?? "all") : undefined;
-  const decision = decideEntityAccess({
+  const policy = {
     role: access.role,
     availableEntityIds: entities.map(entity => entity.id),
     grantedEntityIds: grants.map(grant => grant.legalEntityId),
-    requested,
-  });
+  };
+  let decision = decideEntityAccess({ ...policy, requested });
+  // A saved preference is NOT authority. If a role changed from group_hr to
+  // scoped, or an old entity grant was revoked, recover to the first currently
+  // granted employer without disclosing the stale employer. An explicit
+  // client-supplied header/query/parameter must still fail closed instead.
+  if (!decision.ok && explicit === undefined) {
+    decision = decideEntityAccess({ ...policy, requested: undefined });
+  }
   if (!decision.ok) return { ok: false, response: denied(
     decision.code === "ENTITY_SELECTION_REQUIRED"
       ? "An administrator must assign exactly one legal employer to this role."
