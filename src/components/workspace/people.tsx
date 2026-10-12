@@ -758,6 +758,7 @@ function PersonDrawer({
   );
   const [editingEmployment, setEditingEmployment] = useState(false);
   const [entityTransferOpen, setEntityTransferOpen] = useState(false);
+  const [requestedTransferEntityId, setRequestedTransferEntityId] = useState<number | null>(null);
   const [savingEmployment, setSavingEmployment] = useState(false);
   const [startDate, setStartDate] = useState(employee.startDate ?? "");
   const [employmentError, setEmploymentError] = useState("");
@@ -1228,14 +1229,23 @@ function PersonDrawer({
           style={{ margin: "0 0 16px", padding: 16 }}>
           <div className="card-kicker">LEGAL EMPLOYER</div>
           <EntityBadge context={data.multiEntity} legalEntityId={employee.legalEntityId} />
-          {canManage && ["owner","admin","bookkeeper"].includes(data.access?.role ?? "") &&
-            <div style={{ marginTop: 12 }}>
-              <button className="secondary-button" onClick={() => setEntityTransferOpen(true)}>
-                Transfer to another entity
-              </button>
-            </div>}
+          {canManage && data.multiEntity.group && ["owner","admin","bookkeeper"].includes(data.access?.role ?? "") &&
+            <label style={{ display: "grid", gap: 5, marginTop: 12 }}>Entity
+              <select aria-label="Employee entity" value={employee.legalEntityId ?? ""}
+                onChange={event => {
+                  const requested = Number(event.target.value);
+                  if (requested !== employee.legalEntityId) {
+                    setRequestedTransferEntityId(requested);
+                    setEntityTransferOpen(true);
+                  }
+                }}>
+                {data.multiEntity.entities.map(entity => <option key={entity.id} value={entity.id}>{entity.displayName}</option>)}
+              </select>
+              <small>Changing the employer opens an effective-dated transfer requiring independent approval.</small>
+            </label>}
           {entityTransferOpen && <EntityTransferDialog employee={employee}
-            context={data.multiEntity} organizationId={data.selectedOrganization.id}
+            context={data.multiEntity} initialTargetId={requestedTransferEntityId}
+            organizationId={data.selectedOrganization.id}
             onClose={() => setEntityTransferOpen(false)} onRefresh={onRefresh} />}
         </section>}
         <section id="employee-360-employment" tabIndex={-1} className="card scroll-mt-4" style={{ margin: "0 0 16px", boxShadow: "none" }}>
