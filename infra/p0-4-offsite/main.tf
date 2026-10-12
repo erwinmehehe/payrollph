@@ -69,24 +69,45 @@ data "aws_iam_policy_document" "bucket_policy" {
     effect = "Deny"
     actions = ["s3:*"]
     resources = [aws_s3_bucket.backups.arn, "${aws_s3_bucket.backups.arn}/*"]
-    principals { type = "*", identifiers = ["*"] }
-    condition { test = "Bool", variable = "aws:SecureTransport", values = ["false"] }
+    principals {
+      type = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test = "Bool"
+      variable = "aws:SecureTransport"
+      values = ["false"]
+    }
   }
   statement {
     sid = "RequireExplicitKMS"
     effect = "Deny"
     actions = ["s3:PutObject"]
     resources = ["${aws_s3_bucket.backups.arn}/${local.archive_path}*"]
-    principals { type = "*", identifiers = ["*"] }
-    condition { test = "StringNotEquals", variable = "s3:x-amz-server-side-encryption", values = ["aws:kms"] }
+    principals {
+      type = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test = "StringNotEquals"
+      variable = "s3:x-amz-server-side-encryption"
+      values = ["aws:kms"]
+    }
   }
   statement {
     sid = "RequireDedicatedKMSKey"
     effect = "Deny"
     actions = ["s3:PutObject"]
     resources = ["${aws_s3_bucket.backups.arn}/${local.archive_path}*"]
-    principals { type = "*", identifiers = ["*"] }
-    condition { test = "StringNotEquals", variable = "s3:x-amz-server-side-encryption-aws-kms-key-id", values = [aws_kms_key.backups.arn] }
+    principals {
+      type = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test = "StringNotEquals"
+      variable = "s3:x-amz-server-side-encryption-aws-kms-key-id"
+      values = [aws_kms_key.backups.arn]
+    }
   }
 }
 resource "aws_s3_bucket_policy" "backups" {
@@ -98,7 +119,10 @@ data "aws_iam_policy_document" "backup_assume" {
   statement {
     effect = "Allow"
     actions = ["sts:AssumeRoleWithWebIdentity"]
-    principals { type = "Federated", identifiers = [local.oidc_arn] }
+    principals {
+      type = "Federated"
+      identifiers = [local.oidc_arn]
+    }
     condition {
       test = "StringEquals"
       variable = "token.actions.githubusercontent.com:aud"
@@ -115,7 +139,10 @@ data "aws_iam_policy_document" "restore_assume" {
   statement {
     effect = "Allow"
     actions = ["sts:AssumeRoleWithWebIdentity"]
-    principals { type = "Federated", identifiers = [local.oidc_arn] }
+    principals {
+      type = "Federated"
+      identifiers = [local.oidc_arn]
+    }
     condition {
       test = "StringEquals"
       variable = "token.actions.githubusercontent.com:aud"
