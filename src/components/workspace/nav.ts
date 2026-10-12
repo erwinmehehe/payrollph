@@ -2,6 +2,7 @@ import {
   AlertCircle,
   BadgeDollarSign,
   Banknote,
+  Building2,
   BriefcaseBusiness,
   CalendarDays,
   Calculator,
@@ -95,6 +96,7 @@ export const NAVIGATION: NavGroup[] = [
   {
     label: "Manage",
     items: [
+      { name: "Entities", icon: Building2, hint: "Legal employers, registrations and transfer approvals", tone: "teal" },
       { name: "Integrations", icon: CloudCog, hint: "Email provider, accounting and bank connections", tone: "cyan" },
       { name: "Developer", icon: Webhook, hint: "API keys, webhooks and delivery log", tone: "slate", badge: "api" },
       { name: "Automation", icon: Workflow, hint: "Build governed WHEN / IF / THEN workflows across HCM, workforce and payroll", tone: "purple" },
