@@ -17,6 +17,10 @@ test("0120 migration is idempotent and rejects tenant/self-review violations in 
   const migration=readFileSync("drizzle/0120_wfm_punch_evidence.sql","utf8");
   const sha256=createHash("sha256").update(migration).digest("hex");
   assert.equal(sha256.length,64);
+  // Refuse schema DDL outside a disposable loopback CI database.
+  const ciHost=new URL(process.env.DATABASE_URL!).hostname;
+  assert.ok(ciHost==="localhost"||ciHost==="127.0.0.1"||ciHost==="[::1]",
+    "Migration test is restricted to local ephemeral PostgreSQL.");
   const client=new Client({connectionString:process.env.DATABASE_URL});
   await client.connect();
   let started=false;
