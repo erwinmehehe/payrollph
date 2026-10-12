@@ -29,3 +29,18 @@
 ## Operational blockers
 
 Real Neon project discovery, journal adoption, 13 groups of historical source duplicate prefixes, runtime DDL in `src/lib/core-schema-compat.ts`, encrypted bank backfills, human independent payroll reconciliation and production launch remain open under #744, #735, #737, #579 and #112.
+
+
+## Actual Neon schema readiness audit — 2026-10-12 (READ ONLY)
+
+**Correct target confirmed after the owner reconnected Neon:** project neon-almond-ridge (calm-wave-70219564), branch main, database neondb, PostgreSQL 18.6. The earlier legacy UUID/client Neon identification was for the wrong account; it does not apply. The actual deployment uses organizations and integer employee/payroll IDs, consistent with the current source model.
+
+Catalog-only verification found **112 live public application tables** versus **253 distinct table declarations** across the current Drizzle schema files (141 source-defined tables absent; this is not the count of migrations required). No approved payrollph_release_migration_receipts, payrollph_schema_migrations or payrollph_migration_cutover tables are present. Absence of receipts means the applied history is UNKNOWN; table presence is not proof of execution.
+
+**Blocking missing dependencies in THIS numbered train:**
+- 0117_xendit_payout_provider.sql has four ALTER TABLE targets absent in the actual database: payout_batches, payout_transfers, payout_batch_transfers, payout_profiles. It cannot run as currently written.
+- 0119_multi_entity_v2_scope_transfer.sql references the missing payout tables and worker_employment_events, and contains BEGIN/COMMIT plus ordinary UPDATE ... SET constructs that must be reconciled with the reviewed #867 executor's transaction and statement grammar.
+- Earlier release-critical tables audit_chain_heads, provider_events, compensation_automation_intents and SaaS billing tables are also absent; the critical seal_audit_events function and four expected release-specific indexes were not found.
+- 0115 and 0116 reference existing core tables, but remain NOT APPROVED: prerequisites, source receipts, application/schema integration and a restored-clone rehearsal are outstanding.
+
+**STOP:** The source CI checker passed on the draft #865 branch, but that does not certify live schema compatibility or permission to apply SQL. Do NOT run drizzle-kit push, replay all historical SQL, write inferred receipts, or apply 0115-0119 on main. First reconstruct reviewed historical and runtime DDL provenance, obtain explicit approval for an isolated disposable clone of this correct Neon branch, build/additively stage missing dependencies, verify #867 safety and centavo reconciliation, and collect DBA/security/payroll sign-offs. All production release flags remain OFF until separately authorized. Diagnostic source PR #892 provides a read-only prerequisite fingerprint; this is not a substitute for independent audit evidence.
