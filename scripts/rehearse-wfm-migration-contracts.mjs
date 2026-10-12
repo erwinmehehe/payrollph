@@ -167,7 +167,9 @@ async function verifyBehavior() {
   );
   await rejected(
     "INSERT INTO workforce_punch_photo_evidence(id,organization_id,employee_id,expires_at) VALUES ('ci-invalid',1,999,'2027-01-01T00:00:00Z')",
-    [], "23503",
+    // BEFORE INSERT tenant guard rejects missing / other-tenant employees
+    // before the FK constraint can fire. Assert the exact guard SQLSTATE.
+    [], "23514",
   );
   // Direct SQL bypass probes: standalone foreign keys MUST NOT permit
   // references to a different employer's employee, worksite or photo.
