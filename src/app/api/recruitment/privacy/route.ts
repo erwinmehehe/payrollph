@@ -1,11 +1,11 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { applicantPrivacyEvidence, auditEvents, jobApplicants, userOrganizations } from "@/db/schema";
+import { applicantPrivacyEvidence, auditEvents, jobApplicants } from "@/db/schema";
 import { assertOrganizationRole, getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
-  applicantPiiEraseValues, validApplicantPrivacyDecision,
+  applicantPiiEraseValues, applicantErasureIndependentlyApproved, validApplicantPrivacyDecision,
 } from "@/lib/recruitment-applicant-privacy";
 import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa,
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
     Response.json({ error: "Applicant export unavailable or already erased." }, { status: 404, headers: noStore });
 }
 
-/** Approved DPO-mediated PII erasure. Preserves a non-identifying audit row. */
+/** Three controlled actions: request -> independent review -> erase. */
 export async function PATCH(request: Request) {
   if (!criticalReleaseFlagEnabled("applicantPrivacy")) return unavailable();
   const origin = enforceSameOriginMutation(request);
@@ -87,33 +87,35 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
   const applicantId = Number(body.applicantId);
-  const reviewerUserId = Number(body.reviewerUserId);
-  if (!positiveId(organizationId) || !positiveId(applicantId) || !positiveId(reviewerUserId)) {
-    return Response.json({ error: "Valid organization, candidate and independent reviewer required." }, { status: 400 });
+  const action = String(body.action ?? "");
+  if (!positiveId(organizationId) || !positiveId(applicantId) ||
+      !["request_delete", "approve_delete", "erase"].includes(action)) {
+    return Response.json({ error: "Valid organization, candidate and action required." }, { status: 400 });
   }
   const denied = await authorize(user.id, organizationId);
   if (denied) return denied;
   const mfa = requireSensitiveActionMfa(user);
   if (mfa) return mfa;
   const rate = await enforceSensitiveActionRateLimit(request, {
-    userId: user.id, action: "applicant-privacy-erase", resourceId: applicantId,
+    userId: user.id, action: "applicant-privacy-" + action, resourceId: applicantId,
     limit: 3, windowMs: 60 * 60_000,
   });
   if (rate) return rate;
-  if (reviewerUserId === user.id || !validApplicantPrivacyDecision(body.reason, body.reviewEvidenceReference)) {
-    return Response.json({ error: "A separate authorized reviewer, documented reason and evidence reference are required." }, { status: 422 });
+  const reason = String(body.reason ?? "").trim();
+  const evidence = String(body.reviewEvidenceReference ?? "").trim();
+  if (action === "request_delete" &&
+      (reason.length < 20 || reason.length > 500)) {
+    return Response.json({ error: "Documented candidate request reason (20-500 characters) is required." }, { status: 422 });
   }
+  if (action === "approve_delete" && !validApplicantPrivacyDecision(
+    String(body.approvalReason ?? ""), evidence,
+  )) {
+    return Response.json({ error: "Reviewer decision and evidence reference are required." }, { status: 422 });
+  }
+
   const result = await db.transaction(async tx => {
     await tx.execute(sql`SELECT id FROM job_applicants WHERE id = ${applicantId}
       AND organization_id = ${organizationId} FOR UPDATE`);
-    const [reviewer] = await tx.select({ userId: userOrganizations.userId })
-      .from(userOrganizations).where(and(
-        eq(userOrganizations.organizationId, organizationId),
-        eq(userOrganizations.userId, reviewerUserId),
-        eq(userOrganizations.active, true),
-        inArray(userOrganizations.role, ["owner", "admin"]),
-      )).limit(1);
-    if (!reviewer) return "reviewer_not_authorized";
     const [applicant] = await tx.select().from(jobApplicants).where(and(
       eq(jobApplicants.id, applicantId), eq(jobApplicants.organizationId, organizationId),
     )).limit(1);
@@ -123,32 +125,74 @@ export async function PATCH(request: Request) {
     )).limit(1);
     if (!applicant || !privacy) return "not_found";
     if (privacy.purgedAt) return "already_erased";
-    if (applicant.hiredEmployeeId != null || privacy.legalHold) return "retention_hold";
-    if (applicant.resumeUrl) return "resume_storage_pending";
+    if (applicant.hiredEmployeeId !== null || privacy.legalHold) return "retention_hold";
     const now = new Date();
-    await tx.update(jobApplicants).set({ ...applicantPiiEraseValues(applicantId), stage: "rejected" })
+    if (action === "request_delete") {
+      // A new maker request invalidates any older review.
+      await tx.update(applicantPrivacyEvidence).set({
+        deletionRequestedByUserId: user.id,
+        deletionRequestedAt: now, deletionReason: reason,
+        deletionReviewedByUserId: null, deletionReviewedAt: null,
+        deletionReviewEvidenceReference: null,
+      }).where(and(eq(applicantPrivacyEvidence.organizationId, organizationId),
+        eq(applicantPrivacyEvidence.applicantId, applicantId)));
+      await tx.insert(auditEvents).values({
+        organizationId, actor: user.name, action: "Candidate PII deletion requested",
+        resource: "Applicant #" + applicantId,
+        metadata: { applicantId, requesterUserId: user.id, reason },
+      });
+      return "requested";
+    }
+    if (action === "approve_delete") {
+      if (!privacy.deletionRequestedByUserId || !privacy.deletionRequestedAt) return "no_request";
+      if (privacy.deletionRequestedByUserId === user.id) return "self_review_forbidden";
+      await tx.update(applicantPrivacyEvidence).set({
+        deletionReviewedByUserId: user.id,
+        deletionReviewedAt: now, deletionReviewEvidenceReference: evidence,
+      }).where(and(eq(applicantPrivacyEvidence.organizationId, organizationId),
+        eq(applicantPrivacyEvidence.applicantId, applicantId)));
+      await tx.insert(auditEvents).values({
+        organizationId, actor: user.name, action: "Candidate PII deletion independently reviewed",
+        resource: "Applicant #" + applicantId,
+        metadata: {
+          applicantId, requesterUserId: privacy.deletionRequestedByUserId,
+          reviewerUserId: user.id, reviewEvidenceReference: evidence,
+          approvalReason: String(body.approvalReason).trim(),
+        },
+      });
+      return "reviewed";
+    }
+    // No caller-supplied reviewer identity is trusted for actual deletion:
+    // the database row must contain a prior action by a different signed-in
+    // company-wide owner/admin, tied to this current request and recent enough.
+    if (!applicantErasureIndependentlyApproved(privacy, now)) return "review_required";
+    if (applicant.resumeUrl) return "resume_storage_pending";
+    await tx.update(jobApplicants)
+      .set({ ...applicantPiiEraseValues(applicantId), stage: "rejected" })
       .where(and(eq(jobApplicants.id, applicantId), eq(jobApplicants.organizationId, organizationId)));
     await tx.update(applicantPrivacyEvidence).set({
       purgedAt: now, purgedByUserId: user.id, rejectedAt: privacy.rejectedAt ?? now,
     }).where(and(eq(applicantPrivacyEvidence.organizationId, organizationId),
       eq(applicantPrivacyEvidence.applicantId, applicantId)));
     await tx.insert(auditEvents).values({
-      organizationId, actor: user.name, action: "Candidate PII erasure approved and applied",
+      organizationId, actor: user.name, action: "Candidate PII erasure applied after independent review",
       resource: "Applicant #" + applicantId,
       metadata: {
-        applicantId, actorUserId: user.id, independentReviewerUserId: reviewerUserId,
-        reviewEvidenceReference: String(body.reviewEvidenceReference).trim(),
-        reason: String(body.reason).trim(), retainedAnonymousRecord: true,
+        applicantId, erasedByUserId: user.id,
+        requesterUserId: privacy.deletionRequestedByUserId,
+        independentReviewerUserId: privacy.deletionReviewedByUserId,
+        reviewEvidenceReference: privacy.deletionReviewEvidenceReference,
+        retainedAnonymousRecord: true,
       },
     });
     return "erased";
   });
-  if (result !== "erased") return Response.json({
+  if (!["requested", "reviewed", "erased"].includes(result)) return Response.json({
     error: result === "resume_storage_pending" ?
       "Private resume object must be securely deleted and verified before candidate erasure." :
       result === "retention_hold" ?
       "Hired worker records or a legal hold require separate retention review." :
-      "Candidate erasure cannot proceed: " + result,
+      "Candidate privacy action cannot proceed: " + result,
   }, { status: result === "not_found" ? 404 : 409, headers: noStore });
-  return Response.json({ status: "erased", applicantId, preservedAnonymousAudit: true }, { headers: noStore });
+  return Response.json({ status: result, applicantId }, { headers: noStore });
 }
