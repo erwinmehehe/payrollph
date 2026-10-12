@@ -23,7 +23,7 @@ function validated(body: Record<string, unknown>) {
   return { name, reportKey, selectedFields: selectedFields as string[],
     rowFilters: rowFilters as Array<{ field: string; operator: string; value: string }> };
 }
-async function authorized(request: Request, organizationId: number, userId: number) {
+async function authorized(organizationId: number, userId: number) {
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0) return Response.json({ error: "Invalid workspace." }, { status: 400 });
   return await assertMembership(userId, organizationId);
 }
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Sign in required." }, { status: 401 });
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
-  const denied = await authorized(request, organizationId, user.id);
+  const denied = await authorized(organizationId, user.id);
   if (denied) return denied;
   const rows = await db.select().from(savedReportDefinitions).where(and(
     eq(savedReportDefinitions.organizationId, organizationId), eq(savedReportDefinitions.userId, user.id),
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
   if (!user) return Response.json({ error: "Sign in required." }, { status: 401 });
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
-  const denied = await authorized(request, organizationId, user.id); if (denied) return denied;
+  const denied = await authorized(organizationId, user.id); if (denied) return denied;
   const clean = validated(body);
   if (!clean) return Response.json({ error: "Valid report name, fields and filters are required." }, { status: 422 });
   const [row] = await db.insert(savedReportDefinitions).values({
@@ -65,7 +65,7 @@ export async function PATCH(request: Request) {
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
   const id = Number(body.id);
-  const denied = await authorized(request, organizationId, user.id); if (denied) return denied;
+  const denied = await authorized(organizationId, user.id); if (denied) return denied;
   if (!Number.isSafeInteger(id) || id <= 0) return Response.json({ error: "Invalid saved report." }, { status: 400 });
   const clean = validated(body);
   if (!clean) return Response.json({ error: "Invalid report fields or filters." }, { status: 422 });
@@ -86,7 +86,7 @@ export async function DELETE(request: Request) {
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
   const id = Number(body.id);
-  const denied = await authorized(request, organizationId, user.id); if (denied) return denied;
+  const denied = await authorized(organizationId, user.id); if (denied) return denied;
   if (!Number.isSafeInteger(id) || id <= 0) return Response.json({ error: "Invalid report." }, { status: 400 });
   const [row] = await db.delete(savedReportDefinitions).where(and(
     eq(savedReportDefinitions.id, id), eq(savedReportDefinitions.organizationId, organizationId),
