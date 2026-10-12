@@ -1,7 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
-import { and, desc, eq, gte, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, lte, isNull, gte, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, timePunches, worksiteGeofenceBoundaries, worksites, workforcePunchPhotoConsents, workforcePunchPhotoEvidence, workforcePunchSubmissions, worksitePunchPolicies } from "@/db/schema";
+import { employees, employeeWorksiteAssignments, worksiteGeofenceBoundaries, worksites, workforcePunchPhotoConsents, workforcePunchPhotoEvidence, workforcePunchSubmissions, worksitePunchPolicies } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, assertOrganizationRole, getAccess, assertScope, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
@@ -12,7 +12,7 @@ import { reconcileAttendanceExceptionEvents } from "@/lib/workforce-attendance-e
 import { authorizedGeofenceSites } from "@/lib/workforce-geofence-server";
 import { evaluateGeofenceFix, geofencePilotEnabledForOrganization } from "@/lib/workforce-geofence";
 import { encryptPunchPhoto, decryptPunchPhoto, stripJpegMetadata } from "@/lib/workforce-punch-photo-crypto";
-import { enhancedPunchEnabled, photoConsentAllowsCapture, photoCaptureDecision, photoExpiry, evaluatePunchTiming, impossibleTravel, PUNCH_CONSENT_VERSION, PUNCH_MAX_IMAGE_BYTES, PUNCH_ACTIONS, type PhotoMode, type PunchFlag } from "@/lib/workforce-punch-evidence";
+import { enhancedPunchEnabled, photoCaptureDecision, photoExpiry, evaluatePunchTiming, impossibleTravel, PUNCH_CONSENT_VERSION, PUNCH_MAX_IMAGE_BYTES, PUNCH_ACTIONS, type PhotoMode } from "@/lib/workforce-punch-evidence";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,13 +36,21 @@ async function employeeSession(organizationId: number) {
   return { denied: employee ? null : respond({ error:"Employee unavailable." },404), user, employee:employee??null };
 }
 async function sitePolicy(organizationId: number, employeeId: number, date: string) {
-  const [primary] = await db.select().from(worksitePunchPolicies)
-    .innerJoin(worksites,and(eq(worksites.id,worksitePunchPolicies.worksiteId),eq(worksites.organizationId,organizationId),eq(worksites.active,true)))
-    .where(eq(worksitePunchPolicies.organizationId, organizationId));
-  const sites = await authorizedGeofenceSites(organizationId, employeeId, date);
-  const policy = primary && sites.some(site=>site.id===primary.worksite_punch_policies.worksiteId)
-    ? primary.worksite_punch_policies : null;
-  return { photoMode: (policy?.photoMode ?? "off") as PhotoMode, worksiteId: policy?.worksiteId ?? null, sites };
+  const [primary] = await db.select({worksiteId:employeeWorksiteAssignments.worksiteId}).from(employeeWorksiteAssignments)
+    .innerJoin(worksites,and(eq(worksites.id,employeeWorksiteAssignments.worksiteId),
+      eq(worksites.organizationId,organizationId),eq(worksites.active,true)))
+    .where(and(eq(employeeWorksiteAssignments.organizationId,organizationId),
+      eq(employeeWorksiteAssignments.employeeId,employeeId),
+      eq(employeeWorksiteAssignments.decision,"allow"),
+      lte(employeeWorksiteAssignments.effectiveFrom,date),
+      or(isNull(employeeWorksiteAssignments.effectiveUntil),gte(employeeWorksiteAssignments.effectiveUntil,date))))
+    .orderBy(desc(employeeWorksiteAssignments.effectiveFrom),desc(employeeWorksiteAssignments.id)).limit(1);
+  const siteId = primary?.worksiteId ?? null;
+  const [policy] = siteId === null ? [null] : await db.select().from(worksitePunchPolicies)
+    .where(and(eq(worksitePunchPolicies.organizationId,organizationId),eq(worksitePunchPolicies.worksiteId,siteId))).limit(1);
+  const sites = geofencePilotEnabledForOrganization(organizationId)
+    ? await authorizedGeofenceSites(organizationId, employeeId, date) : [];
+  return {photoMode: (policy?.photoMode ?? "off") as PhotoMode,worksiteId:siteId,sites};
 }
 
 export async function GET(request: Request) {
