@@ -52,8 +52,8 @@ test("extended API is default-off, scope-checked, revocable, tenant and entity i
       { payrollRunId: runB.id, employeeId: employeeB.id, grossPay: "9000.00", netPay: "8000.00", deductions: "1000.00" },
     ]).returning({ id: payrollEntries.id });
     const [slipA, slipB] = await db.insert(payslips).values([
-      { organizationId: a.id, employeeId: employeeA.id, payrollEntryId: entryA.id, periodLabel: "A", content: "%PDF-alpha-only" },
-      { organizationId: b.id, employeeId: employeeB.id, payrollEntryId: entryB.id, periodLabel: "B", content: "%PDF-beta-private" },
+      { organizationId: a.id, employeeId: employeeA.id, payrollEntryId: entryA.id, periodLabel: "A", content: "Linaw Payslip\nAlpha only" },
+      { organizationId: b.id, employeeId: employeeB.id, payrollEntryId: entryB.id, periodLabel: "B", content: "Linaw Payslip\nBeta private" },
     ]).returning({ id: payslips.id });
     await db.insert(providerEvents).values([
       { provider: "linaw", eventId: "test-alpha-"+nonce, organizationId: a.id, eventType: "employee.onboarded" },
@@ -86,7 +86,8 @@ test("extended API is default-off, scope-checked, revocable, tenant and entity i
 
     const pdf = await downloadPayslip(request("/api/v1/payslips/"+slipA.id), { params: Promise.resolve({ id: String(slipA.id) }) });
     assert.equal(pdf.status, 200);
-    assert.equal(await pdf.text(), "%PDF-alpha-only");
+    assert.equal(await pdf.text(), "Linaw Payslip\nAlpha only");
+    assert.match(pdf.headers.get("content-type") ?? "", /^text\/plain/);
     assert.equal((await downloadPayslip(request("/api/v1/payslips/"+slipB.id), { params: Promise.resolve({ id: String(slipB.id) }) })).status, 404);
 
     const events = await listEvents(request("/api/v1/events"));
