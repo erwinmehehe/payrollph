@@ -25,6 +25,14 @@ test("real purge job erases expired ciphertext but preserves held and future ten
       {id:ids[2],organizationId:orgA.id,employeeId:a.id,expiresAt:future,sealedPhoto:"sealed-future"},
       {id:ids[3],organizationId:orgB.id,employeeId:b.id,expiresAt:old,sealedPhoto:"sealed-other"},
     ]);
+    // SQL tenant triggers must reject mismatched employee/evidence even
+    // when an API caller attempts a direct database write.
+    await assert.rejects(async()=>{
+      await db.insert(workforcePunchPhotoEvidence).values({
+        id:randomUUID(),organizationId:orgB.id,employeeId:a.id,
+        expiresAt:future,sealedPhoto:"synthetic-wrong-tenant",
+      });
+    },/WFM_PUNCH_TENANT_MISMATCH/);
     const result=await purgeExpiredPunchPhotos(new Date("2026-10-12T00:00:00.000Z"));
     assert.ok(result.purged>=2);
     const rows=await db.select().from(workforcePunchPhotoEvidence).where(inArray(workforcePunchPhotoEvidence.id,ids));
