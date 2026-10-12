@@ -1,9 +1,11 @@
 -- #910 REVIEW-ONLY FORWARD PREDECESSOR SOURCE CANDIDATE — NOT AN AUTHORIZED MIGRATION.
 -- NOT IN drizzle/; DO NOT RUN against Neon (even staging/clone) without DBA review.
 -- Built from already merged historical source paths, preserving statement order.
--- This file contains additive DDL and indexes ONLY; intentionally omits 0050's
--- mutable 0050 employer-position UPDATE and 0051 legacy family/level/grade INSERT/UPDATE.
--- Existing tables are preserved. Skipped 0051 mappings need an independent reviewed backfill if live job profiles exist.\n-- All existing historical objects and data must be independently preflighted.
+-- This file contains additive DDL and indexes ONLY. It intentionally omits
+-- the 0050 position employer UPDATE and 0051 legacy family/level/grade
+-- INSERT/UPDATE data backfills.
+-- Existing tables are preserved. Skipped 0051 mappings need an independent reviewed backfill if live job profiles exist.
+-- All existing historical objects and data must be independently preflighted.
 -- No historical applied receipts/approvals/backup/restore evidence are implied.
 -- Reconcile duplicates, future migration number, exact SQL SHA and 0121 order.
 -- The human operator must stop on missing receipts, duplicate live business keys,
