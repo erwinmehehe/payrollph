@@ -151,6 +151,28 @@ test("#910: 0121 backfill uses immutable run employer, excludes ambiguous histor
     assert.equal(moneyBefore.gross,"54000.00");
     assert.equal(moneyBefore.net,"50500.00");
     await client.query(SQL);
+    // This independently reviewable candidate is not part of the original
+    // historical source; NEVER assume 0121 alone enforces these tenant FKs.
+    const tenantGuard = readFileSync(new URL(
+      "../docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql", import.meta.url), "utf8");
+    await client.query(tenantGuard);
+    await client.query(tenantGuard);
+    const integrity = await one(client,
+      "SELECT count(*)::int AS count FROM pg_constraint WHERE conname IN (" +
+      "'employees_tenant_employer_fk','payroll_runs_tenant_employer_fk'," +
+      "'assignment_employee_tenant_fk','transfer_employee_tenant_fk'," +
+      "'entity_grant_membership_tenant_fk','entity_preference_membership_tenant_fk'," +
+      "'payroll_entries_run_employer_fk','payslips_entry_employer_fk'," +
+      "'payroll_jobs_run_employer_fk','payout_batches_run_employer_fk'," +
+      "'payout_transfers_run_employer_fk','bank_file_validations_run_employer_fk'," +
+      "'year_end_adjustments_run_employer_fk')");
+    assert.equal(integrity.count, 13);
+    // The source proposal deliberately leaves legacy FKs unvalidated.
+    const notValidated = await one(client,
+      "SELECT count(*)::int AS count FROM pg_constraint WHERE conname IN " +
+      "('employees_tenant_employer_fk','payroll_runs_tenant_employer_fk'," +
+      "'assignment_employee_tenant_fk','transfer_employee_tenant_fk') AND NOT convalidated");
+    assert.equal(notValidated.count,4);
     const assigned = await client.query(
       "SELECT e.id,r.legal_entity_id AS expected,e.legal_entity_id AS actual " +
       "FROM payroll_entries e JOIN payroll_runs r ON r.id=e.payroll_run_id ORDER BY e.id");
@@ -181,6 +203,31 @@ test("#910: 0121 backfill uses immutable run employer, excludes ambiguous histor
     await rejectSql(client,
       "INSERT INTO user_legal_entity_grants(organization_id,user_id,legal_entity_id) VALUES($1,$2,$3)",
       [a,hr,b1]);
+    const foreignUser=await one(client,
+      "INSERT INTO users(name,email,password_hash,role) " +
+      "VALUES('Foreign synthetic','issue910.foreign@example.test','synthetic','hr') RETURNING id");
+    await client.query(
+      "INSERT INTO user_organizations(organization_id,user_id,role) VALUES($1,$2,'hr')",
+      [b,foreignUser.id]);
+    await rejectSql(client,
+      "INSERT INTO user_legal_entity_grants(organization_id,user_id,legal_entity_id) VALUES($1,$2,$3)",
+      [a,foreignUser.id,a1]);
+    await rejectSql(client,
+      "INSERT INTO employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from) " +
+      "VALUES($1,$2,$3,'2026-04-01')",[a,workerB,a1]);
+    await rejectSql(client,
+      "INSERT INTO entity_transfer_requests(organization_id,employee_id,from_legal_entity_id," +
+      "to_legal_entity_id,effective_date,reason,service_start_date,continuity_note,requested_by_user_id)" +
+      " VALUES($1,$2,$3,$4,'2026-11-01','Foreign worker','2026-01-01','None',$5)",
+      [a,workerB,a1,a2,hr]);
+    await rejectSql(client,
+      "UPDATE employees SET legal_entity_id=$1 WHERE id=$2", [b1,worker1]);
+    await rejectSql(client,
+      "UPDATE payroll_runs SET legal_entity_id=$1 WHERE id=$2", [b1,runA]);
+    await rejectSql(client,
+      "UPDATE payroll_entries SET legal_entity_id=$1 WHERE id=$2", [b1,entryA]);
+    await rejectSql(client,
+      "UPDATE payslips SET legal_entity_id=$1 WHERE payroll_entry_id=$2", [b1,entryA]);
     // Retry must not duplicate the PRIMARY entity, grants or service evidence.
     const sizes=await one(client,
       "SELECT (SELECT count(*)::int FROM employee_entity_assignments) AS assignments, " +
