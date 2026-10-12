@@ -66,7 +66,7 @@ database `ddbb`.
 - `payrollph_release_migration_receipts`,
   `payrollph_schema_migrations`, and
   `payrollph_migration_cutover` are missing; historical application
-  order/checksums are UNKNOWN. Do not mark any historical file
+  order/checksums are UNKNOWN. A historical receipt must be independently\n  adopted and verified by the DBA before a forward migration is authorized.\n  Do not mark any historical file
   `applied` from table names alone.
 - Source declarations are more numerous than live objects and runtime
   compatibility DDL still exists in `src/lib/core-schema-compat.ts`.
