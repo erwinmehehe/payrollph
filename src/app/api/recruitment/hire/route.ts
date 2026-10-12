@@ -7,6 +7,7 @@ import {
   employees,
   hcmBusinessProcessInstances,
   jobApplicants,
+  applicantPrivacyEvidence,
   jobProfiles,
   jobRequisitions,
   positionAssignments,
@@ -21,6 +22,7 @@ import {
   getAccess,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { resolvePayProfile } from "@/lib/pay-basis";
 import { ONBOARDING_TASKS } from "@/lib/provisioning";
 import { runAutomationEventSafely } from "@/lib/automation";
@@ -654,6 +656,16 @@ export async function POST(request: Request) {
         notInArray(jobApplicants.stage, ["hired", "rejected"]),
       ))
       .returning({ id: jobApplicants.id });
+    if (criticalReleaseFlagEnabled("applicantPrivacy") && closedCandidates.length > 0) {
+      // Hiring closes the other candidates: start their 6-month retention at
+      // actual rejection, but only where original consent evidence exists.
+      await tx.update(applicantPrivacyEvidence).set({ rejectedAt: new Date() })
+        .where(and(
+          eq(applicantPrivacyEvidence.organizationId, applicant.organizationId),
+          inArray(applicantPrivacyEvidence.applicantId, closedCandidates.map(row => row.id)),
+          isNull(applicantPrivacyEvidence.rejectedAt),
+        ));
+    }
 
     await tx.update(jobRequisitions)
       .set({ status: requisitionStatus })
