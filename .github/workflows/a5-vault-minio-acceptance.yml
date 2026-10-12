@@ -1,0 +1,56 @@
+name: A-5 Private Vault S3 Protocol Acceptance (Synthetic Only)
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-object-storage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      NODE_ENV: "test"
+      EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
+      DOCUMENT_OBJECT_STORAGE_ENDPOINT: http://127.0.0.1:9000/
+      DOCUMENT_OBJECT_STORAGE_BUCKET: private-documents-ci
+      DOCUMENT_OBJECT_STORAGE_REGION: us-east-1
+      DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID: synthetic-a5-test-only
+      DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: synthetic-a5-password-not-real
+      AWS_ACCESS_KEY_ID: synthetic-a5-test-only
+      AWS_SECRET_ACCESS_KEY: synthetic-a5-password-not-real
+      AWS_DEFAULT_REGION: us-east-1
+      MALWARE_SCAN_URL: https://scanner.example.invalid/scan
+      MALWARE_SCAN_TOKEN: synthetic-no-real-malware-provider
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Run disposable local private S3-compatible object service
+        run: |
+          docker run -d --name a5-minio --rm \
+            -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER="$DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID" \
+            -e MINIO_ROOT_PASSWORD="$DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY" \
+            quay.io/minio/minio:latest server /data --address :9000
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Disposable object service failed to start"
+          exit 1
+      - name: Create test bucket with no public bucket policy
+        run: |
+          aws --endpoint-url http://127.0.0.1:9000 s3api create-bucket \
+            --bucket "$DOCUMENT_OBJECT_STORAGE_BUCKET" --region us-east-1
+      - name: Test private signed GET, immutable scanned-byte PUT, expiry, tamper and scanner contract
+        run: npx tsx scripts/accept-private-employee-vault-minio.ts
+      - name: Remove disposable service
+        if: always()
+        run: docker rm -f a5-minio >/dev/null 2>&1 || true
+# No real employee documents, cloud storage account, ClamAV acceptance,
+# production DDL, HR approvals, notification deliveries or legal-hold decisions.
