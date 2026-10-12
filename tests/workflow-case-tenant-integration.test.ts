@@ -11,7 +11,7 @@ import {
 /** Real Drizzle/PostgreSQL fixture. Skips only before the additive migration is applied. */
 test("case and offline-claim storage refuses cross-tenant IDs and preserves private case scope", async t => {
   const [schema] = (await db.execute(sql`select to_regclass('public.employee_service_cases') as cases, to_regclass('public.offline_punch_claims') as punches`)).rows as Array<{ cases: string|null; punches: string|null }>;
-  if (!schema?.cases || !schema?.punches) { t.skip("Run additive 0115 workflow migration on an isolated DB first."); return; }
+  if (!schema?.cases || !schema?.punches) { t.skip("Requires a separately DBA-numbered workflow migration on an isolated DB; design proposal is not an applied migration."); return; }
   const suffix = randomUUID().slice(0, 10);
   const [a,b] = await db.insert(organizations).values([
     { name: "Request Tenant Alpha " + suffix, legalName: "Request Tenant Alpha " + suffix },
