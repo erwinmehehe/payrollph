@@ -239,11 +239,29 @@ export async function runReviewedMigrationOnClient({
       "to_regclass('public.payrollph_schema_migrations') IS NOT NULL AS \"journal\""
     )).rows[0];
     if (!tables?.receipts || !tables?.cutover || !tables?.journal) refuse("DBA_BOOTSTRAP_REQUIRED");
+    const integrity = (await client.query(
+      "SELECT " +
+      "EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k JOIN pg_catalog.pg_attribute a " +
+      "ON a.attrelid = k.conrelid WHERE k.conrelid = to_regclass('public.payrollph_schema_migrations') " +
+      "AND k.contype = 'p' AND a.attname = 'migration_path' " +
+      "AND k.conkey = ARRAY[a.attnum]::smallint[]) AS \"pathPrimaryKey\", " +
+      "EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k JOIN pg_catalog.pg_attribute a " +
+      "ON a.attrelid = k.conrelid WHERE k.conrelid = to_regclass('public.payrollph_schema_migrations') " +
+      "AND k.contype = 'u' AND a.attname = 'migration_number' " +
+      "AND k.conkey = ARRAY[a.attnum]::smallint[]) AS \"numberUnique\", " +
+      "EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k JOIN pg_catalog.pg_attribute a " +
+      "ON a.attrelid = k.conrelid WHERE k.conrelid = to_regclass('public.payrollph_migration_cutover') " +
+      "AND k.contype = 'p' AND a.attname = 'id' " +
+      "AND k.conkey = ARRAY[a.attnum]::smallint[]) AS \"cutoverPrimaryKey\""
+    )).rows[0];
+    if (!integrity?.pathPrimaryKey || !integrity.numberUnique || !integrity.cutoverPrimaryKey) {
+      refuse("LEDGER_CONSTRAINTS_MISSING");
+    }
     const adopted = (await client.query(
       "SELECT historical_prefix AS \"historicalPrefix\", " +
       "historical_manifest_sha256 AS \"historicalManifestSha256\", evidence_ref AS \"evidenceRef\", " +
       "reviewed_by AS \"reviewedBy\", reviewed_at AS \"reviewedAt\" " +
-      "FROM public.payrollph_migration_cutover WHERE id = 1"
+      "FROM public.payrollph_migration_cutover"
     )).rows;
     if (adopted.length !== 1) refuse("CUTOVER_NOT_ADOPTED");
 
