@@ -16,7 +16,7 @@ export const REPORT_FIELDS: readonly Field[] = [
   { dataset: "payroll", key: "overtimeCost", label: "OT cost", salary: true, groupable: false },
 ] as const;
 
-const SALARY_ROLES = new Set<ReportRole>(["owner", "admin", "hr", "payroll"]);
+const SALARY_ROLES = new Set<ReportRole>(["admin", "hr", "payroll"]);
 export type ReportSpecification = {
   dataset: ReportDataset;
   fields: string[];
