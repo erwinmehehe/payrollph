@@ -376,6 +376,8 @@ test("normal UPDATE ... SET is accepted as transactional DML but session SET is 
     const statements = [
       "UPDATE payroll_entries SET status = 'draft' WHERE id = 1;",
       "WITH x AS (SELECT 1) UPDATE payroll_entries SET status = 'draft' WHERE id = 1;",
+      "UPDATE payroll_entries e SET status = 'approved' FROM payroll_runs r WHERE e.payroll_run_id = r.id;",
+      "INSERT INTO payout_batches(id, provider) VALUES (1, 'paymongo') ON CONFLICT (id) DO UPDATE SET provider = excluded.provider;",
       "CREATE OR REPLACE FUNCTION example() RETURNS void LANGUAGE plpgsql AS $$ BEGIN UPDATE x SET y=2; END $$;",
     ];
     for (const sql of statements) {
@@ -389,6 +391,11 @@ test("normal UPDATE ... SET is accepted as transactional DML but session SET is 
       "START TRANSACTION; UPDATE payroll_entries SET status = 'draft';",
       "REINDEX TABLE example;",
       "DROP INDEX CONCURRENTLY example;",
+      "END;",
+      "ABORT;",
+      "RELEASE SAVEPOINT check_point;",
+      "PREPARE TRANSACTION 'forbidden';",
+      "CREATE UNIQUE INDEX CONCURRENTLY unsafe_idx ON users(id);",
     ]) {
       writeFileSync(path, sql + "\n");
       const source = inventoryMigrationSources(f.directory).files.find(file => file.path === f.target.path);
