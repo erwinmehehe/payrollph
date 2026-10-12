@@ -38,6 +38,9 @@ test("legacy hosted demo schema supports the current launch and workspace models
       const helper = readFileSync(path, "utf8").split("export async function ensureEmployeePayProfiles")[0];
       for (const match of helper.matchAll(/await client\.query\(`([\s\S]*?)`\);/g)) await client.query(match[1]);
     }
+    // Module columns are installed by the ordered release migration, never
+    // by a request-time compatibility helper. Rehearse the documented upgrade.
+    await client.query(readFileSync("drizzle/0116_tenant_module_disclosure.sql", "utf8"));
     const models = [schema.organizations, schema.orgUnits, schema.employees, schema.holidays,
       schema.leaveBalances, schema.leavePolicies, schema.leaveRequests, schema.approvalTasks,
       schema.auditEvents, schema.payrollRuns, schema.payrollEntries, schema.subscriptions,
