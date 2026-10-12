@@ -68,6 +68,9 @@ test("restore is networkless ephemeral PG18, cipher verified before any decrypti
  assert.match(sh,/RESTORE_CIPHERTEXT_TAMPERED/);
  assert.match(sh,/RESTORE_ARCHIVE_SOURCE_SHA/);
  assert.match(sh,/--version-id "\$RESTORE_S3_VERSION_ID"/);
+  // Three HEAD calls plus GET must refer to the one immutable archive version.
+  assert.equal((sh.match(/aws s3api head-object --bucket/g)??[]).length,3);
+  assert.equal((sh.match(/--version-id/g)??[]).length,4);
  assert.match(sh,/age -d -i/);
  assert.match(sh,/age -d -i "\$key" "\$archive"\s*\|\s*docker exec -i "\$container" pg_restore/);
  assert.doesNotMatch(sh,/decrypted\.pgdump|decrypted\.dump|\$work\/decrypted/);
