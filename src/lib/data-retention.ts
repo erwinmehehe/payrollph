@@ -1,5 +1,6 @@
 import { and, inArray, isNotNull, lt, or } from "drizzle-orm";
 import { db } from "@/db";
+import { purgeExpiredRejectedApplicants } from "@/lib/recruitment-applicant-retention";
 import {
   emailChangeTokens,
   marketingLeads,
@@ -150,7 +151,12 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
     .where(lt(marketingLeads.updatedAt, marketingLeadCutoff))
     .returning({ id: marketingLeads.id });
 
+  // A-2 default OFF. No new candidate table query occurs unless its separately
+  // approved privacy migration and DPO retention policy have been activated.
+  const applicantPrivacy = await purgeExpiredRejectedApplicants(new Date(now));
+
   return {
+    applicantPrivacyPurged: applicantPrivacy.purged,
     sessions: deletedSessions.length,
     passwordResetTokens: deletedPasswordTokens.length,
     emailChangeTokens: deletedEmailTokens.length,
