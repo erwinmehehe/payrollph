@@ -1,4 +1,4 @@
-import { and, eq, gte, lte, ne, desc, sql } from "drizzle-orm";
+import { and, eq, gte, lte, desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents, employees, employeeEntityAssignments, entityTransferRequests,
@@ -42,7 +42,17 @@ export async function GET(request: Request) {
       : eq(entityTransferRequests.fromLegalEntityId, scope.context.legalEntityId));
   const rows = await db.select().from(entityTransferRequests).where(where)
     .orderBy(desc(entityTransferRequests.id)).limit(100);
-  return Response.json({ transfers: rows }, { headers: { "Cache-Control": "no-store, private" } });
+  const destinations = await db.select({
+    id: legalEntities.id, legalName: legalEntities.legalName,
+    displayName: legalEntities.displayName,
+  }).from(legalEntities).where(and(
+    eq(legalEntities.organizationId, organizationId), eq(legalEntities.active, true),
+  ));
+  return Response.json({
+    transfers: rows, destinations: scope.context.group
+      ? destinations
+      : destinations.filter(entity => entity.id === scope.context.legalEntityId),
+  }, { headers: { "Cache-Control": "no-store, private" } });
 }
 
 export async function POST(request: Request) {
