@@ -1,6 +1,33 @@
 name: HRIS Integrated Journey Browser QA (Synthetic Only)
 
 on:
+  # Verify mobile/role synthetic acceptance again on the exact mainline commit.
+  push:
+    branches: [main]
+    paths:
+      - "src/components/hris-home-shortcuts.tsx"
+      - "src/components/employee-360-overview.tsx"
+      - "src/components/hris-onboarding-checklist.tsx"
+      - "src/components/workspace/first-payroll-readiness.tsx"
+      - "src/lib/first-payroll-*.ts"
+      - "src/app/app/page.tsx"
+      - "src/components/workspace/shell.tsx"
+      - "src/lib/saas-workspace-access.ts"
+      - "src/lib/dashboard-data.ts"
+      - "src/components/hcm-my-team*.tsx"
+      - "src/components/linaw-workspace.tsx"
+      - "src/components/workspace/people.tsx"
+      - "src/components/workspace/approvals.tsx"
+      - "src/app/api/provisioning/**"
+      - "src/app/api/hcm/my-team/**"
+      - "src/app/api/hcm/people-operations-inbox/**"
+      - "src/app/hcm/my-team/**"
+      - "src/lib/access.ts"
+      - "src/lib/hcm-my-team*.ts"
+      - "src/lib/hris-*.ts"
+      - "scripts/hris-journey-synthetic-*"
+      - "scripts/first-payroll-mobile-synthetic-*"
+      - ".github/workflows/hris-journey-browser-qa.yml"
   pull_request:
     branches: [main]
     paths:
