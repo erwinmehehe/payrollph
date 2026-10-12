@@ -5,6 +5,31 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { deleteDocumentObject } from "@/lib/document-object-storage";
 import { documentObjectIdentityMatches } from "@/lib/employee-document-vault";
 
+/**
+ * Durable COE issuance order: commit unreadable intent before any remote PUT,
+ * upload externally, then commit the signed HR decision. Recover on both
+ * ambiguous provider failures and database failures. A failed recovery must
+ * never hide the primary failure; the persisted intent is retried by scheduler.
+ */
+export async function issueCoeObjectWithRecovery<T>(steps: {
+  stage: () => Promise<number>;
+  upload: () => Promise<void>;
+  finalize: (pendingDocumentId: number) => Promise<T>;
+  recover: (pendingDocumentId: number) => Promise<unknown>;
+}): Promise<T> {
+  const pendingDocumentId = await steps.stage();
+  if (!Number.isSafeInteger(pendingDocumentId) || pendingDocumentId <= 0) {
+    throw new Error("COE_PENDING_INTENT_NOT_DURABLE");
+  }
+  try {
+    await steps.upload();
+    return await steps.finalize(pendingDocumentId);
+  } catch (error) {
+    await steps.recover(pendingDocumentId).catch(() => {});
+    throw error;
+  }
+}
+
 export const COE_PENDING_SOURCE_PREFIX = "hr-case-coe-pending:";
 export const COE_ORPHAN_GRACE_MS = 60 * 60 * 1000;
 
