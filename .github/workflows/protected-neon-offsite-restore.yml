@@ -45,6 +45,7 @@ jobs:
     env:
       CI: "true"
       RESTORE_WORKFLOW_ENVIRONMENT: payrollph-production-restore
+      RESTORE_ALLOWED_ACTORS: ${{ vars.RESTORE_ALLOWED_ACTORS }}
       RESTORE_REVIEWED_SHA: ${{ inputs.reviewed_sha }}
       RESTORE_ARCHIVE_SOURCE_SHA: ${{ inputs.archive_source_sha }}
       RESTORE_S3_OBJECT_KEY: ${{ inputs.object_key }}
