@@ -57,8 +57,12 @@ export async function POST(request:Request){
         worksiteId,status:"approved",reason:"Draft roster rule preview",
       },
     });
+    const originalDays = await resolveEmployeeScheduleWindow({
+      organizationId,employeeId,startDate:rosterDateOffset(workDate,-7),endDate:rosterDateOffset(workDate,7),
+    });
     const [check,legacyRow]=await Promise.all([
-      checkWfmRosterPublish({organizationId,employeeId,days,targetDates:[workDate]}),
+      checkWfmRosterPublish({organizationId,employeeId,days,targetDates:[workDate],
+        baselineRestDates:originalDays.filter(day=>day.isRestDay).map(day=>day.date)}),
       db.select().from(workforceScheduleGuardrailPolicies).where(eq(workforceScheduleGuardrailPolicies.organizationId,organizationId)).limit(1),
     ]);
     const original=legacyRow[0];
