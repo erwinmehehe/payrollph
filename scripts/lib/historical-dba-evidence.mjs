@@ -115,8 +115,9 @@ export const IDENTITY_QUERY=[
  " AND pg_catalog.has_table_privilege(current_user,c.oid,",
  " 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'))) AS has_write_privileges,",
  " EXISTS(SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n",
- " ON n.oid=c.relnamespace WHERE n.nspname='public' AND",
- " c.relname = ANY(ARRAY['employees','payroll_entries','payroll_runs','bank_accounts'])",
+ " ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN('r','p')",
+ " AND c.relname NOT IN ('payrollph_release_migration_receipts',",
+ " 'payrollph_migration_cutover','payrollph_schema_migrations')",
  " AND pg_catalog.has_any_column_privilege(current_user,c.oid,'SELECT')) AS can_read_sensitive_rows",
 ].join("\n");
 
