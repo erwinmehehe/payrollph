@@ -98,6 +98,9 @@ export function canActOnEntityTransfer(input: {
   actorUserId: number;
   makerUserId?: number;
 }): boolean {
+  if (!Number.isSafeInteger(input.actorUserId) || input.actorUserId <= 0 ||
+      (input.action !== "propose" &&
+       (!Number.isSafeInteger(input.makerUserId) || (input.makerUserId ?? 0) <= 0))) return false;
   if (GROUP_ENTITY_ROLES.has(input.role)) return false;
   const makers = ["owner", "admin", "bookkeeper", "hr"];
   const checkers = ["owner", "admin", "bookkeeper"];
