@@ -6,6 +6,7 @@ on:
       - "scripts/lib/historical-dba-evidence.mjs"
       - "scripts/audit-historical-dba-evidence.mjs"
       - "tests/historical-dba-evidence.test.mjs"
+      - "tests/historical-dba-evidence-pg18.test.mjs"
       - ".github/workflows/historical-dba-evidence.yml"
   push:
     branches: [main]
@@ -13,6 +14,7 @@ on:
       - "scripts/lib/historical-dba-evidence.mjs"
       - "scripts/audit-historical-dba-evidence.mjs"
       - "tests/historical-dba-evidence.test.mjs"
+      - "tests/historical-dba-evidence-pg18.test.mjs"
       - ".github/workflows/historical-dba-evidence.yml"
   workflow_dispatch:
     inputs:
@@ -53,6 +55,49 @@ jobs:
           node --check scripts/audit-historical-dba-evidence.mjs
           node --test tests/historical-dba-evidence.test.mjs
           node scripts/audit-historical-dba-evidence.mjs --inventory
+
+  synthetic-postgres-18:
+    if: github.event_name != 'workflow_dispatch'
+    name: Catalog query actual syntax and rollback (disposable PostgreSQL 18)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GITHUB_ACTIONS: "true"
+      CI: "true"
+      P0_4_HISTORICAL_EVIDENCE_MODE: isolated-pg18-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout exact PR source with no saved credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Initialize local fixture only (NEVER Neon db:push)
+        run: npm run db:push
+      - name: Test real pg_catalog SQL syntax + fail closed rollback
+        run: |
+          node --check tests/historical-dba-evidence-pg18.test.mjs
+          node --test tests/historical-dba-evidence-pg18.test.mjs
 
   protected-live-catalog:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
