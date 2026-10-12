@@ -15,8 +15,18 @@ export function OfflinePunchReviewPanel({organizationId}:{organizationId:number}
   const data=await r.json() as {receipts:Receipt[]};
   setReceipts(data.receipts);
  },[organizationId]);
- useEffect(()=>{let active=true;void refresh().catch(()=>{if(active)setError("Review queue unavailable.");});
-   return()=>{active=false};},[refresh]);
+ useEffect(()=>{
+   let active=true;
+   const controller=new AbortController();
+   fetch(`/api/workforce/offline-punches?organizationId=${organizationId}`,{
+     cache:"no-store",signal:controller.signal,
+   }).then(async response=>{
+     if(!response.ok)throw new Error("Review queue unavailable.");
+     return response.json() as Promise<{receipts:Receipt[]}>;
+   }).then(data=>{if(active)setReceipts(data.receipts);})
+     .catch(()=>{if(active)setError("Review queue unavailable.");});
+   return()=>{active=false;controller.abort();};
+  },[organizationId]);
  async function decide(id:string,decision:"reviewed"|"rejected"){
    setBusy(id);setError("");
    try{
