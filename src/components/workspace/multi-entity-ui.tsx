@@ -169,7 +169,7 @@ export function EntitySettingsView({ context, organizationId }: {
   return <section className="card" style={{ padding: 18, maxWidth: 850 }}>
     <div className="card-kicker">LEGAL EMPLOYERS</div>
     <h2>Entities settings</h2>
-    <p>Employer numbers and bank accounts are masked. Only authorized owners or administrators can change registered details.</p>
+    <p>Employer numbers and bank accounts are masked. Registration and payout details are read-only until a reviewed versioned update process is available.</p>
     {state === "loading" && <p role="status">Loading entity settings…</p>}
     {state === "error" && <div role="alert">{error}<button className="secondary-button" onClick={() => setRetry(x => x + 1)}>Retry</button></div>}
     {state !== "loading" && state !== "error" && entities.length === 0 && <p>No legal entities have been configured for your tenant.</p>}
@@ -188,8 +188,7 @@ export function EntitySettingsView({ context, organizationId }: {
             {field.label}
             <input aria-label={field.label} disabled
               placeholder={sensitive ? masked || "Not set" : undefined}
-              value={draft[field.key] ?? (sensitive ? "" : masked)}
-              onChange={event => setDraft(old => ({ ...old, [field.key]: event.target.value }))} />
+              value={sensitive ? "" : masked} />
           </label>;
         })}
         <label style={{ display: "grid", gap: 5 }}>Pay schedule

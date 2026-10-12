@@ -90,7 +90,9 @@ export async function PATCH(request: Request) {
         payrollCalendarMode: patch.payrollCalendarMode,
         updatedAt: new Date(),
       }).where(and(eq(legalEntities.id, legalEntityId),
-        eq(legalEntities.organizationId, organizationId))).returning();
+        eq(legalEntities.organizationId, organizationId),
+        // An independent update must not silently overwrite a newer schedule.
+        eq(legalEntities.payrollCalendarMode, old.payrollCalendarMode))).returning();
       if (!record) throw new Error("Employer changed during update.");
       await tx.insert(auditEvents).values({
         organizationId, actor: user.name, action: "Legal employer pay schedule updated",
