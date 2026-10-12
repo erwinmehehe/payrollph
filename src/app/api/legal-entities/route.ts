@@ -178,12 +178,6 @@ export async function POST(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const demoDenied = publicDemoMutationDenied(user.email, "Legal employer management");
   if (demoDenied) return demoDenied;
-  if (criticalReleaseFlagEnabled("multiEntity")) {
-    return Response.json({
-      error: "Legal employer creation and legacy profile changes need a versioned, independently reviewed registration workflow.",
-      code: "VERSIONED_REGISTRATION_REQUIRED",
-    }, { status: 409 });
-  }
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -194,6 +188,12 @@ export async function POST(request: Request) {
   if (denied) return denied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    return Response.json({
+      error: "Legal employer creation and legacy profile changes need a versioned, independently reviewed registration workflow.",
+      code: "VERSIONED_REGISTRATION_REQUIRED",
+    }, { status: 409 });
+  }
 
   try {
     const entityCode = code(body.code);
@@ -280,12 +280,6 @@ export async function PATCH(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const demoDenied = publicDemoMutationDenied(user.email, "Legal employer management");
   if (demoDenied) return demoDenied;
-  if (criticalReleaseFlagEnabled("multiEntity")) {
-    return Response.json({
-      error: "Legal employer creation and legacy profile changes need a versioned, independently reviewed registration workflow.",
-      code: "VERSIONED_REGISTRATION_REQUIRED",
-    }, { status: 409 });
-  }
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -297,6 +291,12 @@ export async function PATCH(request: Request) {
   if (denied) return denied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    return Response.json({
+      error: "Legal employer creation and legacy profile changes need a versioned, independently reviewed registration workflow.",
+      code: "VERSIONED_REGISTRATION_REQUIRED",
+    }, { status: 409 });
+  }
 
   if (action === "assign_employee") {
     if (criticalReleaseFlagEnabled("multiEntity")) {

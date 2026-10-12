@@ -125,19 +125,25 @@ test("cross-employer transfer mutations have an independent default-off gate", (
 
 test("flagged multi-entity blocks every legacy employer creation, update, primary switch and unscopeable directory", () => {
   const route = readFileSync("src/app/api/legal-entities/route.ts", "utf8");
-  // All POST and PATCH variants must return before parsing or writing any row.
+  // All POST and PATCH variants must authorize the actor and require MFA
+  // before rejecting the legacy write, never executing business mutations.
   const post = route.split("export async function POST(request: Request) {")[1];
   const patch = route.split("export async function PATCH(request: Request) {")[1];
   assert.ok(post && patch);
   for (const operation of [post, patch]) {
-    assert.ok(operation.indexOf('criticalReleaseFlagEnabled("multiEntity")')
-      < operation.indexOf("const body = await request.json()"),
-      "legacy mutation must fail closed before it can operate on a legal employer");
+    assert.ok(operation.indexOf("const denied = await requireAdmin(")
+      < operation.indexOf('if (criticalReleaseFlagEnabled("multiEntity"))'),
+      "membership and role must be checked before disclosing the feature hold");
+    assert.ok(operation.indexOf('if (criticalReleaseFlagEnabled("multiEntity"))')
+      < operation.indexOf('if (action === "assign_employee")')
+      || operation.indexOf('if (action === "assign_employee")') === -1,
+      "legacy mutation must fail before any legal-employer state changes");
     assert.match(operation, /VERSIONED_REGISTRATION_REQUIRED/);
   }
   const get = route.split("export async function GET(request: Request) {")[1]?.split("export async function POST")[0];
-  assert.ok(get?.includes('criticalReleaseFlagEnabled("multiEntity") && !selectorMode'));
-  assert.ok(get?.indexOf("await ensurePrimaryLegalEntity(organizationId)")
-    > get?.indexOf("if (selectorMode)"),
+  assert.ok(get, "directory handler must exist");
+  assert.ok(get.includes('criticalReleaseFlagEnabled("multiEntity") && !selectorMode'));
+  assert.ok(get.indexOf("await ensurePrimaryLegalEntity(organizationId)")
+    > get.indexOf("if (selectorMode)"),
     "unauthenticated directory GET must never bootstrap a legal employer");
 });
