@@ -15,6 +15,38 @@ const names = [
   "0121_multi_entity_v2_scope_transfer.sql",
 ];
 
+test("PG16/18: forward 0122 rejects tenant mismatch and overlapping closed intervals", {
+  skip: !REHEARSAL, timeout: 120000,
+}, async () => {
+  const client = new pg.Client({ connectionString: isolatedUrl() });
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("DROP TABLE IF EXISTS public.employee_entity_assignments, public.employees CASCADE");
+    await client.query("CREATE TABLE public.employees(id integer PRIMARY KEY, organization_id integer NOT NULL)");
+    await client.query("CREATE TABLE public.employee_entity_assignments(id serial PRIMARY KEY, organization_id integer NOT NULL, employee_id integer NOT NULL, legal_entity_id integer NOT NULL, effective_from date NOT NULL, effective_until date)");
+    await client.query("INSERT INTO public.employees VALUES (1,10),(2,20)");
+    const sql = readFileSync(new URL("../drizzle/0122_employee_entity_interval_guard.sql", import.meta.url), "utf8");
+    await client.query(sql);
+    await client.query(sql);
+    await client.query("INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,100,'2026-01-01','2026-01-31')");
+    for (const [statement, error] of [
+      ["INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,2,100,'2026-02-01',NULL)", /EMPLOYEE_TENANT_MISMATCH/],
+      ["INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,101,'2026-01-15','2026-02-01')", /INTERVAL_OVERLAP/],
+      ["UPDATE public.employee_entity_assignments SET employee_id=2,organization_id=20 WHERE id=1", /IDENTITY_IMMUTABLE/],
+    ]) {
+      await client.query("SAVEPOINT invalid_write");
+      await assert.rejects(() => client.query(statement), error);
+      await client.query("ROLLBACK TO SAVEPOINT invalid_write");
+    }
+    await client.query("INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,101,'2026-02-01',NULL)");
+    assert.equal((await client.query("SELECT count(*)::integer n FROM public.employee_entity_assignments")).rows[0].n, 2);
+  } finally {
+    await client.query("ROLLBACK").catch(() => {});
+    await client.end();
+  }
+});
+
 // The source DDL may only run against disposable CI PostgreSQL 16/18.
 function isolatedUrl() {
   return assertIsolatedMigrationTarget({
