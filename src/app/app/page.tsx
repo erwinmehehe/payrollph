@@ -15,6 +15,8 @@ import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy"
 import { pilotFocusEnabledForOrganization } from "@/lib/pilot-navigation";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
 import { hirePayrollReviewEnabledForEmployer } from "@/lib/hcm-hire-payroll-review";
+import { WorkflowUiProvider } from "@/components/workspace/workflow-ui-context";
+import { resolveWorkflowUiFlags } from "@/lib/workflow-ui-flags";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +36,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       const denied = await assertOrganizationSessionPolicy(user.id, employeeOrganizationId);
       if (denied) redirect("/login?ssoRequired=1");
     }
-    return <SelfServicePortal />;
+    return <WorkflowUiProvider flags={resolveWorkflowUiFlags()}><SelfServicePortal /></WorkflowUiProvider>;
   }
 
   const { organizationId: requestedValue, focusEmployeeId: requestedEmployeeId, workspacePage: requestedWorkspacePage } = await searchParams;
@@ -55,7 +57,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       const denied = await assertOrganizationSessionPolicy(user.id, employeeOrganizationId);
       if (denied) redirect("/login?ssoRequired=1");
     }
-    return <SelfServicePortal />;
+    return <WorkflowUiProvider flags={resolveWorkflowUiFlags()}><SelfServicePortal /></WorkflowUiProvider>;
   }
 
   // Newly self-registered company owners must authorize a successful
@@ -100,7 +102,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       ["owner", "admin", "hr"].includes(access.role) ||
       (access.role === "manager" && !access.companyWide && access.orgUnitId !== null)
     );
-  return <>
+  return <WorkflowUiProvider flags={resolveWorkflowUiFlags()}>
     <div className="mx-auto flex max-w-7xl flex-wrap justify-end gap-3 px-5 pt-3">
       {canSeeMyTeam && (
         <Link
@@ -113,6 +115,6 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       {!pilotFocusEnabled && peopleHomeEnabledForOrganization(data.selectedOrganization.id) && canOpenPeopleHome(access) && (<Link href={`/hcm/command-center?organizationId=${data.selectedOrganization.id}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>) }
     </div>
     <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} pilotFocusEnabled={pilotFocusEnabled} allowPeopleFocus={allowPeopleFocus} allowHirePayrollReview={allowHirePayrollReview} reviewTeamHref={canSeeMyTeam ? "/hcm/my-team?organizationId=" + data.selectedOrganization.id : null} />
-  </>;
+  </WorkflowUiProvider>;
 }
 
