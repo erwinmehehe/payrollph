@@ -64,7 +64,10 @@ test("PostgreSQL tenant journey resumes for a second member and preview mutates 
     assert.equal(ready.rows[0].name, "Journey Worker");
     assert.deepEqual(await snapshot(), before, "Dry run cannot change runs, register, ledger, payslips, jobs, audit, progress or employee data");
     assert.deepEqual((await loadFirstPayrollPreview(foreign.id)).rows, []);
-    await assert.rejects(db.transaction(tx => tx.execute(sql`UPDATE organizations SET name = name WHERE id = ${tenant.id}`), { accessMode: "read only" }), /read-only|read only/i);
+    await assert.rejects(db.transaction(tx => tx.execute(sql`UPDATE organizations SET name = name WHERE id = ${tenant.id}`), { accessMode: "read only" }), (error: unknown) => {
+      assert.equal((error as { cause?: { code?: string } }).cause?.code, "25006", "PostgreSQL must reject the write with read_only_sql_transaction");
+      return true;
+    });
     await db.delete(employees).where(and(eq(employees.id, worker.id), eq(employees.organizationId, tenant.id)));
   } finally {
     await db.delete(organizations).where(eq(organizations.id, tenant.id));
