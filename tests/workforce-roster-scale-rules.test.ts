@@ -67,6 +67,49 @@ test("13-hour duty followed by 5-hour rest gives exactly two findings",()=>{
   assert.equal(findings[0].actualMinutes,780);
   assert.equal(findings[1].actualMinutes,300);
 });
+test("one-day roster change finds short rest gap against following unchanged shift",()=>{
+  const findings=evaluateWfmRosterRules({
+    days:[day("2026-10-13","12:00","23:00"),day("2026-10-14","04:00","12:00")],
+    policy:PH_ROSTER_RULE_DEFAULTS,
+    targetDates:["2026-10-13"],
+  });
+  assert.deepEqual(findings.map(f=>f.code),["MIN_REST_BETWEEN_SHIFTS"]);
+  assert.equal(findings[0].relatedDate,"2026-10-13");
+  assert.equal(findings[0].date,"2026-10-14");
+  assert.equal(findings[0].actualMinutes,300);
+  assert.equal(decideRosterRulePublish({findings,managerMayOverride:false}).blocked,true);
+});
+test("one-day roster change catches overnight overlap into following unchanged shift",()=>{
+  const findings=evaluateWfmRosterRules({
+    days:[day("2026-10-13","20:00","06:00"),day("2026-10-14","05:00","13:00")],
+    policy:PH_ROSTER_RULE_DEFAULTS,
+    targetDates:["2026-10-13"],
+  });
+  assert.deepEqual(findings.map(f=>f.code),["OVERLAPPING_SHIFTS"]);
+  assert.equal(findings[0].date,"2026-10-14");
+  assert.equal(findings[0].overrideEligible,false);
+});
+test("one-day roster change detects a rolling-week breach reached on a later unchanged day",()=>{
+  const schedule=[
+    day("2026-10-13","08:00","16:00"),
+    day("2026-10-14","08:00","16:00"),
+    day("2026-10-15","08:00","16:00"),
+    day("2026-10-16","08:00","16:00"),
+    day("2026-10-17","08:00","16:00"),
+    day("2026-10-18","08:00","16:00"),
+    day("2026-10-19","08:00","16:00"),
+  ];
+  // A proposed Tuesday shift adds its paid hours to a future rolling week,
+  // despite the manager not editing that later date.
+  const changed=[{...schedule[0],segments:[
+    {...schedule[0].segments[0],endTime:"20:00"},
+  ]},...schedule.slice(1)];
+  const findings=evaluateWfmRosterRules({
+    days:changed,policy:PH_ROSTER_RULE_DEFAULTS,targetDates:["2026-10-13"],
+  });
+  assert.ok(findings.some(f=>f.code==="MAX_WEEKLY_HOURS"&&f.date==="2026-10-19"&&f.actualMinutes===3600));
+  assert.equal(decideRosterRulePublish({findings,managerMayOverride:false}).blocked,true);
+});
 test("overlaps remain unwaivable, including nested segments",()=>{
   const a=day("2026-10-13","07:00","15:00");
   a.segments.push({...a.segments[0],segmentOrder:2,shiftDefinitionId:2,startTime:"08:00",endTime:"09:00"});
