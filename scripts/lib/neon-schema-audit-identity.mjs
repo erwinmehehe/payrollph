@@ -1,4 +1,5 @@
 import { URL } from "node:url";
+import { assertPinnedPostgresUrlOptions } from "./migration-neon-target.mjs";
 
 /**
  * Fail-closed identity checks for operator-run Neon schema audits.
@@ -22,6 +23,7 @@ export function requireExpectedSchemaAuditTarget(env) {
   let parsed;
   try { parsed = new URL(connectionString); }
   catch { throw new Error("NEON_AUDIT_URL_INVALID"); }
+  assertPinnedPostgresUrlOptions(parsed);
   const pathname = parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : "";
   let candidate;
   try { candidate = decodeURIComponent(pathname); }
