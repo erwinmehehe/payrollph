@@ -85,6 +85,8 @@ jobs:
         env:
           CI: "true"
           SCHEDULER_REHEARSAL_MODE: isolated-ci-only
+          # A guarded local-only PG16 fixture; never runs against Neon.
+          PENDING_TRAIN_REHEARSAL_MODE: isolated-ci-only
       - name: Run statutory golden payroll certification
         run: npm run payroll:golden
       - name: Upload golden payroll certification evidence
