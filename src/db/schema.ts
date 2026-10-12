@@ -2054,6 +2054,10 @@ export const documents = pgTable("documents", {
   sourceKey: varchar("source_key", { length: 160 }),
   generationMetadata: jsonb("generation_metadata").notNull().default({}),
   uploadedBy: varchar("uploaded_by", { length: 120 }).notNull(),
+  // A-5: null for historical Postgres-backed documents. New scanned uploads
+  // store a private object key and an empty legacy content sentinel.
+  // Historical base64 is migrated separately with verified hashes and legal holds.
+  objectStorageKey: varchar("object_storage_key", { length: 512 }),
   content: text("content").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -2061,6 +2065,7 @@ export const documents = pgTable("documents", {
     .on(table.organizationId, table.sourceKey)
     .where(sql`${table.sourceKey} is not null`),
   index("documents_org_employee_source_idx").on(table.organizationId, table.employeeId, table.sourceType, table.createdAt),
+  uniqueIndex("documents_object_storage_key_unique").on(table.objectStorageKey).where(sql`${table.objectStorageKey} is not null`),
   check("documents_source_type_check", sql`${table.sourceType} in ('upload','generated')`),
 ]);
 
@@ -2176,6 +2181,24 @@ export const hcmEmployeeDocumentCompliance = pgTable(
     index("hcm_employee_document_expiry_idx").on(table.organizationId, table.status, table.expiresAt),
   ],
 );
+
+/** Per-expiry, per-milestone HR alert ledger; idempotent across scheduler retries. */
+export const hcmDocumentExpiryNotices = pgTable("hcm_document_expiry_notices", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  complianceId: integer("compliance_id").notNull().references(() => hcmEmployeeDocumentCompliance.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  documentId: integer("document_id").notNull().references(() => documents.id, { onDelete: "cascade" }),
+  expiresOn: date("expires_on").notNull(),
+  milestoneDays: integer("milestone_days").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+  acknowledgedByUserId: integer("acknowledged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+}, (table) => [
+  uniqueIndex("hcm_document_expiry_notice_unique").on(table.complianceId, table.expiresOn, table.milestoneDays),
+  index("hcm_document_expiry_notice_inbox_idx").on(table.organizationId, table.acknowledgedAt, table.createdAt),
+  check("hcm_document_expiry_notice_milestone_check", sql`${table.milestoneDays} in (30, 14, 7)`),
+]);
 
 export const invitations = pgTable("invitations", {
   id: serial("id").primaryKey(),

@@ -24,6 +24,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P0 actual transfers and payouts",
     approval: "Independent money-movement authority, bank UAT and payout evidence",
   },
+  employeeDocumentVault: {
+    env: "EMPLOYEE_DOCUMENT_VAULT_ENABLED",
+    owner: "Security and People Operations",
+    risk: "P1 personal identity and medical documents, expiry notices, private object storage",
+    approval: "Independent access UAT, object storage/malware QA, migration reconciliation and retention/legal-hold review",
+  },
   documentUploads: {
     env: "DOCUMENT_UPLOADS_ENABLED",
     owner: "Security",
