@@ -14,6 +14,7 @@ import {
   auditEvents,
   compensationProposals,
   employeePayProfiles,
+  employeeEntityAssignments,
   employeePayRevisions,
   employeeRestDayRevisions,
   employeePayRetroAdjustments,
@@ -279,6 +280,14 @@ export async function POST(request: Request) {
     nationality: String(body.nationality ?? "Filipino").trim() || "Filipino",
     startDate,
   }).returning();
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    await tx.insert(employeeEntityAssignments).values({
+      organizationId,
+      employeeId: created.id,
+      legalEntityId: selectedLegalEntity.id,
+      effectiveFrom: created.startDate,
+    });
+  }
 
   await tx.insert(employeePayProfiles).values({
     employeeId: created.id,
