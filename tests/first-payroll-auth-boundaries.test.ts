@@ -19,7 +19,7 @@ test("first-payroll progress is filtered by company-wide authenticated role for 
  const patch=source.slice(source.indexOf("export async function PATCH"));
  assert.match(get,/assertMembership/);
  assert.match(get,/canReadFirstPayrollProgress\(access\.role\)/);
- assert.match(get,/access\.companyWide/);
+ assert.match(get,/access\?\.companyWide/);
  assert.match(patch,/assertMembership/);
  assert.match(patch,/canReadFirstPayrollProgress\(access\.role\)/);
  assert.match(patch,/enforceSameOriginMutation/);
