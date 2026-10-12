@@ -57,7 +57,7 @@ test("first payroll preview performs actual readiness transitions and blockers",
   assert.equal(rows.length, 7);
   assert.equal(rows.find(row => row.step.key === "people")?.kind, "blocker");
   assert.match(rows.find(row => row.step.key === "people")?.message ?? "", /missing bank/);
-  assert.equal(rows.find(row => row.step.key === "time")?.kind, "review");
+  assert.equal(rows.find(row => row.step.key === "time")?.kind, "blocker");
   assert.equal(rows.find(row => row.step.key === "company")?.kind, "complete");
   assert.equal(rows.find(row => row.step.key === "approval")?.kind, "blocker");
   const released = firstPayrollPreview({
