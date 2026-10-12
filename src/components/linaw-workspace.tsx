@@ -34,6 +34,7 @@ import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/compon
 import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
 import { FirstPayrollInlineJourney } from "@/components/workspace/first-payroll-inline";
+import { canOpenInlineFirstPayroll } from "@/lib/first-payroll-ownership";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
 import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
 import { OverviewView } from "@/components/workspace/overview";
@@ -470,7 +471,13 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
               />
             )}
             {data.firstPayrollReadiness && (
-              firstPayrollInlineEnabled && isSelfServeCustomer && !demoRole && data.access?.companyWide ? (
+              canOpenInlineFirstPayroll({
+                enabled:firstPayrollInlineEnabled,
+                selfServeCustomer:isSelfServeCustomer,
+                companyWide:Boolean(data.access?.companyWide),
+                demoRole:Boolean(demoRole),
+                role:effectiveRole ?? "",
+              }) ? (
                 <FirstPayrollInlineJourney
                   key={data.selectedOrganization.id}
                   data={data}
