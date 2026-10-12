@@ -182,6 +182,26 @@ test("group-only switcher visibility is executed in server-rendered React", () =
   assert.doesNotMatch(badge, /Alpha Manufacturing Inc/);
 });
 
+test("multi-granted admin sees a selected-entity switcher without group totals or All", () => {
+  const admin = { enabled: true as const, group: false, canSwitch: true,
+    role: "owner", legalEntityId: 11, entities };
+  const markup = renderToStaticMarkup(createElement(EntitySwitcher, {
+    organizationId: 1, context: admin,
+  }));
+  assert.match(markup, /Legal entity switcher/);
+  assert.match(markup, /Alpha/);
+  assert.match(markup, /Beta/);
+  assert.doesNotMatch(markup, /All entities/);
+  const filterMarkup = renderToStaticMarkup(createElement(EntityFilter, {
+    organizationId: 1, context: admin,
+  }));
+  assert.match(filterMarkup, /Legal entity switcher/);
+  const scopedMarkup = renderToStaticMarkup(createElement(EntityFilter, {
+    organizationId: 1, context: scoped,
+  }));
+  assert.equal(scopedMarkup, "");
+});
+
 test("legal employer identity and payout changes cannot overwrite a legacy registration", () => {
   for (const field of VERSIONED_EMPLOYER_FIELDS) {
     for (const value of ["changed", "", null]) {
