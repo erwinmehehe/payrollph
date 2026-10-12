@@ -1713,7 +1713,7 @@ async function finalizeRun(runId: number) {
   });
 }
 
-function calculateEmployeePay(input: {
+export function calculateEmployeePay(input: {
   employee: typeof employees.$inferSelect;
   punches: Array<typeof timePunches.$inferSelect>;
   advisories: Array<typeof calamityAdvisories.$inferSelect>;
