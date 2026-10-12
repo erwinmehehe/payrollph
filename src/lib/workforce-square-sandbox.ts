@@ -115,6 +115,7 @@ export async function readSquareSandboxDay(input:{
           "Square-Version":SQUARE_SANDBOX_VERSION,
           Accept:"application/json",
         },
+        redirect:"error",
         signal:AbortSignal.timeout(8000),
         cache:"no-store",
       });
@@ -128,7 +129,7 @@ export async function readSquareSandboxDay(input:{
     let body:unknown;
     try {
       const raw=await result.text();
-      if(raw.length>MAX_BODY_BYTES)throw Error("Oversized provider response");
+      if(Buffer.byteLength(raw,"utf8")>MAX_BODY_BYTES)throw Error("Oversized provider response");
       body=JSON.parse(raw);
     }catch{
       throw new SquareDemandSourceError("SOURCE_REVIEW");
@@ -142,7 +143,9 @@ export async function readSquareSandboxDay(input:{
     for(const raw of (body.payments as unknown[]|undefined)??[]) {
       if(!record(raw)||typeof raw.id!=="string"||raw.id.length<4||
         raw.id.length>256||raw.location_id!==input.locationId||
-        typeof raw.created_at!=="string" || !Number.isFinite(Date.parse(raw.created_at)) ||
+        typeof raw.created_at!=="string" ||
+        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/.test(raw.created_at) ||
+        !Number.isFinite(Date.parse(raw.created_at)) ||
         !["COMPLETED","APPROVED","PENDING","CANCELED","FAILED"].includes(String(raw.status))) {
         throw new SquareDemandSourceError("SOURCE_REVIEW");
       }
