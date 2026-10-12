@@ -46,6 +46,18 @@ test("JPEG metadata markers are removed before storage",()=>{
   const clean=stripJpegMetadata(source);
   assert.deepEqual(Array.from(clean),[255,216,255,218,0,2,17,22,255,217]);
 });
+test("JPEG evidence fails closed on a missing scan, early EOI or hidden metadata", () => {
+  const source = Uint8Array.from([255,216,255,225,0,6,69,88,73,70,255,218,0,2,17,22,255,217]);
+  const noScan = Uint8Array.from([255,216,255,225,0,6,69,88,73,70,255,217,0,0,0,0]);
+  assert.throws(() => stripJpegMetadata(noScan), /no image scan/);
+  const earlyEoi = Uint8Array.from([...source.slice(0,-2),255,217,42,43,255,217]);
+  assert.throws(() => stripJpegMetadata(earlyEoi), /trailing JPEG/);
+  const extraApp = Uint8Array.from([...source.slice(0,-2),255,225,0,4,1,2,255,217]);
+  assert.throws(() => stripJpegMetadata(extraApp), /metadata/);
+  const noHeader = Uint8Array.from([255,216,255,218,0,32,17,22,255,217,0,0,0,0,0,0]);
+  assert.throws(() => stripJpegMetadata(noHeader), /scan/);
+});
+
 test("travel uses worksite centre distances without device location history",()=>{
   const a={worksiteId:1,latitude:14.5995,longitude:120.9842,at:new Date("2026-10-12T00:00:00Z")};
   assert.equal(impossibleTravel(a,{worksiteId:2,latitude:10.3157,longitude:123.8854,at:new Date("2026-10-12T00:05:00Z")}),true);

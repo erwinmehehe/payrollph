@@ -45,11 +45,26 @@ export function stripJpegMetadata(bytes: Uint8Array): Uint8Array {
     if (bytes[i] !== 0xff) throw new Error("Malformed JPEG marker.");
     const marker = bytes[i+1];
     if (marker === 0xda) {
-      // Entropy-coded data may contain escaped markers; require an EOI at the end.
-      if (bytes[bytes.length-2] !== 0xff || bytes[bytes.length-1] !== 0xd9) throw new Error("Incomplete JPEG.");
+      // Require an actual SOS header and image data; a bare SOI/EOI is not a photo.
+      if (i + 4 > bytes.length) throw new Error("Invalid JPEG scan header.");
+      const scanLength = (bytes[i+2] << 8) | bytes[i+3];
+      const scanStart = i + 2 + scanLength;
+      if (scanLength < 2 || scanStart >= bytes.length - 2 ||
+          bytes[bytes.length-2] !== 0xff || bytes[bytes.length-1] !== 0xd9) {
+        throw new Error("Incomplete JPEG scan.");
+      }
+      // No appended data after an earlier EOI or unstripped APP/COM marker
+      // inside a secondary scan. Canvas baseline JPEG has a single scan.
+      for (let at = scanStart; at < bytes.length - 2; at += 1) {
+        if (bytes[at] !== 0xff || at + 1 >= bytes.length - 2) continue;
+        const next = bytes[at + 1];
+        if (next === 0xd9 || next === 0xfe || (next >= 0xe0 && next <= 0xef)) {
+          throw new Error("Unstripped or trailing JPEG metadata.");
+        }
+      }
       out.push(bytes.slice(i)); ended = true; break;
     }
-    if (marker === 0xd9) { ended = true; out.push(bytes.slice(i,i+2)); break; }
+    if (marker === 0xd9) throw new Error("JPEG has no image scan.");
     if (i+4 > bytes.length) throw new Error("Invalid JPEG segment.");
     const length = (bytes[i+2] << 8) | bytes[i+3];
     if (length < 2 || i + 2 + length > bytes.length) throw new Error("Invalid JPEG length.");
