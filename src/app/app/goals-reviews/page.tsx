@@ -7,6 +7,7 @@ import { performanceCycles } from "@/db/schema";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, primaryCompanyOrganizationId } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { singleLegalEntityForTenant } from "@/lib/hcm-single-entity-scope";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Goals & Review Cycles | Linaw", robots: { index: false } };
@@ -23,6 +24,9 @@ export default async function Page({ searchParams }: {
   if (await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES)) notFound();
   const access = await getAccess(user.id, organizationId);
   if (!access?.companyWide || !["owner", "admin", "hr"].includes(access.role)) notFound();
+  // A company-wide HR grant is not a legal-entity group grant.
+  // Until the reviewed cross-entity policy ships, refuse group-wide cycle reads.
+  if ((await singleLegalEntityForTenant(organizationId)) === null) notFound();
   const cycles = await db.select({
     id: performanceCycles.id, name: performanceCycles.name,
     startDate: performanceCycles.startDate, endDate: performanceCycles.endDate,

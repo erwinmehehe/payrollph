@@ -35,7 +35,7 @@ All new routes authenticate revocable scoped API keys, rate limit and reject mul
 
 Flagged `/app/engagement` offers one 1–5 question with employee participation and company HR open/close administration. The additive `docs/engineering/migration-proposals/hcm-engagement-survey-aggregate.sql` and matching Drizzle schema store **only sum and count** for answers. A separate participation table has employee ID + survey ID but no rating or timestamp, preventing duplicate responses without a recoverable per-person score. During an open survey, even administrators cannot retrieve counts; after close, data is suppressed unless count >= 5. No arbitrary filter or team slice permits inferential small-group discovery. The feature remains off until privacy, retention and migration acceptance. Individual participation is identifiable; individual answers are not.
 
-Flagged `/app/goals-reviews` lists existing performance cycles and links to the governed Performance workspace. It reuses existing goals/review cycle implementation and does not clone a second approval path.
+Flagged `/app/goals-reviews` lists existing performance cycles only when the tenant has exactly one verified legal employer, and links to the governed Performance workspace. It reuses existing goals/review cycle implementation and does not clone a second approval path.
 
 ## Default-off flags
 

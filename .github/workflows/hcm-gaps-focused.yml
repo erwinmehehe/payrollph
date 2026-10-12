@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "src/lib/hcm-report-*.ts"
+      - "src/lib/hcm-single-entity-scope.ts"
+      - "tests/hcm-goals-entity-scope.test.ts"
       - "src/lib/engagement-survey*.ts"
       - "src/lib/public-api-v1-extended.ts"
       - "src/app/api/hcm-report-builder/**"
@@ -65,7 +67,8 @@ jobs:
             tests/engagement-survey-privacy.test.ts \
             tests/engagement-survey-db.test.ts \
             tests/public-api-v1-extended-db.test.ts \
-            tests/approval-delegated-sod-behavior.test.ts
+            tests/approval-delegated-sod-behavior.test.ts \
+            tests/hcm-goals-entity-scope.test.ts
 
   hcm-production-build:
     runs-on: ubuntu-latest
