@@ -73,7 +73,7 @@ try{
     active.waitForResponse(res=>res.url().endsWith("/api/employees") && res.request().method()==="POST",{timeout:45000}),
     hire.getByRole("button",{name:/Create & onboard/}).click(),
   ]);
-  assert.equal(created.status(),200,"Inline employee create: "+(await created.text()));
+  assert.equal(created.status(),201,"Inline employee create: "+(await created.text()));
   assert.equal(new URL(active.url()).pathname,"/app","Employee created without page navigation");
   report.steps.push("owner: first employee and pay profile created inline, with synthetic TIN/bank");
 
