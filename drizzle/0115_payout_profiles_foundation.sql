@@ -55,7 +55,7 @@ BEGIN
   RETURN NEW;
 END $$;
 
-CREATE OR REPLACE TRIGGER payout_profile_tenant_guard
+CREATE TRIGGER payout_profile_tenant_guard
   BEFORE INSERT OR UPDATE OF organization_id, legal_entity_id
   ON public.payout_profiles FOR EACH ROW
   EXECUTE FUNCTION validate_payout_profile_tenant_scope();
