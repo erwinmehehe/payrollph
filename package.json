@@ -6,6 +6,7 @@
     "build": "next build",
     "start": "next start",
     "worker": "tsx scripts/worker.ts",
+    "scheduler:watchdog": "node scripts/scheduler-watchdog.mjs",
     "lint": "node scripts/check-lint-warning-debt.mjs",
     "typecheck": "tsc --noEmit",
     "db:push": "drizzle-kit push",
