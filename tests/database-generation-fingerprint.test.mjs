@@ -28,6 +28,11 @@ const app = {
   hasPayoutTransfers: true,
   hasPayoutBatchTransfers: true,
   hasPayoutProfiles: true,
+  hasProviderEvents: true,
+  hasDemandStaffingPolicies: true,
+  hasJobProfiles: true,
+  hasPositions: true,
+  hasPositionAssignments: true,
   hasWorkerEmploymentEvents: true,
   usersIdType: "integer",
   employeesIdType: "integer",
@@ -87,12 +92,20 @@ test("observed Neon catalog distinguishes missing historical predecessor from pr
     hasPayoutTransfers: false,
     hasPayoutBatchTransfers: false,
     hasPayoutProfiles: false,
+    hasProviderEvents: false,
+    hasDemandStaffingPolicies: false,
+    hasJobProfiles: false,
+    hasPositions: false,
+    hasPositionAssignments: false,
     hasWorkerEmploymentEvents: false,
   };
   const result = assessDatabaseGeneration(live);
   assert.equal(result.generation, "organization-integer");
   assert.equal(result.reason, "NUMBERED_TRAIN_PREREQUISITES_MISSING");
-  assert.deepEqual(result.missingTrainPrerequisites, ["worker_employment_events"]);
+  assert.deepEqual(result.missingTrainPrerequisites, [
+    "provider_events", "workforce_demand_staffing_policies",
+    "job_profiles", "positions", "position_assignments", "worker_employment_events",
+  ]);
   assert.deepEqual(result.unappliedDraftTables, [
     "payout_profiles", "payout_batches", "payout_transfers", "payout_batch_transfers",
   ]);
@@ -129,4 +142,21 @@ test("complete catalog without approved migration journals is still held", () =>
   });
   assert.equal(result.eligibleForMigrationReview, false);
   assert.equal(result.productionMigrationApproved, false);
+});
+
+test("every historic SQL prerequisite independently blocks migration review", () => {
+  for (const [flag, table] of [
+    ["hasProviderEvents", "provider_events"],
+    ["hasDemandStaffingPolicies", "workforce_demand_staffing_policies"],
+    ["hasJobProfiles", "job_profiles"],
+    ["hasPositions", "positions"],
+    ["hasPositionAssignments", "position_assignments"],
+    ["hasWorkerEmploymentEvents", "worker_employment_events"],
+  ]) {
+    const result = assessDatabaseGeneration({ ...app, [flag]: false });
+    assert.deepEqual(result.missingTrainPrerequisites, [table]);
+    assert.equal(result.eligibleForMigrationReview, false);
+    assert.equal(result.productionMigrationApproved, false);
+    assert.equal(result.reason, "NUMBERED_TRAIN_PREREQUISITES_MISSING");
+  }
 });
