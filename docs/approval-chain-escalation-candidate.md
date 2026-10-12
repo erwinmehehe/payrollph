@@ -1,3 +1,5 @@
+**Rollback handling:** In-flight approval instances whose frozen step snapshots contain `escalationAfterDays` are now held for independent review when the escalation flag becomes OFF. No decision status, task priority or payroll state is mutated during that guard. Unextended legacy chains remain decidable. Do not remove this hold merely to turn CI green.
+
 **Default-OFF policy construction hardening (2026-10-12):** Validation now refuses new approval policies containing `escalationAfterDays` while `APPROVAL_CHAIN_ESCALATIONS_ENABLED` is OFF, and runtime instance creation also refuses already-stored escalation-bound policies if the flag is later switched OFF. Existing legacy policies without escalation continue to function; no checker is automatically appointed and no payroll decision is synthesized. Full scheduler race, batching, destination/expiry and integration acceptance still block this draft.
 
 # Maker-checker escalation candidate

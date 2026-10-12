@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { payrollMakerCheckerDecision,shouldEscalateApprovalStep } from "../src/lib/approval-human-separation";
 import { resolveApproversFromRows } from "../src/lib/delegation";
-import { validateApprovalChainSteps } from "../src/lib/approval-chains";
+import { validateApprovalChainSteps, approvalEscalationSnapshotHeld } from "../src/lib/approval-chains";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 
 test("maker may not approve as their own delegate: identity beats named routing",()=>{
@@ -45,6 +45,10 @@ test("escalation-after-days policy validates finite 1-30 day window",()=>{
    "A default-OFF escalation capability cannot accept new extension policies");
  assert.equal(validateApprovalChainSteps(candidate, true)?.[0].escalationAfterDays, 3);
  assert.deepEqual(validateApprovalChainSteps([base], false)?.[0].approver, "role:hr");
+ assert.equal(approvalEscalationSnapshotHeld(candidate, false), true,
+   "A disabled flag must hold an extension already in flight");
+ assert.equal(approvalEscalationSnapshotHeld(candidate, true), false);
+ assert.equal(approvalEscalationSnapshotHeld([base], false), false);
 });
 test("overdue pending action is escalated once without deciding it",()=>{
  const createdAt=new Date("2026-10-01T00:00:00Z");

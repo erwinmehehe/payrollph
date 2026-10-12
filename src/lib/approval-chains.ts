@@ -106,6 +106,16 @@ export function approvalStepsForAmount(
   return steps.filter((step) => Number(step.minimumAmount ?? 0) <= rounded);
 }
 
+export function approvalEscalationSnapshotHeld(
+  value: unknown,
+  escalationEnabled = criticalReleaseFlagEnabled("approvalChainEscalations"),
+): boolean {
+  // Detect an in-flight extension created while enabled; disabling the flag
+  // must hold it rather than silently resuming it as an ordinary approval.
+  const steps = normalizeApprovalChainSteps(value);
+  return !escalationEnabled && Boolean(steps?.some(step => step.escalationAfterDays !== undefined));
+}
+
 export function validateApprovalChainSteps(
   value: unknown,
   escalationEnabled = criticalReleaseFlagEnabled("approvalChainEscalations"),
@@ -297,6 +307,11 @@ export async function advanceApprovalChainAfterDecisionTx(
   }
   if (instance.currentStepIndex !== task.approvalChainStepIndex) {
     throw new Error("Approval chain already advanced to another step.");
+  }
+  // Do not accept or reject an in-flight escalation-dependent chain after an
+  // emergency flag rollback. This check precedes all writes in the transaction.
+  if (approvalEscalationSnapshotHeld(instance.stepsSnapshot)) {
+    throw new Error("Approval escalation capability is disabled; this in-flight chain requires independent review.");
   }
 
   const [step] = await tx.update(approvalChainInstanceSteps).set({
