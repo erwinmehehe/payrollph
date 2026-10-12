@@ -21,7 +21,7 @@ test("whitelisted payroll cost grouping sums authorized rows and emits escaped C
 });
 
 test("salary fields are denied to checker, bookkeeper, manager and employee", () => {
-  for (const role of ["checker", "bookkeeper", "manager", "employee"] as const) {
+  for (const role of ["owner", "checker", "bookkeeper", "manager", "employee"] as const) {
     assert.throws(
       () => buildWhitelistedReport(
         { dataset: "payroll", fields: ["grossPay"] }, role,
