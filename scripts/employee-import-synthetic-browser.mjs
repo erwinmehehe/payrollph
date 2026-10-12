@@ -12,19 +12,32 @@ const fixture = JSON.parse(await readFile("/tmp/build-block-fixture.json", "utf8
 await mkdir("qa-artifacts/employee-import", { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const checkpoints = [];
+// The two local servers share the same disposable Postgres sessions. Authenticate
+// each fictional role once, then reuse the in-memory browser cookie state for
+// the before/after and desktop/phone assertions. Do not change login rate limits.
+const authenticatedStates = new Map();
 let page;
 try {
   for (const role of ["owner", "hr", "manager", "employee"]) {
     for (const width of [1280, 390]) {
       for (const [state, port] of [["before", 3001], ["after", 3000]]) {
-        const context = await browser.newContext({ viewport: { width, height: 844 } });
+        const priorState = authenticatedStates.get(role);
+        const context = await browser.newContext({
+          viewport: { width, height: 844 },
+          ...(priorState ? { storageState: priorState } : {}),
+        });
         page = await context.newPage();
         const base = `http://127.0.0.1:${port}`;
-        const login = await context.request.post(base + "/api/auth/login", {
-          headers: { origin: base, "sec-fetch-site": "same-origin" },
-          data: { email: role + "@build-block.example.test", password: "Synthetic-Build-Block-Only-2026!", totpCode: generateTotp("JBSWY3DPEHPK3PXP") },
-        });
-        assert.equal(login.status(), 200, "Synthetic MFA sign-in must pass");
+        if (!priorState) {
+          const login = await context.request.post(base + "/api/auth/login", {
+            headers: { origin: base, "sec-fetch-site": "same-origin" },
+            data: { email: role + "@build-block.example.test", password: "Synthetic-Build-Block-Only-2026!", totpCode: generateTotp("JBSWY3DPEHPK3PXP") },
+          });
+          assert.equal(login.status(), 200, "Synthetic MFA sign-in must pass");
+          const signedInState = await context.storageState();
+          assert.ok(signedInState.cookies.some(cookie => cookie.name.includes("session")), "MFA session cookie must exist");
+          authenticatedStates.set(role, signedInState);
+        }
         await page.goto(base + "/app?organizationId=" + fixture.organizationId, { waitUntil: "domcontentloaded" });
         if (["owner", "hr"].includes(role)) {
           // On phone layouts the sidebar remains in the DOM but is translated off-screen.
