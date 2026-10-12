@@ -18,6 +18,7 @@ import type { Notify } from "./types";
 import { EmptyState, Spinner, Status } from "./ui";
 import { WorkforceScheduleReceiptReview } from "./workforce-schedule-receipt-review";
 import { useScopedAsyncResource } from "./use-scoped-async-resource";
+import type { WfmRosterFinding } from "@/lib/workforce-roster-rules";
 
 type TeamRosterResponse = {
   weekDates: string[];
@@ -94,6 +95,9 @@ export function WorkforceTeamRosterPanel({
   const [shiftChoice, setShiftChoice] = useState("REST");
   const [worksiteChoice, setWorksiteChoice] = useState("");
   const [reason, setReason] = useState("");
+  const [ruleOverrideReason, setRuleOverrideReason] = useState("");
+  const [rulePreview, setRulePreview] = useState<{key:string;findings:WfmRosterFinding[];blocked:boolean;guardrailIssues:Array<{blocking:boolean;detail:string}>}|null>(null);
+  const [rulePreviewing, setRulePreviewing] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [editorFailure, setEditorFailure] = useState<{ scopeKey: string; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -168,6 +172,8 @@ export function WorkforceTeamRosterPanel({
     setShiftChoice("");
     setWorksiteChoice("");
     setReason("");
+    setRuleOverrideReason("");
+    setRulePreview(null);
     setAcknowledged(false);
     setEditorError("");
   }
