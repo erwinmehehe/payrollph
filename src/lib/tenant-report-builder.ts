@@ -102,7 +102,7 @@ export function leaveRangeFullyWithinReport(
   return leaveStart >= reportStart && leaveEnd <= reportEnd;
 }
 
-/** Company-wide membership alone is not authority to export multiple legal employers. */
+/** Unattributed legacy rows and multi-employer tenants both require reviewed entity-scoped grants. */
 export function builderRequiresEntityRole(activeLegalEmployers: number): boolean {
-  return !Number.isSafeInteger(activeLegalEmployers) || activeLegalEmployers > 1;
+  return !Number.isSafeInteger(activeLegalEmployers) || activeLegalEmployers !== 1;
 }

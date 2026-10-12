@@ -61,7 +61,8 @@ test("partial-window approved leave is rejected rather than overstated", async (
 
 test("multi-entity HR report export needs future group-scope authorization",async()=>{
  const {builderRequiresEntityRole}=await import("../src/lib/tenant-report-builder");
- assert.equal(builderRequiresEntityRole(0),false);
+ assert.equal(builderRequiresEntityRole(0),true);
+ assert.equal(builderRequiresEntityRole(-1),true);
  assert.equal(builderRequiresEntityRole(1),false);
  assert.equal(builderRequiresEntityRole(2),true);
  assert.equal(builderRequiresEntityRole(999),true);

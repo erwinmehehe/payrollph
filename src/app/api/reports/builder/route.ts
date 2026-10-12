@@ -36,7 +36,7 @@ async function authorize(organizationId: number) {
       eq(legalEntities.active,true))).limit(2);
   if (builderRequiresEntityRole(employers.length)) {
     return { error: Response.json({
-      error:"Entity-scoped report access is not certified for multiple legal employers.",
+      error:"Report requires exactly one verified active legal employer until entity-scoped roles are reviewed.",
     },{status:403}) };
   }
   return { user, role: access.role };
