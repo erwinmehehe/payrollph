@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, ne, or } from "drizzle-orm";
 import { db } from "@/db";
-import { legalEntities } from "@/db/schema";
+import { employees, legalEntities, orgUnits, payrollRuns } from "@/db/schema";
 import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
@@ -31,13 +31,37 @@ async function authorize(organizationId: number) {
   if (!access?.companyWide) {
     return { error: Response.json({ error: "Reports require company-wide scope." }, { status: 403 }) };
   }
-  const employers=await db.select({id:legalEntities.id}).from(legalEntities)
-    .where(and(eq(legalEntities.organizationId,organizationId),
-      eq(legalEntities.active,true))).limit(2);
-  if (builderRequiresEntityRole(employers.length)) {
+  // Count ALL employer registrations, including inactive historical ones.
+  // One active employer is not proof that earlier rows belong to it.
+  const employers = await db.select({ id: legalEntities.id, active: legalEntities.active })
+    .from(legalEntities).where(eq(legalEntities.organizationId, organizationId)).limit(2);
+  if (builderRequiresEntityRole(employers.length) || employers[0].active !== true) {
     return { error: Response.json({
-      error:"Report requires exactly one verified active legal employer until entity-scoped roles are reviewed.",
-    },{status:403}) };
+      error: "Reports require a single verified legal employer and explicitly reviewed entity grants.",
+    }, { status: 403 }) };
+  }
+  const employerId = employers[0].id;
+  // No tenant-level report may silently incorporate unattributed, legacy, or
+  // foreign-employer records. Do not assume the sole active employer owns them.
+  const [unverifiedPeople, unverifiedRuns, unverifiedUnits] = await Promise.all([
+    db.select({ id: employees.id }).from(employees).where(and(
+      eq(employees.organizationId, organizationId),
+      or(isNull(employees.legalEntityId), ne(employees.legalEntityId, employerId)),
+    )).limit(1),
+    db.select({ id: payrollRuns.id }).from(payrollRuns).where(and(
+      eq(payrollRuns.organizationId, organizationId),
+      or(isNull(payrollRuns.legalEntityId), ne(payrollRuns.legalEntityId, employerId)),
+    )).limit(1),
+    db.select({ id: orgUnits.id }).from(orgUnits).where(and(
+      eq(orgUnits.organizationId, organizationId),
+      or(isNull(orgUnits.legalEntityId), ne(orgUnits.legalEntityId, employerId)),
+    )).limit(1),
+  ]);
+  if (unverifiedPeople.length || unverifiedRuns.length || unverifiedUnits.length) {
+    return { error: Response.json({
+      error: "Historical legal-employer attribution requires review before report exports.",
+      code: "ENTITY_ATTRIBUTION_REQUIRED",
+    }, { status: 409 }) };
   }
   return { user, role: access.role };
 }
