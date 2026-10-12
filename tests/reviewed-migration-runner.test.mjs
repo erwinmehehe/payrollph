@@ -65,6 +65,9 @@ function fakeClient(f, opts = {}) {
         readOnly: calls.some(line => line.includes("READ ONLY")),
         inRecovery: false,
         elevated: false,
+        hasWritePrivileges: false,
+        canReadSensitiveRows: false,
+        ...(opts.identity ?? {}),
       }] };
       if (sql.includes('AS "receipts"')) return { rows: [{
         receipts: true, cutover: true, journal: true,
@@ -240,6 +243,28 @@ test("SQL parser preserves dollar-quoted routines but forbids transaction escape
       writeFileSync(path, sql);
       changed = inventoryMigrationSources(f.directory).files.find(file => file.path === f.target.path);
       assert.throws(() => loadReviewedSql(f.directory, changed), /REVIEWED_MIGRATION_SQL_/);
+    }
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("plan rejects overprivileged audit accounts and mismatched target databases", async () => {
+  const f = fixture();
+  try {
+    const base = {
+      inventory: f.inventory, sourceDirectory: f.directory,
+      mode: "plan", requestedPath: f.target.path,
+      expectedSha256: f.target.sha256, expectedDatabaseName: "app_db",
+    };
+    for (const identity of [
+      { hasWritePrivileges: true },
+      { canReadSensitiveRows: true },
+      { elevated: true },
+      { databaseName: "wrong_database" },
+    ]) {
+      await assert.rejects(
+        runReviewedMigrationOnClient({ ...base, client: fakeClient(f, { identity }) }),
+        /DATABASE_ROLE_OR_IDENTITY_REJECTED/,
+      );
     }
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
