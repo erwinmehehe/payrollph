@@ -1,0 +1,58 @@
+name: A-1 and A-2 Payout Ledger Tenant Integrity (Disposable Postgres)
+
+on:
+  pull_request:
+    paths:
+      - "docs/sql/pending-payout-ledger.sql"
+      - "drizzle/0110_provider_events_inbox.sql"
+      - "tests/payout-ledger-tenant-guard-postgres.test.mjs"
+      - ".github/workflows/payout-ledger-tenant-rehearsal.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/sql/pending-payout-ledger.sql"
+      - "drizzle/0110_provider_events_inbox.sql"
+      - "tests/payout-ledger-tenant-guard-postgres.test.mjs"
+      - ".github/workflows/payout-ledger-tenant-rehearsal.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      PAYOUT_LEDGER_REHEARSAL_MODE: isolated-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout source without saved credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288ca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Check test JavaScript syntax
+        run: node --check tests/payout-ledger-tenant-guard-postgres.test.mjs
+      - name: Source checks and isolated transaction tests
+        run: node --test tests/payout-ledger-tenant-guard-postgres.test.mjs
