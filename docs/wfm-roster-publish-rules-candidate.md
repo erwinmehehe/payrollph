@@ -1,6 +1,6 @@
 # WFM rule-checker candidate (default OFF)
 
-Migrate `drizzle/0115_wfm_roster_publish_policies.sql` before using `WFM_ROSTER_PUBLISH_RULES_ENABLED=true`. Do not migrate or enable by merging this PR.
+UNNUMBERED SQL DESIGN ONLY: `docs/engineering/migration-proposals/wfm-roster-publish-policies.sql`. Do not apply or enable by merging this PR. First reconcile this parallel roster policy schema with canonical `0116_wfm_roster_scale_rules.sql` in #865 and #859, then obtain a DBA-approved post-train migration if needed.
 
 Uses the existing locked schedule assignment/override flow; adds company-configurable daily, weekly and rest controls and an optional approved overtime cap. Baseline thresholds (12h/day, 48h trailing-week, 8h between shifts) are **illustrative employer policy safeguards**, not a universal assertion of Philippine statutory limits or permission to underpay.
 
