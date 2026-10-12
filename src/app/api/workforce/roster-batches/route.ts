@@ -416,12 +416,13 @@ export async function POST(request: Request) {
             originalDays,
             proposedDays,
             guardrailIssues: issues,
+            ruleFindings:ruleFindings.filter(f=>f.employeeId===employee.id),
           });
         }
         const sha = safeSha256({
           organizationId, workDate, shiftId, employeeIds, policy, shift, evidence,
         });
-        return { error: null, rows, sha };
+        return { error: null, rows, sha, ruleFindings };
       }
 
       if (action === "stage") {
