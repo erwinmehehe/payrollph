@@ -34,7 +34,12 @@ export function validateEmployerProfileChanges(input: unknown): ProfileValidatio
     if (typeof raw !== "string") return { ok: false, error: "Employer profile changes must be text." };
     let value = raw.trim();
     if (key === "birTin") value = value.replace(/[\s-]/g, "");
-    if (key === "birBranchCode") value = value.replace(/\D/g, "").padStart(4, "0");
+    if (key === "birBranchCode") {
+      if (!/^[0-9]{1,4}$/.test(value)) {
+        return { ok: false, error: "BIR branch code must contain one to four digits." };
+      }
+      value = value.padStart(4, "0");
+    }
     if (key === "disbursementBankCode") value = value.toUpperCase();
     if (key === "disbursementAccount") value = value.replace(/\s/g, "");
     if (!value || value.length > limits[key] || value.includes("••••"))
