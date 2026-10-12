@@ -19,6 +19,8 @@ export function OfflinePunchReviewQueue({ organizationId }: { organizationId: nu
   useEffect(() => {
     let alive = true;
     (async () => {
+      await Promise.resolve();
+      if (!alive) return;
       setLoading(true); setError("");
       try {
         const r = await fetch("/api/attendance/offline-claims?organizationId=" + organizationId,
