@@ -8,9 +8,12 @@ export function payrollMakerCheckerDecision(input: {
   declaredApproverUserId?: number | null;
   namedApproverUsed?: boolean;
 }): {ok:true}|{ok:false;code:"missing_maker"|"same_human"|"different_assignee"} {
-  const maker=Number(input.makerUserId);
+  // Audit metadata must contain a real numeric identity. Number(true)=1 and
+  // Number("1")=1 are not acceptable maker/checker proofs.
+  const maker=input.makerUserId;
   const checker=input.checkerUserId;
-  if(!Number.isSafeInteger(maker)||maker<1||!Number.isSafeInteger(checker)||checker<1)
+  if(typeof maker!=="number"||!Number.isSafeInteger(maker)||maker<1
+    ||!Number.isSafeInteger(checker)||checker<1)
     return {ok:false,code:"missing_maker"};
   if(maker===checker)return {ok:false,code:"same_human"};
   if(input.namedApproverUsed&&input.declaredApproverUserId!=null&&
