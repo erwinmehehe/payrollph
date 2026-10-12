@@ -106,7 +106,7 @@ export function evaluateWfmRosterRules(input: {
     if(latest&&target.has(current.date)){
       if(current.start<latest.end)result.push({
         code:"OVERLAPPING_SHIFTS",severity:"blocking",date:current.date,relatedDate:latest.date,
-        message:`Shift ${current.code} overlaps another scheduled shift. Overlap cannot be overridden.`,overrideEligible:false,
+        message:`Shift ${current.code} starting at minute ${Math.round(current.start % 1440)} overlaps ${latest.code}; overlap cannot be overridden.`,overrideEligible:false,
       });
       else {
         const gap=current.start-latest.end;
@@ -167,7 +167,7 @@ export function evaluateWfmRosterRules(input: {
   // produce multiple identical findings for a single employee/date/code.
   const seen=new Set<string>();
   return result.filter(item=>{
-    const key=[item.date,item.code,item.relatedDate??""].join(":");
+    const key=[item.date,item.code,item.relatedDate??"",item.actualMinutes??"",item.message].join(":");
     if(seen.has(key))return false;
     seen.add(key);return true;
   }).sort((a,b)=>a.date.localeCompare(b.date)||a.code.localeCompare(b.code));
