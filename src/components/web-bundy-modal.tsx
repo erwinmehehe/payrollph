@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EnhancedPunchControls } from "@/components/enhanced-punch-controls";
 import { isWebBundyPunchList, mayClockInWebBundy, visibleWebBundyState, webBundyReadKey, type WebBundyReadState } from "@/lib/web-bundy-display-scope";
 import { Check, Clock, Coffee, LogIn, LogOut, MapPin, PlayCircle, X } from "lucide-react";
 import { essText, type EssLanguage } from "@/lib/ess-language";
@@ -71,6 +72,7 @@ function WebBundyView({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [enhancedRead, setEnhancedRead] = useState<{ key: string; enabled: boolean; employeeCanSubmit: boolean } | null>(null);
 
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === selectedEmployeeId) ?? null,
@@ -95,6 +97,8 @@ function WebBundyView({
   const readKey = validEmployer
     ? webBundyReadKey(organizationId, selectedEmployeeId, nonce)
     : "employer-not-linked";
+  const enhancedEnabled = enhancedRead?.key === readKey && enhancedRead.enabled === true;
+  const enhancedEmployeeCanSubmit = enhancedEnabled && enhancedRead?.employeeCanSubmit === true;
   const visible = validEmployer
     ? visibleWebBundyState(readKey, readState)
     : { status: "unavailable" as const, punches: [] };
@@ -120,7 +124,7 @@ function WebBundyView({
         const data: unknown = await res.json();
         if (!alive || controller.signal.aborted) return;
         const response = data && typeof data === "object"
-          ? data as { punches?: unknown; geofence?: unknown; previousShiftNeedsReview?: unknown } : {};
+          ? data as { punches?: unknown; geofence?: unknown; previousShiftNeedsReview?: unknown; enhancedPunch?: { enabled?: unknown; employeeCanSubmit?: unknown } } : {};
         if (!isWebBundyPunchList(response.punches)) throw Error("Invalid attendance state.");
         const geo = response.geofence;
         if (!geo || typeof geo !== "object"
@@ -129,6 +133,7 @@ function WebBundyView({
           throw Error("Time-clock location policy could not be verified.");
         }
         const verified = geo as { required: boolean; canClockWithLocation: boolean };
+        setEnhancedRead({ key: readKey, enabled: response.enhancedPunch?.enabled === true, employeeCanSubmit: response.enhancedPunch?.employeeCanSubmit === true });
         setClockPolicy({ key: readKey, required: verified.required, canClockWithLocation: verified.canClockWithLocation });
         setReadState({
           key: readKey, status: "ready", punches: response.punches,
@@ -151,6 +156,10 @@ function WebBundyView({
   async function handlePunch(actionType: "clock_in" | "break_start" | "break_end" | "clock_out") {
     if (!selectedEmployeeId || !historyReady || !policyReady || !policy) {
       setError(t("Verify this employee's current attendance and time-clock policy before recording a punch."));
+      return;
+    }
+    if (enhancedEnabled) {
+      setError("Use the review-first punch controls below. Legacy direct punches are disabled.");
       return;
     }
     if (submitting.current) return;
@@ -319,7 +328,13 @@ function WebBundyView({
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
+        {enhancedEnabled && !enhancedEmployeeCanSubmit &&
+          <p role="status" style={{ marginTop: 16, color: "var(--muted)" }}>
+            Direct attendance punches are disabled for this pilot employer. People administrators must use the authorized HR correction workflow; employee punches require an independent reviewer.
+          </p>}
+        {enhancedEmployeeCanSubmit && selectedEmployeeId !== null &&
+          <EnhancedPunchControls key={`${organizationId}:${selectedEmployeeId}`} organizationId={organizationId} employeeId={selectedEmployeeId} />}
+        {!enhancedEnabled && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
           <button className="primary-button" disabled={busy || !policyReady || !canClockIn} onClick={() => handlePunch("clock_in")} style={{ height: 42, background: "var(--green)", fontSize: 13 }}>
             <LogIn size={16} /> {t("Clock IN")}
           </button>
@@ -332,7 +347,7 @@ function WebBundyView({
           <button className="secondary-button" disabled={busy || !policyReady || !canClockOut} onClick={() => handlePunch("clock_out")} style={{ height: 42, fontSize: 13 }}>
             <LogOut size={16} /> {t("Clock OUT")}
           </button>
-        </div>
+        </div>}
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, color: "var(--muted)", fontSize: 11 }}>
           <MapPin size={14} className="i-blue" />

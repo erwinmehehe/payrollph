@@ -20,6 +20,8 @@ import {
 } from "@/lib/workforce-bulk-publish";
 import { phWorkDateAt } from "@/lib/workforce-manager-actions";
 import { rosterDateOffset } from "@/lib/workforce-team-roster";
+import { checkWfmRosterPublish, wfmRosterScaleRulesEnabled } from "@/lib/workforce-roster-rules-server";
+import { decideRosterRulePublish, type WfmRosterFinding } from "@/lib/workforce-roster-rules";
 import { evaluateHcmWorkPeriod } from "@/lib/hcm-work-period-guard";
 import { evaluateSiteEligibility } from "@/lib/hcm-worksite-eligibility";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
@@ -297,6 +299,7 @@ export async function POST(request: Request) {
         const dates = Array.from({ length: 15 }, (_, i) => rosterDateOffset(workDate, i - 7));
         const rows: Array<{ employeeId: number; worksiteId: number; workLocationOrgUnitId: number | null }> = [];
         const evidence: unknown[] = [];
+        const ruleFindings: Array<{employeeId:number;findings:WfmRosterFinding[]}> = [];
         for (const employee of workerRows) {
           const latestSeparation = separations.find(row =>
             row.employeeId === employee.id && String(row.lastDay) >= String(employee.startDate),
@@ -372,6 +375,30 @@ export async function POST(request: Request) {
           };
           const proposedDays = dates.map(date => resolve(date, [...employeeOverrides, nextOverride]));
           const issues = evaluateScheduleGuardrails({ days: proposedDays, policy });
+          if (wfmRosterScaleRulesEnabled()) {
+            // Uses the same employer-locked transaction as actual publication.
+            // No manager override in the governed bulk lane: a different
+            // checker must approve a separately compliant proposal.
+            const checkedRules = await checkWfmRosterPublish({
+              organizationId, employeeId: employee.id,
+              days: proposedDays, targetDates: [workDate], executor: tx,
+              baselineRestDates: originalDays.filter(day=>day.isRestDay).map(day=>day.date),
+            });
+            const ruleDecision = decideRosterRulePublish({
+              findings: checkedRules.findings, managerMayOverride: false,
+            });
+            if (ruleDecision.blocked) {
+              return {
+                error: "Bulk roster proposal breaches mandatory rules. Reconcile individually before staging.",
+                rows: [], sha: "", ruleFindings: [
+                  { employeeId: employee.id, findings: checkedRules.findings },
+                ],
+              };
+            }
+            if (checkedRules.findings.length) {
+              ruleFindings.push({employeeId: employee.id, findings: checkedRules.findings});
+            }
+          }
           // Even advisory issues are blocked in this new bulk lane until a governed
           // labor-policy exception workflow is separately implemented.
           if (issues.length > 0) {
@@ -389,12 +416,13 @@ export async function POST(request: Request) {
             originalDays,
             proposedDays,
             guardrailIssues: issues,
+            ruleFindings:ruleFindings.filter(f=>f.employeeId===employee.id),
           });
         }
         const sha = safeSha256({
           organizationId, workDate, shiftId, employeeIds, policy, shift, evidence,
         });
-        return { error: null, rows, sha };
+        return { error: null, rows, sha, ruleFindings };
       }
 
       if (action === "stage") {
@@ -411,7 +439,9 @@ export async function POST(request: Request) {
             : failure("WFM_BATCH_KEY_REUSE", "This idempotency key is already bound to another proposal.");
         }
         const checked = await inspect(payload.employeeIds, payload.workDate, payload.shiftDefinitionId);
-        if (checked.error) return failure("WFM_BATCH_SOURCE_REVIEW_REQUIRED", checked.error);
+        if (checked.error) return {status:409,payload:{
+          code:"WFM_BATCH_SOURCE_REVIEW_REQUIRED",error:checked.error,ruleFindings:('ruleFindings' in checked ? checked.ruleFindings : []),
+        }};
         const [batch] = await tx.insert(workforceRosterBatches).values({
           organizationId, workDate: payload.workDate, shiftDefinitionId: payload.shiftDefinitionId,
           employeeIds: payload.employeeIds, evidenceSha256: checked.sha,
@@ -429,6 +459,7 @@ export async function POST(request: Request) {
         return { status: 201, payload: {
           id: batch.id, status: "pending", workers: payload.employeeIds.length,
           message: "Staged for a different authorized checker. No shifts were published.",
+          ruleFindings: ('ruleFindings' in checked ? checked.ruleFindings : []),
         } };
       }
 
@@ -515,6 +546,7 @@ export async function POST(request: Request) {
       });
       return { status: 200, payload: {
         id: batch.id, status: "approved", published: overrideIds.length, overrideIds,
+        ruleFindings: ('ruleFindings' in checked ? checked.ruleFindings : []),
       } };
     }, { isolationLevel: "read committed" });
     return Response.json(decision.payload, { status: decision.status, headers: noStore });
