@@ -74,7 +74,7 @@ try {
     "UPDATE separation_clearance_waivers SET organization_id=$2 WHERE id=$1",
   ]) {
     await client.query("SAVEPOINT rewrite");
-    await assert.rejects(() => client.query(statement, [waiverId,orgB]), err =>
+    await assert.rejects(() => client.query(statement, statement.includes("$2") ? [waiverId, orgB] : [waiverId]), err =>
       err?.code === "23514" && String(err.message).includes("A6_WAIVER_HISTORY_IMMUTABLE"));
     await client.query("ROLLBACK TO SAVEPOINT rewrite");
   }
