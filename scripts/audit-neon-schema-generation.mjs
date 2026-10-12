@@ -5,6 +5,9 @@
  * mutates tables, reads sensitive rows, or authorizes a release.
  */
 import pg from "pg";
+import {
+  requireExpectedSchemaAuditTarget, SCHEMA_AUDIT_ROLE_SQL, assertSchemaAuditRole,
+} from "./lib/neon-schema-audit-identity.mjs";
 import { pathToFileURL } from "node:url";
 import {
   DATABASE_GENERATION_FINGERPRINT_SQL, assessDatabaseGeneration,
@@ -18,8 +21,7 @@ import {
 } from "./lib/foundation-migration-objects.mjs";
 
 export async function audit(env = process.env) {
-  const connectionString = env.PRODUCTION_SCHEMA_AUDIT_DATABASE_URL;
-  if (!connectionString) throw new Error("PRODUCTION_SCHEMA_AUDIT_DATABASE_URL_REQUIRED");
+  const { connectionString, expectedDatabaseName } = requireExpectedSchemaAuditTarget(env);
   const client = new pg.Client({
     connectionString, connectionTimeoutMillis: 5000, query_timeout: 10000,
   });
@@ -28,6 +30,8 @@ export async function audit(env = process.env) {
     await client.connect();
     connected = true;
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    const roleIdentity = await client.query(SCHEMA_AUDIT_ROLE_SQL);
+    assertSchemaAuditRole(roleIdentity.rows[0], expectedDatabaseName);
     const result = await client.query(DATABASE_GENERATION_FINGERPRINT_SQL);
     const row = result.rows[0];
     const assessment = assessDatabaseGeneration(row);
@@ -36,6 +40,7 @@ export async function audit(env = process.env) {
     const foundations = assessFoundationObjects((await client.query(FOUNDATION_OBJECTS_SQL)).rows);
     return {
       databaseName: row?.databaseName ?? null,
+      expectedDatabaseNameMatched: row?.databaseName === expectedDatabaseName,
       serverVersionNum: row?.serverVersionNum ?? null,
       publicTableCount: row?.publicTableCount ?? null,
       generation: assessment.generation,

@@ -107,3 +107,13 @@ This is additional connected-Neon evidence **after** the initial catalog audit. 
 3. Independently review every historical SQL path+SHA-256 and request-time DDL/backfill evidence; adopt authoritative receipts without inventing applied history. Prepare #867's reviewed forward executor only after this.
 4. Verify complete live schema and safe dependency order, not just 21 selected foundation objects. Payout ledger and worker employment history are still missing prerequisites for 0117/0119. Do not deploy train #865 yet.
 5. Reconcile employee-by-employee payroll to the centavo, test privileges/privacy/encryption, complete new code CI and independent DBA/security/payroll/release sign-off. Do not activate payouts or filing.
+
+
+### Audit endpoint pinning and least-privilege role preflight
+
+Before running `scripts/audit-neon-schema-generation.mjs` from an operator environment, set **all three** environment variables:
+- `PRODUCTION_SCHEMA_AUDIT_DATABASE_URL` — a dedicated catalog-only, non-elevated, SELECT-only audit principal, not the Neon owner connection.
+- `PRODUCTION_SCHEMA_AUDIT_EXPECTED_HOST` — the independently verified Neon endpoint hostname (the production hostname after the October 12 incident was `ep-cool-hat-b7e7gpoo.c-13.us-east-1.aws.neon.tech`).
+- `PRODUCTION_SCHEMA_AUDIT_EXPECTED_DATABASE_NAME` — `neondb`.
+
+The CLI refuses a mismatched connection-string host/db and a privileged/write-capable account. Inside a READ ONLY transaction it verifies the session DB, role's elevated/write privileges and read access to sensitive HR/payroll tables before metadata queries. These controls **cannot** independently verify the endpoint's live branch routing: an operator must also confirm endpoint-to-branch ID through Neon API and compare the serving Vercel deployment's actual connection. Do not print credentials or use a production writer/owner URL. This is a **new source guard in PR #892**, not evidence a dedicated read-only audit account has been provisioned.
