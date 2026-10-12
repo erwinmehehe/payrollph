@@ -25,9 +25,6 @@ import {
   positions,
   separationRecords,
   separationClearanceWaivers,
-  sessions,
-  users,
-  userOrganizations,
   workerEffectiveChanges,
   workerEmploymentEvents,
 } from "@/db/schema";
@@ -49,6 +46,7 @@ import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { runLifecycleAutomations } from "@/lib/automation";
 import { requestOffboardingIT } from "@/lib/it-offboarding";
+import { revokeSeparatedEmployeeAccessTx } from "@/lib/offboarding-access-revocation";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
   DEPARTMENT_FIELDS, externalAccessRevoked, isOffboardingDepartment,
@@ -1770,43 +1768,9 @@ export async function PATCH(request: Request) {
       if (!separatedWorker) throw new Error("FINAL_PAY_WORKER_STATE_CHANGED: worker status changed during release.");
 
       if (criticalReleaseFlagEnabled("offboardingClearance")) {
-        // Employee ESS logins belong to one worker. Staff identities may span
-        // companies: revoke only the departing worker's employer membership.
-        // External SSO/MDM calls are not made or claimed completed here.
-        const employeeAccounts = await tx.select({ id: users.id }).from(users).where(and(
-          eq(users.employeeId, fresh.employeeId), eq(users.role, "employee"),
-        ));
-        const employeeUserIds = employeeAccounts.map(row => row.id);
-        const disabledLogins = employeeUserIds.length
-          ? await tx.update(users).set({ active: false, localPasswordEnabled: false })
-            .where(and(inArray(users.id, employeeUserIds), eq(users.role, "employee")))
-            .returning({ id: users.id })
-          : [];
-        const revokedSessions = employeeUserIds.length
-          ? await tx.update(sessions).set({ revokedAt: new Date() }).where(and(
-              inArray(sessions.userId, employeeUserIds),
-              isNull(sessions.revokedAt),
-            )).returning({ id: sessions.id })
-          : [];
-        const workerMemberships = await tx.update(userOrganizations).set({ active: false })
-          .where(and(
-            eq(userOrganizations.organizationId, fresh.organizationId),
-            eq(userOrganizations.workerEmployeeId, fresh.employeeId),
-            eq(userOrganizations.active, true),
-          )).returning({ id: userOrganizations.id });
-        await tx.insert(auditEvents).values({
-          organizationId: fresh.organizationId,
-          actor: user.name,
-          action: "Separated worker application access revoked",
-          resource: "Employee " + fresh.employeeId,
-          metadata: {
-            separationId: fresh.id, actorUserId: user.id,
-            disabledEmployeeLoginIds: disabledLogins.map(row => row.id),
-            revokedSessionCount: revokedSessions.length,
-            revokedEmployerMembershipIds: workerMemberships.map(row => row.id),
-            externalITGrantsVerifiedRevoked: true,
-            externalProviderCallsMade: false,
-          },
+        await revokeSeparatedEmployeeAccessTx(tx, {
+          organizationId: fresh.organizationId, employeeId: fresh.employeeId,
+          separationId: fresh.id, actorUserId: user.id, actorName: user.name,
         });
       }
 
