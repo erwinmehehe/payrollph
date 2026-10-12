@@ -1,3 +1,5 @@
+**Migration conflict resolved in source (2026-10-12):** The only canonical numbered punch-evidence SQL is proposed as `drizzle/0118_wfm_punch_evidence.sql` in draft PR #865. This PR no longer creates duplicate `drizzle/0112` SQL. PR #856 remains **DRAFT, NO MERGE** until merged #855 Web Bundy overnight/role fixes are manually reconciled and independently validated. No Neon migration, image collection or offline attendance activation is authorized.
+
 # Privacy incident and processor register — draft for DPO acceptance
 
 **Status:** operational template, not a claim of actual legal sign-off or executed processor contracts.
@@ -70,4 +72,4 @@ For each actually deployed vendor, record controller/processor role, lawful basi
 
 **Processor register:** Database provider may store encrypted JPEG evidence; verify its region, backup expiry, incident obligations, restore/delete pathways and contract before activating. No image processor, facial identification vendor or object store should be added without DPO and vendor diligence.
 
-**Operational launch requirements:** Apply and rehearse `drizzle/0112_wfm_punch_evidence.sql` on isolated synthetic data, configure a valid 32-byte PII_ENCRYPTION_KEY and independent PUNCH_DEVICE_HASH_KEY (32+ characters), ensure the malware/photo input handling passes security review, check reviewer access and scope, run consent-declined, clock-skew and purge tests, and verify nightly scheduler and manual attendance alternatives. Enable `WFM_PUNCH_EVIDENCE_ENABLED=true` only after DPO and payroll go/no-go.
+**Operational launch requirements:** Apply and rehearse `drizzle/0118_wfm_punch_evidence.sql` on isolated synthetic data, configure a valid 32-byte PII_ENCRYPTION_KEY and independent PUNCH_DEVICE_HASH_KEY (32+ characters), ensure the malware/photo input handling passes security review, check reviewer access and scope, run consent-declined, clock-skew and purge tests, and verify nightly scheduler and manual attendance alternatives. Enable `WFM_PUNCH_EVIDENCE_ENABLED=true` only after DPO and payroll go/no-go.
