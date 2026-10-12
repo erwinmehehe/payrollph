@@ -59,6 +59,6 @@ export async function GET(request:Request) {
   return {employeeId:employee.id,employeeNo:employee.employeeNo,name:employee.firstName+" "+employee.lastName,...amounts,blockers:issues};
  });
  if(rows.some(r=>r.blockers.length))blockers.push("One or more employees have missing or invalid payroll inputs.");
- blockers.push("Preview uses no attendance punches, holidays, benefit deductions or previous payroll history. Amounts are provisional and must be reconciled with a real payroll calculation.");
- return Response.json({dryRun:true,persisted:false,previewReady:!blockers.some(b=>!b.startsWith("Preview uses")),ruleVersions,rows,blockers});
+ blockers.push("Cannot certify preview ready: this read-only scenario has not loaded attendance, holidays, benefits, pay policies or prior payroll history. Reconcile through the full payroll input loader first.");
+ return Response.json({dryRun:true,persisted:false,previewReady:false,ruleVersions,rows,blockers});
 }
