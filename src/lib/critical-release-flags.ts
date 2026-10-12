@@ -6,6 +6,10 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  employeeImportPreview: {
+    env: "EMPLOYEE_IMPORT_PREVIEW_ENABLED", owner: "People Operations",
+    risk: "P1 atomic employee CSV intake", approval: "500-row preview and rollback acceptance",
+  },
   centralScheduler: {
     env: "CENTRAL_SCHEDULER_ENABLED",
     owner: "Operations",
@@ -41,6 +45,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Security",
     risk: "P1 AI-assisted automation suggestions",
     approval: "Synthetic staging isolation and postmerge activation gates",
+  },
+  wfmClockWatchPaging: {
+    env: "WFM_CLOCK_WATCH_PAGING_ENABLED",
+    owner: "Workforce Operations",
+    risk: "P1 bounded complete-cohort clock-in watch over 200 assignments",
+    approval: "WFM-12 synthetic scale/lease evidence and independent operations sign-off",
   },
   wfmLoyversePos: {
     env: "WFM_LOYVERSE_POS_ENABLED",
