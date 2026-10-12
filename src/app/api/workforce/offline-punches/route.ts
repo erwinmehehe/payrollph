@@ -1,12 +1,11 @@
 import { and, desc, eq, ne } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  employeeWorksiteAssignments, employees, workforceOfflinePunchReceipts,
+  auditEvents, employeeWorksiteAssignments, employees, workforceOfflinePunchReceipts,
   worksiteGeofenceBoundaries,
 } from "@/db/schema";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { recordAuditEvent } from "@/lib/audit";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { classifyOfflinePunch, opaqueDeviceTokenHash, worksiteImpossibleTravel } from "@/lib/workforce-punch-evidence-policy";
@@ -194,15 +193,23 @@ export async function POST(request:Request){
    if(!receipt)return Response.json({error:"Receipt not found."},{status:404});
    const scope=assertScope(access,receipt.orgUnitId);
    if(!scope.ok||user.employeeId===receipt.employeeId)return Response.json({error:"Independent in-scope human reviewer required."},{status:403});
-   const [updated]=await db.update(workforceOfflinePunchReceipts).set({
-     status:decision,reviewerId:user.id,reviewReason:reason,reviewedAt:new Date(),
-   }).where(and(eq(workforceOfflinePunchReceipts.id,id),
-     eq(workforceOfflinePunchReceipts.organizationId,organizationId),
-     eq(workforceOfflinePunchReceipts.status,"pending_review"))).returning();
+   // HR status and immutable audit receipt must commit in the same transaction.
+   // No approval, attendance or payroll write is performed here.
+   const updated=await db.transaction(async(tx)=>{
+     const [row]=await tx.update(workforceOfflinePunchReceipts).set({
+       status:decision,reviewerId:user.id,reviewReason:reason,reviewedAt:new Date(),
+     }).where(and(eq(workforceOfflinePunchReceipts.id,id),
+       eq(workforceOfflinePunchReceipts.organizationId,organizationId),
+       eq(workforceOfflinePunchReceipts.status,"pending_review"))).returning({id:workforceOfflinePunchReceipts.id});
+     if(!row)return false;
+     await tx.insert(auditEvents).values({
+       organizationId,actor:user.name,action:"Offline punch evidence reviewed",
+       resource:"Attendance evidence",metadata:{receiptId:id,decision,reason,
+         requiresSeparateAttendanceCorrection:true},
+     });
+     return true;
+   });
    if(!updated)return Response.json({error:"Receipt already reviewed; refresh."},{status:409});
-   await recordAuditEvent({organizationId,actor:user.name,action:"Offline punch evidence reviewed",
-     resource:"Attendance evidence",metadata:{receiptId:id,decision,reason,
-       requiresSeparateAttendanceCorrection:true}});
    return Response.json({id,status:decision,
      message:"Review recorded. Apply any accepted time only through the separate governed attendance correction workflow."});
  }
