@@ -170,9 +170,9 @@ test("static catalog SELECT includes comma-separated historical prerequisite fla
     assert.ok(DATABASE_GENERATION_FINGERPRINT_SQL.includes('AS "' + flag + '",'),
       flag + " must remain an independent SELECT expression");
   }
-  assert.match(DATABASE_GENERATION_FINGERPRINT_SQL, /pg_catalog\\.pg_class/);
-  assert.match(DATABASE_GENERATION_FINGERPRINT_SQL, /relkind IN \\('r','p'\\)/);
+  assert.match(DATABASE_GENERATION_FINGERPRINT_SQL, /pg_catalog\.pg_class/);
+  assert.match(DATABASE_GENERATION_FINGERPRINT_SQL, /relkind IN \('r','p'\)/);
   assert.doesNotMatch(DATABASE_GENERATION_FINGERPRINT_SQL, /to_regclass/);
   assert.doesNotMatch(DATABASE_GENERATION_FINGERPRINT_SQL,
-    /\\bSELECT\\s+\\*\\s+FROM\\s+(?:public\\.)?(?:employees|payroll_entries|payroll_runs)\\b/i);
+    /\bSELECT\s+\*\s+FROM\s+(?:public\.)?(?:employees|payroll_entries|payroll_runs)\b/i);
 });
