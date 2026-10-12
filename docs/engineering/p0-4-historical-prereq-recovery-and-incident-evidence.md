@@ -31,6 +31,14 @@ The correct live Neon target lacks their intended objects:
 | `0113_wfm_issued_demand_forecasts.sql` | Forecast issues and scores | Must follow 0112 |
 | `0114_wfm_demand_staffing_policies.sql` | Staffing policies and policy events | Depends on job profile foundation from 0022 |
 
+Additional **read-only Neon main parent-column type check** verified
+9/9 expected integer references: `organizations.id`, `users.id`,
+`employees.id`, `employees.organization_id`,
+`employees.legal_entity_id`, `org_units.id`, `legal_entities.id`,
+`worksites.id`, and `payroll_runs.id`. This supports parent
+compatibility but cannot attest historical DDL/index backfills or
+guarantee downstream INSERT/UPDATE behavior.
+
 The exact-source reconstruction sequence is **0022 → 0050 → 0110 →
 0112 → 0113 → 0114**. This is an *isolated rehearsal ordering only*,
 not permission to replay six historically numbered files against a live
