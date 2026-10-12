@@ -9,7 +9,16 @@ CREATE TABLE IF NOT EXISTS "hcm_pulse_surveys" (
  "status" varchar(16) NOT NULL DEFAULT 'open',
  "created_by_user_id" integer NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
  "created_at" timestamptz NOT NULL DEFAULT now(),
+ -- Individual response scores and pseudonyms are deleted when sealing a survey.
+ "aggregate_count" integer,
+ "aggregate_average" numeric(4,2),
+ "aggregate_distribution" jsonb,
  "closed_at" timestamptz,
+ CONSTRAINT "hcm_pulse_aggregate_privacy_check" CHECK
+  (("aggregate_count" IS NULL AND "aggregate_average" IS NULL AND "aggregate_distribution" IS NULL)
+    OR ("aggregate_count" >= 5 AND "aggregate_average" BETWEEN 1 AND 5
+      AND jsonb_typeof("aggregate_distribution") = 'array'
+      AND jsonb_array_length("aggregate_distribution") = 5)),
  CONSTRAINT "hcm_pulse_survey_status_check" CHECK ("status" IN ('open','closed'))
 );
 CREATE INDEX IF NOT EXISTS "hcm_pulse_org_status_idx" ON "hcm_pulse_surveys" ("organization_id","status");
