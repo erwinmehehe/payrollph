@@ -337,7 +337,16 @@ async function main() {
     : "WFM 0117+0118+0120 synthetic contract and rollback rehearsal verified.");
 }
 
-await main().catch(() => {
-  console.error("WFM_MIGRATION_CONTRACT_REHEARSAL_FAILED; no external database was accessed.");
+await main().catch(error => {
+  // Emit only fixed synthetic check names and a validated SQLSTATE. Never dump
+  // the query, connection string, employee data or raw exception to CI.
+  const sqlstate = typeof error?.code === "string" && /^[A-Z0-9]{5}$/.test(error.code)
+    ? error.code : "UNKNOWN";
+  const reason = typeof error?.message === "string" && /^WFM_REHEARSAL_[A-Z0-9_]+$/.test(error.message)
+    ? error.message : "REDACTED";
+  const stage = Object.entries(checks).filter(([, passed]) => passed === true)
+    .map(([name]) => name).join(",");
+  console.error("WFM_MIGRATION_CONTRACT_REHEARSAL_FAILED sqlstate=" + sqlstate +
+    " reason=" + reason + " completed=" + stage + "; no external database was accessed.");
   process.exitCode = 1;
 });
