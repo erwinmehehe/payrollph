@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { legalEntities } from "@/db/schema";
 import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
@@ -6,7 +9,7 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import {
   BUILDER_FIELD_CATALOG, canUseBuilderField, validateBuilderSpec, runWhitelistedBuilder,
-  builderRowsToCsv,
+  builderRowsToCsv, builderRequiresEntityRole,
 } from "@/lib/tenant-report-builder";
 import { getBuilderFacts } from "@/lib/tenant-report-builder-server";
 
@@ -27,6 +30,14 @@ async function authorize(organizationId: number) {
   const access = await getAccess(user.id, organizationId);
   if (!access?.companyWide) {
     return { error: Response.json({ error: "Reports require company-wide scope." }, { status: 403 }) };
+  }
+  const employers=await db.select({id:legalEntities.id}).from(legalEntities)
+    .where(and(eq(legalEntities.organizationId,organizationId),
+      eq(legalEntities.active,true))).limit(2);
+  if (builderRequiresEntityRole(employers.length)) {
+    return { error: Response.json({
+      error:"Entity-scoped report access is not certified for multiple legal employers.",
+    },{status:403}) };
   }
   return { user, role: access.role };
 }
