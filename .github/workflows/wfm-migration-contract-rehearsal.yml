@@ -22,17 +22,23 @@ permissions:
 
 jobs:
   synthetic-sql-contract:
+    name: WFM SQL contracts (PG ${{ matrix.pg }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        pg: ["16", "18"]
     env:
       CI: "true"
       TZ: Asia/Manila
       GITHUB_ACTIONS: "true"
       MIGRATION_REHEARSAL_MODE: isolated-ci-only
+      WFM_REHEARSAL_PG_MAJOR: "${{ matrix.pg }}"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
-        image: postgres:16
+        image: postgres:${{ matrix.pg }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -69,7 +75,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: wfm-0117-0118-0120-synthetic-rehearsal
+          name: wfm-0117-0118-0120-pg${{ matrix.pg }}-synthetic-rehearsal
           path: |
             qa-artifacts/wfm-migration-synthetic-rehearsal.json
             qa-artifacts/wfm-migration-injected-failure.json

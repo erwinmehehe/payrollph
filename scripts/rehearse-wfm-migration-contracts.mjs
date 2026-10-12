@@ -1,5 +1,5 @@
 /**
- * Rollback-only PostgreSQL 16 contract rehearsal for the canonical,
+ * Rollback-only disposable PostgreSQL 16/18 contract rehearsal for the canonical,
  * unmerged 0117, 0118, 0120 migration files.
  *
  * CI-only guard ensures this CANNOT connect to Neon, staging or production.
@@ -193,6 +193,10 @@ async function verifyBehavior() {
 
 async function main() {
   const connectionString = assertIsolatedMigrationTarget(process.env);
+  const expectedMajor = Number(process.env.WFM_REHEARSAL_PG_MAJOR);
+  if (![16, 18].includes(expectedMajor)) {
+    throw new Error("WFM_REHEARSAL_PG_MAJOR_MISSING_OR_INVALID");
+  }
   if (!(process.argv.length === 2 || injected)) {
     throw new Error("WFM_REHEARSAL_MODE_NOT_RECOGNIZED");
   }
@@ -213,8 +217,8 @@ async function main() {
     );
     const row = fingerprint.rows[0];
     assert.ok(row?.db === "app_db" && row?.role === "postgres" &&
-      row?.version >= 160000 && row?.version < 170000,
-    "WFM_REHEARSAL_DISPOSABLE_PG16_IDENTITY_FAILED");
+      row?.version >= expectedMajor * 10000 && row?.version < (expectedMajor + 1) * 10000,
+    "WFM_REHEARSAL_DISPOSABLE_PG_IDENTITY_FAILED");
     const existing = await client.query(
       "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','m','f')) OR EXISTS (SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname NOT IN ('public','pg_catalog','information_schema') AND nspname NOT LIKE 'pg_%') AS occupied",
     );
@@ -287,6 +291,7 @@ async function main() {
     sourceDigest: digest.digest("hex"),
     ...checks,
     mode: "isolated-ci-only",
+    postgresMajor: expectedMajor,
     syntheticRowsOnly: true,
     realEmployerDataAccessed: false,
     productionCloneRehearsed: false,
@@ -295,8 +300,8 @@ async function main() {
     databaseChangesCommitted: false,
   }, null, 2) + "\n");
   console.log(injected
-    ? "WFM migration injected-failure rollback verified on synthetic PostgreSQL 16."
-    : "WFM 0115+0116+0118 synthetic contract and rollback rehearsal verified.");
+    ? `WFM migration injected-failure rollback verified on synthetic PostgreSQL ${expectedMajor}.`
+    : `WFM 0117+0118+0120 synthetic contract and rollback rehearsal verified on PostgreSQL ${expectedMajor}.`);
 }
 
 await main().catch(() => {

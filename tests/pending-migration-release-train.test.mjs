@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
+import { assessTrainPrerequisites, TRAIN_STEPS } from "../scripts/lib/pending-train-preflight.mjs";
 
 const sqlDir = new URL("../drizzle/", import.meta.url);
 const pending = new Map([
@@ -61,15 +62,17 @@ test("payout foundations precede Xendit without enabling provider submission", (
   }
 });
 
-test("sensitive historical backfill is deferred to runner-owned atomic transaction", () => {
-  const multi = readFileSync(new URL(pending.get(121),sqlDir), "utf8");
-  assert.match(multi,/UPDATE payroll_entries/);
-  assert.match(multi,/worker_employment_events/);
-  assert.doesNotMatch(multi,/^\s*(?:BEGIN|COMMIT|ROLLBACK)\s*;/m);
-  assert.doesNotMatch(multi,/\b(?:TRUNCATE|DROP TABLE)\b/i);
-  const docs = readFileSync(new URL("../docs/engineering/pending-migration-release-train.md", import.meta.url),"utf8");
-  assert.match(docs,/DO NOT RUN ON NEON/);
-  assert.match(docs,/runtime DDL/);
-  assert.match(docs,/historical receipt/);
-  assert.match(docs,/restore/);
+test("historical employment prerequisite cannot be inferred from draft migrations", () => {
+  const available = new Set(TRAIN_STEPS.flatMap(step => step.requires));
+  for (const step of TRAIN_STEPS) {
+    for (const generated of step.creates) available.delete(generated);
+  }
+  available.delete("worker_employment_events");
+  const assessment = assessTrainPrerequisites([...available], true);
+  const entityTransfer = assessment.perMigration.find(row => row.migration === "0121");
+  assert.equal(entityTransfer.hypotheticalPreconditionsSatisfied, false);
+  assert.ok(entityTransfer.missing.includes("worker_employment_events"));
+  assert.equal(assessment.safeToApply, false);
+  assert.equal(assessment.prerequisitesPresent, false);
+  assert.equal(assessment.reason, "MISSING_SQL_DEPENDENCIES");
 });

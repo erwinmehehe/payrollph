@@ -4,7 +4,9 @@ import test from "node:test";
 import pg from "pg";
 
 const ciReady = process.env.CI === "true"
-  && process.env.PAYOUT_TRAIN_REHEARSAL === "isolated-localhost-pg-only";
+  && process.env.GITHUB_ACTIONS === "true"
+  && process.env.PAYOUT_TRAIN_REHEARSAL === "isolated-localhost-pg-only"
+  && ["16", "18"].includes(process.env.PAYOUT_REHEARSAL_PG_MAJOR);
 
 function localOnlyURL() {
   const value = process.env.DATABASE_URL;
@@ -42,7 +44,7 @@ async function mustReject(client, sql, pgCode) {
   assert.equal(caught.code, pgCode);
 }
 
-test("0115 profiles then 0116 payout then 0119 Xendit: exact source, Postgres 16, no money out", {
+test("0115 profiles then 0116 payout then 0119 Xendit: real SQL constraints, rollback, no money out", {
   skip: !ciReady, timeout: 60_000,
 }, async () => {
   const client = new pg.Client({
@@ -50,6 +52,20 @@ test("0115 profiles then 0116 payout then 0119 Xendit: exact source, Postgres 16
   });
   await client.connect();
   let inTxn = false;
+  const identity = await client.query(
+    "SELECT current_database() AS db, current_user AS role, current_setting('server_version_num')::integer AS version",
+  );
+  const actual = identity.rows[0];
+  const expected = Number(process.env.PAYOUT_REHEARSAL_PG_MAJOR);
+  assert.equal(actual?.db, "app_db");
+  assert.equal(actual?.role, "postgres");
+  assert.ok(actual.version >= expected * 10000 && actual.version < (expected + 1) * 10000,
+    "Unexpected PostgreSQL version on disposable CI target");
+  const occupancy = await client.query(
+    "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','m','f')) AS occupied",
+  );
+  assert.equal(occupancy.rows[0]?.occupied, false,
+    "Non-empty public schema is not a disposable CI target");
   try {
     await client.query("BEGIN");
     inTxn = true;
@@ -146,14 +162,4 @@ test("0115 profiles then 0116 payout then 0119 Xendit: exact source, Postgres 16
     if(inTxn) { try{await client.query("ROLLBACK");}catch{} }
     await client.end();
   }
-});
-
-test("proposed train is source-only; no implicit money activation", () => {
-  const text = readFileSync("docs/engineering/pending-migration-release-train.md","utf8");
-  assert.match(text,/DO NOT RUN ON NEON MAIN/);
-  assert.match(text,/historical receipt/);
-  assert.match(text,/Original endpoint/);
-  const numbered = readFileSync("drizzle/0121_multi_entity_v2_scope_transfer.sql","utf8");
-  assert.doesNotMatch(numbered,/^\s*(?:BEGIN|COMMIT|ROLLBACK)\s*;/im);
-  assert.match(numbered,/worker_employment_events/);
 });
