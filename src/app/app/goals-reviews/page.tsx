@@ -22,7 +22,7 @@ export default async function Page({ searchParams }: {
   if (!organizationId || !Number.isSafeInteger(organizationId)) notFound();
   if (await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES)) notFound();
   const access = await getAccess(user.id, organizationId);
-  if (!access?.companyWide) notFound();
+  if (!access?.companyWide || !["owner", "admin", "hr"].includes(access.role)) notFound();
   const cycles = await db.select({
     id: performanceCycles.id, name: performanceCycles.name,
     startDate: performanceCycles.startDate, endDate: performanceCycles.endDate,
