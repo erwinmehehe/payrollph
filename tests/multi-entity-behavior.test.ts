@@ -6,6 +6,7 @@ import test from "node:test";
 import { canActOnEntityTransfer, decideEntityAccess, entityResourceAllowed, entityConfirmationMatches, validateLegalEmployerSettingsPatch, VERSIONED_EMPLOYER_FIELDS } from "../src/lib/multi-entity-policy";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { sumPayrollAmounts } from "../src/lib/multi-entity-money";
+import { validateEmployerProfileChanges } from "../src/lib/multi-entity-registration";
 import { EntityBadge, EntitySwitcher, EntityFilter } from "../src/components/workspace/multi-entity-ui";
 
 const entities = [
@@ -124,6 +125,41 @@ test("group payroll cost totals use exact centavos, including negatives and larg
   for (const invalid of ["", "1e4", "Infinity", "NaN", "1.005", "0.00400", "1,000.00"]) {
     assert.throws(() => sumPayrollAmounts([invalid]), /not a valid decimal|sub-centavo/);
   }
+});
+
+test("employer profile patch rejects masked, empty and incomplete statutory or bank identities", () => {
+  const accepted = validateEmployerProfileChanges({
+    birTin: "123-456-789", birBranchCode: "12",
+    disbursementBankCode: "bpi", disbursementAccountName: "Company Payroll",
+    disbursementAccount: "1234567890",
+  });
+  assert.deepEqual(accepted, { ok: true, changes: {
+    birTin: "123456789", birBranchCode: "0012",
+    disbursementBankCode: "BPI", disbursementAccountName: "Company Payroll",
+    disbursementAccount: "1234567890",
+  }, changedFields: ["birTin", "birBranchCode", "disbursementBankCode",
+    "disbursementAccountName", "disbursementAccount"] });
+  for (const invalid of [
+    {}, { birTin: "" }, { birTin: "••••1234" }, { birTin: "abcdefghi" },
+    { birBranchCode: "" }, { birBranchCode: "abcd" },
+    { birBranchCode: "12345" }, { disbursementAccount: "1234567890" },
+    { disbursementAccount: "••••7890" }, { legalName: "" },
+    { registeredAddress: "a" }, { legalName: null }, { unknownField: "value" },
+    { disbursementBankCode: "BPI", disbursementAccountName: "Company" },
+  ]) {
+    assert.equal(validateEmployerProfileChanges(invalid).ok, false, JSON.stringify(invalid));
+  }
+});
+
+test("registration release flag is default off and exact-true only", () => {
+  for (const value of [undefined, "", "false", "TRUE", "1", "true "]) {
+    assert.equal(criticalReleaseFlagEnabled("multiEntityRegistrations", {
+      MULTI_ENTITY_REGISTRATIONS_ENABLED: value,
+    }), false);
+  }
+  assert.equal(criticalReleaseFlagEnabled("multiEntityRegistrations", {
+    MULTI_ENTITY_REGISTRATIONS_ENABLED: "true",
+  }), true);
 });
 
 test("flag-off entity widgets preserve empty legacy markup, including no switcher", () => {
