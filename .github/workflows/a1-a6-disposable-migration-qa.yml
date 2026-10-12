@@ -1,0 +1,82 @@
+name: A1-A6 Disposable Database and Integration QA
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: a1-a6-disposable-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  postgres18-integration:
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      A1_A6_DISPOSABLE_MIGRATION_MODE: isolated-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/a1a6_ci
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: a1a6_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d a1a6_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Provision synthetic-only bank snapshot crypto key
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Bootstrap disposable Postgres from PR BASE schema, not integrated schema
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || 'main' }}
+        run: |
+          set -euo pipefail
+          test "$CI" = "true"
+          test "$A1_A6_DISPOSABLE_MIGRATION_MODE" = "isolated-ci-only"
+          case "$DATABASE_URL" in
+            postgresql://postgres:postgres@127.0.0.1:5432/a1a6_ci) ;;
+            *) echo "Unexpected database target" >&2; exit 1 ;;
+          esac
+          cp src/db/schema.ts /tmp/a1-a6-integration-schema.ts
+          git show "${BASE_SHA}:src/db/schema.ts" > src/db/schema.ts
+          npm run db:push
+          cp /tmp/a1-a6-integration-schema.ts src/db/schema.ts
+          git diff -- src/db/schema.ts | head -n 30
+      - name: Rehearse all reviewed proposals together and ROLLBACK
+        run: node scripts/rehearse-a1-a6-migrations.cjs --rollback
+      - name: Apply proposals to same disposable DB, verify FKs and policies
+        run: node scripts/rehearse-a1-a6-migrations.cjs --apply-ci
+      - name: Typecheck combined A1-A6 source
+        run: npm run typecheck
+      - name: Run key cross-domain tests on migrated Postgres
+        run: |
+          npx tsx --test --test-concurrency=1             tests/payroll-loan-schedule.test.ts             tests/payroll-loan-settlement.test.ts             tests/recruitment-applicant-privacy.test.ts             tests/recruitment-applicant-retention-db.test.ts             tests/hr-cases-behavior.test.ts             tests/hr-cases-role-visibility.test.ts             tests/spend-payroll-integration.test.ts             tests/spend-payroll-reimbursement.test.ts             tests/spend-receipts-behavior.test.ts             tests/employee-document-vault.test.ts             tests/employee-document-vault-verification.test.ts             tests/employee-document-expiry-integration.test.ts             tests/offboarding-clearance-integration.test.ts             tests/offboarding-clearance-behavior.test.ts
+      - name: Verify statutory golden payroll unaffected by staged migrations
+        run: npm run payroll:golden
+      - name: Publish sanitized synthetic QA receipts (NOT production certification)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: a1-a6-disposable-postgres18-rehearsal
+          path: qa-artifacts/a1-a6-migration-rehearsal.json
+          if-no-files-found: warn
+          retention-days: 14
