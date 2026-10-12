@@ -35,6 +35,7 @@ import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
 import { MoreModulesPage } from "@/components/workspace/more-modules-page";
 import { EmployeeCaseInbox } from "@/components/workspace/employee-case-ui";
+import { OfflinePunchReviewQueue } from "@/components/workspace/offline-punch-review";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
 import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
@@ -563,6 +564,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
           />
         )}
 
+        {page === "Time & attendance" && workflowUi.faceOfflinePunch
+          && ["owner","admin","hr"].includes(effectiveRole ?? "")
+          && <OfflinePunchReviewQueue organizationId={data.selectedOrganization.id} />}
         {page === "Time & attendance" && (
           <TimeView
             data={data}
