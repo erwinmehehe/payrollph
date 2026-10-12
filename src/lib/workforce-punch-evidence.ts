@@ -11,7 +11,7 @@ export function validPunchUuid(value: string): boolean {
 }
 export type PunchAction = typeof PUNCH_ACTIONS[number];
 export type PhotoMode = "off" | "optional" | "required";
-export type PunchFlag = "offline-synced" | "clock-skew" | "shared-device" | "impossible-travel" | "photo-missing" | "consent-declined" | "time-invalid";
+export type PunchFlag = "offline-synced" | "clock-skew" | "shared-device" | "impossible-travel" | "photo-missing" | "consent-declined" | "geofence-unverified" | "time-invalid";
 
 export function enhancedPunchEnabled(): boolean {
   return criticalReleaseFlagEnabled("workforcePunchEvidence");
@@ -28,9 +28,17 @@ export function photoCaptureDecision(mode: PhotoMode, choice: "accepted" | "decl
   if (mode === "required" && !hasPhoto) return { capture: false, review: true, flags: ["photo-missing"] as PunchFlag[] };
   return { capture: hasPhoto, review: false, flags: [] as PunchFlag[] };
 }
+/** Device timestamps are browser-created UTC instants, never local strings.
+ * Canonical input avoids server timezone inference or normalized invalid dates.
+ */
+export function validDevicePunchTimestamp(value: string): boolean {
+  if (!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/.test(value)) return false;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString() === value;
+}
 export function evaluatePunchTiming(deviceOccurredAt: string, serverReceivedAt: Date, source: "online" | "offline", skewMinutes = PUNCH_MAX_SKEW_MINUTES): PunchFlag[] {
+  if (!validDevicePunchTimestamp(deviceOccurredAt)) return ["time-invalid"];
   const time = Date.parse(deviceOccurredAt);
-  if (!Number.isFinite(time) || !/^\d{4}-\d\d-\d\dT/.test(deviceOccurredAt)) return ["time-invalid"];
   const delta = Math.abs(time - serverReceivedAt.getTime());
   const flags: PunchFlag[] = [];
   if (delta > skewMinutes * 60_000) flags.push(source === "offline" ? "offline-synced" : "clock-skew");
