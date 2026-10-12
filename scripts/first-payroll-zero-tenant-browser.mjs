@@ -41,7 +41,7 @@ async function enter(email){
 }
 try{
   const owner=await enter("first-payroll-owner@example.test");
-  assert.match(await owner.card.innerText(),/0 of 5|0\/5|Add or import|zero/i);
+  assert.match(await owner.card.innerText(),/Add active employees|Add people and payout details/);
 
   const employerStep=owner.steps.nth(0);
   await employerStep.getByRole("button",{name:"Review company"}).click();
