@@ -72,6 +72,7 @@ export function evaluateWfmRosterRules(input: {
   policy: WfmRosterRulePolicy;
   targetDates?: readonly string[];
   designatedRestDay?: string | null;
+  baselineRestDates?: readonly string[];
   holidays?: readonly ApplicableHoliday[];
   /** Explicitly approved overtime minutes per workday, if an approved cap exists. */
   approvedOvertimeMinutesByDate?: Readonly<Record<string,number>>;
@@ -148,7 +149,7 @@ export function evaluateWfmRosterRules(input: {
     if(paid<=0)continue;
     const normalizedRest=input.designatedRestDay?.toLowerCase();
     const weekday=["sunday","monday","tuesday","wednesday","thursday","friday","saturday"][new Date(day.date+"T00:00:00Z").getUTCDay()];
-    const rest=normalizedRest===weekday;
+    const rest=normalizedRest===weekday || (input.baselineRestDates?.includes(day.date)??false);
     if(rest)result.push({
       code:"REST_DAY_PREMIUM",severity:"warning",date:day.date,
       message:"Scheduled work is on the employee's designated rest day. Review applicable rest-day and overtime premiums before publishing; payroll calculates actual pay.",
