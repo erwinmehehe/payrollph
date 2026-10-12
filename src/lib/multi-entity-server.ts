@@ -2,6 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { legalEntities, userEntityPreferences, userLegalEntityGrants } from "@/db/schema";
 import { getAccess } from "@/lib/access";
+import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { decideEntityAccess, entityResourceAllowed, GROUP_ENTITY_ROLES } from "@/lib/multi-entity-policy";
 
@@ -28,6 +29,8 @@ export async function resolveMultiEntityContext(input: {
   const access = await getAccess(input.userId, input.organizationId);
   if (!access || access.role === "employee")
     return { ok: false, response: denied("No company membership in this organization.") };
+  const sessionDenied = await assertOrganizationSessionPolicy(input.userId, input.organizationId);
+  if (sessionDenied) return { ok: false, response: sessionDenied };
 
   if (!criticalReleaseFlagEnabled("multiEntity")) {
     return { ok: true, context: {
