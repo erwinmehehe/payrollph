@@ -56,18 +56,23 @@ export async function POST(request: Request) {
   ).limit(1);
   if (!job) return unavailable();
   // Do not permit the public form to rewrite or bypass existing recruiting stages.
-  const [same] = await db.select({ id: jobApplicants.id }).from(jobApplicants).where(and(
-    eq(jobApplicants.organizationId, organizationId), eq(jobApplicants.requisitionId, requisitionId),
-    sql`lower(${jobApplicants.email}) = ${email}`,
-  )).limit(1);
-  if (same) return Response.json({ received: true }); // Do not reveal a prior applicant's existence.
-  const [created] = await db.insert(jobApplicants).values({
-    organizationId, requisitionId, fullName, email, phone: phone || null,
-    notes: notes || null, stage: "applied",
-  }).returning({ id: jobApplicants.id });
-  await recordAuditEvent({ organizationId, actor: "Public careers application",
+  const created = await db.transaction(async tx => {
+    // Serialize one applicant email per requisition even across app instances.
+    await tx.execute(sql`select pg_advisory_xact_lock(4911, hashtext(${organizationId + ":" + requisitionId + ":" + email}))`);
+    const [existing] = await tx.select({ id: jobApplicants.id }).from(jobApplicants).where(and(
+      eq(jobApplicants.organizationId, organizationId), eq(jobApplicants.requisitionId, requisitionId),
+      sql`lower(${jobApplicants.email}) = ${email}`,
+    )).limit(1);
+    if (existing) return null;
+    const [row] = await tx.insert(jobApplicants).values({
+      organizationId, requisitionId, fullName, email, phone: phone || null,
+      notes: notes || null, stage: "applied",
+    }).returning({ id: jobApplicants.id });
+    return row;
+  });
+  if (created) await recordAuditEvent({ organizationId, actor: "Public careers application",
     action: "Published careers application received", resource: String(requisitionId),
     metadata: { applicantId: created.id, noCredentialsGranted: true },
   });
-  return Response.json({ received: true }, { status: 201 });
+  return Response.json({ received: true }, { status: created ? 201 : 200 });
 }
