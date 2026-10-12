@@ -49,7 +49,12 @@ export function EmployeeHrCasesPanel({ language }: { language: EssLanguage }) {
     } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    // Defer the initial request until after the effect commits so its result
+    // never synchronously updates React state inside the effect lifecycle.
+    const handle = window.setTimeout(() => { void refresh(); }, 0);
+    return () => window.clearTimeout(handle);
+  }, [refresh]);
 
   async function send(payload: Record<string, unknown>) {
     setBusy(true);
