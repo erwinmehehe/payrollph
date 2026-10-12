@@ -95,6 +95,14 @@ test("employee's designated rest day and tenant holiday show premium implication
   assert.deepEqual(findings.map(f=>f.code),["HOLIDAY_PREMIUM","REST_DAY_PREMIUM"]);
   assert.ok(findings.every(f=>f.severity==="warning"&&!f.overrideEligible));
 });
+test("a new shift on a scheduled rotation rest day shows premium review without pay calculation",()=>{
+  const findings=evaluateWfmRosterRules({
+    days:[day("2026-10-17","08:00","16:00")],
+    policy:PH_ROSTER_RULE_DEFAULTS,baselineRestDates:["2026-10-17"],
+  });
+  assert.deepEqual(findings.map(f=>f.code),["REST_DAY_PREMIUM"]);
+  assert.equal(findings[0].overrideEligible,false);
+});
 test("manager override needs a reason and records only waivable policy breaches in hash-chain metadata",()=>{
   const findings=evaluateWfmRosterRules({days:[
     day("2026-10-13","08:00","21:00"),day("2026-10-14","02:00","10:00")],
