@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
   validateBuilderSpec, runWhitelistedBuilder, builderRowsToCsv,
 } from "../src/lib/tenant-report-builder";
@@ -66,4 +67,16 @@ test("multi-entity HR report export needs future group-scope authorization",asyn
  assert.equal(builderRequiresEntityRole(1),false);
  assert.equal(builderRequiresEntityRole(2),true);
  assert.equal(builderRequiresEntityRole(999),true);
+});
+
+test("report route refuses ambiguous employer history before exporting data", () => {
+ const route=readFileSync("src/app/api/reports/builder/route.ts","utf8");
+ assert.match(route, /eq\(legalEntities\.organizationId, organizationId\)/);
+ assert.match(route, /employers\[0\]\.active !== true/);
+ for(const name of ["employees", "payrollRuns", "orgUnits"]) {
+   assert.ok(route.includes("isNull(" + name + ".legalEntityId)"), name);
+   assert.ok(route.includes("ne(" + name + ".legalEntityId, employerId)"), name);
+ }
+ assert.match(route, /ENTITY_ATTRIBUTION_REQUIRED/);
+ assert.match(route, /status: 409/);
 });
