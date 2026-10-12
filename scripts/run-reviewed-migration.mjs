@@ -90,10 +90,8 @@ async function main() {
     console.log(JSON.stringify({
       ...result,
       sourceSha: process.env.GITHUB_SHA,
-      bankOrPayrollRecordsInspected: false,
-      bankOrPayrollDataChangedByRunner: false,
-      // Migration SQL itself may legitimately create/alter business tables;
-      // do not mistake this wrapper statement for a content audit.
+      // The reviewed SQL itself may read or alter business data; this tool
+      // never claims content inspection or payroll correctness.
       migrationSqlExecuted: result.sqlApplied,
       productionReleaseApproved: false,
     }, null, 2));
