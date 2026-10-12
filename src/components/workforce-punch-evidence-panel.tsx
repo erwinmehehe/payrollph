@@ -35,11 +35,6 @@ export function WorkforcePunchEvidencePanel(input: {
   }, [organizationId, employeeId]);
   useEffect(() => {
     const abort = new AbortController();
-    setPhotoPolicy(null);
-    setOfflineEnabled(false);
-    setMessage("");
-    setError("");
-    onPhotoPrepared(null);
     void Promise.all([
       fetch(`/api/workforce/punch-evidence?organizationId=${organizationId}`, {
         signal: abort.signal, cache: "no-store",
@@ -80,7 +75,7 @@ export function WorkforcePunchEvidencePanel(input: {
 
   useEffect(() => {
     if (!offlineEnabled) return;
-    void sync();
+    // Trigger sync from the queue action or a network-online event.
     const listener = () => { void sync(); };
     window.addEventListener("online", listener);
     return () => window.removeEventListener("online", listener);
