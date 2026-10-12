@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
+import { evaluateWfmTapResult } from "./lib/wfm-tap-summary.mjs";
 
 const suites = [
   ["WFM-01", ["workforce-live-floor-client.test.ts", "workforce-team-roster-client.test.ts"],
@@ -12,8 +13,8 @@ const suites = [
     "Stale concurrent publication and advisory lock tests; two-manager app run outstanding."],
   ["WFM-05", ["wfm-role-demand.test.ts", "hcm-capability-wfm-integration.test.ts"],
     "Role and eligibility evidence; manager/HR authorization review outstanding."],
-  ["WFM-06", ["wfm-attendance-capture-depth.test.ts", "workforce-absence-intervals.test.ts"],
-    "Punch and partial-leave evidence; device and bookkeeper acceptance outstanding."],
+  ["WFM-06", ["wfm-attendance-capture-depth.test.ts", "workforce-absence-intervals.test.ts", "web-bundy-overnight-anchor.test.ts"],
+    "Punch, partial-leave and overnight work-date anchoring regression; physical-device and bookkeeper acceptance outstanding."],
   ["WFM-07", ["wfm-premium-boundary-release.test.ts", "workforce-payroll.test.ts"],
     "Synthetic PH premium/pay rules; independent bookkeeper centavo reconciliation outstanding."],
   ["WFM-08", ["wfm-payroll-handoff-e2e.test.ts", "wfm-web-bundy-clockout-timesheet-stale.test.ts"],
@@ -49,9 +50,18 @@ for (const [id, files, boundary] of suites) {
       encoding: "utf8", env: { ...process.env, CI: "true", TZ: "Asia/Manila" },
       timeout: 180000, maxBuffer: 4 * 1024 * 1024,
     });
-    result.automated = command.status === 0 ? "PASS" : "FAIL";
-    if (command.error || command.status !== 0) {
-      result.failureKind = command.error?.code || "test-process-failed";
+    // A zero-exit subprocess can still have zero, skipped or unreported tests.
+    // Count real TAP tests before granting a synthetic coverage PASS.
+    const tap = evaluateWfmTapResult({
+      exitCode: command.status, output: command.stdout, processError: command.error,
+    });
+    result.automated = tap.passed ? "PASS" : "FAIL";
+    result.executedTests = tap.tests;
+    result.passedTests = tap.passedTests;
+    result.skippedTests = tap.skippedTests;
+    result.todoTests = tap.todoTests;
+    if (!tap.passed) {
+      result.failureKind = command.error?.code || tap.failureKind;
       console.error(id + " FAIL; see GitHub Actions job logs for exact test assertions.");
       console.error((command.stderr || command.stdout || "").slice(-1100));
     } else {

@@ -6,6 +6,10 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  employeeImportPreview: {
+    env: "EMPLOYEE_IMPORT_PREVIEW_ENABLED", owner: "People Operations",
+    risk: "P1 atomic employee CSV intake", approval: "500-row preview and rollback acceptance",
+  },
   centralScheduler: {
     env: "CENTRAL_SCHEDULER_ENABLED",
     owner: "Operations",
@@ -47,6 +51,42 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Security",
     risk: "P1 AI-assisted automation suggestions",
     approval: "Synthetic staging isolation and postmerge activation gates",
+  },
+  wfmClockWatchPaging: {
+    env: "WFM_CLOCK_WATCH_PAGING_ENABLED",
+    owner: "Workforce Operations",
+    risk: "P1 bounded complete-cohort clock-in watch over 200 assignments",
+    approval: "WFM-12 synthetic scale/lease evidence and independent operations sign-off",
+  },
+  wfmLoyversePos: {
+    env: "WFM_LOYVERSE_POS_ENABLED",
+    owner: "Workforce Operations",
+    risk: "P1 consented POS source access and historical aggregate import",
+    approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
+  },
+  publicApiV1Extended: {
+    env: "PUBLIC_API_V1_EXTENDED_ENABLED",
+    owner: "Integrations",
+    risk: "P1 scoped employee/org-unit/pay statement API reads and event feed",
+    approval: "Tenant-isolation integration tests, API token scope review and privacy acceptance",
+  },
+  tenantReportBuilder: {
+    env: "TENANT_REPORT_BUILDER_ENABLED",
+    owner: "People Analytics",
+    risk: "P1 payroll-cost CSV exports and workforce reporting permissions",
+    approval: "Role-based salary redaction, audit evidence and scoped export sign-off",
+  },
+  goalsReviewCycle: {
+    env: "GOALS_REVIEW_CYCLE_ENABLED",
+    owner: "People Operations",
+    risk: "P2 optional goals and review cycle landing page",
+    approval: "Existing performance authorization and read-only journey acceptance",
+  },
+  engagementSurvey: {
+    env: "ENGAGEMENT_SURVEY_ENABLED",
+    owner: "People Operations",
+    risk: "P1 anonymous employee feedback and small-cohort inference",
+    approval: "Minimum cohort privacy tests, consent and retention review",
   },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",

@@ -17,7 +17,11 @@ test("enforced GPS only on an allowlisted employee self-clock, after tenant and 
   assert.ok(bundy.includes("eq(employees.organizationId, organizationId)"));
   assert.ok(bundy.includes("attendanceMutationLock("));
   assert.ok(bundy.includes('actionType === "clock_in" || actionType === "clock_out"'));
-  assert.ok(bundy.includes("authorizedGeofenceSites(organizationId, employeeId, todayStr)"));
+  // Overnight clock-outs must be authorized against the shift\u0027s original work date,
+  // not today, without bypassing the existing tenant, employee and lock gates.
+  assert.ok(bundy.includes("const effectiveWorkDate = anchor.workDate"));
+  assert.ok(bundy.includes("authorizedGeofenceSites(organizationId, employeeId, effectiveWorkDate)"));
+  assert.ok(!bundy.includes("authorizedGeofenceSites(organizationId, employeeId, todayStr)"));
   assert.ok(bundy.includes("if (!decision.ok)"));
   assert.ok(bundy.includes("GEOFENCE_SELF_CLOCK_ONLY"));
   assert.ok(bundy.includes('action: "geofenced-web-bundy"'));
