@@ -59,7 +59,7 @@ async function xenditFrozenPayroll(run: PayrollRun) {
     rows.push({ payee, employeeId: employee.id, payrollEntryId: entry.id });
   }
   if (!rows.length) throw new Error("No positive-net-pay employees to disburse.");
-  if (rows.reduce((total, row) => total + BigInt(row.payee.amountCents), 0n) !== BigInt(payoutCentsFromNetPay(run.netPay))) {
+  if (rows.reduce((total, row) => total + BigInt(row.payee.amountCents), BigInt(0)) !== BigInt(payoutCentsFromNetPay(run.netPay))) {
     throw new Error("XENDIT_RELEASED_PAYROLL_TOTAL_MISMATCH");
   }
   const secret = process.env.XENDIT_PAYOUT_SECRET_KEY?.trim();
