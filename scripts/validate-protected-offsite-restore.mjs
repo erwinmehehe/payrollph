@@ -7,6 +7,7 @@ try{
     ref:e.GITHUB_REF, githubSha:e.GITHUB_SHA,
     reviewedSha:e.RESTORE_REVIEWED_SHA,
     workflowEnvironment:e.RESTORE_WORKFLOW_ENVIRONMENT,
+    actor:e.GITHUB_ACTOR,allowedActors:e.RESTORE_ALLOWED_ACTORS,
     changeRef:e.RESTORE_CHANGE_REF,
     confirmation:e.RESTORE_CONFIRMATION,
     archiveSourceSha:e.RESTORE_ARCHIVE_SOURCE_SHA,
