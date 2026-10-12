@@ -1,0 +1,86 @@
+name: P0-4 Protected Encrypted Archive Restore (Offline Only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Exact reviewed main commit SHA for this verifier
+        required: true
+        type: string
+      archive_source_sha:
+        description: Exact source SHA embedded in backed-up S3 object
+        required: true
+        type: string
+      object_key:
+        description: Validated encrypted archive key, not S3 URL
+        required: true
+        type: string
+      encrypted_sha256:
+        description: Expected ciphertext SHA-256 from backup evidence
+        required: true
+        type: string
+      change_ref:
+        description: Approved privacy/security P0-4 restore ticket
+        required: true
+        type: string
+      confirmation:
+        description: Type RESTORE_IN_DISPOSABLE_POSTGRES_ONLY
+        required: true
+        type: string
+
+concurrency:
+  group: payrollph-protected-offline-restore
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  restore-offline:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: payrollph-production-restore
+    env:
+      CI: "true"
+      RESTORE_WORKFLOW_ENVIRONMENT: payrollph-production-restore
+      RESTORE_REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+      RESTORE_ARCHIVE_SOURCE_SHA: ${{ inputs.archive_source_sha }}
+      RESTORE_S3_OBJECT_KEY: ${{ inputs.object_key }}
+      RESTORE_CIPHERTEXT_SHA256: ${{ inputs.encrypted_sha256 }}
+      RESTORE_CHANGE_REF: ${{ inputs.change_ref }}
+      RESTORE_CONFIRMATION: ${{ inputs.confirmation }}
+      AWS_REGION: us-east-1
+      BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }}
+      RESTORE_AGE_PRIVATE_KEY: ${{ secrets.RESTORE_AGE_PRIVATE_KEY }}
+    steps:
+      - name: Checkout reviewed source, without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Refuse any Neon host and validate archive identity
+        run: |
+          node --check scripts/lib/protected-offsite-restore-policy.mjs
+          node --check scripts/validate-protected-offsite-restore.mjs
+          node scripts/validate-protected-offsite-restore.mjs >/dev/null
+      - name: Assume scoped S3 read-only restoration role via OIDC
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ vars.RESTORE_AWS_ROLE_ARN }}
+          aws-region: us-east-1
+          role-session-name: payrollph-offline-restore-${{ github.run_id }}
+      - name: Install age
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age
+      - name: Verify ciphertext, decrypt, restore to networkless PostgreSQL18
+        run: bash scripts/verify-protected-offsite-restore.sh
+
+# No Neon connection, snapshot restore API, automatic schedule or payroll
+# transfer. This job DOES temporarily decrypt real payroll data on a protected
+# ephemeral runner; a separate privacy/security operator must approve it.
