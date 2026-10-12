@@ -23,7 +23,9 @@ export async function GET(request: Request) {
   const [entities, headcounts, payrollCosts] = await Promise.all([
     db.select({ id: legalEntities.id, displayName: legalEntities.displayName, code: legalEntities.code })
       .from(legalEntities).where(and(
-        eq(legalEntities.organizationId, organizationId), eq(legalEntities.active, true),
+        // Keep inactive historical employers in all-entity payroll reports.
+        // Deactivation must not erase prior released salary liability.
+        eq(legalEntities.organizationId, organizationId),
         allowed.context.legalEntityId === null ? undefined
           : eq(legalEntities.id, allowed.context.legalEntityId),
       )),
