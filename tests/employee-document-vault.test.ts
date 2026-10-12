@@ -90,6 +90,24 @@ test("S3-style document URLs are short-lived, private, scoped and credential-saf
   }));
 });
 
+test("remote plain HTTP storage endpoints are denied even in test/staging", async () => {
+  const { documentStorageConfig } = await import("../src/lib/document-object-storage");
+  const credentials = {
+    DOCUMENT_OBJECT_STORAGE_BUCKET: "private-documents-test",
+    DOCUMENT_OBJECT_STORAGE_REGION: "ap-southeast-1",
+    DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID: "synthetic-key",
+    DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: "synthetic-secret",
+  };
+  for (const mode of ["test", "development", "production"]) {
+    for (const host of ["http://s3.example.invalid/", "http://localhost.evil.invalid/", "http://10.0.0.15/"]) {
+      assert.throws(() => documentStorageConfig({ ...credentials, NODE_ENV: mode, DOCUMENT_OBJECT_STORAGE_ENDPOINT: host }), /requires HTTPS/);
+    }
+  }
+  const local = documentStorageConfig({ ...credentials, NODE_ENV: "test", DOCUMENT_OBJECT_STORAGE_ENDPOINT: "http://127.0.0.1:9000/" });
+  assert.equal(local.endpoint, "http://127.0.0.1:9000");
+  assert.throws(() => documentStorageConfig({ ...credentials, NODE_ENV: "production", DOCUMENT_OBJECT_STORAGE_ENDPOINT: "http://127.0.0.1:9000/" }), /requires HTTPS/);
+});
+
 test("optional 201 file never counts as missing a required document", async () => {
   const { isMandatoryDocumentMissing } = await import("../src/lib/employee-document-vault");
   assert.equal(isMandatoryDocumentMissing({ status: "missing", mandatory: true }), true);
