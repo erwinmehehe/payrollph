@@ -9,6 +9,7 @@ import {
 import {
   buildXenditPayrollPayout,
   createXenditPayrollPayout,
+  getXenditPayrollPayout,
   normalizeXenditPayout,
   normalizeXenditPayoutWebhook,
   verifyXenditPayoutWebhookToken,
@@ -98,6 +99,7 @@ test("Xendit V3 payout HTTP uses separate money-out key and deterministic idempo
   };
   await createXenditPayrollPayout(payee, { organizationId: 12, payrollRunId: 25, businessId: "biz-sample" }, mockFetch, env);
   assert.equal(request?.url, "https://api.xendit.co/v3/payouts");
+  assert.equal(request?.redirect, "error", "Payroll MONEY-OUT credentials must never follow a redirect");
   assert.equal(request?.headers.get("api-version"), "2025-09-01");
   assert.equal(request?.headers.get("idempotency-key"), "linaw-ph-12-25-E001");
   assert.equal(request?.headers.get("authorization"), "Basic " + Buffer.from("payroll-specific-key:").toString("base64"));
@@ -109,4 +111,24 @@ test("Xendit webhook rejects mismatched callback token and rejects unsupported s
   assert.equal(xenditPayoutState("REVERSED"), "reversed");
   assert.equal(xenditPayoutState("UNKNOWN"), "unknown");
   assert.equal(normalizeXenditPayoutWebhook({}, "biz-sample"), null);
+});
+
+test("Xendit read-only reconciliation never follows credential-bearing redirects", async () => {
+  const payoutId = "po-b2c3d4e5-f6a7-8901-bcde-f23456789012";
+  let observed: Request | undefined;
+  const mockFetch: typeof fetch = async (url, options) => {
+    observed = new Request(String(url), options);
+    return Response.json({
+      payout_id: payoutId, reference_id: "PAY-25-E001", status: "ACCEPTED",
+      source_currency: "PHP", source_amount: 1550123,
+      destination_currency: "PHP", business_id: "biz-sample",
+    });
+  };
+  const payout = await getXenditPayrollPayout(payoutId,
+    { referenceNumber: "PAY-25-E001", amountCents: 1550123, businessId: "biz-sample" },
+    mockFetch, env);
+  assert.equal(payout.status, "ACCEPTED");
+  assert.equal(observed?.redirect, "error");
+  assert.equal(observed?.method, "GET");
+  assert.equal(observed?.url, "https://api.xendit.co/v3/payouts/" + payoutId);
 });

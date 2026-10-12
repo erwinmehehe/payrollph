@@ -241,6 +241,8 @@ export async function createXenditPayrollPayout(
       "idempotency-key": xenditPayrollPayoutIdempotencyKey(input.organizationId, input.payrollRunId, row.employeeNo),
     },
     body: JSON.stringify(body),
+    // Never forward a MONEY-OUT Basic credential to redirected hosts.
+    redirect: "error",
     signal: AbortSignal.timeout(15000),
     cache: "no-store",
   });
@@ -264,6 +266,7 @@ export async function getXenditPayrollPayout(
   if (!PAYOUT_ID.test(payoutId)) throw new Error("Invalid Xendit payout ID.");
   const response = await fetchImpl(`${XENDIT_PAYOUT_ENDPOINT}/${encodeURIComponent(payoutId)}`, {
     headers: { Authorization: xenditAuth(env), "api-version": XENDIT_PAYROLL_API_VERSION },
+    redirect: "error",
     signal: AbortSignal.timeout(15000),
     cache: "no-store",
   });
