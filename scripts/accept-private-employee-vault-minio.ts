@@ -29,9 +29,9 @@ const mime="application/pdf";
 const valid=validateUpload(bytes,mime,"synthetic.pdf");
 assert.equal(valid.ok,true);
 
-const calls=[];
-const fakeScan=(payload,status=200)=>async (_url,init)=>{
-  calls.push({url:String(_url),auth:new Headers(init?.headers).get("authorization"),size:Buffer.from(init?.body??[]).length});
+const calls:Array<{url:string;auth:string|null;size:number}>=[];
+const fakeScan=(payload:Record<string,unknown>,status=200)=>async (_url:RequestInfo|URL,init?:RequestInit)=>{
+  calls.push({url:String(_url),auth:new Headers(init?.headers).get("authorization"),size:Buffer.isBuffer(init?.body)?init.body.byteLength:0});
   return new Response(JSON.stringify(payload),{status,headers:{"content-type":"application/json"}});
 };
 const scanInput={fileName:"synthetic.pdf",mime};
