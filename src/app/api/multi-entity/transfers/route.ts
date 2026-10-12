@@ -109,25 +109,31 @@ export async function POST(request: Request) {
     return fail("Only an explicitly granted employer administrator may propose a transfer.", 403);
   const mfa = requireSensitiveActionMfa(user);
   if (mfa) return mfa;
-  const [employee, target] = await Promise.all([
-    db.select().from(employees).where(and(eq(employees.id, employeeId),
-      eq(employees.organizationId, organizationId))).limit(1),
-    db.select().from(legalEntities).where(and(eq(legalEntities.id, toLegalEntityId),
-      eq(legalEntities.organizationId, organizationId), eq(legalEntities.active, true))).limit(1),
-  ]);
-  const worker = employee[0];
-  if (!worker || !worker.legalEntityId || !target[0] || toLegalEntityId === worker.legalEntityId)
-    return fail("Worker and distinct target employer must belong to the same tenant.", 404);
-  const scopeDenied = assertEntityResource(scope.context, worker.legalEntityId);
-  if (scopeDenied) return scopeDenied;
+  if (!scope.context.legalEntityId) return fail("A source employer must be selected.", 403);
+  // The source employee must be part of the authorized selected employer.
+  // An unrelated ID and a foreign-employer ID both look not-found.
+  const [worker] = await db.select().from(employees).where(and(
+    eq(employees.id, employeeId),
+    eq(employees.organizationId, organizationId),
+    eq(employees.legalEntityId, scope.context.legalEntityId),
+  )).limit(1);
+  if (!worker || toLegalEntityId === worker.legalEntityId)
+    return fail("Worker or distinct source employer not found.", 404);
   const grants = await transferGrants(organizationId, user.id);
   if (!canActOnEntityTransfer({
     role: scope.context.role, action: "propose",
     selectedEntityId: scope.context.legalEntityId,
-    sourceEntityId: worker.legalEntityId,
+    sourceEntityId: worker.legalEntityId!,
     targetEntityId: toLegalEntityId,
     grantedEntityIds: grants, actorUserId: user.id,
   })) return fail("Explicit access to both source and target employers is required.", 403);
+  const [target] = await db.select({ id: legalEntities.id })
+    .from(legalEntities).where(and(
+      eq(legalEntities.id, toLegalEntityId),
+      eq(legalEntities.organizationId, organizationId),
+      eq(legalEntities.active, true),
+    )).limit(1);
+  if (!target) return fail("Worker and target employer must belong to the same tenant.", 404);
   const [openMove, acrossCutoff, approvedHcm] = await Promise.all([
     db.select({ id: entityTransferRequests.id }).from(entityTransferRequests)
       .where(and(eq(entityTransferRequests.organizationId, organizationId),
