@@ -12,6 +12,7 @@ import {
 } from "./lib/bank-envelope-inspection.ts";
 import {
   auditBankEnvelopesReadOnly, requireProtectedBankAudit,
+  requirePinnedProductionBankAuditTarget,
 } from "./lib/bank-envelope-audit.mjs";
 
 const mode = process.argv.length === 3 && process.argv[2] === "--inventory"
@@ -24,6 +25,7 @@ async function main() {
   if (!mode) throw new Error("BANK_AUDIT_INVALID_ARGUMENTS");
   requireProtectedBankAudit(process.env);
   if (!process.env.DATABASE_URL) throw new Error("BANK_AUDIT_DATABASE_MISSING");
+  requirePinnedProductionBankAuditTarget(process.env.DATABASE_URL, process.env);
   const currentKey = currentBankKeyOnly(process.env);
   if (bankEncryptionKeySource(currentKey) !== "dedicated") {
     throw new Error("BANK_AUDIT_DEDICATED_KEY_REQUIRED");

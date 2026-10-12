@@ -3,6 +3,42 @@
  * The caller injects the current-key crypto classifier. Never log row values.
  * This module is not imported by application request paths or workers.
  */
+
+/**
+ * A database name and read-only role alone do not identify the production
+ * Neon endpoint. Validate the actual connection target before any PII is read.
+ * The independent DBA must still verify TLS, database identity and approvals.
+ */
+export const PINNED_BANK_AUDIT_TARGET = Object.freeze({
+  host: "ep-cool-hat-b7e7gpoo.c-13.us-east-1.aws.neon.tech",
+  database: "neondb",
+  port: "5432",
+});
+
+export function requirePinnedProductionBankAuditTarget(connectionString, env) {
+  requireProtectedBankAudit(env);
+  let url;
+  try { url = new URL(connectionString); } catch {
+    throw new Error("BANK_AUDIT_SOURCE_UNVERIFIED");
+  }
+  const query = [...url.searchParams.keys()];
+  if (env.EXPECTED_PRODUCTION_DATABASE_NAME !== PINNED_BANK_AUDIT_TARGET.database ||
+      url.protocol !== "postgresql:" ||
+      url.hostname !== PINNED_BANK_AUDIT_TARGET.host ||
+      url.port !== PINNED_BANK_AUDIT_TARGET.port ||
+      url.pathname !== "/" + PINNED_BANK_AUDIT_TARGET.database ||
+      !url.username || !url.password || url.hash ||
+      url.searchParams.getAll("sslmode").length !== 1 ||
+      url.searchParams.get("sslmode") !== "verify-full" ||
+      query.some(key => key !== "sslmode" && key !== "channel_binding") ||
+      (url.searchParams.has("channel_binding") &&
+        (url.searchParams.getAll("channel_binding").length !== 1 ||
+         url.searchParams.get("channel_binding") !== "require"))) {
+    throw new Error("BANK_AUDIT_SOURCE_UNVERIFIED");
+  }
+  return PINNED_BANK_AUDIT_TARGET.database;
+}
+
 export const BANK_AUDIT_PAGE_SIZE = 500;
 const MAX_ROWS_PER_STORE = 5_000_000;
 const KEY_STATES = new Set(["empty", "plaintext", "authenticated", "unreadable"]);

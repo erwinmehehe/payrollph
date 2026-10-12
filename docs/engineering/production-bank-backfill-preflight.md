@@ -75,3 +75,7 @@ and signed DBA/security release evidence. Existing plaintext backups, exports,
 logs and key escrow still require separate disposition. Never paste a bank
 number or GitHub/Vercel database secret into an issue to prove closure.
 
+
+## Production bank audit endpoint pin (P0-2 follow-up)
+
+The protected four-store bank verifier now refuses a same-named database on any other hostname, a pooled connection, an unexpected port or database, and TLS settings other than `sslmode=verify-full`. The connection must use the reviewed direct production Neon host `ep-cool-hat-b7e7gpoo.c-13.us-east-1.aws.neon.tech:5432/neondb`; optional `channel_binding=require` is supported. The pinned URL is validated before connecting and before reading bank records. Operators must update the **protected** `PRODUCTION_BANK_AUDIT_DATABASE_URL` secret after DBA/TLS review; never publish the credential. This guards source/host confusion but is not substitute evidence for independent release approval, authentic current-key ciphertext verification, or a signed production audit.

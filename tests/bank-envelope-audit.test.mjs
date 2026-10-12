@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   BANK_AUDIT_PAGE_SIZE, BANK_AUDIT_STORES,
   requireProtectedBankAudit, auditBankEnvelopesReadOnly,
+  PINNED_BANK_AUDIT_TARGET, requirePinnedProductionBankAuditTarget,
 } from "../scripts/lib/bank-envelope-audit.mjs";
 
 const env = Object.freeze({
@@ -50,6 +51,31 @@ function fakeClient({
   };
 }
 const inputs = client => ({ client, env, classify });
+
+
+test("production bank-audit DB target is pinned before connecting or reading bank data", () => {
+  const production = { ...env, EXPECTED_PRODUCTION_DATABASE_NAME: "neondb" };
+  const valid = "postgresql://bank_readonly:synthetic-test-only@" +
+    PINNED_BANK_AUDIT_TARGET.host + ":5432/neondb?sslmode=verify-full&channel_binding=require";
+  assert.equal(requirePinnedProductionBankAuditTarget(valid, production), "neondb");
+  for (const candidate of [
+    valid.replace(PINNED_BANK_AUDIT_TARGET.host, "other.c-13.us-east-1.aws.neon.tech"),
+    valid.replace(PINNED_BANK_AUDIT_TARGET.host, "ep-cool-hat-b7e7gpoo-pooler.c-13.us-east-1.aws.neon.tech"),
+    valid.replace(":5432/", ":6432/"),
+    valid.replace("/neondb?", "/app_db?"),
+    valid.replace("sslmode=verify-full", "sslmode=require"),
+    valid.replace("sslmode=verify-full", "sslmode=disable"),
+    valid.replace("sslmode=verify-full", "sslmode=verify-full&sslmode=verify-full"),
+    valid.replace("channel_binding=require", "channel_binding=disable"),
+    valid.replace("postgresql://", "postgres://"),
+    valid + "#fragment",
+  ]) {
+    assert.throws(() => requirePinnedProductionBankAuditTarget(candidate, production),
+      /BANK_AUDIT_SOURCE_UNVERIFIED/);
+  }
+  assert.throws(() => requirePinnedProductionBankAuditTarget(valid, env),
+    /BANK_AUDIT_SOURCE_UNVERIFIED/);
+});
 
 test("P0-2 bank audit refuses unreviewed commit, non-main or invalid target before querying", async () => {
   assert.equal(requireProtectedBankAudit(env), "app_db");
