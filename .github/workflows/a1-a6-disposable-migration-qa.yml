@@ -17,18 +17,18 @@ jobs:
       CI: "true"
       TZ: Asia/Manila
       A1_A6_DISPOSABLE_MIGRATION_MODE: isolated-ci-only
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/a1a6_ci
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
         image: postgres:18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: a1a6_ci
+          POSTGRES_DB: app_db
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U postgres -d a1a6_ci"
+          --health-cmd "pg_isready -U postgres -d app_db"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 15
@@ -53,7 +53,7 @@ jobs:
           test "$CI" = "true"
           test "$A1_A6_DISPOSABLE_MIGRATION_MODE" = "isolated-ci-only"
           case "$DATABASE_URL" in
-            postgresql://postgres:postgres@127.0.0.1:5432/a1a6_ci) ;;
+            postgresql://postgres:postgres@127.0.0.1:5432/app_db) ;;
             *) echo "Unexpected database target" >&2; exit 1 ;;
           esac
           cp src/db/schema.ts /tmp/a1-a6-integration-schema.ts
