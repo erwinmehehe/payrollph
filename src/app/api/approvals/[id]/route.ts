@@ -20,6 +20,7 @@ import { checkEmployeeLeaveEligibility } from "@/lib/hcm-leave-employment";
 import { loadCurrentHcmSeparation } from "@/lib/hcm-work-period-guard";
 import { advanceApprovalChainAfterDecisionTx } from "@/lib/approval-chains";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
+import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 import { connectedPayrollReleaseGateEnabled, safePayrollConnectedReleaseReadiness } from "@/lib/payroll-connected-release-gate-server";
 import {
   advanceHcmBusinessProcessAfterApprovalTx,
@@ -207,6 +208,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!payrollRun || payrollRun.organizationId !== task.organizationId) {
       return Response.json({ error: "The payroll approval is not linked to a valid run in this workspace." }, { status: 409 });
     }
+    const entityDenied = await requireRunEmployer({
+      request, userId: sessionUser.id, organizationId: payrollRun.organizationId,
+      legalEntityId: payrollRun.legalEntityId,
+      requireConfirmation: status === "Approved",
+      confirmation: typeof body.confirmLegalEntityName === "string" ? body.confirmLegalEntityName : "",
+    });
+    if (entityDenied) return entityDenied;
     if (payrollRun.status !== "Pending approval") {
       return Response.json({
         error: `This payroll is not awaiting approval (currently ${payrollRun.status}). Recalculate or submit it for review again.`,
