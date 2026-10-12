@@ -10,6 +10,7 @@ function fixture(){
    eventName:"workflow_dispatch",repository:"erwinmehehe/payrollph",
    ref:"refs/heads/main",githubSha:SHA,reviewedSha:SHA,
    workflowEnvironment:"payrollph-production-restore",
+   actor:"erwinmehehe",allowedActors:"erwinmehehe,restoreoperator",
    changeRef:"P0-4-RESTORE-20261012-001",
    confirmation:"RESTORE_IN_DISPOSABLE_POSTGRES_ONLY",
    archiveSourceSha:sourceSHA,
@@ -40,6 +41,8 @@ test("unreviewed GitHub source, wrong environment and accidental promotion fail"
  blocks({workflowEnvironment:"payrollph-production-backup"},"UNAPPROVED_OPERATOR_OR_SOURCE");
  blocks({confirmation:"RESTORE_TO_NEON_MAIN"},"UNAPPROVED_OPERATOR_OR_SOURCE");
  blocks({changeRef:"no-ticket"},"UNAPPROVED_OPERATOR_OR_SOURCE");
+ blocks({actor:"unknown"},"UNAPPROVED_OPERATOR_OR_SOURCE");
+ blocks({allowedActors:""},"UNAPPROVED_OPERATOR_OR_SOURCE");
 });
 
 test("tampered object key, source hash, bucket, archive hash and AWS region fail",()=>{
