@@ -5,6 +5,7 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   integer,
   index,
   jsonb,
@@ -262,7 +263,9 @@ export const employees = pgTable("employees", {
   education: varchar("education", { length: 120 }),
   startDate: date("start_date").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, table => [
+  uniqueIndex("employee_org_id_for_entity_scope").on(table.organizationId, table.id),
+]);
 
 export const employeeMweClassifications = pgTable(
   "employee_mwe_classifications",
@@ -6029,6 +6032,9 @@ export const legalEntityStatutoryRegistrations = pgTable("legal_entity_statutory
   uniqueIndex("legal_entity_registration_revision_unique").on(table.organizationId, table.legalEntityId, table.revision),
   uniqueIndex("legal_entity_registration_change_unique").on(table.sourceChangeId),
   index("legal_entity_registration_history_idx").on(table.organizationId, table.legalEntityId, table.effectiveDate),
+  foreignKey({ name: "entity_versions_tenant_fk",
+    columns: [table.organizationId, table.legalEntityId],
+    foreignColumns: [legalEntities.organizationId, legalEntities.id] }),
 ]);
 
 /** Maker-checker queue. A change proposal is sealed at rest; APIs return only
@@ -6056,6 +6062,9 @@ export const legalEntityProfileChangeRequests = pgTable("legal_entity_profile_ch
     sql`${table.status} in ('pending_approval','approved','rejected')`),
   check("legal_entity_profile_maker_checker_check",
     sql`${table.decidedByUserId} is null or ${table.decidedByUserId} <> ${table.requestedByUserId}`),
+  foreignKey({ name: "entity_profile_requests_tenant_fk",
+    columns: [table.organizationId, table.legalEntityId],
+    foreignColumns: [legalEntities.organizationId, legalEntities.id] }),
 ]);
 
 /** Payer-specific employee bank destinations; no automatic worker transfer
@@ -6078,6 +6087,12 @@ export const employeeEntityBankAccounts = pgTable("employee_entity_bank_accounts
     .where(sql`${table.effectiveUntil} is null`),
   check("employee_entity_bank_dates_check",
     sql`${table.effectiveUntil} is null or ${table.effectiveUntil} >= ${table.effectiveFrom}`),
+  foreignKey({ name: "entity_employee_bank_tenant_fk",
+    columns: [table.organizationId, table.legalEntityId],
+    foreignColumns: [legalEntities.organizationId, legalEntities.id] }),
+  foreignKey({ name: "entity_employee_bank_person_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id] }),
 ]);
 
 /** Explicit reviewer-evidenced source/target liabilities. No automatic
@@ -6099,4 +6114,13 @@ export const legalEntityTransferLiabilityEvidence = pgTable("legal_entity_transf
   uniqueIndex("legal_entity_transfer_liability_unique").on(table.organizationId, table.transferRequestId),
   check("legal_entity_transfer_liability_state_check",
     sql`${table.reviewState} in ('unresolved','reviewed','rejected')`),
+  foreignKey({ name: "entity_transfer_liability_source_tenant_fk",
+    columns: [table.organizationId, table.fromLegalEntityId],
+    foreignColumns: [legalEntities.organizationId, legalEntities.id] }),
+  foreignKey({ name: "entity_transfer_liability_target_tenant_fk",
+    columns: [table.organizationId, table.toLegalEntityId],
+    foreignColumns: [legalEntities.organizationId, legalEntities.id] }),
+  foreignKey({ name: "entity_transfer_liability_person_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id] }),
 ]);
