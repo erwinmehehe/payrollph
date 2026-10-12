@@ -240,8 +240,8 @@
     },
     "/api/v1/payslips/{id}": {
       "get": {
-        "summary": "Download released payslip PDF",
-        "description": "Default-off extension. Bearer scope payslips:read; audited private PDF.",
+        "summary": "Download released payslip text",
+        "description": "Default-off extension. Bearer scope payslips:read; audited private plaintext payslip.",
         "parameters": [
           {
             "name": "id",
