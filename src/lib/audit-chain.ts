@@ -97,3 +97,31 @@ export async function verifyAuditChain(organizationId: number): Promise<AuditCha
   }));
   return evaluateAuditChain(rows);
 }
+
+/**
+ * Manager policy exceptions are written in the same transaction as schedule
+ * publication, into audit_events; the existing DB hash-chain sealer then
+ * seals those immutable events. Never log only to application stdout.
+ * Overlap and independently approved overtime caps cannot be waived.
+ */
+export function rosterRuleOverrideAuditMetadata(input: {
+  managerUserId: number;
+  reason: string;
+  overriddenCodes: readonly string[];
+}) {
+  const reason = input.reason.trim();
+  if (!Number.isSafeInteger(input.managerUserId) || input.managerUserId < 1
+    || reason.length < 12 || reason.length > 240
+    || input.overriddenCodes.length === 0
+    || input.overriddenCodes.some(code =>
+      !["MAX_DAILY_HOURS", "MAX_WEEKLY_HOURS", "MIN_REST_BETWEEN_SHIFTS"].includes(code))) {
+    throw new Error("Roster rule override requires an authorized manager, reason, and permitted policy codes.");
+  }
+  return {
+    managerUserId: input.managerUserId,
+    overrideReason: reason,
+    overriddenCodes: [...new Set(input.overriddenCodes)].sort(),
+    payrollOverrides: false,
+    requiresHashChainSeal: true,
+  };
+}
