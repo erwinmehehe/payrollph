@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, shiftDefinitions, worksites, workforceScheduleGuardrailPolicies } from "@/db/schema";
-import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertScope, getAccess, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
