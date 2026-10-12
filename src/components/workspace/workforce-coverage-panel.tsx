@@ -12,6 +12,7 @@ import { WorkforcePlanningPreviewPanel } from "./workforce-planning-preview-pane
 import { WorkforceLaborCalibrationPanel } from "./workforce-labor-calibration-panel";
 import { WorkforceOperationalDemandPanel } from "./workforce-operational-demand-panel";
 import { WorkforceSquareSandboxPanel } from "./workforce-square-sandbox-panel";
+import { WorkforceLoyversePosPanel } from "./workforce-loyverse-pos-panel";
 import { WorkforceIssuedDemandPanel } from "./workforce-issued-demand-panel";
 import { WorkforceDemandStaffingPanel } from "./workforce-demand-staffing-panel";
 import { WorkforceGreedyRosterPanel } from "./workforce-greedy-roster-panel";
@@ -736,6 +737,17 @@ export function WorkforceCoveragePanel({
           key={organizationId}
           organizationId={organizationId}
           worksites={payload.worksites}
+        />
+      )}
+
+      {payload && process.env.NEXT_PUBLIC_WFM_OPERATIONAL_DEMAND_ENABLED === "true" &&
+        process.env.NEXT_PUBLIC_WFM_LOYVERSE_POS_ENABLED === "true" && (
+        <WorkforceLoyversePosPanel
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
+          canManage={canManage && data.access?.companyWide === true &&
+            ["owner", "admin", "bookkeeper", "hr"].includes(data.access.role)}
         />
       )}
 

@@ -3,6 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { apiKeys, webhookDeliveries, webhookEndpoints } from "@/db/schema";
 import { mintApiKey } from "@/lib/api-auth";
+import { ALLOWED_API_SCOPES, activeApiScopes, normalizeScopes } from "@/lib/developer-api-scopes";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { dispatchWebhook, WEBHOOK_EVENTS } from "@/lib/webhooks";
@@ -55,6 +56,7 @@ export async function GET(request: Request) {
     })),
     deliveries,
     availableEvents: WEBHOOK_EVENTS,
+    availableScopes: activeApiScopes().filter(scope => ALLOWED_API_SCOPES.has(scope)),
   });
 }
 
@@ -176,10 +178,3 @@ export async function POST(request: Request) {
 }
 
 
-const ALLOWED_API_SCOPES = new Set(["employees:read", "employees:write", "payroll:read"]);
-
-function normalizeScopes(value: unknown) {
-  if (!Array.isArray(value) || value.length === 0) return ["employees:read", "payroll:read"];
-  const scopes = value.filter((scope): scope is string => typeof scope === "string" && ALLOWED_API_SCOPES.has(scope));
-  return scopes.length ? [...new Set(scopes)] : ["employees:read", "payroll:read"];
-}
