@@ -63,3 +63,19 @@ test("#910 money and employment backfill may not default to current employee emp
   assert.match(history,/pr\.legal_entity_id IS DISTINCT FROM e\.legal_entity_id/);
   assert.doesNotMatch(linked,/SET legal_entity_id = e\.legal_entity_id/i);
 });
+
+test("#910 post-0121 tenant guard is an unnumbered, additive-only review proposal", () => {
+  const path = "../docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql";
+  const content = readFileSync(new URL(path, import.meta.url), "utf8");
+  const executable = content.replace(/--[^\n]*/g,"");
+  assert.match(content,/UNNUMBERED/);
+  assert.match(content,/NOT VALID/);
+  assert.doesNotMatch(executable, /\b(?:INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|TRUNCATE|DROP TABLE|CREATE EXTENSION)\b/i);
+  const fks = executable.match(/\bADD CONSTRAINT\s+[a-z_]+/gi) ?? [];
+  assert.equal(fks.length,13);
+  for (const pair of [
+    "FOREIGN KEY (organization_id,legal_entity_id) REFERENCES legal_entities(organization_id,id)",
+    "FOREIGN KEY (organization_id,employee_id) REFERENCES employees(organization_id,id)",
+    "FOREIGN KEY (payroll_run_id,legal_entity_id) REFERENCES payroll_runs(id,legal_entity_id)",
+  ]) assert.ok(executable.includes(pair), "missing required composite relation "+pair);
+});
