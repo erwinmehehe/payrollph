@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { GitBranch, Plus, RefreshCw, Save, ShieldCheck, Trash2 } from "lucide-react";
+import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
+import { ApprovalDelegationSettings } from "@/components/workspace/approval-delegation-settings";
 
 type ChainStep = {
   label: string;
@@ -50,6 +52,7 @@ export function ApprovalChainAdmin({
   setNotice: (message: string) => void;
   onChanged?: () => void | Promise<void>;
 }) {
+  const enhancedBuilder = useWorkflowUi().approvalBuilder;
   const [policies, setPolicies] = useState<ChainPolicy[]>([]);
   const [dynamicGroups, setDynamicGroups] = useState<Array<{ id: number; code: string; name: string; version: number }>>([]);
   const [loading, setLoading] = useState(true);
@@ -219,6 +222,12 @@ export function ApprovalChainAdmin({
                   </select>
                 </label>
                 <label>Starts at (PHP)<input type="number" min="0" step="0.01" disabled={index === 0} value={step.minimumAmount ?? 0} onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? { ...row, minimumAmount: Number(event.target.value) } : row))} /></label>
+                {enhancedBuilder && <label>Escalation / review label (not an automatic timer)
+                  <input maxLength={80} value={step.dueLabel ?? "Review required"}
+                    onChange={event => setSteps(rows => rows.map((row,i) => i === index
+                      ? { ...row, dueLabel: event.target.value } : row))}
+                    placeholder="e.g. Escalate unresolved review to HR"/>
+                </label>}
                 <label>Priority<select value={step.priority ?? "Normal"} onChange={(event) => setSteps((rows) => rows.map((row, i) => i === index ? { ...row, priority: event.target.value } : row))}><option>Normal</option><option>High</option></select></label>
                 <button type="button" className="icon-button" disabled={steps.length === 1} onClick={() => setSteps((rows) => rows.filter((_, i) => i !== index))}><Trash2 size={15} /></button>
               </div>
@@ -250,6 +259,15 @@ export function ApprovalChainAdmin({
           </button>
         </div>
 
+        {enhancedBuilder && <section aria-label="Approval chain preview" style={{ marginTop: 18 }}>
+          <h3>Chain preview</h3>
+          <ol>{steps.map((step, index) => <li key={index}>
+            <strong>{step.label}</strong> → {step.approver || "Choose approver"} ·
+            {step.dueLabel || "Review required"} · {step.priority || "Normal"}
+            {step.dynamicGroupCode ? " · Restricted group: " + step.dynamicGroupCode : ""}
+          </li>)}</ol>
+          <p>Escalation labels communicate priority, not an automatic timer. Configure operational SLA escalation separately. A delegation never grants new approval permission.</p>
+        </section>}
         <div style={{ marginTop: 16 }}>
           {policies.length === 0 && <div className="empty-state">No approval chains configured yet.</div>}
           {policies.map((policy) => {
@@ -269,6 +287,7 @@ export function ApprovalChainAdmin({
             );
           })}
         </div>
+        {enhancedBuilder && <ApprovalDelegationSettings organizationId={organizationId} />}
       </div>
     </article>
   );
