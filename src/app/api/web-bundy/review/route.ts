@@ -91,6 +91,7 @@ export async function POST(request:Request) {
   // An APPROVAL is an attendance capture, not an authorization to bypass
   // attendance/payroll cutoffs. Re-check the effective day inside the TX.
   let approvedWorkDate:string|null=null;
+  let approvedChosenDay:string|null=null;
   let result;
   try {
     result=await db.transaction(async tx=>{
@@ -189,12 +190,13 @@ export async function POST(request:Request) {
         }
         // Invalidate calculated timecards for every affected Manila day,
         // within this same transaction as the attendance change and audit.
-        for(const workDate of new Set([effectiveDate,String(fresh.workDate)])){
+        for(const workDate of new Set([effectiveDate,chosenDate,String(fresh.workDate)])){
           await markTimesheetsStaleForEmployeeDate({
             organizationId,employeeId:fresh.employeeId,workDate,executor:tx,
           });
         }
         approvedWorkDate=effectiveDate;
+        approvedChosenDay=chosenDate;
       }
       const [saved]=await tx.update(workforcePunchSubmissions).set({
         status:decision,reviewedByUserId:context.user!.id,
@@ -225,9 +227,13 @@ export async function POST(request:Request) {
   }
   if(decision==="approved"&&approvedWorkDate){
     try{
-      await reconcileAttendanceExceptionEvents({
-        organizationId,employeeId:submission.employeeId,workDate:String(approvedWorkDate),
-      });
+      // Cross-midnight attendance affects both the shift-start and
+      // completion day; ensure exception state tracks both.
+      for(const workDate of new Set([approvedWorkDate,approvedChosenDay])){
+        if(workDate)await reconcileAttendanceExceptionEvents({
+          organizationId,employeeId:submission.employeeId,workDate,
+        });
+      }
     }catch{
       // The transaction committed. Do not claim the whole review failed and
       // tempt a second attendance promotion; expose the partial sync warning.
