@@ -5,7 +5,7 @@ import { assertMembership, assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
-import { anonymousSurveyResponderHash, aggregateClosedPulse } from "@/lib/hcm-simple-growth";
+import { anonymousSurveyResponderHash, aggregateClosedPulse, revealSealedPulseAggregate } from "@/lib/hcm-simple-growth";
 
 export const dynamic="force-dynamic";
 const PRIVATE={"Cache-Control":"private, no-store"};
@@ -45,23 +45,22 @@ export async function GET(request:Request){
  }
  const rows=await db.select({id:hcmPulseSurveys.id,question:hcmPulseSurveys.question,
    status:hcmPulseSurveys.status,createdAt:hcmPulseSurveys.createdAt,
+   aggregateCount:hcmPulseSurveys.aggregateCount,
+   aggregateAverage:hcmPulseSurveys.aggregateAverage,
+   aggregateDistribution:hcmPulseSurveys.aggregateDistribution,
  }).from(hcmPulseSurveys).where(eq(hcmPulseSurveys.organizationId,organizationId))
    .orderBy(asc(hcmPulseSurveys.id)).limit(100);
- if(auth.user!.role==="employee")return Response.json({surveys:rows.filter(row=>row.status==="open")},
-   {headers:PRIVATE});
- const closed=rows.filter(row=>row.status==="closed");
- const results=[];
- for(const survey of closed) {
-  const responses=await db.select({score:hcmPulseSurveyResponses.score})
-    .from(hcmPulseSurveyResponses).where(and(
-      eq(hcmPulseSurveyResponses.organizationId,organizationId),
-      eq(hcmPulseSurveyResponses.surveyId,survey.id),
-    )).limit(50_001);
-  if(responses.length>50_000)continue;
-  const aggregate=aggregateClosedPulse({status:"closed",scores:responses.map(r=>r.score)});
-  results.push({surveyId:survey.id,...aggregate});
- }
- return Response.json({surveys:rows,results,
+ const publicSurveys=rows.map(({id,question,status,createdAt})=>({id,question,status,createdAt}));
+ if(auth.user!.role==="employee")return Response.json(
+   {surveys:publicSurveys.filter(row=>row.status==="open")},{headers:PRIVATE});
+ const results=rows.filter(row=>row.status==="closed").map(survey=>({
+   surveyId:survey.id,
+   ...revealSealedPulseAggregate({
+     status:"closed",count:survey.aggregateCount,
+     average:survey.aggregateAverage,distribution:survey.aggregateDistribution,
+   }),
+ }));
+ return Response.json({surveys:publicSurveys,results,
   privacy:"Results only after closure with at least five responses. No responder IDs or individual answers."},
   {headers:PRIVATE});
 }
@@ -124,18 +123,43 @@ export async function POST(request:Request){
   const surveyId=Number(body.surveyId);
   if(!Number.isSafeInteger(surveyId)||surveyId<1)
     return Response.json({error:"Valid survey id required."},{status:400});
-  const row=await db.transaction(async tx=>{
-    const [closed]=await tx.update(hcmPulseSurveys).set({status:"closed",closedAt:new Date()})
-      .where(and(eq(hcmPulseSurveys.organizationId,organizationId),
-       eq(hcmPulseSurveys.id,surveyId),eq(hcmPulseSurveys.status,"open")))
-      .returning({id:hcmPulseSurveys.id});
-    if(!closed)return null;
+  const outcome=await db.transaction(async tx=>{
+    const [survey]=await tx.select({status:hcmPulseSurveys.status})
+      .from(hcmPulseSurveys).where(and(
+        eq(hcmPulseSurveys.id,surveyId),
+        eq(hcmPulseSurveys.organizationId,organizationId),
+      )).for("update").limit(1);
+    if(!survey || survey.status!=="open")return "closed" as const;
+    const answers=await tx.select({score:hcmPulseSurveyResponses.score})
+      .from(hcmPulseSurveyResponses).where(and(
+        eq(hcmPulseSurveyResponses.organizationId,organizationId),
+        eq(hcmPulseSurveyResponses.surveyId,surveyId),
+      )).limit(50_001);
+    if(answers.length>50_000)return "too_large" as const;
+    const aggregate=aggregateClosedPulse({status:"closed",scores:answers.map(r=>r.score)});
+    const [closed]=await tx.update(hcmPulseSurveys).set({
+      status:"closed",closedAt:new Date(),
+      aggregateCount:aggregate.visible?aggregate.count:null,
+      aggregateAverage:aggregate.visible?aggregate.average.toFixed(2):null,
+      aggregateDistribution:aggregate.visible?aggregate.distribution:null,
+    }).where(and(eq(hcmPulseSurveys.id,surveyId),
+      eq(hcmPulseSurveys.organizationId,organizationId),
+      eq(hcmPulseSurveys.status,"open"))).returning({id:hcmPulseSurveys.id});
+    if(!closed)return "closed" as const;
+    // Delete individual pseudonyms/scores atomically with the sealed cohort.
+    // Any audit-write failure rolls the deletion and closure back together.
+    await tx.delete(hcmPulseSurveyResponses).where(and(
+      eq(hcmPulseSurveyResponses.organizationId,organizationId),
+      eq(hcmPulseSurveyResponses.surveyId,surveyId),
+    ));
     await tx.insert(auditEvents).values({organizationId,actor:auth.user!.name,
       action:"Anonymous employee pulse survey closed",resource:"Engagement pulse",
-      metadata:{surveyId}});
-    return closed;
+      metadata:{surveyId,cohortPublished:aggregate.visible,
+        responsesPurged:answers.length}});
+    return "sealed" as const;
   });
-  if(!row)return Response.json({error:"Survey not open."},{status:409});
+  if(outcome==="closed")return Response.json({error:"Survey not open."},{status:409});
+  if(outcome==="too_large")return Response.json({error:"Survey cohort exceeds the bounded close limit."},{status:409});
   return Response.json({surveyId,status:"closed",
     note:"Sealed survey aggregate available only if five or more responses exist."});
  }
