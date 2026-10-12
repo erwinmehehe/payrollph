@@ -64,6 +64,7 @@ export type GreedyRosterInput = {
 };
 export type GreedyRosterReason =
   | "no_workers" | "already_assigned" | "skill_missing" | "site_ineligible" | "unavailable"
+  | "consecutive_day_cap"
   | "approved_leave" | "source_unknown" | "designated_rest_day"
   | "overlapping_shift" | "minimum_rest" | "rolling_week_cap"
   | "daily_hours_cap" | "overtime_approval" | "other_roster_rule";
@@ -107,7 +108,7 @@ const TIME = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
 const DATE = /^\d{4}-\d\d-\d\d$/;
 const REASONS: readonly GreedyRosterReason[] = [
   "no_workers","already_assigned","source_unknown","approved_leave","unavailable","skill_missing",
-  "site_ineligible","designated_rest_day","overlapping_shift","minimum_rest",
+  "site_ineligible","designated_rest_day","overlapping_shift","minimum_rest","consecutive_day_cap",
   "overtime_approval","daily_hours_cap","rolling_week_cap","other_roster_rule",
 ];
 const dayOrdinal = (date: string) => {
@@ -149,6 +150,7 @@ function problemsToReason(issues: ScheduleGuardrailIssue[]): GreedyRosterReason 
   if (issues.some(issue=>issue.code==="segment_overlap")) return "overlapping_shift";
   if (issues.some(issue=>issue.code==="minimum_rest")) return "minimum_rest";
   if (issues.some(issue=>issue.code==="rolling_seven_day_minutes")) return "rolling_week_cap";
+  if (issues.some(issue=>issue.code==="consecutive_days")) return "consecutive_day_cap";
   return "other_roster_rule";
 }
 function checkDraft(
