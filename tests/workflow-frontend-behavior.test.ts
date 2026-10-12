@@ -123,7 +123,8 @@ test("flag-off first-payroll card retains the original UI and has no inline draw
   const legacy = renderToStaticMarkup(createElement(FirstPayrollReadinessCard, props));
   const disabled = renderToStaticMarkup(createElement(WorkflowUiProvider, {
     flags:EMPTY_WORKFLOW_UI_FLAGS,
-  }, createElement(FirstPayrollReadinessCard, props)));
+    children: createElement(FirstPayrollReadinessCard, props),
+  }));
   assert.equal(disabled, legacy);
   assert.doesNotMatch(disabled, /data-first-payroll-inline/);
   assert.match(legacy, /Guided first payroll journey/);
