@@ -9,6 +9,7 @@ import { decideEntityAccess, entityResourceAllowed, GROUP_ENTITY_ROLES } from "@
 export type MultiEntityContext = {
   enabled: boolean;
   group: boolean;
+  canSwitch: boolean;
   legalEntityId: number | null;
   organizationId: number;
   role: string;
@@ -31,7 +32,7 @@ export async function resolveMultiEntityContext(input: {
     return { ok: false, response: denied("No company membership in this organization.") };
   if (!criticalReleaseFlagEnabled("multiEntity")) {
     return { ok: true, context: {
-      enabled: false, group: access.companyWide, legalEntityId: null,
+      enabled: false, group: access.companyWide, canSwitch: false, legalEntityId: null,
       organizationId: input.organizationId, role: access.role, entities: [],
     } };
   }
@@ -77,11 +78,12 @@ export async function resolveMultiEntityContext(input: {
   ) };
   return { ok: true, context: {
     enabled: true, group: decision.group,
+    canSwitch: !decision.group && decision.allowedEntityIds.length > 1,
     legalEntityId: decision.selectedEntityId,
     organizationId: input.organizationId, role: access.role,
     entities: decision.group
       ? entities
-      : entities.filter(entity => entity.id === decision.selectedEntityId),
+      : entities.filter(entity => decision.allowedEntityIds.includes(entity.id)),
   } };
 }
 
