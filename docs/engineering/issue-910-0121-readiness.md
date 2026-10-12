@@ -72,3 +72,33 @@ The proposal closes *potential new-write* ambiguity for:
 These FKs are deliberately **NOT VALID**: PostgreSQL enforces them on new writes/updated keys but does not scan/rewrite existing historical rows. A named DBA must reconcile preexisting bad rows and separately run `VALIDATE CONSTRAINT` after every row is attributable; do not treat `NOT VALID` as a complete historical-isolation certificate. Nullable historical filing, bank and year-end scope remains blocked under the RFC until separately attributed.
 
 Existing pending PR #860 proposes overlapping employee/transfer tenant FKs. Reconcile duplicate names and exact current-head migration ordering before assigning a new SQL number. This review candidate must not be independently applied or mixed into 0121 without a forward-release plan and signed SQL hash.
+
+## Current-turn independent catalog recheck — 2026-10-12 15:11 UTC
+
+**Source:** connected Neon project `calm-wave-70219564`, production default branch `br-lucky-sound-b79i56jw`, database `neondb`, PostgreSQL `18.6 (c021049)`, current role `neondb_owner`. This is **live read-only catalog evidence**, not a statement that a migration was run or a proof that its historic SQL hash was applied.
+
+| Observed catalog fact | Main/default | Existing nondefault migration lab `br-aged-mouse-b7tipaw5` | Provenance meaning |
+|---|---:|---:|---|
+| `public` table count | 113 | 125 | Divergent schemas, not an applied migration journal |
+| `public.worker_employment_events` | absent | present | Source 0050 target cannot be certified as applied on main |
+| `public.provider_events` | absent | present | Source 0110 target cannot be certified as applied on main |
+| `public.drizzle_migrations` | absent | absent | Not an authentic receipt source |
+
+A separate read-only `pg_class`/namespace search of **main** for migration, migration history, journal or Drizzle-named relations returned no rows. PostgreSQL catalog state proves presence/absence **now**, not which release SHA ran previously; a branch snapshot with a table proves that branch state, not production deployment.
+
+**Inspection SQL** (SELECT-only; no credential values, employee rows, bank accounts or PII):
+
+```sql
+SELECT current_database() AS database_name,
+       current_user AS db_role,
+       current_setting('server_version') AS pg_version,
+       now() AT TIME ZONE 'UTC' AS observed_utc,
+       (SELECT count(*) FROM pg_catalog.pg_tables WHERE schemaname = 'public') AS public_tables,
+       to_regclass('public.worker_employment_events')::text AS worker_employment_events,
+       to_regclass('public.provider_events')::text AS provider_events,
+       to_regclass('public.drizzle_migrations')::text AS drizzle_migrations;
+```
+
+**Operational history:** Neon project operations are compute/branch operations and do **not** expose the complete SQL text, executor identity, Git source SHA or per-migration transaction receipt needed to authenticate applied history. The retained manual snapshot `snap-red-sound-b798wnli` from 2026-10-12 is a point-in-time schema/data witness, **not** a migration execution journal. The #899 default-branch routing incident further means the database identity and application write window must be reconciled separately.
+
+**Strict resolution state:** `0022`, `0050`, `0052`, `0110`, `0112`–`0116` and `0121` are **UNPROVEN / BLOCKED** on production until externally retained deployment/DB audit records identify executor, timestamp, exact source SHA-256, target branch/database, transaction success and postconditions. Never insert retrospective `applied` journal rows from the presence of copied source files or the lab branch. Next is the independently authorized forward-only predecessor **with a newly recorded execution receipt**, and then separately approved 0121 schema/backfill; historical `applied` dates cannot be invented.
