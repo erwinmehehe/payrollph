@@ -12,6 +12,7 @@ import { reconcileAttendanceExceptionEvents } from "@/lib/workforce-attendance-e
 import { authorizedGeofenceSites } from "@/lib/workforce-geofence-server";
 import { evaluateGeofenceFix, geofencePilotEnabledForOrganization } from "@/lib/workforce-geofence";
 import { encryptPunchPhoto, decryptPunchPhoto, stripJpegMetadata } from "@/lib/workforce-punch-photo-crypto";
+import { documentUploadsEnabled, scanUpload } from "@/lib/storage";
 import { enhancedPunchEnabled, photoCaptureDecision, photoExpiry, evaluatePunchTiming, impossibleTravel, PUNCH_CONSENT_VERSION, PUNCH_MAX_IMAGE_BYTES, PUNCH_ACTIONS, type PhotoMode } from "@/lib/workforce-punch-evidence";
 
 export const dynamic = "force-dynamic";
@@ -129,9 +130,20 @@ export async function POST(request: Request) {
   flags.push(...captureDecision.flags);
   let encrypted: string|null=null;
   if(captureDecision.capture && file instanceof File) {
-    if(file.size>PUNCH_MAX_IMAGE_BYTES||file.type!=="image/jpeg")return respond({error:"Only JPEG photos smaller than 512 KB are accepted."},413);
-    try {const bytes=stripJpegMetadata(new Uint8Array(await file.arrayBuffer()));encrypted=encryptPunchPhoto(bytes);}
-    catch{return respond({error:"Cannot securely validate/encrypt selfie evidence."},503);}
+    if(file.size>PUNCH_MAX_IMAGE_BYTES||file.size<1||file.type!=="image/jpeg")
+      return respond({error:"Only JPEG photos smaller than 512 KB are accepted."},413);
+    if(!documentUploadsEnabled())
+      return respond({error:"Secure photo upload and malware scanning are not enabled."},503);
+    let bytes:Uint8Array;
+    try { bytes=stripJpegMetadata(new Uint8Array(await file.arrayBuffer())); }
+    catch{return respond({error:"Invalid JPEG image evidence."},422);}
+    // Scan sanitized pixels BEFORE encrypting or saving. An unavailable scanner
+    // fails closed; never let evidence bypass the document security boundary.
+    const scan=await scanUpload(bytes,{fileName:"punch-evidence.jpg",mime:"image/jpeg"});
+    if(!scan.scannedClean||scan.unavailable)
+      return respond({error:"Photo evidence malware scan is unavailable or rejected the image."},503);
+    try { encrypted=encryptPunchPhoto(bytes); }
+    catch{return respond({error:"Cannot encrypt selfie evidence."},503);}
   }
   let digest:string;
   try { digest=deviceHash(deviceId,organizationId); }
