@@ -6,6 +6,10 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  employeeImportPreview: {
+    env: "EMPLOYEE_IMPORT_PREVIEW_ENABLED", owner: "People Operations",
+    risk: "P1 atomic employee CSV intake", approval: "500-row preview and rollback acceptance",
+  },
   centralScheduler: {
     env: "CENTRAL_SCHEDULER_ENABLED",
     owner: "Operations",
