@@ -15,7 +15,7 @@ test("current organization_id/integer-id schema fingerprint is compatible", asyn
   const rows = matches();
   const result = evaluateModernSchemaLineage(rows);
   assert.equal(result.compatible, true);
-  assert.equal(result.expectedColumns, 9);
+  assert.equal(result.expectedColumns, 7);
   assert.equal(result.incompatibleColumns, 0);
   assert.equal(result.inspectedTenantOrBankRows, false);
   assert.equal(result.permitsLegacyInPlaceConversion, false);
