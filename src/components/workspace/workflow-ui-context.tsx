@@ -9,7 +9,7 @@ const WorkflowUiContext = createContext<Readonly<WorkflowUiFlags>>(EMPTY_WORKFLO
 
 export function WorkflowUiProvider({ flags, children }: {
   flags: Readonly<WorkflowUiFlags>;
-  children: ReactNode;
+  children?: ReactNode;
 }) {
   return <WorkflowUiContext.Provider value={flags}>{children}</WorkflowUiContext.Provider>;
 }
