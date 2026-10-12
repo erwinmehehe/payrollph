@@ -42,9 +42,22 @@ export async function GET(request: Request) {
   const where = and(eq(legalEntities.organizationId, organizationId),
     ctx.context.legalEntityId === null ? undefined : eq(legalEntities.id, ctx.context.legalEntityId));
   const rows = await db.select().from(legalEntities).where(where);
+  const canEdit = !ctx.context.group &&
+    ["owner", "admin", "bookkeeper"].includes(ctx.context.role);
   return Response.json({
-    entities: rows.map(present),
-    canEdit: ["owner", "admin", "bookkeeper"].includes(ctx.context.role),
+    entities: rows.map(row => {
+      const item = present(row);
+      // Group HR and non-administrative roles may see employer identity but
+      // never bank destinations or registration identifiers through this route.
+      if (!canEdit) return {
+        ...item, birTin: "", birBranchCode: "", sssEmployerNo: "",
+        philHealthEmployerNo: "", pagIbigEmployerNo: "",
+        disbursementBankCode: "", disbursementAccountName: "",
+        disbursementAccount: null,
+      };
+      return item;
+    }),
+    canEdit,
   }, { headers: { "Cache-Control": "no-store, private" } });
 }
 export async function PATCH(request: Request) {
