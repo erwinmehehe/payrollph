@@ -6009,3 +6009,94 @@ export const engagementSurveyParticipants = pgTable(
     index("engagement_survey_participants_org_idx").on(table.organizationId, table.surveyId),
   ],
 );
+
+
+/** Independently approved, immutable historical employer-registration snapshots.
+ * Full sensitive profile is encrypted in the government-identifier domain.
+ * Legacy legal_entities columns remain a synchronized read projection.
+ */
+export const legalEntityStatutoryRegistrations = pgTable("legal_entity_statutory_registrations", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
+  revision: integer("revision").notNull(),
+  effectiveDate: date("effective_date").notNull(),
+  profileEnvelope: text("profile_envelope").notNull(),
+  approvedByUserId: integer("approved_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  sourceChangeId: integer("source_change_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("legal_entity_registration_revision_unique").on(table.organizationId, table.legalEntityId, table.revision),
+  uniqueIndex("legal_entity_registration_change_unique").on(table.sourceChangeId),
+  index("legal_entity_registration_history_idx").on(table.organizationId, table.legalEntityId, table.effectiveDate),
+]);
+
+/** Maker-checker queue. A change proposal is sealed at rest; APIs return only
+ * changed field names, never proposal values or government/bank identifiers.
+ */
+export const legalEntityProfileChangeRequests = pgTable("legal_entity_profile_change_requests", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
+  expectedEntityUpdatedAt: timestamp("expected_entity_updated_at", { withTimezone: true }).notNull(),
+  effectiveDate: date("effective_date").notNull(),
+  changedFields: jsonb("changed_fields").$type<string[]>().notNull().default([]),
+  profileEnvelope: text("profile_envelope").notNull(),
+  reason: varchar("reason", { length: 400 }).notNull(),
+  status: varchar("status", { length: 24 }).notNull().default("pending_approval"),
+  requestedByUserId: integer("requested_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  decidedByUserId: integer("decided_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("legal_entity_profile_one_pending_unique").on(table.organizationId, table.legalEntityId)
+    .where(sql`${table.status} = 'pending_approval'`),
+  index("legal_entity_profile_request_idx").on(table.organizationId, table.legalEntityId, table.status),
+  check("legal_entity_profile_status_check",
+    sql`${table.status} in ('pending_approval','approved','rejected')`),
+  check("legal_entity_profile_maker_checker_check",
+    sql`${table.decidedByUserId} is null or ${table.decidedByUserId} <> ${table.requestedByUserId}`),
+]);
+
+/** Payer-specific employee bank destinations; no automatic worker transfer
+ * bank write is allowed until the separate liability/treasury policy is signed.
+ */
+export const employeeEntityBankAccounts = pgTable("employee_entity_bank_accounts", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+  legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
+  bankCode: varchar("bank_code", { length: 32 }).notNull(),
+  accountName: varchar("account_name", { length: 160 }).notNull(),
+  accountEnvelope: text("account_envelope").notNull(),
+  effectiveFrom: date("effective_from").notNull(),
+  effectiveUntil: date("effective_until"),
+  approvedByUserId: integer("approved_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("employee_entity_bank_one_current_unique").on(table.organizationId, table.employeeId, table.legalEntityId)
+    .where(sql`${table.effectiveUntil} is null`),
+  check("employee_entity_bank_dates_check",
+    sql`${table.effectiveUntil} is null or ${table.effectiveUntil} >= ${table.effectiveFrom}`),
+]);
+
+/** Explicit reviewer-evidenced source/target liabilities. No automatic
+ * transfer/final-pay decision is inferred from continuity of service.
+ */
+export const legalEntityTransferLiabilityEvidence = pgTable("legal_entity_transfer_liability_evidence", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+  transferRequestId: integer("transfer_request_id").notNull().references(() => entityTransferRequests.id, { onDelete: "restrict" }),
+  fromLegalEntityId: integer("from_legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
+  toLegalEntityId: integer("to_legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
+  reviewState: varchar("review_state", { length: 24 }).notNull().default("unresolved"),
+  reviewedLiabilityEnvelope: text("reviewed_liability_envelope"),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("legal_entity_transfer_liability_unique").on(table.organizationId, table.transferRequestId),
+  check("legal_entity_transfer_liability_state_check",
+    sql`${table.reviewState} in ('unresolved','reviewed','rejected')`),
+]);
