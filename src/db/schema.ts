@@ -14,6 +14,7 @@ import {
   serial,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -262,7 +263,7 @@ export const employees = pgTable("employees", {
   startDate: date("start_date").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
-  uniqueIndex("employees_org_id_workflows_unique").on(table.organizationId, table.id),
+  unique("employees_org_id_workflows_unique").on(table.organizationId, table.id),
 ]);
 
 export const employeeMweClassifications = pgTable(
@@ -5963,7 +5964,7 @@ export const employeeServiceCases = pgTable("employee_service_cases", {
 }, table => [
   index("employee_service_cases_org_status_idx").on(table.organizationId, table.status, table.createdAt),
   index("employee_service_cases_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
-  uniqueIndex("employee_service_cases_org_id_unique").on(table.organizationId, table.id),
+  unique("employee_service_cases_org_id_unique").on(table.organizationId, table.id),
   foreignKey({
     name: "workflow_case_employee_tenant_fk",
     columns: [table.organizationId, table.employeeId],
