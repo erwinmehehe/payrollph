@@ -43,6 +43,10 @@ test("offline sync clock skew yields review-only flag",()=>{
   assert.deepEqual(evaluatePunchTiming("2026-10-12T02:35:00.000Z",arrived,"offline"),["offline-synced"]);
   assert.deepEqual(evaluatePunchTiming("2026-10-12T02:55:00.000Z",arrived,"offline"),[]);
   assert.deepEqual(evaluatePunchTiming("2026-10-12T02:35:00.000Z",arrived,"online"),["clock-skew"]);
+  // Fast clocks remain independent-review evidence, never automatic deductions.
+  assert.deepEqual(evaluatePunchTiming("2026-10-12T03:31:00.000Z",arrived,"offline"),["offline-synced"]);
+  assert.deepEqual(evaluatePunchTiming("2026-10-12T03:31:00.000Z",arrived,"online"),["clock-skew"]);
+  assert.deepEqual(evaluatePunchTiming("2026-10-14T04:00:00.000Z",arrived,"offline"),["offline-synced","time-invalid"]);
   assert.deepEqual(evaluatePunchTiming("nonsense",arrived,"offline"),["time-invalid"]);
 });
 test("automatic retention picks only expired, non-held encrypted bytes",()=>{

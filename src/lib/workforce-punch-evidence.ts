@@ -3,6 +3,8 @@ import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 export const PUNCH_CONSENT_VERSION = "selfie-attendance-v1";
 export const PUNCH_PHOTO_RETENTION_DAYS = 90;
 export const PUNCH_MAX_SKEW_MINUTES = 10;
+// Human-review first: ordinary fast device clocks must not lose time evidence.
+export const PUNCH_MAX_FUTURE_SKEW_MINUTES = 24 * 60;
 export const PUNCH_MAX_IMAGE_BYTES = 512 * 1024;
 export const PUNCH_ACTIONS = ["clock_in", "break_start", "break_end", "clock_out"] as const;
 /** Strict RFC 4122 UUID shape used by browser crypto.randomUUID and future v7 clients. */
@@ -59,7 +61,10 @@ export function evaluatePunchTiming(deviceOccurredAt: string, serverReceivedAt: 
   const delta = Math.abs(time - serverReceivedAt.getTime());
   const flags: PunchFlag[] = [];
   if (delta > skewMinutes * 60_000) flags.push(source === "offline" ? "offline-synced" : "clock-skew");
-  if (time > serverReceivedAt.getTime() + 5 * 60_000 || time < serverReceivedAt.getTime() - 31 * 86_400_000) flags.push("time-invalid");
+  // A clock 31 minutes ahead is reviewable; only implausible future dates
+  // (>24h) or stale submissions (>31 days) need HR correction instead.
+  if (time > serverReceivedAt.getTime() + PUNCH_MAX_FUTURE_SKEW_MINUTES * 60_000 ||
+      time < serverReceivedAt.getTime() - 31 * 86_400_000) flags.push("time-invalid");
   return flags;
 }
 export type LocationSample = { worksiteId: number; latitude: number; longitude: number; at: Date };

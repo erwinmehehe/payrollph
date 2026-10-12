@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {setImmediate} from "node:timers";
-import {queueWebPunch,syncQueuedWebPunches,isPunchReceipt,type QueuedWebPunch} from "../src/lib/workforce-punch-offline-queue";
+import {queueWebPunch,syncQueuedWebPunches,isPunchReceipt,retryablePunchHttpStatus,type QueuedWebPunch} from "../src/lib/workforce-punch-offline-queue";
+import {readFileSync} from "node:fs";
 
 type Callback=(()=>void)|null;
 const example:QueuedWebPunch={
@@ -202,4 +203,20 @@ test("automatic reconnect and manual sync share one in-flight replay",async()=>{
     assert.equal(calls,1);
     assert.deepEqual(fixture.ids(),[]);
   }finally{globalThis.fetch=originalFetch;fixture.restore();}
+});
+
+test("uncertain transport failures keep the same client punch ID for retry",()=>{
+  for(const status of [408,425,429,500,502,503,599])
+    assert.equal(retryablePunchHttpStatus(status),true,String(status));
+  for(const status of [200,201,400,401,403,404,409,422,423,499,600])
+    assert.equal(retryablePunchHttpStatus(status),false,String(status));
+});
+test("offline queue count loads independently of remote policy fetch",()=>{
+  const source=readFileSync("src/components/enhanced-punch-controls.tsx","utf8");
+  const queued=source.indexOf("const queued=await pendingWebPunches(");
+  const count=source.indexOf("if(queued)setOffline(queued.length)");
+  const remote=source.indexOf("const response=await fetch(");
+  assert.ok(queued>=0&&count>queued&&remote>count);
+  assert.match(source,/retryablePunchHttpStatus\(res.status\)/);
+  assert.match(source,/Server receipt is uncertain and local storage failed/);
 });

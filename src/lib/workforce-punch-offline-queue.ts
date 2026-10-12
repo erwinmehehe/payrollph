@@ -108,6 +108,10 @@ export function isPunchReceipt(value: unknown, clientPunchId: string): value is 
     && (receipt.status === "pending" || receipt.status === "approved" || receipt.status === "rejected");
 }
 export type PunchSyncResult = {id:string;status:"synced"|"failed";message:string};
+/** A transient response does not prove whether the server committed. */
+export function retryablePunchHttpStatus(status:number):boolean {
+  return status===408||status===425||status===429||(status>=500&&status<=599);
+}
 
 /** Coalesce an automatic reconnect and a manual sync for this one employee. */
 const runningSyncs = new Map<string, Promise<PunchSyncResult[]>>();

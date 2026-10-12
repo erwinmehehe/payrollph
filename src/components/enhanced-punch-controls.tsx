@@ -1,7 +1,7 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
 import {normalizePunchSelfie} from "@/lib/workforce-punch-photo-client";
-import {installationPunchDeviceId,queueWebPunch,pendingWebPunches,syncQueuedWebPunches,isPunchReceipt} from "@/lib/workforce-punch-offline-queue";
+import {installationPunchDeviceId,queueWebPunch,pendingWebPunches,syncQueuedWebPunches,isPunchReceipt,retryablePunchHttpStatus} from "@/lib/workforce-punch-offline-queue";
 type Policy={geofenceRequired:boolean;photoMode:"off"|"optional"|"required";consent:"accepted"|"declined"|null;consentVersion:string;pending:{id:number}[]};
 export function EnhancedPunchControls({organizationId,employeeId}:{organizationId:number;employeeId:number}){
   const [policy,setPolicy]=useState<Policy|null>(null);
@@ -13,10 +13,19 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
   const [message,setMessage]=useState("");
   const [busy,setBusy]=useState(false);
   const reload=useCallback(async()=>{
-    const response=await fetch(`/api/web-bundy/evidence?organizationId=${organizationId}`,{cache:"no-store"});
-    if(response.ok)setPolicy(await response.json() as Policy);
-    const queued=await pendingWebPunches(organizationId,employeeId).catch(()=>[]);
-    setOffline(queued.length);
+    // Read the local queue first: remote fetch failure must not hide offline
+    // evidence or make the saved-punch count appear to vanish.
+    const queued=await pendingWebPunches(organizationId,employeeId).catch(()=>null);
+    if(queued)setOffline(queued.length);
+    try{
+      const response=await fetch(`/api/web-bundy/evidence?organizationId=${organizationId}`,{cache:"no-store"});
+      if(response.ok)setPolicy(await response.json() as Policy);
+      else if([401,403,404].includes(response.status))setPolicy(null);
+      // Temporary network failure retains last known UI context only. The
+      // server rechecks policy, consent, tenant and locks on every sync.
+    }catch{
+      // No server assurance while offline; locally queued actions are not pay.
+    }
   },[organizationId,employeeId]);
   useEffect(()=>{
     let alive=true;
@@ -87,6 +96,7 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
   async function submit(actionType:string){
     if(!deviceId||busy||preparingPhoto)return;
     setBusy(true);setMessage("");
+    let attemptedServer=false;
     const item={id:crypto.randomUUID(),organizationId,employeeId,deviceId,actionType,deviceOccurredAt:new Date().toISOString(),createdAt:new Date().toISOString()};
     try{
       if(!navigator.onLine){
@@ -109,6 +119,7 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
         }
         if(photo&&policy?.consent==="accepted"&&policy.photoMode!=="off")data.set("photo",photo);
         try{
+          attemptedServer=true;
           const res=await fetch("/api/web-bundy/evidence",{method:"POST",body:data});
           const result:unknown=await res.json().catch(()=>null);
           if(res.ok&&isPunchReceipt(result,item.id)){
@@ -122,6 +133,11 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
             // Replay with the SAME UUID; server idempotency prevents duplication.
             await queueWebPunch(item);
             setMessage("Server confirmation missing. Saved on this device for retry without photo.");
+          }else if(retryablePunchHttpStatus(res.status)){
+            // A 5xx/timeout may follow a committed punch; preserve the exact
+            // client UUID and never cache raw photo/GPS for local retry.
+            await queueWebPunch(item);
+            setMessage("Server receipt not confirmed. Original punch saved on this device for safe retry without photo.");
           }else{
             const error=result&&typeof result==="object"?(result as {error?:unknown}).error:null;
             setMessage(typeof error==="string"?error:"Submission rejected. Ask HR if you cannot retry.");
@@ -131,7 +147,11 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
           setMessage("Network interrupted. Saved on device for later sync (without photo).");
         }
       }
-    }catch{setMessage("Offline storage unavailable. No punch was saved.");}
+    }catch{
+      setMessage(attemptedServer
+        ?"Server receipt is uncertain and local storage failed. Ask HR to verify attendance before retrying."
+        :"Offline storage unavailable. No punch was saved.");
+    }
     finally{setBusy(false);await reload();}
   }
   return <section style={{border:"1px solid var(--border)",borderRadius:10,padding:14,display:"grid",gap:10}} aria-label="Review-first attendance">
