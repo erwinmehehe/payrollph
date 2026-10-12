@@ -197,11 +197,19 @@ test("every place that reads or writes the number goes through the crypto module
   const settlement = read("src/lib/payroll-settlement.ts");
   assert.ok(settlement.includes("sameBankAccount(snapshot.bankAccount, employee.bankAccount)"), "release guard must compare decrypted values");
 
-  for (const path of ["src/app/api/employees/import/route.ts", "src/app/api/migrations/route.ts"]) {
-    const source = read(path);
-    assert.ok(source.includes("encryptBankAccount(row.bankAccount)"), `${path} must encrypt on write`);
-    assert.ok(!/bankAccount: row\.bankAccount,/.test(source), `${path} must not store the raw number`);
-  }
+  const importRoute = read("src/app/api/employees/import/route.ts");
+  const atomicCommit = read("src/lib/employee-import-batch-server.ts");
+  assert.ok(importRoute.includes("handleEmployeeImportPreview("),
+    "Bulk route must delegate through the governed preview/commit handler");
+  assert.ok(atomicCommit.includes("bankAccount: encryptBankAccount(row.bankAccount)"),
+    "Atomic employee import must encrypt bank account numbers on write");
+  assert.ok(!/bankAccount:\s*row\.bankAccount\b/.test(atomicCommit),
+    "Atomic employee import cannot persist a plaintext bank account");
+  const migration = read("src/app/api/migrations/route.ts");
+  assert.ok(migration.includes("encryptBankAccount(row.bankAccount)"),
+    "Legacy migration must encrypt bank account numbers on write");
+  assert.ok(!/bankAccount:\s*row\.bankAccount\b/.test(migration),
+    "Legacy migration cannot persist a plaintext bank account");
 
   const payoutControls = read("src/lib/payout-destination-controls.ts");
   assert.ok(payoutControls.includes("bankAccount: encryptBankAccount(request.proposedBankAccount)"),
