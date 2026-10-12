@@ -52,7 +52,7 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
     // The newly staged registration and destination tables reject foreign
     // tenant/employer IDs even if an application caller supplies guessed IDs.
     const sealedProfile = encryptGovernmentId(JSON.stringify({ birTin: "123456789" }), {
-      required: true, env: { PII_ENCRYPTION_KEY: "2".repeat(64) },
+      required: true, env: { ...process.env, PII_ENCRYPTION_KEY: "2".repeat(64) },
     });
     assert.ok(sealedProfile?.startsWith("enc:govid:v1:"));
     const proposal = {
@@ -71,7 +71,7 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
       });
     }, "Cross-tenant employer registration FK must reject the write");
     const sealedBank = encryptBankAccount("123456789000", {
-      BANK_DATA_ENCRYPTION_KEY: "3".repeat(64),
+      ...process.env, BANK_DATA_ENCRYPTION_KEY: "3".repeat(64),
     });
     assert.ok(sealedBank?.startsWith("enc:v1:"));
     await assert.rejects(async () => {
