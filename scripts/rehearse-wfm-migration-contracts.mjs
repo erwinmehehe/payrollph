@@ -1,6 +1,6 @@
 /**
  * Rollback-only PostgreSQL 16 contract rehearsal for the canonical,
- * unmerged 0115, 0116, 0118 migration files.
+ * unmerged 0117, 0118, 0120 migration files.
  *
  * CI-only guard ensures this CANNOT connect to Neon, staging or production.
  * All synthetic test rows and DDL live in a random schema inside a
@@ -14,9 +14,9 @@ import { assertIsolatedMigrationTarget } from "./lib/isolated-migration-target.m
 
 const { Client } = pg;
 const paths = [
-  "drizzle/0115_inline_first_payroll_journey.sql",
-  "drizzle/0116_wfm_roster_scale_rules.sql",
-  "drizzle/0118_wfm_punch_evidence.sql",
+  "drizzle/0117_inline_first_payroll_journey.sql",
+  "drizzle/0118_wfm_roster_scale_rules.sql",
+  "drizzle/0120_wfm_punch_evidence.sql",
 ];
 const schema = "wfm_rehearsal_" + randomBytes(8).toString("hex");
 const injected = process.argv.length === 3 && process.argv[2] === "--inject-failure";
