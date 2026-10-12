@@ -240,16 +240,25 @@ export async function PATCH(request: Request) {
   if (!user) return fail("Authentication required.", 401);
   const body = await request.json().catch(() => ({}));
   const id = Number(body.id);
+  const organizationId = Number(body.organizationId);
   const action = String(body.action ?? "");
-  if (!Number.isSafeInteger(id) || id <= 0 || !["approve", "reject", "apply"].includes(action))
-    return fail("Valid request ID and approve, reject or apply are required.", 400);
-  const [requestRow] = await db.select().from(entityTransferRequests)
-    .where(eq(entityTransferRequests.id, id)).limit(1);
-  if (!requestRow) return fail("Transfer not found.", 404);
+  if (!Number.isSafeInteger(organizationId) || organizationId <= 0 ||
+      !Number.isSafeInteger(id) || id <= 0 || !["approve", "reject", "apply"].includes(action))
+    return fail("A tenant, transfer ID and approve, reject or apply action are required.", 400);
+  // Verify tenant membership and selected employer BEFORE probing a transfer ID.
+  // Foreign-tenant resource IDs now look identical to nonexistent IDs.
   const scope = await resolveMultiEntityContext({
-    userId: user.id, organizationId: requestRow.organizationId, request,
+    userId: user.id, organizationId, request,
   });
   if (!scope.ok) return scope.response;
+  const [requestRow] = await db.select().from(entityTransferRequests)
+    .where(and(
+      eq(entityTransferRequests.id, id),
+      eq(entityTransferRequests.organizationId, organizationId),
+      scope.context.legalEntityId === null ? undefined
+        : eq(entityTransferRequests.fromLegalEntityId, scope.context.legalEntityId),
+    )).limit(1);
+  if (!requestRow) return fail("Transfer not found.", 404);
   // Group HR is a read-only reporting principal. A mutation requires
   // explicit source AND destination employer grants, not group visibility.
   const grants = await transferGrants(requestRow.organizationId, user.id);
