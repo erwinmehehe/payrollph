@@ -1,3 +1,7 @@
+-- UNNUMBERED DBA-REVIEW PROPOSAL ONLY. DO NOT APPLY TO NEON PRODUCTION.
+-- The numbered 0122 slot is already claimed by separate tenant navigation #874;
+-- this interval guard must receive its own reviewed contiguous source number
+-- after the canonical #865 SQL train and DBA-verified historical receipts.
 -- Forward integrity correction; preserve historical 0115-0121 checksums.
 -- Requires 0121. No historical employer attribution or backfill is performed.
 -- Lock the employee row to serialize concurrent interval inserts/updates.

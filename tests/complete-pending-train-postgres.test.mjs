@@ -15,7 +15,7 @@ const names = [
   "0121_multi_entity_v2_scope_transfer.sql",
 ];
 
-test("PG16/18: forward 0122 rejects tenant mismatch and overlapping closed intervals", {
+test("PG16/18: unnumbered entity-interval proposal rejects tenant mismatch and overlaps", {
   skip: !REHEARSAL, timeout: 120000,
 }, async () => {
   const client = new pg.Client({ connectionString: isolatedUrl() });
@@ -26,7 +26,7 @@ test("PG16/18: forward 0122 rejects tenant mismatch and overlapping closed inter
     await client.query("CREATE TABLE public.employees(id integer PRIMARY KEY, organization_id integer NOT NULL)");
     await client.query("CREATE TABLE public.employee_entity_assignments(id serial PRIMARY KEY, organization_id integer NOT NULL, employee_id integer NOT NULL, legal_entity_id integer NOT NULL, effective_from date NOT NULL, effective_until date)");
     await client.query("INSERT INTO public.employees VALUES (1,10),(2,20)");
-    const sql = readFileSync(new URL("../drizzle/0122_employee_entity_interval_guard.sql", import.meta.url), "utf8");
+    const sql = readFileSync(new URL("../docs/engineering/migration-proposals/employee-entity-interval-guard.sql", import.meta.url), "utf8");
     await client.query(sql);
     await client.query(sql);
     await client.query("INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,100,'2026-01-01','2026-01-31')");
@@ -40,6 +40,21 @@ test("PG16/18: forward 0122 rejects tenant mismatch and overlapping closed inter
       await client.query("ROLLBACK TO SAVEPOINT invalid_write");
     }
     await client.query("INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,101,'2026-02-01',NULL)");
+    // Boundaries are inclusive: a closed Jan 31 interval and an open Feb 1
+    // interval are adjacent, but extending Jan 31 into Feb 1 is forbidden.
+    await client.query("SAVEPOINT invalid_update");
+    await assert.rejects(
+      () => client.query("UPDATE public.employee_entity_assignments SET effective_until='2026-02-01' WHERE id=1"),
+      /INTERVAL_OVERLAP/,
+    );
+    await client.query("ROLLBACK TO SAVEPOINT invalid_update");
+    // The open-ended interval prevents any later insert for the same worker.
+    await client.query("SAVEPOINT invalid_later");
+    await assert.rejects(
+      () => client.query("INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,101,'2027-01-01',NULL)"),
+      /INTERVAL_OVERLAP/,
+    );
+    await client.query("ROLLBACK TO SAVEPOINT invalid_later");
     assert.equal((await client.query("SELECT count(*)::integer n FROM public.employee_entity_assignments")).rows[0].n, 2);
   } finally {
     await client.query("ROLLBACK").catch(() => {});

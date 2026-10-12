@@ -10,7 +10,7 @@ on:
       - "drizzle/0119_*.sql"
       - "drizzle/0120_*.sql"
       - "drizzle/0121_*.sql"
-      - "drizzle/0122_*.sql"
+      - "docs/engineering/migration-proposals/employee-entity-interval-guard.sql"
       - "tests/pending-migration-release-train.test.mjs"
       - "tests/pending-train-preflight.test.mjs"
       - "scripts/lib/pending-train-preflight.mjs"
