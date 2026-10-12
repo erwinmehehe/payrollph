@@ -5,7 +5,64 @@ import { reconcileMigrationReceipts } from "./migration-receipt-audit.mjs";
 
 const MIGRATION_PATH = /^drizzle\/([0-9]{4})_[a-z0-9][a-z0-9_-]*\.sql$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-const DISALLOWED_SQL = /(?:^|[;\n])\s*(?:BEGIN\b|COMMIT\b|ROLLBACK\b|SAVEPOINT\b|RELEASE\s+SAVEPOINT\b|SET\s+(?:ROLE|SESSION)\b|CREATE\s+INDEX\s+CONCURRENTLY\b|VACUUM\b|REINDEX\s+CONCURRENTLY\b|CREATE\s+DATABASE\b|DROP\s+DATABASE\b)/im;
+const DISALLOWED_SQL = /\b(?:BEGIN|COMMIT|ROLLBACK|SAVEPOINT|SET|RESET|DISCARD|VACUUM|CREATE\s+DATABASE|DROP\s+DATABASE|ALTER\s+SYSTEM|CREATE\s+INDEX\s+CONCURRENTLY|REINDEX\s+CONCURRENTLY)\b/i;
+
+/** SQL token view outside strings, dollar-quoted function bodies and comments.
+ * Any unclosed quote/comment aborts the migration before DB access.
+ */
+function sqlExecutableTokens(text) {
+  let tokens = "";
+  let i = 0;
+  while (i < text.length) {
+    if (text.startsWith("--", i)) {
+      while (i < text.length && text[i] !== "\n") i += 1;
+      tokens += " ";
+      continue;
+    }
+    if (text.startsWith("/*", i)) {
+      let depth = 1;
+      i += 2;
+      while (i < text.length && depth > 0) {
+        if (text.startsWith("/*", i)) { depth += 1; i += 2; }
+        else if (text.startsWith("*/", i)) { depth -= 1; i += 2; }
+        else i += 1;
+      }
+      if (depth !== 0) refuse("SQL_UNTERMINATED_COMMENT");
+      tokens += " ";
+      continue;
+    }
+    if (text[i] === "'" || text[i] === '"') {
+      const quote = text[i++];
+      let closed = false;
+      while (i < text.length) {
+        if (text[i] === quote) {
+          if (text[i + 1] === quote) { i += 2; continue; }
+          i += 1; closed = true; break;
+        }
+        if (quote === "'" && text[i] === "\\" && text[i + 1] !== undefined) {
+          i += 2; continue;
+        }
+        i += 1;
+      }
+      if (!closed) refuse("SQL_UNTERMINATED_LITERAL");
+      tokens += " ";
+      continue;
+    }
+    if (text[i] === "$") {
+      const match = text.slice(i).match(/^\$(?:[A-Za-z_][A-Za-z_0-9]*)?\$/);
+      if (match) {
+        const end = text.indexOf(match[0], i + match[0].length);
+        if (end < 0) refuse("SQL_UNTERMINATED_DOLLAR_QUOTE");
+        i = end + match[0].length;
+        tokens += " ";
+        continue;
+      }
+    }
+    tokens += text[i];
+    i += 1;
+  }
+  return tokens;
+}
 
 function refuse(reason) {
   throw new Error("REVIEWED_MIGRATION_" + reason);
@@ -114,7 +171,7 @@ export function loadReviewedSql(directory, file) {
   if (createHash("sha256").update(bytes).digest("hex") !== file.sha256) refuse("SQL_CHANGED_AFTER_PLAN");
   const content = bytes.toString("utf8");
   if (!content.trim() || content.includes("\0") || content.includes("\uFFFD") ||
-      /(?:^|\n)\s*\\/.test(content) || DISALLOWED_SQL.test(content) ||
+      /(?:^|\n)\s*\\/.test(content) || DISALLOWED_SQL.test(sqlExecutableTokens(content)) ||
       /\bpayrollph_(?:schema_migrations|migration_cutover|release_migration_receipts)\b/i.test(content)) {
     refuse("SQL_REQUIRES_NONTRANSACTIONAL_OR_MANUAL_REVIEW");
   }
@@ -189,9 +246,10 @@ export async function runReviewedMigrationOnClient({
     const decision = evaluateReviewedMigration({
       inventory, cutover: adopted[0], receipts, applied, requestedPath, expectedSha256,
     });
+    // Plan validates the exact file and SQL transaction boundary too; no DB writes.
+    const sql = loadReviewedSql(sourceDirectory, decision);
     let sqlApplied = false;
     if (mode === "apply" && decision.status === "ready") {
-      const sql = loadReviewedSql(sourceDirectory, decision);
       await client.query("SET LOCAL search_path = public, pg_catalog");
       await client.query(sql);
       await client.query(
