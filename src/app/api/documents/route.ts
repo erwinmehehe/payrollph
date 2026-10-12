@@ -273,6 +273,13 @@ export async function POST(request: Request) {
     try {
       await putDocumentObject(storageKey, bytes, check.mime);
     } catch {
+      // A provider may time out after writing part or all of a private object.
+      // Never assume an HTTP timeout means no bytes were stored: reconcile
+      // the unique key on failure before allowing the user to retry.
+      await deleteDocumentObject(storageKey).catch(() => {
+        // Failed cleanup leaves a random, unreferenced private object for
+        // storage lifecycle reconciliation; never expose its key to clients.
+      });
       return Response.json({ error: "Private document object storage is unavailable." }, { status: 503 });
     }
     try {
