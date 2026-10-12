@@ -200,6 +200,13 @@ test("1,000 authorized workers considered without top-five ranking truncation",(
   assert.equal(result.summary.fairnessProjectedMinutes.length,1000);
 });
 
+test("second position is accurately unfilled when the only worker was already used",()=>{
+  const s=slot(1,date,{requiredHeadcount:2});
+  const result=plan([s],[worker(1,[s])]);
+  assert.equal(result.summary.suggested,1);
+  assert.equal(result.unfilled.length,1);
+  assert.equal(result.unfilled[0].reason,"already_assigned");
+});
 test("zero workers returns explicit slot-level no_workers cause, not invented headcount",()=>{
   const s=slot(1,date,{requiredHeadcount:3});
   const result=plan([s],[]);
