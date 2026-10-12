@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {
   HR_CASE_TYPES, hrCaseRoleCanWork, visibleHrCaseMessages,
   hrCaseTransitionAllowed, hrCaseDueAt, hrCaseSlaStatus,
@@ -45,4 +46,12 @@ test("an unapproved COE cannot be closed, even if its SLA has elapsed", () => {
   assert.equal(hrCaseTransitionAllowed("open", "resolved", "coe", false), false);
   assert.equal(hrCaseTransitionAllowed("resolved", "closed", "coe", false), false);
   assert.equal(hrCaseTransitionAllowed("resolved", "closed", "coe", true), true);
+});
+
+
+test("employee HR request panel visibly distinguishes API outages from disabled 404",()=>{
+ const source=readFileSync("src/components/employee-hr-cases-panel.tsx","utf8");
+ assert.match(source,/setAvailable\(true\);\s*setError\("Could not load HR requests\."\)/);
+ assert.match(source,/if \(loading\) return <p role="status">/);
+ assert.match(source,/if \(!available\) return null/);
 });
