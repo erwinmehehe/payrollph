@@ -7,6 +7,8 @@ import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
 import { drainOutboxRetries } from "@/lib/mailer";
 import { purgeExpiredOperationalData } from "@/lib/data-retention";
+import { enhancedPunchEnabled } from "@/lib/workforce-punch-evidence";
+import { purgeExpiredPunchPhotos } from "@/lib/workforce-punch-retention";
 import { drainMarketingLeadNotifications } from "@/lib/marketing-leads";
 import { runScheduledStatutoryRemittanceSync } from "@/lib/statutory-remittance-actions";
 import { runScheduledContributionCaseEscalations } from "@/lib/statutory-contribution-case-escalations";
@@ -114,6 +116,11 @@ async function runScheduledJobs(
     || now.getTime() - retentionState.lastRunAt.getTime() >= 24 * 60 * 60 * 1000;
   if (retentionDue) await assertLeaseOwnership();
   const retention = retentionDue ? await purgeExpiredOperationalData(now.getTime()) : null;
+  // Retention shares the fenced scheduler lease and does not touch attendance/payroll.
+  if (retentionDue && enhancedPunchEnabled()) {
+    await assertLeaseOwnership();
+    await purgeExpiredPunchPhotos(now);
+  }
   await assertLeaseOwnership();
   const statutoryRemittanceActions = await runScheduledStatutoryRemittanceSync({
     actor: "System scheduler",
