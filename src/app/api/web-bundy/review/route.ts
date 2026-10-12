@@ -1,6 +1,6 @@
 import { and,desc,eq,sql } from "drizzle-orm";
 import { db } from "@/db";
-import { employees,timePunches,workforcePunchSubmissions,workforcePunchPhotoEvidence } from "@/db/schema";
+import { auditEvents,employees,timePunches,workforcePunchSubmissions,workforcePunchPhotoEvidence } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole,getAccess,assertScope,WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { requireSensitiveActionMfa,enforceSameOriginMutation,enforceSensitiveActionRateLimit } from "@/lib/security-request";
@@ -41,6 +41,10 @@ export async function GET(request:Request) {
     if(!photo||!photo.sealedPhoto||photo.purgedAt||(!photo.legalHold&&photo.expiresAt<=new Date()))return new Response(null,{status:404,headers:privateHeaders});
     const [employee]=await db.select({orgUnitId:employees.orgUnitId}).from(employees).where(and(eq(employees.id,photo.employeeId),eq(employees.organizationId,organizationId))).limit(1);
     if(!employee||!assertScope(context.access,employee.orgUnitId).ok)return new Response(null,{status:404,headers:privateHeaders});
+    await recordAuditEvent({
+      organizationId,actor:context.user!.name,action:"Sensitive WFM photo evidence accessed",
+      resource:"Attendance evidence",metadata:{photoId,employeeId:photo.employeeId},
+    });
     try{return new Response(new Uint8Array(decryptPunchPhoto(photo.sealedPhoto)),{headers:{...privateHeaders,"Content-Type":"image/jpeg"}});}
     catch{return Response.json({error:"Cannot decrypt image."},{status:503,headers:privateHeaders});}
   }
@@ -113,6 +117,16 @@ export async function POST(request:Request) {
         .where(and(eq(workforcePunchSubmissions.id,id),eq(workforcePunchSubmissions.organizationId,organizationId),
           eq(workforcePunchSubmissions.status,"pending"))).returning({id:workforcePunchSubmissions.id,status:workforcePunchSubmissions.status});
       if(!saved)throw Error("Already decided.");
+      // Attendance decision and immutable audit must commit or roll back together.
+      await tx.insert(auditEvents).values({
+        organizationId,actor:context.user!.name,
+        action:"Enhanced Web Bundy punch "+decision,
+        resource:String(id),metadata:{
+          submissionId:id,employeeId:submission.employeeId,
+          decision,reviewNote,timeSource:decision==="approved"?timeSource:null,
+          flags:submission.flags,
+        },
+      });
       return saved;
     });
   }catch(error){return Response.json({error:error instanceof Error?error.message:"Review conflict."},{status:409});}
@@ -120,7 +134,5 @@ export async function POST(request:Request) {
     await markTimesheetsStaleForEmployeeDate({organizationId,employeeId:submission.employeeId,workDate:String(submission.workDate)});
     await reconcileAttendanceExceptionEvents({organizationId,employeeId:submission.employeeId,workDate:String(submission.workDate)});
   }
-  await recordAuditEvent({organizationId,actor:context.user!.name,action:"Enhanced Web Bundy punch "+decision,resource:String(id),
-    metadata:{submissionId:id,employeeId:submission.employeeId,decision,reviewNote,timeSource:decision==="approved"?timeSource:null,flags:submission.flags}});
   return Response.json({ok:true,submission:result},{headers:privateHeaders});
 }
