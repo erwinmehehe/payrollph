@@ -5942,6 +5942,12 @@ export const employeeEntityAssignments = pgTable("employee_entity_assignments", 
     .where(sql`${table.effectiveUntil} is null`),
   check("employee_entity_assignment_interval_check",
     sql`${table.effectiveUntil} is null or ${table.effectiveUntil} >= ${table.effectiveFrom}`),
+  foreignKey({ name: "assignment_tenant_entity_fk",
+    columns: [table.organizationId, table.legalEntityId],
+    foreignColumns: [legalEntities.organizationId, legalEntities.id] }),
+  foreignKey({ name: "assignment_employee_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id] }),
 ]);
 
 /** Moving employer does not automatically create separation or final pay. */
@@ -5975,6 +5981,15 @@ export const entityTransferRequests = pgTable("entity_transfer_requests", {
     sql`${table.approvedByUserId} is null or ${table.approvedByUserId} <> ${table.requestedByUserId}`),
   check("entity_transfer_status_check",
     sql`${table.status} in ('pending_approval','approved','rejected','applied','cancelled','blocked')`),
+  foreignKey({ name: "transfer_from_tenant_entity_fk",
+    columns: [table.organizationId, table.fromLegalEntityId],
+    foreignColumns: [legalEntities.organizationId, legalEntities.id] }),
+  foreignKey({ name: "transfer_to_tenant_entity_fk",
+    columns: [table.organizationId, table.toLegalEntityId],
+    foreignColumns: [legalEntities.organizationId, legalEntities.id] }),
+  foreignKey({ name: "transfer_employee_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id] }),
 ]);
 
 /**
@@ -6125,6 +6140,10 @@ export const legalEntityTransferLiabilityEvidence = pgTable("legal_entity_transf
   uniqueIndex("legal_entity_transfer_liability_unique").on(table.organizationId, table.transferRequestId),
   check("legal_entity_transfer_liability_state_check",
     sql`${table.reviewState} in ('unresolved','reviewed','rejected')`),
+  check("legal_entity_transfer_liability_review_evidence_check",
+    sql`${table.reviewState} <> 'reviewed' or
+      (${table.reviewedByUserId} is not null and ${table.reviewedAt} is not null
+        and ${table.reviewedLiabilityEnvelope} is not null)`),
   foreignKey({ name: "entity_transfer_liability_source_tenant_fk",
     columns: [table.organizationId, table.fromLegalEntityId],
     foreignColumns: [legalEntities.organizationId, legalEntities.id] }),
