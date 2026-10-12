@@ -36,6 +36,7 @@ export function InlineFirstPayrollJourney({ organizationId, workflows, onRefresh
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("payroll");
   const previewEpoch = useRef(0);
+  const invalidatePreview = useCallback(() => { previewEpoch.current++; }, []);
   const panelRef = useRef<HTMLDivElement>(null);
   const load = useCallback(async (signal?: AbortSignal) => {
     const res = await fetch(`/api/first-payroll-journey?organizationId=${organizationId}`, { cache: "no-store", signal });
@@ -45,7 +46,7 @@ export function InlineFirstPayrollJourney({ organizationId, workflows, onRefresh
   }, [organizationId]);
   useEffect(() => {
     const controller = new AbortController();
-    previewEpoch.current++;
+    invalidatePreview();
     void load(controller.signal).then(body => {
       if (controller.signal.aborted) return;
       setSnapshot(body); setPreview(null);
@@ -54,8 +55,8 @@ export function InlineFirstPayrollJourney({ organizationId, workflows, onRefresh
       const assigned = body.progress.filter(p => p.ownerRole === body.role).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
       if (assigned && FIRST_PAYROLL_STEPS.some(s => s.key === assigned.step)) setActive(current => current ?? assigned.step as StepKey);
     }).catch(e => { if (!controller.signal.aborted) setError(e.message); });
-    return () => { previewEpoch.current++; controller.abort(); };
-  }, [load, revision]);
+    return () => { invalidatePreview(); controller.abort(); };
+  }, [invalidatePreview, load, revision]);
   useEffect(() => { if (active) panelRef.current?.focus(); }, [active]);
   async function request(url: string, method: string, body?: object) {
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, ...(body ? { body: JSON.stringify({ organizationId, ...body }) } : {}) });
