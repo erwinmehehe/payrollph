@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "../src/db";
 import { organizations, employees, schedulePatterns, schedulePatternDays, schedulePatternSegments, shiftDefinitions, employeeScheduleAssignments } from "../src/db/schema";
 import { scanActiveRosterAssignments } from "../src/lib/workforce-roster-scale";
