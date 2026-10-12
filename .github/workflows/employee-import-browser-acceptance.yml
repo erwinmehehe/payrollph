@@ -49,8 +49,12 @@ jobs:
       - run: npm ci
       - name: Ephemeral synthetic encryption keys
         run: |
-          echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
-          echo "TOTP_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          bank_key=$(openssl rand -hex 32)
+          totp_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$totp_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
       - run: npm run db:push
       - run: npx tsx scripts/employee-import-synthetic-fixture.ts
       - run: npm run build

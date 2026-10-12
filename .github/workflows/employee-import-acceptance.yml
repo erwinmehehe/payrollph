@@ -44,7 +44,10 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Provision an ephemeral encryption key
-        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
       - run: npm run db:push
       - name: Execute import rollback and navigation acceptance
         run: npx tsx --test --test-concurrency=1 tests/employee-import-preview-batch.test.ts tests/employee-import-atomic-postgres.test.ts
