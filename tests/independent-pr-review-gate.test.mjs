@@ -107,7 +107,8 @@ test("approval must be for exact most recent commit and survive current review s
   assert.equal(review(files, {
     reviews: [human("reviewer", { id: 200 }), human("reviewer", { id: 240, state: "COMMENTED" })],
   }).ok, true, "comments do not erase earlier valid approvals");
-  assert.equal(review(files, { expectedHeadSha: prior }).ok, false);
+  assert.throws(() => review(files, { expectedHeadSha: prior }),
+    /REVIEW_GATE_PR_HEAD_OR_FILE_SET_UNVERIFIED/);
 });
 
 test("a current approval is not release authority, and draft sensitive PRs stay blocked", () => {
