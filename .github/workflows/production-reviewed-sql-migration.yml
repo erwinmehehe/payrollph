@@ -1,0 +1,126 @@
+name: Production Reviewed SQL Migration (Manual, Protected)
+
+# This workflow never runs on push or PR and never calls db:push.
+# Human DBA adoption and backup/restore proofs precede either mode.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        required: true
+        default: plan
+        options:
+          - plan
+          - apply
+      reviewed_sha:
+        description: Exact reviewed and deployed main commit SHA
+        required: true
+        type: string
+      expected_database_name:
+        description: Verified target PostgreSQL database name, not a URL
+        required: true
+        type: string
+      migration_file:
+        description: Exactly one post-cutover path, e.g. drizzle/0115_name.sql
+        required: true
+        type: string
+      migration_sha256:
+        description: Reviewed 64-character SHA-256 of that SQL file
+        required: true
+        type: string
+      approval_ref:
+        description: Independently approved DBA/security change ID (apply only)
+        required: false
+        type: string
+      apply_confirmation:
+        description: Type APPLY_APPROVED_SCHEMA_MIGRATION for apply
+        required: false
+        default: "NO"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: payrollph-production-reviewed-sql-migration
+  cancel-in-progress: false
+
+jobs:
+  execute:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      ORDERED_RELEASE_MIGRATIONS_ENABLED: ${{ vars.ORDERED_RELEASE_MIGRATIONS_ENABLED }}
+      REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+      EXPECTED_PRODUCTION_DATABASE_NAME: ${{ inputs.expected_database_name }}
+      EXPECTED_PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
+      EXPECTED_PRODUCTION_NEON_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
+      EXPECTED_PRODUCTION_NEON_ENDPOINT_ID: ${{ vars.PRODUCTION_NEON_ENDPOINT_ID }}
+      MIGRATION_FILE: ${{ inputs.migration_file }}
+      MIGRATION_SHA256: ${{ inputs.migration_sha256 }}
+      MIGRATION_APPROVAL_REF: ${{ inputs.approval_ref }}
+      MIGRATION_APPLY_CONFIRMATION: ${{ inputs.apply_confirmation }}
+    steps:
+      - name: Reject wrong release target before dependencies or secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$REVIEWED_SHA" != "$GITHUB_SHA" ]; then
+            echo 'Expected reviewed main SHA does not match this workflow commit.'
+            exit 1
+          fi
+          # These are protected production environment variables, not PR inputs.
+          if [[ ! "$EXPECTED_PRODUCTION_NEON_PROJECT_ID" =~ ^[a-z0-9-]{1,60}$ ]] ||
+             [[ ! "$EXPECTED_PRODUCTION_NEON_BRANCH_ID" =~ ^br-[a-z0-9-]{6,60}$ ]] ||
+             [[ ! "$EXPECTED_PRODUCTION_NEON_ENDPOINT_ID" =~ ^ep-[a-z0-9-]{6,60}$ ]]; then
+            echo 'Verified Neon project/branch/endpoint identity variables are missing.'
+            exit 1
+          fi
+          if [[ ! "$EXPECTED_PRODUCTION_DATABASE_NAME" =~ ^[A-Za-z0-9_]{1,63}$ ]]; then
+            echo 'The approved database name must be supplied.'
+            exit 1
+          fi
+          if [[ ! "$MIGRATION_FILE" =~ ^drizzle/[0-9]{4}_[a-z0-9][a-z0-9_-]*\.sql$ ]] ||
+             [[ ! "$MIGRATION_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo 'Only one exact path and content SHA-256 can be released.'
+            exit 1
+          fi
+          if [ "${{ inputs.mode }}" = apply ]; then
+            if [ "${ORDERED_RELEASE_MIGRATIONS_ENABLED:-}" != "true" ]; then
+              echo 'SQL apply blocked: ORDERED_RELEASE_MIGRATIONS_ENABLED is OFF.'
+              exit 1
+            fi
+            if [ "${GITHUB_REF_PROTECTED:-}" != "true" ]; then
+              echo 'SQL apply blocked: the GitHub main branch must be protected.'
+              exit 1
+            fi
+            if [ "$MIGRATION_APPLY_CONFIRMATION" != APPLY_APPROVED_SCHEMA_MIGRATION ] ||
+               [[ ! "$MIGRATION_APPROVAL_REF" =~ ^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,120}$ ]]; then
+              echo 'Apply requires separate signed change reference and explicit confirmation.'
+              exit 1
+            fi
+          fi
+      - name: Checkout exact reviewed main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install dependencies without migration secrets
+        run: npm ci
+      - name: Verify source-only manifest
+        run: node scripts/audit-production-migration-receipts.mjs --inventory
+      - name: Mandatory read-only review of exact path, receipts and migration journal
+        env:
+          MIGRATION_TARGET_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_AUDIT_DATABASE_URL }}
+        run: node scripts/run-reviewed-migration.mjs --plan --file "$MIGRATION_FILE" --sha256 "$MIGRATION_SHA256"
+      - name: Execute exactly one reviewed migration and record its receipt atomically
+        if: ${{ inputs.mode == 'apply' }}
+        env:
+          MIGRATION_TARGET_DATABASE_URL: ${{ secrets.PRODUCTION_MIGRATION_WRITER_DATABASE_URL }}
+        run: node scripts/run-reviewed-migration.mjs --apply --file "$MIGRATION_FILE" --sha256 "$MIGRATION_SHA256"

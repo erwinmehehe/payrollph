@@ -97,6 +97,16 @@ test("0109 seals real inserts, rejects mutation and detects maintenance edits (r
     const tampered = evaluateAuditChain(await readChain());
     assert.equal(tampered.verified, false);
     assert.deepEqual(tampered.breaks.map((b) => b.reason), ["row_altered"]);
+
+    // Test cleanup must not need a session-wide audit-maintenance bypass.
+    // Direct mutation was already denied above; deleting the isolated test
+    // organization is an intentional FK cascade explicitly allowed by 0109.
+    await client.query("SET LOCAL linaw.audit_maintenance = 'off'");
+    await client.query("DELETE FROM organizations WHERE id = $1", [orgId]);
+    const { rows: [afterCascade] } = await client.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM audit_events WHERE organization_id = $1", [orgId],
+    );
+    assert.equal(Number(afterCascade.count), 0, "Organization teardown must cascade synthetic audit rows.");
   } finally {
     await client.query("ROLLBACK");
     client.release();

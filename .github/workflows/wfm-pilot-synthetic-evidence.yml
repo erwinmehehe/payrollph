@@ -37,7 +37,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      CI: "true"
       TZ: Asia/Manila
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
@@ -46,6 +49,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U postgres -d app_db"
@@ -63,6 +67,8 @@ jobs:
         shell: bash
         run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - run: npm run db:push
+      - name: Apply audit 0109 on isolated real PG16 before acceptance
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
       - name: Reject empty or skipped TAP evidence
         run: node --test tests/wfm-pilot-synthetic-evidence.test.mjs
       - name: Run automated portions of all fourteen WFM scenarios
