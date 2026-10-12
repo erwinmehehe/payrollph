@@ -27,7 +27,7 @@ type Gate = { key: string; label: string; ready: boolean; detail: string; blocks
 const configured = (name: string) => Boolean(process.env[name]);
 const enabled = (name: string) => process.env[name] === "true";
 
-export async function buildReadinessPayload() {
+async function buildReadinessPayload() {
   await ensureCoreCompatibilitySchema();
   // Read only: audit protection is an unworkaroundable production-pilot release gate.
   const auditChainProtectionReady = await auditChainRuntimeProtectionReady();
