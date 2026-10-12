@@ -95,6 +95,8 @@ The correct Neon project is `calm-wave-70219564` / `neon-almond-ridge`, default 
 
 ## Neon branch and endpoint identity protection
 
+Both migration and catalog-audit URL guards reject query parameters that override node-postgres routing, credentials, startup settings or local TLS file paths. Only nonduplicate `sslmode=require|verify-full` and `channel_binding=require|prefer` are accepted. Executed driver-parsing tests demonstrate that `?host=` otherwise overrides the checked URL hostname without needing a network connection. These guards run before constructing a database client.
+
 The reviewed migration runner now **requires** protected GitHub `production` environment variables `PRODUCTION_NEON_PROJECT_ID`, `PRODUCTION_NEON_BRANCH_ID` and `PRODUCTION_NEON_ENDPOINT_ID`, alongside the previously reviewed `expected_database_name`. For the verified PayrollPH deployment on 2026-10-12, the expected project is `calm-wave-70219564`, branch `br-lucky-sound-b79i56jw`, and endpoint `ep-cool-hat-b7e7gpoo`. These are not credentials; the DBA must independently reverify against Neon's current project endpoint routing before configuring them.
 
 **No automatic fallback.** Missing variables, pooled hostnames, mismatched endpoint or database in either the read-only planning or migration writer URLs fail before connecting. Within the same PostgreSQL transaction that would otherwise apply SQL, the runner independently queries `current_setting('neon.project_id', true)`, `neon.branch_id`, and `neon.endpoint_id`, and rolls back if any differ. This mitigates the October 12 snapshot-restore incident in which a familiar hostname temporarily pointed to a different Neon branch. A matching `neondb` name alone no longer authorizes writes.

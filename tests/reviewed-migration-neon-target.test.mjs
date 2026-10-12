@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import pg from "pg";
 import {
   requirePinnedNeonMigrationTarget, requireProtectedMainForMigrationApply,
 } from "../scripts/lib/migration-neon-target.mjs";
@@ -20,6 +21,25 @@ test("accept only explicitly pinned direct Neon production endpoint before openi
     branchId: base.EXPECTED_PRODUCTION_NEON_BRANCH_ID,
     endpointId: base.EXPECTED_PRODUCTION_NEON_ENDPOINT_ID,
   });
+});
+
+test("node-postgres routing overrides cannot bypass the URL pin", () => {
+  const prefix = "postgresql://reviewer:synthetic@" + productionHost + "/neondb";
+  // Executed driver parsing proves this was an actual routing bypass,
+  // without opening a connection or using any real credentials.
+  assert.equal(new pg.Client({ connectionString: prefix + "?host=wrong.invalid" })
+    .connectionParameters.host, "wrong.invalid");
+  for (const query of ["host=wrong.invalid", "port=5433", "user=owner", "password=wrong",
+    "options=-c%20neon.branch_id%3Dbr-forged", "sslcert=/tmp/private.pem",
+    "sslkey=/tmp/private.key", "sslrootcert=/tmp/private.pem", "ssl=0",
+    "sslmode=disable", "sslmode=require&sslmode=disable", "uselibpqcompat=true"]) {
+    assert.throws(() => requirePinnedNeonMigrationTarget({ ...base,
+      MIGRATION_TARGET_DATABASE_URL: prefix + "?" + query,
+    }), /CONNECTION_OPTIONS_REJECTED/);
+  }
+  const safe = prefix + "?sslmode=verify-full&channel_binding=require";
+  assert.doesNotThrow(() => requirePinnedNeonMigrationTarget({ ...base, MIGRATION_TARGET_DATABASE_URL: safe }));
+  assert.equal(new pg.Client({ connectionString: safe }).connectionParameters.host, productionHost);
 });
 
 test("a missing project, branch or endpoint id refuses the runner before any SQL", () => {

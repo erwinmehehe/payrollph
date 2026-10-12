@@ -77,6 +77,7 @@ jobs:
           node --check scripts/run-reviewed-migration.mjs
           node --test tests/schema-lineage-preflight.test.mjs tests/reviewed-migration-runner.test.mjs tests/historical-catalog-gate.test.mjs
           node --test tests/database-generation-fingerprint.test.mjs tests/foundation-migration-objects.test.mjs tests/canonical-migration-base-tables.test.mjs
+          node --test tests/reviewed-migration-neon-target.test.mjs tests/neon-schema-audit-identity.test.mjs
       - name: PostgreSQL transaction, ledger, concurrency and rollback rehearsal
         run: node --test tests/reviewed-migration-postgres.test.mjs
       - name: Source-only inventory remains non-mutating

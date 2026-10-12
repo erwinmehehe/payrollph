@@ -3,6 +3,21 @@
  * A database name is not sufficient when restore/snapshot swaps endpoints.
  * Configuration is supplied by protected GitHub production environment vars.
  */
+export function assertPinnedPostgresUrlOptions(parsed) {
+  const seen = new Set();
+  for (const [key, value] of parsed.searchParams) {
+    // node-postgres query parameters override URL host/port/user/password
+    // and can read local TLS files or inject startup session options.
+    // Allow only transport options which cannot redirect the pinned target.
+    const allowed = key === "sslmode" && ["require", "verify-full"].includes(value) ||
+      key === "channel_binding" && ["require", "prefer"].includes(value);
+    if (!allowed || seen.has(key)) {
+      throw new Error("REVIEWED_MIGRATION_CONNECTION_OPTIONS_REJECTED");
+    }
+    seen.add(key);
+  }
+}
+
 export function requirePinnedNeonMigrationTarget(env) {
   const expectedNeonIdentity = {
     projectId: env.EXPECTED_PRODUCTION_NEON_PROJECT_ID,
@@ -17,6 +32,7 @@ export function requirePinnedNeonMigrationTarget(env) {
   let parsed;
   try { parsed = new URL(env.MIGRATION_TARGET_DATABASE_URL ?? ""); }
   catch { throw new Error("REVIEWED_MIGRATION_NEON_CONNECTION_URL_INVALID"); }
+  assertPinnedPostgresUrlOptions(parsed);
   const hostname = parsed.hostname;
   const neonDirectHost = /^ep-[a-z0-9-]+\.c-[a-z0-9-]+\.[a-z0-9.-]+\.neon\.tech$/;
   let databaseName;
