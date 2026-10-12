@@ -16,6 +16,7 @@ const REHEARSAL = process.env.CI === "true" &&
 const paths = [
   "drizzle/0022_job_architecture_positions.sql",
   "drizzle/0050_hcm_core_worker_history.sql",
+  "drizzle/0051_hcm_org_job_architecture.sql",
   "drizzle/0052_hcm_effective_dated_changes.sql",
   "drizzle/0110_provider_events_inbox.sql",
   "drizzle/0112_wfm_operational_demand_observations.sql",
@@ -32,6 +33,9 @@ const missingLive = Object.freeze([
   "provider_events",
   "worker_effective_changes",
   "worker_employment_events",
+  "job_grades",
+  "job_levels",
+  "job_families",
   "position_assignments",
   "positions",
   "job_profiles",
@@ -78,13 +82,23 @@ async function totals(client){
 test("#910 source-faithful predecessor excludes ONLY unsafe 0050 employee-based UPDATE",()=>{
   assert.match(proposed,/REVIEW-ONLY FORWARD PREDECESSOR/);
   assert.match(proposed,/NOT AN AUTHORIZED MIGRATION/);
-  assert.equal(paths.length,7);
+  assert.equal(paths.length,8);
   for(let i=0;i<paths.length;i++){
     const historic=source(paths[i]);
     if(i===1){
       const at=historic.indexOf('UPDATE "positions" AS p');
       assert.ok(at>0,"historical 0050 must still have the unsafe UPDATE");
       assert.equal(stage(paths[i]),historic.slice(0,at).trimEnd());
+    }else if(i===2){
+      const insert=historic.indexOf('INSERT INTO "job_families"');
+      const alter=historic.indexOf('ALTER TABLE "job_profiles"');
+      const update=historic.indexOf('UPDATE "job_profiles" jp');
+      const index=historic.indexOf('CREATE INDEX IF NOT EXISTS "job_profiles_org_family_idx"');
+      assert.ok(insert>0 && alter>insert && update>alter && index>update);
+      const sourceOnly=[historic.slice(0,insert),historic.slice(alter,update),historic.slice(index)]
+        .map(t=>t.trimEnd()).join("\n\n");
+      assert.equal(stage(paths[i]),sourceOnly,
+        "0051 candidate must preserve original DDL and exclude legacy taxonomy row mutations");
     }else{
       assert.equal(stage(paths[i]),historic);
     }
@@ -94,6 +108,7 @@ test("#910 source-faithful predecessor excludes ONLY unsafe 0050 employee-based 
   assert.match(stage(paths[1]),/CREATE TABLE IF NOT EXISTS "worker_employment_events"/);
   assert.match(stage(paths[2]),/CREATE TABLE IF NOT EXISTS "worker_effective_changes"/);
   assert.doesNotMatch(stage(paths[1]),/SET "legal_entity_id" = e\."legal_entity_id"/);
+  assert.doesNotMatch(stage(paths[2]),/^\s*(?:INSERT|UPDATE|DELETE)\b/gmi);
 });
 
 test("#910 synthetic live-shaped partial catalog: repair DDL is repeatable, data-stable, and fully rolled back",{
@@ -161,6 +176,7 @@ test("#910 synthetic live-shaped partial catalog: repair DDL is repeatable, data
     }
     for(const name of [
       "worker_employment_events","worker_effective_changes","provider_events",
+      "job_families","job_levels","job_grades",
       "position_assignments","positions","job_profiles",
     ]){
       assert.equal(await tableCount(client,name),0,
