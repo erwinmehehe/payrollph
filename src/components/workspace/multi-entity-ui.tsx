@@ -306,7 +306,7 @@ export function EntityTransferInbox({ context, organizationId, onRefresh }: {
     })();
     return () => { alive = false; };
   }, [organizationId, reload]);
-  const approver = context.group && ["owner","admin","bookkeeper"].includes(contextRole(context));
+  const approver = context.group && ["owner","admin","bookkeeper"].includes(context.role);
   async function decide(id: number, action: "approve" | "reject" | "apply") {
     setState("deciding"); setError("");
     try {
@@ -345,10 +345,6 @@ export function EntityTransferInbox({ context, organizationId, onRefresh }: {
         </tr>)}</tbody>
       </table></div>}
   </article>;
-}
-
-function contextRole(context: EntityWorkspace): string {
-  return (context as EntityWorkspace & { role?: string }).role ?? "";
 }
 
 export function GroupEntityReports({ context, organizationId }: {
