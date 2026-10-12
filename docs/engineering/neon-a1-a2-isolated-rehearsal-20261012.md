@@ -35,3 +35,7 @@ The full Neon schema diff endpoint returned HTTP 413 (schema too large); targete
 ## Repeatable CI
 
 The dedicated payout-ledger-tenant-rehearsal.yml workflow runs tests/payout-ledger-tenant-guard-postgres.test.mjs against disposable PostgreSQL 16 with synthetic data only. This tests the exact checked-in 0110 migration and revised pending ledger source. The CI results are pending; do not declare production readiness based on staging tests alone.
+
+## Canonical source integration checkpoint (October 12, 2026)
+
+PR #865 already incorporated the three tenant-boundary guard functions and triggers into `drizzle/0116_payout_ledger_foundation.sql` (the canonical **source-only** payout-ledger migration on `main`). This PR now tests that canonical SQL directly and removes its redundant change to `docs/sql/pending-payout-ledger.sql`. The earlier isolated Neon rehearsal above remains historical evidence of the proposal, not evidence of production activation or a release migration receipt.
