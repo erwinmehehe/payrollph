@@ -75,8 +75,8 @@ export async function POST(request:Request) {
   let result;
   try {
     result=await db.transaction(async tx=>{
-      const [locked]=await tx.execute(sql`select id from workforce_punch_submissions where id = ${id} and organization_id = ${organizationId} and status = 'pending' for update`);
-      if(!locked)throw Error("Already decided.");
+      const locked=await tx.execute(sql`select id from workforce_punch_submissions where id = ${id} and organization_id = ${organizationId} and status = 'pending' for update`);
+      if(!locked.rows.length)throw Error("Already decided.");
       const [current]=await tx.select().from(timePunches).where(and(eq(timePunches.organizationId,organizationId),
         eq(timePunches.employeeId,submission.employeeId),eq(timePunches.workDate,submission.workDate))).limit(1);
       let punchId:number|null=null;
