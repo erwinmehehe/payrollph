@@ -2,7 +2,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, workforceDemandImportBatches, worksites } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa,
@@ -47,15 +47,19 @@ export async function GET(request:Request){
     ![15,30,60].includes(intervalMinutes)){
     return Response.json({error:"Exact worksite and interval are required."},{status:400,headers});
   }
+  // Enforce custom role/permission overlays before disclosing configuration.
+  const roleDenied=await assertOrganizationRole(
+    user.id,organizationId,WORKFORCE_MANAGER_ROLES,
+    "Scoped workforce manager access required.");
+  if(roleDenied)return roleDenied;
+  const access=await getAccess(user.id,organizationId);
+  if(!access||!await siteAuthorized(organizationId,worksiteId,access)){
+    return Response.json({error:"Scoped workforce manager access required."},{status:403,headers});
+  }
   if(!operationalDemandPilotAllowed(organizationId)||
      !squareSandboxPilotAllowed(organizationId)||
      !squareSandboxConnection(organizationId,worksiteId)){
     return Response.json({error:"Square sandbox source not enabled for this employer/worksite."},{status:404,headers});
-  }
-  const access=await getAccess(user.id,organizationId);
-  if(!access||!WORKFORCE_MANAGER_ROLES.some(role=>role===access.role)||
-    !await siteAuthorized(organizationId,worksiteId,access)){
-    return Response.json({error:"Scoped workforce manager access required."},{status:403,headers});
   }
   try{
     const [last]=await db.select({
@@ -107,17 +111,21 @@ export async function POST(request:Request){
   let scope;
   try{scope=parseSquareDemandSync(JSON.parse(text));}
   catch{return Response.json({error:"Exact historical worksite sync request required."},{status:400,headers});}
+  const roleDenied=await assertOrganizationRole(
+    user.id,scope.organizationId,PEOPLE_ADMIN_ROLES,
+    "Company People admin access required.");
+  if(roleDenied)return roleDenied;
+  const access=await getAccess(user.id,scope.organizationId);
+  if(!access||!access.companyWide||
+    !await siteAuthorized(scope.organizationId,scope.worksiteId,access)){
+    return Response.json({error:"Company People admin with exact worksite scope required."},{status:403,headers});
+  }
   if(!operationalDemandPilotAllowed(scope.organizationId)||
     !squareSandboxPilotAllowed(scope.organizationId)){
     return Response.json({error:"Sandbox provider pilot not enabled."},{status:404,headers});
   }
   const conn=squareSandboxConnection(scope.organizationId,scope.worksiteId);
   if(!conn)return Response.json({error:"Sandbox location or consent binding unavailable."},{status:404,headers});
-  const access=await getAccess(user.id,scope.organizationId);
-  if(!access||!access.companyWide||!PEOPLE_ADMIN_ROLES.some(role=>role===access.role)||
-    !await siteAuthorized(scope.organizationId,scope.worksiteId,access)){
-    return Response.json({error:"Company People admin with exact worksite scope required."},{status:403,headers});
-  }
   const mfa=requireSensitiveActionMfa(user);
   if(mfa)return mfa;
   const rate=await enforceSensitiveActionRateLimit(request,{
