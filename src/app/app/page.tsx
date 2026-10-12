@@ -103,6 +103,12 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
     );
   return <>
     <div className="mx-auto flex max-w-7xl flex-wrap justify-end gap-3 px-5 pt-3">
+      {access?.companyWide && ["owner", "admin", "hr"].includes(access.role) && criticalReleaseFlagEnabled("engagementSurvey") && (
+        <Link href={`/app/engagement?organizationId=${companyOrganizationId}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">Engagement survey</Link>
+      )}
+      {access?.companyWide && ["owner", "admin", "hr"].includes(access.role) && criticalReleaseFlagEnabled("goalsReviewCycle") && (
+        <Link href={`/app/goals-reviews?organizationId=${companyOrganizationId}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">Goals & reviews</Link>
+      )}
       {canSeeMyTeam && (
         <Link
           href={"/hcm/my-team?organizationId=" + data.selectedOrganization.id}

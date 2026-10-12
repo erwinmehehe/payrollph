@@ -1,0 +1,83 @@
+name: WFM 0117 0118 0120 SQL Rehearsal (Disposable PostgreSQL)
+
+on:
+  pull_request:
+    paths:
+      - "drizzle/0117_inline_first_payroll_journey.sql"
+      - "drizzle/0118_wfm_roster_scale_rules.sql"
+      - "drizzle/0120_wfm_punch_evidence.sql"
+      - "scripts/rehearse-wfm-migration-contracts.mjs"
+      - ".github/workflows/wfm-migration-contract-rehearsal.yml"
+  push:
+    branches: [main]
+    paths:
+      - "drizzle/0117_inline_first_payroll_journey.sql"
+      - "drizzle/0118_wfm_roster_scale_rules.sql"
+      - "drizzle/0120_wfm_punch_evidence.sql"
+      - "scripts/rehearse-wfm-migration-contracts.mjs"
+      - ".github/workflows/wfm-migration-contract-rehearsal.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-sql-contract:
+    name: WFM source SQL, constraints and rollback (PG${{ matrix.postgres }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      GITHUB_ACTIONS: "true"
+      MIGRATION_REHEARSAL_MODE: isolated-ci-only
+      WFM_REHEARSAL_PG_MAJOR: ${{ matrix.postgres }}
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout exact PR source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify CI-only database guard (behavioral)
+        run: node --test tests/isolated-migration-target.test.mjs
+      - name: Execute exact source SQL twice, exercise constraints, rollback all
+        run: node scripts/rehearse-wfm-migration-contracts.mjs
+      - name: Execute exact source SQL, inject failure, confirm rollback all
+        run: node scripts/rehearse-wfm-migration-contracts.mjs --inject-failure
+      - name: Report sanitized result
+        run: |
+          cat qa-artifacts/wfm-migration-synthetic-rehearsal.json
+          cat qa-artifacts/wfm-migration-injected-failure.json
+      - name: Retain sanitized migration and rollback receipts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wfm-0117-0118-0120-synthetic-pg${{ matrix.postgres }}
+          path: |
+            qa-artifacts/wfm-migration-synthetic-rehearsal.json
+            qa-artifacts/wfm-migration-injected-failure.json
+          retention-days: 14
+          if-no-files-found: warn

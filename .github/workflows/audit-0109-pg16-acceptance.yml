@@ -1,0 +1,110 @@
+name: Audit 0109 on Real PG16 - Full Synthetic Acceptance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "drizzle/0109_tamper_evident_audit_chain.sql"
+      - "tests/audit-chain.test.ts"
+      - "tests/workforce-issued-demand-db.test.ts"
+      - "scripts/qa/apply-audit-0109-isolated.mjs"
+      - "scripts/qa/report-audit-0109-suite.mjs"
+      - ".github/workflows/audit-0109-pg16-acceptance.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "drizzle/0109_tamper_evident_audit_chain.sql"
+      - "tests/audit-chain.test.ts"
+      - "tests/workforce-issued-demand-db.test.ts"
+      - "scripts/qa/apply-audit-0109-isolated.mjs"
+      - "scripts/qa/report-audit-0109-suite.mjs"
+      - ".github/workflows/audit-0109-pg16-acceptance.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  audited-full-suite:
+    name: exact-checkout-audit-0109-pg16
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+      XENDIT_PAYOUTS_LIVE_APPROVED: "false"
+      OPENAI_API_KEY: ""
+      SCHEDULER_REHEARSAL_MODE: isolated-ci-only
+      NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+        ports: [ "5432:5432" ]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Restore locked dependencies
+        run: npm ci
+      - name: Generate ephemeral bank-data key for fictional CI only
+        shell: bash
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Push schema to disposable PostgreSQL 16
+        run: npm run db:push
+      - name: Apply migration 0109 and prove enabled append-only trigger
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
+      - name: Repeat affected audit and WFM regression tests against active 0109
+        run: npx tsx --test --test-concurrency=1 tests/audit-chain.test.ts tests/workforce-issued-demand-db.test.ts
+      - name: Run all regression tests against active 0109
+        shell: bash
+        run: |
+          test_exit=0
+          npm test > "$RUNNER_TEMP/audit-0109-full-test.log" 2>&1 || test_exit=$?
+          TEST_LOG_PATH="$RUNNER_TEMP/audit-0109-full-test.log" TEST_EXIT="$test_exit" node scripts/qa/report-audit-0109-suite.mjs
+          if [ "$test_exit" -ne 0 ]; then
+            echo "Failed synthetic test names (not any real employer evidence):"
+            grep -E '^not ok [0-9]+' "$RUNNER_TEMP/audit-0109-full-test.log" | tail -n 65 || true
+          fi
+          test "$test_exit" -eq 0
+      - name: Run mapped WFM synthetic scenario groups with 0109 enabled
+        run: node scripts/wfm-pilot-synthetic-evidence.mjs
+      - name: Run four Philippine payroll golden suites with 0109 enabled
+        shell: bash
+        run: |
+          npm run payroll:golden
+          npm run payroll:golden:phase2a
+          npm run payroll:golden:phase2b
+          npm run payroll:golden:pay-rules
+      - name: Upload aggregate synthetic acceptance evidence (never private logs)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: audit-0109-pg16-synthetic-acceptance
+          path: |
+            qa-artifacts/audit-0109-pg16-full-suite.json
+            qa-artifacts/wfm-pilot-synthetic-scenario-matrix.json
+            qa-artifacts/golden-payroll-certification.json
+            qa-artifacts/golden-payroll-phase2a-reconciliation.json
+            qa-artifacts/golden-payroll-phase2b-reconciliation.json
+            qa-artifacts/golden-pay-rules-phase3-reconciliation.json
+          if-no-files-found: warn
+          retention-days: 14
