@@ -43,7 +43,10 @@ test("PG16/18: unnumbered entity-interval proposal rejects tenant mismatch and o
       await assert.rejects(() => client.query(statement), error);
       await client.query("ROLLBACK TO SAVEPOINT invalid_write");
     }
-    await client.query("INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,101,'2026-02-01',NULL)");
+    // Failed inserts above still advance serial sequences, even after SAVEPOINT rollback.
+    // Capture the actual row key rather than assuming the next assignment has id=2.
+    const inserted = await client.query("INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,101,'2026-02-01',NULL) RETURNING id");
+    const openAssignmentId = inserted.rows[0].id;
     // Boundaries are inclusive: a closed Jan 31 interval and an open Feb 1
     // interval are adjacent. A closed interval cannot be extended retroactively.
     await client.query("SAVEPOINT invalid_update");
@@ -55,8 +58,12 @@ test("PG16/18: unnumbered entity-interval proposal rejects tenant mismatch and o
     // A genuinely open interval may be closed once, but the closure must not
     // silently rewrite the original employer or start date.
     await client.query("SAVEPOINT valid_close");
-    await client.query("UPDATE public.employee_entity_assignments SET effective_until='2026-12-31' WHERE id=2");
-    await assert.rejects(() => client.query("UPDATE public.employee_entity_assignments SET effective_until='2027-01-01' WHERE id=2"), /CLOSED_INTERVAL_IMMUTABLE/);
+    const closed = await client.query("UPDATE public.employee_entity_assignments SET effective_until='2026-12-31' WHERE id=$1", [openAssignmentId]);
+    assert.equal(closed.rowCount, 1, "The first closure must update the open interval");
+    await assert.rejects(
+      () => client.query("UPDATE public.employee_entity_assignments SET effective_until='2027-01-01' WHERE id=$1", [openAssignmentId]),
+      /CLOSED_INTERVAL_IMMUTABLE/,
+    );
     await client.query("ROLLBACK TO SAVEPOINT valid_close");
     // The open-ended interval prevents any later insert for the same worker.
     await client.query("SAVEPOINT invalid_later");
