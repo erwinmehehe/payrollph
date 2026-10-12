@@ -18,10 +18,22 @@ export function EmployeePulsePanel({organizationId}:{organizationId:number}){
    setAdmin(Array.isArray(data.results));
    setResults(data.results??[]);
  },[organizationId]);
- useEffect(()=>{const controller=new AbortController();setSurveys([]);setResults([]);setAdmin(false);
-   void refresh().catch(()=>{if(!controller.signal.aborted)setMessage("Survey is unavailable.");});
-   return()=>controller.abort();
- },[refresh]);
+ useEffect(()=>{
+   let active=true;
+   const controller=new AbortController();
+   fetch(`/api/engagement/pulse?organizationId=${organizationId}`,{
+     cache:"no-store",signal:controller.signal,
+   }).then(async response=>{
+     if(!response.ok)throw Error("Engagement survey is unavailable.");
+     return response.json() as Promise<{surveys:Survey[];results?:Result[]}>;
+   }).then(data=>{
+     if(!active)return;
+     setSurveys(data.surveys);
+     setAdmin(Array.isArray(data.results));
+     setResults(data.results??[]);
+   }).catch(()=>{if(active)setMessage("Survey is unavailable.");});
+   return()=>{active=false;controller.abort();};
+ },[organizationId]);
  async function act(payload:Record<string,unknown>){
    setBusy(true);setMessage("");
    try{
