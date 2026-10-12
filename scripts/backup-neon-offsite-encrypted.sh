@@ -3,7 +3,7 @@ set -euo pipefail
 umask 077
 # Manual, protected workflow only. NOT a restore operation, migration, or
 # payroll release. The archive is age-encrypted BEFORE leaving the runner.
-# Never set -x: credentials and business data must not enter CI logs.
+# Never enable shell tracing: credentials and business data must not enter CI logs.
 test "${GITHUB_ACTIONS:-}" = true
 test "${CI:-}" = true
 test "${GITHUB_EVENT_NAME:-}" = workflow_dispatch
