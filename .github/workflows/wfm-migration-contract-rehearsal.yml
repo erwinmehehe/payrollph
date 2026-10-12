@@ -1,19 +1,19 @@
-name: WFM 0115 0116 0118 SQL Rehearsal (Disposable PostgreSQL)
+name: WFM 0117 0118 0120 SQL Rehearsal (Disposable PostgreSQL)
 
 on:
   pull_request:
     paths:
-      - "drizzle/0115_inline_first_payroll_journey.sql"
-      - "drizzle/0116_wfm_roster_scale_rules.sql"
-      - "drizzle/0118_wfm_punch_evidence.sql"
+      - "drizzle/0117_inline_first_payroll_journey.sql"
+      - "drizzle/0118_wfm_roster_scale_rules.sql"
+      - "drizzle/0120_wfm_punch_evidence.sql"
       - "scripts/rehearse-wfm-migration-contracts.mjs"
       - ".github/workflows/wfm-migration-contract-rehearsal.yml"
   push:
     branches: [main]
     paths:
-      - "drizzle/0115_inline_first_payroll_journey.sql"
-      - "drizzle/0116_wfm_roster_scale_rules.sql"
-      - "drizzle/0118_wfm_punch_evidence.sql"
+      - "drizzle/0117_inline_first_payroll_journey.sql"
+      - "drizzle/0118_wfm_roster_scale_rules.sql"
+      - "drizzle/0120_wfm_punch_evidence.sql"
       - "scripts/rehearse-wfm-migration-contracts.mjs"
       - ".github/workflows/wfm-migration-contract-rehearsal.yml"
 
@@ -69,7 +69,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: wfm-0115-0116-0118-synthetic-rehearsal
+          name: wfm-0117-0118-0120-synthetic-rehearsal
           path: |
             qa-artifacts/wfm-migration-synthetic-rehearsal.json
             qa-artifacts/wfm-migration-injected-failure.json
