@@ -1,0 +1,50 @@
+name: Employee import acceptance
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/employee-import-*.test.ts'
+      - 'tests/fixtures/employee-import-500.ts'
+      - '.github/workflows/employee-import-acceptance.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: employee-import-acceptance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Manila
+      CI: 'true'
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Provision an ephemeral encryption key
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - name: Execute import rollback and navigation acceptance
+        run: npx tsx --test --test-concurrency=1 tests/employee-import-preview-batch.test.ts tests/employee-import-atomic-postgres.test.ts
