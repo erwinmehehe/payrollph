@@ -1,4 +1,5 @@
 import type { HolidayType } from "@/lib/payroll-rules";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 
 export type WageOrder = {
   region: string;
@@ -170,6 +171,19 @@ export function wageScreenForWorkPeriod(
     effectiveDateChange: startOrder.dailyRate !== check.order.dailyRate
       || startOrder.wageOrder !== check.order.wageOrder,
   };
+}
+
+/** Default-off advisory rollout; the disabled path preserves the payday screen. */
+export function payrollWageScreen(
+  monthlyBasic: number, region: string, daysPerMonth: number,
+  periodStart: string, periodEnd: string, payDate: string,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+) {
+  if (criticalReleaseFlagEnabled("workPeriodWageScreen", env)) {
+    return { ...wageScreenForWorkPeriod(monthlyBasic, region, daysPerMonth, periodStart, periodEnd), workPeriodEnd: periodEnd };
+  }
+  const check = isBelowMinimum(monthlyBasic, region, daysPerMonth, payDate);
+  return { ...check, startOrder: check.order, effectiveDateChange: false, workPeriodEnd: null };
 }
 
 export type HolidayKind = "regular" | "special" | "rest";

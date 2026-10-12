@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { holidayMultiplier } from "../src/lib/payroll-rules";
-import { FORTHCOMING_WAGE_ORDERS, REGION_VII_WAGE_TIERS, ROVII27_EFFECTIVE_ON, holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, wageOrderFor, wageScreenForWorkPeriod, WAGE_ORDERS } from "../src/lib/wage-orders";
+import { FORTHCOMING_WAGE_ORDERS, REGION_VII_WAGE_TIERS, ROVII27_EFFECTIVE_ON, holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, payrollWageScreen, wageOrderFor, wageScreenForWorkPeriod, WAGE_ORDERS } from "../src/lib/wage-orders";
 
 test("NCR screening reference uses the current official Oct 2026 high tier", () => {
   const order = wageOrderFor("NCR");
@@ -115,13 +115,21 @@ test("Class B screen does not use the higher Class A threshold after effectivity
   assert.equal(isBelowMinimum(monthly, "VII", 22, "2026-10-14", "B").below, false);
   assert.equal(isBelowMinimum(monthly, "VII", 22, "2026-10-14").below, true,
     "unknown locality stays conservative, not an automatic legal wage assignment");
-  const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
-  assert.ok(engine.includes("wageScreenForWorkPeriod("),
-    "payroll warning must use work period, not the later pay date");
-  assert.ok(engine.includes("input.periodStart, input.periodEnd"),
-    "wage screening must be scoped to the actual worked cutoff");
-  assert.ok(!engine.includes('isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth, input.payDate)'),
-    "pay date cannot shift minimum wage for work before an order's effective date");
+});
+
+test("flag-off preserves the payday screen; enabled screen uses actual work dates", () => {
+  const args = [550 * 22, "VII", 22, "2026-10-01", "2026-10-13", "2026-10-30"] as const;
+  const old = isBelowMinimum(args[0], args[1], args[2], args[5]);
+  for (const env of [{}, { WORK_PERIOD_WAGE_SCREEN_ENABLED: "false" }, { WORK_PERIOD_WAGE_SCREEN_ENABLED: "TRUE" }]) {
+    const actual = payrollWageScreen(...args, env);
+    assert.deepEqual(actual, { ...old, startOrder: old.order, effectiveDateChange: false, workPeriodEnd: null });
+  }
+  const enabled = payrollWageScreen(...args, { WORK_PERIOD_WAGE_SCREEN_ENABLED: "true" });
+  assert.equal(enabled.order.dailyRate, 540);
+  assert.equal(enabled.below, false);
+  assert.equal(enabled.workPeriodEnd, args[4]);
+  assert.equal(payrollWageScreen(args[0], args[1], args[2], args[3], "2026-10-15", args[5],
+    { WORK_PERIOD_WAGE_SCREEN_ENABLED: "true" }).effectiveDateChange, true);
 });
 
 test("M-2 screens Region VII by work dates even when wages are paid after the new order", () => {

@@ -60,7 +60,7 @@ import {
 } from "@/lib/payroll-rules";
 import {
   holidayPayContextOn,
-  wageScreenForWorkPeriod,
+  payrollWageScreen,
   NATIONAL_HOLIDAYS_2026,
   nationalHolidayCalendarForDate,
   type HolidayCalendarEntry,
@@ -2819,9 +2819,9 @@ export function calculateEmployeePay(input: {
   }));
   const leaveAdjustmentTotal = leaveLines.reduce((sum, line) => sum + Number(line.amount), 0);
 
-  const wageCheck = wageScreenForWorkPeriod(
+  const wageCheck = payrollWageScreen(
     monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth,
-    input.periodStart, input.periodEnd,
+    input.periodStart, input.periodEnd, input.payDate,
   );
   const mweResolution = resolveMweClassification(
     input.mweClassifications ?? [],
@@ -2836,7 +2836,7 @@ export function calculateEmployeePay(input: {
   }
   if (wageCheck.below) {
     flags.push(
-      `Configured pay implies ₱${wageCheck.impliedDaily.toFixed(2)}/day versus the reference wage figure of ₱${wageCheck.order.dailyRate.toFixed(2)} for ${wageCheck.order.region} on work period end ${input.periodEnd}. Verify the applicable wage tier; payroll did not infer MWE tax status automatically.`,
+      `Configured pay implies ₱${wageCheck.impliedDaily.toFixed(2)}/day versus the reference wage figure of ₱${wageCheck.order.dailyRate.toFixed(2)} for ${wageCheck.order.region}${wageCheck.workPeriodEnd ? ` on work period end ${wageCheck.workPeriodEnd}` : ""}. Verify the applicable wage tier; payroll did not infer MWE tax status automatically.`,
     );
     if (wageCheck.effectiveDateChange) {
       flags.push(
