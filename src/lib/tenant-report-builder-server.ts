@@ -1,6 +1,6 @@
 import { and, eq, gte, lte, asc } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, leaveRequests, orgUnits, payrollEntries, payrollRuns } from "@/db/schema";
+import { employees, leaveRequests, orgUnits, payrollEntries, payrollRuns, separationRecords } from "@/db/schema";
 import { runBiExport, validateBiExportFilters } from "@/lib/bi-exports";
 import type { BuilderDataset, BuilderFact } from "@/lib/tenant-report-builder";
 
@@ -21,12 +21,31 @@ export async function getBuilderFacts(input: {
     )).where(eq(employees.organizationId, organizationId))
       .orderBy(asc(employees.id)).limit(5_001);
     if (rows.length > 5_000) throw new Error("Headcount scope exceeds 5,000 employees.");
+    // Turnover count is based on a recorded departure date and an actual
+    // Separated employee state, not a draft separation/final-pay amount.
+    // Multiple historical correction records for one employee count once.
+    const departures = await db.select({employeeId:separationRecords.employeeId})
+      .from(separationRecords)
+      .innerJoin(employees, and(
+        eq(separationRecords.employeeId,employees.id),
+        eq(employees.organizationId,organizationId),
+      ))
+      .where(and(
+        eq(separationRecords.organizationId,organizationId),
+        eq(employees.status,"Separated"),
+        gte(separationRecords.lastDay,startDate),
+        lte(separationRecords.lastDay,endDate),
+      )).limit(5_001);
+    if(departures.length>5_000)
+      throw new Error("Recorded departures exceed 5,000; narrow the date range.");
+    const departedEmployeeIds=new Set(departures.map(item=>item.employeeId));
     return rows.map(row => ({
       department: row.department ?? "Unallocated", status: row.status,
       employmentType: row.employmentType,
       headcount: row.status === "Active" ? 1 : 0,
       // Snapshot count, not a date-window turnover rate.
       separatedCount: row.status === "Separated" ? 1 : 0,
+      turnoverCount: departedEmployeeIds.has(row.id) ? 1 : 0,
     }));
   }
 
