@@ -148,7 +148,25 @@ export function EntitySettingsView({ context, organizationId }: {
   }, [organizationId, retry]);
 
   const active = entities.find(row => row.id === selected);
-  function changeSelected(id: number) { setSelected(id); setDraft({}); setNotice(""); setError(""); }
+  async function changeSelected(id: number) {
+    if (id === selected) return;
+    // Changing the visible legal employer must also change the authenticated
+    // request scope. Never allow a form to show employer B while writes carry
+    // employer A in the global x-legal-entity-id header.
+    setState("saving"); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/multi-entity/context", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, legalEntityId: id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Could not change legal employer.");
+      window.location.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not change legal employer.");
+      setState("ready");
+    }
+  }
   async function save() {
     if (!active || !canEdit) return;
     setState("saving"); setError(""); setNotice("");
@@ -175,9 +193,15 @@ export function EntitySettingsView({ context, organizationId }: {
     {state !== "loading" && state !== "error" && entities.length === 0 && <p>No legal entities have been configured for your tenant.</p>}
     {state !== "loading" && state !== "error" && active && <>
       <label>Legal employer
-        <select value={selected ?? ""} onChange={event => changeSelected(Number(event.target.value))}>
-          {entities.map(entity => <option value={entity.id} key={entity.id}>{entity.code} · {entity.displayName}</option>)}
-        </select>
+        {context.group || context.canSwitch ? (
+          <select aria-label="Entity settings legal employer" disabled={state === "saving"}
+            value={selected ?? ""}
+            onChange={event => void changeSelected(Number(event.target.value))}>
+            {entities.map(entity => <option value={entity.id} key={entity.id}>
+              {entity.code} · {entity.displayName}
+            </option>)}
+          </select>
+        ) : <span role="status">{active.code} · {active.displayName}</span>}
       </label>
       <p>Registered legal names, statutory employer numbers, addresses and payout destinations are read-only here until a versioned, independently reviewed update flow is approved. Authorized administrators may change only the pay schedule.</p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: 14, marginTop: 16 }}>
