@@ -6,7 +6,6 @@ import {
   workerEffectiveChanges,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { getAccess } from "@/lib/access";
 import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
