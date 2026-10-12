@@ -318,12 +318,23 @@ export function documentComplianceStatus(
 export async function runScheduledHcmDocumentExpiry(input: {
   actor: string;
   now?: Date;
+  /** Optional bounded employer execution for isolated QA / targeted recovery. */
+  organizationId?: number;
 }) {
   const now = input.now ?? new Date();
+  if (input.organizationId !== undefined &&
+    (!Number.isSafeInteger(input.organizationId) || input.organizationId <= 0)) {
+    throw new Error("A valid employer id is required for scoped document expiry.");
+  }
   const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
   const [requirements, compliance] = await Promise.all([
-    db.select().from(hcmDocumentRequirements).where(eq(hcmDocumentRequirements.active, true)),
-    db.select().from(hcmEmployeeDocumentCompliance),
+    db.select().from(hcmDocumentRequirements).where(and(
+      eq(hcmDocumentRequirements.active, true),
+      input.organizationId === undefined ? undefined :
+        eq(hcmDocumentRequirements.organizationId, input.organizationId),
+    )),
+    db.select().from(hcmEmployeeDocumentCompliance).where(input.organizationId === undefined ?
+      undefined : eq(hcmEmployeeDocumentCompliance.organizationId, input.organizationId)),
   ]);
   const requirementById = new Map(requirements.map((row) => [row.id, row]));
 

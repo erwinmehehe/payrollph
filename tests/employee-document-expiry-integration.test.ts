@@ -63,8 +63,8 @@ test("Manila 30/14/7-day HR notices insert once per milestone and never auto-ver
     ];
     for (const step of cases) {
       // Replay of the same scheduled tick must never create duplicate notices.
-      await runScheduledHcmDocumentExpiry({ actor: "A5 QA", now: step.now });
-      await runScheduledHcmDocumentExpiry({ actor: "A5 QA", now: step.now });
+      await runScheduledHcmDocumentExpiry({ actor: "A5 QA", now: step.now, organizationId: org.id });
+      await runScheduledHcmDocumentExpiry({ actor: "A5 QA", now: step.now, organizationId: org.id });
       const notices = await db.select().from(hcmDocumentExpiryNotices).where(and(
         eq(hcmDocumentExpiryNotices.organizationId, org.id),
         eq(hcmDocumentExpiryNotices.complianceId, verified.id),
@@ -87,7 +87,7 @@ test("Manila 30/14/7-day HR notices insert once per milestone and never auto-ver
       expiresAt: "2026-12-03", status: "current",
     }).where(eq(hcmEmployeeDocumentCompliance.id, verified.id));
     await runScheduledHcmDocumentExpiry({
-      actor: "A5 QA", now: new Date("2026-11-02T16:01:00Z"),
+      actor: "A5 QA", now: new Date("2026-11-02T16:01:00Z"), organizationId: org.id,
     });
     const freshNotices = await db.select().from(hcmDocumentExpiryNotices).where(and(
       eq(hcmDocumentExpiryNotices.organizationId, org.id),
