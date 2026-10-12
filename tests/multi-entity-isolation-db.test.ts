@@ -6,7 +6,7 @@ import { db } from "../src/db";
 import {
   employeeEntityBankAccounts, employeeEntityAssignments, employees, legalEntities, legalEntityProfileChangeRequests,
   legalEntityStatutoryRegistrations, legalEntityTransferLiabilityEvidence, entityTransferRequests,
-  organizations, userLegalEntityGrants, userOrganizations, users,
+  organizations, userEntityPreferences, userLegalEntityGrants, userOrganizations, users,
 } from "../src/db/schema";
 import { resolveMultiEntityContext, assertEntityResource } from "../src/lib/multi-entity-server";
 import { employeeScopePredicate } from "../src/lib/multi-entity-personnel-scope";
@@ -206,6 +206,39 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
       assert.equal(assertEntityResource(ownerScoped.context, a1.id), null);
       assert.equal(assertEntityResource(ownerScoped.context, a2.id)?.status, 403);
     }
+    // A preference from a former group role or revoked grant must never
+    // strand a newly scoped account or resurrect visibility into that entity.
+    await db.insert(userEntityPreferences).values({
+      userId: people[3].id, organizationId: tenantA.id, legalEntityId: null,
+    });
+    const staleGroupPreference = await resolveMultiEntityContext({
+      userId: people[3].id, organizationId: tenantA.id,
+    });
+    assert.equal(staleGroupPreference.ok, true);
+    if (staleGroupPreference.ok) {
+      assert.equal(staleGroupPreference.context.legalEntityId, a1.id);
+      assert.equal(staleGroupPreference.context.group, false);
+    }
+    await db.update(userEntityPreferences).set({ legalEntityId: a2.id })
+      .where(and(eq(userEntityPreferences.organizationId, tenantA.id),
+        eq(userEntityPreferences.userId, people[3].id)));
+    const revokedPreference = await resolveMultiEntityContext({
+      userId: people[3].id, organizationId: tenantA.id,
+    });
+    assert.equal(revokedPreference.ok, true);
+    if (revokedPreference.ok) {
+      assert.equal(revokedPreference.context.legalEntityId, a1.id);
+      assert.equal(assertEntityResource(revokedPreference.context, a2.id)?.status, 403);
+    }
+    const explicitRevoked = await resolveMultiEntityContext({
+      userId: people[3].id, organizationId: tenantA.id, requested: a2.id,
+    });
+    assert.equal(explicitRevoked.ok, false, "Explicit ungranted employer must never fall back");
+    await db.delete(userEntityPreferences).where(and(
+      eq(userEntityPreferences.organizationId, tenantA.id),
+      eq(userEntityPreferences.userId, people[3].id),
+    ));
+
     await db.insert(userLegalEntityGrants).values({
       userId: people[3].id, organizationId: tenantA.id, legalEntityId: a2.id,
     });
