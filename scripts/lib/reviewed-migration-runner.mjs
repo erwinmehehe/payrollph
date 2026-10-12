@@ -211,12 +211,27 @@ export async function runReviewedMigrationOnClient({
       "current_setting('transaction_read_only') = 'on' AS \"readOnly\", " +
       "pg_catalog.pg_is_in_recovery() AS \"inRecovery\", " +
       "EXISTS (SELECT 1 FROM pg_catalog.pg_roles r WHERE r.rolname = current_user AND " +
-      "(r.rolsuper OR r.rolcreatedb OR r.rolcreaterole OR r.rolbypassrls)) AS \"elevated\""
+      "(r.rolsuper OR r.rolcreatedb OR r.rolcreaterole OR r.rolbypassrls)) AS \"elevated\", " +
+      "(pg_catalog.has_schema_privilege(current_user, 'public', 'CREATE') OR " +
+      "pg_catalog.has_database_privilege(current_user, current_database(), 'CREATE') OR " +
+      "EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace " +
+      "WHERE n.nspname = 'public' AND c.relkind IN ('r','p') AND " +
+      "pg_catalog.has_table_privilege(current_user, c.oid, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'))) " +
+      "AS \"hasWritePrivileges\", " +
+      "EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace " +
+      "WHERE n.nspname = 'public' AND c.relname = ANY(ARRAY[" +
+      "'employees','payroll_entries','payroll_runs','legal_entities','employee_payout_change_requests']) " +
+      "AND pg_catalog.has_any_column_privilege(current_user, c.oid, 'SELECT')) " +
+      "AS \"canReadSensitiveRows\""
     )).rows[0];
     if (identity?.databaseName !== expectedDatabaseName ||
         identity.readOnly !== (mode === "plan") ||
         (mode === "apply" && identity.inRecovery) ||
-        (identity.elevated && !allowElevatedRoleForIsolatedTest)) refuse("DATABASE_ROLE_OR_IDENTITY_REJECTED");
+        (identity.elevated && !allowElevatedRoleForIsolatedTest) ||
+        (mode === "plan" && !allowElevatedRoleForIsolatedTest &&
+          (identity.hasWritePrivileges || identity.canReadSensitiveRows))) {
+      refuse("DATABASE_ROLE_OR_IDENTITY_REJECTED");
+    }
 
     const tables = (await client.query(
       "SELECT to_regclass('public.payrollph_release_migration_receipts') IS NOT NULL AS \"receipts\", " +
