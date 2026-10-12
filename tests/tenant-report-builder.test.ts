@@ -38,3 +38,16 @@ test("new report capability is default-off", () => {
  assert.equal(criticalReleaseFlagEnabled("tenantReportBuilder",{}),false);
  assert.equal(criticalReleaseFlagEnabled("tenantReportBuilder",{TENANT_REPORT_BUILDER_ENABLED:"true"}),true);
 });
+
+test("recorded turnover facts roll up without confusing them with current separated headcount", () => {
+ const spec=validateBuilderSpec({
+   dataset:"people",fields:["department","headcount","separatedCount","turnoverCount"],
+   groupBy:"department",
+ }, "hr");
+ const rows=runWhitelistedBuilder([
+   {department:"OPS",headcount:1,separatedCount:0,turnoverCount:0},
+   {department:"OPS",headcount:0,separatedCount:1,turnoverCount:1},
+   {department:"OPS",headcount:0,separatedCount:1,turnoverCount:0},
+ ],spec);
+ assert.deepEqual(rows,[["OPS","1","2","1"]]);
+});
