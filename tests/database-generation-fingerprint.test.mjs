@@ -77,7 +77,7 @@ test("even canonical catalog plus journal is review-only, not authorization", ()
   assert.match(result.reason, /DBA_RECEIPTS_AND_CLONE_REHEARSAL/);
 });
 
-test("observed correct Neon app schema blocks the train until source prerequisites exist", () => {
+test("observed Neon catalog distinguishes missing historical predecessor from proposed payout DDL", () => {
   const live = {
     ...app,
     hasMigrationReceipts: false,
@@ -89,32 +89,44 @@ test("observed correct Neon app schema blocks the train until source prerequisit
     hasPayoutProfiles: false,
     hasWorkerEmploymentEvents: false,
   };
-  const outcome = assessDatabaseGeneration(live);
-  assert.equal(outcome.generation, "organization-integer");
-  assert.equal(outcome.reason, "NUMBERED_TRAIN_PREREQUISITES_MISSING");
-  assert.deepEqual(outcome.missingTrainPrerequisites, [
-    "payout_batches", "payout_transfers", "payout_batch_transfers",
-    "payout_profiles", "worker_employment_events",
+  const result = assessDatabaseGeneration(live);
+  assert.equal(result.generation, "organization-integer");
+  assert.equal(result.reason, "NUMBERED_TRAIN_PREREQUISITES_MISSING");
+  assert.deepEqual(result.missingTrainPrerequisites, ["worker_employment_events"]);
+  assert.deepEqual(result.unappliedDraftTables, [
+    "payout_profiles", "payout_batches", "payout_transfers", "payout_batch_transfers",
   ]);
-  assert.equal(outcome.eligibleForMigrationReview, false);
-  assert.equal(outcome.productionMigrationApproved, false);
+  assert.equal(result.sourceMigrationSequenceRequired, true);
+  assert.equal(result.eligibleForMigrationReview, false);
+  assert.equal(result.productionMigrationApproved, false);
 });
 
-test("one missing source prerequisite blocks migration review despite journals", () => {
-  const outcome = assessDatabaseGeneration({ ...app, hasPayoutBatches: false });
-  assert.deepEqual(outcome.missingTrainPrerequisites, ["payout_batches"]);
-  assert.equal(outcome.eligibleForMigrationReview, false);
-  assert.equal(outcome.reason, "NUMBERED_TRAIN_PREREQUISITES_MISSING");
+test("historical employment events remain an external gate even with reviewed journals", () => {
+  const result = assessDatabaseGeneration({ ...app, hasWorkerEmploymentEvents: false });
+  assert.deepEqual(result.missingTrainPrerequisites, ["worker_employment_events"]);
+  assert.equal(result.eligibleForMigrationReview, false);
+  assert.equal(result.reason, "NUMBERED_TRAIN_PREREQUISITES_MISSING");
+  assert.equal(result.productionMigrationApproved, false);
 });
 
-test("each payout and worker-history table separately blocks numbered migration review when absent", () => {
+test("payout tables belong to earlier unapplied draft steps, not the historical prerequisite set", () => {
   for (const key of [
-    "hasPayoutBatches", "hasPayoutTransfers", "hasPayoutBatchTransfers",
-    "hasPayoutProfiles", "hasWorkerEmploymentEvents",
+    "hasPayoutProfiles", "hasPayoutBatches", "hasPayoutTransfers", "hasPayoutBatchTransfers",
   ]) {
-    const out=assessDatabaseGeneration({...app,[key]:false});
-    assert.equal(out.eligibleForMigrationReview,false);
-    assert.equal(out.reason,"NUMBERED_TRAIN_PREREQUISITES_MISSING");
-    assert.equal(out.productionMigrationApproved,false);
+    const result = assessDatabaseGeneration({ ...app, [key]: false });
+    assert.deepEqual(result.missingTrainPrerequisites, []);
+    assert.equal(result.unappliedDraftTables.length, 1);
+    assert.equal(result.sourceMigrationSequenceRequired, true);
+    assert.equal(result.eligibleForMigrationReview, true);
+    assert.equal(result.productionMigrationApproved, false);
+    assert.match(result.reason, /DBA_RECEIPTS_AND_CLONE_REHEARSAL/);
   }
+});
+
+test("complete catalog without approved migration journals is still held", () => {
+  const result = assessDatabaseGeneration({
+    ...app, hasMigrationReceipts: false, hasMigrationJournal: false, hasMigrationCutover: false,
+  });
+  assert.equal(result.eligibleForMigrationReview, false);
+  assert.equal(result.productionMigrationApproved, false);
 });
