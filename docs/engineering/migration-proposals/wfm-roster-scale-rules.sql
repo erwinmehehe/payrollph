@@ -1,3 +1,4 @@
+-- HISTORICAL DESIGN PROPOSAL; canonical numbered source is drizzle/0116_wfm_roster_scale_rules.sql in PR #865.
 -- PROPOSAL ONLY: NOT ALLOCATED A MIGRATION NUMBER. DO NOT APPLY IN PRODUCTION.
 -- Current main highest was 0114, but earlier open draft PRs have conflicting
 -- 0115 reservations; a release DBA must allocate the next contiguous number

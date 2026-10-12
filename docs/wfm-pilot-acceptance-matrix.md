@@ -1,3 +1,5 @@
+**Migration source update (2026-10-12):** PR #865 proposes canonical numbered SQL `drizzle/0116_wfm_roster_scale_rules.sql`. This is SOURCE ONLY; not applied to Neon or approved for WFM activation. Earlier `0115` reservation notes below are historical.
+
 # Linaw WFM: cross-functional pilot acceptance matrix
 
 **Status:** Draft acceptance plan, 2026-10-10. **No acceptance tests or human sign-offs are implied by this document.** This file is safe to keep in GitHub because it must not contain employee, bank, payroll or personal identifiers.

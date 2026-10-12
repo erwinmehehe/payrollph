@@ -98,7 +98,9 @@ function WebBundyView({
   const visible = validEmployer
     ? visibleWebBundyState(readKey, readState)
     : { status: "unavailable" as const, punches: [] };
-  const historyReady = validEmployer && selectedEmployeeId !== null && visible.status === "ready";
+  const previousNeedsReview = readState?.key === readKey && readState.previousShiftNeedsReview === true;
+  const historyReady = validEmployer && selectedEmployeeId !== null
+    && visible.status === "ready" && !previousNeedsReview;
   // Never reuse location policy for another employer, worker, or refresh generation.
   const policy = clockPolicy?.key === readKey ? clockPolicy : null;
   const policyReady = Boolean(policy && !policy.error && (!policy.required || policy.canClockWithLocation));
@@ -118,7 +120,7 @@ function WebBundyView({
         const data: unknown = await res.json();
         if (!alive || controller.signal.aborted) return;
         const response = data && typeof data === "object"
-          ? data as { punches?: unknown; geofence?: unknown } : {};
+          ? data as { punches?: unknown; geofence?: unknown; previousShiftNeedsReview?: unknown } : {};
         if (!isWebBundyPunchList(response.punches)) throw Error("Invalid attendance state.");
         const geo = response.geofence;
         if (!geo || typeof geo !== "object"
@@ -128,7 +130,10 @@ function WebBundyView({
         }
         const verified = geo as { required: boolean; canClockWithLocation: boolean };
         setClockPolicy({ key: readKey, required: verified.required, canClockWithLocation: verified.canClockWithLocation });
-        setReadState({ key: readKey, status: "ready", punches: response.punches });
+        setReadState({
+          key: readKey, status: "ready", punches: response.punches,
+          previousShiftNeedsReview: response.previousShiftNeedsReview === true,
+        });
       } catch {
         if (alive && !controller.signal.aborted) {
           setClockPolicy({ key: readKey, required: false, canClockWithLocation: false, error: "Time-clock policy unavailable. Retry attendance check." });
@@ -205,6 +210,10 @@ function WebBundyView({
   }
 
   const todayPunch = visible.punches[0];
+  const todayWorkDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now);
+  const fromPreviousWorkDate = Boolean(todayPunch?.workDate && todayPunch.workDate !== todayWorkDate);
   const breakActive = Boolean(todayPunch?.breakStart && !todayPunch?.breakEnd);
   const canClockIn = mayClockInWebBundy(historyReady, todayPunch);
   const canStartBreak = Boolean(historyReady && todayPunch?.timeIn && !todayPunch?.breakStart && !todayPunch?.timeOut);
@@ -252,6 +261,16 @@ function WebBundyView({
           <div style={{ fontSize: 12, color: "#d2ece2" }}>{date}</div>
         </div>
 
+        {selectedEmployeeId && fromPreviousWorkDate && (
+          <p role="status" className="auth-copy">
+            Continuing a shift started on {todayPunch?.workDate} (Asia/Manila). Clock-out stays on that original work date.
+          </p>
+        )}
+        {selectedEmployeeId && previousNeedsReview && (
+          <div className="notice notice-amber" role="status">
+            A previous shift needs an HR attendance correction. It has not been automatically closed or counted as absence.
+          </div>
+        )}
         {selectedEmployeeId && todayPunch && (
           <div style={{ background: "var(--canvas-subtle)", padding: 12, borderRadius: 10, marginBottom: 14, fontSize: 11.5 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
