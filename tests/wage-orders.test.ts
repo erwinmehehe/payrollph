@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { holidayMultiplier } from "../src/lib/payroll-rules";
-import { FORTHCOMING_WAGE_ORDERS, REGION_VII_WAGE_TIERS, ROVII27_EFFECTIVE_ON, holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, wageOrderFor, WAGE_ORDERS } from "../src/lib/wage-orders";
+import { FORTHCOMING_WAGE_ORDERS, REGION_VII_WAGE_TIERS, ROVII27_EFFECTIVE_ON, holidayOn, isBelowMinimum, nationalHolidayCalendarForDate, wageOrderFor, wageScreenForWorkPeriod, WAGE_ORDERS } from "../src/lib/wage-orders";
 
 test("NCR screening reference uses the current official Oct 2026 high tier", () => {
   const order = wageOrderFor("NCR");
@@ -116,6 +116,38 @@ test("Class B screen does not use the higher Class A threshold after effectivity
   assert.equal(isBelowMinimum(monthly, "VII", 22, "2026-10-14").below, true,
     "unknown locality stays conservative, not an automatic legal wage assignment");
   const engine = readFileSync("src/lib/payroll-engine.ts", "utf8");
-  assert.ok(engine.includes('isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth, input.payDate)'),
-    "payroll warning must use pay date, not today's unpublished or future rate");
+  assert.ok(engine.includes("wageScreenForWorkPeriod("),
+    "payroll warning must use work period, not the later pay date");
+  assert.ok(engine.includes("input.periodStart, input.periodEnd"),
+    "wage screening must be scoped to the actual worked cutoff");
+  assert.ok(!engine.includes('isBelowMinimum(monthly, input.employee.region ?? "NCR", payProfile.standardWorkDaysPerMonth, input.payDate)'),
+    "pay date cannot shift minimum wage for work before an order's effective date");
+});
+
+test("M-2 screens Region VII by work dates even when wages are paid after the new order", () => {
+  const monthly = 550 * 22;
+  // A delayed payment after Oct 14 must not apply Oct 14 rates to Oct 1-13 work.
+  const before = wageScreenForWorkPeriod(monthly, "VII", 22, "2026-10-01", "2026-10-13");
+  assert.equal(before.order.dailyRate, 540);
+  assert.equal(before.below, false);
+  assert.equal(before.effectiveDateChange, false);
+
+  const crossing = wageScreenForWorkPeriod(monthly, "VII", 22, "2026-10-01", "2026-10-15");
+  assert.equal(crossing.startOrder.dailyRate, 540);
+  assert.equal(crossing.order.dailyRate, 582);
+  assert.equal(crossing.effectiveDateChange, true);
+  assert.equal(crossing.below, true);
+
+  const after = wageScreenForWorkPeriod(monthly, "VII", 22, "2026-10-14", "2026-10-31");
+  assert.equal(after.effectiveDateChange, false);
+  assert.equal(after.order.wageOrder, "WO-ROVII-27");
+  assert.equal(after.below, true);
+
+  const classB = wageScreenForWorkPeriod(monthly, "VII", 22, "2026-10-14", "2026-10-31", "B");
+  assert.equal(classB.order.dailyRate, 542);
+  assert.equal(classB.below, false);
+  assert.throws(
+    () => wageScreenForWorkPeriod(monthly, "VII", 22, "2026-10-15", "2026-10-01"),
+    /starts after it ends/,
+  );
 });
