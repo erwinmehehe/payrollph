@@ -23,7 +23,7 @@ test("MULTI_ENTITY_ENABLED is false for unset, wrong case and invalid values", (
 test("entity-scoped personnel cannot escalate to another entity or All", () => {
   const base = { role: "hr", availableEntityIds: [11, 22], grantedEntityIds: [11] };
   const allow = decideEntityAccess({ ...base, requested: 11 });
-  assert.deepEqual(allow, { ok: true, group: false, selectedEntityId: 11 });
+  assert.deepEqual(allow, { ok: true, group: false, selectedEntityId: 11, allowedEntityIds: [11] });
   assert.equal(entityResourceAllowed(allow, 11), true);
   for (const requested of [22, 999, null, "all", "-1", "0", "22foo"]) {
     const decision = decideEntityAccess({ ...base, requested });
@@ -41,7 +41,7 @@ test("group roles can see all within their actual tenant, not guessed foreign en
     assert.equal(all.ok, true);
     assert.equal(entityResourceAllowed(all, 11), true);
     assert.equal(entityResourceAllowed(all, 22), true);
-    assert.equal(entityResourceAllowed(all, 33), true); // Caller MUST bind resource to tenant first!
+    assert.equal(entityResourceAllowed(all, 33), false); // Group never crosses tenant boundary.
     const foreign = decideEntityAccess({ ...input, requested: 33 });
     assert.equal(foreign.ok, false);
     const selected = decideEntityAccess({ ...input, requested: 22 });
