@@ -1,0 +1,306 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Linaw Public API",
+    "version": "1.0.0",
+    "description": "Tenant-scoped read API with scoped revocable Bearer keys; extensions remain default-off and are blocked for multi-entity tenants without entity grants."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {
+      "BearerApiKey": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerApiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "opaque API key"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/employees": {
+      "get": {
+        "summary": "List employees",
+        "description": "Bearer scope employees:read. Legacy offset pagination.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "403": {
+            "description": "Missing token scope or tenant authorization"
+          },
+          "409": {
+            "description": "Multi-entity tenant requires reviewed entity grants"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create employee",
+        "description": "Bearer scope employees:write; supports Idempotency-Key.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "firstName",
+                  "lastName",
+                  "title",
+                  "startDate"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Employee created"
+          },
+          "422": {
+            "description": "Validation failed"
+          }
+        }
+      }
+    },
+    "/api/v1/employees/{id}": {
+      "get": {
+        "summary": "Read employee",
+        "description": "Bearer scope employees:read.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "403": {
+            "description": "Missing token scope or tenant authorization"
+          },
+          "409": {
+            "description": "Multi-entity tenant requires reviewed entity grants"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Modify employee",
+        "description": "Bearer scope employees:write. Governed effective-dated pay changes.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Begin offboarding",
+        "description": "Bearer scope employees:write; soft delete.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/api/v1/payroll-runs": {
+      "get": {
+        "summary": "List payroll runs",
+        "description": "Bearer scope payroll:read. Legacy offset pagination.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "403": {
+            "description": "Missing token scope or tenant authorization"
+          },
+          "409": {
+            "description": "Multi-entity tenant requires reviewed entity grants"
+          }
+        }
+      }
+    },
+    "/api/v1/org-units": {
+      "get": {
+        "summary": "List legal-employer org units",
+        "description": "Default-off flag PUBLIC_API_V1_EXTENDED_ENABLED. Bearer scope org-units:read. Single employer only.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "403": {
+            "description": "Missing token scope or tenant authorization"
+          },
+          "409": {
+            "description": "Multi-entity tenant requires reviewed entity grants"
+          }
+        }
+      }
+    },
+    "/api/v1/payslips": {
+      "get": {
+        "summary": "List released payslips",
+        "description": "Default-off extension. Bearer scope payslips:read; released payroll only.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "403": {
+            "description": "Missing token scope or tenant authorization"
+          },
+          "409": {
+            "description": "Multi-entity tenant requires reviewed entity grants"
+          }
+        }
+      }
+    },
+    "/api/v1/payslips/{id}": {
+      "get": {
+        "summary": "Download released payslip PDF",
+        "description": "Default-off extension. Bearer scope payslips:read; audited private PDF.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "403": {
+            "description": "Missing token scope or tenant authorization"
+          },
+          "409": {
+            "description": "Multi-entity tenant requires reviewed entity grants"
+          }
+        }
+      }
+    },
+    "/api/v1/events": {
+      "get": {
+        "summary": "Read public event metadata cursor",
+        "description": "Default-off extension. Bearer scope events:read; no PII, no webhook payload.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "403": {
+            "description": "Missing token scope or tenant authorization"
+          },
+          "409": {
+            "description": "Multi-entity tenant requires reviewed entity grants"
+          }
+        }
+      }
+    }
+  }
+}
