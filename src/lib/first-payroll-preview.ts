@@ -47,23 +47,27 @@ export async function loadReadOnlyFirstPayrollPreview(
  // Any unmodeled inputs force a blocker rather than a falsely precise payslip.
  // The normal payroll engine handles all these sources; this first-run preview
  // intentionally supports only a genuinely simple initial fixed-salary cutoff.
- const sources=[
-  ["time punches",timePunches],["employee pay revisions",employeePayRevisions],
-  ["supplementary earnings",supplementaryEarnings],["leave requests",leaveRequests],
-  ["de minimis grants",deMinimisGrants],["wage advances",earnedWageRequests],
-  ["employee loans",employeeLoans],["custom pay policies",payPolicies],
-  ["employer-specific holidays",holidays],["historical payroll entries",historicalPayrollEntries],
-  ["MWE classification history",employeeMweClassifications],
-  ["benefit enrollment",benefitEnrollments],
-  ["recurring compensation",employeeCompensationComponents],
-  ["retroactive adjustments",employeePayRetroAdjustments],
-  ["previous payroll runs",payrollRuns],
+ const sourceChecks = [
+  ["time punches", () => reader.select({id:timePunches.id}).from(timePunches).where(eq(timePunches.organizationId,organizationId)).limit(1)],
+  ["employee pay revisions", () => reader.select({id:employeePayRevisions.id}).from(employeePayRevisions).where(eq(employeePayRevisions.organizationId,organizationId)).limit(1)],
+  ["supplementary earnings", () => reader.select({id:supplementaryEarnings.id}).from(supplementaryEarnings).where(eq(supplementaryEarnings.organizationId,organizationId)).limit(1)],
+  ["leave requests", () => reader.select({id:leaveRequests.id}).from(leaveRequests).where(eq(leaveRequests.organizationId,organizationId)).limit(1)],
+  ["de minimis grants", () => reader.select({id:deMinimisGrants.id}).from(deMinimisGrants).where(eq(deMinimisGrants.organizationId,organizationId)).limit(1)],
+  ["wage advances", () => reader.select({id:earnedWageRequests.id}).from(earnedWageRequests).where(eq(earnedWageRequests.organizationId,organizationId)).limit(1)],
+  ["employee loans", () => reader.select({id:employeeLoans.id}).from(employeeLoans).where(eq(employeeLoans.organizationId,organizationId)).limit(1)],
+  ["custom pay policies", () => reader.select({id:payPolicies.id}).from(payPolicies).where(eq(payPolicies.organizationId,organizationId)).limit(1)],
+  ["employer-specific holidays", () => reader.select({id:holidays.id}).from(holidays).where(eq(holidays.organizationId,organizationId)).limit(1)],
+  ["historical payroll entries", () => reader.select({id:historicalPayrollEntries.id}).from(historicalPayrollEntries).where(eq(historicalPayrollEntries.organizationId,organizationId)).limit(1)],
+  ["MWE classification history", () => reader.select({id:employeeMweClassifications.id}).from(employeeMweClassifications).where(eq(employeeMweClassifications.organizationId,organizationId)).limit(1)],
+  ["benefit enrollment", () => reader.select({id:benefitEnrollments.id}).from(benefitEnrollments).where(eq(benefitEnrollments.organizationId,organizationId)).limit(1)],
+  ["recurring compensation", () => reader.select({id:employeeCompensationComponents.id}).from(employeeCompensationComponents).where(eq(employeeCompensationComponents.organizationId,organizationId)).limit(1)],
+  ["retroactive adjustments", () => reader.select({id:employeePayRetroAdjustments.id}).from(employeePayRetroAdjustments).where(eq(employeePayRetroAdjustments.organizationId,organizationId)).limit(1)],
+  ["previous payroll runs", () => reader.select({id:payrollRuns.id}).from(payrollRuns).where(eq(payrollRuns.organizationId,organizationId)).limit(1)],
  ] as const;
- // All queries are tenant-filtered. A row in an optional source is a blocker,
- // even if it might not affect this period; omission is safer than undercounting.
- for(const [name,table] of sources){
-  const present=await reader.select({id:table.id}).from(table).where(eq(table.organizationId,organizationId)).limit(1);
-  if(present.length)blockers.push("Full payroll-context reconciliation required: "+name+" is recorded.");
+ // Each closure is a concrete Drizzle table read, never a union-table mutation.
+ const observed = await Promise.all(sourceChecks.map(async ([name,load])=>({name,present:(await load()).length>0})));
+ for(const check of observed){
+   if(check.present)blockers.push("Full payroll-context reconciliation required: "+check.name+" is recorded.");
  }
  const asOf=statutoryRuleVersionsForDate(payDate);
  const holidayCalendar=nationalHolidayCalendarForDate(periodEnd);
