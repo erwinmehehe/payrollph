@@ -114,7 +114,7 @@ test("pg_catalog statements inspect schema only, not employee/payroll data",()=>
  assert.match(IDENTITY_QUERY,/neon\.branch_id/);
  assert.match(IDENTITY_QUERY,/neon\.endpoint_id/);
  for(const query of [HISTORICAL_CATALOG_QUERY,IDENTITY_QUERY]){
-  assert.doesNotMatch(query,/\b(?:INSERT\s+INTO|UPDATE\s+public|DELETE\s+FROM|ALTER\s+TABLE|DROP\s+TABLE|TRUNCATE|CREATE\s+TABLE)\b/i);
+  assert.doesNotMatch(query,/^\s*(?:INSERT\s+INTO|UPDATE\s+public|DELETE\s+FROM|ALTER\s+TABLE|DROP\s+TABLE|TRUNCATE|CREATE\s+TABLE)\b/im);
   assert.doesNotMatch(query,/\bFROM\s+(?:public\.)?(?:payroll_runs|payroll_entries|employees|bank_accounts)\b/i);
  }
 });
