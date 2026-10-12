@@ -137,8 +137,10 @@ test("applied migration cannot rerun; source or journal drift fails closed", () 
       /SOURCE_SHA_OR_PATH_MISMATCH/);
     assert.throws(() => review(f, { requestedPath: "../drizzle/baseline.sql" }),
       /REQUEST_INVALID/);
-    assert.throws(() => review(f, { requestedPath: "drizzle/0023_followup.sql" }),
-      /PREVIOUS_MIGRATION_MISSING/);
+    const followup = f.inventory.files.find(file => file.path === "drizzle/0023_followup.sql");
+    assert.throws(() => review(f, {
+      requestedPath: followup.path, expectedSha256: followup.sha256,
+    }), /PREVIOUS_MIGRATION_MISSING/);
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
 
