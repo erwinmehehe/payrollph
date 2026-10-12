@@ -16,6 +16,8 @@ export type Organization = {
   plan: string;
   employeeCount: number;
   color: string;
+  moduleVisibility?: "all" | "core_only";
+  enabledModules?: string[];
   birTin?: string | null;
   birBranchCode?: string | null;
   sssEmployerNo?: string | null;
