@@ -120,3 +120,29 @@ export function canActOnEntityTransfer(input: {
        input.makerUserId === input.actorUserId)) return false;
   return true;
 }
+
+
+/**
+ * Public transfer metadata only. Transfer DB rows contain sensitive leave and
+ * full payroll/13th-month snapshots that must NEVER be serialized to clients.
+ * Keep this whitelist shared by list, create and decision endpoints.
+ */
+export function summarizeEntityTransfer(row: {
+  id: number;
+  employeeId: number;
+  fromLegalEntityId: number;
+  toLegalEntityId: number;
+  effectiveDate: string;
+  status: string;
+  requestedByUserId: number;
+}) {
+  return {
+    id: row.id,
+    employeeId: row.employeeId,
+    fromLegalEntityId: row.fromLegalEntityId,
+    toLegalEntityId: row.toLegalEntityId,
+    effectiveDate: row.effectiveDate,
+    status: row.status,
+    requestedByUserId: row.requestedByUserId,
+  };
+}
