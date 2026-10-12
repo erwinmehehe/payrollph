@@ -58,3 +58,11 @@ test("partial-window approved leave is rejected rather than overstated", async (
  assert.equal(leaveRangeFullyWithinReport("2026-09-29","2026-10-05","2026-10-01","2026-10-31"),false);
  assert.equal(leaveRangeFullyWithinReport("2026-10-25","2026-11-02","2026-10-01","2026-10-31"),false);
 });
+
+test("multi-entity HR report export needs future group-scope authorization",async()=>{
+ const {builderRequiresEntityRole}=await import("../src/lib/tenant-report-builder");
+ assert.equal(builderRequiresEntityRole(0),false);
+ assert.equal(builderRequiresEntityRole(1),false);
+ assert.equal(builderRequiresEntityRole(2),true);
+ assert.equal(builderRequiresEntityRole(999),true);
+});
