@@ -87,6 +87,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 anonymous employee feedback and small-cohort inference",
     approval: "Minimum cohort privacy tests, consent and retention review",
   },
+  firstPayrollInline: {
+    env: "FIRST_PAYROLL_INLINE_ENABLED",
+    owner: "Payroll Operations",
+    risk: "P0 inline onboarding uses canonical 0117 first-payroll tenant progress schema",
+    approval: "Reviewed 0117 receipt, zero-write preview and independent two-role mobile acceptance",
+  },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
     owner: "Product",

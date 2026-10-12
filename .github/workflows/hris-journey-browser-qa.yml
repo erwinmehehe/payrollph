@@ -71,6 +71,7 @@ jobs:
     env:
       CI: "true"
       HRIS_JOURNEY_ACCEPTANCE_MODE: synthetic-postgres-only
+      FIRST_PAYROLL_INLINE_ENABLED: "true" # disposable PostgreSQL acceptance only
       HRIS_JOURNEY_ACCEPTANCE_URL: http://127.0.0.1:3000
       HCM_PEOPLE_HOME_ACCEPTANCE_MODE: synthetic-postgres-only
       HCM_PEOPLE_HOME_ENABLED: "true"

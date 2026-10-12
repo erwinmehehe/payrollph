@@ -2,10 +2,13 @@ import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PAYROLL_VIEW_ROLES } from "@/lib/access";
 import { parseMigrationDate } from "@/lib/migration-date";
 import { loadReadOnlyFirstPayrollPreview } from "@/lib/first-payroll-preview";
+import { firstPayrollInlineAvailable } from "@/lib/first-payroll-inline-gate";
 export const dynamic="force-dynamic";
 
 /** Read-only first-payroll preview. Deliberately GET-only, never a payroll-run mutation. */
 export async function GET(request:Request){
+ if (!(await firstPayrollInlineAvailable()))
+  return Response.json({error:"First-payroll preview is unavailable."},{status:404});
  const user=await getSessionUser();
  if(!user)return Response.json({error:"Authentication required."},{status:401});
  const q=new URL(request.url).searchParams;

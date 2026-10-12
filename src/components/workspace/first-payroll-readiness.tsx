@@ -14,6 +14,7 @@ export function FirstPayrollReadinessCard({
   onSettings,
   allowedPages,
   guided = false,
+  inlineEnabled = false,
   data,
   onRefresh,
   onDecide,
@@ -27,6 +28,7 @@ export function FirstPayrollReadinessCard({
   onSettings?: (tab: "organization" | "team") => void;
   allowedPages: readonly string[];
   guided?: boolean;
+  inlineEnabled?: boolean;
   data?: DashboardData;
   onRefresh?: () => Promise<void>;
   onDecide?: (id: number, status: "Approved" | "Declined") => Promise<void>;
@@ -38,14 +40,14 @@ export function FirstPayrollReadinessCard({
   const [progress,setProgress]=useState<{stepOwners?:Record<string,string>;completedSteps?:Record<string,{byUserId:number;at:string;periodStart?:string;periodEnd?:string}>}|null>(null);
   const organizationId=data?.selectedOrganization.id;
   useEffect(()=>{
-    if(!guided||!organizationId)return;
+    if(!guided||!inlineEnabled||!organizationId)return;
     let cancelled=false;
     void fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"})
       .then(r=>r.ok?r.json():null)
       .then(p=>{if(!cancelled)setProgress(p?.progress??null);})
       .catch(()=>{if(!cancelled)setProgress(null);});
     return ()=>{cancelled=true;};
-  },[organizationId,guided]);
+  },[organizationId,guided,inlineEnabled]);
   async function reloadProgress(){
     if(!organizationId)return;
     const response=await fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"});
@@ -58,7 +60,7 @@ export function FirstPayrollReadinessCard({
   const percent = Math.round((readiness.completed / readiness.total) * 100);
   const journey = buildFirstPayrollJourney(readiness).map(step=>{
     const recorded=progress?.completedSteps?.[step.key];
-    const state=guided && (step.key==="company" || step.key==="time")
+    const state=guided && inlineEnabled && (step.key==="company" || step.key==="time")
       ? recorded ? "complete" : step.key==="company" ? "available" : step.state
       : step.state;
     return {...step,state};
@@ -99,12 +101,19 @@ export function FirstPayrollReadinessCard({
             </div>
             <p style={{ fontSize: 12, margin: "8px 0" }}>{step.detail}</p>
             <p className="text-xs" style={{color:"var(--muted)"}}>Responsible: {progress?.stepOwners?.[step.key]??ownerFor(step.key)}</p>
-            {data && onRefresh && (
+            {inlineEnabled && data && onRefresh ? (
               <button type="button" className="first-payroll-link" aria-expanded={opened===step.key} onClick={() => setOpened(current=>current===step.key?null:step.key)}>
                 {opened===step.key?"Close panel":step.actionLabel} <ArrowRight size={13} />
               </button>
-            )}
-            {opened===step.key&&data&&onRefresh&&<FirstPayrollInlinePanel key={String(data.selectedOrganization.id)+":"+step.key} step={step.key} data={data} onRefresh={onRefresh} onProgressUpdate={reloadProgress} onDecide={onDecide} canDecide={canDecide} canManageDelegations={canManageDelegations} notify={notify}/>}
+            ) : allowedPages.includes(step.page) ? (
+              <button type="button" className="first-payroll-link" onClick={() => {
+                if (step.settingsTab && onSettings) onSettings(step.settingsTab);
+                onPage(step.page);
+              }}>
+                {step.actionLabel} <ArrowRight size={13} />
+              </button>
+            ) : null}
+            {inlineEnabled&&opened===step.key&&data&&onRefresh&&<FirstPayrollInlinePanel key={String(data.selectedOrganization.id)+":"+step.key} step={step.key} data={data} onRefresh={onRefresh} onProgressUpdate={reloadProgress} onDecide={onDecide} canDecide={canDecide} canManageDelegations={canManageDelegations} notify={notify}/>}
           </li>
         ))}
       </ol>}
@@ -148,7 +157,7 @@ export function FirstPayrollReadinessCard({
         {readiness.ready && allowedPages.includes(readiness.firstPayrollReleased ? "Exports" : "Payroll") && (
           <button
             className="primary-button"
-            onClick={guided ? () => setOpened(readiness.firstPayrollReleased ? "exports" : "payroll") : readiness.firstPayrollReleased
+            onClick={guided && inlineEnabled ? () => setOpened(readiness.firstPayrollReleased ? "exports" : "payroll") : readiness.firstPayrollReleased
               ? () => onPage("Exports")
               : readiness.firstPayrollStarted ? () => onPage("Payroll") : onNewRun}
           >

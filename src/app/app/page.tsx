@@ -16,6 +16,7 @@ import { pilotFocusEnabledForOrganization } from "@/lib/pilot-navigation";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
 import { hirePayrollReviewEnabledForEmployer } from "@/lib/hcm-hire-payroll-review";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { firstPayrollInlineAvailable } from "@/lib/first-payroll-inline-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +83,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
   const data = await getDashboardData(companyOrganizationId);
   const pilotFocusEnabled = pilotFocusEnabledForOrganization(companyOrganizationId);
   const access = data.access;
+  const inlineFirstPayrollEnabled = isSelfServe && !!data.firstPayrollReadiness && await firstPayrollInlineAvailable();
 
   // A guessed worker deep link cannot bypass the People Home tenant allowlist,
   // SSO/custom-deny role gate, or the client-side authorized roster check.
@@ -119,7 +121,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       )}
       {!pilotFocusEnabled && peopleHomeEnabledForOrganization(data.selectedOrganization.id) && canOpenPeopleHome(access) && (<Link href={`/hcm/command-center?organizationId=${data.selectedOrganization.id}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>) }
     </div>
-    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} pilotFocusEnabled={pilotFocusEnabled} allowPeopleFocus={allowPeopleFocus} allowHirePayrollReview={allowHirePayrollReview} reviewTeamHref={canSeeMyTeam ? "/hcm/my-team?organizationId=" + data.selectedOrganization.id : null} />
+    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} inlineFirstPayrollEnabled={inlineFirstPayrollEnabled} pilotFocusEnabled={pilotFocusEnabled} allowPeopleFocus={allowPeopleFocus} allowHirePayrollReview={allowHirePayrollReview} reviewTeamHref={canSeeMyTeam ? "/hcm/my-team?organizationId=" + data.selectedOrganization.id : null} />
   </>;
 }
 

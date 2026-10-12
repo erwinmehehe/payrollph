@@ -1,9 +1,12 @@
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, getAccess } from "@/lib/access";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { firstPayrollInlineAvailable } from "@/lib/first-payroll-inline-gate";
 import { canReadFirstPayrollProgress, isJourneyKey, readJourneyProgress, saveJourneyProgress } from "@/lib/first-payroll-progress";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
+  if (!(await firstPayrollInlineAvailable()))
+    return Response.json({error:"First-payroll inline setup is unavailable."},{status:404});
   const user = await getSessionUser();
   if (!user) return Response.json({error:"Sign in required"},{status:401});
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
@@ -17,6 +20,8 @@ export async function GET(request: Request) {
   return Response.json({progress:await readJourneyProgress(organizationId)});
 }
 export async function PATCH(request: Request) {
+  if (!(await firstPayrollInlineAvailable()))
+    return Response.json({error:"First-payroll inline setup is unavailable."},{status:404});
   const origin = enforceSameOriginMutation(request);
   if (origin) return origin;
   const user = await getSessionUser();
