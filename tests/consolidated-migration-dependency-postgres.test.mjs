@@ -44,7 +44,7 @@ async function mustReject(client, sql, pgCode) {
   assert.equal(caught.code, pgCode);
 }
 
-test("0115 profiles then 0116 payout then 0119 Xendit: real SQL constraints, rollback, no money out", {
+test("0115 profiles then 0116 payout then 0119 Xendit: exact source, Postgres 16/18, no money out", {
   skip: !ciReady, timeout: 60_000,
 }, async () => {
   const client = new pg.Client({
@@ -52,21 +52,22 @@ test("0115 profiles then 0116 payout then 0119 Xendit: real SQL constraints, rol
   });
   await client.connect();
   let inTxn = false;
-  const identity = await client.query(
-    "SELECT current_database() AS db, current_user AS role, current_setting('server_version_num')::integer AS version",
-  );
-  const actual = identity.rows[0];
-  const expected = Number(process.env.PAYOUT_REHEARSAL_PG_MAJOR);
-  assert.equal(actual?.db, "app_db");
-  assert.equal(actual?.role, "postgres");
-  assert.ok(actual.version >= expected * 10000 && actual.version < (expected + 1) * 10000,
-    "Unexpected PostgreSQL version on disposable CI target");
-  const occupancy = await client.query(
-    "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','m','f')) AS occupied",
-  );
-  assert.equal(occupancy.rows[0]?.occupied, false,
-    "Non-empty public schema is not a disposable CI target");
   try {
+    // Verify disposable CI identity *before* even creating fictional tables.
+    const identity = await client.query(
+      "SELECT current_database() AS db, current_user AS role, current_setting('server_version_num')::integer AS version",
+    );
+    const info = identity.rows[0];
+    const expectedMajor = Number(process.env.PAYOUT_REHEARSAL_PG_MAJOR);
+    assert.ok(info?.db === "app_db" && info?.role === "postgres"
+      && info?.version >= expectedMajor * 10000
+      && info?.version < (expectedMajor + 1) * 10000,
+    "PAYOUT_TRAIN_DISPOSABLE_DATABASE_IDENTITY_INVALID");
+    const occupied = await client.query(
+      "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','m','f')) AS occupied",
+    );
+    assert.equal(occupied.rows[0]?.occupied, false,
+      "PAYOUT_TRAIN_DISPOSABLE_SCHEMA_NOT_EMPTY");
     await client.query("BEGIN");
     inTxn = true;
     for (const sql of [
@@ -162,4 +163,14 @@ test("0115 profiles then 0116 payout then 0119 Xendit: real SQL constraints, rol
     if(inTxn) { try{await client.query("ROLLBACK");}catch{} }
     await client.end();
   }
+});
+
+test("proposed train is source-only; no implicit money activation", () => {
+  const text = readFileSync("docs/engineering/pending-migration-release-train.md","utf8");
+  assert.match(text,/DO NOT RUN ON NEON MAIN/);
+  assert.match(text,/historical receipt/);
+  assert.match(text,/Original endpoint/);
+  const numbered = readFileSync("drizzle/0121_multi_entity_v2_scope_transfer.sql","utf8");
+  assert.doesNotMatch(numbered,/^\s*(?:BEGIN|COMMIT|ROLLBACK)\s*;/im);
+  assert.match(numbered,/worker_employment_events/);
 });
