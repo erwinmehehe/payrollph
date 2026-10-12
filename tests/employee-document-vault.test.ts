@@ -115,3 +115,31 @@ test("optional 201 file never counts as missing a required document", async () =
   assert.equal(isMandatoryDocumentMissing({ status: "submitted", mandatory: true }), false);
   assert.equal(isMandatoryDocumentMissing({ status: "waived", mandatory: true }), false);
 });
+
+
+test("private object uploads refuse overwrites and fail closed on storage precondition errors",async()=>{
+ const { putDocumentObject }=await import("../src/lib/document-object-storage");
+ const previous=process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED;
+ process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED="true";
+ try{
+  const key="private-documents/4/15/00000000-0000-4000-8000-000000000001";
+  const config={
+   endpoint:"https://objects.example.test",bucket:"private-files",region:"us-east-1",
+   accessKeyId:"SYNTHETIC_KEY",secretAccessKey:"synthetic-not-real",
+  };
+  const seen:RequestInit[]=[];
+  const mocked=async(_input:RequestInfo|URL,init?:RequestInit)=>{
+   seen.push(init??{});return new Response(null,{status:200});
+  };
+  await putDocumentObject(key,new Uint8Array([37,80,68,70]),"application/pdf",{
+   fetchImpl:mocked as typeof fetch,config,
+  });
+  assert.equal((seen[0].headers as Record<string,string>)["If-None-Match"],"*");
+  await assert.rejects(putDocumentObject(key,new Uint8Array([1]),"application/pdf",{
+   fetchImpl:(async()=>new Response(null,{status:412})) as typeof fetch,config,
+  }),/Private document upload failed/);
+ }finally{
+  if(previous===undefined)delete process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED;
+  else process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED=previous;
+ }
+});
