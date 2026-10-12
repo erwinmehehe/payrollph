@@ -114,9 +114,10 @@ connection-string query overrides fail **before Drizzle Kit starts**.
 Development using a remote Neon branch must use a reviewed, separately
 authorized migration procedure instead of a schema push.
 
-This guard does **not** protect direct invocations of `npx drizzle-kit push`,
-other ad hoc SQL clients, legacy request-time DDL or an authenticated person
-pointing a loopback proxy at a remote database. It is defense-in-depth, not
+The same check now runs from `drizzle.config.ts` when directly invoking
+`npx drizzle-kit push`, not just through npm. Other ad hoc SQL clients,
+legacy request-time DDL and an authenticated person pointing a loopback proxy
+at a remote database are **not** prevented by this check. It is defense-in-depth, not
 a deployment/cutover gate, journal adoption, DBA signature or proof of
 production database health. CI synthetic `db:push` still cannot establish
 live historical migration state or payroll accuracy.

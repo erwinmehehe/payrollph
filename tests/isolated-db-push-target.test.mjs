@@ -42,3 +42,12 @@ test("a CI job cannot redirect push to developer or unsandboxed database", () =>
   assert.throws(() => assertIsolatedDbPushTarget(local,
     { CI: "true" }), /DB_PUSH_CI_MUST_USE_SYNTHETIC_LOOPBACK_APP_DB/);
 });
+
+test("the direct Drizzle config path also guards push without disabling generate", async () => {
+  const { readFileSync } = await import("node:fs");
+  const config = readFileSync(new URL("../drizzle.config.ts", import.meta.url), "utf8");
+  assert.match(config, /import \\{ assertIsolatedDbPushTarget \\}/);
+  assert.match(config, /process\\.argv\\.slice\\(1\\)/);
+  assert.match(config, /arg === "push"/);
+  assert.doesNotMatch(config, /process\\.exit\\(/);
+});
