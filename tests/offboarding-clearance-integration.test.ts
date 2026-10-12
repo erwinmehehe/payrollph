@@ -131,6 +131,12 @@ test("separated worker access revocation is tenant-scoped and rollback-atomic", 
       assert.equal(result.revokedSessionCount, 1);
       assert.equal(result.revokedEmployerMembershipIds.length, 1);
     });
+    // A different employer cannot revoke the first employer's worker or
+    // manufacture cross-tenant audit evidence after the local release.
+    await assert.rejects(() => db.transaction(tx => revokeSeparatedEmployeeAccessTx(tx, {
+      organizationId: orgB.id, employeeId: worker.id, separationId: 123456,
+      actorUserId: actor.id, actorName: actor.name,
+    })), /OFFBOARDING_ACCESS_EMPLOYEE_NOT_SEPARATED/);
     const [locked] = await db.select().from(users).where(eq(users.id, login.id));
     const [revokedSession] = await db.select().from(sessions).where(eq(sessions.id, session.id));
     const memberships = await db.select().from(userOrganizations)
