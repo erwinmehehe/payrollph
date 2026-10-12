@@ -7,7 +7,7 @@
 The earlier investigation referenced a different connected account and incorrectly identified a legacy UUID/client schema as the PayrollPH production database. **That conclusion has been withdrawn.** The account owner reconnected the correct Neon workspace, and the current read-only findings are for:
 
 - Neon project: neon-almond-ridge (calm-wave-70219564), AWS us-east-1.
-- Branch: main (br-lucky-sound-b79i56jw), the only branch found; default/primary.
+- Branch: main (br-lucky-sound-b79i56jw), default/primary. Independent QA/rehearsal branches also exist; none were created or modified by this read-only assessment.
 - Database: neondb, PostgreSQL 18.6.
 - No Neon branch, database, schema, records, runtime flags or payments changed in this audit.
 
@@ -50,3 +50,21 @@ The repository contains historical duplicate filename numbers. Presence of an ob
 The source-only script scripts/audit-neon-schema-generation.mjs uses a separately scoped PRODUCTION_SCHEMA_AUDIT_DATABASE_URL. Its query inspects information_schema and to_regclass() only under a REPEATABLE READ READ ONLY transaction, then rolls back. It explicitly distinguishes the actual organization/integer generation from the unrelated UUID/client generation and detects missing 0117/0119 prerequisite tables. It emits no employee, payroll or banking row values. The current correct database is **NOT eligible for the numbered train**.
 
 The script is an independent diagnostic and is not yet automatically wired into the migration executor. Passing a catalog fingerprint can never by itself authorize DDL or payroll release. Exact-head CI and human review remain outstanding.
+
+## Direct connected-Neon verification (2026-10-12)
+
+Read-only checks through the authorized Neon connector targeted `calm-wave-70219564` / `br-lucky-sound-b79i56jw` / `neondb` (PostgreSQL 18.6). **112 public base tables**. No SQL writes, production migration, or feature activation.
+
+The new `scripts/lib/canonical-migration-base-tables.mjs` distinguishes source-declared **base table existence only** for the five numbered migrations:
+
+| Canonical SQL | Referenced base tables absent in live Neon | Assessment |
+| --- | --- | --- |
+| 0115 first payroll journey | None | Base table names present; NOT approved |
+| 0116 WFM roster rules | None | Base table names and checked effective-window columns present; NOT approved |
+| 0117 Xendit payout | payout_batches, payout_transfers, payout_batch_transfers, payout_profiles | BLOCKED |
+| 0118 WFM punch/photo evidence | None | Base table names present; NOT approved |
+| 0119 multi-entity historical transfer | payout_batches, payout_transfers, worker_employment_events | BLOCKED |
+
+The three migration-receipt / journal / cutover tables remain absent. The 0117/0119 prerequisites must be reconciled with **source history**, not fabricated using placeholder tables or false applied receipts. The 0119 cross-entity and payroll-history backfill remains review gated.
+
+`scripts/audit-neon-schema-generation.mjs` now produces a separate `canonicalTrain` structural target assessment in addition to the original fail-closed generation fingerprint, within the same read-only transaction. **Passing any structural preflight does not imply successful DDL application, tenant isolation, DBA acceptance, or approval to merge or deploy.**
