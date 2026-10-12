@@ -1,0 +1,52 @@
+openapi: 3.0.3
+info:
+  title: Linaw PayrollPH API v1 — governed read extensions
+  version: 1.1.0
+  description: >
+    New read endpoints are disabled unless API_V1_EXTENDED_READS_ENABLED=true.
+    Release authorization and API token scopes are separate controls. Journal CSV
+    is a proposed accounting export, never an actual transfer or statutory filing.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+paths:
+  /org-units:
+    get:
+      summary: Read tenant-scoped organization units
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200': { description: Paginated org units; employees:read scope required }
+        '403': { description: Insufficient token scope }
+  /payslips:
+    get:
+      summary: Read released payslip amounts (no bank or tax identifiers)
+      parameters:
+        - { name: employeeId, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: payrollRunId, in: query, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200': { description: Released payroll entries; payroll:read scope required }
+  /journal-entries:
+    get:
+      summary: Download a balanced, draft chart-of-accounts payroll journal
+      parameters:
+        - { name: startDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: endDate, in: query, required: true, schema: { type: string, format: date } }
+        - { name: legalEntityId, in: query, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200':
+          description: Balanced per-legal-entity journal CSV; payroll:read scope required
+          content:
+            text/csv:
+              schema: { type: string }
+        '409': { description: Unattributed or inconsistent payroll totals }
+  /events:
+    get:
+      summary: Read webhook delivery metadata without payload or secrets
+      responses:
+        '200': { description: Tenant-only delivery status; payroll:read scope required }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer

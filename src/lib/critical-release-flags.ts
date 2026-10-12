@@ -48,6 +48,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 consented POS source access and historical aggregate import",
     approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
   },
+  apiV1ExtendedReads: {
+    env: "API_V1_EXTENDED_READS_ENABLED",
+    owner: "Integrations",
+    risk: "P1 API access to employee, payroll and journal read models",
+    approval: "Scoped API token tenant-isolation evidence and accounting journal reconciliation",
+  },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
     owner: "Product",
