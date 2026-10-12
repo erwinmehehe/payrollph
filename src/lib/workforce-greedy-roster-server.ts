@@ -330,6 +330,9 @@ export async function previewEmployerGreedyRoster(input:{
     const workerLeaves=approvedLeavesByEmployee.get(worker.id)??[];
     const workerRoles=roleByEmployee.get(worker.id)??[];
     const restWeekday=convertRestDay(worker.restDay);
+    if(worker.restDay && restWeekday===null){
+      throw Error("Invalid employee designated rest-day evidence; do not suggest shifts.");
+    }
     const existingDays=days.filter(day=>day.date>=guardStart&&day.date<=guardEnd);
     const fairness=days.filter(day=>day.date>=workStart&&day.date<=endDate);
     const fairMinutes=fairness.reduce((sum,day)=>sum+day.segments.reduce((s,part)=>s+paidShift(part),0),0);
@@ -398,9 +401,14 @@ export async function previewEmployerGreedyRoster(input:{
   }
   const selected=policyRows[0];
   const guardrailPolicy=selected?{
-    minimumRestMinutes:selected.minimumRestMinutes,maxConsecutiveWorkingDays:selected.maxConsecutiveWorkingDays,
-    rollingSevenDayMinutes:selected.rollingSevenDayMinutes,active:selected.active,
-    enforcementMode:selected.enforcementMode==="block"?"block" as const:"advisory" as const,
+    // Zero-valued or disabled legacy guardrails must not silently remove
+    // this separately gated pilot's conservative scheduling safeguards.
+    minimumRestMinutes:Math.max(660,selected.minimumRestMinutes),
+    maxConsecutiveWorkingDays:selected.maxConsecutiveWorkingDays>0
+      ? Math.min(6,selected.maxConsecutiveWorkingDays):6,
+    rollingSevenDayMinutes:selected.rollingSevenDayMinutes>0
+      ? Math.min(2880,selected.rollingSevenDayMinutes):2880,
+    active:true,enforcementMode:"block" as const,
   }:{
     minimumRestMinutes:660,maxConsecutiveWorkingDays:6,rollingSevenDayMinutes:2880,
     enforcementMode:"block" as const,active:true,
