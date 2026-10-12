@@ -17,6 +17,10 @@ test("production boot rejects missing dedicated PII key even with bank and TOTP 
   try {
     Object.assign(process.env, { NODE_ENV: "production", NEXT_RUNTIME: "nodejs", PII_ENCRYPTION_KEY: "", BANK_DATA_ENCRYPTION_KEY: "11".repeat(32), TOTP_ENCRYPTION_KEY: "22".repeat(32) });
     await assert.rejects(register(), /PII_ENCRYPTION_KEY/);
+    process.env.PII_ENCRYPTION_KEY = "11".repeat(32);
+    await assert.rejects(register(), /must not reuse bank or TOTP/);
+    process.env.PII_ENCRYPTION_KEY = "22".repeat(32);
+    await assert.rejects(register(), /must not reuse bank or TOTP/);
     process.env.PII_ENCRYPTION_KEY = "33".repeat(32);
     await register();
   } finally {
