@@ -5965,6 +5965,8 @@ export const entityTransferRequests = pgTable("entity_transfer_requests", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [
   index("entity_transfer_org_employee_idx").on(table.organizationId, table.employeeId, table.status),
+  uniqueIndex("entity_transfer_scope_reference_unique").on(
+    table.organizationId, table.id, table.employeeId, table.fromLegalEntityId, table.toLegalEntityId),
   uniqueIndex("entity_transfer_one_open_unique").on(table.organizationId, table.employeeId)
     .where(sql`${table.status} in ('pending_approval','approved')`),
   check("entity_transfer_distinct_entity_check",
@@ -6038,6 +6040,10 @@ export const legalEntityStatutoryRegistrations = pgTable("legal_entity_statutory
   foreignKey({ name: "entity_versions_tenant_fk",
     columns: [table.organizationId, table.legalEntityId],
     foreignColumns: [legalEntities.organizationId, legalEntities.id] }),
+  foreignKey({ name: "entity_registration_source_request_fk",
+    columns: [table.organizationId, table.legalEntityId, table.sourceChangeId],
+    foreignColumns: [legalEntityProfileChangeRequests.organizationId,
+      legalEntityProfileChangeRequests.legalEntityId, legalEntityProfileChangeRequests.id] }),
 ]);
 
 /** Maker-checker queue. A change proposal is sealed at rest; APIs return only
@@ -6058,6 +6064,8 @@ export const legalEntityProfileChangeRequests = pgTable("legal_entity_profile_ch
   decidedAt: timestamp("decided_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [
+  uniqueIndex("entity_profile_request_scope_reference_unique").on(
+    table.organizationId, table.legalEntityId, table.id),
   uniqueIndex("legal_entity_profile_one_pending_unique").on(table.organizationId, table.legalEntityId)
     .where(sql`${table.status} = 'pending_approval'`),
   index("legal_entity_profile_request_idx").on(table.organizationId, table.legalEntityId, table.status),
@@ -6126,6 +6134,12 @@ export const legalEntityTransferLiabilityEvidence = pgTable("legal_entity_transf
   foreignKey({ name: "entity_transfer_liability_person_tenant_fk",
     columns: [table.organizationId, table.employeeId],
     foreignColumns: [employees.organizationId, employees.id] }),
+  foreignKey({ name: "entity_transfer_liability_approved_source_fk",
+    columns: [table.organizationId, table.transferRequestId, table.employeeId,
+      table.fromLegalEntityId, table.toLegalEntityId],
+    foreignColumns: [entityTransferRequests.organizationId, entityTransferRequests.id,
+      entityTransferRequests.employeeId, entityTransferRequests.fromLegalEntityId,
+      entityTransferRequests.toLegalEntityId] }),
 ]);
 
 
