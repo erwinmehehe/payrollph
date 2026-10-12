@@ -118,3 +118,16 @@ test("current main's highest migration, not the fork point, determines the next 
   assert.match(analyzeMigrationChanges(main,pending).errors.join("\n"), /expected drizzle\/0102_/);
   assert.deepEqual(analyzeMigrationChanges(main,[{status:"A", path:"drizzle/0102_new.sql"}]).errors,[]);
 });
+
+
+test("required CI fails conflicting SQL before db:push or any schema setup", () => {
+  const flow = readFileSync(".github/workflows/ci.yml", "utf8");
+  assert.match(flow, /fetch-depth: 0/);
+  assert.match(flow, /if: github\.event_name == 'pull_request'/);
+  assert.match(flow, /PR_BASE_REF:.*github\.event\.pull_request\.base\.ref/);
+  assert.match(flow, /PR_HEAD_SHA:.*github\.event\.pull_request\.head\.sha/);
+  const guardIndex = flow.indexOf("run: node scripts/check-sql-migration-history.mjs");
+  const schemaIndex = flow.indexOf("run: npm run db:push");
+  assert.ok(guardIndex > 0 && schemaIndex > guardIndex,
+    "migration validation must block the required CI job before schema setup");
+});
