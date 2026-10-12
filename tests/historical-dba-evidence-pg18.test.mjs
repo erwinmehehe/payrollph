@@ -20,7 +20,8 @@ test("exact catalog SQL executes on disposable PostgreSQL 18 and returns every k
    const keys=new Set(rows.map(x=>x.key));
    assert.deepEqual(keys,new Set(HISTORICAL_ITEMS.map(x=>x.key)));
    assert.ok(rows.every(x=>typeof x.present==="boolean"));
-   assert.ok(rows.some(x=>x.present===false));
+   // db:push can provide all objects already. The second test removes one
+   // inside a rollback-only transaction and proves missing-table detection.
  }finally{await client.end();}
 });
 
