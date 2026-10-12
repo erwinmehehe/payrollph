@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { approvedReimbursementAmount, reimbursementEligible, reimbursementSettlementDecision, reimbursementLineTaxMatches } from "../src/lib/spend-payroll-reimbursement";
+import { approvedReimbursementAmount, reimbursementEligible, reimbursementSettlementDecision, reimbursementLineTaxMatches, receiptObjectIdentityMatches } from "../src/lib/spend-payroll-reimbursement";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 const claim = { status: "approved", payrollRunId: null, amount: "500.00", approvedAmount: "450.01",
   categoryPolicyId: 8, receiptStorageKey: "private-documents/1/2/00000000-0000-4000-8000-000000000001",
@@ -32,4 +32,15 @@ test("payslip tax marker cannot drift after a category policy changes", () => {
   assert.equal(reimbursementLineTaxMatches(true, ["Non-taxable reimbursement"]), false);
   assert.equal(reimbursementLineTaxMatches(false, []), false);
   assert.equal(reimbursementLineTaxMatches(true, ["Taxable reimbursement", "Non-taxable reimbursement"]), false);
+});
+
+test("receipt signed URLs require exact claim tenant and employee object prefix",()=>{
+ const key="private-documents/44/90/00000000-0000-4000-8000-000000000001";
+ assert.equal(receiptObjectIdentityMatches(key,44,90),true);
+ assert.equal(receiptObjectIdentityMatches(key,45,90),false);
+ assert.equal(receiptObjectIdentityMatches(key,44,91),false);
+ for(const bad of ["private-documents/44/90/../../45/91/00000000-0000-4000-8000-000000000001",
+  "private-documents/44/90/00000000-0000-0000-0000-000000000001",
+  "private-documents/44/company/00000000-0000-4000-8000-000000000001",
+ ])assert.equal(receiptObjectIdentityMatches(bad,44,90),false,bad);
 });
