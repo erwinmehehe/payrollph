@@ -1,5 +1,6 @@
 import { and, count, eq, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { auditChainRuntimeProtectionReady } from "@/lib/audit-chain-protection-readiness";
 import { auditEvents, contractors, employees, invoices, outbox, payrollEntries, subscriptions, users } from "@/db/schema";
 import { bankEncryptionConfigured, bankEncryptionKeySource } from "@/lib/bank-account-crypto";
 import { governmentIdEncryptionConfigured } from "@/lib/government-id-crypto";
@@ -28,6 +29,8 @@ const enabled = (name: string) => process.env[name] === "true";
 
 export async function buildReadinessPayload() {
   await ensureCoreCompatibilitySchema();
+  // Read only: audit protection is an unworkaroundable production-pilot release gate.
+  const auditChainProtectionReady = await auditChainRuntimeProtectionReady();
   const [{ value: userCount }] = await db.select({ value: count() }).from(users);
   const [{ value: queuedMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "queued"));
   const [{ value: sentMail }] = await db.select({ value: count() }).from(outbox).where(eq(outbox.status, "sent"));
@@ -173,6 +176,15 @@ export async function buildReadinessPayload() {
     );
 
   const gates: Gate[] = [
+    {
+      key: "audit-chain-protection",
+      label: "Tamper-evident audit chain and isolated runtime DB role",
+      ready: auditChainProtectionReady,
+      detail: auditChainProtectionReady
+        ? "Expected audit trigger, sealer and hash function exist; the current DB session lacks audit mutation, ownership and DDL authority. Independent DBA verification is still required for other deployment roles."
+        : "Audit-chain objects or runtime database privilege isolation are missing or unverified. Keep real-employer payroll pilot and production release blocked pending authorized DBA remediation.",
+      blocks: auditChainProtectionReady ? "none" : "launch",
+    },
     {
       key: "production-security-config",
       label: "Production security configuration",
