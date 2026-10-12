@@ -100,6 +100,14 @@ export function recordOutcome(session, id, status, evidence = "", detail = "", a
 
 export function summarize(session) {
   assert.equal(session?.version, 1, "Unknown UAT session");
+  // The local session file is editable JSON. Never allow a tampered source SHA
+  // to become a path component during archival or to label untrusted evidence.
+  assert.match(session?.sourceSha ?? "", /^[a-f0-9]{40}$/, "Invalid stored source SHA; evidence must be archived manually");
+  // Owner self-reports cannot grant any of the independent external gates.
+  for (const gate of ["independentHumanAccepted", "realEmployerReconciled", "hardwareCertified",
+    "agencyAccepted", "moneyMoved", "productionAuthorized"]) {
+    assert.equal(session[gate], false, "Local UAT cannot assert external acceptance: " + gate);
+  }
   const counts = Object.fromEntries(STATES.map(s => [s, 0]));
   for (const scenario of SCENARIOS) {
     const status = session.outcomes?.[scenario.id]?.status;
