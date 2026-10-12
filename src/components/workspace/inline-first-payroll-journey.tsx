@@ -35,6 +35,7 @@ export function InlineFirstPayrollJourney({ organizationId, workflows, onRefresh
   const [schedule, setSchedule] = useState<JourneySchedule>({ periodStart: "", periodEnd: "", payDate: "" });
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("payroll");
+  const previewEpoch = useRef(0);
   const panelRef = useRef<HTMLDivElement>(null);
   const load = useCallback(async (signal?: AbortSignal) => {
     const res = await fetch(`/api/first-payroll-journey?organizationId=${organizationId}`, { cache: "no-store", signal });
@@ -44,6 +45,7 @@ export function InlineFirstPayrollJourney({ organizationId, workflows, onRefresh
   }, [organizationId]);
   useEffect(() => {
     const controller = new AbortController();
+    previewEpoch.current++;
     void load(controller.signal).then(body => {
       if (controller.signal.aborted) return;
       setSnapshot(body); setPreview(null);
@@ -52,7 +54,7 @@ export function InlineFirstPayrollJourney({ organizationId, workflows, onRefresh
       const assigned = body.progress.filter(p => p.ownerRole === body.role).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
       if (assigned && FIRST_PAYROLL_STEPS.some(s => s.key === assigned.step)) setActive(current => current ?? assigned.step as StepKey);
     }).catch(e => { if (!controller.signal.aborted) setError(e.message); });
-    return () => controller.abort();
+    return () => { previewEpoch.current++; controller.abort(); };
   }, [load, revision]);
   useEffect(() => { if (active) panelRef.current?.focus(); }, [active]);
   async function request(url: string, method: string, body?: object) {
@@ -62,16 +64,21 @@ export function InlineFirstPayrollJourney({ organizationId, workflows, onRefresh
     return payload;
   }
   async function mutate(action: () => Promise<unknown>) {
+    previewEpoch.current++;
     setBusy(true); setError(""); setPreview(null);
     try { await action(); setSnapshot(await load()); await onRefresh(); }
     catch (e) { setError(e instanceof Error ? e.message : "Action failed."); }
     finally { setBusy(false); }
   }
   async function inspect() {
+    const epoch = ++previewEpoch.current;
     setBusy(true); setError(""); setPreview(null);
-    try { setPreview(await request(`/api/first-payroll-journey/preview?organizationId=${organizationId}`, "GET")); }
-    catch (e) { setError(e instanceof Error ? e.message : "Preview failed."); }
-    finally { setBusy(false); }
+    try {
+      const result = await request(`/api/first-payroll-journey/preview?organizationId=${organizationId}`, "GET");
+      if (epoch === previewEpoch.current) setPreview(result);
+    } catch (e) {
+      if (epoch === previewEpoch.current) setError(e instanceof Error ? e.message : "Preview failed.");
+    } finally { setBusy(false); }
   }
   if (!snapshot) return <section aria-label="Inline first payroll"><p role="status">{error || "Loading tenant journey…"}</p></section>;
   const storedSchedule = snapshot.progress.find(p => p.step === "company")?.data.schedule;
@@ -95,7 +102,7 @@ export function InlineFirstPayrollJourney({ organizationId, workflows, onRefresh
           <h3>{step.title}</h3><p>{step.detail}</p><p className="text-xs">{step.state === "complete" ? "Recorded" : step.key === "time" ? "Authorized human review needed" : "Remaining"}</p>
           <p className="text-sm">Owner: {role} · {names.join(", ") || "No member assigned"}</p>
           {progress && <p className="text-xs">Last updated by {progress.updatedBy}</p>}
-          <button type="button" className="secondary-button" aria-expanded={active === step.key} aria-controls="first-payroll-panel" onClick={() => { setActive(step.key); setPreview(null); }}>{step.actionLabel}</button>
+          <button type="button" className="secondary-button" aria-expanded={active === step.key} aria-controls="first-payroll-panel" onClick={() => { previewEpoch.current++; setActive(step.key); setPreview(null); }}>{step.actionLabel}</button>
           {step.state !== "complete" && <button type="button" disabled={busy} className="first-payroll-link" onClick={() => void mutate(() => request("/api/first-payroll-journey", "PATCH", { step: step.key, ownerRole: step.ownerRole }))}>Send to {step.ownerRole}</button>}
         </li>;
       })}

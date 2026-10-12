@@ -71,7 +71,7 @@ try {
   await dialog.getByLabel("Account number").fill("1234567890");
   await dialog.getByLabel("Monthly rate").fill("30000");
   await dialog.getByLabel("Start date").fill("2026-10-01");
-  await dialog.getByLabel("Rest day", { exact: true }).selectOption("Sunday");
+  await dialog.getByLabel(/^Rest day/).selectOption("Sunday");
   await dialog.getByRole("button", { name: "Create & onboard" }).click();
   await dialog.waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "Review attendance", exact: true }).click();
