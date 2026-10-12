@@ -1,3 +1,5 @@
+import { enhancedPunchEnabled } from "@/lib/workforce-punch-evidence";
+import { worksitePunchPolicies } from "@/db/schema";
 import { and, asc, eq, gte, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -161,6 +163,11 @@ export async function GET(request: Request) {
     ? await db.select().from(worksiteGeofenceBoundaries)
         .where(eq(worksiteGeofenceBoundaries.organizationId, organizationId))
     : [];
+  const enhancedEnabled = enhancedPunchEnabled();
+  const photoPolicies = enhancedEnabled
+    ? await db.select().from(worksitePunchPolicies).where(eq(worksitePunchPolicies.organizationId,organizationId))
+    : [];
+  const photoModeByWorksite = new Map(photoPolicies.map(policy=>[policy.worksiteId,policy.photoMode]));
   const boundaryByWorksite = new Map(boundaryRows.map((row) => [row.worksiteId, row]));
   const visibleWorksites = siteRows.filter((site) => worksiteVisibleToScope(site, access)).map((site) => {
     const boundary = boundaryByWorksite.get(site.id);
@@ -170,6 +177,7 @@ export async function GET(request: Request) {
       geofenceLongitude: access.companyWide ? boundary?.longitude ?? null : null,
       geofenceRadiusM: access.companyWide ? boundary?.radiusMeters ?? null : null,
       geofenceConfigured: boundary !== undefined,
+      punchPhotoMode: photoModeByWorksite.get(site.id) ?? "off",
     };
   });
   const visibleWorksiteIds = new Set(visibleWorksites.map((site) => site.id));
@@ -177,6 +185,7 @@ export async function GET(request: Request) {
   return Response.json({
     worksites: visibleWorksites,
     geofencePilotEnabled,
+    enhancedPunchEnabled: enhancedEnabled,
     arrangements: arrangementRows.filter((row) => visibleEmployeeIds.has(row.employeeId)),
     authorizations: clearanceRows.filter((row) => visibleEmployeeIds.has(row.employeeId) && visibleWorksiteIds.has(row.worksiteId)),
     assignments: assignmentRows.filter((assignment) =>
@@ -220,6 +229,21 @@ export async function POST(request: Request) {
     windowMs: 5 * 60_000,
   });
   if (rateDenied) return rateDenied;
+
+  if (action === "configure_punch_photo") {
+    if(!enhancedPunchEnabled())return Response.json({error:"Not found."},{status:404});
+    if(!access.companyWide)return Response.json({error:"Company-wide authority required."},{status:403});
+    const worksiteId=Number(body.worksiteId),photoMode=String(body.photoMode??""),reason=String(body.reason??"").trim();
+    if(!Number.isSafeInteger(worksiteId)||worksiteId<=0||!["off","optional","required"].includes(photoMode)||reason.length<10)
+      return Response.json({error:"Choose a worksite, policy and reason (10+ characters)."},{status:400});
+    const scoped=await scopedWorksite(user.id,organizationId,worksiteId);
+    if(scoped.denied)return scoped.denied;
+    await db.insert(worksitePunchPolicies).values({organizationId,worksiteId,photoMode,updatedByUserId:user.id,updatedAt:new Date()})
+      .onConflictDoUpdate({target:worksitePunchPolicies.worksiteId,set:{photoMode,updatedByUserId:user.id,updatedAt:new Date()}});
+    await recordAuditEvent({organizationId,actor:user.name,action:"Worksite selfie policy changed",resource:String(worksiteId),
+      metadata:{worksiteId,photoMode,reason}});
+    return Response.json({ok:true,worksiteId,photoMode});
+  }
 
   if (action === "configure_geofence" || action === "disable_geofence") {
     if (!geofencePilotEnabledForOrganization(organizationId)) {
