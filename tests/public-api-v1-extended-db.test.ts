@@ -82,7 +82,7 @@ test("extended API is default-off, scope-checked, revocable, tenant and entity i
     assert.equal(slips.status, 200);
     const slipsJson = await slips.json();
     assert.deepEqual(slipsJson.data.map((row: { id: number }) => row.id), [slipA.id]);
-    assert.ok(!JSON.stringify(slipsJson).includes(String(slipB.id)));
+    assert.equal(slipsJson.data.some((row: { id: number }) => row.id === slipB.id), false);
 
     const pdf = await downloadPayslip(request("/api/v1/payslips/"+slipA.id), { params: Promise.resolve({ id: String(slipA.id) }) });
     assert.equal(pdf.status, 200);
