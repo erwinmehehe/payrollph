@@ -2,10 +2,10 @@
 
 import { ArrowRight, Check, CircleAlert, ShieldCheck, UsersRound, WalletCards } from "lucide-react";
 import type { FirstPayrollReadiness as FirstPayrollReadinessState } from "@/lib/first-payroll-readiness";
-import { buildFirstPayrollJourney, type FirstPayrollKey } from "@/lib/first-payroll-journey";
+import { buildFirstPayrollJourney, FIRST_PAYROLL_STEPS, type FirstPayrollKey } from "@/lib/first-payroll-journey";
 import { FirstPayrollInlinePanel } from "./first-payroll-inline-panel";
-import { useState } from "react";
-import type { DashboardData } from "./types";
+import { useEffect, useState } from "react";
+import type { DashboardData, Notify } from "./types";
 
 export function FirstPayrollReadinessCard({
   readiness,
@@ -16,6 +16,10 @@ export function FirstPayrollReadinessCard({
   guided = false,
   data,
   onRefresh,
+  onDecide,
+  canDecide = false,
+  canManageDelegations = false,
+  notify,
 }: {
   readiness: FirstPayrollReadinessState;
   onPage: (page: string) => void;
@@ -25,14 +29,41 @@ export function FirstPayrollReadinessCard({
   guided?: boolean;
   data?: DashboardData;
   onRefresh?: () => Promise<void>;
+  onDecide?: (id: number, status: "Approved" | "Declined") => Promise<void>;
+  canDecide?: boolean;
+  canManageDelegations?: boolean;
+  notify?: Notify;
 }) {
   const [opened,setOpened]=useState<FirstPayrollKey|null>(null);
+  const [progress,setProgress]=useState<{stepOwners?:Record<string,string>;completedSteps?:Record<string,{byUserId:number;at:string;periodStart?:string;periodEnd?:string}>}|null>(null);
+  const organizationId=data?.selectedOrganization.id;
+  useEffect(()=>{
+    if(!guided||!organizationId)return;
+    let cancelled=false;
+    void fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"})
+      .then(r=>r.ok?r.json():null)
+      .then(p=>{if(!cancelled)setProgress(p?.progress??null);})
+      .catch(()=>{if(!cancelled)setProgress(null);});
+    return ()=>{cancelled=true;};
+  },[organizationId,guided]);
+  async function reloadProgress(){
+    if(!organizationId)return;
+    const response=await fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"});
+    if(response.ok){const result=await response.json();setProgress(result.progress??null);}
+  }
   // Keep the export/filing handoff visible after the first run is released.
   // Once a second run exists, the employer has completed the initial journey.
   if (readiness.firstPayrollReleased && readiness.payrollRunCount > 1) return null;
 
   const percent = Math.round((readiness.completed / readiness.total) * 100);
-  const journey = buildFirstPayrollJourney(readiness);
+  const journey = buildFirstPayrollJourney(readiness).map(step=>{
+    const recorded=progress?.completedSteps?.[step.key];
+    const state=guided && (step.key==="company" || step.key==="time")
+      ? recorded ? "complete" : step.key==="company" ? "available" : step.state
+      : step.state;
+    return {...step,state};
+  });
+  const defaultOwners = Object.fromEntries(FIRST_PAYROLL_STEPS.map(step=>[step.key,step.owner])) as Record<FirstPayrollKey,string>;
 
   return (
     <section className="first-payroll-card" aria-label="First payroll setup readiness">
@@ -67,12 +98,13 @@ export function FirstPayrollReadinessCard({
               </span>
             </div>
             <p style={{ fontSize: 12, margin: "8px 0" }}>{step.detail}</p>
-            {step.state !== "complete" && data && onRefresh && (
+            <p className="text-xs" style={{color:"var(--muted)"}}>Responsible: {progress?.stepOwners?.[step.key]??defaultOwners[step.key]}</p>
+            {data && onRefresh && (
               <button type="button" className="first-payroll-link" aria-expanded={opened===step.key} onClick={() => setOpened(current=>current===step.key?null:step.key)}>
                 {opened===step.key?"Close panel":step.actionLabel} <ArrowRight size={13} />
               </button>
             )}
-            {opened===step.key&&data&&onRefresh&&<FirstPayrollInlinePanel key={step.key} step={step.key} data={data} onRefresh={onRefresh}/>}
+            {opened===step.key&&data&&onRefresh&&<FirstPayrollInlinePanel key={step.key} step={step.key} data={data} onRefresh={onRefresh} onProgressUpdate={reloadProgress} onDecide={onDecide} canDecide={canDecide} canManageDelegations={canManageDelegations} notify={notify}/>}
           </li>
         ))}
       </ol>}
@@ -116,7 +148,7 @@ export function FirstPayrollReadinessCard({
         {readiness.ready && allowedPages.includes(readiness.firstPayrollReleased ? "Exports" : "Payroll") && (
           <button
             className="primary-button"
-            onClick={readiness.firstPayrollReleased
+            onClick={guided ? () => setOpened(readiness.firstPayrollReleased ? "exports" : "payroll") : readiness.firstPayrollReleased
               ? () => onPage("Exports")
               : readiness.firstPayrollStarted ? () => onPage("Payroll") : onNewRun}
           >

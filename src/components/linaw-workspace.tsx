@@ -475,9 +475,13 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
                 readiness={data.firstPayrollReadiness}
-                guided={isSelfServeCustomer}
+                guided={isSelfServeCustomer || data.selectedOrganization.moduleVisibility === "core_only"}
                 data={data}
                 onRefresh={refresh}
+                onDecide={decideTask}
+                canDecide={canDecideApprovals}
+                canManageDelegations={canManageDelegations}
+                notify={notify}
                 allowedPages={availablePages}
                 onSettings={setSettingsInitialTab}
                 onPage={setPage}
