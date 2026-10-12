@@ -72,6 +72,10 @@ function fakeClient(f, opts = {}) {
       if (sql.includes('AS "receipts"')) return { rows: [{
         receipts: true, cutover: true, journal: true,
       }] };
+      if (sql.includes('AS "pathPrimaryKey"')) return { rows: [{
+        pathPrimaryKey: true, numberUnique: true, cutoverPrimaryKey: true,
+        ...(opts.constraints ?? {}),
+      }] };
       if (sql.includes("FROM public.payrollph_migration_cutover")) return { rows: [f.cutover] };
       if (sql.includes("FROM public.payrollph_release_migration_receipts")) return { rows: f.receipts };
       if (sql.includes("FROM public.payrollph_schema_migrations")) return { rows: state.applied };
@@ -265,6 +269,22 @@ test("plan rejects overprivileged audit accounts and mismatched target databases
         runReviewedMigrationOnClient({ ...base, client: fakeClient(f, { identity }) }),
         /DATABASE_ROLE_OR_IDENTITY_REJECTED/,
       );
+    }
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("missing uniqueness or primary-key constraints block even a read-only plan", async () => {
+  const f = fixture();
+  try {
+    for (const constraints of [
+      { pathPrimaryKey: false }, { numberUnique: false }, { cutoverPrimaryKey: false },
+    ]) {
+      await assert.rejects(() => runReviewedMigrationOnClient({
+        client: fakeClient(f, { constraints }),
+        inventory: f.inventory, sourceDirectory: f.directory,
+        mode: "plan", requestedPath: f.target.path,
+        expectedSha256: f.target.sha256, expectedDatabaseName: "app_db",
+      }), /LEDGER_CONSTRAINTS_MISSING/);
     }
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
