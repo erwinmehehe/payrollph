@@ -9,7 +9,7 @@ export function validateProtectedRestoreRequest(values) {
   const {
     eventName,repository,ref,githubSha,reviewedSha,
     workflowEnvironment,changeRef,confirmation,actor,allowedActors,
-    archiveSourceSha,objectKey,expectedEncryptedSha256,
+    archiveSourceSha,objectKey,s3VersionId,expectedEncryptedSha256,
     awsRegion,s3Bucket,
   }=values;
   if(eventName!=="workflow_dispatch" ||
@@ -29,6 +29,8 @@ export function validateProtectedRestoreRequest(values) {
      !/^[a-f0-9]{64}$/.test(expectedEncryptedSha256??"") ||
      typeof objectKey!=="string" ||
      !/^payrollph\/immutable-backups(?:\/[a-z0-9-]{1,40})?\/backup-run-[0-9]{1,16}-attempt-[1-9][0-9]{0,4}-[a-f0-9]{12}\.pgdump\.age$/.test(objectKey) ||
+     typeof s3VersionId!=="string" || !/^[A-Za-z0-9+/_=-]{1,256}$/.test(s3VersionId) ||
+     s3VersionId==="null" || s3VersionId==="None" ||
      !objectKey.endsWith("-"+archiveSourceSha.slice(0,12)+".pgdump.age") ||
      awsRegion!==PINNED_SOURCE.awsRegion ||
      typeof s3Bucket!=="string" ||
@@ -37,6 +39,7 @@ export function validateProtectedRestoreRequest(values) {
   }
   return Object.freeze({
     objectKey,
+    s3VersionId,
     expectedEncryptedSha256,
     archiveSourceSha,
     mode:"isolated-local-postgres-18-only",
