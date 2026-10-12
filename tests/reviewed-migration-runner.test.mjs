@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 import { inventoryMigrationSources } from "../scripts/lib/migration-receipt-audit.mjs";
+import { REQUIRED_MODERN_SCHEMA_COLUMNS } from "../scripts/lib/schema-lineage-preflight.mjs";
 import {
   cutoverSourceManifest, evaluateReviewedMigration, loadReviewedSql,
   runReviewedMigrationOnClient,
@@ -69,6 +70,11 @@ function fakeClient(f, opts = {}) {
         canReadSensitiveRows: false,
         ...(opts.identity ?? {}),
       }] };
+      if (sql.includes('AS "matchesExpectedType"')) return { rows:
+        REQUIRED_MODERN_SCHEMA_COLUMNS.map(([tableName, columnName]) => ({
+          tableName, columnName, matchesExpectedType: !opts.legacyLineage,
+        })),
+      };
       if (sql.includes('AS "receipts"')) return { rows: [{
         receipts: true, cutover: true, journal: true,
       }] };
@@ -288,5 +294,23 @@ test("missing uniqueness or primary-key constraints block even a read-only plan"
         expectedSha256: f.target.sha256, expectedDatabaseName: "app_db",
       }), /LEDGER_CONSTRAINTS_MISSING/);
     }
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("P0-4 live Neon legacy lineage cannot be treated as a numbered migration baseline", async () => {
+  const f = fixture();
+  try {
+    const db = fakeClient(f, { legacyLineage: true });
+    await assert.rejects(() => runReviewedMigrationOnClient({
+      client: db, inventory: f.inventory, sourceDirectory: f.directory,
+      mode: "apply", requestedPath: f.target.path, expectedSha256: f.target.sha256,
+      expectedDatabaseName: "app_db", operator: "reviewed-operator",
+      approvalRef: "DBA-CHANGE-2026-001",
+    }), /REVIEWED_MIGRATION_LEGACY_SCHEMA_INCOMPATIBLE/);
+    assert.ok(db.calls.some(sql => sql.includes('AS "matchesExpectedType"')),
+      "must inspect PostgreSQL catalogs for modern integer IDs");
+    assert.ok(!db.calls.some(sql => sql.startsWith("INSERT INTO")));
+    assert.equal(db.state.applied.length, 0);
+    assert.equal(db.calls.at(-1), "ROLLBACK");
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
