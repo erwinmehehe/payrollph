@@ -63,9 +63,14 @@ export async function GET(request:Request) {
     try{return new Response(new Uint8Array(decryptPunchPhoto(photo.sealedPhoto)),{headers:{...privateHeaders,"Content-Type":"image/jpeg"}});}
     catch{return Response.json({error:"Cannot decrypt image."},{status:503,headers:privateHeaders});}
   }
+  // Scope BEFORE the 100-row page limit. Otherwise company-wide rows can
+  // starve a unit-scoped manager's queue indefinitely.
+  const scopeClause=context.access?.companyWide?undefined:
+    context.access?.orgUnitId==null?sql`false`:eq(employees.orgUnitId,context.access.orgUnitId);
   const rows=await db.select({submission:workforcePunchSubmissions,orgUnitId:employees.orgUnitId,name:employees.firstName,lastName:employees.lastName})
     .from(workforcePunchSubmissions).innerJoin(employees,and(eq(employees.id,workforcePunchSubmissions.employeeId),eq(employees.organizationId,organizationId)))
-    .where(and(eq(workforcePunchSubmissions.organizationId,organizationId),eq(workforcePunchSubmissions.status,"pending")))
+    .where(and(eq(workforcePunchSubmissions.organizationId,organizationId),
+      eq(workforcePunchSubmissions.status,"pending"),scopeClause))
     .orderBy(desc(workforcePunchSubmissions.id)).limit(100);
   return Response.json({submissions:rows.filter(row=>assertScope(context.access,row.orgUnitId).ok).map(row=>({
     ...row.submission,deviceDigest:undefined,name:row.name+" "+row.lastName,
