@@ -146,6 +146,8 @@ jobs:
         run: npx tsx scripts/first-payroll-mobile-synthetic-fixture.ts
       - name: Test first-payroll guide on mobile with owner and payroll roles
         run: node scripts/first-payroll-mobile-synthetic-browser.mjs
+      - name: Test zero-employee tenant through inline owner, HR and payroll journeys
+        run: node scripts/first-payroll-zero-tenant-browser.mjs
       - name: Upload sanitized mobile engineering receipt
         if: always()
         uses: actions/upload-artifact@v7
@@ -154,6 +156,8 @@ jobs:
           path: |
             qa-artifacts/first-payroll-mobile-synthetic.json
             qa-artifacts/first-payroll-mobile-failed.png
+            qa-artifacts/first-payroll-zero-tenant-browser.json
+            qa-artifacts/first-payroll-zero-tenant-failed.png
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload synthetic-only failure screenshot
