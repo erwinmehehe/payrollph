@@ -29,7 +29,7 @@ async function authorize(userId: number, organizationId: number, employeeId: num
     if (!worker) return { denied: error("Employee is not linked to this workspace.",403) };
     return { access, employeeId, hr: false as const };
   }
-  if (!["owner","admin","bookkeeper","hr"].includes(access.role))
+  if (!["owner","admin","hr"].includes(access.role))
     return { denied: error("People administrators only.",403) };
   return { access, employeeId: null, hr: true as const };
 }
@@ -132,7 +132,7 @@ export async function PATCH(request: Request) {
     const [member] = await db.select({ userId: userOrganizations.userId }).from(userOrganizations).where(and(
       eq(userOrganizations.organizationId, organizationId), eq(userOrganizations.userId, assignee),
       eq(userOrganizations.active, true),
-      sql`${userOrganizations.role} IN ('owner','admin','bookkeeper','hr')`,
+      sql`${userOrganizations.role} IN ('owner','admin','hr')`,
     )).limit(1);
     if (!member) return error("Assignee must be an active member of the same workspace.",422);
   }
