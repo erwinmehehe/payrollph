@@ -94,6 +94,10 @@ test("backup script uses direct Neon reader, encryption pipe, immutable object l
   }
   assert.match(sh,/BACKUP_S3_PUBLIC_ACCESS_NOT_BLOCKED/);
   assert.match(sh,/--object-lock-mode COMPLIANCE/);
+  // Object Lock requires the raw archive SHA-256 as a base64 checksum.
+  assert.match(sh,/--checksum-algorithm SHA256/);
+  assert.match(sh,/--checksum-sha256/);
+  assert.match(sh,/Buffer\.from\(process\.argv\[1\], "hex"\)\.toString\("base64"\)/);
   assert.match(sh,/saved_version=/);
   assert.match(sh,/BACKUP_STORED_OBJECT_CONTROLS_NOT_VERIFIED/);
   assert.match(sh,/BACKUP_RETENTION_SHORTER_THAN_REQUESTED/);
