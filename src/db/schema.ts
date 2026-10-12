@@ -1747,12 +1747,30 @@ export const leaveBalances = pgTable("leave_balances", {
   uniqueIndex("leave_balance_unique").on(table.employeeId, table.leaveType, table.year),
 ]);
 
+export const expenseCategoryPolicies = pgTable("expense_category_policies", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  category: varchar("category", { length: 60 }).notNull(),
+  taxable: boolean("taxable").notNull(),
+  reviewReference: varchar("review_reference", { length: 200 }).notNull(),
+  reviewedByUserId: integer("reviewed_by_user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex("expense_category_policies_org_category").on(table.organizationId, table.category)]);
+
 export const expenseClaims = pgTable("expense_claims", {
   id: serial("id").primaryKey(),
   submittedByUserId: integer("submitted_by_user_id").references(() => users.id, { onDelete: "set null" }),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   category: varchar("category", { length: 60 }).notNull(),
+  categoryPolicyId: integer("category_policy_id").references(() => expenseCategoryPolicies.id),
+  taxable: boolean("taxable").notNull().default(false),
+  approvedAmount: numeric("approved_amount", { precision: 12, scale: 2 }),
+  receiptStorageKey: varchar("receipt_storage_key", { length: 512 }),
+  receiptSha256: varchar("receipt_sha256", { length: 64 }),
+  receiptMime: varchar("receipt_mime", { length: 100 }),
+  receiptFileName: varchar("receipt_file_name", { length: 200 }),
+  receiptScanNote: varchar("receipt_scan_note", { length: 240 }),
   description: varchar("description", { length: 240 }).notNull(),
   amount: numeric("amount", { precision: 12, scale: 2 }).notNull(),
   incurredOn: date("incurred_on").notNull(),

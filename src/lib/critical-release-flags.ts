@@ -54,6 +54,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 consented POS source access and historical aggregate import",
     approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
   },
+  spendPayroll: {
+    env: "SPEND_PAYROLL_REIMBURSEMENTS_ENABLED",
+    owner: "Payroll and Finance",
+    risk: "P0 taxable reimbursements, receipt evidence, duplicate payouts",
+    approval: "Isolated employer payroll comparison and independent expense-review acceptance",
+  },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
     owner: "Product",
