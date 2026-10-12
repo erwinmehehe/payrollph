@@ -6,6 +6,9 @@ on:
       - "scripts/lib/reviewed-migration-runner.mjs"
       - "scripts/lib/historical-catalog-gate.mjs"
       - "scripts/lib/schema-lineage-preflight.mjs"
+      - "scripts/lib/database-generation-fingerprint.mjs"
+      - "scripts/lib/foundation-migration-objects.mjs"
+      - "scripts/audit-neon-schema-generation.mjs"
       - "tests/schema-lineage-preflight.test.mjs"
       - "tests/historical-catalog-gate.test.mjs"
       - "scripts/run-reviewed-migration.mjs"
@@ -18,6 +21,9 @@ on:
       - "scripts/lib/reviewed-migration-runner.mjs"
       - "scripts/lib/historical-catalog-gate.mjs"
       - "scripts/lib/schema-lineage-preflight.mjs"
+      - "scripts/lib/database-generation-fingerprint.mjs"
+      - "scripts/lib/foundation-migration-objects.mjs"
+      - "scripts/audit-neon-schema-generation.mjs"
       - "tests/schema-lineage-preflight.test.mjs"
       - "tests/historical-catalog-gate.test.mjs"
       - "scripts/run-reviewed-migration.mjs"
@@ -70,6 +76,7 @@ jobs:
           node --check scripts/lib/schema-lineage-preflight.mjs
           node --check scripts/run-reviewed-migration.mjs
           node --test tests/schema-lineage-preflight.test.mjs tests/reviewed-migration-runner.test.mjs tests/historical-catalog-gate.test.mjs
+          node --test tests/database-generation-fingerprint.test.mjs tests/foundation-migration-objects.test.mjs tests/canonical-migration-base-tables.test.mjs
       - name: PostgreSQL transaction, ledger, concurrency and rollback rehearsal
         run: node --test tests/reviewed-migration-postgres.test.mjs
       - name: Source-only inventory remains non-mutating

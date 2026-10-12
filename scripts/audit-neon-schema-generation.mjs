@@ -20,6 +20,15 @@ import {
   FOUNDATION_OBJECTS_SQL, assessFoundationObjects,
 } from "./lib/foundation-migration-objects.mjs";
 
+export function schemaAuditReviewDecision(assessment, canonicalTrain, foundations) {
+  return {
+    eligibleForMigrationReview: assessment.eligibleForMigrationReview === true &&
+      foundations.allExpectedObjectsPresent === true && canonicalTrain.externalPredecessorsPresent === true,
+    reason: foundations.allExpectedObjectsPresent !== true ? "FOUNDATION_OBJECTS_MISSING" :
+      canonicalTrain.externalPredecessorsPresent !== true ? "CANONICAL_BASE_TABLES_MISSING" : assessment.reason,
+  };
+}
+
 export async function audit(env = process.env) {
   const expected = requireExpectedSchemaAuditTarget(env);
   const { connectionString, expectedDatabaseName } = expected;
@@ -48,9 +57,8 @@ export async function audit(env = process.env) {
       canonicalTrain,
       foundations,
       missingTrainPrerequisites: assessment.missingTrainPrerequisites ?? [],
-      eligibleForMigrationReview: assessment.eligibleForMigrationReview && foundations.allExpectedObjectsPresent,
+      ...schemaAuditReviewDecision(assessment, canonicalTrain, foundations),
       productionMigrationApproved: false,
-      reason: !foundations.allExpectedObjectsPresent ? "FOUNDATION_OBJECTS_MISSING" : assessment.reason,
       generationReason: assessment.reason,
     };
   } finally {

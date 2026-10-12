@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import pg from "pg";
+import { DATABASE_GENERATION_FINGERPRINT_SQL, assessDatabaseGeneration } from "../scripts/lib/database-generation-fingerprint.mjs";
+import { FOUNDATION_OBJECTS_SQL, assessFoundationObjects } from "../scripts/lib/foundation-migration-objects.mjs";
+import { CANONICAL_MIGRATION_BASE_TABLES_SQL, assessCanonicalMigrationTables } from "../scripts/lib/canonical-migration-base-tables.mjs";
+import { schemaAuditReviewDecision } from "../scripts/audit-neon-schema-generation.mjs";
 import { assertIsolatedMigrationTarget } from "../scripts/lib/isolated-migration-target.mjs";
 import { inventoryMigrationSources } from "../scripts/lib/migration-receipt-audit.mjs";
 import { assertModernSchemaLineage } from "../scripts/lib/schema-lineage-preflight.mjs";
@@ -48,6 +52,9 @@ test("Postgres 16: verified baseline, read-only preview, concurrent one-time com
     // The production legacy schema uses UUID/client_id and must fail instead.
     for (const sql of [
       "CREATE TABLE public.organizations (id integer PRIMARY KEY)",
+      "CREATE TABLE public.users (id integer PRIMARY KEY)",
+      "CREATE TABLE public.audit_events (id integer PRIMARY KEY, chain_seq bigint, prev_hash text, row_hash text)",
+      "CREATE VIEW public.audit_chain_heads AS SELECT 1 AS id",
       "CREATE TABLE public.employees (id integer PRIMARY KEY, organization_id integer NOT NULL)",
       "CREATE TABLE public.payroll_runs (id integer PRIMARY KEY, organization_id integer NOT NULL)",
       "CREATE TABLE public.payroll_entries (id integer PRIMARY KEY, payroll_run_id integer NOT NULL)",
@@ -106,8 +113,25 @@ test("Postgres 16: verified baseline, read-only preview, concurrent one-time com
     };
     await assert.rejects(() => runReviewedMigrationOnClient({ ...args, client: one, mode: "plan" }), /DATABASE_ROLE_OR_IDENTITY_REJECTED/);
     await admin.query("SET ROLE synthetic_migration_audit");
+    const fingerprint = (await admin.query(DATABASE_GENERATION_FINGERPRINT_SQL)).rows[0];
+    assert.equal(fingerprint.usersIdType, "integer");
+    assert.equal(fingerprint.employeesIdType, "integer");
+    assert.equal(fingerprint.payrollRunsIdType, "integer");
+    assert.ok(fingerprint.publicTableCount >= 9);
+    const generation = assessDatabaseGeneration(fingerprint);
+    assert.equal(generation.generation, "organization-integer");
+    const foundationRows = (await admin.query(FOUNDATION_OBJECTS_SQL)).rows;
+    assert.equal(foundationRows.find(r => r.objectName === "audit_chain_heads").present, false, "view cannot impersonate a base table");
+    assert.ok(foundationRows.filter(r => r.kind === "column").every(r => r.present), "catalog-only role sees structure without SELECT rights");
+    const canonical = assessCanonicalMigrationTables((await admin.query(CANONICAL_MIGRATION_BASE_TABLES_SQL)).rows);
+    const foundations = assessFoundationObjects(foundationRows);
+    assert.equal(schemaAuditReviewDecision(generation, canonical, foundations).eligibleForMigrationReview, false);
+    assert.equal(schemaAuditReviewDecision({ eligibleForMigrationReview: true }, canonical,
+      { allExpectedObjectsPresent: true }).reason, "CANONICAL_BASE_TABLES_MISSING");
     const preview = await runReviewedMigrationOnClient({ ...args, client: admin, mode: "plan" });
     await assert.rejects(() => admin.query("SELECT * FROM public.employees"), /permission denied/);
+    await assert.rejects(() => admin.query("SELECT * FROM public.users"), /permission denied/);
+    await assert.rejects(() => admin.query("SELECT * FROM public.audit_events"), /permission denied/);
     await assert.rejects(() => admin.query("CREATE TABLE public.synthetic_audit_ddl(id integer)"), /permission denied/);
     await admin.query("RESET ROLE");
     assert.equal(preview.status, "ready");
@@ -161,6 +185,9 @@ test("Postgres 16: verified baseline, read-only preview, concurrent one-time com
     }
     try {
       await admin.query("RESET ROLE");
+      await admin.query("DROP VIEW IF EXISTS public.audit_chain_heads");
+      await admin.query("DROP TABLE IF EXISTS public.audit_events");
+      await admin.query("DROP TABLE IF EXISTS public.users");
       await admin.query("DROP TABLE IF EXISTS public.synthetic_forward_must_rollback");
       await admin.query("DROP TABLE IF EXISTS public.synthetic_forward_once");
       await admin.query("DROP TABLE IF EXISTS public.payrollph_schema_migrations");

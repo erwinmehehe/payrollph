@@ -120,6 +120,8 @@ branch protection, approve DBA receipts or permit production migration.
 
 ## Approved Stage 1–2 boundary and default-off proof
 
+The companion baseline diagnostic now reads column types, column presence and table counts from `pg_catalog`, which exposes structure without granting the audit role SELECT on sensitive application rows. `information_schema` privilege filtering previously hid that evidence. A view cannot satisfy a foundation table requirement. Overall review eligibility also requires every external canonical predecessor, not only selected historical foundations. The same real PostgreSQL restricted-role rehearsal executes these catalog queries and negative controls; it remains synthetic and never authorizes the live train.
+
 Written decisions for #870 authorize source implementation only. `ORDERED_RELEASE_MIGRATIONS_ENABLED` defaults OFF; only exact `true` permits APPLY. Both the CLI (before constructing a client) and transaction executor enforce it. Protected environment variables supply it; no PR input can enable it. Source manifest generation and read-only PLAN remain available. No runtime compatibility helper is removed or changed.
 
 The PostgreSQL rehearsal now uses actual restricted audit and writer roles rather than bypassing privilege checks. It executes denial of runtime CREATE/ALTER, sensitive-row reads by audit, and writer UPDATE/DELETE of evidence; concurrent apply and failure rollback remain behavioral. Synthetic Neon identity settings are fixtures, not real endpoint evidence. A separate disposable backup/restore drill checks hashes, constraints and rollback. It does not certify a production-like employer restore or production RTO.
