@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ClipboardCheck, Download, FileBarChart2, Gauge, RefreshCw, ShieldCheck, TrendingDown, UsersRound, WalletCards } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EnterpriseBiExportPanel } from "@/components/enterprise-bi-export-panel";
+import { HcmReportBuilderPanel } from "./hcm-report-builder-panel";
 import { useWorkflowUi } from "./workflow-ui-context";
 import { CustomReportBuilder } from "./custom-report-builder";
 import { PeopleIntelligenceOverview } from "./people-intelligence";
@@ -168,6 +169,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
       )}
 
       <EnterpriseBiExportPanel organizationId={organizationId} notify={notify} />
+      <HcmReportBuilderPanel key={organizationId} organizationId={organizationId} />
 
       <div className="report-grid">
         {REPORTS.map((report) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { makeEmployeeImportErrorCsv, parseEmployeeImportPreview, type EmployeeImportError } from "@/lib/employee-import-preview";
+import { makeEmployeeImportErrorCsv, parseEmployeeImportPreview, type EmployeeImportError } from "@/lib/workflow-employee-import-preview";
 
 export function EmployeeImportReview({ csv, fileName, errors = [] }: {
   csv: string;

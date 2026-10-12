@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { EMPTY_WORKFLOW_UI_FLAGS } from "../src/lib/workflow-ui-flags";
 import { firstPayrollPreview } from "../src/lib/first-payroll-preview";
-import { parseEmployeeImportPreview, makeEmployeeImportErrorCsv } from "../src/lib/employee-import-preview";
+import { parseEmployeeImportPreview, makeEmployeeImportErrorCsv } from "../src/lib/workflow-employee-import-preview";
 import { projectReportRows, exportProjectedReportCsv } from "../src/lib/report-builder-view";
 import { loanDisplaySchedule } from "../src/lib/loan-schedule-view";
 import { FirstPayrollInline } from "../src/components/workspace/first-payroll-inline";

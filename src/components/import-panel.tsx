@@ -1,5 +1,6 @@
 "use client";
 
+import { EmployeeImportPreviewPanel } from "./employee-import-preview-panel";
 import { useState } from "react";
 import { FileSpreadsheet, Upload, UsersRound } from "lucide-react";
 import { EmployeeImportReview } from "@/components/workspace/employee-import-review";
@@ -26,7 +27,10 @@ type ImportResult = {
   upgradeRequired?: boolean;
 };
 
-export function ImportPanel({ organizationId, onImported }: { organizationId: number; onImported: () => void }) {
+export function ImportPanel({ organizationId, onImported, previewEnabled = false }: { organizationId: number; onImported: () => void; previewEnabled?: boolean }) {
+  return previewEnabled ? <EmployeeImportPreviewPanel key={organizationId} organizationId={organizationId} onImported={onImported} /> : <LegacyImportPanel organizationId={organizationId} onImported={onImported} />;
+}
+function LegacyImportPanel({ organizationId, onImported }: { organizationId: number; onImported: () => void }) {
   const reviewEnabled = useWorkflowUi().importReview;
   const [open, setOpen] = useState(false);
   const [csv, setCsv] = useState("");
@@ -88,7 +92,7 @@ export function ImportPanel({ organizationId, onImported }: { organizationId: nu
               />
             </label>
             {csv && <p className="auth-copy">{fileName} · {csv.trim().split(/\r?\n/).length - 1} data row(s) loaded</p>}
-            {reviewEnabled && <p className="auth-copy">Validate and review the grid first. Fix reported errors and re-upload before committing any employees.</p>}
+            {reviewEnabled && <p className="auth-copy">Review validation errors before submitting new employees.</p>}
             <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
               <button className="secondary-button" onClick={() => submit(true)} disabled={busy || !csv}>{busy ? "Checking…" : "Validate only"}</button>
               <button className="primary-button" onClick={() => submit(false)} disabled={busy || !csv || (reviewEnabled && (!result?.dryRun || !!result.error || (result.errorCount ?? 0) > 0))}>{busy ? "Importing…" : "Import employees"}</button>

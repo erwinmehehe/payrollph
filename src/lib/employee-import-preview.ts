@@ -1,71 +1,86 @@
-/** Pure CSV preview and correction export. Do not put employee data in URLs or logs. */
-export type EmployeeImportError = { line: number; problems: string[] };
-export type PreviewRow = { line: number; cells: string[]; problems: string[] };
-export type EmployeeImportPreview = { headers: string[]; rows: PreviewRow[]; total: number; truncated: boolean };
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { parseCsv, mapHeaders, parseEmployeeRow, REQUIRED_COLUMNS, type ParsedEmployee } from "./csv-import";
+import { parseMigrationDate } from "./migration-date";
+import { toCsv } from "./csv";
 
-export function parseEmployeeImportPreview(
-  input: string, errors: readonly EmployeeImportError[] = [], maxRows = 200,
-): EmployeeImportPreview {
-  const records: Array<{ line: number; fields: string[] }> = [];
-  let fields: string[] = [], field = "", quoted = false, atRecordStart = 1, line = 1;
-  for (let i = 0; i < input.length; i++) {
-    const char = input[i];
-    if (char === '"') {
-      if (quoted && input[i + 1] === '"') { field += '"'; i++; }
-      else if (quoted) quoted = false;
-      else if (field.length === 0) quoted = true;
-      else field += char;
-    } else if (char === "," && !quoted) {
-      fields.push(field); field = "";
-    } else if ((char === "\n" || char === "\r") && !quoted) {
-      fields.push(field); field = "";
-      if (fields.some(value => value.trim() !== "")) records.push({ line: atRecordStart, fields });
-      fields = [];
-      if (char === "\r" && input[i + 1] === "\n") i++;
-      line++;
-      atRecordStart = line;
-    } else {
-      field += char;
-      if (char === "\n" || char === "\r") {
-        if (char === "\r" && input[i + 1] === "\n") { field += "\n"; i++; }
-        line++;
-      }
+export type ImportPreviewRow = {
+  line: number; employeeNo: string; name: string; status: "valid" | "warning" | "error";
+  reasons: string[]; skipped: boolean;
+};
+export type ImportDepartment = { id: number; code: string; name: string };
+export type ImportCandidate = ParsedEmployee & { tin: string | null; orgUnitId: number | null };
+export type EmployeeImportPreview = {
+  rows: ImportPreviewRow[]; candidates: ImportCandidate[]; totalRows: number;
+  errorCount: number; warningCount: number; blockingErrorCount: number;
+  skippedCount: number; fileErrors: string[];
+};
+const key = (text: string) => text.trim().toUpperCase();
+
+/** Uses the existing employee validator and shared timezone-safe date parser. */
+export function previewEmployeeImport(csv: string, context: {
+  existingNumbers: readonly string[]; departments: readonly ImportDepartment[]; skipLines?: readonly number[];
+}): EmployeeImportPreview {
+  const source = parseCsv(csv);
+  const headers = source[0] ?? [];
+  const mapping = mapHeaders(headers);
+  const fileErrors: string[] = [];
+  const missing = REQUIRED_COLUMNS.filter(c => ![...mapping.values()].includes(c));
+  if (missing.length) fileErrors.push(`Missing required columns: ${missing.join(", ")}.`);
+  if (source.length < 2) fileErrors.push("Upload a header and at least one employee row.");
+  if (source.length > 10001) fileErrors.push("Imports are limited to 10,000 employee rows.");
+  const skips = new Set(context.skipLines ?? []);
+  if ([...skips].some(n => !Number.isInteger(n) || n < 2 || n > source.length)) fileErrors.push("Invalid skipped row selection.");
+  const tinIndex = headers.findIndex(h => /^(tin|tax identification number)$/i.test(h.trim()));
+  const departmentIndex = headers.findIndex(h => /^(department|department code)$/i.test(h.trim()));
+  const known = new Set(context.existingNumbers.map(key));
+  const seen = new Set<string>();
+  const rows: ImportPreviewRow[] = [];
+  const candidates: ImportCandidate[] = [];
+  for (let i = 1; i < source.length && i <= 10000; i++) {
+    const cells = source[i];
+    const record: Record<string, string> = {};
+    for (const [index, column] of mapping) record[column] = cells[index] ?? "";
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    if (cells.length !== headers.length) errors.push("Column count does not match the CSV header.");
+    const date = parseMigrationDate(record.startDate);
+    if (!date) errors.push("Unparseable employment date; use an unambiguous calendar date such as YYYY-MM-DD.");
+    // The shared employee validator receives only a canonical date.
+    const parsed = parseEmployeeRow({ ...record, startDate: date ?? "" });
+    if (!parsed.ok) errors.push(...parsed.problems.filter(p => !p.startsWith("startDate")));
+    const number = (record.employeeNo ?? "").trim();
+    const normalized = key(number);
+    if (known.has(normalized)) errors.push("Duplicate employee number: already exists in this tenant. Import never updates existing employees.");
+    else if (seen.has(normalized)) errors.push("Duplicate employee number inside this CSV.");
+    const rawTin = tinIndex < 0 ? "" : (cells[tinIndex] ?? "").trim();
+    const tin = rawTin.replace(/-/g, "");
+    if (rawTin && !/^(?:\d{9}|\d{3}-\d{3}-\d{3})$/.test(rawTin)) errors.push("Bad TIN format: enter 9 digits or XXX-XXX-XXX.");
+    if (!rawTin) warnings.push("Missing TIN; complete it before statutory filing.");
+    const department = departmentIndex < 0 ? "" : (cells[departmentIndex] ?? "").trim();
+    const matches = department ? context.departments.filter(d => key(d.code) === key(department) || key(d.name) === key(department)) : [];
+    if (department && matches.length !== 1) errors.push(matches.length ? "Ambiguous department; use its unique code." : "Unknown department in this tenant.");
+    if (parsed.ok && (!parsed.value.bankAccount || !parsed.value.bankCode)) warnings.push("Missing bank payout details; complete them before payroll.");
+    const skipped = skips.has(i + 1);
+    rows.push({ line: i + 1, employeeNo: number, name: `${record.firstName ?? ""} ${record.lastName ?? ""}`.trim(), status: errors.length ? "error" : warnings.length ? "warning" : "valid", reasons: [...errors, ...warnings], skipped });
+    if (!skipped && !errors.length && parsed.ok) {
+      seen.add(normalized);
+      candidates.push({ ...parsed.value, tin: rawTin ? tin : null, orgUnitId: matches[0]?.id ?? null });
     }
   }
-  if (quoted) throw new Error("CSV includes an unclosed quoted value. Correct the file and validate again.");
-  fields.push(field);
-  if (fields.some(value => value.trim() !== "")) records.push({ line: atRecordStart, fields });
-  const [header, ...body] = records;
-  if (!header) return { headers: [], rows: [], total: 0, truncated: false };
-  const errorsByLine = new Map(errors.map(entry => [entry.line, entry.problems]));
-  return {
-    headers: header.fields.map((value, index) => index === 0 ? value.replace(/^\uFEFF/, "").trim() : value.trim()),
-    rows: body.slice(0, maxRows).map(entry => ({
-      line: entry.line, cells: entry.fields, problems: errorsByLine.get(entry.line) ?? [],
-    })),
-    total: body.length, truncated: body.length > maxRows,
-  };
+  return { rows, candidates, totalRows: rows.length, errorCount: rows.filter(r => r.status === "error").length, warningCount: rows.filter(r => r.status === "warning").length, blockingErrorCount: rows.filter(r => !r.skipped && r.status === "error").length, skippedCount: rows.filter(r => r.skipped).length, fileErrors };
 }
 
-function safeCsvCell(value: string): string {
-  const spreadsheetSafe = /^[\s]*[=+@\-]/.test(value) ? "'" + value : value;
-  return '"' + spreadsheetSafe.replaceAll('"', '""') + '"';
+export function employeeImportErrorCsv(preview: Pick<EmployeeImportPreview, "rows" | "fileErrors">) {
+  return toCsv({ columns: ["Row", "Employee No", "Status", "Skipped", "Reason"], rows: [
+    ...preview.fileErrors.map(reason => ["1", "", "error", "no", reason]),
+    ...preview.rows.filter(r => r.status !== "valid").map(r => [String(r.line), r.employeeNo, r.status, r.skipped ? "yes" : "no", r.reasons.join("; ")]),
+  ] });
 }
 
-export function makeEmployeeImportErrorCsv(
-  input: string, errors: readonly EmployeeImportError[],
-): string {
-  const report = parseEmployeeImportPreview(input, errors, Number.MAX_SAFE_INTEGER);
-  const byLine = new Map(errors.map(row => [row.line, row.problems]));
-  const output: string[][] = [["Source line", ...report.headers, "Validation errors"]];
-  for (const row of report.rows) {
-    const problems = byLine.get(row.line);
-    if (problems?.length) output.push([String(row.line), ...report.headers.map((_, i) => row.cells[i] ?? ""), problems.join("; ")]);
-  }
-  // Include server errors whose source row could not be parsed.
-  const included = new Set(report.rows.map(row => row.line));
-  for (const error of errors) {
-    if (!included.has(error.line)) output.push([String(error.line), ...report.headers.map(() => ""), error.problems.join("; ")]);
-  }
-  return output.map(row => row.map(safeCsvCell).join(",")).join("\r\n") + "\r\n";
+/** Stateless receipt bound to this tenant, exact CSV, skips and authenticated session. */
+export function importPreviewReceipt(csv: string, organizationId: number, skipLines: readonly number[], sessionToken: string) {
+  return createHmac("sha256", sessionToken).update(JSON.stringify([organizationId, createHash("sha256").update(csv).digest("hex"), [...new Set(skipLines)].sort((a,b) => a-b)])).digest("hex");
+}
+export function validImportPreviewReceipt(receipt: unknown, expected: string) {
+  return typeof receipt === "string" && /^[a-f0-9]{64}$/.test(receipt) && timingSafeEqual(Buffer.from(receipt, "hex"), Buffer.from(expected, "hex"));
 }
