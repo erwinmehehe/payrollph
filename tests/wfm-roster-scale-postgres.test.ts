@@ -3,8 +3,9 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, gt, gte, isNull, lte, or } from "drizzle-orm";
 import { db } from "../src/db";
-import { organizations, employees, schedulePatterns, employeeScheduleAssignments } from "../src/db/schema";
+import { organizations, employees, schedulePatterns, schedulePatternDays, schedulePatternSegments, shiftDefinitions, employeeScheduleAssignments } from "../src/db/schema";
 import { scanActiveRosterAssignments } from "../src/lib/workforce-roster-scale";
+import { loadClockInWatchScheduleBatch } from "../src/lib/workforce-clock-in-watch-batch";
 
 /** Actual disposable PostgreSQL seed, not a source-text grep. */
 test("WFM-12: 1000 real assignment rows page without skipping or including another tenant", {timeout:120_000}, async()=>{
@@ -18,6 +19,18 @@ test("WFM-12: 1000 real assignment rows page without skipping or including anoth
       {organizationId:a.id,code:"S-"+seed,name:"Synthetic A",cycleDays:7},
       {organizationId:b.id,code:"S-"+seed,name:"Synthetic B",cycleDays:7},
     ]).returning();
+    const [shiftA]=await db.insert(shiftDefinitions).values({
+      organizationId:a.id,code:"D-"+seed,name:"Synthetic Day",
+      startTime:"09:00",endTime:"17:00",breakMinutes:0,
+    }).returning();
+    const days=await db.insert(schedulePatternDays).values(
+      Array.from({length:7},(_,dayIndex)=>({
+        patternId:patternA.id,dayIndex,isRestDay:false,
+      }))
+    ).returning();
+    await db.insert(schedulePatternSegments).values(
+      days.map(row=>({patternDayId:row.id,shiftDefinitionId:shiftA.id,segmentOrder:1}))
+    );
     const employeeIds:number[]=[];
     for(let start=0;start<1000;start+=100){
       const workers=await db.insert(employees).values(
@@ -65,6 +78,22 @@ test("WFM-12: 1000 real assignment rows page without skipping or including anoth
     assert.equal(result.workers.length,1000);
     assert.ok(result.workers.every(row=>row.organizationId===a.id));
     assert.equal(new Set(result.workers.map(row=>row.employeeId)).size,1000);
+    let resolved=0;
+    for(let i=0;i<employeeIds.length;i+=100){
+      const slice=employeeIds.slice(i,i+100);
+      const schedules=await loadClockInWatchScheduleBatch({
+        organizationId:a.id,employeeIds:slice,
+        startDate:"2026-10-11",endDate:"2026-10-12",
+      });
+      for(const id of slice) {
+        const days=schedules.get(id);
+        assert.equal(days?.length,2,"each fictional worker must have a resolved two-day window");
+        assert.equal(days?.[0]?.segments[0]?.startTime,"09:00");
+        resolved++;
+      }
+    }
+    assert.equal(resolved,1000,"1000 workers resolved in ten batched tenant-scoped reads");
+
   }finally{
     // The test owns only these fictional tenants. Deleting the organizations
     // also deletes their synthetic employees and associated schedule rows.
