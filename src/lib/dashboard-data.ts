@@ -43,6 +43,7 @@ import { buildFirstPayrollReadiness } from "@/lib/first-payroll-readiness";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
 import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
+import { employeeScopePredicate } from "@/lib/multi-entity-personnel-scope";
 
 export async function getDashboardData(organizationId?: number, request?: Request) {
   await ensureCoreCompatibilitySchema();
@@ -112,11 +113,11 @@ export async function getDashboardData(organizationId?: number, request?: Reques
   const canViewDelegations = roleAllowed(access.role, PAYROLL_CHECKER_ROLES);
   const canViewComplianceActions = allEmployeesVisible && roleAllowed(access.role, PAYROLL_OPERATOR_ROLES);
 
-  const employeeFilter = and(
-    eq(employees.organizationId, selectedOrganization.id),
-    selectedEntityId === null ? undefined : eq(employees.legalEntityId, selectedEntityId),
-    !access.companyWide && access.orgUnitId ? eq(employees.orgUnitId, access.orgUnitId) : undefined,
-  );
+  const employeeFilter = employeeScopePredicate({
+    organizationId: selectedOrganization.id,
+    legalEntityId: selectedEntityId,
+    orgUnitId: !access.companyWide && access.orgUnitId ? access.orgUnitId : null,
+  });
   // Resolve the personnel boundary inside each SQL read, not after fetching
   // other employers' confidential time, leave or compensation evidence.
   // Group HR's All view intentionally includes all current-tenant entities.
