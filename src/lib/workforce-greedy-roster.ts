@@ -169,6 +169,10 @@ function checkDraft(
 
   const before=existing.find(day=>day.date===slot.workDate);
   if (!before) return "source_unknown";
+  if(before.segments.length>0&&before.worksiteId!==null&&before.worksiteId!==slot.worksiteId){
+    // A same-day second site needs independent travel/location governance.
+    return "site_ineligible";
+  }
   const nextDay: ResolvedDailySchedule = {
     ...before, source:"override",isRestDay:false,
     segments: [
