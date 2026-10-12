@@ -6,8 +6,7 @@ type Props = { visiblePages: readonly string[]; allowedPages: readonly string[];
 
 /** Navigation is presentation only: the server still checks every module request. */
 export function MoreModulesPage({ visiblePages, allowedPages, onPage }: Props) {
-  const items = NAVIGATION.filter(group => group.label !== "Workspace")
-    .map(group => ({
+  const items = NAVIGATION.map(group => ({
       label: group.label,
       items: group.items.filter(item => item.name !== "More modules" && !visiblePages.includes(item.name)),
     })).filter(group => group.items.length > 0);
