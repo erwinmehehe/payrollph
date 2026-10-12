@@ -363,6 +363,12 @@ export type DashboardData = {
   leaveRequests?: LeaveRequest[];
   leavePolicies?: LeavePolicy[];
   orgUnits?: OrgUnit[];
+  multiEntity?: {
+    enabled: true;
+    group: boolean;
+    legalEntityId: number | null;
+    entities: Array<{ id: number; legalName: string; displayName: string; code: string }>;
+  };
   access?: { companyWide: boolean; orgUnitName: string | null; role: string } | null;
   capabilities?: {
     orgStructure: boolean;
