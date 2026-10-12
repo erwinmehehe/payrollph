@@ -102,3 +102,22 @@ liabilities, electronic payout authority, every database writer or production
 migration receipts. Validate the actual database against a restored isolated
 clone and the DBA-controlled migration journal; obtain independent finance,
 security and release sign-off before a production cutover.
+
+
+## Local-only db:push guard (2026-10-12)
+
+The `npm run db:push` convenience command is deliberately restricted to a
+**loopback PostgreSQL database**. CI additionally must use its disposable
+`127.0.0.1:5432/app_db` fixture. Remote hosts, Neon endpoints (pooled or
+direct), named `neondb` / maintenance databases, nonstandard ports and
+connection-string query overrides fail **before Drizzle Kit starts**.
+Development using a remote Neon branch must use a reviewed, separately
+authorized migration procedure instead of a schema push.
+
+The same check now runs from `drizzle.config.ts` when directly invoking
+`npx drizzle-kit push`, not just through npm. Other ad hoc SQL clients,
+legacy request-time DDL and an authenticated person pointing a loopback proxy
+at a remote database are **not** prevented by this check. It is defense-in-depth, not
+a deployment/cutover gate, journal adoption, DBA signature or proof of
+production database health. CI synthetic `db:push` still cannot establish
+live historical migration state or payroll accuracy.
