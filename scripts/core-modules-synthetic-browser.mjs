@@ -11,19 +11,29 @@ const fixture = JSON.parse(await readFile("/tmp/build-block-fixture.json", "utf8
 await mkdir("qa-artifacts/core-modules", { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const checkpoints = [];
+// One real MFA login per synthetic role. Reuse only that role's authenticated
+// cookie in fresh isolated browser contexts: this avoids repeated sign-ins
+// tripping production-equivalent IP rate limits during viewport screenshots.
+const roleAuthState = new Map();
 let page;
 try {
   for (const role of ["owner", "hr", "manager", "employee"]) {
     for (const width of [1280, 390]) {
       for (const [state, port] of [["before", 3001], ["after", 3000]]) {
-        const context = await browser.newContext({ viewport: { width, height: 844 } });
+        const context = await browser.newContext({
+          viewport: { width, height: 844 },
+          ...(roleAuthState.has(role) ? { storageState: roleAuthState.get(role) } : {}),
+        });
         page = await context.newPage();
         const base = `http://127.0.0.1:${port}`;
-        const login = await context.request.post(base + "/api/auth/login", {
-          headers: { origin: base, "sec-fetch-site": "same-origin" },
-          data: { email: role + "@build-block.example.test", password: "Synthetic-Build-Block-Only-2026!", totpCode: generateTotp("JBSWY3DPEHPK3PXP") },
-        });
-        assert.equal(login.status(), 200, "Synthetic MFA sign-in must pass");
+        if (!roleAuthState.has(role)) {
+          const login = await context.request.post(base + "/api/auth/login", {
+            headers: { origin: base, "sec-fetch-site": "same-origin" },
+            data: { email: role + "@build-block.example.test", password: "Synthetic-Build-Block-Only-2026!", totpCode: generateTotp("JBSWY3DPEHPK3PXP") },
+          });
+          assert.equal(login.status(), 200, "Synthetic MFA sign-in must pass");
+          roleAuthState.set(role, await context.storageState());
+        }
         await page.goto(base + "/app?organizationId=" + fixture.organizationId, { waitUntil: "domcontentloaded" });
         if (role === "owner" && state === "after") {
           const more = page.locator('[data-nav-name="More modules"]:visible').first();
