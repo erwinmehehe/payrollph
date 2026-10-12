@@ -1,3 +1,5 @@
+**Default-OFF policy construction hardening (2026-10-12):** Validation now refuses new approval policies containing `escalationAfterDays` while `APPROVAL_CHAIN_ESCALATIONS_ENABLED` is OFF, and runtime instance creation also refuses already-stored escalation-bound policies if the flag is later switched OFF. Existing legacy policies without escalation continue to function; no checker is automatically appointed and no payroll decision is synthesized. Full scheduler race, batching, destination/expiry and integration acceptance still block this draft.
+
 # Maker-checker escalation candidate
 
 Status: **default-OFF staging engineering candidate**, not certified release.

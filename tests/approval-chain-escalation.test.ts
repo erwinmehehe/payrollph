@@ -40,7 +40,11 @@ test("escalation-after-days policy validates finite 1-30 day window",()=>{
  const base={label:"Review",approver:"role:hr",minimumAmount:0};
  assert.equal(validateApprovalChainSteps([{...base,escalationAfterDays:0}]),null);
  assert.equal(validateApprovalChainSteps([{...base,escalationAfterDays:31}]),null);
- assert.deepEqual(validateApprovalChainSteps([{...base,escalationAfterDays:3}])?.[0].escalationAfterDays,3);
+ const candidate = [{...base, escalationAfterDays:3}];
+ assert.equal(validateApprovalChainSteps(candidate, false), null,
+   "A default-OFF escalation capability cannot accept new extension policies");
+ assert.equal(validateApprovalChainSteps(candidate, true)?.[0].escalationAfterDays, 3);
+ assert.deepEqual(validateApprovalChainSteps([base], false)?.[0].approver, "role:hr");
 });
 test("overdue pending action is escalated once without deciding it",()=>{
  const createdAt=new Date("2026-10-01T00:00:00Z");

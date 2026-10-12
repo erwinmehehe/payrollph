@@ -8,6 +8,7 @@ import {
   dynamicWorkerGroups,
 } from "@/db/schema";
 import { validDynamicWorkerGroupConditions } from "@/lib/dynamic-worker-group-conditions";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { type GovernedHandoffEvidence, frozenGovernedHandoffEvidence } from "@/lib/governed-approval-handoffs";
 
 export type ApprovalChainStepDefinition = {
@@ -105,8 +106,15 @@ export function approvalStepsForAmount(
   return steps.filter((step) => Number(step.minimumAmount ?? 0) <= rounded);
 }
 
-export function validateApprovalChainSteps(value: unknown) {
-  return normalizeApprovalChainSteps(value);
+export function validateApprovalChainSteps(
+  value: unknown,
+  escalationEnabled = criticalReleaseFlagEnabled("approvalChainEscalations"),
+) {
+  const steps = normalizeApprovalChainSteps(value);
+  // A newly submitted policy must never silently persist a gated extension
+  // while the capability is OFF. Normal approval policies remain unchanged.
+  if (!escalationEnabled && steps?.some(step => step.escalationAfterDays !== undefined)) return null;
+  return steps;
 }
 
 export async function createApprovalFromConfiguredChain(input: {
@@ -146,6 +154,12 @@ export async function createApprovalFromConfiguredChain(input: {
 
   const steps = normalizeApprovalChainSteps(policy.steps);
   if (!steps) throw new Error(`Approval chain "${chainCode}" has an invalid step definition.`);
+  if (!criticalReleaseFlagEnabled("approvalChainEscalations")
+    && steps.some(step => step.escalationAfterDays !== undefined)) {
+    // A persisted policy can predate a flag being turned OFF; do not create
+    // any new extension-bound approval instances until independently reviewed.
+    throw new Error("This approval chain requires a disabled escalation capability.");
+  }
   const amount = input.amount == null ? null : Math.round(Number(input.amount) * 100) / 100;
   if (amount != null && (!Number.isFinite(amount) || amount < 0)) {
     throw new Error("Approval amount must be a non-negative finite number.");
