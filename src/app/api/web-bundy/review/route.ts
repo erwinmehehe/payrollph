@@ -216,8 +216,12 @@ export async function POST(request:Request) {
       });
       return saved;
     });
-  }catch(error){
-    return Response.json({error:error instanceof Error?error.message:"Review conflict."},{status:409,headers:privateHeaders});
+  }catch{
+    // Never return raw PostgreSQL, schema or employee details in API errors.
+    return Response.json({
+      error:"Attendance review conflicted or could not be completed. Request an authorized HR correction.",
+      code:"ATTENDANCE_REVIEW_CONFLICT",
+    },{status:409,headers:privateHeaders});
   }
   if(decision==="approved"&&approvedWorkDate){
     try{
