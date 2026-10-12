@@ -15,17 +15,23 @@ export async function issueCoeObjectWithRecovery<T>(steps: {
   stage: () => Promise<number>;
   upload: () => Promise<void>;
   finalize: (pendingDocumentId: number) => Promise<T>;
-  recover: (pendingDocumentId: number) => Promise<unknown>;
+  recover: (pendingDocumentId: number, phase: "upload_ambiguous" | "finalize_failed") => Promise<unknown>;
 }): Promise<T> {
   const pendingDocumentId = await steps.stage();
   if (!Number.isSafeInteger(pendingDocumentId) || pendingDocumentId <= 0) {
     throw new Error("COE_PENDING_INTENT_NOT_DURABLE");
   }
+  let remoteUploadConfirmed = false;
   try {
     await steps.upload();
+    remoteUploadConfirmed = true;
     return await steps.finalize(pendingDocumentId);
   } catch (error) {
-    await steps.recover(pendingDocumentId).catch(() => {});
+    // A provider timeout is ambiguous: DELETE could run before a delayed
+    // remote PUT completes and recreate an untracked orphan. Retain the
+    // durable row until the leased sweeper's grace window in that case.
+    await steps.recover(pendingDocumentId,
+      remoteUploadConfirmed ? "finalize_failed" : "upload_ambiguous").catch(() => {});
     throw error;
   }
 }
