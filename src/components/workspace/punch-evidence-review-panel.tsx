@@ -51,7 +51,9 @@ function PunchEvidenceReviewView({organizationId}:{organizationId:number}){
     const handle=window.setTimeout(()=>{void refresh(controller.signal);},0);
     return ()=>{
       window.clearTimeout(handle);
-      controller.abort();requestGeneration.current++;
+      // All request continuations check the aborted signal before updating UI.
+      // Avoid reading a mutable ref in effect cleanup (React hooks lint).
+      controller.abort();
     };
   },[refresh]);
 
