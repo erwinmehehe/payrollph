@@ -43,7 +43,10 @@ const tableNames = [...new Set(Object.values(CANONICAL_MIGRATION_BASE_TABLES).fl
 /** All SQL identifiers are fixed source constants; no user input enters SQL. */
 export const CANONICAL_MIGRATION_BASE_TABLES_SQL = [
   "SELECT requested.name AS table_name,",
-  "  to_regclass(format('public.%I', requested.name)) IS NOT NULL AS present",
+  "  EXISTS (SELECT 1 FROM pg_catalog.pg_class c",
+  "    JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace",
+  "    WHERE n.nspname='public' AND c.relname=requested.name",
+  "      AND c.relkind IN ('r','p')) AS present",
   "FROM (VALUES",
   tableNames.map(name => `  ('${name}')`).join(",\n"),
   ") AS requested(name)",
