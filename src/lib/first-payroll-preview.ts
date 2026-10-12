@@ -19,7 +19,7 @@ import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
  * side-effect-free employee calculator. No enqueue/ensure, draft creation,
  * payroll entry, payslip, ledger, payout, approval, filing, or audit writes.
  *
- * The initial certified preview is intentionally narrow: where input
+ * The initial restricted preview is intentionally narrow: where input
  * dependencies cannot be assembled exactly as in payroll-engine.ts, the
  * employee is BLOCKED and monetary columns remain null, never guessed.
  */
@@ -229,9 +229,17 @@ export async function loadFirstPayrollPreview(input: {
   // assembler shared with processPayrollChunk.
   const complexInputsExist = activePolicies.length > 0;
   const isMonthFinal = lastDayOfMonth(periodEnd);
-  const priorCutoffRequired = isMonthFinal && Number(periodStart.slice(8,10)) >= 16 &&
-    !existingRuns.some(run=>run.status==="Released" &&
+  // Do NOT show provisional second-cutoff amounts before reconstructing the
+  // earlier released ledger; even the presence of a released run is not its
+  // employee-by-employee statutory true-up input.
+  const priorCutoffRequired = isMonthFinal && Number(periodStart.slice(8,10)) >= 16;
+  if (priorCutoffRequired) {
+    const earlierReleased = existingRuns.some(run=>run.status==="Released" &&
       String(run.periodStart).slice(0,7)===periodStart.slice(0,7) && String(run.periodEnd) < periodStart);
+    blockers.push(earlierReleased
+      ? "Earlier released cutoff exists, but this preview does not reconstruct its statutory ledger; use the full payroll process."
+      : "No certified earlier-cutoff ledger is available for month-final statutory reconciliation.");
+  }
   const profileById = new Map(profiles.map(profile => [profile.employeeId,profile]));
   const has = (values:Array<{employeeId:number}>,id:number) => values.some(x=>x.employeeId===id);
   const rows = employeeRows.map(employee=>enginePreviewRow({
