@@ -1,4 +1,4 @@
--- 0116: WFM roster scaling and employer-reviewed schedule-rule policy.
+-- 0118: WFM roster scaling and employer-reviewed schedule-rule policy.
 -- SOURCE ONLY. DO NOT APPLY IN PRODUCTION BEFORE DBA AND WFM ACCEPTANCE.
 -- Run isolated migration rehearsal before turning WFM_ROSTER_SCALE_RULES_ENABLED on.
 -- The indexed scan uses the existing assignment primary key as a keyset cursor.

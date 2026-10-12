@@ -493,7 +493,7 @@ export function PeopleView({
       )}
 
       {(canManage || canManageLifecycle || canViewLifecycleNotifications) && <details className="panel-disclosure" open={administrationOpen} onToggle={(event) => setAdministrationOpen(event.currentTarget.open)}><summary>Employee administration <span>Import, lifecycle policies and notifications</span></summary>
-      {canManage && <ImportPanel organizationId={data.selectedOrganization.id} onImported={onRefresh} />}
+      {canManage && <ImportPanel previewEnabled={data.employeeImportPreviewEnabled} organizationId={data.selectedOrganization.id} onImported={onRefresh} />}
 
       {canManageLifecycle && (
         <HcmLifecyclePolicyPanel organizationId={data.selectedOrganization.id} />

@@ -1,3 +1,4 @@
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { maskGovernmentId } from "@/lib/government-id-crypto";
 import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
@@ -362,6 +363,7 @@ export async function getDashboardData(organizationId?: number, request?: Reques
 
   return {
     firstPayrollReadiness,
+    employeeImportPreviewEnabled: criticalReleaseFlagEnabled("employeeImportPreview"),
     user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
     ...(entityContext.enabled ? { multiEntity: {
