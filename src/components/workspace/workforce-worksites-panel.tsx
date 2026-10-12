@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { PunchEvidenceReviewPanel } from "./punch-evidence-review-panel";
 import { Building2, CalendarDays, MapPin, Plus, RefreshCcw, Save, UserRound } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EmptyState, Metric, Spinner, Status } from "./ui";
@@ -22,6 +23,7 @@ type Worksite = {
   geofenceLongitude: string | null;
   geofenceRadiusM: number | null;
   geofenceConfigured: boolean;
+  punchPhotoMode?: "off" | "optional" | "required";
   active: boolean;
 };
 
@@ -47,6 +49,7 @@ type HolidayRow = {
 type Payload = {
   worksites: Worksite[];
   geofencePilotEnabled: boolean;
+  enhancedPunchEnabled?: boolean;
   assignments: WorksiteAssignment[];
   arrangements: Array<{ id: number; employeeId: number; mode: string; effectiveFrom: string; effectiveUntil: string | null }>;
   authorizations: Array<{ id: number; employeeId: number; worksiteId: number; decision: "allow" | "deny"; effectiveFrom: string; effectiveUntil: string | null }>;
@@ -87,6 +90,9 @@ export function WorkforceWorksitesPanel({
   const [geoLongitude, setGeoLongitude] = useState("");
   const [geoRadius, setGeoRadius] = useState("200");
   const [geofenceReason, setGeofenceReason] = useState("Approved field attendance boundary");
+  const [photoPolicySite, setPhotoPolicySite] = useState("");
+  const [photoPolicyMode, setPhotoPolicyMode] = useState<"off" | "optional" | "required">("off");
+  const [photoPolicyReason, setPhotoPolicyReason] = useState("Worksite human-reviewed photo evidence policy");
 
   const [employeeSelection, setEmployeeSelection] = useState<ScopedOptionSelection | null>(null);
   const employeeId = Number(resolveScopedOption(employeeSelection, organizationId, data.employees));
@@ -220,6 +226,15 @@ export function WorkforceWorksitesPanel({
       reason: geofenceReason,
       ...(!disable ? { latitude: Number(geoLatitude), longitude: Number(geoLongitude), radiusMeters: Number(geoRadius) } : {}),
     }, disable ? "Site boundary disabled; HR review remains required where no other authorized site is configured." : "Site boundary configured and audited.");
+  }
+
+  async function configurePhotoPolicy() {
+    if (!photoPolicySite || photoPolicyReason.trim().length < 10) {
+      notify("Choose a worksite and explain the photo policy change.", "err"); return;
+    }
+    await mutate("configure_punch_photo", {
+      worksiteId:Number(photoPolicySite),photoMode:photoPolicyMode,reason:photoPolicyReason,
+    },"Worksite photo policy saved; review-first capture remains opt-in.");
   }
 
   async function assignEmployee() {
@@ -577,6 +592,20 @@ export function WorkforceWorksitesPanel({
         </div>
       )}
 
+      {payload?.enhancedPunchEnabled && canManage && <div style={{padding:18,display:"grid",gap:8}}>
+        <h3>Web/mobile selfie policy</h3>
+        <p>Off is the default. Optional or required photo capture is consent-controlled and is never an automatic pay decision.</p>
+        <label>Worksite<select value={photoPolicySite} onChange={e=>setPhotoPolicySite(e.target.value)}>
+          <option value="">Select worksite</option>
+          {activeWorksites.map(site=><option key={site.id} value={site.id}>{site.name} · {site.punchPhotoMode??"off"}</option>)}
+        </select></label>
+        <label>Selfie policy<select value={photoPolicyMode} onChange={e=>setPhotoPolicyMode(e.target.value as "off"|"optional"|"required")}>
+          <option value="off">Off</option><option value="optional">Optional</option><option value="required">Required (human exception on decline)</option>
+        </select></label>
+        <label>Reason<input value={photoPolicyReason} onChange={e=>setPhotoPolicyReason(e.target.value)} /></label>
+        <button className="secondary-button" disabled={saving!==null||!photoPolicySite} type="button" onClick={()=>void configurePhotoPolicy()}>Save photo policy</button>
+      </div>}
+      {payload?.enhancedPunchEnabled && <PunchEvidenceReviewPanel organizationId={organizationId} />}
       <div className="data-table-wrap slim-scroll">
         <table className="data-table">
           <thead>

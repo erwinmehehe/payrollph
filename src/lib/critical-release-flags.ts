@@ -6,10 +6,17 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
-  orderedReleaseMigrations: {
-    env: "ORDERED_RELEASE_MIGRATIONS_ENABLED", owner: "Database Operations",
-    risk: "P0 deployment-only schema changes",
-    approval: "DBA baseline adoption, protected release and restore rehearsal",
+  wfmGreedyRoster: {
+    env: "WFM_GREEDY_ROSTER_ENABLED",
+    owner: "WFM Product / PH People Operations",
+    risk: "P1 generated roster suggestions from personnel eligibility and fairness history",
+    approval: "Determinism, tenant isolation, rule/leave/skills UAT, and independent workforce review",
+  },
+  wfmRosterScaleRules: {
+    env: "WFM_ROSTER_SCALE_RULES_ENABLED",
+    owner: "WFM Operations / Philippine Payroll",
+    risk: "P1 large-roster notification completeness and labor-rule schedule publish",
+    approval: "Synthetic 1000-assignment pagination, verified roster publish UAT, payroll review and operational sign-off",
   },
   employeeImportPreview: {
     env: "EMPLOYEE_IMPORT_PREVIEW_ENABLED", owner: "People Operations",
@@ -38,6 +45,17 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Security and People Operations",
     risk: "P1 personal identity and medical documents, expiry notices, private object storage",
     approval: "Independent access UAT, object storage/malware QA, migration reconciliation and retention/legal-hold review",
+  },
+  orderedReleaseMigrations: {
+    env: "ORDERED_RELEASE_MIGRATIONS_ENABLED", owner: "Database Operations",
+    risk: "P0 deployment-only schema changes",
+    approval: "DBA baseline adoption, protected release and restore rehearsal",
+  },
+  workforcePunchEvidence: {
+    env: "WFM_PUNCH_EVIDENCE_ENABLED",
+    owner: "People Operations / Privacy",
+    risk: "P1 employee attendance, photographic evidence and offline replay",
+    approval: "DPO policy, encryption key, staged review, expiry scheduler and employee pilot sign-off",
   },
   documentUploads: {
     env: "DOCUMENT_UPLOADS_ENABLED",
