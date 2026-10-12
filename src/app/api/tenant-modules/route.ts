@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { organizations } from "@/db/schema";
+import { auditEvents, organizations } from "@/db/schema";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
@@ -8,7 +8,6 @@ import { isTenantModuleId, TENANT_MODULES } from "@/lib/tenant-modules";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { requireSaasPaidWrites } from "@/lib/saas-workspace-access";
-import { recordAuditEvent } from "@/lib/audit";
 export const dynamic = "force-dynamic";
 
 async function authorize(organizationId: number) {
@@ -49,8 +48,9 @@ export async function PATCH(request: Request) {
     const enabled = new Set((Array.isArray(org.enabledModules) ? org.enabledModules : []).filter(isTenantModuleId));
     if (body.enabled) enabled.add(body.moduleId); else enabled.delete(body.moduleId);
     const [result] = await tx.update(organizations).set({ enabledModules: [...enabled] }).where(eq(organizations.id, organizationId)).returning({ mode: organizations.moduleNavigationMode, enabledModules: organizations.enabledModules });
+    // State and the immutable audit receipt must commit or roll back together.
+    await tx.insert(auditEvents).values({ organizationId, actor: user.name, action: "Tenant module visibility updated", resource: body.moduleId, metadata: { enabled: body.enabled } });
     return result;
   });
-  await recordAuditEvent({ organizationId, actor: user.name, action: "Tenant module visibility updated", resource: body.moduleId, metadata: { enabled: body.enabled } });
   return Response.json(saved);
 }
