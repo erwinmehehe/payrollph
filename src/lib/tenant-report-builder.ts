@@ -2,7 +2,7 @@ import { toCsv } from "@/lib/csv";
 
 export type BuilderDataset = "people" | "time" | "payroll";
 export type BuilderField = "department" | "status" | "employmentType" |
-  "headcount" | "separatedCount" | "scheduledMinutes" | "workedMinutes" |
+  "headcount" | "separatedCount" | "turnoverCount" | "scheduledMinutes" | "workedMinutes" |
   "overtimeMinutes" | "absenceDays" | "payrollCost" | "otLineCost";
 export type BuilderSpec = {
   dataset: BuilderDataset;
@@ -12,7 +12,7 @@ export type BuilderSpec = {
 };
 
 export const BUILDER_FIELD_CATALOG: Record<BuilderDataset, readonly BuilderField[]> = {
-  people: ["department", "status", "employmentType", "headcount", "separatedCount"],
+  people: ["department", "status", "employmentType", "headcount", "separatedCount", "turnoverCount"],
   time: ["department", "status", "scheduledMinutes", "workedMinutes", "overtimeMinutes", "absenceDays"],
   payroll: ["department", "status", "payrollCost", "otLineCost"],
 };
