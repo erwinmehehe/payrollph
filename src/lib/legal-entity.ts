@@ -5,8 +5,9 @@ import { legalEntities, organizations } from "@/db/schema";
 export async function ensurePrimaryLegalEntity(
   organizationId: number,
   createdByUserId?: number | null,
+  database: Pick<typeof db, "select" | "insert"> = db,
 ) {
-  const existing = await db.select().from(legalEntities)
+  const existing = await database.select().from(legalEntities)
     .where(eq(legalEntities.organizationId, organizationId))
     .orderBy(asc(legalEntities.id));
 
@@ -14,12 +15,12 @@ export async function ensurePrimaryLegalEntity(
     return existing.find((entity) => entity.primaryEntity) ?? existing[0];
   }
 
-  const [organization] = await db.select().from(organizations)
+  const [organization] = await database.select().from(organizations)
     .where(eq(organizations.id, organizationId))
     .limit(1);
   if (!organization) return null;
 
-  await db.insert(legalEntities).values({
+  await database.insert(legalEntities).values({
     organizationId,
     code: "PRIMARY",
     legalName: organization.legalName,
@@ -38,7 +39,7 @@ export async function ensurePrimaryLegalEntity(
     target: [legalEntities.organizationId, legalEntities.code],
   });
 
-  const rows = await db.select().from(legalEntities)
+  const rows = await database.select().from(legalEntities)
     .where(and(
       eq(legalEntities.organizationId, organizationId),
       eq(legalEntities.active, true),
