@@ -34,8 +34,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   });
   return new Response(row.content, {
     headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename=linaw-payslip-${row.id}.pdf`,
+      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Disposition": `attachment; filename=linaw-payslip-${row.id}.txt`,
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
     },
