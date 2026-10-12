@@ -68,12 +68,17 @@ docker run --rm --network host \
 test -s "$archive" || { echo "BACKUP_EMPTY_ENCRYPTED_ARCHIVE" >&2; exit 1; }
 encrypted_size="$(stat -c %s "$archive")"
 encrypted_sha="$(sha256sum "$archive" | cut -d ' ' -f1)"
+# S3 Object Lock retention requires an explicit content checksum.
+# Encode the actual SHA-256 bytes as base64 (not the 64-character hex string).
+encrypted_sha_b64="$(node -e 'process.stdout.write(Buffer.from(process.argv[1], "hex").toString("base64"))' "$encrypted_sha")"
 retention_until="$(date -u -d '+30 days' +%Y-%m-%dT%H:%M:%SZ)"
 
 # S3 Object Lock COMPLIANCE + SSE-KMS protects the outer age ciphertext.
 aws s3api put-object \
   --bucket "$BACKUP_S3_BUCKET" --key "$object_key" \
   --body "$archive" \
+  --checksum-algorithm SHA256 \
+  --checksum-sha256 "$encrypted_sha_b64" \
   --server-side-encryption aws:kms \
   --ssekms-key-id "$BACKUP_KMS_KEY_ARN" \
   --object-lock-mode COMPLIANCE \
