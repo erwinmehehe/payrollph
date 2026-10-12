@@ -439,7 +439,7 @@ export async function POST(request: Request) {
         }
         const checked = await inspect(payload.employeeIds, payload.workDate, payload.shiftDefinitionId);
         if (checked.error) return {status:409,payload:{
-          code:"WFM_BATCH_SOURCE_REVIEW_REQUIRED",error:checked.error,ruleFindings:checked.ruleFindings??[],
+          code:"WFM_BATCH_SOURCE_REVIEW_REQUIRED",error:checked.error,ruleFindings:('ruleFindings' in checked ? checked.ruleFindings : []),
         }};
         const [batch] = await tx.insert(workforceRosterBatches).values({
           organizationId, workDate: payload.workDate, shiftDefinitionId: payload.shiftDefinitionId,
@@ -458,6 +458,7 @@ export async function POST(request: Request) {
         return { status: 201, payload: {
           id: batch.id, status: "pending", workers: payload.employeeIds.length,
           message: "Staged for a different authorized checker. No shifts were published.",
+          ruleFindings: ('ruleFindings' in checked ? checked.ruleFindings : []),
         } };
       }
 
