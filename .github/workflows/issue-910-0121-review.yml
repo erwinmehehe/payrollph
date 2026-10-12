@@ -9,7 +9,15 @@ on:
       - "tests/issue-910-0121-postgres.test.mjs"
       - "tests/issue-910-forward-predecessor-postgres.test.mjs"
       - "docs/sql/issue-910-review-only-forward-predecessor.sql"
-      - "docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql"
+
+      - "drizzle/0022_job_architecture_positions.sql"
+      - "drizzle/0050_hcm_core_worker_history.sql"
+      - "drizzle/0051_hcm_org_job_architecture.sql"
+      - "drizzle/0052_hcm_effective_dated_changes.sql"
+      - "drizzle/0110_provider_events_inbox.sql"
+      - "drizzle/0112_wfm_operational_demand_observations.sql"
+      - "drizzle/0113_wfm_issued_demand_forecasts.sql"
+      - "drizzle/0114_wfm_demand_staffing_policies.sql"
       - "drizzle/0121_multi_entity_v2_scope_transfer.sql"
       - ".github/workflows/issue-910-0121-review.yml"
   push:
@@ -21,6 +29,14 @@ on:
       - "tests/issue-910-forward-predecessor-postgres.test.mjs"
       - "docs/sql/issue-910-review-only-forward-predecessor.sql"
       - "docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql"
+      - "drizzle/0022_job_architecture_positions.sql"
+      - "drizzle/0050_hcm_core_worker_history.sql"
+      - "drizzle/0051_hcm_org_job_architecture.sql"
+      - "drizzle/0052_hcm_effective_dated_changes.sql"
+      - "drizzle/0110_provider_events_inbox.sql"
+      - "drizzle/0112_wfm_operational_demand_observations.sql"
+      - "drizzle/0113_wfm_issued_demand_forecasts.sql"
+      - "drizzle/0114_wfm_demand_staffing_policies.sql"
       - "drizzle/0121_multi_entity_v2_scope_transfer.sql"
 permissions:
   contents: read
@@ -41,7 +57,7 @@ jobs:
         run: node --test tests/issue-910-0121-review.test.mjs
 
   rehearsal-pg:
-    name: Synthetic 0121 isolation and rollback PostgreSQL ${{ matrix.postgres }}
+    name: Synthetic 0121 and predecessor rollback PostgreSQL ${{ matrix.postgres }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -81,7 +97,7 @@ jobs:
         run: npm ci
       - name: Push synthetic fixture schema to localhost only
         run: npm run db:push
-      - name: Rehearse 0121, deny foreign employers, verify retry and rollback
+      - name: Rehearse predecessors and 0121 with isolated synthetic employer records
         run: |
           node --check tests/issue-910-0121-postgres.test.mjs
           node --test tests/issue-910-0121-postgres.test.mjs
