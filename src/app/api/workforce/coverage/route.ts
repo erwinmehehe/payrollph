@@ -2358,6 +2358,23 @@ export async function POST(request: Request) {
         if (scheduleGuardrailBlocksMutation(lockedIssues)) {
           throw new Error("New source roster changes fail binding guardrails.");
         }
+        const lockedRuleFindings = wfmRosterScaleRulesEnabled()
+          ? await (async () => {
+            const baseline = await resolveEmployeeScheduleWindow({
+              organizationId,employeeId:employee.id,
+              startDate:addDays(date,-7),endDate:addDays(date,7),executor:tx,
+            });
+            const checked = await checkWfmRosterPublish({
+              organizationId,employeeId:employee.id,days:lockedWindow,
+              targetDates:[date],executor:tx,
+              baselineRestDates:baseline.filter(day=>day.isRestDay).map(day=>day.date),
+            });
+            if (decideRosterRulePublish({findings:checked.findings,managerMayOverride:false}).blocked) {
+              throw Error("New roster rules block this open-shift claim.");
+            }
+            return checked.findings;
+          })() : [];
+
         const [updatedClaim] = await tx.update(openShiftClaims).set({
           status: "approved", decidedBy: user.name, decidedByUserId: user.id,
           decidedAt: new Date(), decisionNote, updatedAt: new Date(),
@@ -2398,15 +2415,17 @@ export async function POST(request: Request) {
             jobProfileId: openShift.jobProfileId,
             scheduleOverrideId: override.id, filled,
             guardrailIssues: lockedIssues,
+            rosterRuleFindings:lockedRuleFindings,
             staleTimesheetIds: staleTimesheets.map(row => row.id),
           },
         });
-        return { updatedClaim, override, filled, lockedIssues, staleTimesheets };
+        return { updatedClaim, override, filled, lockedIssues, lockedRuleFindings, staleTimesheets };
       }, { isolationLevel: "read committed" });
       return Response.json({
         claim: result.updatedClaim, scheduleOverride: result.override,
         openShiftFilled: result.filled,
         guardrailIssues: result.lockedIssues,
+        ruleFindings: result.lockedRuleFindings,
         staleTimesheetIds: result.staleTimesheets.map(row => row.id),
       });
     } catch {
