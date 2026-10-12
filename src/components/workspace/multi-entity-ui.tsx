@@ -93,7 +93,10 @@ export function EntityFilter({ context, organizationId, title = "Filter by entit
   context?: EntityWorkspace; organizationId: number; title?: string;
 }) {
   if (!context?.group) return null;
-  return <div style={{ marginBottom: 12 }}><EntitySwitcher context={context} organizationId={organizationId} /></div>;
+  return <div style={{ marginBottom: 12 }}>
+    <span className="card-kicker">{title}</span>
+    <EntitySwitcher context={context} organizationId={organizationId} />
+  </div>;
 }
 
 type SettingsEntity = {
@@ -257,6 +260,7 @@ export function EntityTransferDialog({
       style={{ width: "min(95vw, 620px)", maxHeight: "88vh", overflowY: "auto" }}>
       <h2>Transfer {employee.firstName} {employee.lastName}</h2>
       <p>Entity changes require independent approval. The employee keeps one identity and original service date.</p>
+      <p>Current: <strong>{context.entities.find(row => row.id === employee.legalEntityId)?.displayName ?? "Entity not available"}</strong></p>
       {status === "loading" && <p role="status">Loading destinations…</p>}
       {status === "error" && <p role="alert">{error}</p>}
       {status !== "loading" && <>
