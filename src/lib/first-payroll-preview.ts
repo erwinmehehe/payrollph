@@ -1,8 +1,11 @@
 import { and, eq, gte, inArray, lte } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  employeeLoans, employeePayProfiles, employeePayRevisions, employees,
-  legalEntities, leaveRequests, organizations, payrollRuns, timePunches,
+  benefitEnrollments, deMinimisGrants, earnedWageRequests,
+  employeeCompensationComponents, employeeLoans, employeePayProfiles,
+  employeePayRevisions, employeePayRetroAdjustments, employees, expenseClaims,
+  legalEntities, leaveConversions, leaveRequests, organizations, overtimeRequests,
+  payPolicies, payrollRuns, supplementaryEarnings, timePunches, yearEndAdjustments,
 } from "@/db/schema";
 import { calculateEmployeePay, PAYROLL_RULE_VERSION } from "@/lib/payroll-engine";
 import { nationalHolidayCalendarForDate } from "@/lib/wage-orders";
@@ -190,7 +193,7 @@ export async function loadFirstPayrollPreview(input: {
   if (!employeeRows.length) blockers.push("No active employees in the selected payroll scope.");
   const ids = employeeRows.map(e=>e.id);
   const [
-    profiles, punches, leave, payChanges, loans, existingRuns,
+    profiles, punches, leave, payChanges, loans, existingRuns, complicated, activePolicies,
   ] = ids.length ? await Promise.all([
     db.select().from(employeePayProfiles).where(and(eq(employeePayProfiles.organizationId,organizationId),inArray(employeePayProfiles.employeeId,ids))),
     db.select({employeeId:timePunches.employeeId}).from(timePunches).where(and(eq(timePunches.organizationId,organizationId),
@@ -205,11 +208,22 @@ export async function loadFirstPayrollPreview(input: {
     db.select({ id:payrollRuns.id, status:payrollRuns.status, periodStart:payrollRuns.periodStart,
       periodEnd:payrollRuns.periodEnd }).from(payrollRuns).where(and(eq(payrollRuns.organizationId,organizationId),
       legalEntityId ? eq(payrollRuns.legalEntityId,legalEntityId) : undefined)),
-  ]) : [[],[],[],[],[],[]];
+    Promise.all([
+      benefitEnrollments, deMinimisGrants, earnedWageRequests, employeeCompensationComponents,
+      employeePayRetroAdjustments, expenseClaims, leaveConversions, overtimeRequests,
+      supplementaryEarnings, yearEndAdjustments,
+    ].map(table=>db.select({employeeId:table.employeeId}).from(table).where(and(
+      eq(table.organizationId,organizationId),inArray(table.employeeId,ids),
+    )))).then(groups=>new Set(groups.flat().map(item=>item.employeeId))),
+    db.select({id:payPolicies.id}).from(payPolicies).where(and(
+      eq(payPolicies.organizationId,organizationId),eq(payPolicies.active,true),
+      lte(payPolicies.effectiveFrom,periodEnd),
+    )).limit(1),
+  ]) : [[],[],[],[],[],[],new Set<number>(),[]];
   // Deliberately refuse to project advanced earning adjustments from a
   // partial input model. Later extension should extract the production input
   // assembler shared with processPayrollChunk.
-  const complexInputsExist = false;
+  const complexInputsExist = activePolicies.length > 0;
   const isMonthFinal = lastDayOfMonth(periodEnd);
   const priorCutoffRequired = isMonthFinal && Number(periodStart.slice(8,10)) >= 16 &&
     !existingRuns.some(run=>run.status==="Released" &&
@@ -224,7 +238,7 @@ export async function loadFirstPayrollPreview(input: {
     approvedLeaveExists:has(leave,employee.id),
     effectivePayChangeExists:has(payChanges,employee.id),
     activeLoanExists:has(loans,employee.id),
-    complexInputsExist, unsupportedCalendar, priorCutoffRequired,
+    complexInputsExist: complexInputsExist || complicated.has(employee.id), unsupportedCalendar, priorCutoffRequired,
   }));
   if (rows.some(r=>r.blockers.length)) blockers.push("One or more employees have unresolved payroll blockers.");
   const previewReady = blockers.length===0 && rows.length>0 && rows.every(r=>r.status==="ready");
