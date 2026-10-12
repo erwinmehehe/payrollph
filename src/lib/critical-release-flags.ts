@@ -54,6 +54,18 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 consented POS source access and historical aggregate import",
     approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
   },
+  hcmEngagementSurvey: {
+    env: "HCM_ENGAGEMENT_SURVEY_ENABLED",
+    owner: "People",
+    risk: "P1 employee feedback aggregation privacy and response threshold",
+    approval: "DPO anonymity-key review, sealed-results five-person threshold and tenant UAT",
+  },
+  hcmSimpleGoals: {
+    env: "HCM_SIMPLE_GOALS_ENABLED",
+    owner: "People",
+    risk: "P1 employee performance feedback with independent reviewer",
+    approval: "Tenant and department scope, HR maker-checker and review-cycle UAT",
+  },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
     owner: "Product",

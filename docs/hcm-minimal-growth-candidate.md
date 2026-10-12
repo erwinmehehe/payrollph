@@ -1,0 +1,9 @@
+# Optional employee pulse and goals — draft, OFF
+
+**Unnumbered migration proposal:** `docs/engineering/migration-proposals/hcm-minimal-growth.sql` (design only, not an executable numbered migration). Independent source-only branch; no SQL may be executed until DBA assigns a new consecutive number after the canonical migration train and approves its exact DDL.
+
+Survey flag: `HCM_ENGAGEMENT_SURVEY_ENABLED=true`, with separate secret `HCM_SURVEY_ANONYMITY_KEY` (>=32 random characters) required for responses. Anonymous answers store only HMAC pseudonym (per tenant, survey, signed account ID) and 1–5 score; no raw response GET and no demographic filters. Single aggregate is returned **only after irreversible survey closure with >=5 responses**. No intermediate aggregates, no department drill-down, no free-text answers, and no identifying per-employee result exports. DPO approval of anonymity notice and data-retention/secret handling is required. A pseudonym prevents easy reidentification but does not make a tiny employer population immune to deduction.
+
+Goals flag: `HCM_SIMPLE_GOALS_ENABLED=true`. HR may create a goal for an authorized employee; different authorized HR may review it; employee acknowledges. Maker cannot check their own goal, and employee cannot self-review. All mutations are tenant-scoped, key operations audited, no changes to compensation or payroll. Employee/HR pages live at /workspace/engagement and /workspace/goals with organizationId parameter.
+
+**Not included:** employee performance-based compensation, succession planning, learning catalogues, automated feedback AI, sub-five response output, historical payroll effects or production approval. Tests, lint, payroll golden suites and full TZ=Asia/Manila suite need actual execution before merge. DPO/security and HR UAT separate.

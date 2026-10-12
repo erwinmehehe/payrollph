@@ -461,6 +461,55 @@ export const workforceScheduleGuardrailPolicies = pgTable(
   ],
 );
 
+export const hcmPulseSurveys = pgTable("hcm_pulse_surveys", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  question: varchar("question", { length: 240 }).notNull(),
+  status: varchar("status", { length: 16 }).notNull().default("open"),
+  createdByUserId: integer("created_by_user_id").notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+}, table => [index("hcm_pulse_org_status_idx").on(table.organizationId,table.status)]);
+
+export const hcmPulseSurveyResponses = pgTable("hcm_pulse_survey_responses", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  surveyId: integer("survey_id").notNull()
+    .references(() => hcmPulseSurveys.id, { onDelete: "cascade" }),
+  respondentHash: varchar("respondent_hash", { length: 64 }).notNull(),
+  score: integer("score").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("hcm_pulse_respondent_unique").on(table.surveyId,table.respondentHash),
+  index("hcm_pulse_org_survey_idx").on(table.organizationId,table.surveyId),
+]);
+
+export const hcmSimpleGoals = pgTable("hcm_simple_goals", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull()
+    .references(() => employees.id, { onDelete: "cascade" }),
+  title: varchar("title", { length: 180 }).notNull(),
+  description: text("description").notNull(),
+  dueDate: date("due_date").notNull(),
+  status: varchar("status", { length: 24 }).notNull().default("active"),
+  createdByUserId: integer("created_by_user_id").notNull()
+    .references(() => users.id, { onDelete: "restrict" }),
+  reviewScore: integer("review_score"),
+  reviewNotes: varchar("review_notes", { length: 1000 }),
+  reviewerUserId: integer("reviewer_user_id")
+    .references(() => users.id, { onDelete: "set null" }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  employeeAcknowledgedAt: timestamp("employee_acknowledged_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  index("hcm_simple_goals_org_employee_idx").on(table.organizationId,table.employeeId),
+]);
+
 export const schedulePatterns = pgTable(
   "schedule_patterns",
   {
