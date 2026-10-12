@@ -4,13 +4,13 @@ Baseline: freshly fetched main `4d816361`, 12 October 2026 Asia/Manila. This led
 
 | Order / block | Evidence on latest main or draft | Remaining acceptance work |
 | --- | --- | --- |
-| First payroll inline | Draft #858 | Final CI and complete desktop/phone/role evidence; not merged or activated |
-| Import preview | Draft #863 | Real PostgreSQL acceptance/full CI; add error-filter UI and role/phone screenshots |
-| Core-only nav | Also draft #863 | Split into its own PR under the newly attached one-block rule; flag-off/role/phone UI evidence |
+| First payroll inline | Draft #858; latest full CI and inline acceptance passed | Review and complete any additional UI evidence required by the attached list; not merged or activated |
+| Import preview | Draft #873 (supersedes closed combined #863) | Error filter and MFA/role/phone/flag-off browser workflow added; predecessor actual PostgreSQL acceptance passed; final isolated CI/screenshots pending |
+| Core-only nav | Separate draft #874 (supersedes closed combined #863) | New/existing snapshots and migration rehearsal passed on predecessor; scoped-admin UI checked; final isolated CI/browser screenshots pending |
 | C-1 accounting export | exporters.ts, labor-costing.ts, labor_gl_mappings | Component mapping UI; strict missing mappings; immutable replay; actual format adapters; OT/loan/accrual balance fixture |
 | C-2 SSO/directory | OIDC routes, oidc.ts, scim.ts, Enterprise screens | Verify provider/domain settings, lowest-role JIT, deprovision session invalidation, break-glass MFA and browser acceptance |
 | A-1 benefits/loans | benefits/hmo routes, loans route, final-pay-loan-authority.ts | Audit amortization/floor/override/early-resignation behavior and screens; extend only confirmed gaps |
-| Fix A prior-year retro | final-pay.ts already attributes RETRO to original pay year | Execute prior-year regression; do not introduce a second attribution implementation |
+| Fix A prior-year retro | final-pay.ts already attributes RETRO to original pay year | 12 behavioral final-pay regression tests passed under TZ=Asia/Manila, including prior-year retro; do not introduce a second attribution implementation |
 | Fix B scheduler | scheduler state/lease/liveness, tick/status/cron routes, worker and staging workflows | Production guaranteed trigger activation and credentials are not established by source; admin heartbeat evidence and isolated scheduler tests |
 | Fix C runtime schema | Runtime writer inventory and receipt audit tools exist | Review ordered-migration-cutover-design.md before runtime changes; real DBA history evidence |
 | Face/offline punches | Geofence/web-bundy routes preserve no raw GPS | Consent, encrypted photo storage, purge, IndexedDB/review/skew/device flags and UI acceptance |
@@ -42,4 +42,4 @@ No multi-country/EOR, SAP/Workday, licensed insurance or lending product work is
 
 ## Review gates
 
-The attached list explicitly requires reviewed written plans for multi-entity, approval chains and Fix C. Existing multi-entity RFC remains unapproved; new approval-chain and ordered-migration notes are design-only. Implementation of those three blocks waits for written review. Other independent blocks can proceed without that dependency.
+The attached list explicitly requires reviewed written plans for multi-entity, approval chains and Fix C. Existing multi-entity RFC remains unapproved; new approval-chain (#869) and ordered-migration (#870) notes are design-only. Implementation of those three blocks waits for written review. Other independent blocks can proceed without that dependency.
