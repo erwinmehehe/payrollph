@@ -45,6 +45,9 @@ export function EmployeeHrCasesPanel({ language }: { language: EssLanguage }) {
       setCases(Array.isArray(data.cases) ? data.cases : []);
       setError("");
     } catch {
+      // A network/server error is not the same as the default-OFF 404.
+      // Keep the panel visible so the employee can see the failure and retry.
+      setAvailable(true);
       setError("Could not load HR requests.");
     } finally { setLoading(false); }
   }, []);
@@ -82,7 +85,8 @@ export function EmployeeHrCasesPanel({ language }: { language: EssLanguage }) {
     }
   }
 
-  if (loading || !available) return null;
+  if (loading) return <p role="status">{t("Loading HR requests…")}</p>;
+  if (!available) return null;
 
   return (
     <section className="employee-section" aria-label={t("HR requests")} style={{ marginTop: 20 }}>
