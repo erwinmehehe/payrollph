@@ -3,21 +3,25 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { documentObjectKey, putDocumentObject } from "@/lib/document-object-storage";
 import { auditEvents, documents, employeeHrCaseMessages, employeeHrCases, employees, organizations } from "@/db/schema";
-import { assertMembership, assertOrganizationRole, assertScope, getAccess } from "@/lib/access";
+import {
+  assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES,
+} from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
   approvedCoeText, HR_CASE_TYPES, hrCaseDueAt, hrCaseSlaStatus,
-  hrCaseTransitionAllowed, isHrCaseType, type HrCaseStatus,
+  hrCaseTransitionAllowed, hrCaseRoleCanWork, visibleHrCaseMessages,
+  isHrCaseType, type HrCaseStatus,
 } from "@/lib/hr-case-policy";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 
 export const dynamic = "force-dynamic";
-const HR_ROLES = ["owner", "admin", "hr"] as const;
 const STATES = new Set(["open", "in_progress", "waiting_employee", "resolved", "closed"]);
 const enabled = () => criticalReleaseFlagEnabled("employeeHrCases");
 const unavailable = () => Response.json({ error: "HR cases are not enabled for this release." }, { status: 404 });
 const caseIdValid = (n: number) => Number.isSafeInteger(n) && n > 0;
+const restrictedStaff = (role: string) => !["owner", "admin", "hr", "payroll"].includes(role);
+const noStore = { "Cache-Control": "private, no-store" } as const;
 
 async function employeeForSession(session: NonNullable<Awaited<ReturnType<typeof getSessionUser>>>) {
   if (session.role !== "employee" || !session.employeeId) return null;
@@ -39,17 +43,24 @@ export async function GET(request: Request) {
 
   const access = isEmployee ? null : await getAccess(user.id, organizationId);
   if (!isEmployee) {
-    const denied = await assertOrganizationRole(user.id, organizationId, HR_ROLES);
+    const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_PAYROLL_ROLES);
     if (denied) return denied;
-    if (!access) return Response.json({ error: "Workspace access denied." }, { status: 403 });
+    if (!access || restrictedStaff(access.role)) {
+      return Response.json({ error: "HR case inbox access denied." }, { status: 403 });
+    }
   }
-  const staff = isEmployee ? [] : await db.select({ id: employees.id, orgUnitId: employees.orgUnitId })
-    .from(employees).where(eq(employees.organizationId, organizationId));
+  const staff = isEmployee ? [] : await db.select({
+    id: employees.id, orgUnitId: employees.orgUnitId,
+    firstName: employees.firstName, lastName: employees.lastName,
+    title: employees.title, startDate: employees.startDate,
+  }).from(employees).where(eq(employees.organizationId, organizationId));
   const visibleIds = isEmployee ? [worker!.id] :
     staff.filter(row => access!.companyWide || row.orgUnitId === access!.orgUnitId).map(row => row.id);
   const cases = visibleIds.length ? await db.select().from(employeeHrCases).where(and(
     eq(employeeHrCases.organizationId, organizationId),
     inArray(employeeHrCases.employeeId, visibleIds),
+    !isEmployee && (access!.role === "hr" || access!.role === "payroll")
+      ? eq(employeeHrCases.assignedRole, access!.role) : undefined,
   )).orderBy(desc(employeeHrCases.createdAt), desc(employeeHrCases.id)).limit(100) : [];
   const caseIds = cases.map(row => row.id);
   const messages = caseIds.length ? await db.select().from(employeeHrCaseMessages).where(and(
@@ -57,13 +68,24 @@ export async function GET(request: Request) {
     inArray(employeeHrCaseMessages.caseId, caseIds),
     isEmployee ? eq(employeeHrCaseMessages.visibility, "employee") : undefined,
   )).orderBy(employeeHrCaseMessages.createdAt).limit(500) : [];
+  const peopleById = new Map(staff.map(item => [item.id, item]));
   return Response.json({
-    cases: cases.map(row => ({
-      ...row,
-      sla: hrCaseSlaStatus(row.slaDueAt, row.status),
-      messages: messages.filter(message => message.caseId === row.id),
-    })),
-  });
+    cases: cases.filter(row => isEmployee || hrCaseRoleCanWork(access!.role, row.assignedRole))
+      .map(row => {
+        const person = peopleById.get(row.employeeId);
+        return {
+          ...row,
+          employeeName: person ? person.firstName + " " + person.lastName : undefined,
+          employeeTitle: person?.title,
+          employeeStartDate: person?.startDate,
+          sla: hrCaseSlaStatus(row.slaDueAt, row.status),
+          messages: visibleHrCaseMessages(
+            messages.filter(message => message.caseId === row.id),
+            isEmployee ? "employee" : "staff",
+          ),
+        };
+      }),
+  }, { headers: noStore });
 }
 
 export async function POST(request: Request) {
@@ -126,9 +148,12 @@ export async function PATCH(request: Request) {
       return Response.json({ error: "Case not found." }, { status: 404 });
     }
   } else {
-    const denied = await assertOrganizationRole(user.id, existing.organizationId, HR_ROLES);
+    const denied = await assertOrganizationRole(user.id, existing.organizationId, PEOPLE_PAYROLL_ROLES);
     if (denied) return denied;
     const access = await getAccess(user.id, existing.organizationId);
+    if (!access || !hrCaseRoleCanWork(access.role, existing.assignedRole)) {
+      return Response.json({ error: "Case not found." }, { status: 404 });
+    }
     const [worker] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
       eq(employees.id, existing.employeeId), eq(employees.organizationId, existing.organizationId),
     )).limit(1);

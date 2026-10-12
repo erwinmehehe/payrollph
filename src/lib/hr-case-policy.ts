@@ -8,6 +8,24 @@ export const HR_CASE_TYPES = {
 } as const;
 
 export type HrCaseType = keyof typeof HR_CASE_TYPES;
+
+/**
+ * Assignee role is a confidentiality boundary, not merely a sorting hint.
+ * HR cannot read payroll correction cases, and payroll cannot read HR disputes.
+ * Owner/admin still require the employer's active membership and unit scope.
+ */
+export function hrCaseRoleCanWork(role: string, assignedRole: string): boolean {
+  if (assignedRole !== "hr" && assignedRole !== "payroll") return false;
+  return role === "owner" || role === "admin" || role === assignedRole;
+}
+
+/** Defence in depth: employee responses never include HR-only internal notes. */
+export function visibleHrCaseMessages<T extends { visibility: string }>(
+  rows: readonly T[],
+  viewer: "employee" | "staff",
+): T[] {
+  return rows.filter(row => viewer === "staff" || row.visibility === "employee");
+}
 export type HrCaseStatus = "open" | "in_progress" | "waiting_employee" | "resolved" | "closed";
 
 export function isHrCaseType(value: unknown): value is HrCaseType {
