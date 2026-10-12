@@ -100,8 +100,11 @@ with the earlier archive source commit, S3 object key, encrypted-object
 SHA-256, ticket and the confirmation
 `RESTORE_IN_DISPOSABLE_POSTGRES_ONLY`. It downloads ciphertext using
 read-only IAM, independently checks metadata and SHA, decrypts using
-the separately protected private age key, and restores into a
-**network-disconnected, ephemeral PostgreSQL 18 Docker container**.
+the separately protected private age key, and streams the decrypted
+archive directly into a **network-disconnected, ephemeral PostgreSQL 18
+Docker container**. Neither production nor synthetic restore writes a
+plaintext pg_dump archive to the CI runner filesystem. The private age
+identity and encrypted archive remain temporary restricted files.
 It never calls the Neon snapshot or production database APIs, never
 opens a production connection, and does not upload restored employee,
 payroll or bank records as artifacts.

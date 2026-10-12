@@ -50,18 +50,16 @@ fi
 # A wrong decryption key cannot read the ciphertext.
 age-keygen -o "$work/unrelated-key.txt" >/dev/null 2>&1
 if age -d -i "$work/unrelated-key.txt" "$work/encrypted.pgdump.age" \
-  > "$work/wrong-decrypt.dump" 2>/dev/null; then
+  > /dev/null 2>/dev/null; then
   echo "OFFSITE_SMOKE_WRONG_AGE_KEY_ACCEPTED" >&2; exit 1
 fi
 
-age -d -i "$work/age-identity.txt" \
-  "$work/encrypted.pgdump.age" > "$work/decrypted.dump"
-test -s "$work/decrypted.dump"
-
-# Restore into a separate disposable DB. No original rows are modified.
+# Restore into a separate disposable DB using only a decrypted stream.
+# No original database rows or plaintext dump files are written.
 docker exec "$container" createdb -U postgres offsite_restore_test
-docker exec -i "$container" pg_restore -U postgres -d offsite_restore_test \
-  --no-owner --no-acl --exit-on-error < "$work/decrypted.dump"
+age -d -i "$work/age-identity.txt" "$work/encrypted.pgdump.age" |
+  docker exec -i "$container" pg_restore -U postgres -d offsite_restore_test \
+    --no-owner --no-acl --single-transaction --exit-on-error
 restored="$(docker exec "$container" psql -XAt -U postgres \
   -d offsite_restore_test -c "$digest" | tr -d '\r\n')"
 test "$source" = "$restored"

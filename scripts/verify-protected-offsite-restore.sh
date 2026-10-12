@@ -26,7 +26,6 @@ cleanup() {
 }
 trap cleanup EXIT
 archive="$work/offsite.pgdump.age"
-restore="$work/decrypted.pgdump"
 key="$work/identity.txt"
 
 # Read-only OIDC AWS role. Source branch never contacted.
@@ -57,9 +56,8 @@ fi
 # environment. The backup/upload workflow never sees this key.
 printf '%s\n' "$RESTORE_AGE_PRIVATE_KEY" > "$key"
 chmod 600 "$key"
-age -d -i "$key" "$archive" > "$restore"
-test -s "$restore"
-
+# Only encrypted ciphertext and the restricted private age identity may be
+# staged on the runner. No plaintext dump archive is written to disk.
 # No external network OR mounted production volume in the restore target.
 start="$(date +%s)"
 docker run -d --rm --network none --name "$container" \
@@ -76,9 +74,11 @@ if [[ "$ready" != true ]]; then
   echo "RESTORE_EPHEMERAL_POSTGRES_NOT_READY" >&2
   exit 1
 fi
-docker exec -i "$container" pg_restore -U postgres -d restore_evidence \
-  --no-owner --no-acl --single-transaction --exit-on-error \
-  < "$restore" >/dev/null
+# Stream decryption directly to the disconnected PostgreSQL container.
+# pipefail and --single-transaction fail closed for wrong keys or truncation.
+age -d -i "$key" "$archive" |
+  docker exec -i "$container" pg_restore -U postgres -d restore_evidence \
+    --no-owner --no-acl --single-transaction --exit-on-error >/dev/null
 tables="$(docker exec "$container" psql -XAtq -U postgres -d restore_evidence \
   -v ON_ERROR_STOP=1 -c "SELECT count(*)::int FROM pg_catalog.pg_class c
   JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace

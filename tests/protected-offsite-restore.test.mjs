@@ -64,10 +64,20 @@ test("restore is networkless ephemeral PG18, cipher verified before any decrypti
  assert.match(sh,/RESTORE_CIPHERTEXT_TAMPERED/);
  assert.match(sh,/RESTORE_ARCHIVE_SOURCE_SHA/);
  assert.match(sh,/age -d -i/);
+ assert.match(sh,/age -d -i "\$key" "\$archive"\s*\|\s*docker exec -i "\$container" pg_restore/);
+ assert.doesNotMatch(sh,/decrypted\.pgdump|decrypted\.dump|\$work\/decrypted/);
+ assert.doesNotMatch(sh,/age -d[^\n]*>\s*["']?\$work/);
  assert.match(sh,/--single-transaction --exit-on-error/);
  assert.match(sh,/RESTORE_EXTERNAL_DATABASE_ENV_FORBIDDEN/);
  assert.doesNotMatch(sh,/\bneon\s+(?:restore|branch|snapshot)\b/i);
  assert.doesNotMatch(sh,/set -x/);
+});
+
+test("synthetic PostgreSQL18 rehearsal uses encrypted-stream restore without plaintext archive files",()=>{
+ const smoke=readFileSync("scripts/rehearse-encrypted-offsite-backup.sh","utf8");
+ assert.match(smoke,/age -d -i "\$work\/age-identity\.txt" "\$work\/encrypted\.pgdump\.age"\s*\|\s*docker exec -i/);
+ assert.match(smoke,/--single-transaction --exit-on-error/);
+ assert.doesNotMatch(smoke,/decrypted\.dump|wrong-decrypt\.dump/);
 });
 
 test("manual private restore workflow never uses production DB or public artifacts",()=>{
