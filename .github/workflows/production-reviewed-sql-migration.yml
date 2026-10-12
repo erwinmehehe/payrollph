@@ -87,6 +87,10 @@ jobs:
             exit 1
           fi
           if [ "${{ inputs.mode }}" = apply ]; then
+            if [ "${GITHUB_REF_PROTECTED:-}" != "true" ]; then
+              echo 'SQL apply blocked: the GitHub main branch must be protected.'
+              exit 1
+            fi
             if [ "$MIGRATION_APPLY_CONFIRMATION" != APPLY_APPROVED_SCHEMA_MIGRATION ] ||
                [[ ! "$MIGRATION_APPROVAL_REF" =~ ^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,120}$ ]]; then
               echo 'Apply requires separate signed change reference and explicit confirmation.'

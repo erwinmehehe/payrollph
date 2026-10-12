@@ -6,7 +6,9 @@
  */
 import { inventoryMigrationSources } from "./lib/migration-receipt-audit.mjs";
 import { cutoverSourceManifest, runReviewedMigrationOnClient } from "./lib/reviewed-migration-runner.mjs";
-import { requirePinnedNeonMigrationTarget } from "./lib/migration-neon-target.mjs";
+import {
+  requirePinnedNeonMigrationTarget, requireProtectedMainForMigrationApply,
+} from "./lib/migration-neon-target.mjs";
 
 function argumentsFrom(argv) {
   const options = {};
@@ -70,6 +72,7 @@ async function main() {
   const mode = plan ? "plan" : "apply";
   // Fail before creating a database client, including on non-main PR commits.
   authorizedEnvironment(mode, options, process.env);
+  requireProtectedMainForMigrationApply(process.env, mode);
   const expectedNeonIdentity = requirePinnedNeonMigrationTarget(process.env);
   const { default: pg } = await import("pg");
   const client = new pg.Client({

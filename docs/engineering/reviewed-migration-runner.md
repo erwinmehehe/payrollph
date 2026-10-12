@@ -100,3 +100,19 @@ The reviewed migration runner now **requires** protected GitHub `production` env
 **No automatic fallback.** Missing variables, pooled hostnames, mismatched endpoint or database in either the read-only planning or migration writer URLs fail before connecting. Within the same PostgreSQL transaction that would otherwise apply SQL, the runner independently queries `current_setting('neon.project_id', true)`, `neon.branch_id`, and `neon.endpoint_id`, and rolls back if any differ. This mitigates the October 12 snapshot-restore incident in which a familiar hostname temporarily pointed to a different Neon branch. A matching `neondb` name alone no longer authorizes writes.
 
 The isolated localhost CI PostgreSQL tests retain an explicit `allowElevatedRoleForIsolatedTest` bypass only through the in-process test API; the protected CLI never accepts that bypass. These checks are **defense in depth** and do not replace migration checksums, source manifests, historical receipts, deployment integrity, bank-key review or independent DBA/change approval. Variables and protected GitHub environment/branch controls must be configured by an authorized operator before running manual plan/apply. Production SQL remains BLOCKED.
+
+### GitHub main branch protection is mandatory for APPLY
+
+The `--apply` command additionally rejects unprotected refs using GitHub's
+system-provided `GITHUB_REF_PROTECTED=true` alongside
+`GITHUB_REF=refs/heads/main` and the exact reviewed SHA check. The protected
+manual Actions workflow runs this preflight before fetching migration secrets
+and again in the Node CLI before opening any database connection. The
+read-only `--plan` option remains available on `main` during protection setup.
+
+As of October 12, 2026, GitHub reports `main.protected=false`, so APPLY must
+remain **blocked** even if a person supplies a plausible approval reference.
+A repository administrator must configure and verify actual GitHub branch
+rules and independent approval requirements, including the separate protected
+production Actions environment. This source guard does not itself enable
+branch protection, approve DBA receipts or permit production migration.

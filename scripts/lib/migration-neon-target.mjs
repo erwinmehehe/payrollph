@@ -34,3 +34,18 @@ export function requirePinnedNeonMigrationTarget(env) {
   // independently verified *inside* the migration transaction as well.
   return expectedNeonIdentity;
 }
+
+/**
+ * GitHub's system-owned GITHUB_REF_PROTECTED must say true before a
+ * mutation is allowed. An unprotected main or a forged approval ID is
+ * not sufficient, even when a database connection string exists.
+ * Read-only plans remain available while rulesets are being configured.
+ */
+export function requireProtectedMainForMigrationApply(env, mode) {
+  if (mode !== "apply") return;
+  if (env.GITHUB_ACTIONS !== "true" ||
+      env.GITHUB_REF !== "refs/heads/main" ||
+      env.GITHUB_REF_PROTECTED !== "true") {
+    throw new Error("REVIEWED_MIGRATION_PROTECTED_MAIN_REQUIRED");
+  }
+}
