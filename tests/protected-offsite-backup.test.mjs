@@ -109,6 +109,13 @@ test("backup script uses direct Neon reader, encryption pipe, immutable object l
   assert.match(sql,/current_setting\('neon\.project_id',true\)/);
   assert.match(sql,/current_setting\('neon\.endpoint_id',true\)/);
   assert.match(sql,/rolbypassrls/);
+  // Full pg_dump contains public payroll and managed Neon Auth identity tables.
+  assert.match(sql,/n\.nspname IN \('public','neon_auth'\)/);
+  assert.match(sql,/has_table_privilege\(current_user,c\.oid,'SELECT'\)/);
+  const reader=readFileSync("infra/p0-4-offsite/create-neon-backup-reader.sh","utf8");
+  assert.match(reader,/GRANT SELECT ON ALL TABLES IN SCHEMA neon_auth/);
+  assert.match(reader,/GRANT SELECT ON ALL TABLES IN SCHEMA public/);
+  assert.doesNotMatch(reader,/GRANT\s+(?:INSERT|UPDATE|DELETE|ALL PRIVILEGES)/i);
   assert.match(sql,/PINNED_READ_ONLY_SOURCE/);
   assert.doesNotMatch(sql,/\b(?:INSERT|UPDATE|DELETE|ALTER|DROP|TRUNCATE)\s+(?:TABLE|INTO|FROM|public\.)/i);
 });
