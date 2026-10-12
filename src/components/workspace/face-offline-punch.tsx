@@ -36,14 +36,17 @@ export function FaceOfflinePunchPanel({ organizationId, employeeId }: {
   const [error, setError] = useState("");
   const video = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const mountedRef = useRef(false);
 
   useEffect(() => {
+    mountedRef.current = true;
     setOnline(navigator.onLine);
     setQueued(readQueue(key));
     const change = () => setOnline(navigator.onLine);
     window.addEventListener("online", change);
     window.addEventListener("offline", change);
     return () => {
+      mountedRef.current = false;
       window.removeEventListener("online", change);
       window.removeEventListener("offline", change);
       streamRef.current?.getTracks().forEach(track => track.stop());
@@ -63,6 +66,10 @@ export function FaceOfflinePunchPanel({ organizationId, employeeId }: {
       if (!navigator.mediaDevices?.getUserMedia)
         throw new Error("This browser does not support camera capture. Ask HR for an attendance exception.");
       const media = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: "user" } });
+      if (!mountedRef.current) {
+        media.getTracks().forEach(track => track.stop());
+        return;
+      }
       streamRef.current?.getTracks().forEach(track => track.stop());
       streamRef.current = media;
       setCamera("ready");
