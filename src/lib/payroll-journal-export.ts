@@ -29,7 +29,7 @@ export function journalMoneyCentavos(input: string | number): number {
     throw new Error("Stored payroll journal money has invalid precision or sign.");
   }
   const [whole, fraction = ""] = value.split(".");
-  const amount = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"));
+  const amount = BigInt(whole) * BigInt(100) + BigInt(fraction.padEnd(2, "0"));
   if (amount > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error("Payroll journal centavos exceed the safe integer range.");
   }
@@ -68,8 +68,8 @@ export function buildReleasedPayrollJournal(runs: readonly ReleasedJournalRun[])
       debitCentavos: 0, creditCentavos: net,
     });
   }
-  const debit = lines.reduce((amount, row) => amount + BigInt(row.debitCentavos), 0n);
-  const credit = lines.reduce((amount, row) => amount + BigInt(row.creditCentavos), 0n);
+  const debit = lines.reduce((amount, row) => amount + BigInt(row.debitCentavos), BigInt(0));
+  const credit = lines.reduce((amount, row) => amount + BigInt(row.creditCentavos), BigInt(0));
   if (debit !== credit) throw new Error("Unbalanced payroll accounting journal.");
   return lines;
 }
