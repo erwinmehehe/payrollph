@@ -15,6 +15,8 @@ on:
       - "tests/hcm-report*.test.ts"
       - "tests/engagement-survey*.test.ts"
       - "tests/public-api-v1-extended*.test.ts"
+      - "tests/developer-api-scope-allowlist.test.ts"
+      - "src/app/api/developer/route.ts"
       - "tests/approval-delegated-sod-behavior.test.ts"
       - ".github/workflows/hcm-gaps-focused.yml"
 
@@ -67,6 +69,7 @@ jobs:
             tests/engagement-survey-privacy.test.ts \
             tests/engagement-survey-db.test.ts \
             tests/public-api-v1-extended-db.test.ts \
+            tests/developer-api-scope-allowlist.test.ts \
             tests/approval-delegated-sod-behavior.test.ts \
             tests/hcm-goals-entity-scope.test.ts
 
