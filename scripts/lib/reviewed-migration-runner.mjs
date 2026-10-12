@@ -3,6 +3,7 @@ import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs
 import { join } from "node:path";
 import { reconcileMigrationReceipts } from "./migration-receipt-audit.mjs";
 import { assertModernSchemaLineage } from "./schema-lineage-preflight.mjs";
+import { assertHistoricalCatalog } from "./historical-catalog-gate.mjs";
 
 const MIGRATION_PATH = /^drizzle\/([0-9]{4})_[a-z0-9][a-z0-9_-]*\.sql$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -303,6 +304,13 @@ export async function runReviewedMigrationOnClient({
       "FROM public.payrollph_migration_cutover"
     )).rows;
     if (adopted.length !== 1) refuse("CUTOVER_NOT_ADOPTED");
+
+    // Historical receipts alone are insufficient. Even a DBA-reviewed
+    // disposition cannot justify forwarding past missing source-implied
+    // tables/columns/unique indexes in the *actual target database*.
+    // The check reads pg_catalog only and fails closed on partial results.
+    // It does NOT imply that the historical files actually ran.
+    await assertHistoricalCatalog(client, Number(adopted[0].historicalPrefix));
 
     const receipts = (await client.query(
       "SELECT migration_path AS \"migrationPath\", source_sha256 AS sha256, disposition, " +
