@@ -17,20 +17,10 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
   },[organizationId,employeeId]);
   useEffect(()=>{
     let alive=true;
-    let value:string;
-    try{
-      const k="wfm-employee-device-id";
-      const existing=sessionStorage.getItem(k);
-      // Preserve a valid session-scoped pseudonym without writing data read
-      // from storage back to clear-text browser storage.
-      if(existing&&/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(existing)){
-        value=existing;
-      }else{
-        value=crypto.randomUUID();
-        sessionStorage.setItem(k,value);
-      }
-    }catch{value=crypto.randomUUID();}
-    // Async boundary prevents cascading React state writes during effect setup.
+    // Never store a long-lived device identifier in clear-text sessionStorage.
+    // Each mounted browser session gets a temporary pseudonym; offline records
+    // keep their own original ID only until the reviewed server receipt.
+    const value=crypto.randomUUID();
     void Promise.resolve().then(async()=>{
       if(!alive)return;
       setDeviceId(value);
