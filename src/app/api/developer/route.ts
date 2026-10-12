@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { apiKeys, webhookDeliveries, webhookEndpoints } from "@/db/schema";
 import { mintApiKey } from "@/lib/api-auth";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { ALLOWED_API_SCOPES, activeApiScopes, normalizeScopes } from "@/lib/developer-api-scopes";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { dispatchWebhook, WEBHOOK_EVENTS } from "@/lib/webhooks";
@@ -56,7 +56,7 @@ export async function GET(request: Request) {
     })),
     deliveries,
     availableEvents: WEBHOOK_EVENTS,
-    availableScopes: activeApiScopes(),
+    availableScopes: activeApiScopes().filter(scope => ALLOWED_API_SCOPES.has(scope)),
   });
 }
 
@@ -178,26 +178,3 @@ export async function POST(request: Request) {
 }
 
 
-const CORE_API_SCOPES = ["employees:read", "employees:write", "payroll:read"] as const;
-const EXTENDED_API_SCOPES = ["org-units:read", "payslips:read", "events:read"] as const;
-
-// The explicit allowlist is the security ceiling, not the active permission grant.
-// The feature flag restricts it further and is evaluated per request.
-const ALLOWED_API_SCOPES: ReadonlySet<string> = new Set([...CORE_API_SCOPES, ...EXTENDED_API_SCOPES]);
-
-function activeApiScopes() {
-  return criticalReleaseFlagEnabled("publicApiV1Extended")
-    ? [...ALLOWED_API_SCOPES]
-    : [...CORE_API_SCOPES];
-}
-
-export function normalizeScopes(
-  value: unknown,
-  extendedEnabled = criticalReleaseFlagEnabled("publicApiV1Extended"),
-): string[] {
-  const available = new Set<string>(extendedEnabled ? ALLOWED_API_SCOPES : CORE_API_SCOPES);
-  if (!Array.isArray(value) || value.length === 0) return ["employees:read", "payroll:read"];
-  const scopes = value.filter((scope): scope is string =>
-    typeof scope === "string" && available.has(scope));
-  return scopes.length ? [...new Set(scopes)] : ["employees:read", "payroll:read"];
-}
