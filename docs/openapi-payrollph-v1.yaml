@@ -11,6 +11,32 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /employees:
+    get:
+      summary: List tenant employees using the existing API v1
+      description: Requires employees:read and a scoped token. Includes pagination and existing rate limits.
+      responses:
+        '200': { description: Tenant-scoped employee list }
+    post:
+      summary: Create employee using the existing idempotent API v1
+      description: Requires employees:write plus existing validation and creation governance.
+      parameters:
+        - { name: Idempotency-Key, in: header, schema: { type: string } }
+      responses:
+        '201': { description: Employee created }
+        '403': { description: Scope denied }
+  /payroll-runs:
+    get:
+      summary: Read existing tenant-scoped payroll run summaries
+      description: Requires payroll:read. Does not authorize payroll release.
+      responses:
+        '200': { description: Paginated payroll run summaries }
+  /provider-events:
+    get:
+      summary: Read durable provider inbox event metadata from migration 0110
+      description: Requires payroll:read. Tenant scope enforced, no raw provider payload.
+      responses:
+        '200': { description: Paginated provider event metadata }
   /org-units:
     get:
       summary: Read tenant-scoped organization units
