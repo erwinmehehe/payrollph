@@ -1,4 +1,7 @@
 import { authenticateApiKey, requireScope } from "@/lib/api-auth";
+import { and, eq } from "drizzle-orm";
+import { db } from "@/db";
+import { legalEntities } from "@/db/schema";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 
@@ -20,6 +23,16 @@ export async function authorizeExtendedV1Read(request: Request, scope: string) {
   if (!requireScope(auth.scopes, scope)) {
     return { ok: false as const, response: Response.json({ error: "Missing required API scope." }, { status: 403 }) };
   }
+  // API tokens are tenant-scoped, not legal-employer scoped. Do not expose
+  // multi-employer payroll data until RFC B-8 defines group-HR token grants.
+  const employerRows = await db.select({id:legalEntities.id}).from(legalEntities)
+    .where(and(eq(legalEntities.organizationId,auth.organizationId),
+      eq(legalEntities.active,true))).limit(2);
+  if (extendedV1NeedsEntityScope(employerRows.length)) {
+    return { ok: false as const, response: Response.json({
+      error:"Multiple legal employers require approved entity-scoped API credentials.",
+    },{status:403}) };
+  }
   return { ok: true as const, auth };
 }
 
@@ -29,4 +42,9 @@ export function apiV1Page(searchParams: URLSearchParams, maxPageSize = 100) {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > maxPageSize
     || !Number.isSafeInteger(offset) || offset < 0 || offset > 100_000) return null;
   return { limit, offset };
+}
+
+/** Fail closed on tenant-wide API extensions in multi-entity organizations. */
+export function extendedV1NeedsEntityScope(activeLegalEmployers:number) {
+  return !Number.isSafeInteger(activeLegalEmployers) || activeLegalEmployers > 1;
 }
