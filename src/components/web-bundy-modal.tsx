@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EnhancedPunchControls } from "@/components/enhanced-punch-controls";
 import { isWebBundyPunchList, mayClockInWebBundy, visibleWebBundyState, webBundyReadKey, type WebBundyReadState } from "@/lib/web-bundy-display-scope";
 import { Check, Clock, Coffee, LogIn, LogOut, MapPin, PlayCircle, X } from "lucide-react";
 import { essText, type EssLanguage } from "@/lib/ess-language";
@@ -71,6 +72,7 @@ function WebBundyView({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [enhancedEnabled, setEnhancedEnabled] = useState(false);
 
   const selectedEmployee = useMemo(
     () => employees.find((employee) => employee.id === selectedEmployeeId) ?? null,
@@ -127,6 +129,7 @@ function WebBundyView({
           throw Error("Time-clock location policy could not be verified.");
         }
         const verified = geo as { required: boolean; canClockWithLocation: boolean };
+        setEnhancedEnabled((response as {enhancedPunch?: {enabled?:boolean}}).enhancedPunch?.enabled === true);
         setClockPolicy({ key: readKey, required: verified.required, canClockWithLocation: verified.canClockWithLocation });
         setReadState({ key: readKey, status: "ready", punches: response.punches });
       } catch {
@@ -166,6 +169,10 @@ function WebBundyView({
       // The worker may close the modal while the browser is waiting for a
       // foreground GPS permission decision. Never clock after unmount.
       if (!mounted.current) return;
+      if (enhancedEnabled) {
+        setError("Use the review-first punch controls below. Legacy direct punches are disabled.");
+        return;
+      }
       const res = await fetch("/api/web-bundy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -300,7 +307,8 @@ function WebBundyView({
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
+        {enhancedEnabled && selectedEmployeeId && <EnhancedPunchControls organizationId={organizationId} employeeId={selectedEmployeeId} />}
+        {!enhancedEnabled && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 16 }}>
           <button className="primary-button" disabled={busy || !policyReady || !canClockIn} onClick={() => handlePunch("clock_in")} style={{ height: 42, background: "var(--green)", fontSize: 13 }}>
             <LogIn size={16} /> {t("Clock IN")}
           </button>
@@ -315,6 +323,7 @@ function WebBundyView({
           </button>
         </div>
 
+        </div>}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, color: "var(--muted)", fontSize: 11 }}>
           <MapPin size={14} className="i-blue" />
           <span>{t("Browser IP and attendance source are audit-stamped. Geofenced self-clock stores only coarse verification evidence, not raw employee GPS coordinates.")}</span>
