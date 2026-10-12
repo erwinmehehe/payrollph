@@ -86,10 +86,6 @@ async function schemaAcceptance(client) {
     [tenantFkNames],
   );
   assert.deepEqual(fks.rows.map(x => x.conname).sort(), [...tenantFkNames].sort());
-  const { rows: notices } = await client.query(
-    "SELECT pg_get_constraintdef(oid) AS constraint_text FROM pg_constraint WHERE conname='hcm_document_expiry_notices_milestone_days_check'",
-  );
-  assert.equal(notices.length, 0); // inline CHECK is unnamed by Drizzle; verify actual name from DB below
   const policyCheck = await client.query(
     "SELECT conname FROM pg_constraint WHERE conrelid='hcm_document_expiry_notices'::regclass AND contype='c'",
   );
