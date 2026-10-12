@@ -158,6 +158,7 @@ jobs:
             qa-artifacts/first-payroll-mobile-synthetic.json
             qa-artifacts/first-payroll-mobile-failed.png
             qa-artifacts/first-payroll-zero-tenant-browser.json
+            qa-artifacts/first-payroll-screens/*.png
             qa-artifacts/first-payroll-zero-tenant-failed.png
           if-no-files-found: ignore
           retention-days: 7
