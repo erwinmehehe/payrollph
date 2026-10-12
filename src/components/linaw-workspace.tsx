@@ -33,6 +33,8 @@ import { ApprovalsView } from "@/components/workspace/approvals";
 import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/components/workspace/command-palette";
 import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
+import { MoreModulesPage } from "@/components/workspace/more-modules-page";
+import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
 import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
 import { OverviewView } from "@/components/workspace/overview";
@@ -68,6 +70,7 @@ import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 
 export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null }) {
   const searchParams = useSearchParams();
+  const workflowUi = useWorkflowUi();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
     requestedDemoRole &&
@@ -146,13 +149,18 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
     const roleAllowedPages = NAVIGATION.flatMap((group) => group.items)
       .map((item) => item.name)
       .filter((name) => !(isFreelancer && FREELANCER_HIDDEN.has(name)))
-      .filter((name) => !rolePages || rolePages.includes(name));
+      .filter((name) => !rolePages || rolePages.includes(name) || (name === "More modules" && isSelfServeCustomer && workflowUi.coreOnlyNav))
+      .filter((name) => name !== "More modules" || (isSelfServeCustomer && workflowUi.coreOnlyNav));
     // Keep the pilot menu small without ever granting access outside the
     // already calculated role/plan navigation entitlement.
     return pilotFocusEnabled && !isFreelancer && !demoRole
       ? pilotCoreNavigationPages(roleAllowedPages)
       : roleAllowedPages;
-  }, [isFreelancer, rolePages, pilotFocusEnabled, demoRole]);
+  }, [isFreelancer, rolePages, pilotFocusEnabled, demoRole, isSelfServeCustomer, workflowUi.coreOnlyNav]);
+  const compactCore = workflowUi.coreOnlyNav && isSelfServeCustomer && !isFreelancer && !demoRole;
+  const visiblePages = compactCore
+    ? availablePages.filter(name => ["Overview", "People", "Time & attendance", "Payroll", "Analytics", "Approvals", "More modules"].includes(name))
+    : availablePages;
 
   // Only surface existing HR modules that this role, plan and pilot menu permit.
   const hrisShortcuts = useMemo(
@@ -397,7 +405,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         onSwitchClient={(id) => void changeOrganization(id)}
         onSwitchRole={demoRole ? (role) => void switchDemoRole(role) : undefined}
         onSignOut={() => void signOut()}
-        visiblePages={availablePages}
+        visiblePages={visiblePages}
         primaryPages={primaryPages ?? undefined}
         workspaceRole={effectiveRole}
         displayRole={demoRole}
@@ -470,6 +478,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
               <FirstPayrollReadinessCard
                 readiness={data.firstPayrollReadiness}
                 guided={isSelfServeCustomer}
+                organizationId={data.selectedOrganization.id}
+                canAssign={!demoRole && ["owner", "admin", "hr"].includes(effectiveRole ?? "") && !!data.access?.companyWide}
                 allowedPages={availablePages}
                 onSettings={setSettingsInitialTab}
                 onPage={setPage}
@@ -488,6 +498,9 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
           </>
         )}
 
+        {page === "More modules" && compactCore && <MoreModulesPage
+          visiblePages={visiblePages} allowedPages={availablePages} onPage={setPage}
+        />}
         {page === "Payroll" && (
           <PayrollRunView
             data={data}
