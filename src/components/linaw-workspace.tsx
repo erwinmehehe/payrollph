@@ -154,10 +154,10 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       .filter((name) => !rolePages || rolePages.includes(name)
         || (name === "More modules" && isSelfServeCustomer && workflowUi.coreOnlyNav)
         || (name === "Employee requests" && workflowUi.employeeCases &&
-          ["owner","admin","bookkeeper","hr"].includes(effectiveRole ?? "")))
+          ["owner","admin","hr"].includes(effectiveRole ?? "")))
       .filter((name) => name !== "More modules" || (isSelfServeCustomer && workflowUi.coreOnlyNav))
       .filter(name => name !== "Employee requests" || (workflowUi.employeeCases
-        && !isFreelancer && !demoRole && ["owner","admin","bookkeeper","hr"].includes(effectiveRole ?? "")));
+        && !isFreelancer && !demoRole && ["owner","admin","hr"].includes(effectiveRole ?? "")));
     // Keep the pilot menu small without ever granting access outside the
     // already calculated role/plan navigation entitlement.
     return pilotFocusEnabled && !isFreelancer && !demoRole
@@ -506,7 +506,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         )}
 
         {page === "Employee requests" && workflowUi.employeeCases &&
-          ["owner","admin","bookkeeper","hr"].includes(effectiveRole ?? "") &&
+          ["owner","admin","hr"].includes(effectiveRole ?? "") &&
           <EmployeeCaseInbox organizationId={data.selectedOrganization.id}/>}
         {page === "More modules" && compactCore && <MoreModulesPage
           visiblePages={visiblePages} allowedPages={availablePages} onPage={setPage}
