@@ -9,7 +9,8 @@ import {
 const all = [...new Set(Object.values(CANONICAL_MIGRATION_BASE_TABLES).flat())];
 const absentOnOriginalNeon = [
   "payout_batches", "payout_transfers", "payout_batch_transfers",
-  "payout_profiles", "worker_employment_events",
+  "payout_profiles", "job_profiles", "positions", "position_assignments",
+  "worker_employment_events",
 ];
 function fixture(missing = []) {
   return all.map(name => ({ table_name: name, present: !missing.includes(name) }));
@@ -48,7 +49,9 @@ test("missing historic worker events block 0121; proposed payout tables are unap
   assert.deepEqual(assessed.migrations[4].pendingDraftPredecessors, [
     "payout_batches", "payout_transfers", "payout_batch_transfers", "payout_profiles",
   ]);
-  assert.deepEqual(assessed.migrations[6].missingBaseTables, ["worker_employment_events"]);
+  assert.deepEqual(assessed.migrations[6].missingBaseTables, [
+    "job_profiles", "positions", "position_assignments", "worker_employment_events",
+  ]);
   assert.deepEqual(assessed.migrations[6].pendingDraftPredecessors, [
     "payout_batches", "payout_transfers",
   ]);
