@@ -662,9 +662,10 @@ export async function POST(request: Request) {
             requesterStaleTimesheetIds: requesterStaleTimesheets.map(row => row.id),
             counterpartyStaleTimesheetIds: counterpartyStaleTimesheets.map(row => row.id),
             decisionNote,
+            rosterRuleFindings,
           },
         });
-        return { updated, requesterCreated, counterpartyCreated,
+        return { updated, requesterCreated, counterpartyCreated, rosterRuleFindings,
           staleTimesheetIds: [
             ...requesterStaleTimesheets.map(row => row.id),
             ...counterpartyStaleTimesheets.map(row => row.id),
@@ -675,6 +676,7 @@ export async function POST(request: Request) {
         swap: result.updated,
         overrides: [result.requesterCreated, result.counterpartyCreated],
         staleTimesheetIds: result.staleTimesheetIds,
+        rosterRuleFindings: result.rosterRuleFindings,
       });
     } catch (error) {
       return Response.json({
