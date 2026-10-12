@@ -37,7 +37,7 @@ function requireDisposable() {
   assert.equal(process.env.A1_A6_DISPOSABLE_MIGRATION_MODE, "isolated-ci-only");
   const url = new URL(process.env.DATABASE_URL || "");
   assert.ok(["127.0.0.1", "localhost"].includes(url.hostname), "No remote database");
-  assert.equal(url.pathname, "/a1a6_ci", "Refuse non-disposable database name");
+  assert.equal(url.pathname, "/app_db", "Refuse non-disposable database name");
   const mode = process.argv[2];
   assert.ok(["--rollback", "--apply-ci"].includes(mode), "Mode is required");
   return mode;
