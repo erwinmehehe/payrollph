@@ -41,8 +41,9 @@ import { ensureCoreCompatibilitySchema } from "@/lib/core-schema-compat";
 import { buildFirstPayrollReadiness } from "@/lib/first-payroll-readiness";
 import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 
-export async function getDashboardData(organizationId?: number) {
+export async function getDashboardData(organizationId?: number, request?: Request) {
   await ensureCoreCompatibilitySchema();
   await ensureSeedData();
   await ensureLeavePayrollSchema();
@@ -95,17 +96,26 @@ export async function getDashboardData(organizationId?: number) {
     throw new Error("An assigned supervisory unit is required to load the manager workspace.");
   }
 
+  const entityAccess = await resolveMultiEntityContext({
+    userId: sessionUser.id, organizationId: selectedOrganization.id, request,
+  });
+  if (!entityAccess.ok) throw new Error("This legal employer is not available to your account.");
+  const entityContext = entityAccess.context;
+  const selectedEntityId = entityContext.enabled ? entityContext.legalEntityId : null;
+  const allEmployeesVisible = access.companyWide && selectedEntityId === null;
   await ensureEmployeePayProfiles(selectedOrganization.id);
 
   const canViewPayroll = roleAllowed(access.role, PAYROLL_VIEW_ROLES);
   const canViewPeoplePay = roleAllowed(access.role, PEOPLE_PAYROLL_ROLES);
-  const canViewAudit = access.companyWide && ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(access.role);
+  const canViewAudit = allEmployeesVisible && ["owner", "admin", "bookkeeper", "payroll", "checker"].includes(access.role);
   const canViewDelegations = roleAllowed(access.role, PAYROLL_CHECKER_ROLES);
-  const canViewComplianceActions = access.companyWide && roleAllowed(access.role, PAYROLL_OPERATOR_ROLES);
+  const canViewComplianceActions = allEmployeesVisible && roleAllowed(access.role, PAYROLL_OPERATOR_ROLES);
 
-  const employeeFilter = access && !access.companyWide && access.orgUnitId
-    ? and(eq(employees.organizationId, selectedOrganization.id), eq(employees.orgUnitId, access.orgUnitId))
-    : eq(employees.organizationId, selectedOrganization.id);
+  const employeeFilter = and(
+    eq(employees.organizationId, selectedOrganization.id),
+    selectedEntityId === null ? undefined : eq(employees.legalEntityId, selectedEntityId),
+    !access.companyWide && access.orgUnitId ? eq(employees.orgUnitId, access.orgUnitId) : undefined,
+  );
 
   const [employeeRows, payProfileRows, payRevisionRowsRaw, restDayRevisionRowsRaw, retroRowsRaw, runRows, taskRowsRaw, auditRows, plans, templates, advisories, freelancer, punchRowsRaw, delegationRows, leaveRowsRaw, leavePolicyRows, units, wages, provisionRowsRaw, separationRowsRaw] = await Promise.all([
     db.select().from(employees).where(employeeFilter).orderBy(asc(employees.id)),
@@ -121,15 +131,14 @@ export async function getDashboardData(organizationId?: number) {
       : Promise.resolve([]),
     canViewPayroll
       ? db.select().from(payrollRuns).where(
-          access.companyWide
-            ? eq(payrollRuns.organizationId, selectedOrganization.id)
-            : and(
-                eq(payrollRuns.organizationId, selectedOrganization.id),
-                eq(payrollRuns.scopeOrgUnitId, access.orgUnitId!),
-              ),
+          and(
+            eq(payrollRuns.organizationId, selectedOrganization.id),
+            selectedEntityId === null ? undefined : eq(payrollRuns.legalEntityId, selectedEntityId),
+            !access.companyWide ? eq(payrollRuns.scopeOrgUnitId, access.orgUnitId!) : undefined,
+          ),
         ).orderBy(desc(payrollRuns.id))
       : Promise.resolve([]),
-    access.companyWide || ["manager", "checker"].includes(access.role)
+    (!entityContext.enabled || entityContext.group) && (access.companyWide || ["manager", "checker"].includes(access.role))
       ? db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, selectedOrganization.id)).orderBy(asc(approvalTasks.id))
       : Promise.resolve([]),
     canViewAudit
@@ -148,9 +157,11 @@ export async function getDashboardData(organizationId?: number) {
     db.select().from(leaveRequests).where(eq(leaveRequests.organizationId, selectedOrganization.id)).orderBy(desc(leaveRequests.id)),
     db.select().from(leavePolicies).where(eq(leavePolicies.organizationId, selectedOrganization.id)).orderBy(asc(leavePolicies.id)),
     db.select().from(orgUnits).where(
-      access.companyWide
-        ? eq(orgUnits.organizationId, selectedOrganization.id)
-        : and(eq(orgUnits.organizationId, selectedOrganization.id), eq(orgUnits.id, access.orgUnitId!)),
+      and(
+        eq(orgUnits.organizationId, selectedOrganization.id),
+        selectedEntityId === null ? undefined : eq(orgUnits.legalEntityId, selectedEntityId),
+        !access.companyWide ? eq(orgUnits.id, access.orgUnitId!) : undefined,
+      ),
     ),
     db.select().from(minWageOrders),
     db.select().from(provisioningTasks).where(eq(provisioningTasks.organizationId, selectedOrganization.id)),
@@ -162,7 +173,10 @@ export async function getDashboardData(organizationId?: number) {
           noticeDate: separationRecords.noticeDate,
           lastDay: separationRecords.lastDay,
           status: separationRecords.status,
-        }).from(separationRecords).where(eq(separationRecords.organizationId, selectedOrganization.id))
+        }).from(separationRecords).where(and(
+          eq(separationRecords.organizationId, selectedOrganization.id),
+          selectedEntityId === null ? undefined : eq(separationRecords.legalEntityId, selectedEntityId),
+        ))
       : Promise.resolve([]),
   ]);
 
@@ -210,7 +224,10 @@ export async function getDashboardData(organizationId?: number) {
             payDate: payrollRuns.payDate,
           })
           .from(payrollRuns)
-          .where(eq(payrollRuns.organizationId, selectedOrganization.id))
+          .where(and(
+            eq(payrollRuns.organizationId, selectedOrganization.id),
+            selectedEntityId === null ? undefined : eq(payrollRuns.legalEntityId, selectedEntityId),
+          ))
           .orderBy(desc(payrollRuns.id))
           .limit(12)
       : [];
@@ -219,10 +236,10 @@ export async function getDashboardData(organizationId?: number) {
     : handoffRunRows.find((run) => run.status !== "Released") ?? handoffRunRows[0] ?? null;
 
   const visibleEmployeeIds = new Set(employeeRows.map((employee) => employee.id));
-  const punchRows = access.companyWide
+  const punchRows = allEmployeesVisible
     ? punchRowsRaw
     : punchRowsRaw.filter((punch) => visibleEmployeeIds.has(punch.employeeId));
-  const leaveRows = access.companyWide
+  const leaveRows = allEmployeesVisible
     ? leaveRowsRaw
     : leaveRowsRaw.filter((leave) => visibleEmployeeIds.has(leave.employeeId));
   const currentLeaveIntervalSets = leaveRows.length
@@ -253,19 +270,19 @@ export async function getDashboardData(organizationId?: number) {
     };
   });
 
-  const provisionRows = access.companyWide
+  const provisionRows = allEmployeesVisible
     ? provisionRowsRaw
     : provisionRowsRaw.filter((task) => visibleEmployeeIds.has(task.employeeId));
-  const separationRows = access.companyWide
+  const separationRows = allEmployeesVisible
     ? separationRowsRaw
     : separationRowsRaw.filter((row) => visibleEmployeeIds.has(row.employeeId));
-  const payRevisionRows = access.companyWide
+  const payRevisionRows = allEmployeesVisible
     ? payRevisionRowsRaw
     : payRevisionRowsRaw.filter((revision) => visibleEmployeeIds.has(revision.employeeId));
-  const restDayRevisionRows = access.companyWide
+  const restDayRevisionRows = allEmployeesVisible
     ? restDayRevisionRowsRaw
     : restDayRevisionRowsRaw.filter((revision) => visibleEmployeeIds.has(revision.employeeId));
-  const retroRows = access.companyWide
+  const retroRows = allEmployeesVisible
     ? retroRowsRaw
     : retroRowsRaw.filter((retro) => visibleEmployeeIds.has(retro.employeeId));
 
@@ -347,6 +364,11 @@ export async function getDashboardData(organizationId?: number) {
     firstPayrollReadiness,
     user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
+    ...(entityContext.enabled ? { multiEntity: {
+      enabled: true as const, group: entityContext.group,
+      legalEntityId: entityContext.legalEntityId,
+      entities: entityContext.entities,
+    } } : {}),
     capabilities,
     organizations: orgs,
     selectedOrganization,
@@ -374,7 +396,7 @@ export async function getDashboardData(organizationId?: number) {
     templates,
     advisories,
     punches: punchRows,
-    delegations: access.companyWide
+    delegations: allEmployeesVisible
       ? delegationRows
       : delegationRows.filter((delegation) =>
           delegation.fromApprover.toLowerCase() === sessionUser.name.toLowerCase()
