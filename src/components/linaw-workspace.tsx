@@ -492,6 +492,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
                   canManagePeople={canManagePeople}
                   canManageTime={canManageTime}
                   canManagePayroll={canManagePayroll}
+                  allowedPages={availablePages}
                   canDecideApprovals={canDecideApprovals}
                   canManageDelegations={canManageDelegations}
                 />
