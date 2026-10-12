@@ -43,3 +43,11 @@ test("new API feature gate is default off", () => {
   assert.equal(criticalReleaseFlagEnabled("apiV1ExtendedReads", { API_V1_EXTENDED_READS_ENABLED: "TRUE" }), false);
   assert.equal(criticalReleaseFlagEnabled("apiV1ExtendedReads", { API_V1_EXTENDED_READS_ENABLED: "true" }), true);
 });
+
+test("API v1 extension cannot serve cross-entity data with a tenant-only key",async()=>{
+ const {extendedV1NeedsEntityScope}=await import("../src/lib/api-v1-extended");
+ assert.equal(extendedV1NeedsEntityScope(0),false);
+ assert.equal(extendedV1NeedsEntityScope(1),false);
+ assert.equal(extendedV1NeedsEntityScope(2),true);
+ assert.equal(extendedV1NeedsEntityScope(Number.NaN),true);
+});
