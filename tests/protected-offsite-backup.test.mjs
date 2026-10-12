@@ -89,6 +89,10 @@ test("backup script uses direct Neon reader, encryption pipe, immutable object l
   assert.match(sh,/\| age -r "\$BACKUP_AGE_RECIPIENT" > "\$archive"/);
   assert.match(sh,/aws s3api get-object-lock-configuration/);
   assert.match(sh,/--object-lock-mode COMPLIANCE/);
+  assert.match(sh,/saved_version=/);
+  assert.match(sh,/BACKUP_STORED_OBJECT_CONTROLS_NOT_VERIFIED/);
+  assert.match(sh,/BACKUP_RETENTION_SHORTER_THAN_REQUESTED/);
+  assert.match(sh,/s3VersionId/);
   assert.match(sh,/--server-side-encryption aws:kms/);
   assert.match(sh,/--serializable-deferrable/);
   assert.doesNotMatch(sh,/set -x|\bworkflow_dispatch.*\brestore\s/i);
