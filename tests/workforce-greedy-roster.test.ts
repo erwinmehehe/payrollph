@@ -221,6 +221,21 @@ test("permutation invariant: identical roster and reasons after reversing inputs
   assert.deepEqual(a,b);
 });
 
+test("replacing a rotating rest day requires a premium review, never a deduction",()=>{
+  const s=slot(1,date,{holidayKind:"regular",unpopular:true,
+    startTime:"22:00",endTime:"06:00",spansMidnight:true});
+  const w=worker(1,[s]);
+  const result=plan([s],[w]);
+  assert.equal(result.roster.length,1);
+  assert.equal(result.roster[0].source,"suggested");
+  assert.deepEqual(result.roster[0].warnings,[
+    "Rest-day premium review required.",
+    "regular holiday premium review required.",
+    "Night differential review may be required.",
+  ]);
+  assert.equal(result.automaticallyPublished,false);
+});
+
 test("tenant-mixed and duplicate workers, invalid dates, or oversized scans fail closed",()=>{
   const s=slot(1);
   assert.throws(()=>plan([s],[worker(1,[s],{organizationId:999})]),/cross-tenant|Invalid worker/);
