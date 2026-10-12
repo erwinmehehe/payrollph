@@ -37,7 +37,7 @@ async function obtain(host: string, email: string) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const res = await post(host, "/api/intake-challenge", { email });
     assert.equal(res.status, 200, "challenge endpoint must issue a token");
-    assert.equal(res.headers.get("cache-control"), "no-store");
+    assert.match(res.headers.get("cache-control") ?? "", /(?:^|,\s*)no-store(?:,|$)/, "challenge must not be cacheable");
     const challenge = await res.json() as { enabled: boolean; token: string; expires: number; difficulty: number };
     assert.equal(challenge.enabled, true);
     assert.equal(challenge.difficulty, 16);
