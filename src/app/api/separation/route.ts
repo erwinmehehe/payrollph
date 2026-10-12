@@ -1148,7 +1148,7 @@ export async function PATCH(request: Request) {
           const grants = await tx.select({ state: itAccessGrants.state }).from(itAccessGrants)
             .where(and(eq(itAccessGrants.organizationId, fresh.organizationId),
               eq(itAccessGrants.employeeId, fresh.employeeId)));
-          if (!externalAccessRevoked(grants.map(grant => grant.state))) {
+          if (!externalAccessRevoked(grants.map(grant => grant.state), fresh.itCleared)) {
             throw new Error("OFFBOARDING_IT_ACCESS_PENDING");
           }
         }
@@ -1489,7 +1489,7 @@ export async function PATCH(request: Request) {
             const grants = await tx.select({ state: itAccessGrants.state }).from(itAccessGrants)
               .where(and(eq(itAccessGrants.organizationId, fresh.organizationId),
                 eq(itAccessGrants.employeeId, fresh.employeeId)));
-            if (!externalAccessRevoked(grants.map(grant => grant.state))) {
+            if (!externalAccessRevoked(grants.map(grant => grant.state), fresh.itCleared)) {
               throw new Error("FINAL_PAY_IT_ACCESS_PENDING");
             }
           } else if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
@@ -1608,7 +1608,7 @@ export async function PATCH(request: Request) {
         const grants = await tx.select({ state: itAccessGrants.state }).from(itAccessGrants)
           .where(and(eq(itAccessGrants.organizationId, fresh.organizationId),
             eq(itAccessGrants.employeeId, fresh.employeeId)));
-        if (!externalAccessRevoked(grants.map(grant => grant.state))) {
+        if (!externalAccessRevoked(grants.map(grant => grant.state), fresh.itCleared)) {
           throw new Error("FINAL_PAY_IT_ACCESS_PENDING");
         }
       } else if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
