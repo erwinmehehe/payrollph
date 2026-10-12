@@ -117,8 +117,9 @@ export async function POST(request: Request) {
     eq(employees.organizationId, organizationId),
     eq(employees.legalEntityId, scope.context.legalEntityId),
   )).limit(1);
-  if (!worker || toLegalEntityId === worker.legalEntityId)
+  if (!worker || !worker.legalEntityId || toLegalEntityId === worker.legalEntityId)
     return fail("Worker or distinct source employer not found.", 404);
+  const sourceEntityId = worker.legalEntityId;
   const grants = await transferGrants(organizationId, user.id);
   if (!canActOnEntityTransfer({
     role: scope.context.role, action: "propose",
@@ -142,7 +143,7 @@ export async function POST(request: Request) {
     db.select({ id: payrollRuns.id }).from(payrollRuns).innerJoin(payrollEntries,
       eq(payrollEntries.payrollRunId, payrollRuns.id)).where(and(
         eq(payrollEntries.employeeId, employeeId), eq(payrollRuns.organizationId, organizationId),
-        eq(payrollRuns.legalEntityId, worker.legalEntityId),
+        eq(payrollRuns.legalEntityId, sourceEntityId),
         lte(payrollRuns.periodStart, effectiveDate), gte(payrollRuns.periodEnd, effectiveDate),
       )).limit(1),
     db.select({ id: workerEffectiveChanges.id }).from(workerEffectiveChanges).where(and(
@@ -165,7 +166,7 @@ export async function POST(request: Request) {
   }).from(payrollEntries).innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
     .where(and(eq(payrollEntries.employeeId, employeeId),
       eq(payrollRuns.organizationId, organizationId),
-      eq(payrollRuns.legalEntityId, worker.legalEntityId), eq(payrollRuns.status, "Released"),
+      eq(payrollRuns.legalEntityId, sourceEntityId), eq(payrollRuns.status, "Released"),
       gte(payrollRuns.periodEnd, effectiveDate.slice(0, 4) + "-01-01"),
       lte(payrollRuns.periodEnd, previousDate(effectiveDate))));
   const importedHistory = await db.select({
