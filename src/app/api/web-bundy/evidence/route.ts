@@ -101,7 +101,9 @@ export async function POST(request: Request) {
   if(!PUNCH_ACTIONS.some(valid=>valid===action)) return respond({error:"Invalid action."},400);
   const clientPunchId=String(form.get("clientPunchId")??"");
   const deviceId=String(form.get("deviceId")??"");
-  const source=form.get("source")==="offline" ? "offline" : "online";
+  const rawSource=form.get("source");
+  if(rawSource!=="offline"&&rawSource!=="online")return respond({error:"Invalid punch source."},400);
+  const source=rawSource;
   const deviceOccurredAt=String(form.get("deviceOccurredAt")??"");
   if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(clientPunchId)||!/^[0-9a-f-]{36}$/i.test(deviceId))return respond({error:"Invalid device or punch identifier."},400);
   const now=new Date();
