@@ -6,7 +6,16 @@ import { assertModernSchemaLineage } from "./schema-lineage-preflight.mjs";
 
 const MIGRATION_PATH = /^drizzle\/([0-9]{4})_[a-z0-9][a-z0-9_-]*\.sql$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-const DISALLOWED_SQL = /\b(?:BEGIN|COMMIT|ROLLBACK|SAVEPOINT|SET|RESET|DISCARD|VACUUM|CREATE\s+DATABASE|DROP\s+DATABASE|ALTER\s+SYSTEM|CREATE\s+INDEX\s+CONCURRENTLY|REINDEX\s+CONCURRENTLY)\b/i;
+// Match only a top-level statement command after removing SQL strings,
+// nested comments, and dollar-quoted routine bodies. SQL "UPDATE ... SET"
+// and "ON CONFLICT DO UPDATE SET" are ordinary transactional DML and must
+// not be mistaken for the standalone session-level SET command.
+const DISALLOWED_STATEMENT_START = /^(?:BEGIN|START\\s+TRANSACTION|COMMIT|END|ROLLBACK|ABORT|SAVEPOINT|RELEASE\\s+SAVEPOINT|PREPARE\\s+TRANSACTION|SET|RESET|DISCARD|VACUUM|CREATE\\s+DATABASE|DROP\\s+DATABASE|ALTER\\s+SYSTEM|CREATE\\s+(?:UNIQUE\\s+)?INDEX\\s+CONCURRENTLY|REINDEX)\\b/i;
+
+function hasDisallowedStatement(tokenView) {
+  return tokenView.split(";")
+    .some(statement => DISALLOWED_STATEMENT_START.test(statement.trimStart()));
+}
 
 /** SQL token view outside strings, dollar-quoted function bodies and comments.
  * Any unclosed quote/comment aborts the migration before DB access.
@@ -172,7 +181,7 @@ export function loadReviewedSql(directory, file) {
   if (createHash("sha256").update(bytes).digest("hex") !== file.sha256) refuse("SQL_CHANGED_AFTER_PLAN");
   const content = bytes.toString("utf8");
   if (!content.trim() || content.includes("\0") || content.includes("\uFFFD") ||
-      /(?:^|\n)\s*\\/.test(content) || DISALLOWED_SQL.test(sqlExecutableTokens(content)) ||
+      /(?:^|\n)\s*\\/.test(content) || hasDisallowedStatement(sqlExecutableTokens(content)) ||
       /\bpayrollph_(?:schema_migrations|migration_cutover|release_migration_receipts)\b/i.test(content)) {
     refuse("SQL_REQUIRES_NONTRANSACTIONAL_OR_MANUAL_REVIEW");
   }
