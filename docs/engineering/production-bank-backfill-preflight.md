@@ -29,3 +29,49 @@ Legacy `scripts/rotate-sensitive-encryption.ts` is intentionally **disabled for 
 The replacement `scripts/rotate-bank-envelopes.ts` handles all four bank stores with 500-row keyset pagination and original-value compare-and-swap. It requires an authorized dedicated current bank key, a separate previous decryption key and the exact DBA-reviewed database name. First run **without `--apply`** to verify that every stored nonempty value authenticates either under the current key or the approved previous key; plaintext and forged envelopes stop the run. `--apply` also requires `BANK_ROTATION_APPROVAL_REF` and literal `BANK_ROTATION_CONFIRMATION=APPLY_APPROVED_BANK_ROTATION`. The first pass validates every record before any writes; the second pass rewraps old-key-only ciphertext.
 
 **Required operator proof after apply:** run `scripts/verify-bank-account-envelopes.ts` using the current bank key, verify zero plaintext/unreadable values across all four stores, reconcile old-key counts, and only then remove the previous key under change control. A live rotation can be partially completed after a concurrency error; do not roll back by blindly restoring old ciphertext. This script does not replace controlled backup/restore acceptance or independent approver sign-off.
+
+## Four-store current-key evidence on the manual DRY RUN (October 12 addition)
+
+The protected **Production Bank Encryption** workflow now uses a distinct
+`scripts/audit-bank-envelopes-readonly.mjs --inventory` step after its existing
+four-store plaintext count. This is a data verification task, not an encryption
+migration. It requires the independently provisioned
+`PRODUCTION_BANK_AUDIT_DATABASE_URL` account and the dedicated, protected
+`PRODUCTION_BANK_DATA_ENCRYPTION_KEY`. It does **not** accept TOTP-derived
+fallbacks or rotation/previous keys as proof. The existing earlier workflow
+step must first confirm the exact reviewed live production deployment SHA and
+the current key's authenticated private-readiness fingerprint.
+
+The verifier checks the independently selected database name and rejects
+superusers, roles with privileged CREATE/WRITE permissions, non-read-only
+transactions, non-main commits, and missing/mismatched review SHAs. It scans
+all four stores using 500-row keyset pages inside a single
+`REPEATABLE READ, READ ONLY` transaction, with
+`row_security=off` so PostgreSQL refuses a tenant-filtered scan rather than
+silently undercounting an RLS-protected table. The payroll snapshot query
+retrieves only the bank-account JSONB path, not whole payroll traces.
+
+For each store, logs contain **counts only**: empty, authenticated using the
+current key, plaintext, unreadable/corrupt. A plaintext or unreadable count
+above zero is a **failed P0-2 verification** even in dry-run mode. The counts
+remain visible in the protected workflow log so the DBA can plan an authorized
+backfill or key-rotation reconciliation. No bank values, employee numbers,
+full JSON traces or key material are emitted.
+
+An approved `apply` still uses the separately gated compare-and-swap
+encryption script and existing current-key verifier. It now additionally runs
+the new audit as `--require-zero` with the **independent read-only role**
+after the writer completes. A green inventory does not automatically authorize
+an apply. Where all bank stores are empty or already current-key authenticated,
+the DBA may record the read-only proof without needlessly rewriting records.
+
+**Source evidence vs. live evidence:** unit tests and synthetic PostgreSQL 16
+acceptance live at `tests/bank-envelope-audit*.test.mjs` and in the
+`bank-envelope-audit-rehearsal.yml` workflow. They demonstrate protocol
+behavior only. The gate remains **UNVERIFIED** until the authorized *actual
+production* workflow records an exact deployed SHA match, an independently
+identified host and database, successful read-only audit with zero bad values,
+and signed DBA/security release evidence. Existing plaintext backups, exports,
+logs and key escrow still require separate disposition. Never paste a bank
+number or GitHub/Vercel database secret into an issue to prove closure.
+
