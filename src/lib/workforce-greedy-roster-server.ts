@@ -3,7 +3,7 @@ import { db } from "@/db";
 import {
   employeeAvailabilityRules, employeeScheduleAssignments, employeeWorksiteAssignments,
   employees, holidays, hcmWorksiteAuthorizations,
-  leaveRequestIntervalSets, leaveRequestIntervals, leaveRequests,
+  leaveRequestIntervalSets, leaveRequestIntervals, leaveRequests, jobProfiles,
   overtimeRequests, positionAssignments, positions, scheduleOverrides,
   schedulePatternDays, schedulePatternSegments, schedulePatterns,
   separationRecords, shiftDefinitions, staffingRequirements, workforceScheduleGuardrailPolicies,
@@ -156,6 +156,15 @@ export async function previewEmployerGreedyRoster(input:{
     totalPositions>200)throw Error("Select no more than 200 staffed positions.");
   const ids=workerRows.map(row=>row.id);
   const profileIds=[...new Set(requirements.map(row=>row.jobProfileId).filter((id):id is number=>id!==null))];
+  if(profileIds.length){
+    const ownedProfiles=await db.select({id:jobProfiles.id}).from(jobProfiles)
+      .where(and(eq(jobProfiles.organizationId,organizationId),
+        eq(jobProfiles.active,true),inArray(jobProfiles.id,profileIds)));
+    if(ownedProfiles.length!==profileIds.length){
+      throw Error("Role-qualified staffing demand references an unverified employer job profile.");
+    }
+  }
+
   const [availabilityRows,approvedLeaves,approvedOT,positionRows,roleAssignments,
     patterns,patternDays,patternSegments,assignmentRows,overrideRows,worksiteAssignments,
     separations,siteData,capabilityData,siteAuthorizationRows]=await Promise.all([
