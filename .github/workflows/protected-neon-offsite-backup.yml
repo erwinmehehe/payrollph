@@ -1,0 +1,83 @@
+name: P0-4 Protected Neon Encrypted Offsite Backup (Manual Only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Exact reviewed 40-char main SHA
+        type: string
+        required: true
+      change_ref:
+        description: Approved P0-4 change ticket (P0-4-...)
+        type: string
+        required: true
+      confirmation:
+        description: Type ENCRYPT_ONLY_NO_RESTORE
+        type: string
+        required: true
+
+concurrency:
+  group: payrollph-production-offsite-archive
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  offsite-encrypted-archive:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    environment: payrollph-production-backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      BACKUP_WORKFLOW_ENVIRONMENT: payrollph-production-backup
+      BACKUP_REVIEWED_SHA: ${{ inputs.reviewed_sha }
+      BACKUP_CHANGE_REF: ${{ inputs.change_ref }
+      BACKUP_MANUAL_CONFIRM: ${{ inputs.confirmation }
+      BACKUP_NEON_PROJECT_ID: ${{ vars.BACKUP_NEON_PROJECT_ID }
+      BACKUP_NEON_BRANCH_ID: ${{ vars.BACKUP_NEON_BRANCH_ID }
+      BACKUP_NEON_ENDPOINT_ID: ${{ vars.BACKUP_NEON_ENDPOINT_ID }
+      PGHOST: ${{ vars.BACKUP_PGHOST }
+      PGPORT: "5432"
+      PGDATABASE: neondb
+      PGUSER: ${{ vars.BACKUP_PGUSER }
+      PGPASSWORD: ${{ secrets.BACKUP_PG_PASSWORD }
+      PGSSLMODE: verify-full
+      PGSSLROOTCERT: system
+      AWS_REGION: ${{ vars.BACKUP_AWS_REGION }
+      BACKUP_S3_BUCKET: ${{ vars.BACKUP_S3_BUCKET }
+      BACKUP_S3_PREFIX: ${{ vars.BACKUP_S3_PREFIX }
+      BACKUP_KMS_KEY_ARN: ${{ vars.BACKUP_KMS_KEY_ARN }
+      BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT }
+    steps:
+      - name: Checkout EXACT reviewed source, no persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Setup Node 22 to run source-side policy validation
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Reject incorrect branch SHA, target or backup protection
+        run: |
+          node --check scripts/lib/protected-offsite-backup-policy.mjs
+          node --check scripts/validate-protected-offsite-backup.mjs
+          node scripts/validate-protected-offsite-backup.mjs >/dev/null
+      - name: Assume scoped AWS backup role with OIDC, no long-lived keys
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ vars.BACKUP_AWS_ROLE_ARN }
+          aws-region: us-east-1
+          role-session-name: payrollph-offsite-archive-${{ github.run_id }
+      - name: Install age (only encrypted archives leave runner)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age
+      - name: Archive PG18 only after read-only Neon identity + S3 Object Lock checks
+        run: bash scripts/backup-neon-offsite-encrypted.sh
+
+# NO schedules, no automatic restore, no migrations and no money movement.
+# This workflow cannot run without real environment vars, private bucket,
+# KMS key, OIDC role, age public recipient and backup-only Neon DB account.
