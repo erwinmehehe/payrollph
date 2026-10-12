@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   CANONICAL_MIGRATION_BASE_TABLES,
+  CANONICAL_MIGRATION_BASE_TABLES_SQL,
   CANONICAL_DRAFT_TABLE_CREATORS,
   assessCanonicalMigrationTables,
 } from "../scripts/lib/canonical-migration-base-tables.mjs";
@@ -93,4 +94,10 @@ test("even complete physical table inventory is not migration approval", () => {
   assert.equal(result.requiresUnappliedDraftDDL, false);
   assert.equal(result.productionMigrationApproved, false);
   assert.ok(result.migrations.every(m => m.status.endsWith("NOT_DDL_OR_RELEASE_APPROVAL")));
+});
+
+test("catalog predicate checks actual base tables, never a similarly named view", () => {
+  assert.match(CANONICAL_MIGRATION_BASE_TABLES_SQL, /pg_catalog\\.pg_class/);
+  assert.match(CANONICAL_MIGRATION_BASE_TABLES_SQL, /relkind IN \\('r','p'\\)/);
+  assert.doesNotMatch(CANONICAL_MIGRATION_BASE_TABLES_SQL, /to_regclass/);
 });
