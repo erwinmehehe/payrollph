@@ -15,6 +15,10 @@ on:
         description: Validated encrypted archive key, not S3 URL
         required: true
         type: string
+      object_version_id:
+        description: Immutable S3 VersionId from reviewed encrypted archive receipt
+        required: true
+        type: string
       encrypted_sha256:
         description: Expected ciphertext SHA-256 from backup evidence
         required: true
@@ -49,6 +53,7 @@ jobs:
       RESTORE_REVIEWED_SHA: ${{ inputs.reviewed_sha }}
       RESTORE_ARCHIVE_SOURCE_SHA: ${{ inputs.archive_source_sha }}
       RESTORE_S3_OBJECT_KEY: ${{ inputs.object_key }}
+      RESTORE_S3_VERSION_ID: ${{ inputs.object_version_id }}
       RESTORE_CIPHERTEXT_SHA256: ${{ inputs.encrypted_sha256 }}
       RESTORE_CHANGE_REF: ${{ inputs.change_ref }}
       RESTORE_CONFIRMATION: ${{ inputs.confirmation }}
