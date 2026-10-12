@@ -1,3 +1,4 @@
+import { enhancedPunchEnabledForOrganization } from "@/lib/workforce-punch-evidence";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit } from "@/lib/security-request";
 import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { db } from "@/db";
@@ -110,6 +111,7 @@ export async function GET(request: Request) {
   return Response.json({
     date: todayStr,
     previousShiftNeedsReview: anchor.previousShiftNeedsReview,
+    enhancedPunch: { enabled: enhancedPunchEnabledForOrganization(organizationId), employeeCanSubmit: user.role === "employee" },
     geofence: {
       required: geofencePilotEnabledForOrganization(organizationId),
       canClockWithLocation: user.role === "employee",
@@ -125,7 +127,6 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
-
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
 
@@ -156,6 +157,15 @@ export async function POST(request: Request) {
       "Only People administrators can record attendance for another employee.",
     );
     if (denied) return denied;
+  }
+
+  // Gate by the current authenticated employer, never only the server-wide
+  // feature switch. Unlisted tenants retain their legacy time clock.
+  if (enhancedPunchEnabledForOrganization(organizationId)) {
+    return Response.json({
+      error: "Enhanced punches require an independent reviewer. Use the review-first clock or authorized HR correction workflow.",
+      code: "PUNCH_REVIEW_REQUIRED",
+    }, { status: 409 });
   }
 
   if (!Number.isInteger(employeeId)) return Response.json({ error: "employeeId is required." }, { status: 400 });
