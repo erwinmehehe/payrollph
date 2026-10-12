@@ -84,7 +84,11 @@ CREATE TABLE IF NOT EXISTS legal_entity_transfer_liability_evidence (
   reviewed_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT legal_entity_transfer_liability_state_check
-    CHECK (review_state IN ('unresolved','reviewed','rejected'))
+    CHECK (review_state IN ('unresolved','reviewed','rejected')),
+  CONSTRAINT legal_entity_transfer_liability_review_evidence_check
+    CHECK (review_state <> 'reviewed' OR
+      (reviewed_by_user_id IS NOT NULL AND reviewed_at IS NOT NULL
+       AND reviewed_liability_envelope IS NOT NULL))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS legal_entity_transfer_liability_unique
   ON legal_entity_transfer_liability_evidence(organization_id, transfer_request_id);
@@ -101,6 +105,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS entity_transfer_scope_reference_unique
 -- Composite tenant-bound references guard against unsafe numeric foreign IDs.
 DO $entity_composite$
 BEGIN
+  -- 0121 declares these assignment/transfer pairs but did not enforce
+  -- employee tenant consistency; historical cross-tenant references fail
+  -- closed during this unnumbered review migration.
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='assignment_employee_tenant_fk') THEN
+    ALTER TABLE employee_entity_assignments ADD CONSTRAINT assignment_employee_tenant_fk
+      FOREIGN KEY (organization_id, employee_id) REFERENCES employees(organization_id,id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='transfer_employee_tenant_fk') THEN
+    ALTER TABLE entity_transfer_requests ADD CONSTRAINT transfer_employee_tenant_fk
+      FOREIGN KEY (organization_id, employee_id) REFERENCES employees(organization_id,id);
+  END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='entity_versions_tenant_fk') THEN
     ALTER TABLE legal_entity_statutory_registrations ADD CONSTRAINT entity_versions_tenant_fk
       FOREIGN KEY (organization_id, legal_entity_id) REFERENCES legal_entities(organization_id,id);
