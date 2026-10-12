@@ -168,7 +168,10 @@ function checkDraft(
   if (worker.restWeekday === weekday) return "designated_rest_day";
 
   const before=existing.find(day=>day.date===slot.workDate);
-  if (!before) return "source_unknown";
+  // A missing pattern or an already-approved day-off override is not a
+  // free slot. This pilot cannot create a schedule or revoke approved leave.
+  if (!before || before.source === "unassigned") return "source_unknown";
+  if (before.source === "override" && before.isRestDay) return "designated_rest_day";
   if(before.segments.length>0&&before.worksiteId!==null&&before.worksiteId!==slot.worksiteId){
     // A same-day second site needs independent travel/location governance.
     return "site_ineligible";
@@ -186,13 +189,16 @@ function checkDraft(
   const next=existing.map(day=>day.date===slot.workDate?nextDay:day);
   // The checker compares absolute wall intervals, including overnight shifts.
   // Never tolerate a new overlap, even if the configured policy is advisory.
-  const originalIssues=evaluateScheduleGuardrails({days:existing,policy:rules.schedule});
+  // Compare the baseline and prospective schedules with *the same* policy.
+  // Comparing an advisory baseline to a blocking prospective policy would
+  // mistake historic rest/week breaches for newly introduced violations.
+  const enforcedPolicy = { ...rules.schedule, active:true,
+    enforcementMode:"block" as const };
+  const originalIssues=evaluateScheduleGuardrails({days:existing,policy:enforcedPolicy});
   const originalKeys=new Set(originalIssues.map(issue=>JSON.stringify([
     issue.code,issue.date,issue.relatedDate,issue.actualMinutes,issue.actualDays,
   ])));
-  const candidateIssues=evaluateScheduleGuardrails({days:next,policy:{
-    ...rules.schedule,active:true,enforcementMode:"block",
-  }});
+  const candidateIssues=evaluateScheduleGuardrails({days:next,policy:enforcedPolicy});
   const fresh=candidateIssues.filter(issue=>!originalKeys.has(JSON.stringify([
     issue.code,issue.date,issue.relatedDate,issue.actualMinutes,issue.actualDays,
   ])));
