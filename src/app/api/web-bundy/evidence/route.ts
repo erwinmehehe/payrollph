@@ -77,7 +77,7 @@ export async function GET(request: Request) {
     eq(workforcePunchSubmissions.employeeId,employeeId),
     eq(workforcePunchSubmissions.status,"pending"),
   )).orderBy(desc(workforcePunchSubmissions.id)).limit(20);
-  return respond({ enabled:true, photoMode,worksiteId,consent:consent?.choice??null,
+  return respond({ enabled:true, photoMode,worksiteId,geofenceRequired:geofencePilotEnabledForOrganization(organizationId),consent:consent?.choice??null,
     consentVersion:PUNCH_CONSENT_VERSION,retentionDays:90,pending });
 }
 export async function POST(request: Request) {
