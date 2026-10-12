@@ -7,8 +7,10 @@ export type EntityWorkspace = NonNullable<DashboardData["multiEntity"]>;
 
 /** Only installed when the feature is enabled. No changes to global fetch while OFF. */
 export function useMultiEntityRequestHeaders(context: EntityWorkspace | undefined) {
+  const enabled = Boolean(context?.enabled);
+  const entityId = context?.legalEntityId ?? null;
   useEffect(() => {
-    if (!context?.enabled) return;
+    if (!enabled) return;
     const original = window.fetch;
     window.fetch = function entityAwareFetch(input: RequestInfo | URL, init?: RequestInit) {
       const urlText = input instanceof Request ? input.url : String(input);
@@ -18,12 +20,12 @@ export function useMultiEntityRequestHeaders(context: EntityWorkspace | undefine
       }
       const headers = new Headers(input instanceof Request ? input.headers : undefined);
       new Headers(init?.headers).forEach((value, key) => headers.set(key, value));
-      headers.set("x-legal-entity-id", context.legalEntityId === null
-        ? "all" : String(context.legalEntityId));
+      headers.set("x-legal-entity-id", entityId === null
+        ? "all" : String(entityId));
       return original.call(window, input, { ...init, headers });
     };
     return () => { window.fetch = original; };
-  }, [context?.enabled, context?.legalEntityId]);
+  }, [enabled, entityId]);
 }
 
 export function EntitySwitcher({ context, organizationId }: {
