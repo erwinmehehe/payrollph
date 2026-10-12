@@ -26,10 +26,12 @@ test("per-survey pseudonyms isolate tenants, users and survey IDs",()=>{
  assert.match(hash,/^[a-f0-9]{64}$/);
 });
 test("goal writer cannot be reviewer even with same organization admin role",()=>{
- assert.equal(canIndependentlyReviewGoal({makerUserId:5,reviewerUserId:5,alreadyReviewed:false}),false);
- assert.equal(canIndependentlyReviewGoal({makerUserId:5,reviewerUserId:9,employeeUserId:9,alreadyReviewed:false}),false);
- assert.equal(canIndependentlyReviewGoal({makerUserId:5,reviewerUserId:9,alreadyReviewed:false}),true);
- assert.equal(canIndependentlyReviewGoal({makerUserId:5,reviewerUserId:9,alreadyReviewed:true}),false);
+ assert.equal(canIndependentlyReviewGoal({makerUserId:5,reviewerUserId:5,subjectEmployeeId:31,alreadyReviewed:false}),false);
+ // Reviewer user ID 9 belongs to employee 31; unequal ID namespaces must not bypass self-review.
+ assert.equal(canIndependentlyReviewGoal({makerUserId:5,reviewerUserId:9,subjectEmployeeId:31,reviewerEmployeeId:31,alreadyReviewed:false}),false);
+ assert.equal(canIndependentlyReviewGoal({makerUserId:5,reviewerUserId:9,subjectEmployeeId:31,reviewerEmployeeId:72,alreadyReviewed:false}),true);
+ assert.equal(canIndependentlyReviewGoal({makerUserId:5,reviewerUserId:9,subjectEmployeeId:31,alreadyReviewed:false}),true);
+ assert.equal(canIndependentlyReviewGoal({makerUserId:5,reviewerUserId:9,subjectEmployeeId:31,alreadyReviewed:true}),false);
 });
 test("both modules are off without exact-true flags",()=>{
  assert.equal(criticalReleaseFlagEnabled("hcmEngagementSurvey",{}),false);
