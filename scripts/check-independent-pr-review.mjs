@@ -4,7 +4,8 @@
  * Run only with a read-scoped token on pull_request_target/review events;
  * NEVER check out or execute code from the untrusted PR head.
  */
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   allowedHumanReviewerLogins, classifyReviewScope, evaluateIndependentReview,
 } from "./lib/independent-pr-review-policy.mjs";
@@ -123,7 +124,7 @@ export async function checkIndependentReview(env, fetcher = fetch) {
   });
 }
 
-if (process.argv[1] && import.meta.url === fileURLToPath(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   checkIndependentReview(process.env).then(verdict => {
     // Do not print reviewer identities, branch payloads or any secret.
     const result = {
