@@ -289,11 +289,37 @@ export async function previewEmployerGreedyRoster(input:{
       preAssignedEmployeeIds:[],
     };
   });
+  const normalizedRoleAssignments=roleAssignments.map(row=>({
+    employeeId:row.employeeId,positionId:row.positionId,
+    effectiveFrom:String(row.effectiveFrom),
+    effectiveUntil:row.effectiveUntil?String(row.effectiveUntil):null,
+  }));
+  const normalizedSiteAuthorizations=siteAuthorizationRows.map(row=>({
+    id:row.id,employeeId:row.employeeId,worksiteId:row.worksiteId,
+    decision:row.decision==="deny"?"deny" as const:"allow" as const,
+    effectiveFrom:String(row.effectiveFrom),
+    effectiveUntil:row.effectiveUntil?String(row.effectiveUntil):null,
+  }));
+  const acceptedPrimaryAssignments=siteData.primaryAssignments.filter(row=>row.decision==="allow");
+  const roleByEmployee=new Map(workerRows.map(worker=>[worker.id,
+    normalizedRoleAssignments.filter(row=>row.employeeId===worker.id)]));
+  const approvedLeavesByEmployee=new Map(workerRows.map(worker=>[worker.id,
+    approvedLeaves.filter(row=>row.employeeId===worker.id)]));
   const availableByEmployee=new Map(workerRows.map(worker=>[worker.id,availabilityRows.filter(a=>a.employeeId===worker.id)
     .map(a=>({weekday:a.weekday,startTime:a.startTime,endTime:a.endTime,availabilityType:a.availabilityType,
       effectiveFrom:String(a.effectiveFrom),effectiveUntil:a.effectiveUntil?String(a.effectiveUntil):null}))]));
   const workers:GreedyWorker[]=workerRows.map(worker=>{
     const days=workerDays.get(worker.id)!;
+    const workerSiteEvidence={
+      ...siteData,
+      primaryAssignments:acceptedPrimaryAssignments.filter(row=>row.employeeId===worker.id),
+      arrangements:siteData.arrangements.filter(row=>row.employeeId===worker.id),
+      authorizations:normalizedSiteAuthorizations.filter(row=>row.employeeId===worker.id),
+    };
+    const workerPrimaryDenials=siteData.primaryAssignments.filter(row=>
+      row.employeeId===worker.id && row.decision==="deny");
+    const workerLeaves=approvedLeavesByEmployee.get(worker.id)??[];
+    const workerRoles=roleByEmployee.get(worker.id)??[];
     const restWeekday=convertRestDay(worker.restDay);
     const existingDays=days.filter(day=>day.date>=guardStart&&day.date<=guardEnd);
     const fairness=days.filter(day=>day.date>=workStart&&day.date<=endDate);
@@ -315,8 +341,7 @@ export async function previewEmployerGreedyRoster(input:{
       if(slot.jobProfileId!==null){
         const role=resolveEmployeeJobProfileAtDate({
           employeeId:worker.id,date:slot.workDate,
-          assignments:roleAssignments.map(row=>({employeeId:row.employeeId,positionId:row.positionId,
-            effectiveFrom:String(row.effectiveFrom),effectiveUntil:row.effectiveUntil?String(row.effectiveUntil):null})),
+          assignments:workerRoles,
           positions:positionRows,
         });
         if(role.ambiguous||role.jobProfileId===null)skill="unknown";
@@ -326,23 +351,12 @@ export async function previewEmployerGreedyRoster(input:{
           workDate:slot.workDate,
         }).eligible)skill="unqualified";
       }
-      // Rehydrate explicit allow/deny evidence. The shared batch-loader
-      // currently drops the authorization decision field in its projected
-      // output; never allow an explicit denial to become an implicit grant.
+      // Preserve explicit deny evidence from the tenant's authorizations.
       const siteEligibility=evaluateSiteEligibility({
-        ...siteData,
-        primaryAssignments:siteData.primaryAssignments.filter(row=>row.decision==="allow"),
-        authorizations:siteAuthorizationRows.map(row=>({
-          id:row.id,employeeId:row.employeeId,worksiteId:row.worksiteId,
-          decision:row.decision==="deny"?"deny" as const:"allow" as const,
-          effectiveFrom:String(row.effectiveFrom),
-          effectiveUntil:row.effectiveUntil?String(row.effectiveUntil):null,
-        })),
-        employeeId:worker.id,date:slot.workDate,worksiteId,
+        ...workerSiteEvidence,employeeId:worker.id,date:slot.workDate,worksiteId,
       });
-      const primaryDenied=siteData.primaryAssignments.some(row=>
-        row.employeeId===worker.id && row.worksiteId===worksiteId &&
-        row.decision==="deny" && row.effectiveFrom<=slot.workDate &&
+      const primaryDenied=workerPrimaryDenials.some(row=>
+        row.worksiteId===worksiteId&&row.effectiveFrom<=slot.workDate&&
         (!row.effectiveUntil||row.effectiveUntil>=slot.workDate));
       const siteStatus:WorkerSlotEvidence["site"]=!siteEligibility.eligible||primaryDenied?"ineligible":
         siteEligibility.source==="legacy"?"unknown":"eligible";
@@ -350,7 +364,7 @@ export async function previewEmployerGreedyRoster(input:{
         workDate:slot.workDate,startTime:slot.startTime,endTime:slot.endTime,
         spansMidnight:slot.spansMidnight,rules:availableByEmployee.get(worker.id)??[],
       })?"unavailable":"available";
-      const leave=leaveBlocks({slot,workerId:worker.id,leaves:approvedLeaves,
+      const leave=leaveBlocks({slot,workerId:worker.id,leaves:workerLeaves,
         currentSetByLeaveId,intervalsBySet});
       evidenceByRequirement[slot.requirementId]={
         skill:alive(slot.workDate)?skill:"unqualified",
