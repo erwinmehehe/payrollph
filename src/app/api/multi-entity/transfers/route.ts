@@ -11,6 +11,7 @@ import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-ent
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { manilaCalendarDate } from "@/lib/payroll-period-ui";
+import { readBasicAndThirteenth } from "@/lib/final-pay";
 
 export const dynamic = "force-dynamic";
 const disabled = () => Response.json({ error: "Entity transfers are unavailable." }, { status: 404 });
@@ -72,7 +73,8 @@ export async function POST(request: Request) {
     return fail("A valid worker, target employer, future/current effective date and reason are required.", 422);
   const scope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
   if (!scope.ok) return scope.response;
-  if (!managementRoles.has(scope.context.role)) return fail("People management permission required.", 403);
+  if (!scope.context.group || !managementRoles.has(scope.context.role))
+    return fail("A group-level People administrator is required to propose an inter-employer transfer.", 403);
   const mfa = requireSensitiveActionMfa(user);
   if (mfa) return mfa;
   const [employee, target] = await Promise.all([
@@ -120,6 +122,17 @@ export async function POST(request: Request) {
     .where(and(eq(payrollEntries.employeeId, employeeId),
       eq(payrollRuns.organizationId, organizationId),
       eq(payrollRuns.legalEntityId, worker.legalEntityId), eq(payrollRuns.status, "Released")));
+  let sourceBasic = 0;
+  let source13thPaid = 0;
+  try {
+    for (const row of history) {
+      const source = readBasicAndThirteenth(row.lineItems);
+      sourceBasic += source.basic;
+      source13thPaid += source.thirteenthPaid;
+    }
+  } catch {
+    return fail("Existing payroll adjustment is missing verified year attribution. Reconcile 13th-month evidence before transfer.", 409);
+  }
   try {
     const [created] = await db.transaction(async tx => {
       await tx.execute(sql`select pg_advisory_xact_lock(4219, ${employeeId})`);
@@ -132,6 +145,10 @@ export async function POST(request: Request) {
             runId: row.payrollRunId, periodStart: row.periodStart,
             periodEnd: row.periodEnd, lineItems: row.lineItems,
           })),
+          sourceBasicSalaryEarned: sourceBasic.toFixed(2),
+          sourceThirteenthPaid: source13thPaid.toFixed(2),
+          sourceLegalEntityId: worker.legalEntityId,
+          sourceEmploymentStart: worker.startDate,
           reconciliation: "requires_employer_by_employer_payroll_review",
         },
         continuityNote: "Service date and leave records remain attached to the one worker. 13th-month base/paid amounts and legal liability must be reconciled by employer; a transfer is not a separation.",
