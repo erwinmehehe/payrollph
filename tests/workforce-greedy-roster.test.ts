@@ -108,6 +108,35 @@ test("seeded unverified skills, approved leave, unavailable time, and site denia
   assert.equal(result.unfilled[0].evidence.reduce((sum,row)=>sum+row.candidates,0),4);
 });
 
+test("an unassigned day or approved day-off cannot be filled by inventing a published schedule",()=>{
+  const s=slot(1);
+  const unassigned=worker(1,[s]);
+  unassigned.existingDays=unassigned.existingDays.map(day=>day.date===s.workDate
+    ? {...day,source:"unassigned",isRestDay:false}:day);
+  assert.equal(singleReason(s,[unassigned]),"source_unknown");
+  const approvedOff=worker(1,[s]);
+  approvedOff.existingDays=approvedOff.existingDays.map(day=>day.date===s.workDate
+    ? {...day,source:"override",isRestDay:true}:day);
+  assert.equal(singleReason(s,[approvedOff]),"designated_rest_day");
+});
+
+test("advisory baseline guardrails are evaluated consistently and cannot introduce a blocker by switching modes",()=>{
+  const s=slot(1,dateAfter(date,2));
+  const baseline=worker(1,[s],{existingDays:[
+    schedule(date,[segment("08:00","16:00")]),
+    schedule(dateAfter(date,1),[segment("09:00","17:00")]),
+    schedule(dateAfter(date,2)),
+  ],approvedOvertimeByDate:{}});
+  // Historic 60-minute rest is already present. The proposed day-three shift
+  // does not alter that historic interval, and is far enough from day two.
+  const result=plan([s],[baseline],{schedule:{
+    minimumRestMinutes:660,maxConsecutiveWorkingDays:0,
+    rollingSevenDayMinutes:0,active:false,enforcementMode:"advisory",
+  }});
+  assert.equal(result.roster.length,1);
+  assert.equal(result.unfilled.length,0);
+});
+
 test("missing evidence never becomes an assumed eligible employee",()=>{
   const s=slot(1);
   assert.equal(singleReason(s,[worker(1,[s],{evidenceByRequirement:{}})]),"source_unknown");
