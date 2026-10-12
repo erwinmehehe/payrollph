@@ -56,3 +56,10 @@ export function canIssueExpiryNotice(input: {
 export function canStaffOpenEmployeeVault(role: string): boolean {
   return role === "owner" || role === "admin" || role === "hr";
 }
+
+/** Optional paperwork must never raise required-document deficit counters. */
+export function isMandatoryDocumentMissing(row: {
+  status: string; mandatory: boolean;
+}): boolean {
+  return row.mandatory && row.status === "missing";
+}

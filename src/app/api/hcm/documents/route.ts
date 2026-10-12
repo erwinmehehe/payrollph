@@ -17,7 +17,7 @@ import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } fr
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { canStaffOpenEmployeeVault } from "@/lib/employee-document-vault";
+import { canStaffOpenEmployeeVault, isMandatoryDocumentMissing } from "@/lib/employee-document-vault";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   documentComplianceStatus,
@@ -215,7 +215,11 @@ export async function GET(request: Request) {
       publishedPolicies: policies.filter((row) => row.status === "published").length,
       pendingAcknowledgements: acknowledgementRows.filter((row) => row.status === "assigned").length,
       overdueAcknowledgements: acknowledgementRows.filter((row) => row.overdue).length,
-      missingDocuments: complianceRows.filter((row) => row.status === "missing").length,
+      missingDocuments: complianceRows.filter((row) =>
+        vaultEnabled ? isMandatoryDocumentMissing({
+          mandatory: row.requirement?.mandatory === true, status: row.status,
+        }) : row.status === "missing"
+      ).length,
       submittedDocuments: complianceRows.filter((row) => row.status === "submitted").length,
       expiringDocuments: complianceRows.filter((row) => row.status === "expiring").length,
       expiredDocuments: complianceRows.filter((row) => row.status === "expired").length,

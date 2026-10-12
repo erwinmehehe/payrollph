@@ -89,3 +89,11 @@ test("S3-style document URLs are short-lived, private, scoped and credential-saf
     DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: "def",
   }));
 });
+
+test("optional 201 file never counts as missing a required document", async () => {
+  const { isMandatoryDocumentMissing } = await import("../src/lib/employee-document-vault");
+  assert.equal(isMandatoryDocumentMissing({ status: "missing", mandatory: true }), true);
+  assert.equal(isMandatoryDocumentMissing({ status: "missing", mandatory: false }), false);
+  assert.equal(isMandatoryDocumentMissing({ status: "submitted", mandatory: true }), false);
+  assert.equal(isMandatoryDocumentMissing({ status: "waived", mandatory: true }), false);
+});
