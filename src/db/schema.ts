@@ -470,6 +470,10 @@ export const hcmPulseSurveys = pgTable("hcm_pulse_surveys", {
   createdByUserId: integer("created_by_user_id").notNull()
     .references(() => users.id, { onDelete: "restrict" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Only a sealed >=5-person cohort may retain aggregate statistics.
+  aggregateCount: integer("aggregate_count"),
+  aggregateAverage: numeric("aggregate_average", { precision: 4, scale: 2 }),
+  aggregateDistribution: jsonb("aggregate_distribution"),
   closedAt: timestamp("closed_at", { withTimezone: true }),
 }, table => [index("hcm_pulse_org_status_idx").on(table.organizationId,table.status)]);
 
