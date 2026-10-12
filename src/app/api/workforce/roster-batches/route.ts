@@ -382,6 +382,7 @@ export async function POST(request: Request) {
             const checkedRules = await checkWfmRosterPublish({
               organizationId, employeeId: employee.id,
               days: proposedDays, targetDates: [workDate], executor: tx,
+              baselineRestDates: originalDays.filter(day=>day.isRestDay).map(day=>day.date),
             });
             const ruleDecision = decideRosterRulePublish({
               findings: checkedRules.findings, managerMayOverride: false,
