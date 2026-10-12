@@ -102,3 +102,78 @@ liabilities, electronic payout authority, every database writer or production
 migration receipts. Validate the actual database against a restored isolated
 clone and the DBA-controlled migration journal; obtain independent finance,
 security and release sign-off before a production cutover.
+
+
+## Fail-closed historical catalog gate (October 12, 2026)
+
+**This gate is now called by the reviewed migration runner in the same
+transaction, after reading the adopted historical cutover and BEFORE
+accepting the source receipt manifest as sufficient to plan/apply.**
+The new code is in `scripts/lib/historical-catalog-gate.mjs`.
+
+The critical historical source families are:
+
+| Existing historical source | Required structural proof beyond a receipt |
+| --- | --- |
+| `0022_job_architecture_positions.sql` | Job profiles, workforce plans, positions, position assignments and core unique indexes |
+| `0050_hcm_core_worker_history.sql` | Typed legal-entity/FTE/assignment columns, worker event table and active-primary uniqueness |
+| `0110_provider_events_inbox.sql` | Provider event inbox and valid unique provider-event replay index |
+| `0112_wfm_operational_demand_observations.sql` | Import and observation tables and validated deduplication indexes |
+| `0113_wfm_issued_demand_forecasts.sql` | Issued forecast/scoring tables and unique indexes |
+| `0114_wfm_demand_staffing_policies.sql` | Governed staffing policy/event tables and unique indexes |
+
+The gate checks `pg_catalog` relation ownership, typed columns,
+index validity, readiness and expected uniqueness. It does **not**
+query employees, payroll, bank, government IDs, worker history or tenant
+rows. A missing object, wrong column type, invalid/nonunique index,
+truncated catalog result, duplicate key or missing metadata causes a
+fail-closed error. It applies only to files through the independently
+adopted historical prefix; source paths, source checksums and human
+evidence still have to pass the separate receipt and cutover gates.
+
+**A passing catalog gate is structural compatibility evidence only,
+not a historical applied SQL receipt.** It does not prove the index's
+exact expression/predicate, past data transformations, all tenant
+constraints, or correctness of employer historical attribution.
+Independent DBA source-to-target diff, source/receipt full-path SHA,
+migration journal, verified nonpromoting restore, and per-employee
+payroll reconciliation remain mandatory.
+
+### Isolated Neon execution witness — NOT production
+
+The existing nondefault `payrollph-db-migration-lab-20261012` branch
+(`br-aged-mouse-b7tipaw5`) already contained the 0022 job/position
+tables with zero job profiles, positions and position assignments. On
+October 12, the exact checked-in historical SQL
+`0050_hcm_core_worker_history.sql` (Git blob
+`ba0891733c30dceb00e4a358ac91c0323a7fd264`) was executed
+atomically on **that lab only**. Its `worker_employment_events`
+table and HCM unique/lookup indexes appeared, the required position
+and assignment columns were added, and the table still held zero
+events. Payroll count invariants were 8 employees, 3 payroll runs,
+18 entries; the lab contained 125 public tables afterward.
+
+A subsequent separate read-only Neon production check found 112 public
+tables, still **no** `worker_employment_events`, 8 employees, 3
+runs and 18 entries. The original production branch and endpoint IDs
+were unchanged. No historical employment data was synthesized and
+**no journal receipt was marked applied**.
+
+The lab is not a clean recovered-production restore and is not an
+operational sign-off. It has a scheduled expiration, and its staging
+results do not authorize an identical SQL execution on `main`.
+The live project also has unresolved source-history gaps and backup
+capacity/restore-witness gates (tracked in #744 and #899).
+
+### Verification
+
+`tests/historical-catalog-gate.test.mjs` exercises valid/invalid
+index and column claims, incomplete catalog rows, malformed metadata,
+historical cutoff scoping and the rule that all-passing objects never
+authorize release. The `reviewed-migration-rehearsal.yml` action
+tests the gate against a real **disposable PostgreSQL 16** catalog
+while proving the existing reviewed migration executor remains atomic.
+The source must pass exact-commit CI before merge.
+
+**Leave the protected production apply workflow disabled until the
+historical DBA attestation and restore gates are independently accepted.**
