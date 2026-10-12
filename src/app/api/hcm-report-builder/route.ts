@@ -50,7 +50,7 @@ export async function GET(request: Request) {
   }
   const gate = await authorize(session.id, organizationId);
   if (gate.denied) return gate.denied;
-  const canSeeSalary = ["owner", "admin", "hr", "payroll"].includes(gate.role!);
+  const canSeeSalary = ["admin", "hr", "payroll"].includes(gate.role!);
   return Response.json({
     datasets: ["people", "time", "payroll"],
     fields: REPORT_FIELDS.filter(field => !field.salary || canSeeSalary),
