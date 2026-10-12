@@ -12,7 +12,7 @@ test("public status discards operational metrics and returns only up/down", () =
 test("readiness Next.js route exports only supported entrypoints and runtime config", () => {
   const route = readFileSync("src/app/api/readiness/route.ts", "utf8");
   const implementation = readFileSync("src/lib/operational-readiness.ts", "utf8");
-  assert.match(route, /import \{ buildReadinessPayload \} from "@\\/lib\\/operational-readiness"/);
+  assert.ok(route.includes('import { buildReadinessPayload } from "@/lib/operational-readiness"'));
   assert.match(implementation, /export async function buildReadinessPayload\(\)/);
   assert.doesNotMatch(route, /export\s+(?:async\s+)?function buildReadinessPayload\b/);
   assert.match(route, /export async function GET\(/);
