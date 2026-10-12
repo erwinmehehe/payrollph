@@ -88,6 +88,11 @@ test("backup script uses direct Neon reader, encryption pipe, immutable object l
   assert.match(sh,/pg_dump --format=custom/);
   assert.match(sh,/\| age -r "\$BACKUP_AGE_RECIPIENT" > "\$archive"/);
   assert.match(sh,/aws s3api get-object-lock-configuration/);
+  assert.match(sh,/aws s3api get-public-access-block/);
+  for (const flag of ["BlockPublicAcls","IgnorePublicAcls","BlockPublicPolicy","RestrictPublicBuckets"]) {
+    assert.match(sh,new RegExp(flag));
+  }
+  assert.match(sh,/BACKUP_S3_PUBLIC_ACCESS_NOT_BLOCKED/);
   assert.match(sh,/--object-lock-mode COMPLIANCE/);
   assert.match(sh,/saved_version=/);
   assert.match(sh,/BACKUP_STORED_OBJECT_CONTROLS_NOT_VERIFIED/);
