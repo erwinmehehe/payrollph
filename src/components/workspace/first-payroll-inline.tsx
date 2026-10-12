@@ -10,7 +10,7 @@ import { WorkforceTimesheetPanel } from "@/components/workspace/workforce-timesh
 import { AttendanceLockControl } from "@/components/workspace/attendance-lock-control";
 import { buildFirstPayrollJourney, type FirstPayrollJourneyStep } from "@/lib/first-payroll-journey";
 import { FIRST_PAYROLL_OWNER, type FirstPayrollKey } from "@/lib/first-payroll-ownership";
-import { validFirstPayrollPreviewDates, type FirstPayrollPreview } from "@/lib/first-payroll-preview";
+import { validFirstPayrollPreviewDates, type FirstPayrollPreview } from "@/lib/first-payroll-preview-contract";
 import type { DashboardData, Notify } from "@/components/workspace/types";
 import type { FirstPayrollReadiness } from "@/lib/first-payroll-readiness";
 import { manilaCalendarDate } from "@/lib/payroll-period-ui";
