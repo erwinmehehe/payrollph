@@ -1050,7 +1050,7 @@ export function PayrollRunView({
                             periodLabel={run.periodLabel}
                             released={released}
                             entityContext={data.multiEntity}
-                            legalEntityId={run.legalEntityId}
+                            legalEntityId={run.legalEntityId ?? null}
                             notify={notify}
                             onExplain={() => setExplainEmployeeId(entry.employeeId)}
                           />
