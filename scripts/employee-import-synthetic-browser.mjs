@@ -29,8 +29,8 @@ try {
         if (["owner", "hr"].includes(role)) {
           // On phone layouts the sidebar remains in the DOM but is translated off-screen.
           // Playwright :visible still matches it, so open the actual mobile drawer first.
-          if (width <= 390) {
-            const openNav = page.getByRole("button", { name: "Open navigation", exact: true });
+          const openNav = page.getByRole("button", { name: "Open navigation", exact: true });
+          if (await openNav.isVisible()) {
             await openNav.click();
             await page.locator(".app-shell.drawer-open").waitFor();
           }
