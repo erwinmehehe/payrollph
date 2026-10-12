@@ -79,6 +79,8 @@ test("missing 0022 job tables fail 0114, rollback preserves fixture catalog", {
     const before=await queryObjects(client);
     await client.query("BEGIN");
     transaction=true;
+    await client.query("DROP TABLE IF EXISTS public.workforce_demand_staffing_policy_events CASCADE");
+    await client.query("DROP TABLE IF EXISTS public.workforce_demand_staffing_policies CASCADE");
     await client.query("DROP TABLE IF EXISTS public.job_profiles CASCADE");
     const sql=readFileSync(new URL("../drizzle/0114_wfm_demand_staffing_policies.sql",import.meta.url),"utf8");
     await assert.rejects(()=>client.query(sql),
