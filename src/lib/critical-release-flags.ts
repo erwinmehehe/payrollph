@@ -42,6 +42,18 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 AI-assisted automation suggestions",
     approval: "Synthetic staging isolation and postmerge activation gates",
   },
+  wfmPunchEvidence: {
+    env: "WFM_PUNCH_PHOTO_EVIDENCE_ENABLED",
+    owner: "Privacy",
+    risk: "P1 optional encrypted biometric-like image evidence",
+    approval: "DPO consent/retention, malware scanning and 90-day purge pilot",
+  },
+  wfmOfflinePunchQueue: {
+    env: "WFM_OFFLINE_PUNCH_QUEUE_ENABLED",
+    owner: "Workforce Operations",
+    risk: "P1 delayed/offline attendance requiring independent HR review",
+    approval: "Offline skew, device collision, replay and reviewer-only correction UAT",
+  },
   wfmRosterPublishRules: {
     env: "WFM_ROSTER_PUBLISH_RULES_ENABLED",
     owner: "Workforce Operations",

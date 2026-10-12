@@ -53,3 +53,14 @@ For each actually deployed vendor, record controller/processor role, lawful basi
 - [ ] Tabletop a synthetic breach, produce draft NPC and affected-person notices, and rehearse notification decisions.
 - [ ] Test request fulfillment, authentication, hold/erase controls, tenanted exports and incident evidence access.
 - [ ] Publish reviewed privacy notice and processor register; verify no unapproved OpenAI integration is activated.
+
+
+## Optional WFM time-punch selfies and offline receipts (draft — DPO review required)
+
+**Release gates:** `WFM_PUNCH_PHOTO_EVIDENCE_ENABLED` and `WFM_OFFLINE_PUNCH_QUEUE_ENABLED` both default OFF, separately from the document malware-scanning gate and central scheduler. The migration `drizzle/0116_wfm_selfie_offline_receipts.sql` must be applied before enabling either feature.
+
+- **Purpose and consent:** An employee sees the photo purpose and default retention before choosing consent or decline. Consent is separately stored per employee/tenant and can be changed or withdrawn. Declining must not automatically suppress wages or count as absence. Worksite-specific optional photo capture is enabled only by policy and informed consent. **No face matching or biometric identity decision** is made.
+- **Storage:** Limit uploaded JPEG/PNG photos to 512 KB; verify file signature, require malware scan and AES-256-GCM authenticated encryption under purpose-derived `PII_ENCRYPTION_KEY`. Store only the encrypted image, SHA-256, expiring evidence reference, worksite reference and audit metadata; never log a raw image or raw GPS. Reviewer reads require explicit tenant and HR scope.
+- **Retention:** Default image retention is **90 days** from capture. The central leased scheduler deletes expired encrypted evidence in bounded batches while respecting an explicitly authorized legal hold; receipt records remain payroll-adjacent audit evidence subject to separately approved employment-record retention. The DPO must evaluate whether holds are justified and document secure backup/object-store deletion windows before approval.
+- **Offline:** IndexedDB holds only client punch intent, opaque installation token and device timestamp. Sync records server-received timestamp, classifies clock skew and advisory shared-device / cross-site impossible-travel indicators, and stores all offline receipts as `pending_review`. A human HR reviewer must independently decide; even reviewed receipts are **not automatically inserted into payroll or attendance tables**. Apply accepted time only through the existing governed attendance correction workflow.
+- **Processor/security:** Verify controller/processor roles, scanner and database contracts, incident notification, employee right to object, consent revocation effects, evidence access reviews, key-rotation drills, loss/device-theft risks, retention job health and restoration from backups. The DPO must approve the final purpose/retention notice before live employee collection.

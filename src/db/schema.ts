@@ -477,6 +477,70 @@ export const workforceRosterPublishPolicies = pgTable(
   },
 );
 
+// Optional WFM selfie and offline sync are deliberately separate from payroll punches.
+export const workforcePunchPhotoPolicies = pgTable(
+  "workforce_punch_photo_policies", {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").notNull().references(() => worksites.id, { onDelete: "cascade" }),
+    captureEnabled: boolean("capture_enabled").notNull().default(false),
+    retentionDays: integer("retention_days").notNull().default(90),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  }, table => [uniqueIndex("workforce_photo_policy_org_site_unique").on(table.organizationId, table.worksiteId)],
+);
+export const workforcePunchPhotoConsents = pgTable(
+  "workforce_punch_photo_consents", {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    consented: boolean("consented").notNull(),
+    purposeVersion: varchar("purpose_version", { length: 32 }).notNull().default("wfm-photo-v1"),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  }, table => [uniqueIndex("workforce_photo_consent_org_employee_unique").on(table.organizationId, table.employeeId)],
+);
+export const workforcePunchPhotoEvidence = pgTable(
+  "workforce_punch_photo_evidence", {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").references(() => worksites.id, { onDelete: "set null" }),
+    punchId: integer("punch_id").references(() => timePunches.id, { onDelete: "set null" }),
+    actionType: varchar("action_type", { length: 16 }).notNull(),
+    mimeType: varchar("mime_type", { length: 40 }).notNull(),
+    sealedPhoto: text("sealed_photo").notNull(),
+    contentSha256: varchar("content_sha256", { length: 64 }).notNull(),
+    byteSize: integer("byte_size").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    legalHold: boolean("legal_hold").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  }, table => [
+    index("workforce_photo_evidence_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+    index("workforce_photo_evidence_purge_idx").on(table.expiresAt, table.legalHold),
+  ],
+);
+export const workforceOfflinePunchReceipts = pgTable(
+  "workforce_offline_punch_receipts", {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    worksiteId: integer("worksite_id").references(() => worksites.id, { onDelete: "set null" }),
+    deviceTokenHash: varchar("device_token_hash", { length: 64 }).notNull(),
+    actionType: varchar("action_type", { length: 16 }).notNull(),
+    deviceTimestamp: timestamp("device_timestamp", { withTimezone: true }).notNull(),
+    serverReceivedAt: timestamp("server_received_at", { withTimezone: true }).notNull().defaultNow(),
+    reviewFlags: jsonb("review_flags").notNull().default([]),
+    status: varchar("status", { length: 24 }).notNull().default("pending_review"),
+    reviewerId: integer("reviewer_id").references(() => users.id, { onDelete: "set null" }),
+    reviewReason: varchar("review_reason", { length: 400 }),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  }, table => [
+    index("workforce_offline_org_status_idx").on(table.organizationId, table.status),
+    index("workforce_offline_device_idx").on(table.organizationId, table.deviceTokenHash),
+    index("workforce_offline_employee_idx").on(table.organizationId, table.employeeId),
+  ],
+);
+
 export const schedulePatterns = pgTable(
   "schedule_patterns",
   {
