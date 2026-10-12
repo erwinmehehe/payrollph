@@ -1,0 +1,32 @@
+name: Issue 910 - 0121 Review-only Source Integrity
+on:
+  pull_request:
+    paths:
+      - "docs/sql/issue-910-review-only-0121-*.sql"
+      - "docs/engineering/issue-910-0121-readiness.md"
+      - "tests/issue-910-0121-review.test.mjs"
+      - "drizzle/0121_multi_entity_v2_scope_transfer.sql"
+      - ".github/workflows/issue-910-0121-review.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/sql/issue-910-review-only-0121-*.sql"
+      - "tests/issue-910-0121-review.test.mjs"
+      - "drizzle/0121_multi_entity_v2_scope_transfer.sql"
+permissions:
+  contents: read
+jobs:
+  review-source-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout with no credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Verify SQL source integrity (NO database connection)
+        run: node --test tests/issue-910-0121-review.test.mjs
