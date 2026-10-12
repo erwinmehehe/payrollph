@@ -371,18 +371,20 @@ export async function getDashboardData(organizationId?: number, request?: Reques
     : null;
 
   const payProfileByEmployee = new Map(payProfileRows.map((profile) => [profile.employeeId, profile]));
+  const showPersonalIdentifiers = !(entityContext.enabled && access.role === "group_hr");
   const employeesWithPayBasis = employeeRows.map((employee) => {
     const profile = payProfileByEmployee.get(employee.id);
     return {
       ...employee,
-      // The browser never needs the full account number, and it used to receive
-      // it for every employee. Last four only; the real value stays server-side.
-      bankAccount: maskBankAccount(employee.bankAccount),
-      tin: maskGovernmentId(employee.tin),
-      tinBranchCode: maskGovernmentId(employee.tinBranchCode),
-      sssNo: maskGovernmentId(employee.sssNo),
-      philHealthNo: maskGovernmentId(employee.philHealthNo),
-      pagIbigNo: maskGovernmentId(employee.pagIbigNo),
+      // Group HR is allowed cross-employer workforce reads, but never bank
+      // destination details or a worker's government-ID fragments.
+      bankAccount: showPersonalIdentifiers ? maskBankAccount(employee.bankAccount) : null,
+      bankCode: showPersonalIdentifiers ? employee.bankCode : null,
+      tin: showPersonalIdentifiers ? maskGovernmentId(employee.tin) : null,
+      tinBranchCode: showPersonalIdentifiers ? maskGovernmentId(employee.tinBranchCode) : null,
+      sssNo: showPersonalIdentifiers ? maskGovernmentId(employee.sssNo) : null,
+      philHealthNo: showPersonalIdentifiers ? maskGovernmentId(employee.philHealthNo) : null,
+      pagIbigNo: showPersonalIdentifiers ? maskGovernmentId(employee.pagIbigNo) : null,
       payBasis: profile?.payBasis ?? "monthly",
       payRate: profile?.rateAmount ?? employee.basicRate,
       standardWorkDaysPerMonth: profile?.standardWorkDaysPerMonth ?? "22.00",
