@@ -1,7 +1,8 @@
-import { createHash } from "node:crypto";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { createHash, randomUUID } from "node:crypto";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { documentObjectKey, putDocumentObject } from "@/lib/document-object-storage";
+import { COE_PENDING_SOURCE_PREFIX, reconcilePendingCoeDocument } from "@/lib/hr-case-coe-object-reconciliation";
 import { auditEvents, documents, employeeHrCaseMessages, employeeHrCases, employees, organizations } from "@/db/schema";
 import {
   assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES,
@@ -130,6 +131,121 @@ export async function POST(request: Request) {
   return Response.json({ case: created }, { status: 201 });
 }
 
+/**
+ * A generated COE must be recoverable even if the object provider succeeds
+ * and Postgres fails/commits ambiguously. Stage an unreadable pending document
+ * and an audit row BEFORE the external PUT. Promote it only in the same
+ * transaction as the approved HR-case and final audit.
+ */
+async function approveCoeWithRecovery(input: {
+  caseId: number; organizationId: number; employeeId: number;
+  createdByUserId: number; approverId: number; approverName: string;
+}) {
+  const [worker] = await db.select().from(employees).where(and(
+    eq(employees.id, input.employeeId), eq(employees.organizationId, input.organizationId),
+  )).limit(1);
+  const [employer] = await db.select().from(organizations)
+    .where(eq(organizations.id, input.organizationId)).limit(1);
+  if (!worker || !employer) {
+    return Response.json({ error: "COE source is unavailable." }, { status: 409 });
+  }
+  const approvedDate = new Date().toISOString().slice(0, 10);
+  let bytes: Buffer;
+  try {
+    bytes = Buffer.from(approvedCoeText({
+      employerName: employer.legalName,
+      employeeName: worker.firstName + " " + worker.lastName,
+      employeeTitle: worker.title, startDate: worker.startDate,
+      approvedBy: input.approverName, approvedDate,
+    }), "utf8");
+  } catch {
+    return Response.json({ error: "COE source fields require HR review." }, { status: 409 });
+  }
+  const sourceKey = COE_PENDING_SOURCE_PREFIX + randomUUID();
+  const objectKey = documentObjectKey(input.organizationId, input.employeeId);
+  let pendingDocumentId: number | null = null;
+  try {
+    pendingDocumentId = await db.transaction(async tx => {
+      const [row] = await tx.select().from(employeeHrCases).where(and(
+        eq(employeeHrCases.id, input.caseId),
+        eq(employeeHrCases.organizationId, input.organizationId),
+      )).for("update").limit(1);
+      if (!row || row.caseType !== "coe" || row.status === "closed" ||
+          row.coeDocumentId !== null || row.createdByUserId === input.approverId ||
+          row.employeeId !== input.employeeId) throw new Error("COE_REVIEW_STATE_CHANGED");
+      const [pending] = await tx.insert(documents).values({
+        organizationId: row.organizationId, employeeId: row.employeeId,
+        kind: "coe", fileName: "coe-" + worker.employeeNo + "-" + row.id + ".txt",
+        mimeType: "text/plain; charset=utf-8", byteSize: bytes.byteLength,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+        scannedClean: false, scanNote: "Pending signed-off COE storage",
+        sourceType: "generated", sourceKey,
+        generationMetadata: { caseId: row.id, template: "coe-v1", status: "pending" },
+        uploadedBy: input.approverName, uploadedByUserId: input.approverId,
+        content: "", objectStorageKey: objectKey,
+      }).returning({ id: documents.id });
+      await tx.insert(auditEvents).values({
+        organizationId: row.organizationId, actor: input.approverName,
+        action: "Pending COE storage intent recorded", resource: String(pending.id),
+        metadata: { documentId: pending.id, caseId: row.id, actorUserId: input.approverId },
+      });
+      return pending.id;
+    });
+    await putDocumentObject(objectKey, bytes, "text/plain; charset=utf-8");
+    const result = await db.transaction(async tx => {
+      const [row] = await tx.select().from(employeeHrCases).where(and(
+        eq(employeeHrCases.id, input.caseId),
+        eq(employeeHrCases.organizationId, input.organizationId),
+      )).for("update").limit(1);
+      if (!row || row.caseType !== "coe" || row.status === "closed" ||
+          row.coeDocumentId !== null || row.createdByUserId === input.approverId ||
+          row.employeeId !== input.employeeId) throw new Error("COE_REVIEW_STATE_CHANGED");
+      const [approvedDocument] = await tx.update(documents).set({
+        scannedClean: true, scanNote: "Generated and independently reviewed COE",
+        sourceKey: "hr-case-coe:" + row.id,
+        generationMetadata: {
+          caseId: row.id, template: "coe-v1", approvedByUserId: input.approverId,
+          approvedDate, status: "approved",
+        },
+      }).where(and(
+        eq(documents.id, pendingDocumentId!),
+        eq(documents.organizationId, row.organizationId),
+        eq(documents.scannedClean, false), eq(documents.sourceKey, sourceKey),
+      )).returning({ id: documents.id });
+      if (!approvedDocument) throw new Error("COE_PENDING_DOCUMENT_CHANGED");
+      const [updated] = await tx.update(employeeHrCases).set({
+        coeDocumentId: approvedDocument.id, coeApprovedByUserId: input.approverId,
+        coeApprovedAt: new Date(), status: "resolved", updatedAt: new Date(),
+      }).where(and(
+        eq(employeeHrCases.id, row.id),
+        eq(employeeHrCases.organizationId, row.organizationId),
+        isNull(employeeHrCases.coeDocumentId),
+      )).returning();
+      if (!updated) throw new Error("COE_REVIEW_STATE_CHANGED");
+      await tx.insert(auditEvents).values({
+        organizationId: row.organizationId, actor: input.approverName,
+        action: "HR case approve_coe", resource: String(row.id),
+        metadata: {
+          caseId: row.id, employeeId: row.employeeId,
+          documentId: approvedDocument.id, actorUserId: input.approverId,
+          newStatus: updated.status, signedOff: true,
+        },
+      });
+      return updated;
+    });
+    return Response.json({ case: result });
+  } catch {
+    if (pendingDocumentId !== null) {
+      // If the DB committed but its connection dropped, reconciliation sees
+      // scannedClean=true / linked COE and refuses to delete the valid file.
+      // If remote DELETE fails, the durable pending row survives for the
+      // leased retention job. Do not log the employee's object key.
+      await reconcilePendingCoeDocument(pendingDocumentId).catch(() => {});
+    }
+    return Response.json({ error: "COE could not be finalized; recovery is queued where needed." }, { status: 409 });
+  }
+}
+
 export async function PATCH(request: Request) {
   if (!enabled()) return unavailable();
   const originDenied = enforceSameOriginMutation(request);
@@ -184,44 +300,20 @@ export async function PATCH(request: Request) {
       return Response.json({ error: "Maker and COE approver must be different users." }, { status: 403 });
     }
   }
+  if (action === "approve_coe") {
+    return approveCoeWithRecovery({
+      caseId, organizationId: existing.organizationId, employeeId: existing.employeeId,
+      createdByUserId: existing.createdByUserId,
+      approverId: user.id, approverName: user.name,
+    });
+  }
   const outcome = await db.transaction(async tx => {
     const [row] = await tx.select().from(employeeHrCases).where(and(
       eq(employeeHrCases.id, caseId), eq(employeeHrCases.organizationId, existing.organizationId),
     )).for("update").limit(1);
     if (!row || row.status === "closed") throw new Error("CASE_CLOSED_OR_MISSING");
     let result = row;
-    if (action === "approve_coe") {
-      if (row.caseType !== "coe" || row.coeDocumentId != null) throw new Error("COE_ALREADY_APPROVED_OR_WRONG_TYPE");
-      const [worker] = await tx.select().from(employees).where(and(
-        eq(employees.id, row.employeeId), eq(employees.organizationId, row.organizationId),
-      )).limit(1);
-      const [employer] = await tx.select().from(organizations)
-        .where(eq(organizations.id, row.organizationId)).limit(1);
-      if (!worker || !employer) throw new Error("COE_SOURCE_NOT_FOUND");
-      const approvedDate = new Date().toISOString().slice(0, 10);
-      const text = approvedCoeText({
-        employerName: employer.legalName, employeeName: worker.firstName + " " + worker.lastName,
-        employeeTitle: worker.title, startDate: worker.startDate, approvedBy: user.name,
-        approvedDate,
-      });
-      const content = Buffer.from(text, "utf8");
-      const objectKey = documentObjectKey(row.organizationId, row.employeeId);
-      await putDocumentObject(objectKey, content, "text/plain; charset=utf-8");
-      const [document] = await tx.insert(documents).values({
-        organizationId: row.organizationId, employeeId: row.employeeId,
-        kind: "coe", fileName: "coe-" + worker.employeeNo + "-" + caseId + ".txt",
-        mimeType: "text/plain; charset=utf-8", byteSize: content.byteLength,
-        sha256: createHash("sha256").update(content).digest("hex"),
-        scannedClean: true, scanNote: "Generated and independently reviewed COE",
-        sourceType: "generated", sourceKey: "hr-case-coe:" + caseId,
-        generationMetadata: { caseId, template: "coe-v1", approvedByUserId: user.id, approvedDate },
-        uploadedBy: user.name, uploadedByUserId: user.id, content: "", objectStorageKey: objectKey,
-      }).returning({ id: documents.id });
-      [result] = await tx.update(employeeHrCases).set({
-        coeDocumentId: document.id, coeApprovedByUserId: user.id,
-        coeApprovedAt: new Date(), status: "resolved", updatedAt: new Date(),
-      }).where(eq(employeeHrCases.id, caseId)).returning();
-    } else if (action === "status") {
+    if (action === "status") {
       if (isEmployee) throw new Error("FORBIDDEN_CASE_TRANSITION");
       const next = String(body.status ?? "") as HrCaseStatus;
       if (!STATES.has(next) || !hrCaseTransitionAllowed(
