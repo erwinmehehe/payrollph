@@ -211,7 +211,7 @@ export function EntitySettingsView({ context, organizationId }: {
 type TransferRow = {
   id: number; employeeId: number; fromLegalEntityId: number; toLegalEntityId: number;
   effectiveDate: string; status: string; requestedByUserId: number;
-  continuityNote: string;
+  canReview: boolean;
 };
 type Destination = { id: number; legalName: string; displayName: string };
 export function EntityTransferDialog({
@@ -222,6 +222,7 @@ export function EntityTransferDialog({
   onClose: () => void; onRefresh: () => Promise<void>;
 }) {
   const [options, setOptions] = useState<Destination[]>([]);
+  const [mutationsEnabled, setMutationsEnabled] = useState(false);
   const [target, setTarget] = useState(initialTargetId ? String(initialTargetId) : "");
   const [effectiveDate, setEffectiveDate] = useState("");
   const [reason, setReason] = useState("");
@@ -234,7 +235,11 @@ export function EntityTransferDialog({
         const response = await fetch("/api/multi-entity/transfers?organizationId=" + organizationId);
         const body = await response.json();
         if (!response.ok) throw new Error(body.error ?? "Could not load transfer options.");
-        if (alive) { setOptions(body.destinations ?? []); setStatus("ready"); }
+        if (alive) {
+          setOptions(body.destinations ?? []);
+          setMutationsEnabled(body.mutationsEnabled === true);
+          setStatus("ready");
+        }
       } catch (e) { if (alive) { setError(e instanceof Error ? e.message : "Could not load."); setStatus("error"); } }
     })();
     return () => { alive = false; };
@@ -259,6 +264,7 @@ export function EntityTransferDialog({
       style={{ width: "min(95vw, 620px)", maxHeight: "88vh", overflowY: "auto" }}>
       <h2>Transfer {employee.firstName} {employee.lastName}</h2>
       <p>Entity changes require independent approval. The employee keeps one identity and original service date.</p>
+      {!mutationsEnabled && <p role="status">Transfers are disabled pending separate Philippine payroll and legal approval.</p>}
       <p>Current: <strong>{context.entities.find(row => row.id === employee.legalEntityId)?.displayName ?? "Entity not available"}</strong></p>
       {status === "loading" && <p role="status">Loading destinations…</p>}
       {status === "error" && <p role="alert">{error}</p>}
@@ -281,7 +287,7 @@ export function EntityTransferDialog({
       </>}
       <div className="modal-actions" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <button className="secondary-button" onClick={onClose}>Cancel</button>
-        <button className="primary-button" disabled={!target || !effectiveDate || reason.trim().length < 8 || status !== "ready"}
+        <button className="primary-button" disabled={!mutationsEnabled || !target || !effectiveDate || reason.trim().length < 8 || status !== "ready"}
           onClick={() => void submit()}>{status === "saving" ? "Submitting…" : "Send for independent approval"}</button>
       </div>
     </section>
@@ -293,6 +299,7 @@ export function EntityTransferInbox({ context, organizationId, onRefresh }: {
 }) {
   const [rows, setRows] = useState<TransferRow[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [mutationsEnabled, setMutationsEnabled] = useState(false);
   const [state, setState] = useState<"loading" | "ready" | "error" | "deciding">("loading");
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
@@ -304,12 +311,18 @@ export function EntityTransferInbox({ context, organizationId, onRefresh }: {
           { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error ?? "Unable to load transfers.");
-        if (alive) { setRows(payload.transfers ?? []); setDestinations(payload.destinations ?? []); setState("ready"); }
+        if (alive) {
+          setRows(payload.transfers ?? []);
+          setDestinations(payload.destinations ?? []);
+          setMutationsEnabled(payload.mutationsEnabled === true);
+          setState("ready");
+        }
       } catch (e) { if (alive) { setError(e instanceof Error ? e.message : "Error."); setState("error"); } }
     })();
     return () => { alive = false; };
   }, [organizationId, reload]);
-  const approver = context.group && ["owner","admin","bookkeeper"].includes(context.role);
+  const approver = !context.group && mutationsEnabled &&
+    ["owner", "admin", "bookkeeper"].includes(context.role);
   async function decide(id: number, action: "approve" | "reject" | "apply") {
     setState("deciding"); setError("");
     try {
@@ -326,6 +339,7 @@ export function EntityTransferInbox({ context, organizationId, onRefresh }: {
   return <article className="card" style={{ padding: 18, marginTop: 16 }}>
     <h2>Entity transfer approvals</h2>
     <p>Each move requires a separate checker; completed moves keep their service and historical payroll trail.</p>
+    {!mutationsEnabled && <p role="status">Transfer changes are on hold pending legal and payroll signoff.</p>}
     {state === "loading" && <p role="status">Loading transfer requests…</p>}
     {state === "error" && <div role="alert">{error}<button onClick={() => setReload(n => n+1)}>Retry</button></div>}
     {state === "ready" && rows.length === 0 && <p>No entity transfer requests.</p>}
@@ -339,10 +353,10 @@ export function EntityTransferInbox({ context, organizationId, onRefresh }: {
               {" → "}{destinations.find(x => x.id === row.toLegalEntityId)?.displayName ?? row.toLegalEntityId}</td>
           <td>{row.effectiveDate}</td><td>{row.status}</td>
           <td style={{ minWidth: 160 }}>
-            {approver && row.status === "pending_approval" &&
+            {approver && row.canReview && row.status === "pending_approval" &&
               <><button disabled={state === "deciding"} onClick={() => void decide(row.id,"approve")}>Approve</button>
                 <button disabled={state === "deciding"} onClick={() => void decide(row.id,"reject")}>Reject</button></>}
-            {approver && row.status === "approved" &&
+            {approver && row.canReview && row.status === "approved" &&
               <button disabled={state === "deciding"} onClick={() => void decide(row.id,"apply")}>Apply when due</button>}
           </td>
         </tr>)}</tbody>
