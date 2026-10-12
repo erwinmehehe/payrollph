@@ -71,12 +71,12 @@ export function reportMoneyCentavos(value: string | number): bigint {
  if(!/^-?\d+(?:\.\d{1,2})?$/.test(raw))throw new Error("Payroll amount has invalid centavo precision.");
  const negative=raw.startsWith("-");
  const [whole,fraction=""]=raw.replace(/^-/, "").split(".");
- const amount=BigInt(whole)*100n+BigInt(fraction.padEnd(2,"0"));
+ const amount=BigInt(whole)*BigInt(100)+BigInt(fraction.padEnd(2,"0"));
  return negative?-amount:amount;
 }
 export function formatReportCentavos(value: bigint): string {
- const abs=value<0n?-value:value;
- return (value<0n?"-":"")+(abs/100n).toString()+"."+(abs%100n).toString().padStart(2,"0");
+ const abs=value<BigInt(0)?-value:value;
+ return (value<BigInt(0)?"-":"")+(abs/BigInt(100)).toString()+"."+(abs%BigInt(100)).toString().padStart(2,"0");
 }
 
 export function runWhitelistedBuilder(
