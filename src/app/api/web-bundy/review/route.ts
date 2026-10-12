@@ -117,6 +117,14 @@ export async function POST(request:Request) {
         .where(and(eq(workforcePunchSubmissions.id,id),eq(workforcePunchSubmissions.organizationId,organizationId),
           eq(workforcePunchSubmissions.status,"pending"))).returning({id:workforcePunchSubmissions.id,status:workforcePunchSubmissions.status});
       if(!saved)throw Error("Already decided.");
+      if(decision==="approved") {
+        // Keep calculated timecards out of payroll until rebuilt. If this
+        // invalidation fails the attendance decision must also roll back.
+        await markTimesheetsStaleForEmployeeDate({
+          organizationId,employeeId:submission.employeeId,
+          workDate:String(submission.workDate),executor:tx,
+        });
+      }
       // Attendance decision and immutable audit must commit or roll back together.
       await tx.insert(auditEvents).values({
         organizationId,actor:context.user!.name,
@@ -131,7 +139,6 @@ export async function POST(request:Request) {
     });
   }catch(error){return Response.json({error:error instanceof Error?error.message:"Review conflict."},{status:409});}
   if(decision==="approved") {
-    await markTimesheetsStaleForEmployeeDate({organizationId,employeeId:submission.employeeId,workDate:String(submission.workDate)});
     await reconcileAttendanceExceptionEvents({organizationId,employeeId:submission.employeeId,workDate:String(submission.workDate)});
   }
   return Response.json({ok:true,submission:result},{headers:privateHeaders});
