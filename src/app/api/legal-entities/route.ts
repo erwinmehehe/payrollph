@@ -87,7 +87,15 @@ export async function GET(request: Request) {
     return Response.json({ error: "organizationId is required." }, { status: 400 });
   }
 
-  await ensurePrimaryLegalEntity(organizationId);
+  // This legacy all-employer directory exposes employee and bank metadata
+  // without explicit legal-employer grants. New multi-entity mode uses scoped
+  // resource endpoints instead; the old unscoped directory fails closed.
+  if (criticalReleaseFlagEnabled("multiEntity") && !selectorMode) {
+    return Response.json({
+      error: "Use the authorized legal-employer settings view for this workspace.",
+      code: "ENTITY_ACCESS_DENIED",
+    }, { status: 403 });
+  }
 
   if (selectorMode) {
     const denied = await assertOrganizationRole(
@@ -97,6 +105,9 @@ export async function GET(request: Request) {
       "Only payroll operators can select a legal employer for payroll.",
     );
     if (denied) return denied;
+    // Do not create/update a tenant's default legal employer before authenticating
+    // membership. A GET from an unassigned user must never mutate that tenant.
+    if (!criticalReleaseFlagEnabled("multiEntity")) await ensurePrimaryLegalEntity(organizationId);
     const scope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
     if (!scope.ok) return scope.response;
     const entities = await db.select({
@@ -118,6 +129,7 @@ export async function GET(request: Request) {
 
   const denied = await requireAdmin(user.id, organizationId);
   if (denied) return denied;
+  await ensurePrimaryLegalEntity(organizationId);
 
   const [entities, employeeRows, runRows] = await Promise.all([
     db.select().from(legalEntities)
@@ -166,6 +178,12 @@ export async function POST(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const demoDenied = publicDemoMutationDenied(user.email, "Legal employer management");
   if (demoDenied) return demoDenied;
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    return Response.json({
+      error: "Legal employer creation and legacy profile changes need a versioned, independently reviewed registration workflow.",
+      code: "VERSIONED_REGISTRATION_REQUIRED",
+    }, { status: 409 });
+  }
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
@@ -262,6 +280,12 @@ export async function PATCH(request: Request) {
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const demoDenied = publicDemoMutationDenied(user.email, "Legal employer management");
   if (demoDenied) return demoDenied;
+  if (criticalReleaseFlagEnabled("multiEntity")) {
+    return Response.json({
+      error: "Legal employer creation and legacy profile changes need a versioned, independently reviewed registration workflow.",
+      code: "VERSIONED_REGISTRATION_REQUIRED",
+    }, { status: 409 });
+  }
 
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
