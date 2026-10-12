@@ -27,6 +27,11 @@ test("selfie/offline pilot is explicitly tenant-allowlisted and cannot hijack le
   assert.equal(enhancedPunchEnabledForOrganization(-1,pilot),false);
   assert.equal(enhancedPunchEnabledForOrganization(0,pilot),false);
 });
+test("review-first controls remount on employer and employee switch to clear photo and consent state",()=>{
+  const source=readFileSync("src/components/web-bundy-modal.tsx","utf8");
+  assert.ok(source.includes("key={`\${organizationId}:\${selectedEmployeeId}`}"),
+    "A unique employer/employee React key prevents stale selfie and consent state from crossing accounts");
+});
 test("consent declined: no image may be captured; time evidence remains reviewable",()=>{
   assert.deepEqual(photoCaptureDecision("required","declined",true),{capture:false,review:true,flags:["consent-declined"]});
   assert.deepEqual(photoCaptureDecision("optional","declined",false),{capture:false,review:true,flags:["consent-declined"]});
