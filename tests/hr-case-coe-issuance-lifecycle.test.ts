@@ -23,7 +23,7 @@ test("database finalization failure triggers recovery after a successful object 
     stage: async () => { called.push("stage"); return 67; },
     upload: async () => { called.push("PUT"); },
     finalize: async () => { called.push("finalize"); throw original; },
-    recover: async id => { called.push("reconcile:" + id); },
+    recover: async (id, phase) => { assert.equal(phase, "finalize_failed"); called.push("reconcile:" + id); },
   }), error => error === original);
   assert.deepEqual(called, ["stage", "PUT", "finalize", "reconcile:67"]);
 });
@@ -34,9 +34,9 @@ test("ambiguous storage timeout still triggers recovery without promoting the CO
     stage: async () => { order.push("stage"); return 88; },
     upload: async () => { order.push("timeout-after-remote-write"); throw new Error("storage timeout"); },
     finalize: async () => { order.push("incorrect-signoff"); return true; },
-    recover: async id => { order.push("reconcile:" + id); },
+    recover: async (id, phase) => { assert.equal(phase, "upload_ambiguous"); order.push("deferred:" + id); },
   }), /storage timeout/);
-  assert.deepEqual(order, ["stage", "timeout-after-remote-write", "reconcile:88"]);
+  assert.deepEqual(order, ["stage", "timeout-after-remote-write", "deferred:88"]);
 });
 
 test("a failed DELETE does not suppress primary rejection or lose the pending intent", async () => {
@@ -46,7 +46,7 @@ test("a failed DELETE does not suppress primary rejection or lose the pending in
     stage: async () => { intentExists = true; return 90; },
     upload: async () => {},
     finalize: async () => { throw original; },
-    recover: async () => { throw new Error("private object DELETE failed"); },
+    recover: async (_id, phase) => { assert.equal(phase, "finalize_failed"); throw new Error("private object DELETE failed"); },
   }), err => err === original);
   assert.equal(intentExists, true);
 });
