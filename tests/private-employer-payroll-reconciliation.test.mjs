@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { comparePayrollCsv } from "../scripts/reconcile-private-employer-payroll.mjs";
 
-const header="periodStart,periodEnd,payDate,employeeNo,gross,sss,philHealth,pagIbig,withholding,net";
+const header="legalEmployerId,periodStart,periodEnd,payDate,employeeNo,gross,sss,philHealth,pagIbig,withholding,net";
 const csv=(...rows)=>[header,...rows].join("\n")+"\n";
 const row=(id,net="12123.00",gross="15000.00")=>[
-  "2026-10-01","2026-10-15","2026-10-15",id,gross,
+  "FICTIONAL-EMPLOYER-A","2026-10-01","2026-10-15","2026-10-15",id,gross,
   "750.00","375.00","100.00","1652.00",net,
 ].join(",");
 test("synthetic: identical payroll passes only mathematical gate; no authorization claim",()=>{
@@ -35,4 +35,6 @@ test("synthetic: mixed or mismatched pay periods and malformed money fail closed
  assert.throws(()=>comparePayrollCsv(a,csv(row("FICTIONAL-01").replace("12123.00","12,123.00"))),/INVALID_COLUMN_COUNT/);
  assert.throws(()=>comparePayrollCsv(a,csv(row("FICTIONAL-01").replace("12123.00","12123.001"))),/INVALID_MONEY/);
  assert.throws(()=>comparePayrollCsv(a,csv(row("FICTIONAL-01"),row("FICTIONAL-02").replace("2026-10-01","2026-11-01"))),/MIXED_PAYROLL_PERIODS|INVALID_PAYROLL_PERIOD/);
+ assert.throws(()=>comparePayrollCsv(a,csv(row("FICTIONAL-01").replace("FICTIONAL-EMPLOYER-A","FICTIONAL-EMPLOYER-B"))),/LEGAL_EMPLOYER_MISMATCH/);
+ assert.throws(()=>comparePayrollCsv(a,csv(row("FICTIONAL-01"),row("FICTIONAL-02").replace("FICTIONAL-EMPLOYER-A","FICTIONAL-EMPLOYER-B"))),/MIXED_LEGAL_EMPLOYERS/);
 });
