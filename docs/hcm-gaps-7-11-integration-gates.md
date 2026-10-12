@@ -13,7 +13,7 @@ Updated: 2026-10-12. This candidate is default-off, reviewed through PR #889, an
 
 Files: `src/lib/hcm-report-builder.ts`, `src/lib/hcm-report-source.ts`, `src/app/api/hcm-report-builder/route.ts`, `src/components/workspace/hcm-report-builder-panel.tsx`.
 
-A default-off page within Analytics now chooses approved People, Time or Payroll fields, group, exact department filter and date range, previews aggregates and exports audited CSV. The server checks authenticated tenant membership, company-wide HR/payroll role, custom permission set, release flag, bounds, MFA for CSV and sensitive-action rate limits. Salary columns require owner/admin/HR/payroll. It uses only explicit whitelisted fields, never user SQL. Existing CSV escaping defeats spreadsheet formula injection.
+A default-off page within Analytics now chooses approved People, Time or Payroll fields, group, exact department filter and date range, previews aggregates and exports audited CSV. The server checks authenticated tenant membership, company-wide HR/payroll role, custom permission set, release flag, bounds, MFA for CSV and sensitive-action rate limits. Salary columns require admin/HR/payroll (owner alone has no salary-export entitlement). It uses only explicit whitelisted fields, never user SQL. Existing CSV escaping defeats spreadsheet formula injection.
 
 Data semantics are deliberately conservative:
 - People headcount uses current worker status. Released separation events count as exits only in the selected window and are grouped as historically unattributed rather than retroactively assigned to a new department.
@@ -33,7 +33,7 @@ All new routes authenticate revocable scoped API keys, rate limit and reject mul
 
 ## B-14/B-15 — engagement and goal/review pages
 
-Flagged `/app/engagement` offers one 1–5 question with employee participation and company HR open/close administration. The additive `drizzle/0115_engagement_survey_aggregate.sql` and matching Drizzle schema store **only sum and count** for answers. A separate participation table has employee ID + survey ID but no rating or timestamp, preventing duplicate responses without a recoverable per-person score. During an open survey, even administrators cannot retrieve counts; after close, data is suppressed unless count >= 5. No arbitrary filter or team slice permits inferential small-group discovery. The feature remains off until privacy, retention and migration acceptance. Individual participation is identifiable; individual answers are not.
+Flagged `/app/engagement` offers one 1–5 question with employee participation and company HR open/close administration. The additive `drizzle/0121_engagement_survey_aggregate.sql` and matching Drizzle schema store **only sum and count** for answers. A separate participation table has employee ID + survey ID but no rating or timestamp, preventing duplicate responses without a recoverable per-person score. During an open survey, even administrators cannot retrieve counts; after close, data is suppressed unless count >= 5. No arbitrary filter or team slice permits inferential small-group discovery. The feature remains off until privacy, retention and migration acceptance. Individual participation is identifiable; individual answers are not.
 
 Flagged `/app/goals-reviews` lists existing performance cycles and links to the governed Performance workspace. It reuses existing goals/review cycle implementation and does not clone a second approval path.
 
@@ -62,3 +62,8 @@ These test files execute service/route logic and DB behavior, not source text se
 No schema migration has been executed against a customer database. Do not change `payroll-engine.ts`, existing maker/checker/release paths, payout destination authorization or government filing math. The full work request is NOT done until the two design RFCs receive signoff, their separately scoped implementations pass cross-entity and approval tests, the survey migration is rehearsed, field-access policies are reviewed and all CI/golden suites pass.
 
 Required checks: `npx tsc --noEmit`, `npm run lint`, `TZ=Asia/Manila npm test`, and `npm run payroll:golden`, `payroll:golden:phase2a`, `payroll:golden:phase2b`, `payroll:golden:pay-rules`. GitHub Actions outcomes, not source presence, establish release readiness.
+
+
+## Numbered SQL migration reservation and Neon rehearsal (2026-10-12)
+
+The integration queue reserves SQL numbers by original PR creation order. Earlier draft PR #865 owns 0115-0119, and #874 owns 0120. This PR owns **0121_engagement_survey_aggregate.sql** and must not claim 0115 or execute 0121 in production before its preceding release train is approved/applied. The survey SQL was successfully rehearsed with 0110 on the isolated Neon branch `pr-889-hcm-validation-20261012` (branch id `br-wispy-shape-b70h5pyj`, expires October 19). Its contents are unchanged by the filename reservation change; no SQL was applied to Neon main. A schema rehearsal is not evidence of independent reviewer/DBA migration signoff, post-release acceptance or runtime feature activation.
