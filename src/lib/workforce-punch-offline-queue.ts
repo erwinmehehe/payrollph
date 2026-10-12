@@ -1,11 +1,15 @@
 "use client";
 export type QueuedWebPunch={id:string;organizationId:number;employeeId:number;actionType:string;deviceOccurredAt:string;deviceId:string;createdAt:string};
-const DB_NAME="payrollph-wfm-punch-queue-v1", STORE="punches";
+const DB_NAME="payrollph-wfm-punch-queue-v1", STORE="punches", INSTALLATION="installation";
 function database():Promise<IDBDatabase> {
   return new Promise((resolve,reject)=>{
     if(typeof indexedDB==="undefined")return reject(Error("Offline storage unavailable on this device."));
-    const request=indexedDB.open(DB_NAME,1);
-    request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains(STORE))db.createObjectStore(STORE,{keyPath:"id"});};
+    const request=indexedDB.open(DB_NAME,2);
+    request.onupgradeneeded=()=>{
+      const db=request.result;
+      if(!db.objectStoreNames.contains(STORE))db.createObjectStore(STORE,{keyPath:"id"});
+      if(!db.objectStoreNames.contains(INSTALLATION))db.createObjectStore(INSTALLATION);
+    };
     request.onsuccess=()=>resolve(request.result);
     request.onerror=()=>reject(request.error);
   });
@@ -36,6 +40,47 @@ async function withObjectStore<T>(mode:IDBTransactionMode, fn:(store:IDBObjectSt
       req.onsuccess=()=>{requestResult=req.result;};
       req.onerror=()=>fail(req.error);
     }catch(error){fail(error);}
+  });
+}
+/** Random browser-installation pseudonym, not a hardware/device fingerprint.
+ * Never stored in localStorage/sessionStorage/cookies or sent in telemetry.
+ * Its server HMAC is purpose/tenant-scoped; shared-device signals are warnings.
+ * IndexedDB's readwrite transaction also prevents different tabs racing to
+ * create different IDs for the same browser installation.
+ */
+export async function installationPunchDeviceId():Promise<string>{
+  const db=await database();
+  return new Promise((resolve,reject)=>{
+    const transaction=db.transaction(INSTALLATION,"readwrite");
+    const store=transaction.objectStore(INSTALLATION);
+    let identifier:string|null=null;
+    let settled=false;
+    const fail=(reason:unknown)=>{
+      if(settled)return;
+      settled=true;
+      db.close();
+      reject(reason instanceof Error?reason:Error("Device installation storage unavailable."));
+    };
+    transaction.oncomplete=()=>{
+      if(settled)return;
+      settled=true;db.close();
+      if(identifier)resolve(identifier);
+      else reject(Error("No device installation identifier was saved."));
+    };
+    transaction.onabort=()=>fail(transaction.error);
+    transaction.onerror=()=>fail(transaction.error);
+    const get=store.get("id");
+    get.onsuccess=()=>{
+      const existing=get.result;
+      if(typeof existing==="string"&&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(existing)) {
+        identifier=existing;
+      } else {
+        identifier=crypto.randomUUID();
+        store.put(identifier,"id");
+      }
+    };
+    get.onerror=()=>fail(get.error);
   });
 }
 export async function queueWebPunch(punch:QueuedWebPunch) {await withObjectStore("readwrite",store=>store.put(punch));}
