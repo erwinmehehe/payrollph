@@ -21,7 +21,7 @@ import { loadCurrentHcmSeparation } from "@/lib/hcm-work-period-guard";
 import { advanceApprovalChainAfterDecisionTx } from "@/lib/approval-chains";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
 import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
-import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
+import { resolveMultiEntityContext, assertEntityResource, type MultiEntityContext } from "@/lib/multi-entity-server";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { connectedPayrollReleaseGateEnabled, safePayrollConnectedReleaseReadiness } from "@/lib/payroll-connected-release-gate-server";
 import {
@@ -62,6 +62,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return Response.json({ error: `This task was already ${task.status.toLowerCase()}.` }, { status: 409 });
   }
   const sharedDemo = isPublicDemoIdentity(sessionUser.email);
+  let approvalEntityScope: MultiEntityContext | null = null;
   if (criticalReleaseFlagEnabled("multiEntity")) {
     // The group_hr principal may read authorized employer history, but may
     // NEVER approve leave, payroll, effective changes or arbitrary tasks through
@@ -74,6 +75,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       error: "Group HR is read-only and cannot decide approvals.",
       code: "GROUP_ENTITY_READ_ONLY",
     }, { status: 403 });
+    approvalEntityScope = entity.context;
   }
   const actor = sessionUser.name;
 
@@ -101,12 +103,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       }, { status: 409 });
     }
     if (hcmBusinessProcessApproval.employeeId != null) {
-      const [worker] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
+      const [worker] = await db.select({
+        orgUnitId: employees.orgUnitId, legalEntityId: employees.legalEntityId,
+      }).from(employees).where(and(
         eq(employees.id, hcmBusinessProcessApproval.employeeId),
         eq(employees.organizationId, task.organizationId),
       )).limit(1);
       if (!worker) {
         return Response.json({ error: "The HCM business process no longer has a valid employee." }, { status: 409 });
+      }
+      if (approvalEntityScope?.enabled) {
+        const entityDenied = assertEntityResource(approvalEntityScope, worker.legalEntityId);
+        if (entityDenied) return entityDenied;
       }
       const scopeDenied = await assertOrganizationUnitAccess(
         sessionUser.id, task.organizationId, worker.orgUnitId,
