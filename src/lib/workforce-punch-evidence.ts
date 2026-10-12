@@ -52,3 +52,11 @@ export type ExpirablePhoto = { id: string; expiresAt: Date; legalHold: boolean; 
 export function photosDueForPurge<T extends ExpirablePhoto>(rows: T[], now: Date): T[] {
   return rows.filter(row => !row.legalHold && row.sealedPhoto != null && row.expiresAt.getTime() <= now.getTime());
 }
+
+/** A newer effective deny must supersede an older allow; never search past a deny. */
+export function resolvedWorksiteDecision(
+  rows: readonly { worksiteId: number; decision: string }[],
+): number | null {
+  const newest = rows[0];
+  return newest?.decision === "allow" ? newest.worksiteId : null;
+}
