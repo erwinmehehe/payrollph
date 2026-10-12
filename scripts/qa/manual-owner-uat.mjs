@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -154,10 +154,10 @@ export function renderSummary(session) {
 
 function sha() { return execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim(); }
 function dirty() { return execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim().length > 0; }
-function writePrivate(path, data, json = true) {
+function writePrivate(path, data, json = true, exclusive = false) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, json ? JSON.stringify(data, null, 2) + "\n" : data,
-    { mode: 0o600, flag: "w" });
+    { mode: 0o600, flag: exclusive ? "wx" : "w" });
 }
 export function requireCleanSource(session, currentSha, hasUncommittedChanges) {
   assert.equal(session?.sourceSha, currentSha,
@@ -176,13 +176,15 @@ export function archiveLocalSession(activePath, summaryPath, archiveId = randomU
   summarize(previous); // Refuse invalid/corrupt evidence before moving anything.
   const folder = join(dirname(activePath), "archived", previous.sourceSha + "-" + archiveId);
   const archivedSession = join(folder, "session.json");
-  assert.ok(!existsSync(folder), "Evidence archive already exists");
-  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  // Fail on collisions atomically rather than checking then creating.
+  mkdirSync(dirname(folder), { recursive: true, mode: 0o700 });
+  mkdirSync(folder, { mode: 0o700 });
   renameSync(activePath, archivedSession);
-  if (existsSync(summaryPath)) {
+  try {
     renameSync(summaryPath, join(folder, "summary.md"));
-  } else {
-    writePrivate(join(folder, "summary.md"), renderSummary(previous), false);
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+    writePrivate(join(folder, "summary.md"), renderSummary(previous), false, true);
   }
   return folder;
 }
@@ -204,9 +206,14 @@ async function main() {
     return;
   }
   if (command === "init") {
-    assert.ok(!existsSync(sessionFile), "Session exists; archive previous evidence first");
     assert.equal(dirty(), false, "UAT must start from a clean committed checkout");
-    writePrivate(sessionFile, createSession(sha(), false));
+    try {
+      // wx rejects races and refuses to overwrite existing owner evidence.
+      writePrivate(sessionFile, createSession(sha(), false), true, true);
+    } catch (error) {
+      if (error?.code === "EEXIST") throw new Error("Session exists; archive previous evidence first");
+      throw error;
+    }
     console.log("Created local UAT session at " + sessionFile);
     return;
   }
