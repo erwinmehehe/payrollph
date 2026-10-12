@@ -117,9 +117,9 @@ export async function getBuilderFacts(input: {
       const line = item as { code?: unknown; amount?: unknown };
       if (line.code !== "OT") return amount;
       const value = reportMoneyCentavos(String(line.amount));
-      if (value < 0n) throw new Error("Stored OT line item needs review.");
+      if (value < BigInt(0)) throw new Error("Stored OT line item needs review.");
       return amount + value;
-    }, 0n);
+    }, BigInt(0));
     return { department: row.orgUnit ?? "Unallocated", status: row.runStatus,
       payrollCost: formatReportCentavos(reportMoneyCentavos(String(row.grossPay))),
       otLineCost: formatReportCentavos(otLineCost) };
