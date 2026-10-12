@@ -18,8 +18,15 @@ export async function authorizeExtendedV1Read(request: Request, scope: string) {
 }
 
 export function apiV1Page(searchParams: URLSearchParams, maxPageSize = 100) {
-  const limit = Number(searchParams.get("limit") ?? 50);
-  const offset = Number(searchParams.get("offset") ?? 0);
+  const limitRaw=searchParams.getAll("limit");
+  const offsetRaw=searchParams.getAll("offset");
+  // Reject duplicate and coercible forms such as hexadecimal and scientific
+  // notation; clients must use a single canonical decimal pagination value.
+  if(limitRaw.length>1||offsetRaw.length>1 ||
+    (limitRaw.length===1&&!/^[1-9]\d*$/.test(limitRaw[0])) ||
+    (offsetRaw.length===1&&!/^(?:0|[1-9]\d*)$/.test(offsetRaw[0])))return null;
+  const limit=limitRaw.length?Number(limitRaw[0]):50;
+  const offset=offsetRaw.length?Number(offsetRaw[0]):0;
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > maxPageSize
     || !Number.isSafeInteger(offset) || offset < 0 || offset > 100_000) return null;
   return { limit, offset };
