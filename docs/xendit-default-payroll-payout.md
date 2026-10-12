@@ -1,3 +1,5 @@
+**Release-train update (2026-10-12):** The canonical *source-only* Xendit migration is now `drizzle/0117_xendit_payout_provider.sql` in draft PR #865. Earlier candidate/reservation numbers below are historical. No Neon migration or Xendit money-out approval has occurred.
+
 # Xendit default Philippine payroll disbursements — controlled release
 
 **Status:** implemented on draft PR #813; source only. `PAYROLL_PAYOUT_PROVIDER` defaults to existing PayMongo while `XENDIT_PAYOUTS_ENABLED` is off; when explicitly enabled for an approved pilot, Xendit becomes the preferred provider for new batches. **No live money movement is authorized by a source merge**. Keep `XENDIT_PAYOUTS_ENABLED=false` and `XENDIT_PAYOUTS_LIVE_APPROVED=false` until independent acceptance.
@@ -7,7 +9,7 @@
 - Xendit V3 PHP salary payout API: `POST /v3/payouts` (one payout per employee), `GET /v3/payouts/{id}` and authenticated V3 payout webhooks.
 - Dedicated MONEY-OUT key, nonshared legal-employer and organization allow-list, business-ID match, explicit payout authorization and no automatic switch to PayMongo.
 - Frozen payroll input and employee account checks, exact-centavo totals, a keyed preflight fingerprint and cash-movement confirmation.
-- The existing immutable payroll payout ledger now supports provider `xendit` with **the same one-run exclusivity** as PayMongo. `drizzle/0115_xendit_payout_provider.sql` updates database constraints; **no live database migration was performed**.
+- The existing immutable payroll payout ledger now supports provider `xendit` with **the same one-run exclusivity** as PayMongo. `drizzle/0117_xendit_payout_provider.sql` updates database constraints; **no live database migration was performed**.
 - Atomic one-at-a-time employee payout claims (up to three API calls per request). A timeout, network interruption or malformed provider acknowledgment marks the recipient's state as **reconciliation_required** and blocks further salary submission for the same run. Do not treat an HTTP error as a bank failure.
 - Individual Xendit payout IDs recorded against the original payroll instructions. GET reconciliation is read-only at the provider; the authorized treasury operator can link an unrecognized payout only after providing an existing Xendit ID, which is re-verified against expected amount/reference/business ID.
 - Webhook authentication via `x-callback-token`, business/organization/legal-entity scoping, database-deduped events and explicit `reversed` handling. Reversed payouts are **not** automatically retried.
@@ -51,7 +53,7 @@ Set a public HTTPS Xendit payout webhook URL to `https://<your-app-host>/api/web
 
 ## Independent acceptance gates required before real payroll
 
-1. Apply/rehearse database migration 0115 only after approved WFM 0112 operational-demand, 0113 issued-demand and 0114 independently approved WFM staffing-policy migrations, 0110 event inbox, and 0111 geofenced WFM migration on isolated staging. Confirm strict provider constraint, per-run exclusivity and event dedup indexes under real PostgreSQL 16.
+1. Apply/rehearse database migration 0117 only after approved WFM 0112 operational-demand, 0113 issued-demand and 0114 independently approved WFM staffing-policy migrations, 0110 event inbox, and 0111 geofenced WFM migration on isolated staging. Confirm strict provider constraint, per-run exclusivity and event dedup indexes under real PostgreSQL 16.
 2. Verify current V3 payout payload and SWIFT/e-wallet routing codes in Xendit's **authorized sandbox**. Validate BDO, BPI, other bank and e-wallet destinations, name formats, amount caps and current published channel availability.
 3. Independently authorize the legal employer, Xendit account, MONEY-OUT API scopes, funding source, fees, Payout Webhook token and finance approvals. Document whether Xendit's merchant account is permitted to make each employer's salary payments; no unapproved pooled/employer-crossing money movement.
 4. Exercise at least two independent payroll cutoffs with synthetic or employer-authorized data. Validate 100% individual amounts, cutoff release, idempotency, unknown timeout, duplicate call, rejected, failed, reversed, out-of-order webhook, mid-run interruption and treasury maker-checker controls.
@@ -67,7 +69,7 @@ Set a public HTTPS Xendit payout webhook URL to `https://<your-app-host>/api/web
 - `src/app/api/payroll-runs/[id]/xendit-payout/route.ts`
 - `src/app/api/webhooks/xendit-payout/route.ts`
 - `src/components/workspace/xendit-payout-panel.tsx`
-- `drizzle/0115_xendit_payout_provider.sql`
+- `drizzle/0117_xendit_payout_provider.sql`
 - `tests/xendit-payroll-payouts.test.ts`
 - `tests/xendit-payroll-ledger-integration.test.ts`
 

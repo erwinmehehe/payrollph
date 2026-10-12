@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  xenditPayrollPayouts: {
+    env: "XENDIT_PAYOUTS_ENABLED",
+    owner: "Treasury",
+    risk: "P0 external Xendit salary money movement",
+    approval: "Independent provider/treasury acceptance and exact employer/legal-entity authorization",
+  },
   centralScheduler: {
     env: "CENTRAL_SCHEDULER_ENABLED",
     owner: "Operations",
@@ -17,12 +23,6 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Payroll Operations",
     risk: "P0 payroll queue processing",
     approval: "Synthetic worker exercise and governed run approval",
-  },
-  xenditPayrollPayouts: {
-    env: "XENDIT_PAYOUTS_ENABLED",
-    owner: "Treasury",
-    risk: "P0 external Xendit salary money movement",
-    approval: "Independent provider/treasury acceptance and exact employer/legal-entity authorization",
   },
   paymongoDisbursements: {
     env: "PAYMONGO_DISBURSEMENTS_ENABLED",
@@ -47,6 +47,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Security",
     risk: "P1 AI-assisted automation suggestions",
     approval: "Synthetic staging isolation and postmerge activation gates",
+  },
+  wfmLoyversePos: {
+    env: "WFM_LOYVERSE_POS_ENABLED",
+    owner: "Workforce Operations",
+    risk: "P1 consented POS source access and historical aggregate import",
+    approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
   },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
