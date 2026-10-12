@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs";
 import { CORE_ONLY_PAGES, NAVIGATION, tenantVisiblePages } from "../src/components/workspace/nav";
 test("new tenant navigation snapshot: only core modules", () => {
   const all = NAVIGATION.flatMap(group => group.items.map(item => item.name));
-  assert.deepEqual(tenantVisiblePages(all, "core_only"), [...CORE_ONLY_PAGES]);
+  assert.deepEqual(tenantVisiblePages(all, "core_only"), ["Overview", "Payroll", "People", "Time & attendance", "Analytics", "Settings"]);
+  assert.equal(CORE_ONLY_PAGES.length, 6);
 });
 test("existing tenant navigation snapshot: unchanged permitted pages", () => {
   const oldPages = NAVIGATION.flatMap(group => group.items.map(item => item.name)).filter(p => p !== "More modules");
