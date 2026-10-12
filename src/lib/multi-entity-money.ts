@@ -6,7 +6,7 @@ export function sumPayrollAmounts(values: readonly string[]): string {
   let centavos = 0n;
   for (const raw of values) {
     const normalized = raw.trim();
-    const match = /^(-?)(\\d+)(?:\\.(\\d+))?$/.exec(normalized);
+    const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(normalized);
     if (!match) throw new Error("Payroll amount is not a valid decimal.");
     const [, sign, whole, fraction = ""] = match;
     if (fraction.length > 2 && /[1-9]/.test(fraction.slice(2))) {
