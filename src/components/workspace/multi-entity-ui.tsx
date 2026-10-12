@@ -204,7 +204,137 @@ export function EntitySettingsView({ context, organizationId }: {
         onClick={() => void save()} style={{ marginTop: 16 }}>
         {state === "saving" ? "Saving…" : "Save audited changes"}
       </button>}
+      {canEdit && <EntityRegistrationReview key={active.id} entity={active}
+        organizationId={organizationId} onApplied={() => setRetry(value => value + 1)} />}
     </>}
+  </section>;
+}
+
+type RegistrationChangeSummary = {
+  id: number; status: string; changedFields: string[];
+  requestedByUserId: number; canReview: boolean;
+};
+type RegistrationVersionSummary = { id: number; revision: number; effectiveDate: string };
+
+function EntityRegistrationReview({ entity, organizationId, onApplied }: {
+  entity: SettingsEntity; organizationId: number; onApplied: () => void;
+}) {
+  const [enabled, setEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [requests, setRequests] = useState<RegistrationChangeSummary[]>([]);
+  const [versions, setVersions] = useState<RegistrationVersionSummary[]>([]);
+  const [today, setToday] = useState("");
+  const [changes, setChanges] = useState<Record<string, string>>({});
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [retry, setRetry] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    (async () => {
+      try {
+        const response = await fetch("/api/multi-entity/registration-changes?organizationId=" +
+          organizationId + "&legalEntityId=" + entity.id, { cache: "no-store" });
+        if (response.status === 404) {
+          if (alive) { setEnabled(false); setLoading(false); }
+          return;
+        }
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error ?? "Cannot load reviewed registrations.");
+        if (alive) {
+          setEnabled(true);
+          setRequests(result.requests ?? []);
+          setVersions(result.versions ?? []);
+          setToday(String(result.today ?? ""));
+          setLoading(false);
+          setError("");
+        }
+      } catch (err) {
+        if (alive) {
+          setError(err instanceof Error ? err.message : "Unable to load change requests.");
+          setLoading(false);
+        }
+      }
+    })();
+    return () => { alive = false; };
+  }, [entity.id, organizationId, retry]);
+
+  async function send(body: Record<string, unknown>, method: "POST" | "PATCH") {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/multi-entity/registration-changes", {
+        method, headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, legalEntityId: entity.id, ...body }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error ?? "Reviewed registration update failed.");
+      setChanges({}); setReason("");
+      setNotice(method === "POST" ? "Request filed for a different approver." :
+        "Decision recorded with an immutable audit trail.");
+      setRetry(value => value + 1);
+      if (method === "PATCH" && body.action === "approve") onApplied();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save request.");
+    } finally { setBusy(false); }
+  }
+
+  if (loading) return <p role="status">Checking registration approval access…</p>;
+  if (!enabled) return <p>Employer registration and bank changes remain locked until the
+    reviewed versioning migration and separate approval feature flag are enabled.</p>;
+
+  return <section className="card" style={{ marginTop: 18, padding: 16 }}>
+    <div className="card-kicker">MAKER-CHECKER REGISTRATION REVIEW</div>
+    <h3>Propose a new employer registration version</h3>
+    <p>Enter only fields that are changing. Existing employer numbers and bank accounts
+      remain masked. A different authorized administrator must approve the request.
+      Changes take effect only on the Manila date displayed below; previously filed
+      employer records are not rewritten.</p>
+    <p>Effective date: <strong>{today || "Unavailable"}</strong></p>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: 12 }}>
+      {settingsFields.map(field => {
+        const currentMasked = String(entity[field.key] ?? "");
+        return <label key={field.key} style={{ display: "grid", gap: 5 }}>
+          New {field.label}
+          <input aria-label={"New " + field.label} value={changes[field.key] ?? ""}
+            autoComplete="off" placeholder={currentMasked ? "Current: " + currentMasked : "Leave blank if unchanged"}
+            onChange={event => setChanges(old => {
+              const next = { ...old };
+              if (!event.target.value) delete next[field.key];
+              else next[field.key] = event.target.value;
+              return next;
+            })} />
+        </label>;
+      })}
+    </div>
+    <label style={{ display: "grid", gap: 5, marginTop: 12 }}>Business reason (no government IDs or account numbers)
+      <textarea rows={2} value={reason} onChange={event => setReason(event.target.value)}
+        aria-label="Reason for employer registration update" />
+    </label>
+    <button className="primary-button" disabled={busy || !today || reason.trim().length < 8 ||
+        Object.keys(changes).length === 0 || requests.some(row => row.status === "pending_approval")}
+      onClick={() => void send({ effectiveDate: today, reason, changes }, "POST")}>
+      {busy ? "Submitting…" : "Request independent registration approval"}
+    </button>
+    <h3 style={{ marginTop: 18 }}>Review queue</h3>
+    {requests.length === 0 && <p>No employer registration requests.</p>}
+    {requests.map(row => <div key={row.id} style={{ padding: 10, borderBottom: "1px solid var(--line)" }}>
+      <strong>Request {row.id} — {row.status}</strong>
+      <p>Fields: {row.changedFields.join(", ")}</p>
+      {row.canReview && <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <button className="primary-button" disabled={busy}
+          onClick={() => void send({ requestId: row.id, action: "approve" }, "PATCH")}>Approve</button>
+        <button className="secondary-button" disabled={busy}
+          onClick={() => void send({ requestId: row.id, action: "reject" }, "PATCH")}>Reject</button>
+      </div>}
+    </div>)}
+    <h3 style={{ marginTop: 18 }}>Approved identity history</h3>
+    {versions.length === 0 ? <p>No approved historical versions yet.</p> :
+      <p>{versions.map(v => "Revision " + v.revision + " (" + v.effectiveDate + ")").join(" · ")}</p>}
+    {error && <p role="alert">{error}</p>}
+    {notice && <p role="status">{notice}</p>}
   </section>;
 }
 
