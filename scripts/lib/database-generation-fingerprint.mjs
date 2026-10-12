@@ -3,29 +3,39 @@
  * before anyone attempts the current app's integer/organization migrations.
  * No query reads row contents, credentials, payroll or banking data.
  */
+// Source constants only. A VIEW or foreign table is not a base table
+// prerequisite for the ordered SQL migration train.
+function publicBaseTableFlag(table, alias) {
+  if (!/^[a-z_][a-z0-9_]*$/.test(table) ||
+      !/^[A-Za-z][A-Za-z0-9]*$/.test(alias)) {
+    throw new Error("UNSAFE_STATIC_CATALOG_IDENTIFIER");
+  }
+  return `  EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='${table}' AND c.relkind IN ('r','p')) AS "${alias}",`;
+}
+
 export const DATABASE_GENERATION_FINGERPRINT_SQL = [
   "SELECT",
   "  current_database() AS \"databaseName\",",
   "  current_setting('server_version_num')::integer AS \"serverVersionNum\",",
   "  (SELECT count(*)::integer FROM information_schema.tables",
   "   WHERE table_schema = 'public' AND table_type = 'BASE TABLE') AS \"publicTableCount\",",
-  "  to_regclass('public.clients') IS NOT NULL AS \"hasLegacyClients\",",
-  "  to_regclass('public.organizations') IS NOT NULL AS \"hasOrganizations\",",
-  "  to_regclass('public.payroll_lines') IS NOT NULL AS \"hasLegacyPayrollLines\",",
-  "  to_regclass('public.payroll_entries') IS NOT NULL AS \"hasPayrollEntries\",",
-  "  to_regclass('public.payrollph_release_migration_receipts') IS NOT NULL AS \"hasMigrationReceipts\",",
-  "  to_regclass('public.payrollph_schema_migrations') IS NOT NULL AS \"hasMigrationJournal\",",
-  "  to_regclass('public.payrollph_migration_cutover') IS NOT NULL AS \"hasMigrationCutover\",",
-  "  to_regclass('public.payout_batches') IS NOT NULL AS \"hasPayoutBatches\",",
-  "  to_regclass('public.payout_transfers') IS NOT NULL AS \"hasPayoutTransfers\",",
-  "  to_regclass('public.payout_batch_transfers') IS NOT NULL AS \"hasPayoutBatchTransfers\",",
-  "  to_regclass('public.payout_profiles') IS NOT NULL AS \"hasPayoutProfiles\",",
-  "  to_regclass('public.provider_events') IS NOT NULL AS \"hasProviderEvents\",",
-  "  to_regclass('public.workforce_demand_staffing_policies') IS NOT NULL AS \"hasDemandStaffingPolicies\",",
-  "  to_regclass('public.job_profiles') IS NOT NULL AS \"hasJobProfiles\",",
-  "  to_regclass('public.positions') IS NOT NULL AS \"hasPositions\",",
-  "  to_regclass('public.position_assignments') IS NOT NULL AS \"hasPositionAssignments\",",
-  "  to_regclass('public.worker_employment_events') IS NOT NULL AS \"hasWorkerEmploymentEvents\",",
+  publicBaseTableFlag("clients", "hasLegacyClients"),
+  publicBaseTableFlag("organizations", "hasOrganizations"),
+  publicBaseTableFlag("payroll_lines", "hasLegacyPayrollLines"),
+  publicBaseTableFlag("payroll_entries", "hasPayrollEntries"),
+  publicBaseTableFlag("payrollph_release_migration_receipts", "hasMigrationReceipts"),
+  publicBaseTableFlag("payrollph_schema_migrations", "hasMigrationJournal"),
+  publicBaseTableFlag("payrollph_migration_cutover", "hasMigrationCutover"),
+  publicBaseTableFlag("payout_batches", "hasPayoutBatches"),
+  publicBaseTableFlag("payout_transfers", "hasPayoutTransfers"),
+  publicBaseTableFlag("payout_batch_transfers", "hasPayoutBatchTransfers"),
+  publicBaseTableFlag("payout_profiles", "hasPayoutProfiles"),
+  publicBaseTableFlag("provider_events", "hasProviderEvents"),
+  publicBaseTableFlag("workforce_demand_staffing_policies", "hasDemandStaffingPolicies"),
+  publicBaseTableFlag("job_profiles", "hasJobProfiles"),
+  publicBaseTableFlag("positions", "hasPositions"),
+  publicBaseTableFlag("position_assignments", "hasPositionAssignments"),
+  publicBaseTableFlag("worker_employment_events", "hasWorkerEmploymentEvents"),
   "  (SELECT data_type FROM information_schema.columns",
   "   WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id') AS \"usersIdType\",",
   "  (SELECT data_type FROM information_schema.columns",
