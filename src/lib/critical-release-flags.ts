@@ -6,11 +6,10 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
-  offboardingClearance: {
-    env: "OFFBOARDING_CLEARANCE_ENABLED",
-    owner: "People Operations and Payroll",
-    risk: "P0 documented clearance waivers, final-pay authority and worker access revocation",
-    approval: "Three-actor final-pay pilot, tenant isolation, waiver evidence and revoked-session rollback UAT",
+  orderedReleaseMigrations: {
+    env: "ORDERED_RELEASE_MIGRATIONS_ENABLED", owner: "Database Operations",
+    risk: "P0 deployment-only schema changes",
+    approval: "DBA baseline adoption, protected release and restore rehearsal",
   },
   employeeImportPreview: {
     env: "EMPLOYEE_IMPORT_PREVIEW_ENABLED", owner: "People Operations",
@@ -87,6 +86,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "People Operations",
     risk: "P1 anonymous employee feedback and small-cohort inference",
     approval: "Minimum cohort privacy tests, consent and retention review",
+  },
+  offboardingClearance: {
+    env: "OFFBOARDING_CLEARANCE_ENABLED",
+    owner: "People Operations and Payroll",
+    risk: "P0 documented clearance waivers, final-pay authority and worker access revocation",
+    approval: "Three-actor final-pay pilot, tenant isolation, waiver evidence and revoked-session rollback UAT",
   },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
