@@ -6,6 +6,7 @@ import test from "node:test";
 import { canActOnEntityTransfer, decideEntityAccess, entityResourceAllowed, entityConfirmationMatches, summarizeEntityTransfer, validateLegalEmployerSettingsPatch, VERSIONED_EMPLOYER_FIELDS } from "../src/lib/multi-entity-policy";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { sumPayrollAmounts } from "../src/lib/multi-entity-money";
+import { parseCompanyExportKind } from "../src/lib/company-export-kind";
 import { validateEmployerProfileChanges } from "../src/lib/multi-entity-registration";
 import { EntityBadge, EntitySwitcher, EntityFilter } from "../src/components/workspace/multi-entity-ui";
 
@@ -15,6 +16,16 @@ const entities = [
 ];
 const group = { enabled: true as const, group: true, role: "group_hr", legalEntityId: null, entities };
 const scoped = { enabled: true as const, group: false, role: "hr", legalEntityId: 11, entities: [entities[0]] };
+
+test("unknown export kinds cannot fall through to tenant-wide payroll/audit JSON", () => {
+  for (const invalid of ["", " ", "alL", "audit?kind=employees", "json", "all.json", "unknown"]) {
+    assert.equal(parseCompanyExportKind(invalid), null, invalid);
+  }
+  assert.equal(parseCompanyExportKind(null), "all");
+  for (const valid of ["employees", "payroll", "audit", "all"]) {
+    assert.equal(parseCompanyExportKind(valid), valid);
+  }
+});
 
 test("MULTI_ENTITY_ENABLED is false for unset, wrong case and invalid values", () => {
   for (const value of [undefined, "", "false", "TRUE", "1", "true "]) {
