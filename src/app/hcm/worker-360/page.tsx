@@ -3,6 +3,7 @@ import { Worker360Client } from "@/components/hcm-worker-360";
 import { HcmContextNavigation } from "@/components/hcm-context-navigation";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
 import { philippineWorker360Date } from "@/lib/hcm-worker-360-projection";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +40,9 @@ export default async function Worker360Page({
   );
   const access = denied ? null : await getAccess(user.id, organizationId);
   if (denied || !access?.companyWide || !["owner", "admin", "hr"].includes(access.role)) notFound();
+
+  const planDenied = await denyOptInEnterpriseHcmPlan(organizationId);
+  if (planDenied) notFound();
 
   return (
     <>

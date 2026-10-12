@@ -1,5 +1,6 @@
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { denyOptInEnterpriseHcmPlan } from "@/lib/hcm-enterprise-plan-server";
 import { philippineWorker360Date, validWorker360Date } from "@/lib/hcm-worker-360-projection";
 import { loadWorker360Summary } from "@/lib/hcm-worker-360-server";
 
@@ -43,6 +44,9 @@ export async function GET(request: Request) {
   if (!access?.companyWide || !["owner", "admin", "hr"].includes(access.role)) {
     return json({ error: "Company-wide HR access required." }, 403);
   }
+
+  const planDenied = await denyOptInEnterpriseHcmPlan(organizationId);
+  if (planDenied) return planDenied;
 
   try {
     const summary = await loadWorker360Summary(organizationId, employeeId, asOfDate);

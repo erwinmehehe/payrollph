@@ -79,7 +79,16 @@ try {
 
   await checkpoint(page, "HR Home and one-step scoped employee quick-find", async () => {
     await workspace(page, 1);
-    await page.getByRole("heading", { name: "People operations" }).waitFor();
+    await page.getByRole("heading", { name: "Everyday HR" }).waitFor();
+    // The default path shows daily actions, while secondary tools stay collapsed.
+    await page.getByRole("button", { name: "Open Hire & onboard" }).waitFor();
+    await page.getByRole("button", { name: "Open Leave requests" }).waitFor();
+    await page.getByRole("button", { name: "Open Approvals" }).waitFor();
+    const additional = page.getByText("More HR tools", { exact: true });
+    await additional.waitFor();
+    const moreTools = page.locator("details").filter({ has: additional });
+    assert.equal(await moreTools.evaluate(node => node.open), false,
+      "Secondary HR navigation should not crowd the everyday experience");
     const quickFind = page.getByRole("searchbox", { name: "Find an employee" });
     await quickFind.fill("BetaPrivate");
     await page.getByText("No matching employee in your authorized directory.").waitFor();
@@ -146,6 +155,52 @@ try {
     await page.getByRole("heading", { name: "Onboarding checklist" }).waitFor();
     assert.equal(await page.getByText("AlphaPrivate note", { exact: true }).count(), 0);
   });
+
+  // Verify the same task-first surface at phone width and after the actual
+  // employer-switching control reloads the selected tenant. Test data is local.
+  const mobileHr = await browser.newContext({
+    viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true,
+  });
+  await signIn(mobileHr, "hcm-hr@example.test");
+  const mobilePage = await mobileHr.newPage();
+  mobilePage.on("pageerror", error => browserErrors.push(error.message));
+  await checkpoint(mobilePage, "375px Everyday HR and employer switching", async () => {
+    await workspace(mobilePage, 1);
+    const hub = mobilePage.locator('section[aria-labelledby="hris-home-actions-heading"]');
+    await hub.waitFor();
+    const fit = await hub.evaluate(element => {
+      const bounds = element.getBoundingClientRect();
+      return {
+        left: bounds.left, right: bounds.right, viewport: window.innerWidth,
+        scroll: element.scrollWidth, client: element.clientWidth,
+      };
+    });
+    assert.ok(fit.left >= -1 && fit.right <= fit.viewport + 1,
+      "Everyday HR must fit the 375px mobile viewport");
+    assert.ok(fit.scroll <= fit.client + 1,
+      "Everyday HR shortcuts must not overflow horizontally");
+    const teamLink = mobilePage.getByRole("link", { name: /Review team/ });
+    assert.equal(await teamLink.getAttribute("href"), "/hcm/my-team?organizationId=1");
+    assert.equal(await hub.locator("details").first().evaluate(node => node.open), false);
+    const quickFind = mobilePage.getByRole("searchbox", { name: "Find an employee" });
+    await quickFind.fill("BetaPrivate");
+    await mobilePage.getByText("No matching employee in your authorized directory.").waitFor();
+
+    // Select the other employer through the UI rather than only loading an API URL.
+    await mobilePage.locator(".company-switcher").click();
+    await mobilePage.getByRole("menuitemradio", { name: /Synthetic Beta Employer/ }).click();
+    await mobilePage.waitForURL("**/app?organizationId=2");
+    await mobilePage.getByRole("heading", { name: "Everyday HR" }).waitFor();
+    assert.equal(await mobilePage.getByRole("link", { name: /Review team/ }).getAttribute("href"),
+      "/hcm/my-team?organizationId=2",
+      "Review team must not retain the previous employer ID");
+    const betaFind = mobilePage.getByRole("searchbox", { name: "Find an employee" });
+    await betaFind.fill("AlphaPrivate");
+    await mobilePage.getByText("No matching employee in your authorized directory.").waitFor();
+    await betaFind.fill("BetaPrivate");
+    await mobilePage.getByRole("button", { name: /Open employee BetaPrivate Worker,/ }).waitFor();
+  });
+  await mobileHr.close();
 
   const manager = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   await signIn(manager, "hcm-manager@example.test");
