@@ -1,6 +1,7 @@
-import { and, desc, eq, gte, lte } from "drizzle-orm";
+import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   attendanceCorrectionRequests,
   attendanceExceptionEvents,
   workforceAttendanceLockPolicies,
@@ -167,88 +168,63 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    if (lockType === "payroll_cutoff") {
-      const [pending] = await db.select({ id: attendanceCorrectionRequests.id })
-        .from(attendanceCorrectionRequests)
-        .where(and(
-          eq(attendanceCorrectionRequests.organizationId, organizationId),
-          eq(attendanceCorrectionRequests.status, "pending"),
-          gte(attendanceCorrectionRequests.workDate, periodStart),
-          lte(attendanceCorrectionRequests.workDate, periodEnd),
-        ))
-        .limit(1);
-      if (pending) {
-        return Response.json({
-          error: "Resolve pending attendance corrections before locking the payroll cutoff.",
-          code: "ATTENDANCE_CORRECTIONS_PENDING",
-        }, { status: 409 });
+    const outcome = await db.transaction(async (tx)=>{
+      // Coordinate cutoffs and reviewed attendance capture. No new cutoff
+      // may be committed concurrently with the review transaction's lock check.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(6109, ${organizationId})`);
+      if(lockType==="payroll_cutoff"){
+        const [pending]=await tx.select({id:attendanceCorrectionRequests.id})
+          .from(attendanceCorrectionRequests).where(and(
+            eq(attendanceCorrectionRequests.organizationId,organizationId),
+            eq(attendanceCorrectionRequests.status,"pending"),
+            gte(attendanceCorrectionRequests.workDate,periodStart),
+            lte(attendanceCorrectionRequests.workDate,periodEnd),
+          )).limit(1);
+        if(pending)return {ok:false as const,response:Response.json({
+          error:"Resolve pending attendance corrections before locking the payroll cutoff.",
+          code:"ATTENDANCE_CORRECTIONS_PENDING",
+        },{status:409})};
+        const [blocker]=await tx.select({id:attendanceExceptionEvents.id})
+          .from(attendanceExceptionEvents).where(and(
+            eq(attendanceExceptionEvents.organizationId,organizationId),
+            eq(attendanceExceptionEvents.status,"open"),
+            eq(attendanceExceptionEvents.severity,"blocker"),
+            gte(attendanceExceptionEvents.workDate,periodStart),
+            lte(attendanceExceptionEvents.workDate,periodEnd),
+          )).limit(1);
+        if(blocker)return {ok:false as const,response:Response.json({
+          error:"Resolve blocking attendance exceptions before locking the payroll cutoff.",
+          code:"ATTENDANCE_BLOCKERS_OPEN",
+        },{status:409})};
       }
-
-      const [blocker] = await db.select({ id: attendanceExceptionEvents.id })
-        .from(attendanceExceptionEvents)
-        .where(and(
-          eq(attendanceExceptionEvents.organizationId, organizationId),
-          eq(attendanceExceptionEvents.status, "open"),
-          eq(attendanceExceptionEvents.severity, "blocker"),
-          gte(attendanceExceptionEvents.workDate, periodStart),
-          lte(attendanceExceptionEvents.workDate, periodEnd),
-        ))
-        .limit(1);
-      if (blocker) {
-        return Response.json({
-          error: "Resolve blocking attendance exceptions before locking the payroll cutoff.",
-          code: "ATTENDANCE_BLOCKERS_OPEN",
-        }, { status: 409 });
-      }
-    }
-
-    const now = new Date();
-    const [lock] = await db.insert(workforceAttendancePeriodLocks).values({
-      organizationId,
-      periodStart,
-      periodEnd,
-      lockType,
-      status: "locked",
-      reason,
-      lockedBy: user.name,
-      lockedByUserId: user.id,
-      lockedAt: now,
-      unlockedBy: null,
-      unlockedByUserId: null,
-      unlockReason: null,
-      unlockedAt: null,
-      updatedAt: now,
-    }).onConflictDoUpdate({
-      target: [
-        workforceAttendancePeriodLocks.organizationId,
-        workforceAttendancePeriodLocks.periodStart,
-        workforceAttendancePeriodLocks.periodEnd,
-        workforceAttendancePeriodLocks.lockType,
-      ],
-      set: {
-        status: "locked",
-        reason,
-        lockedBy: user.name,
-        lockedByUserId: user.id,
-        lockedAt: now,
-        unlockedBy: null,
-        unlockedByUserId: null,
-        unlockReason: null,
-        unlockedAt: null,
-        updatedAt: now,
-      },
-    }).returning();
-
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: lockType === "payroll_cutoff"
-        ? "Payroll attendance cutoff locked"
-        : "Attendance capture locked",
-      resource: `${periodStart} → ${periodEnd}`,
-      metadata: { attendanceLockId: lock.id, lockType, reason },
+      const now=new Date();
+      const [lock]=await tx.insert(workforceAttendancePeriodLocks).values({
+        organizationId,periodStart,periodEnd,lockType,status:"locked",reason,
+        lockedBy:user.name,lockedByUserId:user.id,lockedAt:now,
+        unlockedBy:null,unlockedByUserId:null,unlockReason:null,unlockedAt:null,updatedAt:now,
+      }).onConflictDoUpdate({
+        target:[
+          workforceAttendancePeriodLocks.organizationId,
+          workforceAttendancePeriodLocks.periodStart,
+          workforceAttendancePeriodLocks.periodEnd,
+          workforceAttendancePeriodLocks.lockType,
+        ],
+        set:{
+          status:"locked",reason,
+          lockedBy:user.name,lockedByUserId:user.id,lockedAt:now,
+          unlockedBy:null,unlockedByUserId:null,unlockReason:null,unlockedAt:null,updatedAt:now,
+        },
+      }).returning();
+      await tx.insert(auditEvents).values({
+        organizationId,actor:user.name,
+        action:lockType==="payroll_cutoff"?"Payroll attendance cutoff locked":"Attendance capture locked",
+        resource:periodStart+" → "+periodEnd,
+        metadata:{attendanceLockId:lock.id,lockType,reason},
+      });
+      return {ok:true as const,lock};
     });
-    return Response.json({ lock }, { status: 201 });
+    if(!outcome.ok)return outcome.response;
+    return Response.json({lock:outcome.lock},{status:201});
   }
 
   if (action === "unlock_period") {
@@ -258,42 +234,40 @@ export async function POST(request: Request) {
       return Response.json({ error: "lockId and unlockReason are required." }, { status: 400 });
     }
 
-    const [existing] = await db.select().from(workforceAttendancePeriodLocks).where(and(
-      eq(workforceAttendancePeriodLocks.id, lockId),
-      eq(workforceAttendancePeriodLocks.organizationId, organizationId),
-    )).limit(1);
-    if (!existing) return Response.json({ error: "Attendance lock not found." }, { status: 404 });
-    if (existing.status !== "locked") {
-      return Response.json({ error: "Only an active attendance lock can be unlocked." }, { status: 409 });
-    }
-
-    const now = new Date();
-    const [lock] = await db.update(workforceAttendancePeriodLocks).set({
-      status: "unlocked",
-      unlockedBy: user.name,
-      unlockedByUserId: user.id,
-      unlockReason,
-      unlockedAt: now,
-      updatedAt: now,
-    }).where(and(
-      eq(workforceAttendancePeriodLocks.id, lockId),
-      eq(workforceAttendancePeriodLocks.status, "locked"),
-    )).returning();
-
-    if (!lock) {
-      return Response.json({ error: "Attendance lock changed while it was being unlocked." }, { status: 409 });
-    }
-
-    await recordAuditEvent({
-      organizationId,
-      actor: user.name,
-      action: existing.lockType === "payroll_cutoff"
-        ? "Payroll attendance cutoff unlocked"
-        : "Attendance capture unlocked",
-      resource: `${existing.periodStart} → ${existing.periodEnd}`,
-      metadata: { attendanceLockId: lock.id, lockType: existing.lockType, unlockReason },
+    const outcome = await db.transaction(async (tx)=>{
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(6109, ${organizationId})`);
+      const [existing]=await tx.select().from(workforceAttendancePeriodLocks).where(and(
+        eq(workforceAttendancePeriodLocks.id,lockId),
+        eq(workforceAttendancePeriodLocks.organizationId,organizationId),
+      )).for("update").limit(1);
+      if(!existing)return {ok:false as const,response:Response.json({
+        error:"Attendance lock not found.",
+      },{status:404})};
+      if(existing.status!=="locked")return {ok:false as const,response:Response.json({
+        error:"Only an active attendance lock can be unlocked.",
+      },{status:409})};
+      const now=new Date();
+      const [lock]=await tx.update(workforceAttendancePeriodLocks).set({
+        status:"unlocked",unlockedBy:user.name,unlockedByUserId:user.id,
+        unlockReason,unlockedAt:now,updatedAt:now,
+      }).where(and(
+        eq(workforceAttendancePeriodLocks.id,lockId),
+        eq(workforceAttendancePeriodLocks.status,"locked"),
+      )).returning();
+      if(!lock)return {ok:false as const,response:Response.json({
+        error:"Attendance lock changed while it was being unlocked.",
+      },{status:409})};
+      await tx.insert(auditEvents).values({
+        organizationId,actor:user.name,
+        action:existing.lockType==="payroll_cutoff"
+          ?"Payroll attendance cutoff unlocked":"Attendance capture unlocked",
+        resource:String(existing.periodStart)+" → "+String(existing.periodEnd),
+        metadata:{attendanceLockId:lock.id,lockType:existing.lockType,unlockReason},
+      });
+      return {ok:true as const,lock};
     });
-    return Response.json({ lock });
+    if(!outcome.ok)return outcome.response;
+    return Response.json({lock:outcome.lock});
   }
 
   return Response.json({ error: "Unsupported attendance-lock action." }, { status: 400 });
