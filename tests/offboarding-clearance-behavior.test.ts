@@ -50,7 +50,10 @@ test("waiver is a review, not self-approved preparer authority", () => {
   assert.equal(isOffboardingDepartment("payroll"), false);
 });
 test("IT must have zero non-revoked grants even when equipment custody is waived", () => {
-  assert.equal(externalAccessRevoked([]), true);
+  assert.equal(externalAccessRevoked([]), false,
+    "no rows are not proof of a completed external grant inventory");
+  assert.equal(externalAccessRevoked([], true), true,
+    "documented IT clearance may attest an empty inventory");
   assert.equal(externalAccessRevoked(["revoked", "revoked"]), true);
   for (const state of ["active", "revoke_requested", "grant_requested"]) {
     assert.equal(externalAccessRevoked(["revoked", state]), false);
