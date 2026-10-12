@@ -1,20 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { existsSync, readFileSync } from "node:fs";
+import { CORE_API_SCOPES, activeApiScopes, normalizeScopes } from "../src/lib/developer-api-scopes";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
 test("Wave 4 developer docs match implemented API contracts", () => {
   const docs = read("src/lib/developer-docs.ts");
-  const developerRoute = read("src/app/api/developer/route.ts");
   const employeesRoute = read("src/app/api/v1/employees/route.ts");
   const payrollRoute = read("src/app/api/v1/payroll-runs/route.ts");
   const webhookSigning = read("src/lib/webhook-signing.ts");
 
   for (const scope of ["employees:read", "employees:write", "payroll:read"]) {
     assert.ok(docs.includes(scope), `developer docs must include scope ${scope}`);
-    assert.ok(developerRoute.includes(scope), `developer route must implement scope ${scope}`);
+    assert.ok((CORE_API_SCOPES as readonly string[]).includes(scope), `runtime token allowlist must include ${scope}`);
   }
+
+  // Assert actual permission behavior, not placement of source strings.
+  // New tokens have only core scopes while the v1 extension flag is OFF.
+  assert.deepEqual(activeApiScopes(false), [...CORE_API_SCOPES]);
+  assert.deepEqual(
+    normalizeScopes(["employees:read", "payslips:read", "payroll:read"], false),
+    ["employees:read", "payroll:read"],
+  );
+  assert.deepEqual(
+    normalizeScopes(["employees:read", "payslips:read"], true),
+    ["employees:read", "payslips:read"],
+  );
 
   assert.ok(docs.includes("Idempotency-Key"));
   assert.ok(employeesRoute.includes("idempotency-key"));

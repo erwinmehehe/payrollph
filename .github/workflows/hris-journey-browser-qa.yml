@@ -1,6 +1,33 @@
 name: HRIS Integrated Journey Browser QA (Synthetic Only)
 
 on:
+  # Verify mobile/role synthetic acceptance again on the exact mainline commit.
+  push:
+    branches: [main]
+    paths:
+      - "src/components/hris-home-shortcuts.tsx"
+      - "src/components/employee-360-overview.tsx"
+      - "src/components/hris-onboarding-checklist.tsx"
+      - "src/components/workspace/first-payroll-readiness.tsx"
+      - "src/lib/first-payroll-*.ts"
+      - "src/app/app/page.tsx"
+      - "src/components/workspace/shell.tsx"
+      - "src/lib/saas-workspace-access.ts"
+      - "src/lib/dashboard-data.ts"
+      - "src/components/hcm-my-team*.tsx"
+      - "src/components/linaw-workspace.tsx"
+      - "src/components/workspace/people.tsx"
+      - "src/components/workspace/approvals.tsx"
+      - "src/app/api/provisioning/**"
+      - "src/app/api/hcm/my-team/**"
+      - "src/app/api/hcm/people-operations-inbox/**"
+      - "src/app/hcm/my-team/**"
+      - "src/lib/access.ts"
+      - "src/lib/hcm-my-team*.ts"
+      - "src/lib/hris-*.ts"
+      - "scripts/hris-journey-synthetic-*"
+      - "scripts/first-payroll-mobile-synthetic-*"
+      - ".github/workflows/hris-journey-browser-qa.yml"
   pull_request:
     branches: [main]
     paths:
@@ -55,6 +82,8 @@ jobs:
       APP_BASE_URL: http://127.0.0.1:3000
       TRUSTED_APP_ORIGINS: http://127.0.0.1:3000
       DEMO_MODE: "false"
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
       REQUIRE_PRIVILEGED_MFA: "false"
       OPENAI_API_KEY: ""
       NEXT_TELEMETRY_DISABLED: "1"
@@ -66,6 +95,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
         ports:
           - 5432:5432
         options: >-
@@ -86,6 +116,8 @@ jobs:
         shell: bash
         run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - run: npm run db:push
+      - name: Apply audit 0109 on isolated real PG16 before acceptance
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
       - name: Seed disposable HCM baseline
         run: npx tsx scripts/hcm-people-home-synthetic-fixture.ts
       - name: Add unit managers, approval and onboarding acceptance records
