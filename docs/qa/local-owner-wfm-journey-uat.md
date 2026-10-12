@@ -6,7 +6,7 @@ This companion lets the actual Owner record **self-executed** manual outcomes fr
 
 - Use a **disposable real PostgreSQL 16, UTF-8** local database containing two fictional employers, distinct HR/WFM/Employee/Payroll Officer/Checker/Owner test logins and no real salaries or identifiers. Verify your `DATABASE_URL` is loopback-only before starting the app; this evidence tool itself never reads the environment's DB URL.
 - Keep **PayMongo / Xendit disbursement, real notifications, official agency submissions and production integrations OFF**. Release payroll *records* only in the fictional environment.
-- Freeze exact `git rev-parse HEAD`, migration 0109 state, active feature flags, fixture version, browser/device version and Manila date. A changed checkout SHA requires a **new session**. Never edit the session's source SHA to make mismatched evidence appear current.
+- Freeze exact `git rev-parse HEAD`, migration 0109 state, active feature flags, fixture version, browser/device version and Manila date. Start with an **entirely clean committed checkout** (`git status --porcelain` must be empty). A changed checkout SHA or uncommitted code modification invalidates continued recording. Archive prior evidence, then initialize a **new clean session**. Never edit the session's source SHA to make mismatched evidence appear current.
 - Store screenshots, HTTP logs, failed-case reproduction and original test details in a **separate private local location**, not GitHub. The recorder accepts **only opaque evidence IDs**, not personal data or file paths.
 
 ## Local use
@@ -40,9 +40,21 @@ node scripts/qa/manual-owner-uat.mjs record JOURNEY-01 PASS UAT-HIRE001
 node scripts/qa/manual-owner-uat.mjs report
 ```
 
+To move to a new commit, preserve the previous session before reinitializing (even when the checkout has already changed):
+
+```sh
+node scripts/qa/manual-owner-uat.mjs archive
+# Verify the new checkout has no uncommitted changes.
+git status --porcelain
+node scripts/qa/manual-owner-uat.mjs init
+```
+
+Archival never copies previous PASS results into the new session. Each new session starts with all 23 scenarios `NOT_RUN`. Do not manually delete an old session to get past the checkout guard.
+
 Saved ignored-by-Git, local-only files:
 - `qa-artifacts/local-owner-uat/session.json` — source-SHA-bound individual self-reported outcomes; safeguard this private file.
 - `qa-artifacts/local-owner-uat/summary.md` — redacted count/status table with opaque evidence/defect IDs and explicit uncompleted external gates.
+- `qa-artifacts/local-owner-uat/archived/<source-SHA>-<archive-UUID>/` — preserved prior session and summary, not automatically accepted or published.
 
 The script refuses blank PASS evidence, unknown scenario/status IDs, uncategorized blocks, failed cases without a defect ID, and WFM-14 PASS without an explicit real physical-device witness marker. It does **not** independently validate any user-submitted observation. A self-reported PASS is never an independent reviewer signature.
 

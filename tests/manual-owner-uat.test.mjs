@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   SCENARIOS, STATES, createSession, recordOutcome, summarize, renderSummary,
+  requireCleanSource, archiveLocalSession,
 } from "../scripts/qa/manual-owner-uat.mjs";
 
 const sha = "a".repeat(40);
@@ -74,4 +78,47 @@ test("a false complete P0 claim cannot be derived from missing or blocked scenar
   assert.equal(summarize(s).p0SelfTested, false);
   assert.equal(s.outcomes["WFM-10"].status, "NOT_RUN");
   assert.equal(s.independentHumanAccepted, false);
+});
+
+test("source-bound UAT rejects dirty, stale, and initially dirty checkouts", () => {
+ const clean = createSession(sha, false);
+ assert.doesNotThrow(() => requireCleanSource(clean, sha, false));
+ assert.throws(() => requireCleanSource(clean, "b".repeat(40), false), /Checkout changed/);
+ assert.throws(() => requireCleanSource(clean, sha, true), /Uncommitted checkout/);
+ assert.throws(() => requireCleanSource(createSession(sha, true), sha, false), /dirty checkout/);
+});
+
+test("archive preserves old SHA-bound outcomes and allows a new clean session", () => {
+ const root = mkdtempSync(join(tmpdir(), "payrollph-uat-archive-"));
+ const active = join(root, "session.json");
+ const summary = join(root, "summary.md");
+ const archivedId = "00000000-0000-4000-8000-000000000001";
+ try {
+   const prior = recordOutcome(createSession(sha), "WFM-01", "PASS", evidence);
+   writeFileSync(active, JSON.stringify(prior));
+   writeFileSync(summary, renderSummary(prior));
+   const archive = archiveLocalSession(active, summary, archivedId);
+   assert.ok(!existsSync(active));
+   assert.ok(!existsSync(summary));
+   const stored = JSON.parse(readFileSync(join(archive, "session.json"), "utf8"));
+   assert.equal(stored.sourceSha, sha);
+   assert.equal(stored.outcomes["WFM-01"].status, "PASS");
+   assert.match(readFileSync(join(archive, "summary.md"), "utf8"), /SELF-REPORTED/);
+   assert.throws(() => archiveLocalSession(active, summary, archivedId));
+   const next = createSession("b".repeat(40), false);
+   writeFileSync(active, JSON.stringify(next));
+   assert.equal(JSON.parse(readFileSync(active, "utf8")).outcomes["WFM-01"].status, "NOT_RUN");
+   assert.equal(stored.outcomes["WFM-01"].status, "PASS");
+ } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("archive refuses corrupt evidence without moving or deleting the active file", () => {
+ const root = mkdtempSync(join(tmpdir(), "payrollph-uat-invalid-"));
+ const active = join(root, "session.json");
+ const summary = join(root, "summary.md");
+ try {
+   writeFileSync(active, JSON.stringify({version:1,sourceSha:sha,outcomes:{"WFM-01":{status:"PASS"}}}));
+   assert.throws(() => archiveLocalSession(active, summary), /Incomplete or corrupted/);
+   assert.equal(existsSync(active), true);
+ } finally { rmSync(root, { recursive: true, force: true }); }
 });

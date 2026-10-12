@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // OFFLINE owner UAT recording only: no HTTP, database, payroll, payout or agency operations.
@@ -147,9 +148,38 @@ function writePrivate(path, data, json = true) {
   writeFileSync(path, json ? JSON.stringify(data, null, 2) + "\n" : data,
     { mode: 0o600, flag: "w" });
 }
+export function requireCleanSource(session, currentSha, hasUncommittedChanges) {
+  assert.equal(session?.sourceSha, currentSha,
+    "Checkout changed: archive the old evidence and initialize a new session");
+  assert.equal(session.dirtyCheckoutAtStart, false,
+    "UAT session was initialized from a dirty checkout; archive and retest clean");
+  assert.equal(hasUncommittedChanges, false,
+    "Uncommitted checkout changes invalidate UAT evidence: commit or revert them first");
+}
+
+// Explicit archival preserves previous operator observations when HEAD changes.
+// Never silently overwrite a session or turn prior self-reports into a new SHA's evidence.
+export function archiveLocalSession(activePath, summaryPath, archiveId = randomUUID()) {
+  assert.match(archiveId, /^[0-9a-f-]{36}$/, "Invalid evidence archive identifier");
+  const previous = JSON.parse(readFileSync(activePath, "utf8"));
+  summarize(previous); // Refuse invalid/corrupt evidence before moving anything.
+  const folder = join(dirname(activePath), "archived", previous.sourceSha + "-" + archiveId);
+  const archivedSession = join(folder, "session.json");
+  assert.ok(!existsSync(folder), "Evidence archive already exists");
+  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  renameSync(activePath, archivedSession);
+  if (existsSync(summaryPath)) {
+    renameSync(summaryPath, join(folder, "summary.md"));
+  } else {
+    writePrivate(join(folder, "summary.md"), renderSummary(previous), false);
+  }
+  return folder;
+}
+
 const usage = [
   "Offline owner UAT evidence logger (does NOT perform actual app tests)",
   "  node scripts/qa/manual-owner-uat.mjs init",
+  "  node scripts/qa/manual-owner-uat.mjs archive  # preserve old SHA evidence before new init",
   "  node scripts/qa/manual-owner-uat.mjs list",
   "  node scripts/qa/manual-owner-uat.mjs record WFM-01 PASS UAT-TEST001",
   "  node scripts/qa/manual-owner-uat.mjs record WFM-02 NEEDS_FIX UAT-TEST002 BUG-123",
@@ -163,16 +193,23 @@ async function main() {
     return;
   }
   if (command === "init") {
-    assert.ok(!existsSync(sessionFile), "Session exists; do not overwrite private evidence");
-    writePrivate(sessionFile, createSession(sha(), dirty()));
+    assert.ok(!existsSync(sessionFile), "Session exists; archive previous evidence first");
+    assert.equal(dirty(), false, "UAT must start from a clean committed checkout");
+    writePrivate(sessionFile, createSession(sha(), false));
     console.log("Created local UAT session at " + sessionFile);
+    return;
+  }
+  if (command === "archive") {
+    assert.equal(id, undefined, "archive does not accept extra arguments");
+    console.log("Preserved previous source-bound UAT evidence at " +
+      archiveLocalSession(sessionFile, reportFile));
     return;
   }
   if (!["record", "report"].includes(command)) {
     console.log(usage); process.exitCode = 2; return;
   }
   const session = JSON.parse(readFileSync(sessionFile, "utf8"));
-  assert.equal(session.sourceSha, sha(), "Checkout changed: start a new session for the new SHA");
+  requireCleanSource(session, sha(), dirty());
   if (command === "record") {
     const updated = recordOutcome(session, id, status, evidence, detail);
     writePrivate(sessionFile, updated);
