@@ -6,6 +6,14 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  operationalStatusDetails: {
+    env: "OPERATIONAL_STATUS_DETAILS_ENABLED", owner: "Security",
+    risk: "Authenticated operational status details", approval: "Endpoint visibility acceptance",
+  },
+  configurableLeadRetention: {
+    env: "CONFIGURABLE_LEAD_RETENTION_ENABLED", owner: "Privacy",
+    risk: "Public enquiry retention period", approval: "Approved notice and purge acceptance",
+  },
   piiLegacyRead: {
     env: "PII_LEGACY_READ_ENABLED", owner: "Security",
     risk: "Temporary read-only legacy PII key compatibility",

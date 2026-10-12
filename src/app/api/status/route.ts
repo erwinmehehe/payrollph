@@ -2,11 +2,21 @@ import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { healthSnapshots } from "@/db/schema";
 import { currentStatusLabel, summarizeUptime } from "@/lib/status";
+import { publicStatusResponse } from "@/lib/public-status-response";
+import { operationalSecret } from "@/lib/operational-secret";
+import { constantTimeSecretEqual } from "@/lib/security-secret";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const rows = await db.select().from(healthSnapshots).orderBy(desc(healthSnapshots.createdAt)).limit(200);
+export async function GET(request: Request) {
+  const secret = operationalSecret("readiness");
+  const details = criticalReleaseFlagEnabled("operationalStatusDetails") && !!secret
+    && constantTimeSecretEqual(request.headers.get("x-readiness-token"), secret);
+  const rows = await db.select().from(healthSnapshots).orderBy(desc(healthSnapshots.createdAt)).limit(details ? 200 : 1)
+    .catch(() => null);
+  if (!rows) return Response.json({ ok: false }, { status: 503, headers: { "Cache-Control": "no-store" } });
+  if (!details) return Response.json(publicStatusResponse(rows[0] ?? null), { headers: { "Cache-Control": "no-store" } });
   // Shared maths with the /status page so the page and this JSON never disagree.
   const uptime = summarizeUptime(rows);
   const latest = rows[0] ?? null;

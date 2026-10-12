@@ -46,6 +46,12 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+      - name: Provision isolated synthetic PII key
+        shell: bash
+        run: |
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$pii_key"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - run: npm ci
       - name: Ephemeral synthetic encryption keys
         run: |

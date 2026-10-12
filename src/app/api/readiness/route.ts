@@ -444,12 +444,12 @@ export async function buildReadinessPayload() {
 }
 
 export async function GET(request: Request) {
-  if (process.env.NODE_ENV === "production") {
+  {
     const expected = operationalSecret("readiness") ?? operationalSecret("worker");
     if (!expected) {
       return Response.json(
-        { error: "Readiness diagnostics are disabled until an operational token or TOTP encryption master is configured." },
-        { status: 503 },
+        { error: "Not found." },
+        { status: 404 },
       );
     }
     const supplied = request.headers.get("x-readiness-token") ?? request.headers.get("x-worker-token");
