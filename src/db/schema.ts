@@ -461,6 +461,22 @@ export const workforceScheduleGuardrailPolicies = pgTable(
   ],
 );
 
+export const workforceRosterPublishPolicies = pgTable(
+  "workforce_roster_publish_policies",
+  {
+    organizationId: integer("organization_id").primaryKey()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    maxDailyMinutes: integer("max_daily_minutes").notNull().default(720),
+    minimumRestMinutes: integer("minimum_rest_minutes").notNull().default(480),
+    maxWeeklyMinutes: integer("max_weekly_minutes").notNull().default(2880),
+    approvedOvertimeCapMinutes: integer("approved_overtime_cap_minutes"),
+    enforcementMode: varchar("enforcement_mode", { length: 16 }).notNull().default("block"),
+    active: boolean("active").notNull().default(true),
+    updatedBy: varchar("updated_by", { length: 120 }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
 export const schedulePatterns = pgTable(
   "schedule_patterns",
   {

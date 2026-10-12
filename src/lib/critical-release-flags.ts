@@ -42,6 +42,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 AI-assisted automation suggestions",
     approval: "Synthetic staging isolation and postmerge activation gates",
   },
+  wfmRosterPublishRules: {
+    env: "WFM_ROSTER_PUBLISH_RULES_ENABLED",
+    owner: "Workforce Operations",
+    risk: "P1 scheduling block/override and statutory premium advisory policy",
+    approval: "Policy migration, 13h+5h seeded test and independent PH HR/payroll review",
+  },
   wfmLoyversePos: {
     env: "WFM_LOYVERSE_POS_ENABLED",
     owner: "Workforce Operations",

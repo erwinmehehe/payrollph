@@ -39,6 +39,9 @@ import {
   type ScheduleGuardrailPolicy,
 } from "@/lib/workforce-schedule-guardrails";
 import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
+import { rosterPublishFindings } from "@/lib/workforce-roster-publish-rules-server";
+import { canWaiveRosterPublishBlock } from "@/lib/workforce-schedule-guardrails";
+
 import {
   markTimesheetsStaleForEmployeeDate,
   markTimesheetsStaleForEmployeeRange,
@@ -285,13 +288,14 @@ export async function GET(request: Request) {
       startDate: addDays(previewDates[0], -7),
       endDate: previewDates[previewDates.length - 1],
     });
-    const guardrailIssues = evaluateScheduleGuardrails({
-      days: guardrailEvaluationDays,
-      policy: guardrailPolicy,
-    }).filter((issue) =>
-      issue.date >= previewDates[0]
-      && issue.date <= previewDates[previewDates.length - 1],
-    );
+    const guardrailIssues = [
+      ...evaluateScheduleGuardrails({ days: guardrailEvaluationDays, policy: guardrailPolicy }),
+      ...(await rosterPublishFindings({
+        organizationId, employeeOrgUnitId: employeeCheck.employee!.orgUnitId,
+        days: guardrailEvaluationDays,
+      })),
+    ].filter((issue) => issue.date >= previewDates[0]
+      && issue.date <= previewDates[previewDates.length - 1]);
 
     return Response.json({
       employee: {
@@ -597,6 +601,7 @@ export async function POST(request: Request) {
     const effectiveUntil = String(body.effectiveUntil ?? "").trim() || null;
     const anchorDate = String(body.anchorDate ?? effectiveFrom).trim();
     const reason = String(body.reason ?? "Schedule assignment").trim().slice(0, 240);
+    const policyOverrideReason = String(body.policyOverrideReason ?? "").trim().slice(0, 240);
 
     if (
       !Number.isInteger(employeeId)
@@ -691,17 +696,22 @@ export async function POST(request: Request) {
           worksiteId,
         },
       });
-      guardrailIssues = evaluateScheduleGuardrails({
-        days: prospectiveDays,
-        policy: guardrailPolicy,
-      });
+      guardrailIssues = [
+        ...evaluateScheduleGuardrails({ days: prospectiveDays, policy: guardrailPolicy }),
+        ...(await rosterPublishFindings({
+          organizationId, employeeOrgUnitId: employeeCheck.employee!.orgUnitId,
+          days: prospectiveDays,
+        })),
+      ];
     } catch (error) {
       return Response.json({
         error: error instanceof Error ? error.message : "Could not validate the prospective schedule.",
       }, { status: 409 });
     }
 
-    if (scheduleGuardrailBlocksMutation(guardrailIssues)) {
+    if (scheduleGuardrailBlocksMutation(guardrailIssues) && !canWaiveRosterPublishBlock({
+      issues: guardrailIssues, reason: policyOverrideReason, companyWide: access.companyWide,
+    })) {
       return Response.json({
         error: "WFM schedule guardrails blocked this roster assignment.",
         guardrailIssues,
@@ -732,10 +742,16 @@ export async function POST(request: Request) {
           },
           executor: tx,
         });
-        const lockedIssues = evaluateScheduleGuardrails({
-          days: lockedWindow, policy: lockedPolicy,
-        });
-        if (scheduleGuardrailBlocksMutation(lockedIssues)) {
+        const lockedIssues = [
+          ...evaluateScheduleGuardrails({ days: lockedWindow, policy: lockedPolicy }),
+          ...(await rosterPublishFindings({
+            organizationId, employeeOrgUnitId: employeeCheck.employee!.orgUnitId,
+            days: lockedWindow, executor: tx,
+          })),
+        ];
+        if (scheduleGuardrailBlocksMutation(lockedIssues) && !canWaiveRosterPublishBlock({
+          issues: lockedIssues, reason: policyOverrideReason, companyWide: access.companyWide,
+        })) {
           throw new Error("Concurrent roster changes now breach workforce assignment guardrails.");
         }
         const [created] = await tx.insert(employeeScheduleAssignments).values({
@@ -755,6 +771,9 @@ export async function POST(request: Request) {
             assignmentId: created.id, employeeId, patternId, effectiveFrom,
             effectiveUntil, anchorDate, workLocationOrgUnitId, worksiteId,
             staleTimesheetIds: staleTimesheets.map((row) => row.id),
+            policyOverrideReason: policyOverrideReason || null,
+            waivedIssueCodes: policyOverrideReason ? lockedIssues
+              .filter((issue) => issue.blocking).map((issue) => issue.code) : [],
           },
         });
         return { created, staleTimesheets, lockedIssues, lockedPolicy };
@@ -780,6 +799,7 @@ export async function POST(request: Request) {
     const workDate = String(body.workDate ?? "").trim();
     const kind = String(body.kind ?? "").trim();
     const reason = String(body.reason ?? "").trim().slice(0, 240);
+    const policyOverrideReason = String(body.policyOverrideReason ?? "").trim().slice(0, 240);
     if (!Number.isInteger(employeeId) || !validDate(workDate) || !OVERRIDE_KINDS.has(kind) || !reason) {
       return Response.json({
         error: "employeeId, workDate, kind, and reason are required.",
@@ -887,17 +907,22 @@ export async function POST(request: Request) {
           reason,
         },
       });
-      guardrailIssues = evaluateScheduleGuardrails({
-        days: prospectiveDays,
-        policy: guardrailPolicy,
-      });
+      guardrailIssues = [
+        ...evaluateScheduleGuardrails({ days: prospectiveDays, policy: guardrailPolicy }),
+        ...(await rosterPublishFindings({
+          organizationId, employeeOrgUnitId: employeeCheck.employee!.orgUnitId,
+          days: prospectiveDays,
+        })),
+      ];
     } catch (error) {
       return Response.json({
         error: error instanceof Error ? error.message : "Could not validate the prospective override.",
       }, { status: 409 });
     }
 
-    if (scheduleGuardrailBlocksMutation(guardrailIssues)) {
+    if (scheduleGuardrailBlocksMutation(guardrailIssues) && !canWaiveRosterPublishBlock({
+      issues: guardrailIssues, reason: policyOverrideReason, companyWide: access.companyWide,
+    })) {
       return Response.json({
         error: "WFM schedule guardrails blocked this roster override.",
         guardrailIssues,
@@ -927,10 +952,16 @@ export async function POST(request: Request) {
           },
           executor: tx,
         });
-        const lockedIssues = evaluateScheduleGuardrails({
-          days: lockedWindow, policy: lockedPolicy,
-        });
-        if (scheduleGuardrailBlocksMutation(lockedIssues)) {
+        const lockedIssues = [
+          ...evaluateScheduleGuardrails({ days: lockedWindow, policy: lockedPolicy }),
+          ...(await rosterPublishFindings({
+            organizationId, employeeOrgUnitId: employeeCheck.employee!.orgUnitId,
+            days: lockedWindow, executor: tx,
+          })),
+        ];
+        if (scheduleGuardrailBlocksMutation(lockedIssues) && !canWaiveRosterPublishBlock({
+          issues: lockedIssues, reason: policyOverrideReason, companyWide: access.companyWide,
+        })) {
           throw new Error("Concurrent roster changes now breach override guardrails.");
         }
         const [created] = await tx.insert(scheduleOverrides).values({
@@ -950,6 +981,9 @@ export async function POST(request: Request) {
             overrideId: created.id, employeeId, workDate, kind, isRestDay,
             shiftSegments: segments, workLocationOrgUnitId, worksiteId, reason,
             staleTimesheetIds: staleTimesheets.map((row) => row.id),
+            policyOverrideReason: policyOverrideReason || null,
+            waivedIssueCodes: policyOverrideReason ? lockedIssues
+              .filter((issue) => issue.blocking).map((issue) => issue.code) : [],
           },
         });
         return { created, staleTimesheets, lockedIssues, lockedPolicy };
