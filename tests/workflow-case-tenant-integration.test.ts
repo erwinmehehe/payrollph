@@ -4,7 +4,7 @@ import test from "node:test";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../src/db";
 import {
-  auditEvents, employees, employeeServiceCases, employeeServiceCaseMessages,
+  employees, employeeServiceCases, employeeServiceCaseMessages,
   offlinePunchClaims, organizations, users,
 } from "../src/db/schema";
 
