@@ -13,13 +13,40 @@ const names = [
   "0119_multi_entity_v2_scope_transfer.sql",
 ];
 
-test("PG16 synthetic: 0115-0119 apply in one transaction and roll back completely", {
+// The branch can only exercise source DDL against a disposable local CI PG16.
+function isolatedUrl() {
+  return assertIsolatedMigrationTarget({
+    ...process.env, MIGRATION_REHEARSAL_MODE: process.env.PENDING_TRAIN_REHEARSAL_MODE,
+  });
+}
+
+const payoutTables = "public.payout_batch_transfers, public.payout_transfers, " +
+  "public.payout_batches, public.payout_profiles";
+
+test("PG16 synthetic: live-style missing payout prerequisites block 0117 atomically", {
+  skip: !REHEARSAL, timeout: 120000,
+}, async () => {
+  const client = new pg.Client({ connectionString: isolatedUrl(), query_timeout: 90000 });
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+    // Synthetic CI ONLY: emulate live schema gap without committing DROP.
+    await client.query("DROP TABLE IF EXISTS " + payoutTables + " CASCADE");
+    const xendit = readFileSync(new URL("../drizzle/0117_xendit_payout_provider.sql", import.meta.url), "utf8");
+    await assert.rejects(() => client.query(xendit), /payout_batches.*does not exist/i);
+  } finally {
+    await client.query("ROLLBACK").catch(() => {});
+    const restored = await client.query("SELECT to_regclass('public.payout_batches') IS NOT NULL AS present");
+    assert.equal(restored.rows[0].present, true);
+    await client.end().catch(() => {});
+  }
+});
+
+test("PG16 synthetic: approved predecessor designs + 0115-0119 are fully reversible", {
   skip: !REHEARSAL, timeout: 120000,
 }, async () => {
   // No connection can be opened outside the disposable GitHub Actions DB.
-  const url = assertIsolatedMigrationTarget({
-    ...process.env, MIGRATION_REHEARSAL_MODE: process.env.PENDING_TRAIN_REHEARSAL_MODE,
-  });
+  const url = isolatedUrl();
   const client = new pg.Client({ connectionString: url, query_timeout: 90000 });
   await client.connect();
   let transaction = false;
@@ -28,6 +55,17 @@ test("PG16 synthetic: 0115-0119 apply in one transaction and roll back completel
       "SELECT count(*)::integer AS count FROM public.payroll_runs");
     await client.query("BEGIN");
     transaction = true;
+    // This missing-schema rehearsal uses preserved, UNNUMBERED predecessor
+    // proposals. It is not permission to assign migration numbers or deploy.
+    await client.query("DROP TABLE IF EXISTS " + payoutTables + " CASCADE");
+    const profile = readFileSync(new URL("../drizzle/0074_company_payout_profiles.sql", import.meta.url), "utf8");
+    const ledger = readFileSync(new URL("../docs/sql/pending-payout-ledger.sql", import.meta.url), "utf8");
+    await client.query(profile);
+    await client.query(ledger);
+    const immutability = await client.query(
+      "SELECT tgname FROM pg_trigger WHERE tgrelid = 'public.payout_transfers'::regclass " +
+      "AND NOT tgisinternal AND tgname = 'payout_transfer_identity_guard'");
+    assert.equal(immutability.rows.length, 1);
     for (const name of names) {
       const sql = readFileSync(new URL("../drizzle/" + name, import.meta.url), "utf8");
       if (name.startsWith("0119")) {
