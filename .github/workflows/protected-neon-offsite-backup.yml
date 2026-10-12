@@ -33,6 +33,7 @@ jobs:
     env:
       CI: "true"
       BACKUP_WORKFLOW_ENVIRONMENT: payrollph-production-backup
+      BACKUP_ALLOWED_ACTORS: ${{ vars.BACKUP_ALLOWED_ACTORS }}
       BACKUP_REVIEWED_SHA: ${{ inputs.reviewed_sha }}
       BACKUP_CHANGE_REF: ${{ inputs.change_ref }}
       BACKUP_MANUAL_CONFIRM: ${{ inputs.confirmation }}
