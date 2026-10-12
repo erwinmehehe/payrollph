@@ -22,17 +22,23 @@ No matching live PostgreSQL tables were found for the source-only migration rece
 - public.payrollph_schema_migrations
 - public.payrollph_migration_cutover
 
-Missing key source-declared prerequisite objects include payout_batches, payout_transfers, payout_batch_transfers, payout_profiles, worker_employment_events, provider_events, audit_chain_heads, compensation_automation_intents and the SaaS billing state tables. None of the four documented critical release indexes were present, and the public seal_audit_events() audit-chain function was not found. These findings concern catalog existence only; no table row data or banking fields were read.
+Missing source-declared objects at the read-only audit included payout_batches, payout_transfers, payout_batch_transfers and payout_profiles (now proposed as new 0115/0116 draft outputs), plus worker_employment_events, provider_events, audit_chain_heads, compensation_automation_intents and SaaS billing state tables. None of the four documented critical release indexes were present, and the public seal_audit_events() audit-chain function was not found. These findings concern catalog existence only; no table row data or banking fields were read.
 
-## Why numbered SQL 0115-0120 must NOT run yet
+## Why the current proposed SQL train 0115-0121 must NOT run yet
 
-PR #865 proposes five ordered source migrations:
-- 0115 first-payroll progress: referenced organizations and users exist, but history/receipt confirmation and application readiness are still missing.
-- 0116 WFM roster scaling: referenced employee schedule/worksite assignment tables exist, but constraints, indexes, policy review and sequencing require rehearsal.
-- 0117 Xendit provider: ALTER TABLE targets payout_batches, payout_transfers, payout_batch_transfers and payout_profiles. **All four targets are ABSENT.** Running it now would fail and must never be treated as a standalone migration.
-- 0118 WFM punch evidence: tenant, worksite, employee and time-punch tables exist, but explicit privacy/consent/schema integration and tested rollback are still required.
-- 0119 multi-entity transfer: references payout tables and worker_employment_events that are absent; it also uses explicit BEGIN/COMMIT and normal UPDATE ... SET constructs incompatible with the currently proposed #867 reviewed-executor guard. It contains historical payroll attribution/backfills, so it needs isolated clone rehearsal and independent payroll authorization.
-- 0120 module disclosure from #874: source-only dependent on #865; must not jump over rejected predecessors.
+PR #865 now proposes **seven source-only numbered migrations**, not the five-step train described in the first audit. This is a corrected source mapping, not evidence that any migration has executed:
+
+- **0115** payout_profiles foundation: proposes a missing, default-inactive payout profile table; requires separately verified historical 0074/bank-template provenance.
+- **0116** guarded payout ledger: proposes payout_batches, payout_transfers and payout_batch_transfers after 0115; it does not authorize provider submission.
+- **0117** first-payroll progress: existing organization/user prerequisites do not establish release readiness.
+- **0118** WFM roster scaling: effective-dated assignment dependencies and policies require independent review.
+- **0119** Xendit provider extension: references the four payout tables **proposed** in 0115/0116. All were absent at the original catalog audit. It cannot run independently or treat draft DDL as already applied.
+- **0120** WFM punch evidence: employer privacy, photo consent, tenant isolation and retention still require review.
+- **0121** multi-entity scope transfer: references payout tables proposed in 0116 and historical `worker_employment_events`, which no 0115–0121 draft creates. Sensitive historical attribution needs independent DBA/payroll evidence.
+
+PR #874 proposes **0122** module disclosure after this train; it cannot skip approval of earlier steps.
+No source merge, passing test, or projected table creation grants permission to change production Neon.
+
 
 The repository contains historical duplicate filename numbers. Presence of an object alone does not prove its original SQL was applied. Do **not** run db:push, drizzle migrate, replay baseline.sql, or write artificial receipts against the main branch.
 
@@ -47,7 +53,7 @@ The repository contains historical duplicate filename numbers. Presence of an ob
 
 ## Added read-only operator guard
 
-The source-only script scripts/audit-neon-schema-generation.mjs uses a separately scoped PRODUCTION_SCHEMA_AUDIT_DATABASE_URL. Its query inspects information_schema and to_regclass() only under a REPEATABLE READ READ ONLY transaction, then rolls back. It explicitly distinguishes the actual organization/integer generation from the unrelated UUID/client generation and detects missing 0117/0119 prerequisite tables. It emits no employee, payroll or banking row values. The current correct database is **NOT eligible for the numbered train**.
+The source-only script scripts/audit-neon-schema-generation.mjs uses a separately scoped PRODUCTION_SCHEMA_AUDIT_DATABASE_URL. Its query inspects information_schema and to_regclass() only under a REPEATABLE READ READ ONLY transaction, then rolls back. It explicitly distinguishes the actual organization/integer generation from the unrelated UUID/client generation and distinguishes missing 0121 historical prerequisites from 0115/0116 draft payout outputs required by 0119. It emits no employee, payroll or banking row values. The current correct database is **NOT eligible for the numbered train**.
 
 The script is an independent diagnostic and is not yet automatically wired into the migration executor. Passing a catalog fingerprint can never by itself authorize DDL or payroll release. Exact-head CI and human review remain outstanding.
 
@@ -55,19 +61,19 @@ The script is an independent diagnostic and is not yet automatically wired into 
 
 Read-only checks through the authorized Neon connector targeted `calm-wave-70219564` / `br-lucky-sound-b79i56jw` / `neondb` (PostgreSQL 18.6). **112 public base tables**. No SQL writes, production migration, or feature activation.
 
-The new `scripts/lib/canonical-migration-base-tables.mjs` distinguishes source-declared **base table existence only** for the five numbered migrations:
+The read-only `scripts/lib/canonical-migration-base-tables.mjs` now inventories every source-defined table dependency in the **seven** proposed migrations. An absent table proposed by an *earlier* draft is reported as `ORDERED_DRAFT_DDL_UNAPPLIED_NOT_APPROVED`, never as an applied receipt.
 
-| Canonical SQL | Referenced base tables absent in live Neon | Assessment |
+| Proposed source SQL | Original Neon catalog observation | Review conclusion |
 | --- | --- | --- |
-| 0115 first payroll journey | None | Base table names present; NOT approved |
-| 0116 WFM roster rules | None | Base table names and checked effective-window columns present; NOT approved |
-| 0117 Xendit payout | payout_batches, payout_transfers, payout_batch_transfers, payout_profiles | BLOCKED |
-| 0118 WFM punch/photo evidence | None | Base table names present; NOT approved |
-| 0119 multi-entity historical transfer | payout_batches, payout_transfers, worker_employment_events | BLOCKED |
+| 0115 payout_profiles foundation | payout_profiles absent, predecessor entities/templates cataloged | Source-created table, unapproved |
+| 0116 payout ledger | payout_profiles and proposed ledger tables absent | Requires 0115 first; unapproved |
+| 0117 inline first payroll | Base organization/user tables present | Not approved |
+| 0118 WFM roster policies | Assignment-related base tables present | Not approved |
+| 0119 Xendit provider | payout_profiles/batches/transfers/links absent | Requires ordered 0115/0116; no provider activation |
+| 0120 WFM photo/punch evidence | Core worksite/employee/time tables present | Privacy and security review required |
+| 0121 multi-entity history | worker_employment_events absent; payout outputs unapplied | **Blocked** on historical source reconciliation and independently reviewed payroll backfills |
 
-The three migration-receipt / journal / cutover tables remain absent. The 0117/0119 prerequisites must be reconciled with **source history**, not fabricated using placeholder tables or false applied receipts. The 0119 cross-entity and payroll-history backfill remains review gated.
-
-`scripts/audit-neon-schema-generation.mjs` now produces a separate `canonicalTrain` structural target assessment in addition to the original fail-closed generation fingerprint, within the same read-only transaction. **Passing any structural preflight does not imply successful DDL application, tenant isolation, DBA acceptance, or approval to merge or deploy.**
+These statuses describe the original 2026-10-12 catalog inspection and the current *proposed source order*, **not** a fresh live database inspection. The three migration-receipt / journal / cutover tables were absent. Do not fabricate receipts or apply replacement tables directly to production. The source-only `canonicalTrain` assessment never authorizes SQL deployment, tenant-security acceptance, payroll release or a payout.
 
 ## Backup and clone safeguards verified in connected Neon
 
@@ -98,20 +104,20 @@ This is additional connected-Neon evidence **after** the initial catalog audit. 
 
 ### New source-side foundation catalog gate
 
-`scripts/lib/foundation-migration-objects.mjs` adds a SELECT-only, full-filename check for expected **objects** from `0022` and `0109–0114`. The CLI `scripts/audit-neon-schema-generation.mjs` now returns this evidence with canonical `0115–0119` preflight and fails closed when foundation objects are missing. It does **not** infer applied historical SQL, reconcile 13 duplicate legacy prefixes, compare DDL definitions/constraints, or authorize production. No original database mutation or fake migration receipts were created.
+`scripts/lib/foundation-migration-objects.mjs` adds a SELECT-only, full-filename check for expected **objects** from `0022` and `0109–0114`. The CLI `scripts/audit-neon-schema-generation.mjs` now returns this evidence with canonical `0115–0121` preflight and fails closed when foundation objects are missing. It does **not** infer applied historical SQL, reconcile 13 duplicate legacy prefixes, compare DDL definitions/constraints, or authorize production. No original database mutation or fake migration receipts were created.
 
 ### Release hold and next operator requirements
 
 1. Verify serving Vercel connection/endpoint identity and independently investigate possible impact from the temporary restore swap.
 2. Establish a longer-lived independently verified restore route, protected production `main` branch, and an approved backup/snapshot schedule; a time-limited snapshot is insufficient.
 3. Independently review every historical SQL path+SHA-256 and request-time DDL/backfill evidence; adopt authoritative receipts without inventing applied history. Prepare #867's reviewed forward executor only after this.
-4. Verify complete live schema and safe dependency order, not just 21 selected foundation objects. Payout ledger and worker employment history are still missing prerequisites for 0117/0119. Do not deploy train #865 yet.
+4. Verify complete live schema and safe dependency order, not just 21 selected foundation objects. The payout ledger is only proposed in 0116, and independently verified worker-employment history remains missing for 0121. Do not deploy train #865 yet.
 5. Reconcile employee-by-employee payroll to the centavo, test privileges/privacy/encryption, complete new code CI and independent DBA/security/payroll/release sign-off. Do not activate payouts or filing.
 
 
 ### Audit endpoint pinning and least-privilege role preflight
 
-Before running `scripts/audit-neon-schema-generation.mjs` from an operator environment, set **all three** environment variables:
+Before running `scripts/audit-neon-schema-generation.mjs` from an operator environment, set **all five** required environment variables:
 - `PRODUCTION_SCHEMA_AUDIT_DATABASE_URL` — a dedicated catalog-only, non-elevated, SELECT-only audit principal, not the Neon owner connection.
 - `PRODUCTION_SCHEMA_AUDIT_EXPECTED_HOST` — the independently verified Neon endpoint hostname (the production hostname after the October 12 incident was `ep-cool-hat-b7e7gpoo.c-13.us-east-1.aws.neon.tech`).
 - `PRODUCTION_SCHEMA_AUDIT_EXPECTED_DATABASE_NAME` — `neondb`.
