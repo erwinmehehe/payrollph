@@ -1,9 +1,8 @@
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { employees, hcmPulseSurveys, hcmPulseSurveyResponses } from "@/db/schema";
+import { auditEvents, employees, hcmPulseSurveys, hcmPulseSurveyResponses } from "@/db/schema";
 import { assertMembership, assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
-import { recordAuditEvent } from "@/lib/audit";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { anonymousSurveyResponderHash, aggregateClosedPulse } from "@/lib/hcm-simple-growth";
@@ -110,25 +109,33 @@ export async function POST(request:Request){
  if(action==="create"){
   const question=String(body.question??"").trim().slice(0,240);
   if(question.length<10)return Response.json({error:"A meaningful 10-240 character question is required."},{status:400});
-  const [row]=await db.insert(hcmPulseSurveys).values({
-    organizationId,question,createdByUserId:auth.user!.id,
-  }).returning({id:hcmPulseSurveys.id});
-  await recordAuditEvent({organizationId,actor:auth.user!.name,
-    action:"Anonymous employee pulse survey created",resource:"Engagement pulse",
-    metadata:{surveyId:row.id}});
+  const row=await db.transaction(async tx=>{
+    const [created]=await tx.insert(hcmPulseSurveys).values({
+      organizationId,question,createdByUserId:auth.user!.id,
+    }).returning({id:hcmPulseSurveys.id});
+    await tx.insert(auditEvents).values({organizationId,actor:auth.user!.name,
+      action:"Anonymous employee pulse survey created",resource:"Engagement pulse",
+      metadata:{surveyId:created.id}});
+    return created;
+  });
   return Response.json({surveyId:row.id,status:"open"},{status:201});
  }
  if(action==="close"){
   const surveyId=Number(body.surveyId);
   if(!Number.isSafeInteger(surveyId)||surveyId<1)
     return Response.json({error:"Valid survey id required."},{status:400});
-  const [row]=await db.update(hcmPulseSurveys).set({status:"closed",closedAt:new Date()})
-    .where(and(eq(hcmPulseSurveys.organizationId,organizationId),
-     eq(hcmPulseSurveys.id,surveyId),eq(hcmPulseSurveys.status,"open"))).returning({id:hcmPulseSurveys.id});
+  const row=await db.transaction(async tx=>{
+    const [closed]=await tx.update(hcmPulseSurveys).set({status:"closed",closedAt:new Date()})
+      .where(and(eq(hcmPulseSurveys.organizationId,organizationId),
+       eq(hcmPulseSurveys.id,surveyId),eq(hcmPulseSurveys.status,"open")))
+      .returning({id:hcmPulseSurveys.id});
+    if(!closed)return null;
+    await tx.insert(auditEvents).values({organizationId,actor:auth.user!.name,
+      action:"Anonymous employee pulse survey closed",resource:"Engagement pulse",
+      metadata:{surveyId}});
+    return closed;
+  });
   if(!row)return Response.json({error:"Survey not open."},{status:409});
-  await recordAuditEvent({organizationId,actor:auth.user!.name,
-    action:"Anonymous employee pulse survey closed",resource:"Engagement pulse",
-    metadata:{surveyId}});
   return Response.json({surveyId,status:"closed",
     note:"Sealed survey aggregate available only if five or more responses exist."});
  }
