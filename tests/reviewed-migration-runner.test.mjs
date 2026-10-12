@@ -268,7 +268,7 @@ test("migration SQL permits ordinary UPDATE SET and ON CONFLICT upserts", () => 
       "UPDATE payroll_entries e SET legal_entity_id = r.legal_entity_id\nFROM payroll_runs r WHERE e.payroll_run_id = r.id;",
       "INSERT INTO payout_batches(id,provider) VALUES (1,'paymongo') ON CONFLICT (id) DO UPDATE SET provider = excluded.provider;",
       "-- SET search_path comment is harmless\nUPDATE payroll_entries SET legal_entity_id = 5;",
-      "DO $ BEGIN PERFORM 1; END $;\nUPDATE payroll_entries SET legal_entity_id = 6;",
+      "DO $body$ BEGIN PERFORM 1; END $body$;\nUPDATE payroll_entries SET legal_entity_id = 6;",
     ]) {
       writeFileSync(path, sql);
       const changed = inventoryMigrationSources(f.directory).files.find(file => file.path === f.target.path);
