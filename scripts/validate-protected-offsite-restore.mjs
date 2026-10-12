@@ -12,6 +12,7 @@ try{
     confirmation:e.RESTORE_CONFIRMATION,
     archiveSourceSha:e.RESTORE_ARCHIVE_SOURCE_SHA,
     objectKey:e.RESTORE_S3_OBJECT_KEY,
+    s3VersionId:e.RESTORE_S3_VERSION_ID,
     expectedEncryptedSha256:e.RESTORE_CIPHERTEXT_SHA256,
     awsRegion:e.AWS_REGION,s3Bucket:e.BACKUP_S3_BUCKET,
   });
