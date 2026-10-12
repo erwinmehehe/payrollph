@@ -50,7 +50,13 @@ export function offboardingClearanceStatus(
   return { ready: missing.length === 0, missing, waived };
 }
 
-/** Waiving physical equipment cannot waive access revocation. */
-export function externalAccessRevoked(grantStates: readonly string[]): boolean {
-  return grantStates.every(state => state === "revoked");
+/**
+ * An empty IT grant table is not proof that external accounts never existed.
+ * A zero-grant inventory requires a separately evidenced IT clearance.
+ */
+export function externalAccessRevoked(
+  grantStates: readonly string[], verifiedEmptyInventory = false,
+): boolean {
+  return (grantStates.length > 0 || verifiedEmptyInventory) &&
+    grantStates.every(state => state === "revoked");
 }
