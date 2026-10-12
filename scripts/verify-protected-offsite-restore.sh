@@ -30,7 +30,7 @@ key="$work/identity.txt"
 
 # Read-only OIDC AWS role. Source branch never contacted.
 head_sha="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
-  --key "$RESTORE_S3_OBJECT_KEY" \
+  --key "$RESTORE_S3_OBJECT_KEY" --version-id "$RESTORE_S3_VERSION_ID" \
   --query 'Metadata."encrypted-sha256"' --output text)"
 head_source="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
   --key "$RESTORE_S3_OBJECT_KEY" \
@@ -45,7 +45,7 @@ if [[ "$head_sha" != "$RESTORE_CIPHERTEXT_SHA256" ||
   exit 1
 fi
 aws s3api get-object --bucket "$BACKUP_S3_BUCKET" \
-  --key "$RESTORE_S3_OBJECT_KEY" "$archive" --no-cli-pager >/dev/null
+  --key "$RESTORE_S3_OBJECT_KEY" --version-id "$RESTORE_S3_VERSION_ID" "$archive" --no-cli-pager >/dev/null
 test -s "$archive"
 cipher_sha="$(sha256sum "$archive" | cut -d ' ' -f1)"
 if [[ "$cipher_sha" != "$RESTORE_CIPHERTEXT_SHA256" ]]; then
@@ -90,5 +90,5 @@ fi
 duration="$(( $(date +%s) - start ))"
 
 # Aggregate receipt only. Real business rows NEVER appear in logs.
-printf '{"kind":"p0-4-offline-encrypted-archive-restore","status":"ephemeral-restore-verified","archiveSourceSha":"%s","encryptedSha256":"%s","restoredPublicTables":%s,"restoreSeconds":%s,"restoredToNeon":false,"providerTransfersEnabled":false,"recoveryCertified":false}\n' \
-  "$RESTORE_ARCHIVE_SOURCE_SHA" "$cipher_sha" "$tables" "$duration"
+printf '{"kind":"p0-4-offline-encrypted-archive-restore","status":"ephemeral-restore-verified","archiveSourceSha":"%s","encryptedSha256":"%s","s3VersionId":"%s","restoredPublicTables":%s,"restoreSeconds":%s,"restoredToNeon":false,"providerTransfersEnabled":false,"recoveryCertified":false}\n' \
+  "$RESTORE_ARCHIVE_SOURCE_SHA" "$cipher_sha" "$RESTORE_S3_VERSION_ID" "$tables" "$duration"
