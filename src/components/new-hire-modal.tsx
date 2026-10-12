@@ -14,10 +14,12 @@ export function NewHireModal({
   organizationId,
   onClose,
   onCreated,
+  inline = false,
 }: {
   organizationId: number;
   onClose: () => void;
   onCreated: () => void;
+  inline?: boolean;
 }) {
   const [form, setForm] = useState({
     firstName: "",
@@ -72,9 +74,8 @@ export function NewHireModal({
     }
   }
 
-  return (
-    <div className="modal-backdrop linaw-dialog" role="presentation">
-      <section className="modal large" role="dialog" aria-modal="true" aria-label="Add employee">
+  const panel = (
+      <section className={inline ? "card p-4" : "modal large"} role={inline ? undefined : "dialog"} aria-modal={inline ? undefined : true} aria-label="Add employee">
         <button className="modal-close" onClick={onClose}><X size={18} /></button>
         <div className="modal-icon"><Layers size={22} className="i-teal" /></div>
         <div className="card-kicker">NEW HIRE</div>
@@ -156,6 +157,6 @@ export function NewHireModal({
           </div>
         </form>
       </section>
-    </div>
   );
+  return inline ? panel : <div className="modal-backdrop linaw-dialog" role="presentation">{panel}</div>;
 }

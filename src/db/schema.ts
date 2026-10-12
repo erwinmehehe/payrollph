@@ -5934,7 +5934,7 @@ export const engagementSurveyParticipants = pgTable(
 export const firstPayrollJourneyProgress = pgTable("first_payroll_journey_progress", {
  organizationId: integer("organization_id").primaryKey().references(() => organizations.id,{onDelete:"cascade"}),
  stepOwners: jsonb("step_owners").$type<Record<string,string>>().notNull().default({}),
- completedSteps: jsonb("completed_steps").$type<Record<string,{byUserId:number;at:string}>>().notNull().default({}),
+ completedSteps: jsonb("completed_steps").$type<Record<string,{byUserId:number;at:string;periodStart?:string;periodEnd?:string}>>().notNull().default({}),
  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id,{onDelete:"set null"}),
  reviewedAt: timestamp("reviewed_at",{withTimezone:true}),
  updatedByUserId: integer("updated_by_user_id").references(() => users.id,{onDelete:"set null"}),
