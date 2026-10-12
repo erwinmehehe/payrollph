@@ -87,3 +87,7 @@ A separate conversion requires a signed, tested plan covering:
 These requirements are not met by this source-only PR. An all-zero
 legacy-demo flag would not prove bank fields synthetic. The production
 release flag remains closed, and the legacy database remains unchanged.
+
+
+### Verified correct Neon source (October 12, 2026)
+The correct Neon project is `calm-wave-70219564` / `neon-almond-ridge`, default `main` branch. Its core `organizations`, `employees`, `payroll_runs` and `payroll_entries` use contemporary integer IDs and organization scoping; the old `ddbb` connection was unrelated and must not inform migration decisions. The migration lineage check now covers seven **existing core schema** column identifiers. `provider_events` and `payout_transfers` are **missing feature migrations**, not disqualifying baseline lineage fields. They need staged, independently reviewed deployment after actual historical SQL receipts and a proven restore. No migration journal was found, and zero of 112 public tables have RLS enabled. The database was not modified.
