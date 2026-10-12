@@ -84,6 +84,7 @@ export const legalEntities = pgTable(
     displayName: varchar("display_name", { length: 160 }).notNull(),
     birTin: varchar("bir_tin", { length: 16 }),
     birBranchCode: varchar("bir_branch_code", { length: 4 }),
+    registeredAddress: text("registered_address"),
     sssEmployerNo: varchar("sss_employer_no", { length: 24 }),
     philHealthEmployerNo: varchar("philhealth_employer_no", { length: 24 }),
     pagIbigEmployerNo: varchar("pagibig_employer_no", { length: 24 }),
@@ -1150,6 +1151,7 @@ export const managedPayrollRunApprovals = pgTable(
 
 export const payrollEntries = pgTable("payroll_entries", {
   id: serial("id").primaryKey(),
+  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
   payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   grossPay: numeric("gross_pay", { precision: 12, scale: 2 }).notNull(),
@@ -1173,6 +1175,7 @@ export const payoutBatches = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "restrict" }),
+    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
     payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "restrict" }),
     provider: varchar("provider", { length: 24 }).notNull().default("paymongo"),
     idempotencyKey: varchar("idempotency_key", { length: 160 }).notNull(),
@@ -1202,6 +1205,7 @@ export const payoutTransfers = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "restrict" }),
+    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
     payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "restrict" }),
     payrollEntryId: integer("payroll_entry_id").notNull().references(() => payrollEntries.id, { onDelete: "restrict" }),
     employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
@@ -1244,6 +1248,7 @@ export const payoutBatchTransfers = pgTable(
 
 export const payrollJobs = pgTable("payroll_jobs", {
   id: serial("id").primaryKey(),
+  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
   payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id, { onDelete: "cascade" }),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   status: varchar("status", { length: 32 }).notNull().default("queued"),
@@ -1260,6 +1265,7 @@ export const payrollJobs = pgTable("payroll_jobs", {
 
 export const payslips = pgTable("payslips", {
   id: serial("id").primaryKey(),
+  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
   payrollEntryId: integer("payroll_entry_id").notNull().references(() => payrollEntries.id, { onDelete: "cascade" }),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
@@ -1385,6 +1391,7 @@ export const bankFileValidations = pgTable(
   {
     id: serial("id").primaryKey(),
     organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
     payrollRunId: integer("payroll_run_id").references(() => payrollRuns.id, { onDelete: "set null" }),
     templateName: varchar("template_name", { length: 100 }).notNull(),
     templateVersion: varchar("template_version", { length: 32 }).notNull(),
@@ -1611,6 +1618,7 @@ export const webhookDeliveries = pgTable("webhook_deliveries", {
 export const yearEndAdjustments = pgTable("year_end_adjustments", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   taxYear: integer("tax_year").notNull(),
   grossCompensation: numeric("gross_compensation", { precision: 14, scale: 2 }).notNull(),
@@ -2257,6 +2265,7 @@ export const importBatches = pgTable("import_batches", {
 export const historicalPayrollEntries = pgTable("historical_payroll_entries", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   importBatchId: integer("import_batch_id").references(() => importBatches.id, { onDelete: "set null" }),
   sourceSystem: varchar("source_system", { length: 64 }).notNull().default("generic"),
@@ -3029,6 +3038,7 @@ export const jobApplicants = pgTable("job_applicants", {
 export const separationRecords = pgTable("separation_records", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
   employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   separationType: varchar("separation_type", { length: 32 }).notNull(), // "resignation", "retirement", "authorized_cause", "just_cause", "end_of_contract"
   noticeDate: date("notice_date").notNull(),
@@ -5886,3 +5896,60 @@ export const workforceDemandStaffingPolicyEvents = pgTable(
     check("wfm_staffing_policy_event_hash_check", sql`${t.policySha256} ~ '^[a-f0-9]{64}$' and ${t.receiptSha256} ~ '^[a-f0-9]{64}$'`),
   ],
 );
+
+/** Explicit legal-employer grants within an existing tenant membership. */
+export const userLegalEntityGrants = pgTable("user_legal_entity_grants", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
+  grantedByUserId: integer("granted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("user_entity_grants_unique").on(table.organizationId, table.userId, table.legalEntityId),
+  index("user_entity_grants_user_idx").on(table.userId, table.organizationId),
+]);
+
+/** Persisted per-user context; null means All entities for group roles only. */
+export const userEntityPreferences = pgTable("user_entity_preferences", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  legalEntityId: integer("legal_entity_id").references(() => legalEntities.id, { onDelete: "restrict" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [uniqueIndex("user_entity_preferences_unique").on(table.organizationId, table.userId)]);
+
+/** Immutable employer-of-record intervals. */
+export const employeeEntityAssignments = pgTable("employee_entity_assignments", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+  legalEntityId: integer("legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
+  effectiveFrom: date("effective_from").notNull(),
+  effectiveUntil: date("effective_until"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("employee_entity_assignment_start_unique").on(table.organizationId, table.employeeId, table.effectiveFrom),
+  index("employee_entity_assignment_effective_idx").on(table.organizationId, table.legalEntityId, table.effectiveFrom),
+]);
+
+/** Moving employer does not automatically create separation or final pay. */
+export const entityTransferRequests = pgTable("entity_transfer_requests", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+  fromLegalEntityId: integer("from_legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
+  toLegalEntityId: integer("to_legal_entity_id").notNull().references(() => legalEntities.id, { onDelete: "restrict" }),
+  effectiveDate: date("effective_date").notNull(),
+  status: varchar("status", { length: 24 }).notNull().default("pending_approval"),
+  reason: varchar("reason", { length: 400 }).notNull(),
+  serviceStartDate: date("service_start_date").notNull(),
+  leaveSnapshot: jsonb("leave_snapshot").notNull().default([]),
+  thirteenthSnapshot: jsonb("thirteenth_snapshot").notNull().default({}),
+  continuityNote: text("continuity_note").notNull(),
+  requestedByUserId: integer("requested_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  approvedByUserId: integer("approved_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  appliedAt: timestamp("applied_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [index("entity_transfer_org_employee_idx").on(table.organizationId, table.employeeId, table.status)]);
