@@ -476,6 +476,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
               <FirstPayrollReadinessCard
                 readiness={data.firstPayrollReadiness}
                 guided={isSelfServeCustomer}
+                data={data}
+                onRefresh={refresh}
                 allowedPages={availablePages}
                 onSettings={setSettingsInitialTab}
                 onPage={setPage}
