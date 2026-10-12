@@ -55,6 +55,13 @@ test("PG16 synthetic: proposed 0115-0121 source train is fully transactionally r
   try {
     const baseline = await client.query(
       "SELECT count(*)::integer AS count FROM public.payroll_runs");
+    // db:push may already have created several proposed schema objects.
+    // Compare pre/post catalog state, rather than falsely expecting them
+    // absent after the always-rolled-back rehearsal.
+    const baselineObjects = await client.query(
+      "SELECT to_regclass('public.first_payroll_journey_progress') IS NOT NULL AS first,"+
+      "to_regclass('public.user_legal_entity_grants') IS NOT NULL AS grants,"+
+      "to_regclass('public.workforce_punch_submissions') IS NOT NULL AS punch");
     await client.query("BEGIN");
     transaction = true;
     // Clear only the disposable test transaction's Drizzle-generated payout
@@ -95,10 +102,11 @@ test("PG16 synthetic: proposed 0115-0121 source train is fully transactionally r
     transaction = false;
 
     const after = await client.query(
-      "SELECT to_regclass('public.first_payroll_journey_progress') IS NULL AS no_first," +
-      "to_regclass('public.user_legal_entity_grants') IS NULL AS no_grants," +
-      "to_regclass('public.workforce_punch_submissions') IS NULL AS no_punch");
-    assert.deepEqual(after.rows[0], {no_first: true, no_grants: true, no_punch: true});
+      "SELECT to_regclass('public.first_payroll_journey_progress') IS NOT NULL AS first,"+
+      "to_regclass('public.user_legal_entity_grants') IS NOT NULL AS grants,"+
+      "to_regclass('public.workforce_punch_submissions') IS NOT NULL AS punch");
+    assert.deepEqual(after.rows[0], baselineObjects.rows[0],
+      "synthetic full-train replay must preserve the original catalog state");
     const sourceTotals = await client.query(
       "SELECT count(*)::integer AS count FROM public.payroll_runs");
     assert.equal(sourceTotals.rows[0].count, baseline.rows[0].count);
