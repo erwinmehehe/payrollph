@@ -6,7 +6,7 @@
 -- Requires 0121. No historical employer attribution or backfill is performed.
 -- Lock the employee row to serialize concurrent interval inserts/updates.
 -- A start-date uniqueness constraint alone permits overlapping closed ranges.
--- Employer ID, effective start, and closed-history rows are immutable.
+-- Employer ID, effective start, creation timestamp, and closed-history rows are immutable.
 -- Only a previously open-ended interval can be closed, once; no hard delete.
 CREATE OR REPLACE FUNCTION validate_employee_entity_assignment()
 RETURNS trigger LANGUAGE plpgsql AS $$
@@ -24,7 +24,8 @@ BEGIN
     NEW.employee_id IS DISTINCT FROM OLD.employee_id OR
     NEW.organization_id IS DISTINCT FROM OLD.organization_id OR
     NEW.legal_entity_id IS DISTINCT FROM OLD.legal_entity_id OR
-    NEW.effective_from IS DISTINCT FROM OLD.effective_from
+    NEW.effective_from IS DISTINCT FROM OLD.effective_from OR
+    NEW.created_at IS DISTINCT FROM OLD.created_at
   ) THEN
     RAISE EXCEPTION 'ENTITY_ASSIGNMENT_IDENTITY_IMMUTABLE' USING ERRCODE='23514';
   END IF;
