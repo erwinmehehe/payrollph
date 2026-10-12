@@ -10,7 +10,9 @@ export const TRAIN_PREREQUISITES = Object.freeze({
   "0119": ["organizations", "users", "legal_entities", "employees", "payroll_runs",
     "payroll_entries", "payslips", "payroll_jobs", "payout_batches", "payout_transfers",
     "bank_file_validations", "historical_payroll_entries", "year_end_adjustments",
-    "separation_records", "user_organizations", "org_units", "worker_employment_events"],
+    "separation_records", "user_organizations", "org_units",
+    // Historical worker event schema from 0050 depends on 0022 job architecture.
+    "job_profiles", "positions", "position_assignments", "worker_employment_events"],
 });
 
 export const PREREQUISITE_CATALOG_SQL = [
