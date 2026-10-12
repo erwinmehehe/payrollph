@@ -33,6 +33,7 @@ import { ApprovalsView } from "@/components/workspace/approvals";
 import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/components/workspace/command-palette";
 import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
+import { FirstPayrollInlineJourney } from "@/components/workspace/first-payroll-inline";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
 import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
 import { OverviewView } from "@/components/workspace/overview";
@@ -66,7 +67,7 @@ import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
 
-export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null }) {
+export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilotFocusEnabled = false, allowPeopleFocus = false, allowHirePayrollReview = false, reviewTeamHref = null, firstPayrollInlineEnabled = false }: { initialData: DashboardData; isSelfServeCustomer?: boolean; pilotFocusEnabled?: boolean; allowPeopleFocus?: boolean; allowHirePayrollReview?: boolean; reviewTeamHref?: string | null; firstPayrollInlineEnabled?: boolean }) {
   const searchParams = useSearchParams();
   const requestedDemoRole = searchParams.get("demoRole");
   const demoRole: DemoRoleId | null =
@@ -265,13 +266,15 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
     payDate: string;
     scopeOrgUnitId: number | null;
     legalEntityId: number;
+    processNow?: boolean;
+    stayOnJourney?: boolean;
   }) {
     setBusy(true);
     try {
       const response = await fetch("/api/payroll-runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...input, organizationId: data.selectedOrganization.id, processNow: true }),
+        body: JSON.stringify({ periodStart: input.periodStart, periodEnd: input.periodEnd, payDate: input.payDate, scopeOrgUnitId: input.scopeOrgUnitId, legalEntityId: input.legalEntityId, organizationId: data.selectedOrganization.id, processNow: input.processNow !== false }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -280,8 +283,8 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       }
       await refresh();
       setNewPayrollOpen(false);
-      setPage("Payroll");
-      notify("Run created and queued through the chunked background worker.");
+      if (!input.stayOnJourney) setPage("Payroll");
+      notify(input.processNow === false ? "Payroll draft created. Calculation and independent approval remain pending." : "Run created and queued through the chunked background worker.");
     } catch {
       notify("Could not reach the payroll service.", "err");
     } finally {
@@ -467,14 +470,34 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
               />
             )}
             {data.firstPayrollReadiness && (
-              <FirstPayrollReadinessCard
-                readiness={data.firstPayrollReadiness}
-                guided={isSelfServeCustomer}
-                allowedPages={availablePages}
-                onSettings={setSettingsInitialTab}
-                onPage={setPage}
-                onNewRun={() => setNewPayrollOpen(true)}
-              />
+              firstPayrollInlineEnabled && isSelfServeCustomer && !demoRole && data.access?.companyWide ? (
+                <FirstPayrollInlineJourney
+                  key={data.selectedOrganization.id}
+                  data={data}
+                  readiness={data.firstPayrollReadiness}
+                  notify={notify}
+                  onRefresh={refresh}
+                  onAddEmployee={() => setNewHireOpen(true)}
+                  onOpenBundy={() => setWebBundyOpen(true)}
+                  onDecide={decideTask}
+                  onCreatePayroll={createPayroll}
+                  busy={busy}
+                  canManagePeople={canManagePeople}
+                  canManageTime={canManageTime}
+                  canManagePayroll={canManagePayroll}
+                  canDecideApprovals={canDecideApprovals}
+                  canManageDelegations={canManageDelegations}
+                />
+              ) : (
+                <FirstPayrollReadinessCard
+                  readiness={data.firstPayrollReadiness}
+                  guided={isSelfServeCustomer}
+                  allowedPages={availablePages}
+                  onSettings={setSettingsInitialTab}
+                  onPage={setPage}
+                  onNewRun={() => setNewPayrollOpen(true)}
+                />
+              )
             )}
             {!demoRole && effectiveRole === "owner" && (
               <ProductionPilotSignoffCard
