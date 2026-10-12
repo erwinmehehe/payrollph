@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import test from "node:test";
-import { canActOnEntityTransfer, decideEntityAccess, entityResourceAllowed, entityConfirmationMatches, validateLegalEmployerSettingsPatch, VERSIONED_EMPLOYER_FIELDS } from "../src/lib/multi-entity-policy";
+import { canActOnEntityTransfer, decideEntityAccess, entityResourceAllowed, entityConfirmationMatches, summarizeEntityTransfer, validateLegalEmployerSettingsPatch, VERSIONED_EMPLOYER_FIELDS } from "../src/lib/multi-entity-policy";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { sumPayrollAmounts } from "../src/lib/multi-entity-money";
 import { validateEmployerProfileChanges } from "../src/lib/multi-entity-registration";
@@ -113,6 +113,31 @@ test("transfer permissions require two explicit grants without authorizing cross
     assert.equal(canActOnEntityTransfer({ ...approval, action, role: "hr" }), false);
     assert.equal(canActOnEntityTransfer({ ...approval, action, grantedEntityIds: [11] }), false);
     assert.equal(canActOnEntityTransfer({ ...approval, action, grantedEntityIds: [22] }), false);
+  }
+});
+
+
+test("transfer read/create/decision summary excludes leave and payroll evidence", () => {
+  const sealed = {
+    id: 44, organizationId: 7, employeeId: 101,
+    fromLegalEntityId: 11, toLegalEntityId: 22,
+    effectiveDate: "2026-11-01", status: "pending_approval",
+    requestedByUserId: 52,
+    reason: "contains private person details",
+    serviceStartDate: "2012-06-01",
+    leaveSnapshot: [{ leaveType: "vacation", pending: 8 }],
+    thirteenthSnapshot: { sourceBasicSalaryEarned: "142345.67", lineItems: [{ gross: "9999.99" }] },
+    continuityNote: "confidential",
+    approvedByUserId: null,
+  };
+  assert.deepEqual(summarizeEntityTransfer(sealed), {
+    id: 44, employeeId: 101, fromLegalEntityId: 11,
+    toLegalEntityId: 22, effectiveDate: "2026-11-01",
+    status: "pending_approval", requestedByUserId: 52,
+  });
+  const serialized = JSON.stringify({ transfer: summarizeEntityTransfer(sealed) });
+  for (const secret of ["142345.67", "9999.99", "vacation", "confidential", "private person"]) {
+    assert.equal(serialized.includes(secret), false, secret);
   }
 });
 
