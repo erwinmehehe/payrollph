@@ -18,11 +18,6 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 large-roster notification completeness and labor-rule schedule publish",
     approval: "Synthetic 1000-assignment pagination, verified roster publish UAT, payroll review and operational sign-off",
   },
-  orderedReleaseMigrations: {
-    env: "ORDERED_RELEASE_MIGRATIONS_ENABLED", owner: "Database Operations",
-    risk: "P0 deployment-only schema changes",
-    approval: "DBA baseline adoption, protected release and restore rehearsal",
-  },
   employeeImportPreview: {
     env: "EMPLOYEE_IMPORT_PREVIEW_ENABLED", owner: "People Operations",
     risk: "P1 atomic employee CSV intake", approval: "500-row preview and rollback acceptance",
@@ -44,6 +39,17 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Treasury",
     risk: "P0 actual transfers and payouts",
     approval: "Independent money-movement authority, bank UAT and payout evidence",
+  },
+  orderedReleaseMigrations: {
+    env: "ORDERED_RELEASE_MIGRATIONS_ENABLED", owner: "Database Operations",
+    risk: "P0 deployment-only schema changes",
+    approval: "DBA baseline adoption, protected release and restore rehearsal",
+  },
+  workforcePunchEvidence: {
+    env: "WFM_PUNCH_EVIDENCE_ENABLED",
+    owner: "People Operations / Privacy",
+    risk: "P1 employee attendance, photographic evidence and offline replay",
+    approval: "DPO policy, encryption key, staged review, expiry scheduler and employee pilot sign-off",
   },
   documentUploads: {
     env: "DOCUMENT_UPLOADS_ENABLED",
