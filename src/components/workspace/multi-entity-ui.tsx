@@ -35,9 +35,9 @@ export function EntitySwitcher({ context, organizationId }: {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   if (!context?.enabled) return null;
-  if (!context.group) return (
+  if (!context.group && !context.canSwitch) return (
     <span className="topbar-link" role="status" aria-label="Assigned legal employer">
-      {context.entities[0]?.displayName ?? "Assigned entity"}
+      {context.entities.find(entity => entity.id === context.legalEntityId)?.displayName ?? "Assigned entity"}
     </span>
   );
   async function change(next: string) {
@@ -62,7 +62,7 @@ export function EntitySwitcher({ context, organizationId }: {
       <select aria-label="Legal entity switcher" value={value} disabled={pending}
         onChange={event => void change(event.target.value)}
         style={{ maxWidth: "100%", fontSize: 12 }}>
-        <option value="all">All entities</option>
+        {context.group && <option value="all">All entities</option>}
         {context.entities.map(entity => <option key={entity.id} value={entity.id}>
           {entity.displayName}
         </option>)}
@@ -90,7 +90,7 @@ export function EntityBadge({ context, legalEntityId, label }: {
 export function EntityFilter({ context, organizationId, title = "Filter by entity" }: {
   context?: EntityWorkspace; organizationId: number; title?: string;
 }) {
-  if (!context?.group) return null;
+  if (!context?.group && !context?.canSwitch) return null;
   return <div style={{ marginBottom: 12 }}>
     <span className="card-kicker">{title}</span>
     <EntitySwitcher context={context} organizationId={organizationId} />
