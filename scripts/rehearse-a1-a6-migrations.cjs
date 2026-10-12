@@ -59,7 +59,7 @@ function sqlSource(file) {
 async function schemaAcceptance(client) {
   const { rows: version } = await client.query("SHOW server_version");
   const { rows: tableRows } = await client.query(
-    "SELECT to_regclass('public.' || unnest($1::text[])) AS name",
+    "SELECT to_regclass('public.' || names.name) AS name FROM unnest($1::text[]) AS names(name)",
     [expectedTables],
   );
   assert.equal(tableRows.length, expectedTables.length);
@@ -93,6 +93,38 @@ async function schemaAcceptance(client) {
   return { pgVersion: version[0].server_version, tables: expectedTables.length,
     tenantForeignKeys: fks.rows.length, checkedColumns: 7 };
 }
+/** Prove PostgreSQL itself rejects cross-employer personnel joins. */
+async function negativeTenantFixture(client) {
+  const { rows: orgs } = await client.query(
+    "INSERT INTO organizations(name,legal_name) VALUES ('QA release tenant A','QA release tenant A'), ('QA release tenant B','QA release tenant B') RETURNING id",
+  );
+  const { rows: actors } = await client.query(
+    "INSERT INTO users(email,name,password_hash) VALUES ($1,'QA HR reviewer','synthetic-only') RETURNING id",
+    ["a1a6-" + Math.random().toString(36).slice(2) + "@example.invalid"],
+  );
+  const { rows: workers } = await client.query(
+    "INSERT INTO employees(organization_id,employee_no,first_name,last_name,title,avatar_initials,basic_rate,start_date) VALUES ($1,'QA-WORKER','Synthetic','Other Tenant','Analyst','SO','20000.00','2026-01-01') RETURNING id",
+    [orgs[1].id],
+  );
+  await client.query("SAVEPOINT cross_employer_probe");
+  let denied = false;
+  try {
+    await client.query(
+      "INSERT INTO employee_hr_cases(organization_id,employee_id,created_by_user_id,case_type,subject,description,assigned_role,sla_due_at) VALUES ($1,$2,$3,'general','Synthetic access test','Never persist wrong tenant data','hr',now() + interval '24 hours')",
+      [orgs[0].id, workers[0].id, actors[0].id],
+    );
+  } catch (error) {
+    denied = error.code === "23503";
+  }
+  await client.query("ROLLBACK TO SAVEPOINT cross_employer_probe");
+  assert.ok(denied, "Cross-employer HR case must fail a database composite FK");
+  await client.query("RELEASE SAVEPOINT cross_employer_probe");
+  await client.query("DELETE FROM organizations WHERE id=$1 OR id=$2",
+    [orgs[0].id, orgs[1].id]);
+  await client.query("DELETE FROM users WHERE id=$1", [actors[0].id]);
+  return true;
+}
+
 async function run() {
   const mode = requireDisposable();
   const client = new Client({ connectionString: process.env.DATABASE_URL });
@@ -108,6 +140,7 @@ async function run() {
     begun = true;
     for (const file of proposals) await client.query(sqlSource(file));
     const verified = await schemaAcceptance(client);
+    verified.negativeCrossEmployerFkTest = await negativeTenantFixture(client);
     if (mode === "--rollback") {
       await client.query("ROLLBACK");
       begun = false;
