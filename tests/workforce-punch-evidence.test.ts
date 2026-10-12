@@ -87,6 +87,8 @@ test("staging and approval source guards preserve transaction-level safety",()=>
   assert.match(review,/action:"wfm-photo-access"/);
   assert.match(review,/requireSensitiveActionMfa\(context\.user!\)/);
   assert.match(review,/Cross-Origin-Resource-Policy/);
+  assert.equal(review.includes("error instanceof Error?error.message"),false);
+  assert.match(review,/ATTENDANCE_REVIEW_CONFLICT/);
 });
 
 test("UUID inputs are exact length and shape before touching varchar(36) columns",()=>{
