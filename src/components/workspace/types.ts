@@ -168,6 +168,7 @@ export function readLineItems(entry: Pick<PayrollEntry, "lineItems">): PayrollLi
 
 export type Task = {
   id: number;
+  payrollRunId?: number | null;
   title: string;
   detail: string;
   approver: string;
