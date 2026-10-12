@@ -63,9 +63,19 @@ export function buildWhitelistedReport(
       if (column.groupable) {
         output[column.key] = spec.groupBy === column.key ? group : (spec.groupBy ? "Mixed" : "All");
       } else {
-        const amounts = records.map(r => Number(r[column.key] ?? 0));
-        if (amounts.some(value => !Number.isFinite(value))) throw new Error("Invalid stored report amount.");
-        output[column.key] = Math.round(amounts.reduce((a,b) => a+b,0)*100)/100;
+        // Sum in integer hundredths, not floating-point pesos. Refuse totals
+        // that exceed JS safe-integer centavo bounds instead of losing money.
+        let hundredths = 0;
+        for (const record of records) {
+          const value = Number(record[column.key] ?? 0);
+          const cents = Math.round(value * 100);
+          if (!Number.isFinite(value) || !Number.isSafeInteger(cents)
+              || !Number.isSafeInteger(hundredths + cents)) {
+            throw new Error("Invalid or centavo-unsafe stored report amount.");
+          }
+          hundredths += cents;
+        }
+        output[column.key] = hundredths / 100;
       }
     }
     return output;
