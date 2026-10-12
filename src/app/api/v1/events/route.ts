@@ -1,4 +1,4 @@
-import { and, asc, eq, count } from "drizzle-orm";
+import { asc, eq, count } from "drizzle-orm";
 import { db } from "@/db";
 import { webhookDeliveries } from "@/db/schema";
 import { authorizeExtendedV1Read, apiV1Page } from "@/lib/api-v1-extended";
