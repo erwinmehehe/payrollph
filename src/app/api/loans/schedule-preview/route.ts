@@ -22,8 +22,11 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401, headers });
   const body = await request.json().catch(() => ({}));
-  const organizationId = Number(body.organizationId);
-  if (!Number.isSafeInteger(organizationId) || organizationId < 1) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return Response.json({ error: "Object request required." }, { status: 400, headers });
+  }
+  const organizationId = body.organizationId;
+  if (typeof organizationId !== "number" || !Number.isSafeInteger(organizationId) || organizationId < 1) {
     return Response.json({ error: "Valid organization required." }, { status: 400, headers });
   }
   const denied = await assertOrganizationRole(user.id, organizationId, PAYROLL_OPERATOR_ROLES,
@@ -45,9 +48,9 @@ export async function POST(request: Request) {
         interestBasis: "explicit flat simple interest; NOT automatic payroll deduction",
         schedule: buildCompanyLoanSchedule({
           principal: body.principal,
-          months: Number(body.months),
-          installmentsPerMonth: Number(body.installmentsPerMonth) as 1 | 2,
-          annualFlatInterestBasisPoints: Number(body.annualFlatInterestBasisPoints),
+          months: body.months,
+          installmentsPerMonth: body.installmentsPerMonth,
+          annualFlatInterestBasisPoints: body.annualFlatInterestBasisPoints,
         }),
       }, { headers });
     }
