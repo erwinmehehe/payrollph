@@ -24,6 +24,10 @@ import {
   positionAssignments,
   positions,
   separationRecords,
+  separationClearanceWaivers,
+  sessions,
+  users,
+  userOrganizations,
   workerEffectiveChanges,
   workerEmploymentEvents,
 } from "@/db/schema";
@@ -45,6 +49,11 @@ import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { runLifecycleAutomations } from "@/lib/automation";
 import { requestOffboardingIT } from "@/lib/it-offboarding";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import {
+  DEPARTMENT_FIELDS, externalAccessRevoked, isOffboardingDepartment,
+  offboardingClearanceStatus, waiverEvidenceValid, waiverReviewerEligible,
+} from "@/lib/offboarding-clearance";
 import { seedProvisioning } from "@/lib/provisioning";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
@@ -309,10 +318,25 @@ export async function GET(request: Request) {
     .where(access.companyWide ? filter : and(filter, eq(employees.orgUnitId, access.orgUnitId!)))
     .orderBy(desc(separationRecords.id));
 
+  const offboardingEnabled = criticalReleaseFlagEnabled("offboardingClearance");
+  const waiverRows = offboardingEnabled && records.length > 0
+    ? await db.select().from(separationClearanceWaivers).where(and(
+        eq(separationClearanceWaivers.organizationId, organizationId),
+        inArray(separationClearanceWaivers.separationId, records.map(row => row.sep.id)),
+        isNull(separationClearanceWaivers.revokedAt),
+      ))
+    : [];
   return Response.json({
     currentUserId: user.id,
     manualReleaseEnabled: process.env.FINAL_PAY_MANUAL_RELEASE_ENABLED === "true",
+    offboardingClearanceEnabled: offboardingEnabled,
+    canAuthorizeClearanceWaivers: offboardingEnabled && access.companyWide &&
+      ["owner", "admin"].includes(access.role),
     separations: records.map(({ sep, employee }) => ({
+      waivedDepartments: offboardingEnabled ? offboardingClearanceStatus(sep, waiverRows).waived : [],
+      clearanceReady: offboardingEnabled
+        ? offboardingClearanceStatus(sep, waiverRows).ready
+        : sep.itCleared && sep.adminCleared && sep.financeCleared && sep.hrCleared,
       ...sep,
       employeeName: `${employee.firstName} ${employee.lastName}`,
       employeeNo: employee.employeeNo,
@@ -824,6 +848,18 @@ export async function POST(request: Request) {
           eq(separationRecords.organizationId, organizationId),
         )).returning();
         if (!updated) throw new Error("Open separation package changed while it was being recomputed.");
+        if (criticalReleaseFlagEnabled("offboardingClearance")) {
+          // Any recomputation invalidates Finance's waiver; a material change
+          // to the approved exit facts invalidates every other waiver.
+          await tx.update(separationClearanceWaivers).set({
+            revokedAt: new Date(), revokedByUserId: user.id,
+          }).where(and(
+            eq(separationClearanceWaivers.organizationId, organizationId),
+            eq(separationClearanceWaivers.separationId, updated.id),
+            isNull(separationClearanceWaivers.revokedAt),
+            separationFactsChanged ? undefined : eq(separationClearanceWaivers.department, "finance"),
+          ));
+        }
         record = updated;
       } else {
         const [inserted] = await tx.insert(separationRecords).values({
@@ -1148,9 +1184,28 @@ export async function PATCH(request: Request) {
           financeCleared: field === "financeCleared" ? requested : fresh.financeCleared,
           hrCleared: field === "hrCleared" ? requested : fresh.hrCleared,
         };
+        let resolved = Object.values(next).every(Boolean);
+        if (criticalReleaseFlagEnabled("offboardingClearance")) {
+          // A changed department sign-off invalidates that department's
+          // previous exception, preserving its audit/history record.
+          await tx.update(separationClearanceWaivers).set({
+            revokedAt: new Date(), revokedByUserId: user.id,
+          }).where(and(
+            eq(separationClearanceWaivers.organizationId, sep.organizationId),
+            eq(separationClearanceWaivers.separationId, id),
+            eq(separationClearanceWaivers.department, field.slice(0, -7)),
+            isNull(separationClearanceWaivers.revokedAt),
+          ));
+          const remainingWaivers = await tx.select().from(separationClearanceWaivers).where(and(
+            eq(separationClearanceWaivers.organizationId, sep.organizationId),
+            eq(separationClearanceWaivers.separationId, id),
+            isNull(separationClearanceWaivers.revokedAt),
+          ));
+          resolved = offboardingClearanceStatus({ ...fresh, ...next }, remainingWaivers).ready;
+        }
         const [row] = await tx.update(separationRecords).set({
           ...next,
-          clearanceStatus: Object.values(next).every(Boolean) ? "cleared" : "in_progress",
+          clearanceStatus: resolved ? "cleared" : "in_progress",
         }).where(and(
           eq(separationRecords.id, id),
           eq(separationRecords.organizationId, sep.organizationId),
