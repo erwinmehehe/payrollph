@@ -2,7 +2,10 @@
 
 import { ArrowRight, Check, CircleAlert, ShieldCheck, UsersRound, WalletCards } from "lucide-react";
 import type { FirstPayrollReadiness as FirstPayrollReadinessState } from "@/lib/first-payroll-readiness";
-import { buildFirstPayrollJourney } from "@/lib/first-payroll-journey";
+import { buildFirstPayrollJourney, type FirstPayrollKey } from "@/lib/first-payroll-journey";
+import { FirstPayrollInlinePanel } from "./first-payroll-inline-panel";
+import { useState } from "react";
+import type { DashboardData } from "./types";
 
 export function FirstPayrollReadinessCard({
   readiness,
@@ -11,6 +14,8 @@ export function FirstPayrollReadinessCard({
   onSettings,
   allowedPages,
   guided = false,
+  data,
+  onRefresh,
 }: {
   readiness: FirstPayrollReadinessState;
   onPage: (page: string) => void;
@@ -18,7 +23,10 @@ export function FirstPayrollReadinessCard({
   onSettings?: (tab: "organization" | "team") => void;
   allowedPages: readonly string[];
   guided?: boolean;
+  data?: DashboardData;
+  onRefresh?: () => Promise<void>;
 }) {
+  const [opened,setOpened]=useState<FirstPayrollKey|null>(null);
   // Keep the export/filing handoff visible after the first run is released.
   // Once a second run exists, the employer has completed the initial journey.
   if (readiness.firstPayrollReleased && readiness.payrollRunCount > 1) return null;
@@ -59,14 +67,12 @@ export function FirstPayrollReadinessCard({
               </span>
             </div>
             <p style={{ fontSize: 12, margin: "8px 0" }}>{step.detail}</p>
-            {step.state !== "complete" && step.state !== "upcoming" && allowedPages.includes(step.page) && (
-              <button type="button" className="first-payroll-link" onClick={() => {
-                if (step.settingsTab && onSettings) onSettings(step.settingsTab);
-                onPage(step.page);
-              }}>
-                {step.actionLabel} <ArrowRight size={13} />
+            {step.state !== "complete" && data && onRefresh && (
+              <button type="button" className="first-payroll-link" aria-expanded={opened===step.key} onClick={() => setOpened(current=>current===step.key?null:step.key)}>
+                {opened===step.key?"Close panel":step.actionLabel} <ArrowRight size={13} />
               </button>
             )}
+            {opened===step.key&&data&&onRefresh&&<FirstPayrollInlinePanel key={step.key} step={step.key} data={data} onRefresh={onRefresh}/>}
           </li>
         ))}
       </ol>}
