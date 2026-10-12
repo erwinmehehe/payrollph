@@ -1,3 +1,5 @@
+**Migration source update (2026-10-12):** PR #865 proposes canonical numbered SQL `drizzle/0118_wfm_roster_scale_rules.sql`. This is SOURCE ONLY; not applied to Neon or approved for WFM activation. Earlier `0115` reservation notes below are historical.
+
 # Linaw WFM: cross-functional pilot acceptance matrix
 
 **Status:** Draft acceptance plan, 2026-10-10. **No acceptance tests or human sign-offs are implied by this document.** This file is safe to keep in GitHub because it must not contain employee, bank, payroll or personal identifiers.
@@ -64,7 +66,7 @@ The AI-assisted panel can prepare and test the design/code. It **cannot imperson
 | WFM-09 | P0 | Unauthorized employee/manager tries to self-approve claim, timecard or payroll | Maker/checker separation enforced in server API; audit actor/source evidence intact | Security + Payroll |
 | WFM-10 | P0 | Feature flags OFF and simulated provider failure/retry | No real notification/clocking worker/pay or bank operation; safe retry/rollback and error visibility | SRE + Security |
 | WFM-11 | P1 | Visibility refresh, failed network, rapid page changes and mobile back/forward | Current view remains scoped; stale responses cannot win; errors explain next action | UX + QA |
-| WFM-12 | P1 | Clock-in watch on more than 200 assignments | No false complete-coverage or partial alerts; record known limit until paged/leased scan is verified | SRE + WFM |
+| WFM-12 | P1 | Clock-in watch on more than 200 assignments | Feature-gated keyset pagination reads the full eligible cohort before emitting alerts; 1,000-row synthetic database test exercises six bounded pages. **Engineering candidate only, NOT independently accepted:** verify scheduler lease, full coverage, app UI, tenant scope and notifications in staging | SRE + WFM |
 | WFM-13 | P1 | Low-bandwidth mobile employee schedule, correction and shift claims | Usable navigation, labels, focus, accessible feedback; no silent offline success | UX + Employee |
 | WFM-14 | P1 | Real biometric/offline device replay, clock drift and conflicting entries | Remains a separate **uncertified** integration gate; no real-device claim from synthetic test | Device + Security |
 
@@ -97,3 +99,15 @@ The AI-assisted panel can prepare and test the design/code. It **cannot imperson
 5. Only after those gates consider sector-specific BPO and retail packs, forecasts and broader HCM integrations.
 
 Links: [WFM roadmap #678](https://github.com/erwinmehehe/payrollph/issues/678) · [integration board #674](https://github.com/erwinmehehe/payrollph/issues/674) · [real payroll pilot #579](https://github.com/erwinmehehe/payrollph/issues/579) · [production readiness #112](https://github.com/erwinmehehe/payrollph/issues/112).
+
+## WFM-12 engineering candidate (2026-10-12 — NOT an acceptance sign-off)
+
+**Canonical migration is source-only:** #865 merged `drizzle/0118_wfm_roster_scale_rules.sql` into `main`. It has not been executed on live Neon; reconcile the production schema and obtain DBA approval before running a controlled rehearsal or enabling `WFM_ROSTER_SCALE_RULES_ENABLED`.
+
+The opt-in `WFM_ROSTER_SCALE_RULES_ENABLED` gate introduces a paged clock-in watch scanner (200 assignment rows per keyset page, maximum 20,000). No alert event is invoked until all pages and worker schedule reads succeed. Above the explicit hard cap, it reports `cohort-too-large` and emits nothing; a failed read must not mark a partial population as complete. A 1,000-assignment disposable PostgreSQL test verifies six pages (five 200-row pages plus empty terminal page) and no cross-tenant contamination; the separate pure tests cover truncation, duplicate employee assignments and invalid date windows.
+
+Team-roster GET already paged employees in groups of 20. New requests can optionally set `endDate` for a bounded 1–14-day window; intersecting assignment reads now restrict both effective start and end. Page totals, daily digests and CSV downloads remain **explicitly page-local**, not whole-employer coverage signals. The new date-range contract is off until the release gate is enabled.
+
+Roster-publish checks reuse existing schedule resolution and legacy guardrails. Additional tenant-configured checks label daily/weekly scheduling caps, gaps, overlapping shifts, independently approved OT caps, and rest-day/holiday premium implications. Only configured scheduling policy blockers (daily, weekly, rest gap) can be manager-excepted with a 12–240 character reason. Overlap and OT authorization blocks cannot be manager-waived; premium warnings never alter wages. The existing company advisory lock, original maker/checker requirements for governed bulk batches, same-transaction audit rows and `sealAuditEvents` hash chaining remain in place.
+
+**Must still execute before marking WFM-12 PASS:** full exact-head CI, migration rehearsal, 1,000-row paged watch under a leased scheduler tick, tenant A/B and restricted manager app UAT, duplicate/history/race and interruption cases, notifications deduped after retries, SRE + WFM independent sign-off, and performance/latency evidence at representative employers. Automated source or synthetic tests alone cannot certify the acceptance matrix. PH defaults require payroll/legal validation before production enablement.

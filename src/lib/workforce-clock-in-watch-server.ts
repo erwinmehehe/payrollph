@@ -1,3 +1,4 @@
+import { emitWorkforceClockInWatch as emitRosterScaleClockInWatch } from "@/lib/workforce-roster-clock-in-watch-server";
 import { and, asc, eq, gt, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
@@ -19,6 +20,11 @@ const MAX_ELIGIBLE_ASSIGNMENTS = 200;
  * Every bounded scan must complete before advisory events can be emitted.
  */
 export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number) {
+  // Keep the existing clock-watch paging lane unchanged unless the independent
+  // WFM roster-scale feature is explicitly enabled.
+  if (criticalReleaseFlagEnabled("wfmRosterScaleRules")) {
+    return emitRosterScaleClockInWatch(now, graceMinutes);
+  }
   if (!Number.isFinite(now.getTime())
     || !Number.isSafeInteger(graceMinutes) || graceMinutes < 5 || graceMinutes > 60) {
     return { skipped: true as const, reason: "invalid-clock-in-watch-config" };
