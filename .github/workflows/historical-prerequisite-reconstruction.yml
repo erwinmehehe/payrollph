@@ -1,0 +1,68 @@
+name: P0-4 Historical Missing SQL Reconstruction (Disposable PostgreSQL)
+
+on:
+  pull_request:
+    paths:
+      - "tests/historical-prerequisite-reconstruction-postgres.test.mjs"
+      - "drizzle/0022_job_architecture_positions.sql"
+      - "drizzle/0050_hcm_core_worker_history.sql"
+      - "drizzle/0110_provider_events_inbox.sql"
+      - "drizzle/0112_wfm_operational_demand_observations.sql"
+      - "drizzle/0113_wfm_issued_demand_forecasts.sql"
+      - "drizzle/0114_wfm_demand_staffing_policies.sql"
+      - ".github/workflows/historical-prerequisite-reconstruction.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tests/historical-prerequisite-reconstruction-postgres.test.mjs"
+      - ".github/workflows/historical-prerequisite-reconstruction.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-history:
+    name: Historical missing schema SQL PG${{ matrix.postgres }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      P0_4_HISTORICAL_REHEARSAL: isolated-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out reviewed source without saved credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Set up synthetic schema (never external DATABASE_URL)
+        run: npm run db:push
+      - name: Validate source and rollback reconstruction; no secrets
+        run: |
+          node --check tests/historical-prerequisite-reconstruction-postgres.test.mjs
+          node --test tests/historical-prerequisite-reconstruction-postgres.test.mjs
