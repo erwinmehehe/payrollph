@@ -39,8 +39,9 @@ test("COE reconciliation retains a failed storage delete and the leased sweep sa
     const [remains] = await db.select().from(documents).where(eq(documents.id, pending.id));
     assert.equal(remains.objectStorageKey, key);
     assert.equal(remains.scannedClean, false);
-    process.env.EMPLOYEE_HR_CASES_ENABLED = "true";
-    process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED = "true";
+    // Cleanup continues even if the HR/vault rollout is immediately switched OFF.
+    process.env.EMPLOYEE_HR_CASES_ENABLED = "false";
+    process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED = "false";
     const called: string[] = [];
     const sweep = await sweepPendingCoeObjects(new Date("2026-10-12T00:00:00Z"), 50,
       async (objectKey) => { called.push(objectKey); });
