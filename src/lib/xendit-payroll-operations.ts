@@ -59,7 +59,7 @@ async function xenditFrozenPayroll(run: PayrollRun) {
     rows.push({ payee, employeeId: employee.id, payrollEntryId: entry.id });
   }
   if (!rows.length) throw new Error("No positive-net-pay employees to disburse.");
-  if (rows.reduce((total, row) => total + row.payee.amountCents, 0) !== Math.round(Number(run.netPay) * 100)) {
+  if (rows.reduce((total, row) => total + BigInt(row.payee.amountCents), 0n) !== BigInt(payoutCentsFromNetPay(run.netPay))) {
     throw new Error("XENDIT_RELEASED_PAYROLL_TOTAL_MISMATCH");
   }
   const secret = process.env.XENDIT_PAYOUT_SECRET_KEY?.trim();
@@ -78,14 +78,13 @@ async function xenditFrozenPayroll(run: PayrollRun) {
 }
 
 async function latestPassedXenditPreflight(run: PayrollRun) {
-  const events = await db.select().from(auditEvents).where(and(
+  // Scope before LIMIT: unrelated tenant audit traffic must never evict a valid receipt.
+  const [event] = await db.select().from(auditEvents).where(and(
     eq(auditEvents.organizationId, run.organizationId),
     eq(auditEvents.action, "Xendit payroll preflight passed"),
-  )).orderBy(desc(auditEvents.id)).limit(250);
-  return events.find((event) => {
-    if (!event.metadata || typeof event.metadata !== "object") return false;
-    return Number((event.metadata as Record<string, unknown>).runId) === run.id;
-  }) ?? null;
+    sql`${auditEvents.metadata} ->> 'runId' = ${String(run.id)}`,
+  )).orderBy(desc(auditEvents.id)).limit(1);
+  return event ?? null;
 }
 
 /**
