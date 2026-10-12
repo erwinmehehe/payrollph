@@ -17,3 +17,7 @@ Rollback during the transition keeps the new dedicated key, previous key and sco
 ## Verification limits
 
 Executed tests use fictional ciphertext and call the real startup hook, decryptors and rewrap functions. They do not certify a production inventory, production rotation, restore, or actual employer data. UI screenshots are not applicable to this server-only change. The legacy-read flag defaults off; it adds no visible UI.
+
+## Isolated synthetic CI configuration
+
+The four import, browser, pilot and HTTP smoke workflows generate a new masked, in-memory 32-byte `PII_ENCRYPTION_KEY` for their disposable PostgreSQL test run. These are not real production keys and are never included in reports. The server retains its production startup failure if the key is absent. Startup also rejects a PII key that equals the configured bank or TOTP secret, preventing accidental same-key reuse across purposes; this is covered by the synthetic production-boot test.
