@@ -3,7 +3,7 @@ import test from "node:test";
 import {readFileSync} from "node:fs";
 import {randomBytes} from "node:crypto";
 import {criticalReleaseFlagEnabled} from "../src/lib/critical-release-flags";
-import {photoCaptureDecision,evaluatePunchTiming,photosDueForPurge,photoExpiry,impossibleTravel,validPunchUuid,validDevicePunchTimestamp,drainExpiredPunchPhotoBatches,enhancedPunchEnabledForOrganization} from "../src/lib/workforce-punch-evidence";
+import {photoCaptureDecision,evaluatePunchTiming,photosDueForPurge,photoExpiry,impossibleTravel,validPunchUuid,validDevicePunchTimestamp,drainExpiredPunchPhotoBatches,enhancedPunchEnabledForOrganization,matchingPunchReplay} from "../src/lib/workforce-punch-evidence";
 import {encryptPunchPhoto,decryptPunchPhoto,stripJpegMetadata} from "../src/lib/workforce-punch-photo-crypto";
 import {resolveWebBundyPunchAnchor} from "../src/lib/web-bundy-overnight-anchor";
 
@@ -244,4 +244,24 @@ test("independent review serves oldest pending attendance first after tenant sco
   assert.match(source,/eq\(workforcePunchSubmissions.status,"pending"\),scopeClause/);
   assert.match(source,/orderBy\(asc\(workforcePunchSubmissions.serverReceivedAt\),/);
   assert.match(source,/asc\(workforcePunchSubmissions.id\)\)\.limit\(100\)/);
+});
+
+test("punch idempotency matches exact action and UTC instant, but allows transport replay",()=>{
+  const at=new Date("2026-10-12T02:35:00.000Z");
+  const stored={actionType:"clock_in",deviceOccurredAt:at};
+  assert.equal(matchingPunchReplay(stored,"clock_in",at.toISOString()),true);
+  assert.equal(matchingPunchReplay(stored,"clock_out",at.toISOString()),false);
+  assert.equal(matchingPunchReplay(stored,"clock_in","2026-10-12T02:35:00.001Z"),false);
+  assert.equal(matchingPunchReplay(stored,"clock_in","2026-10-12T02:35:00+00:00"),false);
+  assert.equal(matchingPunchReplay(stored,"clock_in","bad"),false);
+  assert.equal(matchingPunchReplay({...stored,deviceOccurredAt:new Date(NaN)},"clock_in",at.toISOString()),false);
+});
+test("both existing and simultaneous race paths reject a reused ID with changed punch identity",()=>{
+  const route=readFileSync("src/app/api/web-bundy/evidence/route.ts","utf8");
+  const matchers=route.match(/matchingPunchReplay\(/g)??[];
+  assert.equal(matchers.length,2,"check both pre-read and transaction race");
+  assert.match(route,/if\(!matchingPunchReplay\(existing,action,deviceOccurredAt\)\)/);
+  assert.match(route,/conflict=!matchingPunchReplay\(duplicate,action,deviceOccurredAt\)/);
+  assert.match(route,/code:"PUNCH_IDENTITY_CONFLICT"/);
+  assert.match(route,/if\(result\.conflict\)return respond/);
 });

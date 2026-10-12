@@ -111,3 +111,6 @@ On transient connectivity loss, the employee UI now reads its IndexedDB punch co
 // provide a no-photo human-reviewed attendance path while requiring a separate
 // verified backend withdrawal/purge and DPO handling for disconnected requests.
 // Synthetic UI source/unit checks are NOT witnessed RA 10173 acceptance.
+
+## Idempotency conflict protection (source-only regression)
+A queued action can be retried with the same client UUID after a lost HTTP response or a cutoff change, including an online-first request replayed offline. The server must confirm **the same original action and canonical device timestamp** before returning a positive existing receipt. Previously a reused UUID could acknowledge a *different* clock action or instant, causing the second action to be discarded from IndexedDB. Both the direct duplicate lookup and the simultaneous insert-conflict path now issue `409 PUNCH_IDENTITY_CONFLICT` instead. The client preserves conflicting local actions for HR resolution and cannot treat them as payable or automatically re-key them. Synthetic unit and source invariants cover both paths; independent device and role UAT remains outstanding.
