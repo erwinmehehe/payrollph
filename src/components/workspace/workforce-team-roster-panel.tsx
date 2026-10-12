@@ -18,8 +18,10 @@ import type { Notify } from "./types";
 import { EmptyState, Spinner, Status } from "./ui";
 import { WorkforceScheduleReceiptReview } from "./workforce-schedule-receipt-review";
 import { useScopedAsyncResource } from "./use-scoped-async-resource";
+import type { WfmRosterFinding } from "@/lib/workforce-roster-rules";
 
 type TeamRosterResponse = {
+  windowingEnabled?: boolean;
   weekDates: string[];
   startDate: string;
   endDate: string;
@@ -94,6 +96,9 @@ export function WorkforceTeamRosterPanel({
   const [shiftChoice, setShiftChoice] = useState("REST");
   const [worksiteChoice, setWorksiteChoice] = useState("");
   const [reason, setReason] = useState("");
+  const [ruleOverrideReason, setRuleOverrideReason] = useState("");
+  const [rulePreview, setRulePreview] = useState<{key:string;findings:WfmRosterFinding[];blocked:boolean;guardrailIssues:Array<{blocking:boolean;detail:string}>}|null>(null);
+  const [rulePreviewing, setRulePreviewing] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [editorFailure, setEditorFailure] = useState<{ scopeKey: string; message: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -168,13 +173,55 @@ export function WorkforceTeamRosterPanel({
     setShiftChoice("");
     setWorksiteChoice("");
     setReason("");
+    setRuleOverrideReason("");
+    setRulePreview(null);
     setAcknowledged(false);
     setEditorError("");
+  }
+
+  const rulePreviewKey = editor ? JSON.stringify([
+    organizationId, scopeKey, editor.employee.id, editor.day.date,
+    shiftChoice, worksiteChoice, ruleOverrideReason,
+  ]) : "";
+  async function checkRulesBeforePublish() {
+    if (!editor || !shiftChoice || rulePreviewing || !payload?.windowingEnabled) return;
+    const checkedKey = rulePreviewKey;
+    setRulePreview(null);
+    setRulePreviewing(true);
+    setEditorError("");
+    try {
+      const res = await fetch("/api/workforce/roster-rules/preview", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          organizationId, employeeId: editor.employee.id, workDate: editor.day.date,
+          kind: shiftChoice === "REST" ? "rest_day" : "shift",
+          shiftDefinitionId: shiftChoice === "REST" ? null : Number(shiftChoice),
+          worksiteId: worksiteChoice ? Number(worksiteChoice) : editor.day.worksiteId,
+          ruleOverrideReason,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw Error(body.error ?? "Rules preview unavailable.");
+      setRulePreview({
+        key: checkedKey,
+        findings: Array.isArray(body.ruleFindings) ? body.ruleFindings : [],
+        guardrailIssues: Array.isArray(body.guardrailIssues) ? body.guardrailIssues : [],
+        blocked: Boolean(body.blocked),
+      });
+    } catch (e) {
+      setEditorError(e instanceof Error ? e.message : "Rules could not be previewed.");
+    } finally {
+      setRulePreviewing(false);
+    }
   }
 
   async function saveOverride() {
     if (!editor || !canManage || editor.organizationId !== organizationId || editor.scopeKey !== scopeKey || editor.day.date <= todayInManila()
       || !acknowledged || !reason.trim() || !shiftChoice || saving) return;
+    if (payload?.windowingEnabled && (rulePreview?.key !== rulePreviewKey || rulePreview?.blocked === true)) {
+      setEditorError("Review roster rule findings for this exact draft before publishing.");
+      return;
+    }
     setSaving(true);
     setEditorError("");
     const rest = shiftChoice === "REST";
@@ -193,6 +240,7 @@ export function WorkforceTeamRosterPanel({
           // Keep effective site unless manager explicitly selects another.
           worksiteId: worksiteChoice ? Number(worksiteChoice) : editor.day.worksiteId,
           reason: reason.trim(),
+          ...(payload?.windowingEnabled ? { ruleOverrideReason: ruleOverrideReason.trim() } : {}),
         }),
       });
       const body = await response.json().catch(() => ({}));
@@ -473,14 +521,37 @@ export function WorkforceTeamRosterPanel({
                 placeholder="Explain why this roster change is needed"
               />
             </label>
+            {payload?.windowingEnabled && <label>
+              Policy exception reason (optional, 12+ characters for eligible blockers)
+              <input maxLength={240} value={ruleOverrideReason}
+                onChange={event => setRuleOverrideReason(event.target.value)}
+                placeholder="This cannot waive overlapping shifts, overtime caps or premiums" />
+            </label>}
             <label style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
               <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
               <span>I understand this approved change may require timesheet review and can affect payroll treatment.</span>
             </label>
           </div>
+          {payload?.windowingEnabled && <div style={{ padding: "0 18px 12px" }}>
+            <button type="button" className="secondary-button"
+              disabled={!shiftChoice || rulePreviewing || saving}
+              onClick={() => void checkRulesBeforePublish()}>
+              {rulePreviewing ? "Checking..." : "Check roster rules and premium implications"}
+            </button>
+            {rulePreview?.key === rulePreviewKey && <section aria-label="Pre-publish roster findings" role="status">
+              <p>{rulePreview?.blocked === true ? "Blocking findings: do not publish." : "Rule preview passed. Review all premium warnings before publishing."}</p>
+              {rulePreview.findings.length === 0 && rulePreview.guardrailIssues.length === 0 && <p>No roster rule findings.</p>}
+              {rulePreview.findings.map((finding, index) => <p key={index}>
+                <strong>{finding.severity === "blocking" ? "BLOCKING" : "WARNING"} - {finding.code}</strong> - {finding.date}: {finding.message}
+              </p>)}
+              {rulePreview.guardrailIssues.map((issue, index) => <p key={index}>
+                <strong>{issue.blocking ? "BLOCKING" : "WARNING"} - Existing guardrail</strong> - {issue.detail}
+              </p>)}
+            </section>}
+          </div>}
           {editorError && <div className="notice notice-red" role="alert" style={{ margin: "0 18px 16px" }}>{editorError}</div>}
           <div className="run-actions" style={{ padding: "0 18px 18px" }}>
-            <button type="button" className="primary-button brand" disabled={saving || !reason.trim() || !acknowledged || !shiftChoice || (!payload?.shifts.length && shiftChoice !== "REST")} onClick={() => void saveOverride()}>
+            <button type="button" className="primary-button brand" disabled={saving || rulePreviewing || !reason.trim() || !acknowledged || !shiftChoice || (!payload?.shifts.length && shiftChoice !== "REST") || (payload?.windowingEnabled === true && (rulePreview?.key !== rulePreviewKey || rulePreview?.blocked === true))} onClick={() => void saveOverride()}>
               {saving ? <Spinner label="Saving" /> : <ShieldCheck size={15} />} Apply audited override
             </button>
           </div>
