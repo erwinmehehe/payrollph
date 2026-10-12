@@ -40,8 +40,10 @@ export function WorkforceGreedyRosterPanel({organizationId,worksites}:{
   const controller=useRef<AbortController|null>(null);
   const scope=JSON.stringify([organizationId,siteId,firstDate,lastDate]);
   const scopeNow=useRef(scope);
-  scopeNow.current=scope;
-  useEffect(()=>()=>{controller.current?.abort();},[scope]);
+  useEffect(()=>{
+    scopeNow.current=scope;
+    return ()=>{controller.current?.abort();};
+  },[scope]);
   const visible=preview?.scope===scope?preview.result:null;
   const currentError=error?.scope===scope?error.message:null;
   async function generate(){
