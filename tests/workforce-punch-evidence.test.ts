@@ -3,8 +3,9 @@ import test from "node:test";
 import {readFileSync} from "node:fs";
 import {randomBytes} from "node:crypto";
 import {criticalReleaseFlagEnabled} from "../src/lib/critical-release-flags";
-import {photoCaptureDecision,evaluatePunchTiming,photosDueForPurge,photoExpiry,impossibleTravel,validPunchUuid} from "../src/lib/workforce-punch-evidence";
+import {photoCaptureDecision,evaluatePunchTiming,photosDueForPurge,photoExpiry,impossibleTravel,validPunchUuid,validDevicePunchTimestamp} from "../src/lib/workforce-punch-evidence";
 import {encryptPunchPhoto,decryptPunchPhoto,stripJpegMetadata} from "../src/lib/workforce-punch-photo-crypto";
+import {resolveWebBundyPunchAnchor} from "../src/lib/web-bundy-overnight-anchor";
 
 test("flag stays OFF unless explicitly enabled",()=>{
   assert.equal(criticalReleaseFlagEnabled("workforcePunchEvidence",{}),false);
@@ -96,4 +97,68 @@ test("UUID inputs are exact length and shape before touching varchar(36) columns
     "00000000-0000-4000-8000-000000000001".repeat(2),
     "00000000-0000-0000-0000-000000000001",
   ])assert.equal(validPunchUuid(bad),false,bad.slice(0,40));
+});
+
+test("browser punch timestamp is an exact canonical UTC instant, never server-local time",()=>{
+  assert.equal(validDevicePunchTimestamp("2026-10-12T02:35:00.000Z"),true);
+  for(const invalid of [
+    "2026-10-12T02:35:00",
+    "2026-10-12T02:35:00Z",
+    "2026-10-12T02:35:00.000+08:00",
+    "2026-02-30T02:35:00.000Z",
+    "2026-13-12T02:35:00.000Z",
+    "2026-10-12T25:00:00.000Z",
+  ]){
+    assert.equal(validDevicePunchTimestamp(invalid),false,invalid);
+    assert.deepEqual(evaluatePunchTiming(invalid,new Date("2026-10-12T03:00:00.000Z"),"offline"),["time-invalid"]);
+  }
+});
+
+test("reviewed midnight clock-out closes the eligible prior Manila shift, not today's row",()=>{
+  const previous={
+    workDate:"2026-10-12",
+    timeIn:new Date("2026-10-12T15:30:00.000Z"), // 23:30 Manila
+    timeOut:null,
+    source:"web_bundy",
+  };
+  const target=new Date("2026-10-12T18:15:00.000Z"); // 02:15 Manila next day
+  const input={
+    today:"2026-10-13",now:target,todayPunch:null,
+    previousPunch:previous,action:"clock_out" as const,
+  };
+  assert.deepEqual(resolveWebBundyPunchAnchor(input),{
+    workDate:"2026-10-12",usePrevious:true,
+    previousOpenRequiresClose:false,previousShiftNeedsReview:false,
+  });
+  // An unresolved prior-day shift disallows a new clock-in or competing
+  // today's record, preventing duplicate payable attendance.
+  const clockIn=resolveWebBundyPunchAnchor({...input,action:"clock_in"});
+  assert.equal(clockIn.previousOpenRequiresClose,true);
+  assert.equal(clockIn.usePrevious,false);
+  const today={workDate:"2026-10-13",timeIn:new Date("2026-10-12T17:50:00Z"),timeOut:null,source:"web_bundy"};
+  assert.equal(resolveWebBundyPunchAnchor({...input,todayPunch:today}).previousShiftNeedsReview,true);
+  assert.equal(resolveWebBundyPunchAnchor({...input,previousPunch:{...previous,source:"manual"}}).previousShiftNeedsReview,true);
+  assert.equal(resolveWebBundyPunchAnchor({...input,now:new Date("2026-10-13T14:45:00Z")}).previousShiftNeedsReview,true);
+});
+
+test("review approval holds multiple days under payroll cutoff and uses atomic audit",()=>{
+  const review=readFileSync("src/app/api/web-bundy/review/route.ts","utf8");
+  const stage=readFileSync("src/app/api/web-bundy/evidence/route.ts","utf8");
+  const policy=readFileSync("src/app/api/workforce/worksites/route.ts","utf8");
+  const offline=readFileSync("src/lib/workforce-punch-offline-queue.ts","utf8");
+  assert.match(review,/resolveWebBundyPunchAnchor/);
+  assert.match(review,/previousManilaWorkDate/);
+  assert.match(review,/workforceAttendancePeriodLocks/);
+  assert.match(review,/for\\(const date of new Set\\(\\[String\\(fresh\\.workDate\\),chosenDate,effectiveDate\\]\\)\\)/);
+  assert.match(review,/attendanceMutationLock\\(locks,date,"capture"\\)/);
+  assert.match(review,/sourceWorkDate:String\\(fresh\\.workDate\\),approvedWorkDate/);
+  assert.match(review,/await tx\\.insert\\(auditEvents\\)/);
+  assert.match(stage,/liveSitePolicy/);
+  assert.match(stage,/geofence-unverified/);
+  assert.match(stage,/geofence-verified/);
+  assert.match(policy,/pg_advisory_xact_lock\\(6108/);
+  assert.match(policy,/await tx\\.insert\\(auditEvents\\)/);
+  assert.match(offline,/indexedDB\\.open\\(DB_NAME,2\\)/);
+  assert.match(offline,/installationPunchDeviceId/);
+  assert.match(offline,/transaction\\.oncomplete/);
 });
