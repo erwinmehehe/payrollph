@@ -8,7 +8,7 @@
     "worker": "tsx scripts/worker.ts",
     "lint": "node scripts/check-lint-warning-debt.mjs",
     "typecheck": "tsc --noEmit",
-    "db:push": "drizzle-kit push",
+    "db:push": "node scripts/guard-db-push.mjs && drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "security:preflight": "tsx scripts/security-preflight.ts",
     "seo:audit": "tsx scripts/seo-launch-audit.ts",
