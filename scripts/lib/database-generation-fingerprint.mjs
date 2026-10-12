@@ -61,22 +61,29 @@ export function assessDatabaseGeneration(row) {
     [row.usersIdType, row.employeesIdType, row.payrollRunsIdType].every(isInteger) &&
     row.hasLegacyClients === false;
   if (currentAppShape) {
-    // Proposed #865 SQL 0117 and 0119 reference these pre-existing objects.
-    // A missing one makes the numbered train unsafe to execute as written.
-    const sourcePrerequisites = [
+    // Current seven-step draft train: 0115 proposes payout_profiles; 0116
+    // proposes payout_batches/transfers/links. Their absence on main is NOT
+    // proof that 0119 is an independently executable migration. Record as
+    // unapplied SOURCE DDL, never fabricate table-existence receipts.
+    const proposedDraftTables = [
+      ["payout_profiles", row.hasPayoutProfiles],
       ["payout_batches", row.hasPayoutBatches],
       ["payout_transfers", row.hasPayoutTransfers],
       ["payout_batch_transfers", row.hasPayoutBatchTransfers],
-      ["payout_profiles", row.hasPayoutProfiles],
-      ["worker_employment_events", row.hasWorkerEmploymentEvents],
     ];
-    const missingTrainPrerequisites = sourcePrerequisites
+    const unappliedDraftTables = proposedDraftTables
       .filter(([, exists]) => exists !== true).map(([name]) => name);
+    // 0121 references this historic table, which no 0115-0121 draft creates.
+    const missingTrainPrerequisites =
+      row.hasWorkerEmploymentEvents === true ? [] : ["worker_employment_events"];
     const journalReady = row.hasMigrationReceipts === true &&
       row.hasMigrationJournal === true && row.hasMigrationCutover === true;
     return {
       generation: "organization-integer",
       missingTrainPrerequisites,
+      unappliedDraftTables,
+      sourceMigrationSequenceRequired: unappliedDraftTables.length > 0,
+      // Review-only; never signals permission to run SQL on a live database.
       eligibleForMigrationReview: journalReady && missingTrainPrerequisites.length === 0,
       productionMigrationApproved: false,
       reason: missingTrainPrerequisites.length
