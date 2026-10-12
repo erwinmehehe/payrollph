@@ -37,6 +37,7 @@ import { EmployeeDocumentsPanel } from "@/components/employee-documents-panel";
 import { HcmSelfProbationReviews } from "@/components/hcm-self-probation-reviews";
 import { HcmSelfPerformance } from "@/components/hcm-self-performance";
 import { WebBundyModal } from "@/components/web-bundy-modal";
+import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { DEMO_ROLES, demoRolePath, type DemoRoleId } from "@/lib/demo-roles";
@@ -263,6 +264,7 @@ function statusTone(status: string) {
 }
 
 export function SelfServicePortal() {
+  const workflowUi = useWorkflowUi();
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demoRole") === "employee";
   const [language, setLanguage] = useState<EssLanguage>("en");
@@ -985,6 +987,15 @@ export function SelfServicePortal() {
                     <div className="employee-pay-row-detail" id={"employee-payslip-" + slip.entryId}>
                       <div><span>{t("Gross")}</span><strong>{peso(slip.gross)}</strong></div>
                       <div><span>{t("Deductions")}</span><strong>{peso(slip.deductions)}</strong></div>
+                      {workflowUi.benefitsLoans && <div style={{ display: "block" }} aria-label="Benefits and loan payslip lines">
+                        <strong>Benefits and loan lines (stored payroll amounts)</strong>
+                        {slip.lineItems.filter(line => /^(BEN-|LOAN|SSS-LOAN|HDMF-LOAN)/i.test(String(line.code ?? ""))).length === 0
+                          ? <p>No benefit or loan deduction lines recorded on this payslip.</p>
+                          : <ul>{slip.lineItems.filter(line => /^(BEN-|LOAN|SSS-LOAN|HDMF-LOAN)/i.test(String(line.code ?? "")))
+                            .map((line,i) => <li key={String(line.code)+i}>
+                              {line.label || line.code}: {peso(line.amount ?? 0)}
+                            </li>)}</ul>}
+                      </div>}
                       <a className="secondary-button" href={"/api/self/payslips/" + slip.entryId}><Download size={13} /> {t("Download PDF")}</a>
                       <EmployeeExplainPay entryId={slip.entryId} period={slip.period} language={language} />
                     </div>
