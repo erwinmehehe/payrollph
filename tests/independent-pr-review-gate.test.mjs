@@ -169,10 +169,15 @@ function fakeGithub({ files = [moneyFile], reviews = [human()], permission = "wr
         });
       }
       let body;
-      if (/\/pulls\/100\?$/.test(url)) body = pr(files);
-      else if (url.endsWith("/pulls/100")) body = pr(files, mismatch ? { head: { sha: prior } } : {});
-      else if (url.includes("/pulls/100/files?")) body = files;
-      else if (url.includes("/pulls/100/reviews?")) body = reviews;
+      if (url.endsWith("/pulls/100")) body = pr(files, mismatch ? { head: { sha: prior } } : {});
+      else if (url.includes("/pulls/100/files?")) {
+        const page = Number(new URL(url).searchParams.get("page"));
+        body = files.slice((page - 1) * 100, page * 100);
+      }
+      else if (url.includes("/pulls/100/reviews?")) {
+        const page = Number(new URL(url).searchParams.get("page"));
+        body = reviews.slice((page - 1) * 100, page * 100);
+      }
       else if (url.includes("/collaborators/reviewer/permission")) body = { permission };
       else throw new Error("unexpected GitHub URL");
       return new Response(JSON.stringify(body), {
@@ -216,4 +221,28 @@ test("workflow never executes untrusted PR head, never writes approval, and is p
   assert.doesNotMatch(source, /pull_request\.head\.sha.*\n\s*fetch-depth/);
   assert.doesNotMatch(source, /pull-requests: write/);
   assert.match(source, /PAYROLL_INDEPENDENT_REVIEWERS:/);
+});
+
+test("a sensitive change at file 101 cannot hide behind GitHub's first page", async () => {
+  const docs = Array.from({ length: 100 }, (_, index) => ({
+    filename: "docs/marketing/topic-" + index + ".md", status: "modified",
+  }));
+  const mock = fakeGithub({ files: [...docs, moneyFile] });
+  const gate = await checkIndependentReview(env, mock.fetcher);
+  assert.equal(gate.ok, true);
+  assert.equal(gate.scope.sensitiveFileCount, 1);
+  assert.ok(mock.calls.some(call => call.url.includes("files?per_page=100&page=2")),
+    "must inspect the second GitHub files page");
+});
+
+test("frozen WFM change on a later files page blocks even a valid approval", async () => {
+  const docs = Array.from({ length: 100 }, (_, index) => ({
+    filename: "docs/marketing/topic-" + index + ".md", status: "modified",
+  }));
+  const mock = fakeGithub({ files: [
+    ...docs, { filename: "src/app/api/workforce/coverage/route.ts", status: "modified" },
+  ] });
+  const gate = await checkIndependentReview(env, mock.fetcher);
+  assert.equal(gate.ok, false);
+  assert.ok(gate.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
 });
