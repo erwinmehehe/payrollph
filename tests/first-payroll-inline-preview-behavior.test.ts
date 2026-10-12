@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { and, count, eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { db } from "../src/db";
 import {
   approvalTasks, auditEvents, employeePayProfiles, employees,
@@ -129,10 +129,15 @@ test("read-only preview creates ZERO payroll/approval/bank/filing/audit rows, in
       {organizationId:beta.id,employeeId:foreign.id,payBasis:"monthly",
         rateAmount:"42000.00",standardWorkDaysPerMonth:"22",standardHoursPerDay:"8"},
     ]);
-    const capture = async () => {
-      const entities=[payrollRuns,payrollEntries,payslips,approvalTasks,payoutBatches,governmentFilingValidations,auditEvents];
-      return Promise.all(entities.map(table => db.select({n:count()}).from(table).then(rows=>rows[0].n)));
-    };
+    const capture = async () => Promise.all([
+      db.select({n:count()}).from(payrollRuns).then(rows=>rows[0].n),
+      db.select({n:count()}).from(payrollEntries).then(rows=>rows[0].n),
+      db.select({n:count()}).from(payslips).then(rows=>rows[0].n),
+      db.select({n:count()}).from(approvalTasks).then(rows=>rows[0].n),
+      db.select({n:count()}).from(payoutBatches).then(rows=>rows[0].n),
+      db.select({n:count()}).from(governmentFilingValidations).then(rows=>rows[0].n),
+      db.select({n:count()}).from(auditEvents).then(rows=>rows[0].n),
+    ]);
     const before = await capture();
     const preview = await loadFirstPayrollPreview({
       organizationId:alpha.id,periodStart:"2026-10-01",periodEnd:"2026-10-15",
