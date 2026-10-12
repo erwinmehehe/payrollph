@@ -39,6 +39,7 @@ export async function checkWfmRosterPublish(input: {
   employeeId: number;
   days: readonly ResolvedDailySchedule[];
   targetDates: readonly string[];
+  baselineRestDates?: readonly string[];
   executor?: Reader;
 }) {
   if (!wfmRosterScaleRulesEnabled()) return {
@@ -74,7 +75,8 @@ export async function checkWfmRosterPublish(input: {
   }
   const findings=evaluateWfmRosterRules({
     days:input.days,policy,targetDates:input.targetDates,
-    designatedRestDay:employee.restDay,employeeOrgUnitId:employee.orgUnitId,
+    designatedRestDay:employee.restDay,baselineRestDates:input.baselineRestDates,
+    employeeOrgUnitId:employee.orgUnitId,
     holidays:holidayRows.flatMap(row=>row.kind==="regular"||row.kind==="special" ? [{
       date:String(row.date),name:row.name,kind:row.kind,
       orgUnitId:row.orgUnitId,worksiteId:row.worksiteId,
