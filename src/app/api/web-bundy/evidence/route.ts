@@ -120,13 +120,14 @@ export async function POST(request: Request) {
   const {photoMode,worksiteId,sites}=await sitePolicy(organizationId,employee!.id,date);
   if(geofencePilotEnabledForOrganization(organizationId)&&(action==="clock_in"||action==="clock_out")) {
     // Never accept stale offline raw GPS as valid location proof.
-    if(source==="offline") flags.push("clock-skew");
+    if(source==="offline") flags.push("geofence-unverified");
     else {
       const geoRaw=form.get("geolocation");
       let geo: unknown = null;
       if (typeof geoRaw === "string") { try { geo=JSON.parse(geoRaw); } catch { return respond({error:"Invalid location evidence."},422); } }
       const decision=evaluateGeofenceFix({fix:geo,sites,now:now.getTime()});
       if(!decision.ok)return respond({error:decision.error,code:decision.code},422);
+      flags.push("geofence-verified");
     }
   }
   const [consent]=await db.select().from(workforcePunchPhotoConsents).where(and(
@@ -193,6 +194,20 @@ export async function POST(request: Request) {
       if(latestConsent?.choice!=="accepted") {
         retainedPhotoId=null;
         flags.push("consent-declined");
+      }
+      // This is serialized with company-wide policy mutation in the same
+      // organization advisory lock. Photo withdrawal and a policy switch to
+      // "off" never leave post-change encrypted images behind.
+      if(retainedPhotoId){
+        const [liveSitePolicy]=await tx.select({photoMode:worksitePunchPolicies.photoMode})
+          .from(worksitePunchPolicies).where(and(
+            eq(worksitePunchPolicies.organizationId,organizationId),
+            eq(worksitePunchPolicies.worksiteId,worksiteId!),
+          )).limit(1);
+        if(liveSitePolicy?.photoMode!=="optional"&&liveSitePolicy?.photoMode!=="required"){
+          retainedPhotoId=null;
+          flags.push("photo-policy-changed");
+        }
       }
     }
     if(retainedPhotoId&&encrypted)await tx.insert(workforcePunchPhotoEvidence).values({
