@@ -132,7 +132,9 @@ async function main() {
   assert.ok(rows.rows.every(r => r.purpose === "requested-enquiry-follow-up"), "consent evidence persists");
 
   const outageEmail = mail("unavailable");
-  const outageProof = await obtain(unavailable, outageEmail);
+  const unavailableChallenge = await post(unavailable, "/api/intake-challenge", { email: outageEmail });
+  assert.equal(unavailableChallenge.status, 503, "challenge issuance must fail closed without PostgreSQL");
+  const outageProof = await obtain(base, outageEmail);
   const outageResponse = await post(unavailable, "/api/demo-requests", {
     ...demo, email: outageEmail, intakeProof: outageProof,
   });
