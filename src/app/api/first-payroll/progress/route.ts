@@ -53,7 +53,9 @@ export async function POST(request: Request) {
   if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
-  const body = await request.json().catch(() => ({}));
+  const payload: unknown = await request.json().catch(() => ({}));
+  const body: Record<string, unknown> = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? payload as Record<string, unknown> : {};
   const organizationId = Number(body.organizationId);
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0 || !isFirstPayrollKey(body.step))
     return Response.json({ error: "Invalid employer or journey step." }, { status: 400 });
