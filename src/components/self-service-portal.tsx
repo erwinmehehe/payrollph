@@ -38,6 +38,7 @@ import { HcmSelfProbationReviews } from "@/components/hcm-self-probation-reviews
 import { HcmSelfPerformance } from "@/components/hcm-self-performance";
 import { WebBundyModal } from "@/components/web-bundy-modal";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
+import { EmployeeRequestPanel } from "@/components/workspace/employee-case-ui";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { DEMO_ROLES, demoRolePath, type DemoRoleId } from "@/lib/demo-roles";
@@ -206,7 +207,7 @@ type Payload = {
   };
 };
 
-type SelfTab = "home" | "pay" | "time" | "leave" | "documents" | "performance" | "profile";
+type SelfTab = "home" | "pay" | "time" | "leave" | "documents" | "performance" | "profile" | "requests";
 
 const ESS_TAB_CONFIG: Record<SelfTab, { label: string; mobileLabel?: string; icon: LucideIcon }> = {
   home: { label: "Home", icon: House },
@@ -216,6 +217,7 @@ const ESS_TAB_CONFIG: Record<SelfTab, { label: string; mobileLabel?: string; ico
   documents: { label: "Documents", icon: FileText },
   performance: { label: "Performance", icon: BadgeCheck },
   profile: { label: "Profile", mobileLabel: "My info", icon: UserRound },
+  requests: { label: "Requests", mobileLabel: "Ask HR", icon: FileText },
 };
 
 const ESS_PRIMARY_TABS: SelfTab[] = ["home", "pay", "time", "leave"];
@@ -265,6 +267,8 @@ function statusTone(status: string) {
 
 export function SelfServicePortal() {
   const workflowUi = useWorkflowUi();
+  const visibleSelfTabs = workflowUi.employeeCases ? [...ESS_ALL_TABS, "requests" as const] : ESS_ALL_TABS;
+  const moreSelfTabs = workflowUi.employeeCases ? [...ESS_MORE_TABS, "requests" as const] : ESS_MORE_TABS;
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demoRole") === "employee";
   const [language, setLanguage] = useState<EssLanguage>("en");
@@ -561,7 +565,7 @@ export function SelfServicePortal() {
         </div>
         <div className="workspace-label employee-workspace-label"><span className="pulse-dot" />{t("Employee workspace")}</div>
         <nav className="side-navigation employee-side-nav" aria-label={t("Employee pages")}>
-          {ESS_ALL_TABS.map((value) => {
+          {visibleSelfTabs.map((value) => {
             const { icon: Icon, label } = ESS_TAB_CONFIG[value];
             return (
               <button
@@ -638,7 +642,7 @@ export function SelfServicePortal() {
             <button
               ref={moreButtonRef}
               type="button"
-              className={moreOpen || ESS_MORE_TABS.includes(tab) ? "active" : ""}
+              className={moreOpen || moreSelfTabs.includes(tab) ? "active" : ""}
               aria-expanded={moreOpen}
               aria-controls={moreOpen ? "employee-more-panel" : undefined}
               aria-label="More employee pages"
@@ -659,7 +663,7 @@ export function SelfServicePortal() {
                   </button>
                 </div>
                 <div className="employee-more-links">
-                  {ESS_MORE_TABS.map((value, index) => {
+                  {moreSelfTabs.map((value, index) => {
                     const { icon: Icon, label, mobileLabel } = ESS_TAB_CONFIG[value];
                     return (
                       <button
@@ -1087,6 +1091,11 @@ export function SelfServicePortal() {
         </section>
       )}
 
+      {workflowUi.employeeCases && tab === "requests" && data.employer && (
+        <section className="employee-section">
+          <EmployeeRequestPanel organizationId={data.employer.id} />
+        </section>
+      )}
       {tab === "documents" && data.employer && (
         <EmployeeDocumentsPanel organizationId={data.employer.id} language={language} />
       )}
