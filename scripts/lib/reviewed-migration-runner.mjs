@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { reconcileMigrationReceipts } from "./migration-receipt-audit.mjs";
+import { assertModernSchemaLineage } from "./schema-lineage-preflight.mjs";
 
 const MIGRATION_PATH = /^drizzle\/([0-9]{4})_[a-z0-9][a-z0-9_-]*\.sql$/;
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -232,6 +233,11 @@ export async function runReviewedMigrationOnClient({
           (identity.hasWritePrivileges || identity.canReadSensitiveRows))) {
       refuse("DATABASE_ROLE_OR_IDENTITY_REJECTED");
     }
+
+    // This runner only evolves a verified contemporary organization-id/
+    // integer-id database. It is NOT an in-place UUID/client-id converter.
+    // Metadata preflight reads only pg_catalog, never employee or bank values.
+    await assertModernSchemaLineage(client);
 
     const tables = (await client.query(
       "SELECT to_regclass('public.payrollph_release_migration_receipts') IS NOT NULL AS \"receipts\", " +
