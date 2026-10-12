@@ -42,6 +42,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 AI-assisted automation suggestions",
     approval: "Synthetic staging isolation and postmerge activation gates",
   },
+  multiEntity: {
+    env: "MULTI_ENTITY_ENABLED",
+    owner: "Security / Payroll Operations",
+    risk: "P0 employer payroll, statutory and personnel isolation",
+    approval: "DB clone migration, two-tenant/two-entity tests, golden payroll evidence and independent maker-checker UAT",
+  },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
     owner: "Product",
