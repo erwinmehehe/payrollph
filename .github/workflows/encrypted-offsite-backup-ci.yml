@@ -1,0 +1,74 @@
+name: Encrypted Offsite Backup Contract (Synthetic PostgreSQL 18)
+
+on:
+  pull_request:
+    paths:
+      - "scripts/lib/protected-offsite-backup-policy.mjs"
+      - "scripts/validate-protected-offsite-backup.mjs"
+      - "scripts/backup-neon-offsite-encrypted.sh"
+      - "scripts/rehearse-encrypted-offsite-backup.sh"
+      - "scripts/sql/protected-neon-backup-source.sql"
+      - ".github/workflows/protected-neon-offsite-backup.yml"
+      - ".github/workflows/encrypted-offsite-backup-ci.yml"
+      - "tests/protected-offsite-backup.test.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/lib/protected-offsite-backup-policy.mjs"
+      - "scripts/validate-protected-offsite-backup.mjs"
+      - "scripts/backup-neon-offsite-encrypted.sh"
+      - "scripts/rehearse-encrypted-offsite-backup.sh"
+      - ".github/workflows/encrypted-offsite-backup-ci.yml"
+      - "tests/protected-offsite-backup.test.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-pg18:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      DR_OFFSITE_SMOKE: isolated-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout exactly submitted source with no saved credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Test backup request policy and deny unsafe targets
+        run: |
+          node --check scripts/lib/protected-offsite-backup-policy.mjs
+          node --check scripts/validate-protected-offsite-backup.mjs
+          bash -n scripts/backup-neon-offsite-encrypted.sh
+          bash -n scripts/rehearse-encrypted-offsite-backup.sh
+          node --test tests/protected-offsite-backup.test.mjs
+      - name: Install age on disposable GitHub runner
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq age
+      - name: Synthetic PG18 custom dump, age round-trip, wrong-key rejection, restore
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: bash scripts/rehearse-encrypted-offsite-backup.sh
+
+# This test never sees production data, credentials, AWS, or provider money.
