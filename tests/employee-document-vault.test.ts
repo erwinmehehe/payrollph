@@ -59,3 +59,33 @@ test("bookkeeper, manager, payroll checker and unknown staff cannot access HR va
     assert.equal(canStaffOpenEmployeeVault(role), false);
   }
 });
+
+test("S3-style document URLs are short-lived, private, scoped and credential-safe", async () => {
+  const { signedDocumentObjectUrl, documentStorageConfig } = await import("../src/lib/document-object-storage");
+  const config = documentStorageConfig({
+    NODE_ENV: "production",
+    DOCUMENT_OBJECT_STORAGE_ENDPOINT: "https://s3.example.invalid/",
+    DOCUMENT_OBJECT_STORAGE_BUCKET: "private-documents-test",
+    DOCUMENT_OBJECT_STORAGE_REGION: "ap-southeast-1",
+    DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID: "test-not-a-secret",
+    DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: "synthetic-test-secret",
+  });
+  const key = "private-documents/4/15/00000000-0000-4000-8000-000000000001";
+  const url = signedDocumentObjectUrl(key, "GET", config, {
+    now: new Date("2026-10-12T00:00:00Z"), expirySeconds: 60,
+  });
+  assert.equal(url.protocol, "https:");
+  assert.equal(url.searchParams.get("X-Amz-Expires"), "60");
+  assert.equal(url.searchParams.get("X-Amz-Algorithm"), "AWS4-HMAC-SHA256");
+  assert.ok(url.searchParams.has("X-Amz-Signature"));
+  assert.equal(url.toString().includes("synthetic-test-secret"), false);
+  assert.throws(() => signedDocumentObjectUrl("../some-other-tenant/object", "GET", config));
+  assert.throws(() => signedDocumentObjectUrl(key, "GET", config, { expirySeconds: 301 }));
+  assert.throws(() => documentStorageConfig({
+    NODE_ENV: "production", DOCUMENT_OBJECT_STORAGE_ENDPOINT: "http://s3.example.invalid/",
+    DOCUMENT_OBJECT_STORAGE_BUCKET: "private-documents-test",
+    DOCUMENT_OBJECT_STORAGE_REGION: "ap-southeast-1",
+    DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID: "abc",
+    DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: "def",
+  }));
+});

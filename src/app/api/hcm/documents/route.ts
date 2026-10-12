@@ -122,9 +122,21 @@ export async function GET(request: Request) {
 
   const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
   const expiryNoticeRows = vaultEnabled
-    ? await db.select().from(hcmDocumentExpiryNotices).where(and(
+    ? await db.select({
+      id: hcmDocumentExpiryNotices.id,
+      complianceId: hcmDocumentExpiryNotices.complianceId,
+      documentId: hcmDocumentExpiryNotices.documentId,
+      employeeId: hcmDocumentExpiryNotices.employeeId,
+      expiresOn: hcmDocumentExpiryNotices.expiresOn,
+      milestoneDays: hcmDocumentExpiryNotices.milestoneDays,
+      createdAt: hcmDocumentExpiryNotices.createdAt,
+    }).from(hcmDocumentExpiryNotices).innerJoin(employees, and(
+      eq(employees.id, hcmDocumentExpiryNotices.employeeId),
+      eq(employees.organizationId, organizationId),
+    )).where(and(
       eq(hcmDocumentExpiryNotices.organizationId, organizationId),
       isNull(hcmDocumentExpiryNotices.acknowledgedAt),
+      access.companyWide ? undefined : eq(employees.orgUnitId, access.orgUnitId!),
     )).orderBy(desc(hcmDocumentExpiryNotices.createdAt)).limit(500)
     : [];
 
@@ -264,6 +276,21 @@ export async function POST(request: Request) {
       eq(hcmDocumentExpiryNotices.organizationId, organizationId),
     )).limit(1);
     if (!notice) return Response.json({ error: "Expiry notice not found." }, { status: 404 });
+    const [attachedCompliance] = await db.select({
+      employeeId: hcmEmployeeDocumentCompliance.employeeId,
+      documentId: hcmEmployeeDocumentCompliance.documentId,
+      expiresAt: hcmEmployeeDocumentCompliance.expiresAt,
+      status: hcmEmployeeDocumentCompliance.status,
+    }).from(hcmEmployeeDocumentCompliance).where(and(
+      eq(hcmEmployeeDocumentCompliance.id, notice.complianceId),
+      eq(hcmEmployeeDocumentCompliance.organizationId, organizationId),
+    )).limit(1);
+    if (!attachedCompliance || attachedCompliance.employeeId !== notice.employeeId ||
+      attachedCompliance.documentId !== notice.documentId ||
+      String(attachedCompliance.expiresAt) !== String(notice.expiresOn) ||
+      ["waived", "missing", "submitted"].includes(attachedCompliance.status)) {
+      return Response.json({ error: "This expiry notice is stale; refresh the inbox." }, { status: 409 });
+    }
     const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
       eq(employees.id, notice.employeeId), eq(employees.organizationId, organizationId),
     )).limit(1);

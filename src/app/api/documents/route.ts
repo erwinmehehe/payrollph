@@ -306,6 +306,10 @@ export async function POST(request: Request) {
             eq(hcmEmployeeDocumentCompliance.employeeId, employeeId!),
             eq(hcmEmployeeDocumentCompliance.requirementId, requirement.id),
             ne(hcmEmployeeDocumentCompliance.status, "waived"),
+            eq(hcmEmployeeDocumentCompliance.status, complianceRow.status),
+            complianceRow.expiresAt === null
+              ? isNull(hcmEmployeeDocumentCompliance.expiresAt)
+              : eq(hcmEmployeeDocumentCompliance.expiresAt, String(complianceRow.expiresAt)),
             complianceRow.documentId === null
               ? isNull(hcmEmployeeDocumentCompliance.documentId)
               : eq(hcmEmployeeDocumentCompliance.documentId, complianceRow.documentId),

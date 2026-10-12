@@ -388,7 +388,9 @@ export function HcmDocumentsPanel({
         </div>
       </div>
 
-      <section className="stats-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+      <section className="stats-grid" style={{
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 170px), 1fr))",
+      }}>
         <article className="stat-card"><div className="stat-icon purple"><BookOpen size={19} /></div><p>PUBLISHED POLICIES</p><h3>{data.analytics.publishedPolicies}</h3><span>Version-controlled</span></article>
         <article className="stat-card"><div className="stat-icon amber"><Clock3 size={19} /></div><p>PENDING ACKS</p><h3>{data.analytics.pendingAcknowledgements}</h3><span>{data.analytics.overdueAcknowledgements} overdue</span></article>
         <article className="stat-card"><div className="stat-icon red"><AlertTriangle size={19} /></div><p>MISSING DOCS</p><h3>{data.analytics.missingDocuments}</h3><span>{data.analytics.submittedDocuments} awaiting verification</span></article>

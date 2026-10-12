@@ -378,6 +378,28 @@ export async function runScheduledHcmDocumentExpiry(input: {
         expiryRequired: requirement.expiryRequired,
       })) continue;
 
+      if (next.status === "expired") {
+        // Preserve the existing one-time overdue automation event. Calendar
+        // milestones are pre-expiry alerts, not a replacement for overdue risk.
+        const automation = await runAutomationEventSafely({
+          organizationId: row.organizationId,
+          employeeId: row.employeeId,
+          trigger: "document.expires",
+          eventKey: `document-expiry:${row.id}:${String(row.expiresAt)}:expired`,
+          context: {
+            documentComplianceId: row.id, documentId: row.documentId,
+            documentRequirementId: requirement.id,
+            documentRequirementCode: requirement.code,
+            documentRequirementName: requirement.name, documentKind: requirement.kind,
+            expiryDate: String(row.expiresAt),
+            daysUntilExpiry: next.daysUntilExpiry,
+            documentStatus: "expired", eventActor: input.actor,
+          },
+        });
+        outcomes.push({ complianceId: row.id, status: "expired", employeeId: row.employeeId, automation });
+        continue;
+      }
+
       const { milestoneDays } = documentExpiryMilestone(String(row.expiresAt), now);
       if (!milestoneDays) continue;
       const [notice] = await db.insert(hcmDocumentExpiryNotices).values({
