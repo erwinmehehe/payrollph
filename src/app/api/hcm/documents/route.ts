@@ -17,6 +17,7 @@ import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } fr
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { canStaffOpenEmployeeVault } from "@/lib/employee-document-vault";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   documentComplianceStatus,
@@ -69,6 +70,9 @@ export async function GET(request: Request) {
 
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "Workspace access required." }, { status: 403 });
+  if (criticalReleaseFlagEnabled("employeeDocumentVault") && !canStaffOpenEmployeeVault(access.role)) {
+    return Response.json({ error: "Private HR document controls are outside your role." }, { status: 403 });
+  }
 
   const [policies, assignments, requirements, compliance, staff, units, profiles, documentRows] = await Promise.all([
     db.select().from(hcmPolicyVersions)
@@ -234,6 +238,9 @@ export async function POST(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "Workspace access required." }, { status: 403 });
+  if (criticalReleaseFlagEnabled("employeeDocumentVault") && !canStaffOpenEmployeeVault(access.role)) {
+    return Response.json({ error: "Private HR document controls are outside your role." }, { status: 403 });
+  }
 
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id,

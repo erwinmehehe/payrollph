@@ -13,7 +13,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { documentObjectKey, deleteDocumentObject, putDocumentObject } from "@/lib/document-object-storage";
-import { validExpiryCalendarDate } from "@/lib/employee-document-vault";
+import { canStaffOpenEmployeeVault, validExpiryCalendarDate } from "@/lib/employee-document-vault";
 import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 
@@ -65,6 +65,9 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
   if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+  if (criticalReleaseFlagEnabled("employeeDocumentVault") && !canStaffOpenEmployeeVault(access.role)) {
+    return Response.json({ error: "Private HR documents are outside your role." }, { status: 403 });
+  }
 
   const rows = await db.select({
     id: documents.id,
@@ -167,6 +170,9 @@ export async function POST(request: Request) {
     if (denied) return denied;
     const access = await getAccess(user.id, organizationId);
     if (!access) return Response.json({ error: "You do not have access to this workspace." }, { status: 403 });
+    if (vaultEnabled && !canStaffOpenEmployeeVault(access.role)) {
+      return Response.json({ error: "Private HR files require People authorization." }, { status: 403 });
+    }
 
     if (employeeRaw && employeeRaw !== "null" && employeeRaw !== "") {
       const candidate = Number(employeeRaw);

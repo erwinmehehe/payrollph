@@ -51,3 +51,8 @@ export function canIssueExpiryNotice(input: {
   return Boolean(input.documentId && input.verifiedAt && input.scannedClean &&
     input.expiryRequired && ["current", "expiring", "expired"].includes(input.status));
 }
+
+/** Medical, identity and employment files require People administration, not bookkeeping. */
+export function canStaffOpenEmployeeVault(role: string): boolean {
+  return role === "owner" || role === "admin" || role === "hr";
+}

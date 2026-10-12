@@ -12,7 +12,7 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { documentObjectIdentityMatches } from "@/lib/employee-document-vault";
+import { canStaffOpenEmployeeVault, documentObjectIdentityMatches } from "@/lib/employee-document-vault";
 import { documentStorageConfig, signedDocumentObjectUrl } from "@/lib/document-object-storage";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +55,10 @@ export async function GET(
 
     const access = await getAccess(user.id, document.organizationId);
     if (!access) return Response.json({ error: "Workspace access required." }, { status: 403 });
+    if ((criticalReleaseFlagEnabled("employeeDocumentVault") || document.objectStorageKey) &&
+      !canStaffOpenEmployeeVault(access.role)) {
+      return Response.json({ error: "Private HR document not found." }, { status: 404 });
+    }
 
     if (document.employeeId != null) {
       const [employee] = await db.select({

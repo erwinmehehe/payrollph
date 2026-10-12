@@ -49,3 +49,13 @@ test("only HR-verified, clean required documents produce milestone notices", () 
   assert.equal(canIssueExpiryNotice({ ...input, scannedClean: false }), false);
   assert.equal(canIssueExpiryNotice({ ...input, expiryRequired: false }), false);
 });
+
+test("bookkeeper, manager, payroll checker and unknown staff cannot access HR vault", async () => {
+  const { canStaffOpenEmployeeVault } = await import("../src/lib/employee-document-vault");
+  for (const role of ["owner", "admin", "hr"]) {
+    assert.equal(canStaffOpenEmployeeVault(role), true);
+  }
+  for (const role of ["bookkeeper", "manager", "payroll", "checker", "employee", "", "superadmin"]) {
+    assert.equal(canStaffOpenEmployeeVault(role), false);
+  }
+});
