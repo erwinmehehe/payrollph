@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import { documentObjectKey, putDocumentObject } from "@/lib/document-object-storage";
-import { COE_PENDING_SOURCE_PREFIX, reconcilePendingCoeDocument } from "@/lib/hr-case-coe-object-reconciliation";
+import { COE_PENDING_SOURCE_PREFIX, reconcilePendingCoeDocument, issueCoeObjectWithRecovery } from "@/lib/hr-case-coe-object-reconciliation";
 import { auditEvents, documents, employeeHrCaseMessages, employeeHrCases, employees, organizations } from "@/db/schema";
 import {
   assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES,
@@ -163,9 +163,9 @@ async function approveCoeWithRecovery(input: {
   }
   const sourceKey = COE_PENDING_SOURCE_PREFIX + randomUUID();
   const objectKey = documentObjectKey(input.organizationId, input.employeeId);
-  let pendingDocumentId: number | null = null;
   try {
-    pendingDocumentId = await db.transaction(async tx => {
+    const result = await issueCoeObjectWithRecovery({
+      stage: () => db.transaction(async tx => {
       const [row] = await tx.select().from(employeeHrCases).where(and(
         eq(employeeHrCases.id, input.caseId),
         eq(employeeHrCases.organizationId, input.organizationId),
@@ -190,9 +190,9 @@ async function approveCoeWithRecovery(input: {
         metadata: { documentId: pending.id, caseId: row.id, actorUserId: input.approverId },
       });
       return pending.id;
-    });
-    await putDocumentObject(objectKey, bytes, "text/plain; charset=utf-8");
-    const result = await db.transaction(async tx => {
+      }),
+      upload: () => putDocumentObject(objectKey, bytes, "text/plain; charset=utf-8"),
+      finalize: pendingDocumentId => db.transaction(async tx => {
       const [row] = await tx.select().from(employeeHrCases).where(and(
         eq(employeeHrCases.id, input.caseId),
         eq(employeeHrCases.organizationId, input.organizationId),
@@ -208,7 +208,7 @@ async function approveCoeWithRecovery(input: {
           approvedDate, status: "approved",
         },
       }).where(and(
-        eq(documents.id, pendingDocumentId!),
+        eq(documents.id, pendingDocumentId),
         eq(documents.organizationId, row.organizationId),
         eq(documents.scannedClean, false), eq(documents.sourceKey, sourceKey),
       )).returning({ id: documents.id });
@@ -232,17 +232,14 @@ async function approveCoeWithRecovery(input: {
         },
       });
       return updated;
+      }),
+      recover: pendingDocumentId => reconcilePendingCoeDocument(pendingDocumentId),
     });
     return Response.json({ case: result });
   } catch {
-    if (pendingDocumentId !== null) {
-      // If the DB committed but its connection dropped, reconciliation sees
-      // scannedClean=true / linked COE and refuses to delete the valid file.
-      // If remote DELETE fails, the durable pending row survives for the
-      // leased retention job. Do not log the employee's object key.
-      await reconcilePendingCoeDocument(pendingDocumentId).catch(() => {});
-    }
-    return Response.json({ error: "COE could not be finalized; recovery is queued where needed." }, { status: 409 });
+    return Response.json({
+      error: "COE approval failed. An unreadable pending file is retained for recovery if cleanup fails.",
+    }, { status: 409 });
   }
 }
 
