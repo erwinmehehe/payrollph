@@ -259,6 +259,48 @@ test("SQL parser preserves dollar-quoted routines but forbids transaction escape
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
 
+test("migration SQL permits ordinary UPDATE SET and ON CONFLICT upserts", () => {
+  const f = fixture();
+  try {
+    const path = join(f.directory, "0022_forward.sql");
+    for (const sql of [
+      "UPDATE payroll_entries SET legal_entity_id = 42 WHERE id = 1;",
+      "UPDATE payroll_entries e SET legal_entity_id = r.legal_entity_id\nFROM payroll_runs r WHERE e.payroll_run_id = r.id;",
+      "INSERT INTO payout_batches(id,provider) VALUES (1,'paymongo') ON CONFLICT (id) DO UPDATE SET provider = excluded.provider;",
+      "-- SET search_path comment is harmless\nUPDATE payroll_entries SET legal_entity_id = 5;",
+      "DO $ BEGIN PERFORM 1; END $;\nUPDATE payroll_entries SET legal_entity_id = 6;",
+    ]) {
+      writeFileSync(path, sql);
+      const changed = inventoryMigrationSources(f.directory).files.find(file => file.path === f.target.path);
+      assert.equal(loadReviewedSql(f.directory, changed), sql);
+    }
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("standalone transaction control or session SET is always refused, even after safe DML", () => {
+  const f = fixture();
+  try {
+    const path = join(f.directory, "0022_forward.sql");
+    for (const sql of [
+      "UPDATE payroll_entries SET legal_entity_id = 1; COMMIT;",
+      "UPDATE payroll_entries SET legal_entity_id = 1;\n/* note */ SET ROLE owner;",
+      "INSERT INTO x(id) VALUES (1);\nSET statement_timeout = '0';",
+      "SELECT 'COMMIT'; START TRANSACTION;",
+      "END;",
+      "ABORT;",
+      "PREPARE TRANSACTION 'not-allowed';",
+      "RELEASE SAVEPOINT skip;",
+      "CREATE UNIQUE INDEX CONCURRENTLY unsafe_idx ON users(id);",
+      "REINDEX TABLE users;",
+    ]) {
+      writeFileSync(path, sql);
+      const changed = inventoryMigrationSources(f.directory).files.find(file => file.path === f.target.path);
+      assert.throws(() => loadReviewedSql(f.directory, changed),
+        /REVIEWED_MIGRATION_SQL_REQUIRES_NONTRANSACTIONAL_OR_MANUAL_REVIEW/);
+    }
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
 test("plan rejects overprivileged audit accounts and mismatched target databases", async () => {
   const f = fixture();
   try {
