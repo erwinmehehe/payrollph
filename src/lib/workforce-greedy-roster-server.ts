@@ -17,6 +17,7 @@ import { resolveDailySchedule, type ResolvedDailySchedule, type WorkforceSchedul
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import { approvedLeaveCoverageImpact } from "@/lib/workforce-absence";
 import { planGreedyRoster, type GreedyRosterInput, type GreedySlot, type GreedyWorker, type WorkerSlotEvidence } from "@/lib/workforce-greedy-roster";
+import { loadWfmRosterRulePolicy, wfmRosterScaleRulesEnabled } from "@/lib/workforce-roster-rules-server";
 
 const MS_PER_DAY=86_400_000;
 const minute=(time:string)=>{const parts=time.slice(0,5).split(":").map(Number);return parts[0]*60+parts[1];};
@@ -115,6 +116,7 @@ export async function previewEmployerGreedyRoster(input:{
   scopeOrgUnitId:number|null;companyWide:boolean;
 }) {
   const {organizationId,worksiteId,startDate,endDate}=input;
+  if(!wfmRosterScaleRulesEnabled())throw Error("Roster publish rules are not enabled for this pilot.");
   const workStart=dayOffset(startDate,-28);
   const guardStart=dayOffset(startDate,-7);
   const guardEnd=dayOffset(endDate,7);
@@ -419,15 +421,16 @@ export async function previewEmployerGreedyRoster(input:{
     minimumRestMinutes:660,maxConsecutiveWorkingDays:6,rollingSevenDayMinutes:2880,
     enforcementMode:"block" as const,active:true,
   };
+  const publishPolicy=await loadWfmRosterRulePolicy(organizationId);
   const planInput:GreedyRosterInput={organizationId,slots,workers,rules:{
-    schedule:guardrailPolicy,maxDailyPaidMinutes:720,maxRollingSevenDayPaidMinutes:2880,
+    schedule:guardrailPolicy,publishPolicy,maxDailyPaidMinutes:720,maxRollingSevenDayPaidMinutes:2880,
     ordinaryDailyMinutes:480,unpopularRotationWeightMinutes:240,
   }};
   const result=planGreedyRoster(planInput);
   // Distinguish the statistical fairness heuristic from an approved legal rule.
   return {...result,source:{organizationId,worksiteId,startDate,endDate,
     slotCount:slots.length,candidateCount:workers.length,
-    ruleSet:"Existing tenant WFM guardrails + conservative PH employer pilot caps",
+    ruleSet:"Tenant WFM publish rules + conservative PH employer pilot caps",
     fairness:"Lowest projected paid minutes, weighted to rotate night/weekend/holiday shifts",
     scope:"Authenticated manager worksite and employee organization unit only",
     sourceVersion:"wfm-greedy-roster-v1"},

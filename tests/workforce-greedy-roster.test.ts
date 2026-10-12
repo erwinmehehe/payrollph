@@ -8,6 +8,7 @@ import {
   type GreedyRosterReason,
 } from "../src/lib/workforce-greedy-roster";
 import type { ResolvedDailySchedule } from "../src/lib/workforce-scheduling";
+import { PH_ROSTER_RULE_DEFAULTS } from "../src/lib/workforce-roster-rules";
 
 const employer=20;
 const date="2026-11-02";
@@ -44,6 +45,7 @@ const rules:GreedyRosterInput["rules"]={
     rollingSevenDayMinutes:2880,enforcementMode:"block",active:true},
   maxDailyPaidMinutes:720,maxRollingSevenDayPaidMinutes:2880,
   ordinaryDailyMinutes:480,unpopularRotationWeightMinutes:240,
+  publishPolicy:PH_ROSTER_RULE_DEFAULTS,
 };
 const plan=(slots:GreedySlot[],workers:GreedyWorker[],override?:Partial<GreedyRosterInput["rules"]>)=>
   planGreedyRoster({organizationId:employer,slots,workers,rules:{...rules,...override}});
@@ -270,4 +272,41 @@ test("zero workers returns explicit slot-level no_workers cause, not invented he
   assert.equal(result.unfilled.length,3);
   assert.deepEqual(result.unfilled.map(gap=>gap.reason),["no_workers","no_workers","no_workers"]);
   assert.equal(result.automaticallyPublished,false);
+});
+
+test("tenant publish rules block a stricter nine-hour cap despite twelve-hour pilot and approved OT",()=>{
+  const s=slot(85,date,{startTime:"08:00",endTime:"18:00"});
+  const w=worker(85,[s],{approvedOvertimeByDate:{[date]:120}});
+  const result=plan([s],[w],{publishPolicy:{
+    ...PH_ROSTER_RULE_DEFAULTS,maxDailyMinutes:540,enforcementMode:"advisory",
+  }});
+  assert.equal(result.roster.length,0);
+  assert.equal(result.unfilled[0].reason,"daily_hours_cap");
+});
+test("tenant publish cap rejects overtime even with a separate old approval",()=>{
+  const s=slot(86,date,{startTime:"08:00",endTime:"18:00"});
+  const w=worker(86,[s],{approvedOvertimeByDate:{[date]:120}});
+  const result=plan([s],[w],{publishPolicy:{
+    ...PH_ROSTER_RULE_DEFAULTS,approvedOvertimeCapMinutes:60,
+  }});
+  assert.equal(result.roster.length,0);
+  assert.equal(result.unfilled[0].reason,"overtime_approval");
+});
+test("tenant stricter rest rule detects following unchanged shift",()=>{
+  const s=slot(87,date,{startTime:"08:00",endTime:"16:00"});
+  const w=worker(87,[s]);
+  w.existingDays=w.existingDays.map(d=>d.date===dateAfter(date,1)
+    ?{...d,isRestDay:false,segments:[segment("04:00","12:00")]}:d);
+  const result=plan([s],[w],{publishPolicy:{
+    ...PH_ROSTER_RULE_DEFAULTS,minRestBetweenShiftsMinutes:840,
+  }});
+  assert.equal(result.roster.length,0);
+  assert.equal(result.unfilled[0].reason,"minimum_rest");
+});
+test("solver refuses missing tenant-owned publish rules",()=>{
+  const s=slot(88);
+  assert.throws(()=>planGreedyRoster({
+    organizationId:employer,slots:[s],workers:[worker(88,[s])],
+    rules:{...rules,publishPolicy:undefined as never},
+  }),/Roster rule policy evidence invalid/);
 });

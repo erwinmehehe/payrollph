@@ -15,7 +15,8 @@ function dateOrdinal(value:string):number|null{
 }
 
 export async function GET(request:Request) {
-  if(!criticalReleaseFlagEnabled("wfmGreedyRoster")){
+  if(!criticalReleaseFlagEnabled("wfmGreedyRoster") ||
+    !criticalReleaseFlagEnabled("wfmRosterScaleRules")){
     return Response.json({error:"Greedy roster previews are disabled."},{status:404,headers:noStore});
   }
   const user=await getSessionUser();

@@ -4,6 +4,8 @@ import {
   type ScheduleGuardrailPolicy,
 } from "./workforce-schedule-guardrails";
 import type { ResolvedDailySchedule } from "./workforce-scheduling";
+import { evaluateWfmRosterRules, validateRosterRulePolicy, type WfmRosterFinding,
+  type WfmRosterRulePolicy } from "./workforce-roster-rules";
 
 /**
  * Read-only deterministic staffing draft. All evidence must be server-scoped
@@ -49,6 +51,8 @@ export type GreedyWorker = {
 };
 export type GreedyRosterRules = {
   schedule: ScheduleGuardrailPolicy;
+  /** Required tenant-owned publish policy from the canonical WFM checker. */
+  publishPolicy: WfmRosterRulePolicy;
   /** Configurable employer scheduling safeguards; not universal legal maxima. */
   maxDailyPaidMinutes: number;
   maxRollingSevenDayPaidMinutes: number;
@@ -205,6 +209,41 @@ function checkDraft(
     issue.code,issue.date,issue.relatedDate,issue.actualMinutes,issue.actualDays,
   ])));
   if(fresh.length>0) return problemsToReason(fresh);
+  // Evaluate the EXACT tenant publish checker with both committed and proposed
+  // schedules. Suggestions are conservative: an advisory rule is treated as
+  // blocking here. Existing breaches are not spuriously caused by the draft.
+  const publishPolicy={...rules.publishPolicy,enforcementMode:"block" as const};
+  const publishedBaseline={
+    policy:publishPolicy,
+    targetDates:[slot.workDate],
+    baselineRestDates:existing.filter(d=>d.isRestDay).map(d=>d.date),
+    approvedOvertimeMinutesByDate:worker.approvedOvertimeByDate,
+  };
+  const baseline=evaluateWfmRosterRules({...publishedBaseline,days:existing});
+  const prospective=evaluateWfmRosterRules({...publishedBaseline,days:next});
+  const key=(finding:WfmRosterFinding)=>
+    [finding.code,finding.date,finding.relatedDate??""].join(":");
+  const original=new Map(baseline.filter(f=>f.severity==="blocking").map(f=>[key(f),f]));
+  const newlyBlocking=prospective.find(f=>{
+    if(f.severity!=="blocking")return false;
+    const previous=original.get(key(f));
+    if(!previous)return true;
+    if(f.code==="MIN_REST_BETWEEN_SHIFTS")
+      return (f.actualMinutes??Infinity)<(previous.actualMinutes??Infinity);
+    if(f.code==="OVERLAPPING_SHIFTS")
+      return f.message!==previous.message;
+    return (f.actualMinutes??0)>(previous.actualMinutes??0);
+  });
+  if(newlyBlocking){
+    switch(newlyBlocking.code){
+      case "OVERLAPPING_SHIFTS":return "overlapping_shift";
+      case "MIN_REST_BETWEEN_SHIFTS":return "minimum_rest";
+      case "MAX_WEEKLY_HOURS":return "rolling_week_cap";
+      case "MAX_DAILY_HOURS":return "daily_hours_cap";
+      case "OVERTIME_APPROVED_CAP":return "overtime_approval";
+      default:return "other_roster_rule";
+    }
+  }
   const paidByDate=new Map<string,number>();
   for(const day of next) {
     paidByDate.set(day.date,day.segments.reduce((total,part)=>total+paidSegmentMinutes(part),0));
@@ -232,7 +271,8 @@ function validateInput(input: GreedyRosterInput) {
      input.slots.length===0||input.slots.length>100||
      input.workers.length>1000)throw Error("Invalid bounded roster solver scope.");
   const r=input.rules;
-  if(!r||!r.schedule||!Number.isSafeInteger(r.maxDailyPaidMinutes)||
+  if(!r||!r.schedule||!r.publishPolicy||!validateRosterRulePolicy(r.publishPolicy)||
+     !Number.isSafeInteger(r.maxDailyPaidMinutes)||
      r.maxDailyPaidMinutes<480||r.maxDailyPaidMinutes>1440||
      !Number.isSafeInteger(r.maxRollingSevenDayPaidMinutes)||
      r.maxRollingSevenDayPaidMinutes<480||r.maxRollingSevenDayPaidMinutes>10080||
