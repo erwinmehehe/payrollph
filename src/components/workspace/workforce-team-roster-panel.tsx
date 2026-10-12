@@ -218,7 +218,7 @@ export function WorkforceTeamRosterPanel({
   async function saveOverride() {
     if (!editor || !canManage || editor.organizationId !== organizationId || editor.scopeKey !== scopeKey || editor.day.date <= todayInManila()
       || !acknowledged || !reason.trim() || !shiftChoice || saving) return;
-    if (payload?.windowingEnabled && (rulePreview?.key !== rulePreviewKey || rulePreview.blocked)) {
+    if (payload?.windowingEnabled && (rulePreview?.key !== rulePreviewKey || rulePreview?.blocked === true)) {
       setEditorError("Review roster rule findings for this exact draft before publishing.");
       return;
     }
@@ -539,7 +539,7 @@ export function WorkforceTeamRosterPanel({
               {rulePreviewing ? "Checking..." : "Check roster rules and premium implications"}
             </button>
             {rulePreview?.key === rulePreviewKey && <section aria-label="Pre-publish roster findings" role="status">
-              <p>{rulePreview.blocked ? "Blocking findings: do not publish." : "Rule preview passed. Review all premium warnings before publishing."}</p>
+              <p>{rulePreview?.blocked === true ? "Blocking findings: do not publish." : "Rule preview passed. Review all premium warnings before publishing."}</p>
               {rulePreview.findings.length === 0 && rulePreview.guardrailIssues.length === 0 && <p>No roster rule findings.</p>}
               {rulePreview.findings.map((finding, index) => <p key={index}>
                 <strong>{finding.severity === "blocking" ? "BLOCKING" : "WARNING"} - {finding.code}</strong> - {finding.date}: {finding.message}
@@ -551,7 +551,7 @@ export function WorkforceTeamRosterPanel({
           </div>}
           {editorError && <div className="notice notice-red" role="alert" style={{ margin: "0 18px 16px" }}>{editorError}</div>}
           <div className="run-actions" style={{ padding: "0 18px 18px" }}>
-            <button type="button" className="primary-button brand" disabled={saving || rulePreviewing || !reason.trim() || !acknowledged || !shiftChoice || (!payload?.shifts.length && shiftChoice !== "REST") || (payload?.windowingEnabled === true && (rulePreview?.key !== rulePreviewKey || rulePreview.blocked))} onClick={() => void saveOverride()}>
+            <button type="button" className="primary-button brand" disabled={saving || rulePreviewing || !reason.trim() || !acknowledged || !shiftChoice || (!payload?.shifts.length && shiftChoice !== "REST") || (payload?.windowingEnabled === true && (rulePreview?.key !== rulePreviewKey || rulePreview?.blocked === true))} onClick={() => void saveOverride()}>
               {saving ? <Spinner label="Saving" /> : <ShieldCheck size={15} />} Apply audited override
             </button>
           </div>
