@@ -4,8 +4,10 @@ on:
   pull_request:
     paths:
       - "scripts/lib/reviewed-migration-runner.mjs"
+      - "scripts/lib/historical-catalog-gate.mjs"
       - "scripts/lib/schema-lineage-preflight.mjs"
       - "tests/schema-lineage-preflight.test.mjs"
+      - "tests/historical-catalog-gate.test.mjs"
       - "scripts/run-reviewed-migration.mjs"
       - "tests/reviewed-migration-*.test.mjs"
       - "docs/engineering/reviewed-migration-cutover-template.sql"
@@ -14,8 +16,10 @@ on:
     branches: [main]
     paths:
       - "scripts/lib/reviewed-migration-runner.mjs"
+      - "scripts/lib/historical-catalog-gate.mjs"
       - "scripts/lib/schema-lineage-preflight.mjs"
       - "tests/schema-lineage-preflight.test.mjs"
+      - "tests/historical-catalog-gate.test.mjs"
       - "scripts/run-reviewed-migration.mjs"
       - "tests/reviewed-migration-*.test.mjs"
       - "docs/engineering/reviewed-migration-cutover-template.sql"
@@ -61,9 +65,11 @@ jobs:
       - name: Check Node module syntax and pure migration decision tests
         run: |
           node --check scripts/lib/reviewed-migration-runner.mjs
+          node --check scripts/lib/historical-catalog-gate.mjs
+          node --check tests/historical-catalog-gate.test.mjs
           node --check scripts/lib/schema-lineage-preflight.mjs
           node --check scripts/run-reviewed-migration.mjs
-          node --test tests/schema-lineage-preflight.test.mjs tests/reviewed-migration-runner.test.mjs
+          node --test tests/schema-lineage-preflight.test.mjs tests/reviewed-migration-runner.test.mjs tests/historical-catalog-gate.test.mjs
       - name: PostgreSQL transaction, ledger, concurrency and rollback rehearsal
         run: node --test tests/reviewed-migration-postgres.test.mjs
       - name: Source-only inventory remains non-mutating
