@@ -1,6 +1,7 @@
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
+import { settlePayrollLoanBalance } from "@/lib/payroll-loan-settlement";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
@@ -647,26 +648,24 @@ export async function settlePayrollRun(
             throw new Error(`Loan ${loanId} is no longer active; recalculate payroll before release.`);
           }
 
-          const remaining = Number(loan.remainingBalance);
-          if (plannedDeduction > remaining + 0.01) {
-            throw new Error(`Loan ${loanId} balance changed after calculation; recalculate payroll before release.`);
-          }
-
+          // Exact centavos, never one-cent tolerance or floating point
+          // subtraction for an authoritative employee loan ledger.
+          const posting = settlePayrollLoanBalance({
+            plannedDeduction, remainingBalance: loan.remainingBalance,
+            totalPaid: loan.totalPaid,
+          });
           await tx.insert(loanPayments).values({
             loanId,
             payrollRunId: run.id,
-            amount: money(plannedDeduction),
+            amount: posting.deduction,
             paymentDate: run.payDate,
             reference: `Auto-deduct ${run.periodLabel}`,
           });
-
-          const newBalance = Math.max(0, remaining - plannedDeduction);
-          const newPaid = Number(loan.totalPaid) + plannedDeduction;
           const [updatedLoan] = await tx.update(employeeLoans)
             .set({
-              remainingBalance: money(newBalance),
-              totalPaid: money(newPaid),
-              status: newBalance <= 0 ? "paid_off" : "active",
+              remainingBalance: posting.remainingBalance,
+              totalPaid: posting.totalPaid,
+              status: posting.status,
             })
             .where(and(
               eq(employeeLoans.id, loanId),
