@@ -23,6 +23,19 @@ test("missing maker audit metadata fail-closed only under new gate",()=>{
  assert.deepEqual(payrollMakerCheckerDecision({makerUserId:4,checkerUserId:9,
    declaredApproverUserId:9,namedApproverUsed:true}),{ok:true});
 });
+test("maker identity must be authentic numeric audit evidence, not coercible input",()=>{
+ for(const makerUserId of [true, false, "1", "9", "", [], {}, NaN, Infinity, -1, 0]) {
+   assert.deepEqual(
+     payrollMakerCheckerDecision({makerUserId, checkerUserId:11}),
+     {ok:false, code:"missing_maker"},
+   );
+ }
+ assert.deepEqual(payrollMakerCheckerDecision({makerUserId:9,checkerUserId:11}),
+   {ok:true});
+ assert.deepEqual(payrollMakerCheckerDecision({makerUserId:9,checkerUserId:9}),
+   {ok:false,code:"same_human"});
+});
+
 test("escalation-after-days policy validates finite 1-30 day window",()=>{
  const base={label:"Review",approver:"role:hr",minimumAmount:0};
  assert.equal(validateApprovalChainSteps([{...base,escalationAfterDays:0}]),null);
