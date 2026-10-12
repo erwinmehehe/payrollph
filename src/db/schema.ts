@@ -2993,6 +2993,7 @@ export const jobRequisitions = pgTable(
     salaryMax: numeric("salary_max", { precision: 12, scale: 2 }),
     employmentType: varchar("employment_type", { length: 32 }).notNull().default("Full-time"),
     status: varchar("status", { length: 32 }).notNull().default("open"), // "open", "interviewing", "filled", "cancelled"
+    careersPublished: boolean("careers_published").notNull().default(false),
     description: text("description"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -5886,3 +5887,65 @@ export const workforceDemandStaffingPolicyEvents = pgTable(
     check("wfm_staffing_policy_event_hash_check", sql`${t.policySha256} ~ '^[a-f0-9]{64}$' and ${t.receiptSha256} ~ '^[a-f0-9]{64}$'`),
   ],
 );
+
+/** Default-off workflow UI: named, owner-scoped reports; never grants data permissions. */
+export const savedReportDefinitions = pgTable("saved_report_definitions", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 100 }).notNull(),
+  reportKey: varchar("report_key", { length: 40 }).notNull(),
+  selectedFields: jsonb("selected_fields").notNull().default([]),
+  rowFilters: jsonb("row_filters").notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("saved_reports_user_name_unique").on(table.organizationId, table.userId, table.name),
+]);
+
+/** Employee requests are case records; a request does not itself change payroll. */
+export const employeeServiceCases = pgTable("employee_service_cases", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+  category: varchar("category", { length: 40 }).notNull(),
+  subject: varchar("subject", { length: 160 }).notNull(),
+  description: text("description").notNull(),
+  priority: varchar("priority", { length: 16 }).notNull().default("normal"),
+  status: varchar("status", { length: 24 }).notNull().default("open"),
+  assignedToUserId: integer("assigned_to_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  index("employee_service_cases_org_status_idx").on(table.organizationId, table.status, table.createdAt),
+  index("employee_service_cases_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+]);
+
+export const employeeServiceCaseMessages = pgTable("employee_service_case_messages", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  caseId: integer("case_id").notNull().references(() => employeeServiceCases.id, { onDelete: "cascade" }),
+  authorUserId: integer("author_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  body: text("body").notNull(),
+  internal: boolean("internal").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [index("service_case_messages_case_idx").on(table.organizationId, table.caseId, table.createdAt)]);
+
+/** An offline punch is unverified evidence, never an authoritative time_punch. */
+export const offlinePunchClaims = pgTable("offline_punch_claims", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "restrict" }),
+  submittedByUserId: integer("submitted_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  clientEventId: varchar("client_event_id", { length: 64 }).notNull(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull(),
+  actionType: varchar("action_type", { length: 20 }).notNull(),
+  status: varchar("status", { length: 24 }).notNull().default("pending_review"),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id, { onDelete: "restrict" }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNote: varchar("review_note", { length: 400 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("offline_punch_client_event_unique").on(table.organizationId, table.employeeId, table.clientEventId),
+  index("offline_punch_pending_org_idx").on(table.organizationId, table.status, table.createdAt),
+]);
