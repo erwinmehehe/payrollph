@@ -6,6 +6,7 @@ import { buildReadinessPayload } from "@/app/api/readiness/route";
 export const dynamic = "force-dynamic";
 
 const PILOT_CRITICAL_KEYS = new Set([
+  "audit-chain-protection",
   "production-security-config",
   "review-credential",
   "seeded-credentials",
