@@ -56,7 +56,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!criticalReleaseFlagEnabled("multiEntity")) return disabled();
+  // No legal-employer or service/liability transfer mutations until policy is
+  // explicitly reviewed. Enabling the read-only multi-entity UI is not authority.
+  if (!criticalReleaseFlagEnabled("multiEntity") ||
+      !criticalReleaseFlagEnabled("multiEntityTransfers")) return disabled();
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
   const user = await getSessionUser();
@@ -192,7 +195,9 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  if (!criticalReleaseFlagEnabled("multiEntity")) return disabled();
+  // Covers approve, reject AND apply. None may change state during the hold.
+  if (!criticalReleaseFlagEnabled("multiEntity") ||
+      !criticalReleaseFlagEnabled("multiEntityTransfers")) return disabled();
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
   const user = await getSessionUser();

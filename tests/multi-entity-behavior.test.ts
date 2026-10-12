@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import test from "node:test";
-import { decideEntityAccess, entityResourceAllowed, entityConfirmationMatches } from "../src/lib/multi-entity-policy";
+import { decideEntityAccess, entityResourceAllowed, entityConfirmationMatches, validateLegalEmployerSettingsPatch, VERSIONED_EMPLOYER_FIELDS } from "../src/lib/multi-entity-policy";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { EntityBadge, EntitySwitcher, EntityFilter } from "../src/components/workspace/multi-entity-ui";
 
@@ -87,4 +87,37 @@ test("group-only switcher visibility is executed in server-rendered React", () =
   const badge = renderToStaticMarkup(createElement(EntityBadge, { legalEntityId: 22, context: group }));
   assert.match(badge, /Beta/);
   assert.doesNotMatch(badge, /Alpha Manufacturing Inc/);
+});
+
+test("legal employer identity and payout changes cannot overwrite a legacy registration", () => {
+  for (const field of VERSIONED_EMPLOYER_FIELDS) {
+    for (const value of ["changed", "", null]) {
+      assert.deepEqual(
+        validateLegalEmployerSettingsPatch({
+          organizationId: 1, legalEntityId: 11, payrollCalendarMode: "flexible", [field]: value,
+        }),
+        { ok: false, code: "VERSIONED_REGISTRATION_REQUIRED" },
+        field,
+      );
+    }
+  }
+  assert.deepEqual(validateLegalEmployerSettingsPatch({
+    organizationId: 1, legalEntityId: 11, payrollCalendarMode: "ph_semi_monthly",
+  }), { ok: true, payrollCalendarMode: "ph_semi_monthly" });
+  for (const bad of [null, [], {}, { organizationId: 1, legalEntityId: 11 },
+    { organizationId: 1, legalEntityId: 11, payrollCalendarMode: "weekly" },
+    { organizationId: 1, legalEntityId: 11, payrollCalendarMode: "flexible", extraField: "ignore-me" },
+  ]) {
+    assert.deepEqual(validateLegalEmployerSettingsPatch(bad),
+      { ok: false, code: "INVALID_SETTINGS_PATCH" });
+  }
+});
+
+test("cross-employer transfer mutations have an independent default-off gate", () => {
+  for (const value of [undefined, "", "1", "TRUE", "false", "true "]) {
+    assert.equal(criticalReleaseFlagEnabled("multiEntityTransfers",
+      { MULTI_ENTITY_ENABLED: "true", MULTI_ENTITY_TRANSFERS_ENABLED: value }), false);
+  }
+  assert.equal(criticalReleaseFlagEnabled("multiEntityTransfers",
+    { MULTI_ENTITY_TRANSFERS_ENABLED: "true" }), true);
 });

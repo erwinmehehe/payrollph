@@ -179,13 +179,14 @@ export function EntitySettingsView({ context, organizationId }: {
           {entities.map(entity => <option value={entity.id} key={entity.id}>{entity.code} · {entity.displayName}</option>)}
         </select>
       </label>
+      <p>Registered legal names, statutory employer numbers, addresses and payout destinations are read-only here until a versioned, independently reviewed update flow is approved. Authorized administrators may change only the pay schedule.</p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))", gap: 14, marginTop: 16 }}>
         {settingsFields.map(field => {
           const sensitive = ["birTin", "birBranchCode", "sssEmployerNo", "philHealthEmployerNo", "pagIbigEmployerNo", "disbursementAccount"].includes(field.key);
           const masked = String(active[field.key] ?? "");
           return <label key={field.key} style={{ display: "grid", gap: 5 }}>
             {field.label}
-            <input aria-label={field.label} disabled={!canEdit || state === "saving"}
+            <input aria-label={field.label} disabled
               placeholder={sensitive ? masked || "Not set" : undefined}
               value={draft[field.key] ?? (sensitive ? "" : masked)}
               onChange={event => setDraft(old => ({ ...old, [field.key]: event.target.value }))} />

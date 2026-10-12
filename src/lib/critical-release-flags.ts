@@ -12,6 +12,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P0 employer payroll, statutory and personnel isolation",
     approval: "DB clone migration, two-tenant/two-entity tests, golden payroll evidence and independent maker-checker UAT",
   },
+  multiEntityTransfers: {
+    env: "MULTI_ENTITY_TRANSFERS_ENABLED",
+    owner: "Philippine Payroll / Legal / HR",
+    risk: "P0 cross-legal-employer liabilities, leave, 13th-month, statutory records and worker continuity",
+    approval: "Written employment-continuity policy, employer-specific legal and financial signoff, isolated transaction UAT and independent transfer maker/checker",
+  },
   orderedReleaseMigrations: {
     env: "ORDERED_RELEASE_MIGRATIONS_ENABLED", owner: "Database Operations",
     risk: "P0 deployment-only schema changes",

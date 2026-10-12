@@ -45,3 +45,34 @@ export function entityResourceAllowed(
 export function entityConfirmationMatches(legalName: string, typed: string): boolean {
   return legalName.trim().length > 0 && typed.trim() === legalName.trim();
 }
+
+// A legal employer's identity, government registration and bank destination
+// require a versioned, independently reviewed mutation. Editing the legacy
+// projection in place would erase the authoritative registration history.
+export const VERSIONED_EMPLOYER_FIELDS = [
+  "legalName", "registeredAddress", "birTin", "birBranchCode",
+  "sssEmployerNo", "philHealthEmployerNo", "pagIbigEmployerNo",
+  "disbursementBankCode", "disbursementAccountName", "disbursementAccount",
+] as const;
+
+export function validateLegalEmployerSettingsPatch(value: unknown):
+  | { ok: true; payrollCalendarMode: "flexible" | "ph_semi_monthly" }
+  | { ok: false; code: "VERSIONED_REGISTRATION_REQUIRED" | "INVALID_SETTINGS_PATCH" } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ok: false, code: "INVALID_SETTINGS_PATCH" };
+  }
+  const input = value as Record<string, unknown>;
+  // Presence (including null and empty strings) matters: a caller must not
+  // reset protected fields by supplying an empty value.
+  if (VERSIONED_EMPLOYER_FIELDS.some(field => Object.hasOwn(input, field))) {
+    return { ok: false, code: "VERSIONED_REGISTRATION_REQUIRED" };
+  }
+  if (Object.keys(input).some(key => !["organizationId", "legalEntityId", "payrollCalendarMode"].includes(key))) {
+    return { ok: false, code: "INVALID_SETTINGS_PATCH" };
+  }
+  const mode = input.payrollCalendarMode;
+  if (mode !== "flexible" && mode !== "ph_semi_monthly") {
+    return { ok: false, code: "INVALID_SETTINGS_PATCH" };
+  }
+  return { ok: true, payrollCalendarMode: mode };
+}

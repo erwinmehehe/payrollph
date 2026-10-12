@@ -6,7 +6,8 @@ import { assertOrganizationRole, ORG_ADMIN_ROLES } from "@/lib/access";
 import { resolveMultiEntityContext, assertEntityResource } from "@/lib/multi-entity-server";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
-import { encryptBankAccount, maskBankAccount } from "@/lib/bank-account-crypto";
+import { maskBankAccount } from "@/lib/bank-account-crypto";
+import { validateLegalEmployerSettingsPatch } from "@/lib/multi-entity-policy";
 
 export const dynamic = "force-dynamic";
 function mask(value: string | null) {
@@ -30,12 +31,6 @@ function present(row: typeof legalEntities.$inferSelect) {
   };
 }
 const fail = (error: string, status = 400) => Response.json({ error }, { status });
-function stringValue(value: unknown, maxLength: number) {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  if (!trimmed || trimmed.length > maxLength) throw new Error("Enter a valid registration value.");
-  return trimmed;
-}
 export async function GET(request: Request) {
   if (!criticalReleaseFlagEnabled("multiEntity")) return fail("Not available.", 404);
   const user = await getSessionUser();
@@ -71,45 +66,38 @@ export async function PATCH(request: Request) {
   if (scopeDenied) return scopeDenied;
   const mfa = requireSensitiveActionMfa(user);
   if (mfa) return mfa;
+  const patch = validateLegalEmployerSettingsPatch(body);
+  if (!patch.ok) {
+    return Response.json({
+      error: patch.code === "VERSIONED_REGISTRATION_REQUIRED"
+        ? "Legal-employer registration and payout destination changes require an independently reviewed, versioned record. This settings API does not modify them."
+        : "Only a valid pay-schedule change is accepted by this endpoint.",
+      code: patch.code,
+    }, { status: patch.code === "VERSIONED_REGISTRATION_REQUIRED" ? 409 : 422 });
+  }
   const [old] = await db.select().from(legalEntities).where(and(
     eq(legalEntities.id, legalEntityId),
     eq(legalEntities.organizationId, organizationId))).limit(1);
   if (!old) return fail("Legal employer not found.", 404);
+  if (old.payrollCalendarMode === patch.payrollCalendarMode) {
+    return Response.json({ entity: present(old) });
+  }
   try {
-    const legalName = stringValue(body.legalName, 200) ?? old.legalName;
-    const registeredAddress = body.registeredAddress === undefined
-      ? old.registeredAddress
-      : String(body.registeredAddress ?? "").trim().slice(0, 500);
-    const birTin = stringValue(body.birTin, 16) ?? old.birTin;
-    if (birTin && !/^\d{9}$/.test(birTin)) return fail("Employer TIN needs nine digits.", 422);
-    const branch = stringValue(body.birBranchCode, 4) ?? old.birBranchCode;
-    if (branch && !/^\d{1,4}$/.test(branch)) return fail("BIR branch code must be numeric.", 422);
-    const payMode = String(body.payrollCalendarMode ?? old.payrollCalendarMode);
-    if (!["flexible","ph_semi_monthly"].includes(payMode)) return fail("Unknown pay schedule.", 422);
-    const bankAccount = stringValue(body.disbursementAccount, 120);
-    const bankCode = body.disbursementBankCode === undefined
-      ? old.disbursementBankCode : stringValue(body.disbursementBankCode, 16);
-    if (bankAccount && !bankCode) return fail("Bank code is required with an account.", 422);
     const updated = await db.transaction(async tx => {
+      // No direct writes to employer legal identity, registration numbers,
+      // beneficiary bank account, or other unversioned authority fields.
       const [record] = await tx.update(legalEntities).set({
-      legalName, registeredAddress,
-      birTin, birBranchCode: branch,
-      sssEmployerNo: stringValue(body.sssEmployerNo, 24) ?? old.sssEmployerNo,
-      philHealthEmployerNo: stringValue(body.philHealthEmployerNo, 24) ?? old.philHealthEmployerNo,
-      pagIbigEmployerNo: stringValue(body.pagIbigEmployerNo, 24) ?? old.pagIbigEmployerNo,
-      payrollCalendarMode: payMode,
-      disbursementBankCode: bankCode,
-      disbursementAccountName: stringValue(body.disbursementAccountName, 160) ?? old.disbursementAccountName,
-      disbursementAccount: bankAccount ? encryptBankAccount(bankAccount) : old.disbursementAccount,
-      updatedAt: new Date(),
+        payrollCalendarMode: patch.payrollCalendarMode,
+        updatedAt: new Date(),
       }).where(and(eq(legalEntities.id, legalEntityId),
         eq(legalEntities.organizationId, organizationId))).returning();
       if (!record) throw new Error("Employer changed during update.");
       await tx.insert(auditEvents).values({
-        organizationId, actor: user.name, action: "Legal employer settings updated",
+        organizationId, actor: user.name, action: "Legal employer pay schedule updated",
         resource: String(legalEntityId), metadata: {
-          legalEntityId, changedFields: Object.keys(body).filter(key =>
-            key !== "organizationId" && key !== "legalEntityId"),
+          legalEntityId, changedFields: ["payrollCalendarMode"],
+          fromPaySchedule: old.payrollCalendarMode,
+          toPaySchedule: patch.payrollCalendarMode,
           actorUserId: user.id, sensitiveValuesRedacted: true,
         },
       });
