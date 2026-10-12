@@ -48,6 +48,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 consented POS source access and historical aggregate import",
     approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
   },
+  firstPayrollInline: {
+    env: "FIRST_PAYROLL_INLINE_UI_ENABLED",
+    owner: "Product / Payroll Operations",
+    risk: "P0 read-only financial preview, employer handoffs and inline payroll journey",
+    approval: "Read-only DB proof, unchanged golden suites, role/tenant tests and phone-width UAT",
+  },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
     owner: "Product",
