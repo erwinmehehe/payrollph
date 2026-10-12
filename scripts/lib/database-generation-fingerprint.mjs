@@ -16,6 +16,11 @@ export const DATABASE_GENERATION_FINGERPRINT_SQL = [
   "  to_regclass('public.payrollph_release_migration_receipts') IS NOT NULL AS \"hasMigrationReceipts\",",
   "  to_regclass('public.payrollph_schema_migrations') IS NOT NULL AS \"hasMigrationJournal\",",
   "  to_regclass('public.payrollph_migration_cutover') IS NOT NULL AS \"hasMigrationCutover\",",
+  "  to_regclass('public.payout_batches') IS NOT NULL AS \"hasPayoutBatches\",",
+  "  to_regclass('public.payout_transfers') IS NOT NULL AS \"hasPayoutTransfers\",",
+  "  to_regclass('public.payout_batch_transfers') IS NOT NULL AS \"hasPayoutBatchTransfers\",",
+  "  to_regclass('public.payout_profiles') IS NOT NULL AS \"hasPayoutProfiles\",",
+  "  to_regclass('public.worker_employment_events') IS NOT NULL AS \"hasWorkerEmploymentEvents\",",
   "  (SELECT data_type FROM information_schema.columns",
   "   WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id') AS \"usersIdType\",",
   "  (SELECT data_type FROM information_schema.columns",
@@ -56,15 +61,29 @@ export function assessDatabaseGeneration(row) {
     [row.usersIdType, row.employeesIdType, row.payrollRunsIdType].every(isInteger) &&
     row.hasLegacyClients === false;
   if (currentAppShape) {
+    // Proposed #865 SQL 0117 and 0119 reference these pre-existing objects.
+    // A missing one makes the numbered train unsafe to execute as written.
+    const sourcePrerequisites = [
+      ["payout_batches", row.hasPayoutBatches],
+      ["payout_transfers", row.hasPayoutTransfers],
+      ["payout_batch_transfers", row.hasPayoutBatchTransfers],
+      ["payout_profiles", row.hasPayoutProfiles],
+      ["worker_employment_events", row.hasWorkerEmploymentEvents],
+    ];
+    const missingTrainPrerequisites = sourcePrerequisites
+      .filter(([, exists]) => exists !== true).map(([name]) => name);
     const journalReady = row.hasMigrationReceipts === true &&
       row.hasMigrationJournal === true && row.hasMigrationCutover === true;
     return {
       generation: "organization-integer",
-      eligibleForMigrationReview: journalReady,
+      missingTrainPrerequisites,
+      eligibleForMigrationReview: journalReady && missingTrainPrerequisites.length === 0,
       productionMigrationApproved: false,
-      reason: journalReady
-        ? "CATALOG_SHAPE_ONLY_REQUIRES_DBA_RECEIPTS_AND_CLONE_REHEARSAL"
-        : "REQUIRED_REVIEWED_MIGRATION_JOURNALS_MISSING",
+      reason: missingTrainPrerequisites.length
+        ? "NUMBERED_TRAIN_PREREQUISITES_MISSING"
+        : journalReady
+          ? "CATALOG_SHAPE_ONLY_REQUIRES_DBA_RECEIPTS_AND_CLONE_REHEARSAL"
+          : "REQUIRED_REVIEWED_MIGRATION_JOURNALS_MISSING",
     };
   }
 
