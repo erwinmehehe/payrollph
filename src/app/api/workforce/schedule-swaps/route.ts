@@ -34,6 +34,8 @@ import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
 import { employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
 import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
 import { rosterDateOffset } from "@/lib/workforce-team-roster";
+import { checkWfmRosterPublish, wfmRosterScaleRulesEnabled } from "@/lib/workforce-roster-rules-server";
+import { decideRosterRulePublish, type WfmRosterFinding } from "@/lib/workforce-roster-rules";
 import { DEFAULT_SCHEDULE_GUARDRAIL_POLICY, evaluateScheduleGuardrails, scheduleGuardrailBlocksMutation } from "@/lib/workforce-schedule-guardrails";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import {
@@ -548,6 +550,7 @@ export async function POST(request: Request) {
           enforcementMode: guardrailRow.enforcementMode === "block" ? "block" as const : "advisory" as const,
           active: guardrailRow.active,
         } : DEFAULT_SCHEDULE_GUARDRAIL_POLICY;
+        const rosterRuleFindings: Array<{ employeeId: number; findings: WfmRosterFinding[] }> = [];
         for (const planned of [
           {
             employeeId: existing.requesterEmployeeId,
