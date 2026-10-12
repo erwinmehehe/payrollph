@@ -33,17 +33,24 @@ try {
           const panel = page.getByRole("region", { name: "More modules" });
           await panel.waitFor();
           const spend = panel.getByLabel("Enable Spend and benefits", { exact: true });
-          if (await spend.isChecked()) await spend.uncheck();
-          await page.waitForFunction(() => [...document.querySelectorAll('input[type="checkbox"]')].every(el => !el.disabled));
+          async function setSpend(enabled) {
+            if (await spend.isChecked() === enabled) return;
+            const saved = page.waitForResponse(response => new URL(response.url()).pathname === "/api/tenant-modules" && response.request().method() === "PATCH");
+            await spend.click();
+            assert.equal((await saved).status(), 200, "Module mutation must persist");
+            await page.waitForFunction(expected => {
+              const input = [...document.querySelectorAll("label")].find(label => label.textContent.includes("Enable Spend and benefits"))?.querySelector("input");
+              return input && !input.disabled && input.checked === expected;
+            }, enabled);
+          }
+          await setSpend(false);
           await panel.screenshot({ path: `qa-artifacts/core-modules/owner-${width}-empty.png` });
-          await spend.check();
-          await page.waitForFunction(() => [...document.querySelectorAll('input[type="checkbox"]')].every(el => !el.disabled));
+          await setSpend(true);
           assert.equal(await spend.isChecked(), true);
           await panel.screenshot({ path: `qa-artifacts/core-modules/owner-${width}-enabled.png` });
           const bounds = await panel.evaluate(el => ({ right: el.getBoundingClientRect().right, width: window.innerWidth }));
           assert.ok(bounds.right <= bounds.width + 1, "Module screen fits phone width");
-          await spend.uncheck();
-          await page.waitForFunction(() => [...document.querySelectorAll('input[type="checkbox"]')].every(el => !el.disabled));
+          await setSpend(false);
         } else {
           assert.equal(await page.locator('[data-nav-name="More modules"]').count(), 0);
           if (state === "after") {
