@@ -117,6 +117,9 @@ test("P0-2 PostgreSQL proof: catalog roles, real JSONB, four stores, fail-closed
         await admin.query("DROP TABLE IF EXISTS public.legal_entities");
         await admin.query("DROP TABLE IF EXISTS public.payroll_entries");
         await admin.query("DROP TABLE IF EXISTS public.employees");
+        // Schema USAGE survives table cleanup and prevents DROP ROLE.
+        // Revoke only the privilege this disposable test granted.
+        await admin.query("REVOKE USAGE ON SCHEMA public FROM " + auditName);
         await admin.query("DROP ROLE IF EXISTS " + auditName);
       } finally {
         try { await admin.end(); } catch {}
