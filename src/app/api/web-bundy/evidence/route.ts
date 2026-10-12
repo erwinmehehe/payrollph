@@ -13,7 +13,7 @@ import { authorizedGeofenceSites } from "@/lib/workforce-geofence-server";
 import { evaluateGeofenceFix, geofencePilotEnabledForOrganization } from "@/lib/workforce-geofence";
 import { encryptPunchPhoto, decryptPunchPhoto, stripJpegMetadata } from "@/lib/workforce-punch-photo-crypto";
 import { documentUploadsEnabled, scanUpload } from "@/lib/storage";
-import { enhancedPunchEnabled, photoCaptureDecision, photoExpiry, evaluatePunchTiming, impossibleTravel, PUNCH_CONSENT_VERSION, PUNCH_MAX_IMAGE_BYTES, PUNCH_ACTIONS, type PhotoMode } from "@/lib/workforce-punch-evidence";
+import { enhancedPunchEnabled, photoCaptureDecision, photoExpiry, evaluatePunchTiming, impossibleTravel, resolvedWorksiteDecision, PUNCH_CONSENT_VERSION, PUNCH_MAX_IMAGE_BYTES, PUNCH_ACTIONS, type PhotoMode } from "@/lib/workforce-punch-evidence";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -37,16 +37,15 @@ async function employeeSession(organizationId: number) {
   return { denied: employee ? null : respond({ error:"Employee unavailable." },404), user, employee:employee??null };
 }
 async function sitePolicy(organizationId: number, employeeId: number, date: string) {
-  const [primary] = await db.select({worksiteId:employeeWorksiteAssignments.worksiteId}).from(employeeWorksiteAssignments)
+  const [primary] = await db.select({worksiteId:employeeWorksiteAssignments.worksiteId, decision:employeeWorksiteAssignments.decision}).from(employeeWorksiteAssignments)
     .innerJoin(worksites,and(eq(worksites.id,employeeWorksiteAssignments.worksiteId),
       eq(worksites.organizationId,organizationId),eq(worksites.active,true)))
     .where(and(eq(employeeWorksiteAssignments.organizationId,organizationId),
       eq(employeeWorksiteAssignments.employeeId,employeeId),
-      eq(employeeWorksiteAssignments.decision,"allow"),
       lte(employeeWorksiteAssignments.effectiveFrom,date),
       or(isNull(employeeWorksiteAssignments.effectiveUntil),gte(employeeWorksiteAssignments.effectiveUntil,date))))
     .orderBy(desc(employeeWorksiteAssignments.effectiveFrom),desc(employeeWorksiteAssignments.id)).limit(1);
-  const siteId = primary?.worksiteId ?? null;
+  const siteId = resolvedWorksiteDecision(primary ? [primary] : []);
   const [policy] = siteId === null ? [null] : await db.select().from(worksitePunchPolicies)
     .where(and(eq(worksitePunchPolicies.organizationId,organizationId),eq(worksitePunchPolicies.worksiteId,siteId))).limit(1);
   const sites = geofencePilotEnabledForOrganization(organizationId)
