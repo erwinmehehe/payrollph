@@ -32,9 +32,12 @@ in historical records, or applied in any actual database is renamed.
   has been copied verbatim into the new proposed 0116 after its comment
   header; its tests must be kept. Do not independently apply both versions.
   Resolve duplicate source paths before any merge.
-- PR #894 is a separate conservative missing-prerequisite preflight for
-  the previous 0115-0119 train; update its checks to this canonical
-  0115-0121 mapping before considering rollout.
+- The original #894 source-only prerequisite work is superseded here.
+  `scripts/lib/pending-train-preflight.mjs` now inventories the canonical
+  0115-0121 steps, projects dependent CREATE outputs without treating them
+  as applied receipts, and **never** authorizes database migration. Its
+  source tests and a full-transaction PostgreSQL16 rollback rehearsal are
+  included on this branch.
 - Feature PRs #858, #859, #813, #856 and #860 must remove overlapping
   numbered SQL and depend on the canonical order; do not merge and apply
   standalone feature-local versions.
@@ -111,6 +114,11 @@ swap production identities by default**.
 4. Rehearse 0115/0116/0119 in a **disposable PostgreSQL CI service**
    with synthetic data using
    `tests/consolidated-migration-dependency-postgres.test.mjs`.
+   Separately run `tests/complete-pending-train-postgres.test.mjs`
+   against another disposable PG16 service initialized with Drizzle:
+   execute the entire proposed 0115-0121 train inside a transaction,
+   verify scope/replay invariants and roll back to its original catalog
+   and payroll row counts.
    A real Neon staging clone additionally requires application/tenant
    security, rollback and schema parity evidence.
 5. Do not activate PayMongo/Xendit, employee bank file exports,
