@@ -89,8 +89,10 @@ export function assertEntityResource(
 ): Response | null {
   if (!context.enabled) return null;
   const decision = context.legalEntityId === null
-    ? { ok: true as const, group: context.group, selectedEntityId: null }
-    : { ok: true as const, group: context.group, selectedEntityId: context.legalEntityId };
+    ? { ok: true as const, group: context.group, selectedEntityId: null,
+        allowedEntityIds: context.entities.map(entity => entity.id) }
+    : { ok: true as const, group: context.group, selectedEntityId: context.legalEntityId,
+        allowedEntityIds: context.entities.map(entity => entity.id) };
   if (entityResourceAllowed(decision, resourceEntityId ?? null)) return null;
   return denied();
 }
