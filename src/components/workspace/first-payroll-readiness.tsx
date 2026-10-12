@@ -3,6 +3,8 @@
 import { ArrowRight, Check, CircleAlert, ShieldCheck, UsersRound, WalletCards } from "lucide-react";
 import type { FirstPayrollReadiness as FirstPayrollReadinessState } from "@/lib/first-payroll-readiness";
 import { buildFirstPayrollJourney } from "@/lib/first-payroll-journey";
+import { useWorkflowUi } from "./workflow-ui-context";
+import { FirstPayrollInline } from "./first-payroll-inline";
 
 export function FirstPayrollReadinessCard({
   readiness,
@@ -11,6 +13,8 @@ export function FirstPayrollReadinessCard({
   onSettings,
   allowedPages,
   guided = false,
+  organizationId,
+  canAssign = false,
 }: {
   readiness: FirstPayrollReadinessState;
   onPage: (page: string) => void;
@@ -18,11 +22,14 @@ export function FirstPayrollReadinessCard({
   onSettings?: (tab: "organization" | "team") => void;
   allowedPages: readonly string[];
   guided?: boolean;
+  organizationId?: number;
+  canAssign?: boolean;
 }) {
   // Keep the export/filing handoff visible after the first run is released.
   // Once a second run exists, the employer has completed the initial journey.
   if (readiness.firstPayrollReleased && readiness.payrollRunCount > 1) return null;
 
+  const inlineEnabled = useWorkflowUi().firstPayrollInline && organizationId !== undefined;
   const percent = Math.round((readiness.completed / readiness.total) * 100);
   const journey = buildFirstPayrollJourney(readiness);
 
@@ -49,7 +56,7 @@ export function FirstPayrollReadinessCard({
         <span style={{ width: `${percent}%` }} />
       </div>
 
-      {guided && <ol aria-label="Guided first payroll journey" className="grid gap-3 md:grid-cols-2" style={{ margin: "16px 0", padding: 0, listStyle: "none" }}>
+      {guided && !inlineEnabled && <ol aria-label="Guided first payroll journey" className="grid gap-3 md:grid-cols-2" style={{ margin: "16px 0", padding: 0, listStyle: "none" }}>
         {journey.map((step, index) => (
           <li key={step.key} className="rounded-xl border p-4" style={{ borderColor: "var(--line)", background: "var(--canvas-subtle)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -70,7 +77,7 @@ export function FirstPayrollReadinessCard({
           </li>
         ))}
       </ol>}
-      {!guided && <div className="first-payroll-grid">
+      {!guided && !inlineEnabled && <div className="first-payroll-grid">
         {readiness.items.map((item) => (
           <article className={item.ready ? "first-payroll-item is-ready" : "first-payroll-item"} key={item.key}>
             <div className="first-payroll-icon">
@@ -94,6 +101,11 @@ export function FirstPayrollReadinessCard({
         ))}
       </div>}
 
+      {inlineEnabled && <FirstPayrollInline
+        readiness={readiness} organizationId={organizationId}
+        canAssign={canAssign} onPage={onPage} onNewRun={onNewRun}
+        allowedPages={allowedPages} onSettings={onSettings}
+      />}
       <div className="first-payroll-footer">
         <div>
           <WalletCards size={17} />
