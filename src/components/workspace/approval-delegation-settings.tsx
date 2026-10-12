@@ -8,7 +8,8 @@ type Delegation = {
   endsOn: string; active: boolean; reason: string;
 };
 export function ApprovalDelegationSettings({ organizationId }: { organizationId: number }) {
-  const [rows, setRows] = useState<Delegation[]>([]);
+  const [storedRows, setStoredRows] = useState<{ organizationId: number; rows: Delegation[] }>({ organizationId, rows: [] });
+  const rows = storedRows.organizationId === organizationId ? storedRows.rows : [];
   const [fromApprover, setFromApprover] = useState("");
   const [toApprover, setToApprover] = useState("");
   const [startsOn, setStartsOn] = useState("");
@@ -17,18 +18,28 @@ export function ApprovalDelegationSettings({ organizationId }: { organizationId:
   const [state, setState] = useState<"loading" | "ready" | "saving" | "error">("loading");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const load = useCallback(async () => {
-    setState("loading"); setError("");
+  const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      const response = await fetch("/api/delegations?organizationId=" + organizationId, { cache: "no-store" });
+      const response = await fetch("/api/delegations?organizationId=" + organizationId, {
+        cache: "no-store", signal,
+      });
       const payload = await response.json().catch(() => ({}));
+      if (signal?.aborted) return;
       if (!response.ok) throw new Error(payload.error ?? "Cannot view delegations with this role.");
-      setRows(payload.delegations ?? []); setState("ready");
+      setStoredRows({ organizationId, rows: payload.delegations ?? [] });
+      setError("");
+      setState("ready");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Delegations unavailable."); setState("error");
+      if (signal?.aborted) return;
+      setError(e instanceof Error ? e.message : "Delegations unavailable.");
+      setState("error");
     }
   }, [organizationId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const abort = new AbortController();
+    void load(abort.signal);
+    return () => abort.abort();
+  }, [load]);
 
   async function write(method: "POST" | "PATCH", payload: Record<string, unknown>) {
     setState("saving"); setError(""); setNotice("");
@@ -49,7 +60,7 @@ export function ApprovalDelegationSettings({ organizationId }: { organizationId:
     <h3>Delegation settings</h3>
     <p>Only existing approval-capable members may delegate. Delegation cannot bypass maker-checker, expiry or payroll authority.</p>
     {state === "loading" && <p role="status">Loading delegations…</p>}
-    {state === "error" && <div role="alert">{error}<button className="secondary-button" onClick={() => void load()}>Retry</button></div>}
+    {state === "error" && <div role="alert">{error}<button className="secondary-button" onClick={() => { setState("loading"); setError(""); void load(); }}>Retry</button></div>}
     {state !== "error" && state !== "loading" && rows.length === 0 && <p>No delegations recorded for your accessible approvals.</p>}
     {rows.length > 0 && <div className="data-table-wrap" style={{ overflowX: "auto" }}><table className="data-table">
       <thead><tr><th>From</th><th>Delegate</th><th>Dates</th><th>Status</th><th>Action</th></tr></thead>
