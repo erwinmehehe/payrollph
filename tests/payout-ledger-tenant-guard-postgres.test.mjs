@@ -45,6 +45,27 @@ test("A-1/A-2 real Postgres rehearsal: unique/replay/tenant/immutable and rollba
     await client.query("COMMIT");
     transaction = false;
 
+    // A-1: two independent PostgreSQL connections race the SAME provider ID.
+    // Unique(provider,event_id) must persist exactly one inbox record.
+    const left = new pg.Client({connectionString: syntheticTarget()});
+    const right = new pg.Client({connectionString: syntheticTarget()});
+    try {
+      await Promise.all([left.connect(), right.connect()]);
+      const cmd = "INSERT INTO public.provider_events(provider,event_id,organization_id,payroll_run_id,event_type) " +
+        "VALUES ('synthetic-race','E-concurrent',101,201,'fixture') " +
+        "ON CONFLICT (provider,event_id) DO NOTHING RETURNING id";
+      const results = await Promise.all([left.query(cmd), right.query(cmd)]);
+      assert.equal(results.reduce((sum, result) => sum + result.rows.length, 0), 1,
+        "at most one concurrent request can persist the same provider event");
+      const proof = await client.query("SELECT count(*)::int AS count FROM public.provider_events " +
+        "WHERE provider='synthetic-race' AND event_id='E-concurrent'");
+      assert.equal(proof.rows[0].count, 1);
+    } finally {
+      await Promise.allSettled([left.end(), right.end()]);
+    }
+    // Only the isolated CI fixture is ever touched.
+    await client.query("DELETE FROM public.provider_events WHERE provider='synthetic-race' AND event_id='E-concurrent'");
+
     const checks = await client.query(
       "SELECT count(*)::int AS count FROM pg_catalog.pg_trigger t " +
       "JOIN pg_catalog.pg_class c ON c.oid=t.tgrelid " +
@@ -97,6 +118,11 @@ test("A-1/A-2 real Postgres rehearsal: unique/replay/tenant/immutable and rollba
     await rejected("UPDATE public.payout_transfers SET amount_cents=124 WHERE reference_number='T-1'", "23514");
     await rejected("UPDATE public.payout_batches SET total_amount_cents=124 WHERE idempotency_key='B-1'", "23514");
 
+    await client.query("INSERT INTO public.payout_batches(organization_id,payroll_run_id,idempotency_key,request_hash,transfer_count,total_amount_cents) VALUES (101,203,'B-other-run',repeat('a',64),1,123)");
+    await rejected(
+      "INSERT INTO public.payout_batch_transfers(organization_id,payout_batch_id,payout_transfer_id) SELECT 101,b.id,t.id FROM public.payout_batches b CROSS JOIN public.payout_transfers t WHERE b.idempotency_key='B-other-run' AND t.reference_number='T-1'",
+      "23514"
+    );
     await client.query("INSERT INTO public.payout_batch_transfers(organization_id,payout_batch_id,payout_transfer_id) " +
       "SELECT 101,b.id,t.id FROM public.payout_batches b CROSS JOIN public.payout_transfers t WHERE b.idempotency_key='B-1' AND t.reference_number='T-1'");
     await rejected(
