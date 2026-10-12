@@ -4,7 +4,7 @@ import test from "node:test";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../src/db";
 import {
-  employeeEntityBankAccounts, employees, legalEntities, legalEntityProfileChangeRequests,
+  employeeEntityBankAccounts, employeeEntityAssignments, employees, legalEntities, legalEntityProfileChangeRequests,
   legalEntityStatutoryRegistrations, legalEntityTransferLiabilityEvidence, entityTransferRequests,
   organizations, userLegalEntityGrants, userOrganizations, users,
 } from "../src/db/schema";
@@ -50,6 +50,26 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
       { organizationId: tenantA.id, legalEntityId: a2.id, employeeNo: "A2", firstName: "Beta", lastName: "Staff", title: "Staff", avatarInitials: "BS", basicRate: "30000", startDate: "2026-01-01" },
       { organizationId: tenantB.id, legalEntityId: b1.id, employeeNo: "B1", firstName: "Foreign", lastName: "Staff", title: "Staff", avatarInitials: "FS", basicRate: "40000", startDate: "2026-01-01" },
     ]).returning();
+    // An employee record can never be used as a foreign-tenant assignment or
+    // transfer, even if the source/target legal employers are locally valid.
+    await assert.rejects(async () => {
+      await db.insert(employeeEntityAssignments).values({
+        organizationId: tenantA.id, employeeId: foreignWorker.id,
+        legalEntityId: a1.id, effectiveFrom: "2026-01-01",
+      });
+    }, "Worker assignment must match the employee's tenant");
+    await assert.rejects(async () => {
+      await db.insert(entityTransferRequests).values({
+        organizationId: tenantA.id, employeeId: foreignWorker.id,
+        fromLegalEntityId: a1.id, toLegalEntityId: a2.id,
+        effectiveDate: "2026-11-01", reason: "Synthetic forbidden transfer",
+        serviceStartDate: foreignWorker.startDate,
+        leaveSnapshot: [], thirteenthSnapshot: {},
+        continuityNote: "Never create this event",
+        requestedByUserId: people[3].id,
+      });
+    }, "Transfer worker identity must match the tenant");
+
     // The newly staged registration and destination tables reject foreign
     // tenant/employer IDs even if an application caller supplies guessed IDs.
     const sealedProfile = encryptGovernmentId(JSON.stringify({ birTin: "123456789" }), {
@@ -127,6 +147,12 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
     const [acceptedEvidence] = await db.insert(legalEntityTransferLiabilityEvidence)
       .values(validEvidence).returning();
     assert.equal(acceptedEvidence.transferRequestId, transfer.id);
+    // A bare "reviewed" state is never proof of employment liability.
+    await assert.rejects(async () => {
+      await db.update(legalEntityTransferLiabilityEvidence)
+        .set({ reviewState: "reviewed" })
+        .where(eq(legalEntityTransferLiabilityEvidence.id, acceptedEvidence.id));
+    }, "Reviewed liability requires a reviewer, approval time and sealed evidence");
     // A same-tenant but WRONG employee ID or swapped employers must also fail.
     for (const invalid of [
       { ...validEvidence, employeeId: worker2.id },
