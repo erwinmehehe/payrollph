@@ -11,6 +11,7 @@ const fixture=()=>({
   ref:PINNED_SOURCE.ref,githubSha:SHA,reviewedSha:SHA,
   runId:"123456789",runAttempt:"1",
   workflowEnvironment:PINNED_SOURCE.environment,
+  actor:"erwinmehehe",allowedActors:"erwinmehehe,backupoperator",
   changeRef:"P0-4-CHANGE-20261012-001",
   neonProjectId:PINNED_SOURCE.projectId,
   neonBranchId:PINNED_SOURCE.branchId,
@@ -49,6 +50,8 @@ test("wrong branch, repo, event, environment, or reviewed SHA never reaches back
   rejects({reviewedSha:"b".repeat(40)},"UNPROTECTED_OR_UNREVIEWED_SOURCE");
   rejects({githubSha:"latest"},"UNPROTECTED_OR_UNREVIEWED_SOURCE");
   rejects({changeRef:"untracked"},"UNPROTECTED_OR_UNREVIEWED_SOURCE");
+  rejects({actor:"unknown"},"UNPROTECTED_OR_UNREVIEWED_SOURCE");
+  rejects({allowedActors:""},"UNPROTECTED_OR_UNREVIEWED_SOURCE");
 });
 
 test("wrong Neon project/branch/endpoint/hostname, pooled host or elevated reader blocked",()=>{
