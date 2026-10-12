@@ -2,8 +2,8 @@
 -- NOT IN drizzle/; DO NOT RUN against Neon (even staging/clone) without DBA review.
 -- Built from already merged historical source paths, preserving statement order.
 -- This file contains additive DDL and indexes ONLY; intentionally omits 0050's
--- mutable position-to-current-employee legal-entity UPDATE (unsafe attribution).
--- All existing historical objects and data must be independently preflighted.
+-- mutable 0050 employer-position UPDATE and 0051 legacy family/level/grade INSERT/UPDATE.
+-- Existing tables are preserved. Skipped 0051 mappings need an independent reviewed backfill if live job profiles exist.\n-- All existing historical objects and data must be independently preflighted.
 -- No historical applied receipts/approvals/backup/restore evidence are implied.
 -- Reconcile duplicates, future migration number, exact SQL SHA and 0121 order.
 -- The human operator must stop on missing receipts, duplicate live business keys,
@@ -143,6 +143,104 @@ CREATE INDEX IF NOT EXISTS "worker_employment_events_employee_date_idx"
 CREATE INDEX IF NOT EXISTS "worker_employment_events_org_type_idx"
   ON "worker_employment_events" ("organization_id", "event_type");
 -- SOURCE END drizzle/0050_hcm_core_worker_history.sql
+
+-- SOURCE STAGE drizzle/0051_hcm_org_job_architecture.sql
+DO $guard$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM "org_units"
+    GROUP BY "organization_id", "code"
+    HAVING count(*) > 1
+  ) THEN
+    RAISE EXCEPTION 'HCM Core 2.1 requires organization-unit codes to be unique inside each organization. Resolve duplicate codes before applying this migration.';
+  END IF;
+END
+$guard$;
+
+ALTER TABLE "org_units"
+  ADD COLUMN IF NOT EXISTS "legal_entity_id" integer REFERENCES "legal_entities"("id") ON DELETE restrict,
+  ADD COLUMN IF NOT EXISTS "cost_center_id" integer REFERENCES "cost_centers"("id") ON DELETE set null,
+  ADD COLUMN IF NOT EXISTS "manager_employee_id" integer REFERENCES "employees"("id") ON DELETE set null,
+  ADD COLUMN IF NOT EXISTS "effective_from" date,
+  ADD COLUMN IF NOT EXISTS "effective_until" date,
+  ADD COLUMN IF NOT EXISTS "active" boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS "updated_at" timestamp with time zone NOT NULL DEFAULT now();
+
+CREATE UNIQUE INDEX IF NOT EXISTS "org_units_org_code_unique"
+  ON "org_units" ("organization_id", "code");
+CREATE INDEX IF NOT EXISTS "org_units_org_parent_idx"
+  ON "org_units" ("organization_id", "parent_id");
+CREATE INDEX IF NOT EXISTS "org_units_org_type_idx"
+  ON "org_units" ("organization_id", "type", "active");
+CREATE INDEX IF NOT EXISTS "org_units_legal_entity_idx"
+  ON "org_units" ("organization_id", "legal_entity_id");
+CREATE INDEX IF NOT EXISTS "org_units_cost_center_idx"
+  ON "org_units" ("organization_id", "cost_center_id");
+
+CREATE TABLE IF NOT EXISTS "job_families" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "code" varchar(40) NOT NULL,
+  "name" varchar(120) NOT NULL,
+  "description" text,
+  "active" boolean NOT NULL DEFAULT true,
+  "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+  "updated_at" timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "job_families_org_code_unique" ON "job_families" ("organization_id", "code");
+CREATE UNIQUE INDEX IF NOT EXISTS "job_families_org_name_unique" ON "job_families" ("organization_id", "name");
+CREATE INDEX IF NOT EXISTS "job_families_org_active_idx" ON "job_families" ("organization_id", "active");
+
+CREATE TABLE IF NOT EXISTS "job_levels" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "code" varchar(40) NOT NULL,
+  "name" varchar(80) NOT NULL,
+  "sequence" integer NOT NULL DEFAULT 0,
+  "description" text,
+  "active" boolean NOT NULL DEFAULT true,
+  "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+  "updated_at" timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "job_levels_org_code_unique" ON "job_levels" ("organization_id", "code");
+CREATE UNIQUE INDEX IF NOT EXISTS "job_levels_org_name_unique" ON "job_levels" ("organization_id", "name");
+CREATE INDEX IF NOT EXISTS "job_levels_org_sequence_idx" ON "job_levels" ("organization_id", "sequence");
+
+CREATE TABLE IF NOT EXISTS "job_grades" (
+  "id" serial PRIMARY KEY NOT NULL,
+  "organization_id" integer NOT NULL REFERENCES "organizations"("id") ON DELETE cascade,
+  "code" varchar(40) NOT NULL,
+  "name" varchar(80) NOT NULL,
+  "sequence" integer NOT NULL DEFAULT 0,
+  "description" text,
+  "active" boolean NOT NULL DEFAULT true,
+  "created_at" timestamp with time zone NOT NULL DEFAULT now(),
+  "updated_at" timestamp with time zone NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "job_grades_org_code_unique" ON "job_grades" ("organization_id", "code");
+CREATE UNIQUE INDEX IF NOT EXISTS "job_grades_org_name_unique" ON "job_grades" ("organization_id", "name");
+CREATE INDEX IF NOT EXISTS "job_grades_org_sequence_idx" ON "job_grades" ("organization_id", "sequence");
+
+ALTER TABLE "job_profiles"
+  ADD COLUMN IF NOT EXISTS "family_id" integer REFERENCES "job_families"("id") ON DELETE restrict,
+  ADD COLUMN IF NOT EXISTS "level_id" integer REFERENCES "job_levels"("id") ON DELETE restrict,
+  ADD COLUMN IF NOT EXISTS "grade_id" integer REFERENCES "job_grades"("id") ON DELETE restrict;
+
+CREATE INDEX IF NOT EXISTS "job_profiles_org_family_idx" ON "job_profiles" ("organization_id", "family_id");
+CREATE INDEX IF NOT EXISTS "job_profiles_org_level_idx" ON "job_profiles" ("organization_id", "level_id");
+CREATE INDEX IF NOT EXISTS "job_profiles_org_grade_idx" ON "job_profiles" ("organization_id", "grade_id");
+
+ALTER TABLE "positions"
+  ADD COLUMN IF NOT EXISTS "supervisory_org_unit_id" integer REFERENCES "org_units"("id") ON DELETE set null,
+  ADD COLUMN IF NOT EXISTS "cost_center_id" integer REFERENCES "cost_centers"("id") ON DELETE set null;
+
+CREATE INDEX IF NOT EXISTS "positions_supervisory_org_idx"
+  ON "positions" ("organization_id", "supervisory_org_unit_id");
+CREATE INDEX IF NOT EXISTS "positions_cost_center_idx"
+  ON "positions" ("organization_id", "cost_center_id");
+-- SOURCE END drizzle/0051_hcm_org_job_architecture.sql
 
 -- SOURCE STAGE drizzle/0052_hcm_effective_dated_changes.sql
 CREATE TABLE IF NOT EXISTS "worker_effective_changes" (
