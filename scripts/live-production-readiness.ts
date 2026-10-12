@@ -15,6 +15,10 @@ type RemediationOwner = "deployment" | "operations" | "payroll" | "compliance";
 type Remediation = { key: string; owner: RemediationOwner; action: string };
 
 const blockerRemediation: Record<string, Omit<Remediation, "key">> = {
+  "audit-chain-protection": {
+    owner: "deployment",
+    action: "Block payroll pilot. DBA must prove migration 0109 audit protections, role-specific no-UPDATE/DELETE/TRUNCATE/DDL, and restricted sealer privileges on a reviewed staging clone; authorize any forward-only production repair separately.",
+  },
   "production-security-config": {
     owner: "deployment",
     action: "Set APP_BASE_URL to the canonical HTTPS production origin and configure a valid 32-byte TOTP_ENCRYPTION_KEY, then redeploy.",
@@ -200,6 +204,7 @@ async function verifyDetailedReadiness() {
   const gates = Array.isArray(payload.gates) ? payload.gates : [];
   const gateByKey = new Map(gates.map((gate: any) => [String(gate.key), gate]));
   const pilotCritical = [
+    "audit-chain-protection",
     "production-security-config",
     "review-credential",
     "seeded-credentials",
