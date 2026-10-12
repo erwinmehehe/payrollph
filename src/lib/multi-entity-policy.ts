@@ -27,10 +27,11 @@ export function decideEntityAccess(input: {
       : { ok: false, code: "ENTITY_ACCESS_DENIED" };
   }
   if (group) return { ok: true, group, selectedEntityId: null, allowedEntityIds: [...allowed] };
-  // A scoped user must not quietly receive group-wide reads, even if an
-  // administrator accidentally granted them more than one employer.
-  if (allowed.size !== 1) return { ok: false, code: "ENTITY_SELECTION_REQUIRED" };
-  return { ok: true, group, selectedEntityId: [...allowed][0], allowedEntityIds: [...allowed] };
+  // Even multi-granted administrators always start with ONE employer, never
+  // an implicit "all" view. An explicit selection must still pass the grant
+  // check above; deterministic initial selection avoids an unusable workspace.
+  if (!allowed.size) return { ok: false, code: "ENTITY_SELECTION_REQUIRED" };
+  return { ok: true, group, selectedEntityId: Math.min(...allowed), allowedEntityIds: [...allowed] };
 }
 
 export function entityResourceAllowed(
@@ -75,4 +76,44 @@ export function validateLegalEmployerSettingsPatch(value: unknown):
     return { ok: false, code: "INVALID_SETTINGS_PATCH" };
   }
   return { ok: true, payrollCalendarMode: mode };
+}
+
+
+/**
+ * A legal-employer transfer is a scoped mutation, NOT a group read.
+ * Cross-entity read stays exclusive to group_hr, which can never mutate.
+ * Makers and checkers must have explicit grants to BOTH employers and must
+ * operate from their selected source-employer context. The separate transfer
+ * release flag, MFA, membership, effective-date and liability controls remain
+ * mandatory at the HTTP/DB layers.
+ */
+export type TransferAction = "propose" | "approve" | "reject" | "apply";
+export function canActOnEntityTransfer(input: {
+  role: string;
+  action: TransferAction;
+  selectedEntityId: number | null;
+  sourceEntityId: number;
+  targetEntityId: number;
+  grantedEntityIds: readonly number[];
+  actorUserId: number;
+  makerUserId?: number;
+}): boolean {
+  if (GROUP_ENTITY_ROLES.has(input.role)) return false;
+  const makers = ["owner", "admin", "bookkeeper", "hr"];
+  const checkers = ["owner", "admin", "bookkeeper"];
+  const allowedRoles = input.action === "propose" ? makers : checkers;
+  if (!allowedRoles.includes(input.role)) return false;
+  if (!Number.isSafeInteger(input.sourceEntityId) ||
+      !Number.isSafeInteger(input.targetEntityId) ||
+      input.sourceEntityId <= 0 || input.targetEntityId <= 0 ||
+      input.sourceEntityId === input.targetEntityId) return false;
+  if (input.selectedEntityId !== input.sourceEntityId) return false;
+  if (!input.grantedEntityIds.includes(input.sourceEntityId) ||
+      !input.grantedEntityIds.includes(input.targetEntityId)) return false;
+  // A maker cannot approve, reject, or apply their own request. The route
+  // also rechecks this in the same DB transaction as the state mutation.
+  if (input.action !== "propose" &&
+      (!Number.isSafeInteger(input.makerUserId) ||
+       input.makerUserId === input.actorUserId)) return false;
+  return true;
 }
