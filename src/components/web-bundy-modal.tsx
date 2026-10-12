@@ -321,8 +321,6 @@ function WebBundyView({
           <button className="secondary-button" disabled={busy || !policyReady || !canClockOut} onClick={() => handlePunch("clock_out")} style={{ height: 42, fontSize: 13 }}>
             <LogOut size={16} /> {t("Clock OUT")}
           </button>
-        </div>
-
         </div>}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 14, color: "var(--muted)", fontSize: 11 }}>
           <MapPin size={14} className="i-blue" />
