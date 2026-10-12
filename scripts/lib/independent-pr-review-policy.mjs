@@ -28,6 +28,8 @@ const FROZEN_LANES = [
   /^src\/components\/(?:hcm-|wfm-|workforce-|compensation-|performance-)/,
   /^src\/components\/workspace\/(?:hcm|wfm|talent|worker-360|planning|compensation|performance|coverage|workforce)/,
   /^tests\/(?:hcm-|wfm-|workforce-|compensation-|performance-)/,
+  /^scripts\/(?:hcm-|wfm-|workforce-|compensation-|performance-|recruitment-)/,
+  /^\.github\/workflows\/(?:hcm-|wfm-|workforce-|compensation-|performance-)/,
   /^drizzle\/[0-9]{4}_(?:hcm|wfm|workforce|compensation|performance)_/,
 ];
 
