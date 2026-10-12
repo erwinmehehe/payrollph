@@ -1,11 +1,12 @@
-import { and, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  benefitEnrollments, deMinimisGrants, earnedWageRequests,
+  benefitEnrollments, calamityAdvisories, deMinimisGrants, earnedWageRequests,
   employeeCompensationComponents, employeeLoans, employeePayProfiles,
-  employeePayRevisions, employeePayRetroAdjustments, employees, expenseClaims,
-  legalEntities, leaveConversions, leaveRequests, organizations, overtimeRequests,
-  payPolicies, payrollRuns, supplementaryEarnings, timePunches, yearEndAdjustments,
+  employeePayRevisions, employeePayRetroAdjustments, employeeScheduleAssignments,
+  employees, expenseClaims, holidays, legalEntities, leaveConversions, leaveRequests,
+  organizations, overtimeRequests, payPolicies, payrollRuns, scheduleOverrides,
+  supplementaryEarnings, timePunches, yearEndAdjustments,
 } from "@/db/schema";
 import { calculateEmployeePay, PAYROLL_RULE_VERSION } from "@/lib/payroll-engine";
 import { nationalHolidayCalendarForDate } from "@/lib/wage-orders";
@@ -129,7 +130,7 @@ export async function loadFirstPayrollPreview(input: {
   if (!validFirstPayrollPreviewDates(periodStart,periodEnd,payDate))
     throw new Error("Period must have valid dates, at most 16 days, with pay date after period end.");
   const ruleVersions = statutoryRuleVersionsForDate(payDate);
-  nationalHolidayCalendarForDate(periodEnd);
+  const nationalHolidays = nationalHolidayCalendarForDate(periodEnd);
   if (!ruleVersions) throw new Error("Unsupported statutory pay date.");
 
   const [organization] = await db.select().from(organizations)
@@ -141,6 +142,23 @@ export async function loadFirstPayrollPreview(input: {
   )).limit(1);
   const blockers: string[] = [];
   if (!legalEntity) blockers.push("No active primary legal employer configured.");
+  // Do not estimate holiday eligibility, shift or hazard premiums from
+  // synthetic empty attendance when the authoritative payroll assembler has
+  // period-specific entitlements to reconcile.
+  const [localHolidayRows, calamityRows] = await Promise.all([
+    db.select({id:holidays.id}).from(holidays).where(and(
+      or(isNull(holidays.organizationId),eq(holidays.organizationId,organizationId)),
+      gte(holidays.holidayDate,periodStart),lte(holidays.holidayDate,periodEnd),
+    )).limit(1),
+    db.select({id:calamityAdvisories.id}).from(calamityAdvisories).where(and(
+      eq(calamityAdvisories.organizationId,organizationId),eq(calamityAdvisories.active,true),
+      lte(calamityAdvisories.startDate,periodEnd),gte(calamityAdvisories.endDate,periodStart),
+    )).limit(1),
+  ]);
+  const nationalHolidayInCutoff = nationalHolidays.some(item=>item.date>=periodStart && item.date<=periodEnd);
+  const exceptionalCalendar = nationalHolidayInCutoff || localHolidayRows.length>0 || calamityRows.length>0;
+  if (exceptionalCalendar)
+    blockers.push("Holiday or calamity treatment requires the official attendance and policy calculation; preview pay amounts are withheld.");
   const legalEntityId = legalEntity?.id;
   const calendarMode = legalEntity?.payrollCalendarMode ?? organization.payrollCalendarMode;
   const unsupportedCalendar = calendarMode === "ph_semi_monthly" &&
@@ -161,7 +179,7 @@ export async function loadFirstPayrollPreview(input: {
   if (!employeeRows.length) blockers.push("No active employees in the selected payroll scope.");
   const ids = employeeRows.map(e=>e.id);
   const [
-    profiles, punches, leave, payChanges, loans, existingRuns, complicated, activePolicies,
+    profiles, punches, leave, payChanges, loans, existingRuns, complicated, activePolicies, specialSchedules,
   ] = ids.length ? await Promise.all([
     db.select().from(employeePayProfiles).where(and(eq(employeePayProfiles.organizationId,organizationId),inArray(employeePayProfiles.employeeId,ids))),
     db.select({employeeId:timePunches.employeeId}).from(timePunches).where(and(eq(timePunches.organizationId,organizationId),
@@ -192,7 +210,20 @@ export async function loadFirstPayrollPreview(input: {
       eq(payPolicies.organizationId,organizationId),eq(payPolicies.active,true),
       lte(payPolicies.effectiveFrom,periodEnd),
     )).limit(1),
-  ]) : [[],[],[],[],[],[],new Set<number>(),[]];
+    Promise.all([
+      db.select({employeeId:employeeScheduleAssignments.employeeId}).from(employeeScheduleAssignments).where(and(
+        eq(employeeScheduleAssignments.organizationId,organizationId),
+        inArray(employeeScheduleAssignments.employeeId,ids),
+        lte(employeeScheduleAssignments.effectiveFrom,periodEnd),
+        or(isNull(employeeScheduleAssignments.effectiveUntil),gte(employeeScheduleAssignments.effectiveUntil,periodStart)),
+      )),
+      db.select({employeeId:scheduleOverrides.employeeId}).from(scheduleOverrides).where(and(
+        eq(scheduleOverrides.organizationId,organizationId),
+        inArray(scheduleOverrides.employeeId,ids),
+        gte(scheduleOverrides.workDate,periodStart),lte(scheduleOverrides.workDate,periodEnd),
+      )),
+    ]).then(groups=>new Set(groups.flat().map(item=>item.employeeId))),
+  ]) : [[],[],[],[],[],[],new Set<number>(),[],new Set<number>()];
   // Deliberately refuse to project advanced earning adjustments from a
   // partial input model. Later extension should extract the production input
   // assembler shared with processPayrollChunk.
@@ -211,7 +242,7 @@ export async function loadFirstPayrollPreview(input: {
     approvedLeaveExists:has(leave,employee.id),
     effectivePayChangeExists:has(payChanges,employee.id),
     activeLoanExists:has(loans,employee.id),
-    complexInputsExist: complexInputsExist || complicated.has(employee.id), unsupportedCalendar, priorCutoffRequired,
+    complexInputsExist: complexInputsExist || complicated.has(employee.id) || specialSchedules.has(employee.id) || exceptionalCalendar, unsupportedCalendar, priorCutoffRequired,
   }));
   if (rows.some(r=>r.blockers.length)) blockers.push("One or more employees have unresolved payroll blockers.");
   const previewReady = blockers.length===0 && rows.length>0 && rows.every(r=>r.status==="ready");
