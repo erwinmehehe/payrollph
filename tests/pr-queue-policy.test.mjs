@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evaluatePullQueue, formatQueueSummary } from "../scripts/pr-queue-policy.mjs";
+import { evaluatePullQueue, formatQueueSummary, reportQueueOutcome } from "../scripts/pr-queue-policy.mjs";
 
 const pr = (number, draft = true, date = "2026-10-" + String(number % 20 + 1).padStart(2, "0") + "T00:00:00Z") =>
   ({ number, draft, created_at: date });
@@ -88,4 +88,23 @@ test("summary records review-ready pressure without implying merge approval", ()
   assert.match(summary, /Review-ready: 3 \/ 3/);
   assert.match(summary, /Independent reviewer/);
   assert.match(summary, /This gate is read-only/);
+});
+
+test("queue diagnostics explain current PR failures in job stdout", () => {
+  const list = [pr(862, true, "2026-10-12T02:19:06Z"), pr(865, true, "2026-10-12T02:52:30Z")];
+  const by = {
+    862: [add("drizzle/0115_workflow_frontend_requests.sql")],
+    865: [add("drizzle/0115_inline_first_payroll_journey.sql")],
+  };
+  const result = evaluatePullQueue(list, by, 865);
+  const output = [];
+  assert.equal(reportQueueOutcome(result, 865, value => output.push(value)), true);
+  assert.match(output.join(""), /PR under check: #865/);
+  assert.match(output.join(""), /Migration 0115 is already claimed by #862/);
+  assert.match(output.join(""), /Outcome: BLOCKED/);
+
+  const passing = evaluatePullQueue(list, {862: [], 865: by[865]}, 865);
+  const passingOutput = [];
+  assert.equal(reportQueueOutcome(passing, 865, value => passingOutput.push(value)), false);
+  assert.match(passingOutput.join(""), /Outcome: PASS/);
 });

@@ -1,19 +1,35 @@
 name: WFM 14-Scenario Synthetic Evidence Matrix
 on:
+  # Re-run on the actual merged main SHA; an old PR success is not current-main proof.
   push:
-    branches: [test/wfm-pilot-scenario-evidence-20261011]
+    branches: [main]
   pull_request:
+    branches: [main]
     paths:
       - "scripts/wfm-pilot-synthetic-evidence.mjs"
+      - "scripts/lib/wfm-tap-summary.mjs"
+      - "tests/wfm-pilot-synthetic-evidence.test.mjs"
       - "scripts/first-payroll-mobile-synthetic-*"
       - "scripts/pilot-payroll-qa.ts"
+      - "src/app/api/workforce/**"
       - "src/app/api/web-bundy/**"
+      - "src/app/api/attendance/**"
+      - "src/lib/workforce-*.ts"
+      - "src/lib/wfm-*.ts"
+      - "src/lib/payroll-*.ts"
       - "src/lib/web-bundy-*.ts"
+      - "src/lib/attendance-*.ts"
+      - "src/components/workforce-*.tsx"
       - "src/components/web-bundy-modal.tsx"
+      - "src/components/workspace/workforce-*.tsx"
+      - "tests/workforce-*.test.ts"
+      - "tests/wfm-*.test.ts"
       - "tests/web-bundy-*.test.ts"
-      - "tests/wfm-web-bundy-*.test.ts"
       - ".github/workflows/wfm-pilot-synthetic-evidence.yml"
   workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -47,6 +63,8 @@ jobs:
         shell: bash
         run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
       - run: npm run db:push
+      - name: Reject empty or skipped TAP evidence
+        run: node --test tests/wfm-pilot-synthetic-evidence.test.mjs
       - name: Run automated portions of all fourteen WFM scenarios
         run: node scripts/wfm-pilot-synthetic-evidence.mjs
       - name: Upload sanitized scenario evidence
