@@ -5,10 +5,6 @@ import type { DashboardData, Employee } from "./types";
 
 export type EntityWorkspace = NonNullable<DashboardData["multiEntity"]>;
 
-function legalEntityLabel(entity: EntityWorkspace["entities"][number]) {
-  return entity.legalName || entity.displayName;
-}
-
 /** Only installed when the feature is enabled. No changes to global fetch while OFF. */
 export function useMultiEntityRequestHeaders(context: EntityWorkspace | undefined) {
   useEffect(() => {
