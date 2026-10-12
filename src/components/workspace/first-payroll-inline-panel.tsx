@@ -13,7 +13,7 @@ type RecordedStep = { byUserId:number;at:string;periodStart?:string;periodEnd?:s
 type Progress = { stepOwners?:Record<string,string>;completedSteps?:Record<string,RecordedStep>;reviewedByUserId?:number|null };
 type PreviewRow = { employeeId:number;name:string;gross:number|null;sss:number|null;philHealth:number|null;pagIbig:number|null;withholding:number|null;net:number|null;blockers:string[] };
 type Preview = { rows:PreviewRow[];blockers:string[];warnings?:string[];previewReady:boolean;dryRun:true };
-type LegalEmployer = { id:number;primaryEntity:boolean;active:boolean;legalName:string;payrollCalendarMode:string };
+type LegalEmployer = { id:number;primaryEntity:boolean;active:boolean;legalName:string;payrollCalendarMode:string;birTin?:string|null;sssEmployerNo?:string|null;philHealthEmployerNo?:string|null;pagIbigEmployerNo?:string|null };
 export function FirstPayrollInlinePanel({
  step, data, onRefresh, onProgressUpdate, onDecide, canDecide = false, canManageDelegations = false, notify = () => {},
 }: {
@@ -27,6 +27,7 @@ export function FirstPayrollInlinePanel({
  const [error,setError]=useState("");const [notice,setNotice]=useState("");const [busy,setBusy]=useState(false);
  const [company,setCompany]=useState(data.selectedOrganization.legalName);
  const [schedule,setSchedule]=useState("ph_semi_monthly");
+ const [registrations,setRegistrations]=useState({birTin:"",sssEmployerNo:"",philHealthEmployerNo:"",pagIbigEmployerNo:""});
  const [employer,setEmployer]=useState<LegalEmployer|null>(null);
  const [peopleMode,setPeopleMode]=useState<"add"|"import">("add");
  const [showHire,setShowHire]=useState(false);
@@ -55,7 +56,7 @@ export function FirstPayrollInlinePanel({
    .then(async r=>{const body=await r.json();if(!r.ok)throw Error(body.error??"Could not load legal employer");return body;})
    .then(result=>{if(cancelled)return;const entries=(result.legalEntities??[]) as LegalEmployer[];
      const selected=entries.find(e=>e.active&&e.primaryEntity)??null;
-     setEmployer(selected);if(selected){setCompany(selected.legalName);setSchedule(selected.payrollCalendarMode);}
+     setEmployer(selected);if(selected){setCompany(selected.legalName);setSchedule(selected.payrollCalendarMode);setRegistrations({birTin:selected.birTin??"",sssEmployerNo:selected.sssEmployerNo??"",philHealthEmployerNo:selected.philHealthEmployerNo??"",pagIbigEmployerNo:selected.pagIbigEmployerNo??""});}
    }).catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"Could not load legal employer");});
   return ()=>{cancelled=true;};
  },[step,organizationId]);
@@ -80,7 +81,7 @@ export function FirstPayrollInlinePanel({
   if(!employer){setError("No active primary legal employer found.");return;}
   // Legal employer is authoritative for payroll. Updating organization settings alone is insufficient.
   const entitySaved=await send("/api/legal-entities","PATCH",{
-    action:"update_entity",legalEntityId:employer.id,legalName:company,payrollCalendarMode:schedule,
+    action:"update_entity",legalEntityId:employer.id,legalName:company,payrollCalendarMode:schedule,...registrations,
   },"Legal employer updated.");
   if(!entitySaved)return;
   const projected=await send("/api/organizations","PUT",{
@@ -119,6 +120,10 @@ export function FirstPayrollInlinePanel({
    {step==="company"&&<div className="grid gap-3">
      <p>Update the primary legal employer. Its calendar, not the legacy organization projection, governs payroll.</p>
      <label>Legal employer name<input value={company} onChange={e=>setCompany(e.target.value)}/></label>
+     <label>Employer BIR TIN<input value={registrations.birTin} inputMode="numeric" maxLength={9} pattern="[0-9]{9}" onChange={e=>setRegistrations(p=>({...p,birTin:e.target.value.replace(/\\D/g,"")}))}/></label>
+     <label>SSS employer registration<input value={registrations.sssEmployerNo} onChange={e=>setRegistrations(p=>({...p,sssEmployerNo:e.target.value}))}/></label>
+     <label>PhilHealth employer registration<input value={registrations.philHealthEmployerNo} onChange={e=>setRegistrations(p=>({...p,philHealthEmployerNo:e.target.value}))}/></label>
+     <label>Pag-IBIG employer registration<input value={registrations.pagIbigEmployerNo} onChange={e=>setRegistrations(p=>({...p,pagIbigEmployerNo:e.target.value}))}/></label>
      <label>Pay schedule<select value={schedule} onChange={e=>setSchedule(e.target.value)}>
        <option value="ph_semi_monthly">Philippine semi-monthly</option>
        <option value="flexible">Flexible (review required)</option>

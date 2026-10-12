@@ -8,6 +8,7 @@ import {
   timePunches, userOrganizations, employeePayRetroAdjustments,
 } from "@/db/schema";
 import { calculateEmployeePay } from "./payroll-engine";
+import { decryptGovernmentId } from "./government-id-crypto";
 import { isCanonicalPhSemiMonthlyPeriod } from "./payroll-calendar";
 import { statutoryRuleVersionsForDate } from "./ph-statutory-rule-packs";
 import { nationalHolidayCalendarForDate } from "./wage-orders";
@@ -70,6 +71,12 @@ export async function loadReadOnlyFirstPayrollPreview(
  const rows=people.map(employee=>{
    const problems:string[]=[];
    if(!employee.tin)problems.push("Missing TIN");
+   else {
+     try {
+       const raw=decryptGovernmentId(employee.tin);
+       if(!raw||!/^\\d{9}$/.test(raw.replace(/-/g,"")))problems.push("Invalid TIN format");
+     } catch { problems.push("TIN encryption cannot be verified with configured keys"); }
+   }
    if(!employee.bankAccount||!employee.bankCode)problems.push("Missing bank payout destination");
    if(legal&&employee.legalEntityId!==legal.id)problems.push("Employee belongs to another legal employer.");
    if(employee.mwe)problems.push("MWE treatment requires an individually reviewed wage classification.");

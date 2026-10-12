@@ -25,6 +25,10 @@ export function NewHireModal({
     firstName: "",
     lastName: "",
     email: "",
+    tin: "",
+    sssNo: "",
+    philHealthNo: "",
+    pagIbigNo: "",
     bankAccount: "",
     bankCode: "",
     mobile: "",
@@ -89,6 +93,10 @@ export function NewHireModal({
             <label>First name<input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></label>
             <label>Last name<input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></label>
             <label>Work email<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="for payslip delivery" /></label>
+            <label>BIR TIN (9 digits)<input inputMode="numeric" pattern="[0-9]{9}" maxLength={9} value={form.tin} onChange={e=>setForm({...form,tin:e.target.value.replace(/\\D/g,"")})} placeholder="Required before payroll preview" autoComplete="off" /></label>
+            <label>SSS number<input value={form.sssNo} onChange={e=>setForm({...form,sssNo:e.target.value})} autoComplete="off" /></label>
+            <label>PhilHealth number<input value={form.philHealthNo} onChange={e=>setForm({...form,philHealthNo:e.target.value})} autoComplete="off" /></label>
+            <label>Pag-IBIG number<input value={form.pagIbigNo} onChange={e=>setForm({...form,pagIbigNo:e.target.value})} autoComplete="off" /></label>
             <label>Job title<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
             <label>Bank / payout code<input value={form.bankCode} onChange={(e) => setForm({ ...form, bankCode: e.target.value.toUpperCase() })} placeholder="BDO / BPI / UB / ..." /></label>
             <label>Account number<input value={form.bankAccount} onChange={(e) => setForm({ ...form, bankAccount: e.target.value })} placeholder="encrypted after save" autoComplete="off" /></label>
