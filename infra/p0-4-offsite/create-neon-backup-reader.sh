@@ -19,7 +19,10 @@ BEGIN;
 SELECT format('CREATE ROLE payrollph_backup_ro LOGIN PASSWORD %L NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT', :'fresh_password') \gexec
 GRANT CONNECT ON DATABASE neondb TO payrollph_backup_ro;
 GRANT USAGE ON SCHEMA public TO payrollph_backup_ro;
+GRANT USAGE ON SCHEMA neon_auth TO payrollph_backup_ro;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO payrollph_backup_ro;
+-- Neon Auth is managed separately: grant only current tables; no mutation/DDL.
+GRANT SELECT ON ALL TABLES IN SCHEMA neon_auth TO payrollph_backup_ro;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO payrollph_backup_ro;
 ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public GRANT SELECT ON TABLES TO payrollph_backup_ro;
 ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public GRANT SELECT ON SEQUENCES TO payrollph_backup_ro;
@@ -30,10 +33,13 @@ SELECT CASE WHEN
   EXISTS (SELECT 1 FROM pg_roles WHERE rolname='payrollph_backup_ro'
     AND rolcanlogin AND NOT (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls))
   AND NOT has_schema_privilege('payrollph_backup_ro','public','CREATE')
+  AND NOT has_schema_privilege('payrollph_backup_ro','neon_auth','CREATE')
+  AND has_schema_privilege('payrollph_backup_ro','public','USAGE')
+  AND has_schema_privilege('payrollph_backup_ro','neon_auth','USAGE')
   AND NOT has_database_privilege('payrollph_backup_ro',current_database(),'CREATE')
   AND NOT EXISTS (
     SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
-    WHERE n.nspname='public' AND c.relkind IN ('r','p')
+    WHERE n.nspname IN ('public','neon_auth') AND c.relkind IN ('r','p')
       AND (NOT has_table_privilege('payrollph_backup_ro',c.oid,'SELECT')
         OR has_table_privilege('payrollph_backup_ro',c.oid,'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER')))
 THEN 'BACKUP_RO_CAPABILITIES_VERIFIED' ELSE 'DENIED' END;
