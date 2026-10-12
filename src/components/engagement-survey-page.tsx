@@ -33,7 +33,7 @@ export function EngagementSurveyPage({ organizationId }: { organizationId: numbe
       setError(e instanceof Error ? e.message : "Cannot load survey.");
     } finally { setLoading(false); }
   }, [organizationId]);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void Promise.resolve().then(load); }, [load]);
 
   const act = async (action: "create" | "close" | "answer", input: { surveyId?: number; score?: number } = {}) => {
     setBusy(true); setError("");
