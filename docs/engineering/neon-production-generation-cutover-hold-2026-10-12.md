@@ -84,3 +84,26 @@ A **manual, time-limited safety snapshot** was created on the same project, with
 The snapshot was confirmed by a subsequent read-only list. It is a **temporary restore point**, not proof of a successful restoration, independent backup, recovery policy, or approval to run migrations. Validate recovery on a separately authorized isolated clone before cutover, and establish a sustainable schedule/branch protection with the infrastructure owner.
 
 An existing branch named `payrollph-db-migration-lab-20261012` is **not schema-identical** to current main: it lists 124 public tables against main's 112, including audit-chain, worker-position and demand tables absent on main. It must not be represented as an unmodified production clone or used as release evidence without reconciling those differences.
+
+
+## Isolated Neon restoration, migration rollback and incident — 2026-10-12
+
+This is additional connected-Neon evidence **after** the initial catalog audit. The correct source branch remains `br-lucky-sound-b79i56jw` (default `main`), database `neondb`. Original Neon compute hostname `ep-cool-hat-b7e7gpoo.c-13.us-east-1.aws.neon.tech` was reverified at the end. Do not treat this section as production release approval.
+
+- A prior normal copy-on-write lab branch `br-aged-mouse-b7tipaw5` received additive test rehearsals of historical `0022` plus `0109–0114`, with missing `job_profiles` dependency resolved only in lab. The 0109 initial behavior test omitted `DROP TRIGGER IF EXISTS`; it did not claim an exact-file receipt.
+- A production snapshot `snap-red-sound-b798wnli` was restored to a separate branch, now `br-damp-grass-b7yyv0y3`, named `payrollph-snapshot-restore-lab-20261012`. The restore inadvertently **finalized with a default-branch and compute-endpoint swap**. The original default branch ID, its `main` name and original endpoint were restored, re-queried and verified, but a brief application disruption or routing to the snapshot is possible. See #744 incident log. This is **not** a clean independent-disaster-recovery sign-off. Future restore rehearsals must use an operator-reviewed nonfinalizing procedure in an isolated account/project.
+- On the restored QA branch, the **exact three SQL statements** of `drizzle/0110_provider_events_inbox.sql` were run with an intentionally failing fourth statement in one transaction; PostgreSQL rolled back the new table completely. The exact source then applied successfully; its primary key, two foreign keys and two named indexes were verified.
+- The **complete 11-statement** `drizzle/0109_tamper_evident_audit_chain.sql` was then executed on the restored QA branch, including its original `DROP TRIGGER IF EXISTS` (safe only because this is isolated QA). Three copied audit events were sealed; independent hash/link/sequence verification found **zero** mismatches; the second sealer run processed zero new rows. Neither 0109 nor 0110 was applied to production.
+- The restored branch and temporary no-compute endpoint-parking branch expire `2026-10-13T06:00:00Z`. The original production endpoint has been restored; no source migration SQL ran on original `main`. Temporary infrastructure route changes **did** occur and require operator incident review. Compare request/error/SQL connection logs around `2026-10-12T05:20–05:22Z`.
+
+### New source-side foundation catalog gate
+
+`scripts/lib/foundation-migration-objects.mjs` adds a SELECT-only, full-filename check for expected **objects** from `0022` and `0109–0114`. The CLI `scripts/audit-neon-schema-generation.mjs` now returns this evidence with canonical `0115–0119` preflight and fails closed when foundation objects are missing. It does **not** infer applied historical SQL, reconcile 13 duplicate legacy prefixes, compare DDL definitions/constraints, or authorize production. No original database mutation or fake migration receipts were created.
+
+### Release hold and next operator requirements
+
+1. Verify serving Vercel connection/endpoint identity and independently investigate possible impact from the temporary restore swap.
+2. Establish a longer-lived independently verified restore route, protected production `main` branch, and an approved backup/snapshot schedule; a time-limited snapshot is insufficient.
+3. Independently review every historical SQL path+SHA-256 and request-time DDL/backfill evidence; adopt authoritative receipts without inventing applied history. Prepare #867's reviewed forward executor only after this.
+4. Verify complete live schema and safe dependency order, not just 21 selected foundation objects. Payout ledger and worker employment history are still missing prerequisites for 0117/0119. Do not deploy train #865 yet.
+5. Reconcile employee-by-employee payroll to the centavo, test privileges/privacy/encryption, complete new code CI and independent DBA/security/payroll/release sign-off. Do not activate payouts or filing.

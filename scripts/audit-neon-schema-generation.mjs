@@ -13,6 +13,9 @@ import {
   CANONICAL_MIGRATION_BASE_TABLES_SQL,
   assessCanonicalMigrationTables,
 } from "./lib/canonical-migration-base-tables.mjs";
+import {
+  FOUNDATION_OBJECTS_SQL, assessFoundationObjects,
+} from "./lib/foundation-migration-objects.mjs";
 
 export async function audit(env = process.env) {
   const connectionString = env.PRODUCTION_SCHEMA_AUDIT_DATABASE_URL;
@@ -30,16 +33,19 @@ export async function audit(env = process.env) {
     const assessment = assessDatabaseGeneration(row);
     const targets = await client.query(CANONICAL_MIGRATION_BASE_TABLES_SQL);
     const canonicalTrain = assessCanonicalMigrationTables(targets.rows);
+    const foundations = assessFoundationObjects((await client.query(FOUNDATION_OBJECTS_SQL)).rows);
     return {
       databaseName: row?.databaseName ?? null,
       serverVersionNum: row?.serverVersionNum ?? null,
       publicTableCount: row?.publicTableCount ?? null,
       generation: assessment.generation,
       canonicalTrain,
+      foundations,
       missingTrainPrerequisites: assessment.missingTrainPrerequisites ?? [],
-      eligibleForMigrationReview: assessment.eligibleForMigrationReview,
+      eligibleForMigrationReview: assessment.eligibleForMigrationReview && foundations.allExpectedObjectsPresent,
       productionMigrationApproved: false,
-      reason: assessment.reason,
+      reason: !foundations.allExpectedObjectsPresent ? "FOUNDATION_OBJECTS_MISSING" : assessment.reason,
+      generationReason: assessment.reason,
     };
   } finally {
     if (connected) {
