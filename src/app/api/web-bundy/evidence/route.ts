@@ -3,14 +3,12 @@ import { and, desc, eq, lte, isNull, gte, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, employees, employeeWorksiteAssignments, worksiteGeofenceBoundaries, worksites, workforcePunchPhotoConsents, workforcePunchPhotoEvidence, workforcePunchSubmissions, worksitePunchPolicies } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
-import { assertMembership, assertOrganizationRole, getAccess, assertScope, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
-import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
+import { assertMembership } from "@/lib/access";
+import { enforceSameOriginMutation, enforceSensitiveActionRateLimit } from "@/lib/security-request";
 import { attendanceMutationLock, loadActiveAttendanceLocks } from "@/lib/workforce-attendance-lock";
-import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
-import { reconcileAttendanceExceptionEvents } from "@/lib/workforce-attendance-exception-events";
 import { authorizedGeofenceSites } from "@/lib/workforce-geofence-server";
 import { evaluateGeofenceFix, geofencePilotEnabledForOrganization } from "@/lib/workforce-geofence";
-import { encryptPunchPhoto, decryptPunchPhoto, stripJpegMetadata } from "@/lib/workforce-punch-photo-crypto";
+import { encryptPunchPhoto, stripJpegMetadata } from "@/lib/workforce-punch-photo-crypto";
 import { documentUploadsEnabled, scanUpload } from "@/lib/storage";
 import { enhancedPunchEnabled, photoCaptureDecision, photoExpiry, evaluatePunchTiming, impossibleTravel, resolvedWorksiteDecision, PUNCH_CONSENT_VERSION, PUNCH_MAX_IMAGE_BYTES, PUNCH_ACTIONS, validPunchUuid, type PhotoMode } from "@/lib/workforce-punch-evidence";
 
