@@ -1,3 +1,5 @@
+**Migration update (2026-10-12):** The canonical *source-only* multi-entity SQL is `drizzle/0119_multi_entity_v2_scope_transfer.sql` in draft PR #865. This file includes historical payroll data backfills and must **not** be applied to Neon without separate DBA/legal/HR/payroll review, validated backup, exact applied-SHA inventory and disposable clone rehearsal. Prior `0115` notes below are historical; no employer transfer is authorized.
+
 # Multi-entity v2 implementation and UI acceptance
 
 **Status: NOT READY TO MERGE OR ACTIVATE.** Draft implementation only.  
@@ -8,7 +10,7 @@
 
 ## Schema decisions
 
-The existing `legal_entities` table and `drizzle/0045_multi_legal_entities.sql` / `drizzle/0065_legal_entity_compliance_scope.sql` already implement many requested columns and PRIMARY-employer backfills. `drizzle/0115_multi_entity_v2_scope_transfer.sql` is additive: it creates a default primary entity for tenants without one, adds nullable employer ownership to downstream child records, copies ownership from immutable payroll runs where trustworthy, introduces per-user entity grants/preferences and effective-dated assignments/transfer requests. It deliberately leaves **historical imports and unaffiliated final-pay/filing evidence unassigned** until an operator proves the correct paying employer; guessing from the employee's current assignment would be wrong.
+The existing `legal_entities` table and `drizzle/0045_multi_legal_entities.sql` / `drizzle/0065_legal_entity_compliance_scope.sql` already implement many requested columns and PRIMARY-employer backfills. `drizzle/0119_multi_entity_v2_scope_transfer.sql` is additive: it creates a default primary entity for tenants without one, adds nullable employer ownership to downstream child records, copies ownership from immutable payroll runs where trustworthy, introduces per-user entity grants/preferences and effective-dated assignments/transfer requests. It deliberately leaves **historical imports and unaffiliated final-pay/filing evidence unassigned** until an operator proves the correct paying employer; guessing from the employee's current assignment would be wrong.
 
 Never run this SQL on a production database before DBA verification of applied receipts/full-path checksums, isolated **copy/clone** migration twice (idempotence), backfill exception counts, composite FK validation, and tested rollback. The migration is NOT yet proven on a copy. No adjustment to `src/lib/payroll-engine.ts` is included.
 
@@ -35,7 +37,7 @@ Current **implementation caveats**: some legacy enterprise or HCM endpoints have
 - Run `npm run typecheck` and `npm run lint` (no new warnings).
 - Run `npm run payroll:golden`, `npm run payroll:golden:phase2a`, `npm run payroll:golden:phase2b` and `npm run payroll:golden:pay-rules` **unchanged** with the flag OFF and compare against base main receipts.
 - Run `TZ=Asia/Manila npm test` with real DB fixtures (new `tests/multi-entity-behavior.test.ts` and `tests/multi-entity-isolation-db.test.ts`; these execute policy/React/Postgres behavior rather than grep strings). Add HTTP-level multi-role resource guessing, file download and maker/checker concurrency tests before approval.
-- Rehearse `0115` twice on a restricted isolated **copy** with representative tenant and payroll records, verify counts/centavos/foreign keys and that unknown imported history stays blocked. No production backfill without audit receipts.
+- Rehearse `0119` twice on a restricted isolated **copy** with representative tenant and payroll records, verify counts/centavos/foreign keys and that unknown imported history stays blocked. No production backfill without audit receipts.
 - Verify full before/after **flag OFF** legacy workspace HTML or screenshot; React widget empty-render test alone is not a whole-workspace snapshot.
 - Validate exact enrollment/transfer roles and role changes, including revoked grants and concurrent users who change selected employer.
 - Verify group HR cannot modify or release payroll, and entity-scoped users cannot read any other entity or tenant through direct IDs, search, notifications, CSV, bank downloads, government files, self-service impersonation, workers or V1 APIs.
@@ -65,7 +67,7 @@ Capture *actual authenticated running app*, flag OFF (before) and ON (after), at
 ## Release and activation instructions (after approval only)
 
 1. Check branch against **fresh** `origin/main`; resolve any force-update or SQL numbering conflict, and verify DB applied migration receipts.
-2. Have DBA execute additive SQL `0115` twice **on an isolated copy only**, check the exception report and required constraints; authorize a controlled production schema release independently.
+2. Have DBA execute additive SQL `0119` twice **on an isolated copy only**, check the exception report and required constraints; authorize a controlled production schema release independently.
 3. Run all behavior, TypeScript, lint, goldens and timezone-regression suites on the exact proposed SHA. The GitHub queued CI status is not a passed test.
 4. Obtain HR, Philippine payroll and security/privacy signoffs for transfer liability and statutory report boundaries.
 5. Enable exact env `MULTI_ENTITY_ENABLED=true` on an allowlisted staging/pilot environment, then perform the above browser acceptance. **Do not enable in production until all tests and evidence are complete.**

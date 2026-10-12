@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  multiEntity: {
+    env: "MULTI_ENTITY_ENABLED",
+    owner: "Security / Payroll Operations",
+    risk: "P0 employer payroll, statutory and personnel isolation",
+    approval: "DB clone migration, two-tenant/two-entity tests, golden payroll evidence and independent maker-checker UAT",
+  },
   centralScheduler: {
     env: "CENTRAL_SCHEDULER_ENABLED",
     owner: "Operations",
@@ -42,11 +48,11 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 AI-assisted automation suggestions",
     approval: "Synthetic staging isolation and postmerge activation gates",
   },
-  multiEntity: {
-    env: "MULTI_ENTITY_ENABLED",
-    owner: "Security / Payroll Operations",
-    risk: "P0 employer payroll, statutory and personnel isolation",
-    approval: "DB clone migration, two-tenant/two-entity tests, golden payroll evidence and independent maker-checker UAT",
+  wfmLoyversePos: {
+    env: "WFM_LOYVERSE_POS_ENABLED",
+    owner: "Workforce Operations",
+    risk: "P1 consented POS source access and historical aggregate import",
+    approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
   },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",

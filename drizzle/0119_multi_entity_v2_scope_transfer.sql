@@ -1,3 +1,4 @@
+-- 0119: multi-entity extension; sensitive historical backfill: DBA-approved clone rehearsal required.
 -- Additive, idempotent multi-entity v2 migration. Never run on production without
 -- a DBA-approved applied-SHA journal, backup, clone rehearsal and evidence.
 -- All new behavior is gated by MULTI_ENTITY_ENABLED (default off).
