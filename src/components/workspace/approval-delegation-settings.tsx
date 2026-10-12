@@ -37,7 +37,11 @@ export function ApprovalDelegationSettings({ organizationId }: { organizationId:
   }, [organizationId]);
   useEffect(() => {
     const abort = new AbortController();
-    void load(abort.signal);
+    // Defer the network load to an asynchronous continuation; avoid triggering
+    // a synchronous state update from an effect and ignore stale tenant loads.
+    void Promise.resolve().then(() => {
+      if (!abort.signal.aborted) return load(abort.signal);
+    });
     return () => abort.abort();
   }, [load]);
 
