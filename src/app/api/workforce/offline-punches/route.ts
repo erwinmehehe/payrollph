@@ -158,11 +158,17 @@ export async function POST(request:Request){
      employeeId:workforceOfflinePunchReceipts.employeeId,
      organizationId:workforceOfflinePunchReceipts.organizationId,
      actionType:workforceOfflinePunchReceipts.actionType,
+     deviceTimestamp:workforceOfflinePunchReceipts.deviceTimestamp,
+     deviceTokenHash:workforceOfflinePunchReceipts.deviceTokenHash,
+     worksiteId:workforceOfflinePunchReceipts.worksiteId,
      status:workforceOfflinePunchReceipts.status,
      reviewFlags:workforceOfflinePunchReceipts.reviewFlags,
    }).from(workforceOfflinePunchReceipts).where(eq(workforceOfflinePunchReceipts.id,id)).limit(1);
    if(!stored||stored.organizationId!==organizationId||stored.employeeId!==auth.employee!.id
-     ||stored.actionType!==actionType)return Response.json({error:"Offline receipt conflict."},{status:409});
+     ||stored.actionType!==actionType
+     ||new Date(stored.deviceTimestamp).getTime()!==new Date(classified.deviceTimestamp).getTime()
+     ||stored.deviceTokenHash!==hash ||stored.worksiteId!==worksiteId)
+     return Response.json({error:"Offline receipt idempotency conflict."},{status:409});
    return Response.json({id,status:stored.status,flags:stored.reviewFlags,
      note:"Pending human review. This is not a recorded payroll punch."},{status:202,headers:PRIVATE});
  }
