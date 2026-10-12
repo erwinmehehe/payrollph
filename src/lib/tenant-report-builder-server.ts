@@ -2,7 +2,7 @@ import { and, eq, gte, lte, asc } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, leaveRequests, orgUnits, payrollEntries, payrollRuns, separationRecords } from "@/db/schema";
 import { runBiExport, validateBiExportFilters } from "@/lib/bi-exports";
-import type { BuilderDataset, BuilderFact } from "@/lib/tenant-report-builder";
+import { leaveRangeFullyWithinReport, type BuilderDataset, type BuilderFact } from "@/lib/tenant-report-builder";
 
 export async function getBuilderFacts(input: {
   organizationId: number; dataset: BuilderDataset;
@@ -56,6 +56,7 @@ export async function getBuilderFacts(input: {
     });
     const leaves = await db.select({
       days: leaveRequests.days, department: orgUnits.code,
+      leaveStart: leaveRequests.startDate, leaveEnd: leaveRequests.endDate,
     }).from(leaveRequests).innerJoin(employees, and(
       eq(leaveRequests.employeeId, employees.id),
       eq(employees.organizationId, organizationId),
@@ -69,6 +70,11 @@ export async function getBuilderFacts(input: {
       gte(leaveRequests.endDate, startDate),
     )).limit(5_001);
     if (leaves.length > 5_000) throw new Error("Approved leave scope exceeds 5,000 requests.");
+    if (leaves.some(row => !leaveRangeFullyWithinReport(
+      String(row.leaveStart), String(row.leaveEnd), startDate, endDate,
+    ))) {
+      throw new Error("An approved leave request crosses the report boundary; choose a window containing the full leave interval, or use a date-allocated absence report. No partial days were guessed.");
+    }
     return [
       ...timesheets.rows.map(row => ({
         department: String(row.currentOrgUnitCode ?? "Unallocated"),
