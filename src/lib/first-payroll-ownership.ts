@@ -13,6 +13,17 @@ export const FIRST_PAYROLL_OWNER = {
   id: number; role: string; team: string;
 }>;
 export type FirstPayrollKey = keyof typeof FIRST_PAYROLL_OWNER;
+
+export function canOpenInlineFirstPayroll(input: {
+  enabled: boolean;
+  selfServeCustomer: boolean;
+  companyWide: boolean;
+  demoRole: boolean;
+  role: string;
+}) {
+  return input.enabled && input.selfServeCustomer && input.companyWide && !input.demoRole
+    && ["owner","admin","bookkeeper","hr","payroll","checker"].includes(input.role);
+}
 export function isFirstPayrollKey(value: unknown): value is FirstPayrollKey {
   return typeof value === "string" && Object.hasOwn(FIRST_PAYROLL_OWNER, value);
 }
