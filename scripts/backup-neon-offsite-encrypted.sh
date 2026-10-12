@@ -24,6 +24,17 @@ if [[ "$versioning" != Enabled || "$object_lock" != Enabled ]]; then
   echo "BACKUP_IMMUTABLE_BUCKET_REQUIRED" >&2
   exit 1
 fi
+# A private encrypted archive still requires bucket-level public-access denial.
+# Fail before reading any payroll records if even one protective bit is absent.
+for policy in BlockPublicAcls IgnorePublicAcls BlockPublicPolicy RestrictPublicBuckets; do
+  enabled="$(aws s3api get-public-access-block --bucket "$BACKUP_S3_BUCKET" \
+    --query "PublicAccessBlockConfiguration.$policy" --output text)"
+  if [[ "$enabled" != True ]]; then
+    echo "BACKUP_S3_PUBLIC_ACCESS_NOT_BLOCKED" >&2
+    exit 1
+  fi
+done
+
 aws kms describe-key --key-id "$BACKUP_KMS_KEY_ARN" \
   --query KeyMetadata.Enabled --output text | grep -qx True ||
     { echo "BACKUP_KMS_KEY_NOT_ENABLED" >&2; exit 1; }
