@@ -27,6 +27,9 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
   const step = typeof body.step === "string" ? STEPS[body.step] : undefined;
+  // Reserve negative keys so ordinary readiness cases from other workflows
+  // cannot be mistaken for this UI's idempotent handoff.
+  const stepSourceId = step ? -1000 - step.sourceId : 0;
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0 || !step)
     return Response.json({ error: "Invalid employer or first-payroll step." }, { status: 400 });
   const denied = await assertOrganizationRole(user.id, organizationId, PEOPLE_ADMIN_ROLES);
@@ -38,7 +41,7 @@ export async function POST(request: Request) {
     .from(automationOperationalCases).where(and(
       eq(automationOperationalCases.organizationId, organizationId),
       eq(automationOperationalCases.caseType, "payroll_readiness"),
-      eq(automationOperationalCases.sourceId, step.sourceId),
+      eq(automationOperationalCases.sourceId, stepSourceId),
     )).limit(1);
   if (existing?.status === "resolved")
     return Response.json({ error: "The existing handoff is resolved; it cannot be silently reopened." }, { status: 409 });
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
     organizationId,
     caseType: "payroll_readiness",
     sourceType: "first_payroll_ui",
-    sourceId: step.sourceId,
+    sourceId: stepSourceId,
     ownerTeam: step.team,
     title: step.title,
     detail: step.detail,
@@ -57,7 +60,7 @@ export async function POST(request: Request) {
     .from(automationOperationalCases).where(and(
       eq(automationOperationalCases.organizationId, organizationId),
       eq(automationOperationalCases.caseType, "payroll_readiness"),
-      eq(automationOperationalCases.sourceId, step.sourceId),
+      eq(automationOperationalCases.sourceId, stepSourceId),
     )).limit(1))[0]?.id;
   if (!id) return Response.json({ error: "Could not create the handoff." }, { status: 409 });
   if (created) await recordAuditEvent({
