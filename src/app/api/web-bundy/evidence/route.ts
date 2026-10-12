@@ -93,6 +93,13 @@ export async function POST(request: Request) {
   if(!Number.isSafeInteger(organizationId)||organizationId<=0) return respond({error:"Invalid employer."},400);
   const context=await employeeSession(organizationId);if(context.denied) return context.denied;
   const {user,employee}=context;
+  // A shared browser can retain queues from several workers. Do not replay a
+  // former employee's local action into the currently authenticated account.
+  const claimedEmployeeId=form.get("employeeId");
+  if(claimedEmployeeId!==null&&(
+    !/^\d+$/.test(String(claimedEmployeeId))||
+    Number(claimedEmployeeId)!==employee!.id
+  ))return respond({error:"Queued punch belongs to another worker. Sign in as its owner or request HR correction."},403);
   const limited=await enforceSensitiveActionRateLimit(request,{userId:user!.id,action:"wfm-punch-evidence",resourceId:organizationId,limit:30,windowMs:5*60_000});
   if(limited) return limited;
   const action=String(form.get("actionType")??"");
