@@ -12,7 +12,7 @@ import {
 import { documentUploadsEnabled, MAX_UPLOAD_BYTES, safeFileName, scanUpload, validateUpload } from "@/lib/storage";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
-import { claimCanAttachReceipt } from "@/lib/spend-payroll-reimbursement";
+import { claimCanAttachReceipt, receiptObjectIdentityMatches } from "@/lib/spend-payroll-reimbursement";
 
 export const dynamic = "force-dynamic";
 const enabled = () => criticalReleaseFlagEnabled("spendPayroll") &&
@@ -52,6 +52,10 @@ export async function GET(request: Request) {
   if (denied) return denied;
   if (!claim.receiptStorageKey || !claim.receiptSha256) {
     return Response.json({ error: "No scanned receipt exists for this claim." }, { status: 404 });
+  }
+  if (!receiptObjectIdentityMatches(claim.receiptStorageKey,
+      claim.organizationId, claim.employeeId)) {
+    return Response.json({ error: "Private receipt storage identity mismatch." }, { status: 409 });
   }
   let url: URL;
   try {
