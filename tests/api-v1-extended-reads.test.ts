@@ -37,6 +37,11 @@ test("strict bounded pagination rejects decimals and oversized offsets", () => {
   assert.equal(apiV1Page(new URLSearchParams("limit=1.2")), null);
   assert.equal(apiV1Page(new URLSearchParams("limit=101")), null);
   assert.equal(apiV1Page(new URLSearchParams("offset=999999")), null);
+  for(const params of ["limit=1e2","limit=0x10","limit=%205",
+    "offset=0x10","offset=1e2","offset=+1","limit=10&limit=100",
+    "offset=1&offset=2","limit=01","offset=01"]) {
+    assert.equal(apiV1Page(new URLSearchParams(params)),null,params);
+  }
 });
 
 test("new API feature gate is default off", () => {
