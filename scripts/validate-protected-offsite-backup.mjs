@@ -8,6 +8,7 @@ try {
     ref:e.GITHUB_REF, githubSha:e.GITHUB_SHA, reviewedSha:e.BACKUP_REVIEWED_SHA,
     runId:e.GITHUB_RUN_ID, runAttempt:e.GITHUB_RUN_ATTEMPT,
     workflowEnvironment:e.BACKUP_WORKFLOW_ENVIRONMENT,
+    actor:e.GITHUB_ACTOR,allowedActors:e.BACKUP_ALLOWED_ACTORS,
     changeRef:e.BACKUP_CHANGE_REF,
     neonProjectId:e.BACKUP_NEON_PROJECT_ID,
     neonBranchId:e.BACKUP_NEON_BRANCH_ID,
