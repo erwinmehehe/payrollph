@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, employeeServiceCases, employeeServiceCaseMessages, employees, userOrganizations, users } from "@/db/schema";
+import { auditEvents, employeeServiceCases, employeeServiceCaseMessages, employees, userOrganizations } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, getAccess } from "@/lib/access";
 import { enforceSameOriginMutation } from "@/lib/security-request";
@@ -132,6 +132,7 @@ export async function PATCH(request: Request) {
     const [member] = await db.select({ userId: userOrganizations.userId }).from(userOrganizations).where(and(
       eq(userOrganizations.organizationId, organizationId), eq(userOrganizations.userId, assignee),
       eq(userOrganizations.active, true),
+      sql`${userOrganizations.role} IN ('owner','admin','bookkeeper','hr')`,
     )).limit(1);
     if (!member) return error("Assignee must be an active member of the same workspace.",422);
   }
