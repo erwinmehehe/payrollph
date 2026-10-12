@@ -48,7 +48,7 @@ export const IMPORT_COLUMNS: Record<string, keyof ParsedEmployee> = {
 };
 
 const REGIONS = new Set(WAGE_ORDERS.map((row) => row.region));
-const REQUIRED_COLUMNS = ["employeeNo", "firstName", "lastName", "startDate", "monthlyBasic", "region"] as const;
+export const REQUIRED_COLUMNS = ["employeeNo", "firstName", "lastName", "startDate", "monthlyBasic", "region"] as const;
 
 function isCalendarDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;

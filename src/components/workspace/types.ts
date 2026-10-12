@@ -344,6 +344,7 @@ export type FreelancerProfile = {
 
 export type DashboardData = {
   inlineFirstPayrollEnabled?: boolean;
+  employeeImportPreviewEnabled?: boolean;
   firstPayrollReadiness?: FirstPayrollReadiness | null;
   user: SessionUser | null;
   organizations: Organization[];
