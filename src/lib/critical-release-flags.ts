@@ -28,6 +28,11 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P0 actual transfers and payouts",
     approval: "Independent money-movement authority, bank UAT and payout evidence",
   },
+  orderedReleaseMigrations: {
+    env: "ORDERED_RELEASE_MIGRATIONS_ENABLED", owner: "Database Operations",
+    risk: "P0 deployment-only schema changes",
+    approval: "DBA baseline adoption, protected release and restore rehearsal",
+  },
   workforcePunchEvidence: {
     env: "WFM_PUNCH_EVIDENCE_ENABLED",
     owner: "People Operations / Privacy",
