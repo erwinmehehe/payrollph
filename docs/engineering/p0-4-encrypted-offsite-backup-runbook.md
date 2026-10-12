@@ -73,13 +73,13 @@ is not equivalent to a witnessed restore.
    `BACKUP_NEON_BRANCH_ID`, `BACKUP_NEON_ENDPOINT_ID`,
    `BACKUP_PGHOST`, `BACKUP_PGUSER`,
    `BACKUP_AWS_REGION` (= `us-east-1`),
-   `BACKUP_AWS_ROLE_ARN`, `BACKUP_S3_BUCKET`,
+   `BACKUP_AWS_ROLE_ARN`, `BACKUP_ALLOWED_ACTORS` (explicit comma-separated GitHub usernames), `BACKUP_S3_BUCKET`,
    `BACKUP_S3_PREFIX` (e.g. `payrollph/immutable-backups`),
    `BACKUP_KMS_KEY_ARN` and `BACKUP_AGE_RECIPIENT`.
    Its only Neon password secret is `BACKUP_PG_PASSWORD`.
 7. In the independent protected
    `payrollph-production-restore` environment, configure
-   `BACKUP_S3_BUCKET`, `RESTORE_AWS_ROLE_ARN` and private
+   `BACKUP_S3_BUCKET`, `RESTORE_AWS_ROLE_ARN`, `RESTORE_ALLOWED_ACTORS` and private
    `RESTORE_AGE_PRIVATE_KEY`, plus explicit authorization for
    sensitive data to be processed on a private ephemeral GitHub runner.
    Do not enable this restore job without security/privacy approval.
