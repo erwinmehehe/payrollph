@@ -24,7 +24,8 @@ export async function GET(request: Request) {
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
   const denied = await member(user.id, organizationId);
   if (denied) return denied;
-  if (user.role === "employee") {
+  const membership = await getAccess(user.id, organizationId);
+  if (membership?.role === "employee") {
     if (!user.employeeId) return failure("Employee account must be linked.", 403);
     const rows = await db.select({
       id: offlinePunchClaims.id, actionType: offlinePunchClaims.actionType,
@@ -63,7 +64,11 @@ export async function POST(request: Request) {
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return failure("Sign in required.", 401);
-  if (user.role !== "employee" || !user.employeeId)
+  const initialBody = await request.clone().json().catch(() => ({}));
+  const initialOrganizationId = Number(initialBody.organizationId);
+  const access = Number.isSafeInteger(initialOrganizationId) && initialOrganizationId > 0
+    ? await getAccess(user.id, initialOrganizationId) : null;
+  if (access?.role !== "employee" || !user.employeeId)
     return failure("Only the linked employee can submit their own offline attendance claim.",403);
   const body = await request.json().catch(() => ({}));
   const organizationId = Number(body.organizationId);
