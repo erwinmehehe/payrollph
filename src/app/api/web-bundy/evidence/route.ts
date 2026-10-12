@@ -10,7 +10,7 @@ import { authorizedGeofenceSites } from "@/lib/workforce-geofence-server";
 import { evaluateGeofenceFix, geofencePilotEnabledForOrganization } from "@/lib/workforce-geofence";
 import { encryptPunchPhoto, stripJpegMetadata } from "@/lib/workforce-punch-photo-crypto";
 import { documentUploadsEnabled, scanUpload } from "@/lib/storage";
-import { enhancedPunchEnabled, enhancedPunchEnabledForOrganization, photoCaptureDecision, photoExpiry, evaluatePunchTiming, impossibleTravel, resolvedWorksiteDecision, PUNCH_CONSENT_VERSION, PUNCH_MAX_IMAGE_BYTES, PUNCH_ACTIONS, validPunchUuid, type PhotoMode } from "@/lib/workforce-punch-evidence";
+import { enhancedPunchEnabled, enhancedPunchEnabledForOrganization, photoCaptureDecision, photoExpiry, evaluatePunchTiming, impossibleTravel, resolvedWorksiteDecision, PUNCH_CONSENT_VERSION, PUNCH_MAX_IMAGE_BYTES, PUNCH_ACTIONS, validPunchUuid, matchingPunchReplay, type PhotoMode } from "@/lib/workforce-punch-evidence";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -118,10 +118,19 @@ export async function POST(request: Request) {
   // policy or 31-day replay age. A lost HTTP response may be retried after
   // those policies change: acknowledging an existing, owner-scoped punch is
   // read-only and cannot mutate locked attendance or create a second punch.
-  const [existing]=await db.select({id:workforcePunchSubmissions.id,status:workforcePunchSubmissions.status})
-    .from(workforcePunchSubmissions).where(and(eq(workforcePunchSubmissions.organizationId,organizationId),
-      eq(workforcePunchSubmissions.employeeId,employee!.id),eq(workforcePunchSubmissions.clientPunchId,clientPunchId))).limit(1);
-  if(existing)return respond({ok:true,id:existing.id,status:existing.status,duplicate:true,clientPunchId});
+  const [existing]=await db.select({
+    id:workforcePunchSubmissions.id,status:workforcePunchSubmissions.status,
+    actionType:workforcePunchSubmissions.actionType,
+    deviceOccurredAt:workforcePunchSubmissions.deviceOccurredAt,
+  }).from(workforcePunchSubmissions).where(and(eq(workforcePunchSubmissions.organizationId,organizationId),
+    eq(workforcePunchSubmissions.employeeId,employee!.id),eq(workforcePunchSubmissions.clientPunchId,clientPunchId))).limit(1);
+  if(existing){
+    if(!matchingPunchReplay(existing,action,deviceOccurredAt))return respond({
+      error:"Punch identifier was already used for a different action or timestamp. Request HR correction.",
+      code:"PUNCH_IDENTITY_CONFLICT",
+    },409);
+    return respond({ok:true,id:existing.id,status:existing.status,duplicate:true,clientPunchId});
+  }
   const now=new Date();
   const flags=PUNCH_ACTIONS.includes(action as typeof PUNCH_ACTIONS[number])?evaluatePunchTiming(deviceOccurredAt,now,source):[];
   if(flags.includes("time-invalid")) return respond({error:"Device timestamp must be valid and within the allowed offline window. Ask HR for a manual review."},422);
@@ -239,19 +248,27 @@ export async function POST(request: Request) {
           submissionId:created.id,action,workDate:date,flags:finalFlags,photoEvidenceId:retainedPhotoId,
         },
       });
-      return {id:created.id,status:"pending",flags:finalFlags,duplicate:false};
+      return {id:created.id,status:"pending",flags:finalFlags,duplicate:false,conflict:false};
     }
     const [duplicate]=await tx.select({
       id:workforcePunchSubmissions.id,status:workforcePunchSubmissions.status,flags:workforcePunchSubmissions.flags,
+      actionType:workforcePunchSubmissions.actionType,
+      deviceOccurredAt:workforcePunchSubmissions.deviceOccurredAt,
     }).from(workforcePunchSubmissions).where(and(
       eq(workforcePunchSubmissions.organizationId,organizationId),eq(workforcePunchSubmissions.employeeId,employee!.id),
       eq(workforcePunchSubmissions.clientPunchId,clientPunchId))).limit(1);
     if(!duplicate)throw new Error("Punch conflict.");
     if(retainedPhotoId)await tx.delete(workforcePunchPhotoEvidence)
       .where(eq(workforcePunchPhotoEvidence.id,retainedPhotoId));
-    // A racing retry neither creates a duplicate audit event nor misstates a reviewed punch.
-    return {id:duplicate.id,status:duplicate.status,flags:duplicate.flags,duplicate:true};
+    // Simultaneous posts using the same UUID with DIFFERENT punches must not
+    // silently acknowledge the wrong clock action, even on the conflict race.
+    const conflict=!matchingPunchReplay(duplicate,action,deviceOccurredAt);
+    return {id:duplicate.id,status:duplicate.status,flags:duplicate.flags,duplicate:true,conflict};
   });
+  if(result.conflict)return respond({
+    error:"Punch identifier was already used for a different action or timestamp. Request HR correction.",
+    code:"PUNCH_IDENTITY_CONFLICT",
+  },409);
   return respond({ok:true,id:result.id,status:result.status,flags:result.flags,duplicate:result.duplicate,clientPunchId,
     message:result.duplicate?"Existing submission returned.":"Punch received; awaiting independent human review."},
     result.duplicate?200:202);

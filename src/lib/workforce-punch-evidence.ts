@@ -55,6 +55,23 @@ export function validDevicePunchTimestamp(value: string): boolean {
   const parsed = new Date(value);
   return Number.isFinite(parsed.getTime()) && parsed.toISOString() === value;
 }
+/**
+ * Once a client UUID is committed, retries may arrive after payroll locks,
+ * re-authentication or a lost HTTP response. A receipt may only acknowledge
+ * the SAME punch action at the SAME original instant. The transport source
+ * (online -> offline) can change, but the attendance identity cannot.
+ */
+export function matchingPunchReplay(
+  recorded: {actionType:string;deviceOccurredAt:Date},
+  actionType:string,
+  deviceOccurredAt:string,
+):boolean {
+  return recorded.actionType===actionType
+    && validDevicePunchTimestamp(deviceOccurredAt)
+    && Number.isFinite(recorded.deviceOccurredAt.getTime())
+    && recorded.deviceOccurredAt.getTime()===Date.parse(deviceOccurredAt);
+}
+
 export function evaluatePunchTiming(deviceOccurredAt: string, serverReceivedAt: Date, source: "online" | "offline", skewMinutes = PUNCH_MAX_SKEW_MINUTES): PunchFlag[] {
   if (!validDevicePunchTimestamp(deviceOccurredAt)) return ["time-invalid"];
   const time = Date.parse(deviceOccurredAt);
