@@ -114,7 +114,8 @@ export async function POST(request:Request){
    const scoped=assertScope(access,goal.orgUnitId);
    if(!scoped.ok)return Response.json({error:scoped.error},{status:scoped.status});
    if(!canIndependentlyReviewGoal({makerUserId:goal.makerUserId,
-     reviewerUserId:user.id,employeeUserId:user.employeeId,alreadyReviewed:goal.status!=="active"}))
+     reviewerUserId:user.id,subjectEmployeeId:goal.employeeId,
+     reviewerEmployeeId:user.employeeId,alreadyReviewed:goal.status!=="active"}))
      return Response.json({error:"Goal author or employee cannot self-review; assign an independent reviewer."},{status:403});
    const updated=await db.transaction(async tx=>{
      const [row]=await tx.update(hcmSimpleGoals).set({
