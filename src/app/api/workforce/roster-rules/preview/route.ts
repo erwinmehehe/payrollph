@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, shiftDefinitions, worksites, workforceScheduleGuardrailPolicies } from "@/db/schema";
-import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
+import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { employeeSiteEligibility } from "@/lib/hcm-worksite-eligibility-server";
@@ -23,7 +23,7 @@ export async function POST(request:Request){
     return Response.json({error:"Valid employer, employee and shift/rest-day kind required."},{status:400});
   }
   try{rosterDateOffset(workDate,0);}catch{return Response.json({error:"Invalid calendar work date."},{status:400});}
-  const denied=await assertOrganizationRole(user.id,organizationId,PEOPLE_ADMIN_ROLES,"People administrator required.");
+  const denied=await assertOrganizationRole(user.id,organizationId,WORKFORCE_MANAGER_ROLES,"Authorized workforce manager required.");
   if(denied)return denied;
   const access=await getAccess(user.id,organizationId);
   const [worker]=await db.select({orgUnitId:employees.orgUnitId}).from(employees)
