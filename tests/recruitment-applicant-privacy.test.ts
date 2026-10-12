@@ -2,9 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import {
-  applicantPiiEraseValues, applicantErasureIndependentlyApproved, rejectedApplicantCanPurge, requireApplicantConsent,
+  applicantPiiEraseValues, applicantErasureIndependentlyApproved, applicantPrivacyId, rejectedApplicantCanPurge, requireApplicantConsent,
   sixCalendarMonthsBefore, validApplicantPrivacyDecision,
 } from "../src/lib/recruitment-applicant-privacy";
+
+test("privacy identifiers reject coercion and values outside the serial range", () => {
+  for (const value of [true, false, null, undefined, [], {}, "1e2", "0x10", "", " 1", 0, -1, 1.2, 2_147_483_648]) {
+    assert.equal(applicantPrivacyId(value), null);
+  }
+  assert.equal(applicantPrivacyId("17"), 17);
+  assert.equal(applicantPrivacyId(2_147_483_647), 2_147_483_647);
+});
 
 test("applicant privacy remains OFF by default", () => {
   assert.equal(criticalReleaseFlagEnabled("applicantPrivacy", {}), false);

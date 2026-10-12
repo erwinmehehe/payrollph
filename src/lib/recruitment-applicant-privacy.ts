@@ -1,4 +1,10 @@
 /** Applicant privacy rules. These are policy gates, not a legal conclusion. */
+export function applicantPrivacyId(value: unknown): number | null {
+  if (typeof value !== "number" && (typeof value !== "string" || !/^[1-9]\d*$/.test(value))) return null;
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 && id <= 2_147_483_647 ? id : null;
+}
+
 export function sixCalendarMonthsBefore(now: Date): Date {
   if (!Number.isFinite(now.getTime())) throw new Error("INVALID_RETENTION_CLOCK");
   const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 6, 1,

@@ -29,6 +29,7 @@ export async function purgeExpiredRejectedApplicants(now: Date, limit = 50) {
   )).where(and(
     eq(jobApplicants.stage, "rejected"),
     isNull(jobApplicants.hiredEmployeeId),
+    isNull(jobApplicants.resumeUrl),
     eq(applicantPrivacyEvidence.legalHold, false),
     isNull(applicantPrivacyEvidence.purgedAt),
     lte(applicantPrivacyEvidence.rejectedAt, cutoff),

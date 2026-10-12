@@ -8,7 +8,7 @@ import {
 } from "../src/db/schema";
 import { purgeExpiredRejectedApplicants } from "../src/lib/recruitment-applicant-retention";
 
-test("six-month scheduled purge is employer isolated, idempotent and respects holds/retained resumes", async () => {
+test("bounded six-month purge skips retained resumes without starving eligible rows, respects holds and is idempotent", async () => {
   const suffix = randomUUID().slice(0, 10);
   const [alpha, beta] = await db.insert(organizations).values([
     { name: "Privacy A " + suffix, legalName: "Privacy A " + suffix },
@@ -33,13 +33,13 @@ test("six-month scheduled purge is employer isolated, idempotent and respects ho
     ]).returning();
     const oldDate = new Date("2026-09-30T00:00:00Z");
     await db.insert(applicantPrivacyEvidence).values([
-      { organizationId: alpha.id, applicantId: eligible.id, legalBasis: "consent",
+      { organizationId: alpha.id, applicantId: unresolvedResume.id, legalBasis: "consent",
         privacyNoticeVersion: "2026.10", sourceEvidenceReference: "synthetic-direct-001",
         consentCapturedAt: oldDate, rejectedAt: oldDate },
       { organizationId: alpha.id, applicantId: held.id, legalBasis: "consent",
         privacyNoticeVersion: "2026.10", sourceEvidenceReference: "synthetic-direct-002",
         consentCapturedAt: oldDate, rejectedAt: oldDate, legalHold: true },
-      { organizationId: alpha.id, applicantId: unresolvedResume.id, legalBasis: "consent",
+      { organizationId: alpha.id, applicantId: eligible.id, legalBasis: "consent",
         privacyNoticeVersion: "2026.10", sourceEvidenceReference: "synthetic-direct-003",
         consentCapturedAt: oldDate, rejectedAt: oldDate },
       { organizationId: beta.id, applicantId: otherEmployer.id, legalBasis: "consent",
@@ -49,8 +49,8 @@ test("six-month scheduled purge is employer isolated, idempotent and respects ho
     process.env.APPLICANT_PRIVACY_CONTROLS_ENABLED = "true";
     const now = new Date("2027-04-12T00:00:00Z");
     const calls = await Promise.all([
-      purgeExpiredRejectedApplicants(now),
-      purgeExpiredRejectedApplicants(now),
+      purgeExpiredRejectedApplicants(now, 1),
+      purgeExpiredRejectedApplicants(now, 1),
     ]);
     assert.equal(calls.reduce((n, row) => n + row.purged, 0), 1);
     assert.equal((await purgeExpiredRejectedApplicants(now)).purged, 0);

@@ -5,7 +5,7 @@ import { assertOrganizationRole, getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
-  applicantPiiEraseValues, applicantErasureIndependentlyApproved, validApplicantPrivacyDecision,
+  applicantPiiEraseValues, applicantErasureIndependentlyApproved, applicantPrivacyId, validApplicantPrivacyDecision,
 } from "@/lib/recruitment-applicant-privacy";
 import {
   enforceSameOriginMutation, enforceSensitiveActionRateLimit, requireSensitiveActionMfa,
@@ -15,7 +15,6 @@ export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-store" } as const;
 const roles = ["owner", "admin"] as const;
 const unavailable = () => Response.json({ error: "Applicant privacy actions are disabled." }, { status: 404 });
-const positiveId = (v: number) => Number.isSafeInteger(v) && v > 0;
 
 async function authorize(actorId: number, organizationId: number) {
   const denied = await assertOrganizationRole(actorId, organizationId, roles,
@@ -32,9 +31,9 @@ export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const params = new URL(request.url).searchParams;
-  const organizationId = Number(params.get("organizationId"));
-  const applicantId = Number(params.get("applicantId"));
-  if (!positiveId(organizationId) || !positiveId(applicantId)) {
+  const organizationId = applicantPrivacyId(params.get("organizationId"));
+  const applicantId = applicantPrivacyId(params.get("applicantId"));
+  if (organizationId === null || applicantId === null) {
     return Response.json({ error: "Valid organizationId and applicantId required." }, { status: 400 });
   }
   const denied = await authorize(user.id, organizationId);
@@ -85,10 +84,13 @@ export async function PATCH(request: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Authentication required." }, { status: 401 });
   const body = await request.json().catch(() => ({}));
-  const organizationId = Number(body.organizationId);
-  const applicantId = Number(body.applicantId);
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return Response.json({ error: "Object request required." }, { status: 400, headers: noStore });
+  }
+  const organizationId = applicantPrivacyId(body.organizationId);
+  const applicantId = applicantPrivacyId(body.applicantId);
   const action = String(body.action ?? "");
-  if (!positiveId(organizationId) || !positiveId(applicantId) ||
+  if (organizationId === null || applicantId === null ||
       !["request_delete", "approve_delete", "erase"].includes(action)) {
     return Response.json({ error: "Valid organization, candidate and action required." }, { status: 400 });
   }
