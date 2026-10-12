@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowRight, Layers, X } from "lucide-react";
 import { WAGE_ORDERS } from "@/lib/wage-orders";
 import { REST_DAY_NAMES } from "@/lib/payroll-rules";
+import type { DashboardData } from "@/components/workspace/types";
 
 /**
  * Rippling-style new-hire onboarding: creating the employee also generates the
@@ -14,10 +15,12 @@ export function NewHireModal({
   organizationId,
   onClose,
   onCreated,
+  multiEntity,
 }: {
   organizationId: number;
   onClose: () => void;
   onCreated: () => void;
+  multiEntity?: DashboardData["multiEntity"];
 }) {
   const [form, setForm] = useState({
     firstName: "",
@@ -41,6 +44,9 @@ export function NewHireModal({
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [chosenEntity, setChosenEntity] = useState<string>(
+    multiEntity?.legalEntityId === null ? "" : String(multiEntity?.legalEntityId ?? ""),
+  );
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -53,6 +59,7 @@ export function NewHireModal({
         body: JSON.stringify({
           ...form,
           organizationId,
+          ...(multiEntity?.enabled ? { legalEntityId: Number(chosenEntity) } : {}),
           rateAmount: Number(form.rateAmount),
           standardWorkDaysPerMonth: Number(form.standardWorkDaysPerMonth),
           standardHoursPerDay: Number(form.standardHoursPerDay),
@@ -89,6 +96,14 @@ export function NewHireModal({
             <label>Last name<input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></label>
             <label>Work email<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="for payslip delivery" /></label>
             <label>Job title<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
+            {multiEntity?.enabled && <label>Legal entity
+              <select aria-label="Employee legal entity" required value={chosenEntity}
+                onChange={event => setChosenEntity(event.target.value)}>
+                <option value="">Choose employer</option>
+                {multiEntity.entities.map(entity => <option key={entity.id} value={entity.id}>
+                  {entity.displayName}</option>)}
+              </select>
+            </label>}
             <label>Bank / payout code<input value={form.bankCode} onChange={(e) => setForm({ ...form, bankCode: e.target.value.toUpperCase() })} placeholder="BDO / BPI / UB / ..." /></label>
             <label>Account number<input value={form.bankAccount} onChange={(e) => setForm({ ...form, bankAccount: e.target.value })} placeholder="encrypted after save" autoComplete="off" /></label>
             <label>Mobile payout number<input value={form.mobile} onChange={(e) => setForm({ ...form, mobile: e.target.value })} placeholder="optional" /></label>
@@ -152,7 +167,7 @@ export function NewHireModal({
           </div>
           <div className="modal-actions">
             <button type="button" className="secondary-button" onClick={onClose}>Cancel</button>
-            <button className="primary-button" disabled={busy}>{busy ? "Creating…" : "Create & onboard"} <ArrowRight size={16} /></button>
+            <button className="primary-button" disabled={busy || (multiEntity?.enabled && !chosenEntity)}>{busy ? "Creating…" : "Create & onboard"} <ArrowRight size={16} /></button>
           </div>
         </form>
       </section>
