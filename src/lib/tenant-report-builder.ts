@@ -94,3 +94,10 @@ export function runWhitelistedBuilder(
 export function builderRowsToCsv(spec: BuilderSpec, rows: string[][]) {
   return toCsv({ columns: spec.fields, rows });
 }
+
+/** Never silently treat a multi-day leave request as entirely inside a partial report window. */
+export function leaveRangeFullyWithinReport(
+  leaveStart: string, leaveEnd: string, reportStart: string, reportEnd: string,
+): boolean {
+  return leaveStart >= reportStart && leaveEnd <= reportEnd;
+}
