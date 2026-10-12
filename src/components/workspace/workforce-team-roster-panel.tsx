@@ -178,9 +178,49 @@ export function WorkforceTeamRosterPanel({
     setEditorError("");
   }
 
+  const rulePreviewKey = editor ? JSON.stringify([
+    organizationId, scopeKey, editor.employee.id, editor.day.date,
+    shiftChoice, worksiteChoice, ruleOverrideReason,
+  ]) : "";
+  async function checkRulesBeforePublish() {
+    if (!editor || !shiftChoice || rulePreviewing || !payload?.windowingEnabled) return;
+    const checkedKey = rulePreviewKey;
+    setRulePreview(null);
+    setRulePreviewing(true);
+    setEditorError("");
+    try {
+      const res = await fetch("/api/workforce/roster-rules/preview", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          organizationId, employeeId: editor.employee.id, workDate: editor.day.date,
+          kind: shiftChoice === "REST" ? "rest_day" : "shift",
+          shiftDefinitionId: shiftChoice === "REST" ? null : Number(shiftChoice),
+          worksiteId: worksiteChoice ? Number(worksiteChoice) : editor.day.worksiteId,
+          ruleOverrideReason,
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw Error(body.error ?? "Rules preview unavailable.");
+      setRulePreview({
+        key: checkedKey,
+        findings: Array.isArray(body.ruleFindings) ? body.ruleFindings : [],
+        guardrailIssues: Array.isArray(body.guardrailIssues) ? body.guardrailIssues : [],
+        blocked: Boolean(body.blocked),
+      });
+    } catch (e) {
+      setEditorError(e instanceof Error ? e.message : "Rules could not be previewed.");
+    } finally {
+      setRulePreviewing(false);
+    }
+  }
+
   async function saveOverride() {
     if (!editor || !canManage || editor.organizationId !== organizationId || editor.scopeKey !== scopeKey || editor.day.date <= todayInManila()
       || !acknowledged || !reason.trim() || !shiftChoice || saving) return;
+    if (payload?.windowingEnabled && (rulePreview?.key !== rulePreviewKey || rulePreview.blocked)) {
+      setEditorError("Review roster rule findings for this exact draft before publishing.");
+      return;
+    }
     setSaving(true);
     setEditorError("");
     const rest = shiftChoice === "REST";
@@ -199,6 +239,7 @@ export function WorkforceTeamRosterPanel({
           // Keep effective site unless manager explicitly selects another.
           worksiteId: worksiteChoice ? Number(worksiteChoice) : editor.day.worksiteId,
           reason: reason.trim(),
+          ...(payload?.windowingEnabled ? { ruleOverrideReason: ruleOverrideReason.trim() } : {}),
         }),
       });
       const body = await response.json().catch(() => ({}));
