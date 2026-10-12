@@ -101,6 +101,7 @@ export const legalEntities = pgTable(
   },
   (table) => [
     uniqueIndex("legal_entities_org_code_unique").on(table.organizationId, table.code),
+    uniqueIndex("legal_entities_org_id_unique").on(table.organizationId, table.id),
     uniqueIndex("legal_entities_org_primary_unique")
       .on(table.organizationId)
       .where(sql`${table.primaryEntity} = true`),
@@ -5931,6 +5932,10 @@ export const employeeEntityAssignments = pgTable("employee_entity_assignments", 
 }, table => [
   uniqueIndex("employee_entity_assignment_start_unique").on(table.organizationId, table.employeeId, table.effectiveFrom),
   index("employee_entity_assignment_effective_idx").on(table.organizationId, table.legalEntityId, table.effectiveFrom),
+  uniqueIndex("employee_entity_one_open_unique").on(table.organizationId, table.employeeId)
+    .where(sql`${table.effectiveUntil} is null`),
+  check("employee_entity_assignment_interval_check",
+    sql`${table.effectiveUntil} is null or ${table.effectiveUntil} >= ${table.effectiveFrom}`),
 ]);
 
 /** Moving employer does not automatically create separation or final pay. */
@@ -5952,4 +5957,14 @@ export const entityTransferRequests = pgTable("entity_transfer_requests", {
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   appliedAt: timestamp("applied_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [index("entity_transfer_org_employee_idx").on(table.organizationId, table.employeeId, table.status)]);
+}, table => [
+  index("entity_transfer_org_employee_idx").on(table.organizationId, table.employeeId, table.status),
+  uniqueIndex("entity_transfer_one_open_unique").on(table.organizationId, table.employeeId)
+    .where(sql`${table.status} in ('pending_approval','approved')`),
+  check("entity_transfer_distinct_entity_check",
+    sql`${table.fromLegalEntityId} <> ${table.toLegalEntityId}`),
+  check("entity_transfer_maker_checker_check",
+    sql`${table.approvedByUserId} is null or ${table.approvedByUserId} <> ${table.requestedByUserId}`),
+  check("entity_transfer_status_check",
+    sql`${table.status} in ('pending_approval','approved','rejected','applied','cancelled','blocked')`),
+]);
