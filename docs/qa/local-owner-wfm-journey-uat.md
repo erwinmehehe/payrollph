@@ -4,24 +4,24 @@ This companion lets the actual Owner record **self-executed** manual outcomes fr
 
 ## Safety before beginning
 
-- Use a **disposable real PostgreSQL 16, UTF-8** local database containing two fictional employers, distinct HR/WFM/Employee/Payroll Officer/Checker/Owner test logins and no real salaries or identifiers. Verify your \`DATABASE_URL\` is loopback-only before starting the app; this evidence tool itself never reads the environment's DB URL.
+- Use a **disposable real PostgreSQL 16, UTF-8** local database containing two fictional employers, distinct HR/WFM/Employee/Payroll Officer/Checker/Owner test logins and no real salaries or identifiers. Verify your `DATABASE_URL` is loopback-only before starting the app; this evidence tool itself never reads the environment's DB URL.
 - Keep **PayMongo / Xendit disbursement, real notifications, official agency submissions and production integrations OFF**. Release payroll *records* only in the fictional environment.
-- Freeze exact \`git rev-parse HEAD\`, migration 0109 state, active feature flags, fixture version, browser/device version and Manila date. A changed checkout SHA requires a **new session**. Never edit the session's source SHA to make mismatched evidence appear current.
+- Freeze exact `git rev-parse HEAD`, migration 0109 state, active feature flags, fixture version, browser/device version and Manila date. A changed checkout SHA requires a **new session**. Never edit the session's source SHA to make mismatched evidence appear current.
 - Store screenshots, HTTP logs, failed-case reproduction and original test details in a **separate private local location**, not GitHub. The recorder accepts **only opaque evidence IDs**, not personal data or file paths.
 
 ## Local use
 
 In your existing Windows/macOS/Linux local project checkout, with Node 22:
 
-\`\`\`sh
+```sh
 node --test tests/manual-owner-uat.test.mjs
 node scripts/qa/manual-owner-uat.mjs init
 node scripts/qa/manual-owner-uat.mjs list
-\`\`\`
+```
 
 Use the actual app in your browser at your verified loopback URL. For each canonical WFM scenario and connected journey stage, record what you **actually** saw:
 
-\`\`\`sh
+```sh
 # Scenario PASS requires an evidence ID for a real observation.
 node scripts/qa/manual-owner-uat.mjs record WFM-01 PASS UAT-TEST001
 
@@ -38,11 +38,11 @@ node scripts/qa/manual-owner-uat.mjs record WFM-14 BLOCKED DEVICE
 # Employer journey evidence uses JOURNEY-01..JOURNEY-09.
 node scripts/qa/manual-owner-uat.mjs record JOURNEY-01 PASS UAT-HIRE001
 node scripts/qa/manual-owner-uat.mjs report
-\`\`\`
+```
 
 Saved ignored-by-Git, local-only files:
-- \`qa-artifacts/local-owner-uat/session.json\` — source-SHA-bound individual self-reported outcomes; safeguard this private file.
-- \`qa-artifacts/local-owner-uat/summary.md\` — redacted count/status table with opaque evidence/defect IDs and explicit uncompleted external gates.
+- `qa-artifacts/local-owner-uat/session.json` — source-SHA-bound individual self-reported outcomes; safeguard this private file.
+- `qa-artifacts/local-owner-uat/summary.md` — redacted count/status table with opaque evidence/defect IDs and explicit uncompleted external gates.
 
 The script refuses blank PASS evidence, unknown scenario/status IDs, uncategorized blocks, failed cases without a defect ID, and WFM-14 PASS without an explicit real physical-device witness marker. It does **not** independently validate any user-submitted observation. A self-reported PASS is never an independent reviewer signature.
 
