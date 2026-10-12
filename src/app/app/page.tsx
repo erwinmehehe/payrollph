@@ -15,6 +15,7 @@ import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy"
 import { pilotFocusEnabledForOrganization } from "@/lib/pilot-navigation";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
 import { hirePayrollReviewEnabledForEmployer } from "@/lib/hcm-hire-payroll-review";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 
 export const dynamic = "force-dynamic";
 
@@ -112,7 +113,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       )}
       {!pilotFocusEnabled && peopleHomeEnabledForOrganization(data.selectedOrganization.id) && canOpenPeopleHome(access) && (<Link href={`/hcm/command-center?organizationId=${data.selectedOrganization.id}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">HR Command Center</Link>) }
     </div>
-    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} pilotFocusEnabled={pilotFocusEnabled} allowPeopleFocus={allowPeopleFocus} allowHirePayrollReview={allowHirePayrollReview} reviewTeamHref={canSeeMyTeam ? "/hcm/my-team?organizationId=" + data.selectedOrganization.id : null} />
+    <LinawWorkspace initialData={data} isSelfServeCustomer={isSelfServe} firstPayrollInlineEnabled={criticalReleaseFlagEnabled("firstPayrollInline")} pilotFocusEnabled={pilotFocusEnabled} allowPeopleFocus={allowPeopleFocus} allowHirePayrollReview={allowHirePayrollReview} reviewTeamHref={canSeeMyTeam ? "/hcm/my-team?organizationId=" + data.selectedOrganization.id : null} />
   </>;
 }
 
