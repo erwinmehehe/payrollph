@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { applicantPrivacyEvidence, auditEvents, jobApplicants, userOrganizations } from "@/db/schema";
 import { assertOrganizationRole, getAccess } from "@/lib/access";
@@ -111,6 +111,7 @@ export async function PATCH(request: Request) {
         eq(userOrganizations.organizationId, organizationId),
         eq(userOrganizations.userId, reviewerUserId),
         eq(userOrganizations.active, true),
+        inArray(userOrganizations.role, ["owner", "admin"]),
       )).limit(1);
     if (!reviewer) return "reviewer_not_authorized";
     const [applicant] = await tx.select().from(jobApplicants).where(and(
