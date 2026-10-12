@@ -4,6 +4,7 @@ import { REPORT_DEFINITIONS, reportToCsv, runReport, type ReportKey } from "@/li
 import { assertOrganizationRole, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { hcmAnalyticsDate } from "@/lib/hcm-people-intelligence";
 import { philippinePeopleAnalyticsDate } from "@/lib/hcm-people-intelligence-server";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,8 @@ export async function GET(request: Request) {
   if (!access?.companyWide) {
     return Response.json({ error: "Company-wide analytics are not available to unit-scoped roles." }, { status: 403 });
   }
+  const scope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!scope.ok) return scope.response;
   const key = (searchParams.get("key") ?? "") as ReportKey;
   const format = searchParams.get("format") ?? "json";
 
@@ -40,6 +43,14 @@ export async function GET(request: Request) {
   }
   if (format !== "json" && format !== "csv") {
     return Response.json({ error: "Report format must be json or csv." }, { status: 400 });
+  }
+
+  if (scope.context.enabled && scope.context.legalEntityId !== null
+      && !["headcount", "cost", "turnover", "assurance"].includes(key)) {
+    return Response.json({
+      error: "This legacy report has not been certified for a single legal employer. Choose a supported report; group reporting is available in the Group report panel.",
+      code: "ENTITY_REPORT_NOT_YET_CERTIFIED",
+    }, { status: 409 });
   }
 
   // Both rendered results and CSV export use the exact same validated
@@ -61,7 +72,7 @@ export async function GET(request: Request) {
     }
   }
 
-  const report = await runReport(key, organizationId, { asOf, windowDays });
+  const report = await runReport(key, organizationId, { asOf, windowDays, legalEntityId: scope.context.legalEntityId });
 
   if (format === "csv") {
     await recordAuditEvent({
