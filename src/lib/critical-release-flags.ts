@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  applicantPrivacy: {
+    env: "APPLICANT_PRIVACY_CONTROLS_ENABLED",
+    owner: "HR Operations / Data Protection Officer",
+    risk: "P1 applicant consent evidence, subject-rights exports and rejected-candidate deletion",
+    approval: "DPO notice/legal basis, migration, private resume deletion and two-tenant retention acceptance",
+  },
   wfmGreedyRoster: {
     env: "WFM_GREEDY_ROSTER_ENABLED",
     owner: "WFM Product / PH People Operations",
