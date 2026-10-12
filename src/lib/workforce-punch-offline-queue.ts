@@ -10,7 +10,7 @@ function database():Promise<IDBDatabase> {
     request.onerror=()=>reject(request.error);
   });
 }
-async function useStore<T>(mode:IDBTransactionMode, fn:(store:IDBObjectStore)=>IDBRequest<T>):Promise<T>{
+async function withObjectStore<T>(mode:IDBTransactionMode, fn:(store:IDBObjectStore)=>IDBRequest<T>):Promise<T>{
   const db=await database();
   return new Promise((resolve,reject)=> {
     const transaction=db.transaction(STORE,mode);
@@ -19,12 +19,12 @@ async function useStore<T>(mode:IDBTransactionMode, fn:(store:IDBObjectStore)=>I
     transaction.oncomplete=()=>db.close();transaction.onerror=()=>reject(transaction.error);
   });
 }
-export async function queueWebPunch(punch:QueuedWebPunch) {await useStore("readwrite",store=>store.put(punch));}
+export async function queueWebPunch(punch:QueuedWebPunch) {await withObjectStore("readwrite",store=>store.put(punch));}
 export async function pendingWebPunches(org:number,employee:number):Promise<QueuedWebPunch[]> {
-  const all=await useStore<QueuedWebPunch[]>("readonly",store=>store.getAll());
+  const all=await withObjectStore<QueuedWebPunch[]>("readonly",store=>store.getAll());
   return all.filter(p=>p.organizationId===org&&p.employeeId===employee).sort((a,b)=>a.deviceOccurredAt.localeCompare(b.deviceOccurredAt));
 }
-export async function deleteQueuedPunch(id:string){await useStore("readwrite",store=>store.delete(id));}
+export async function deleteQueuedPunch(id:string){await withObjectStore("readwrite",store=>store.delete(id));}
 export async function syncQueuedWebPunches(organizationId:number,employeeId:number, signal?:AbortSignal) {
   const results:{id:string;status:"synced"|"failed";message:string}[]=[];
   for(const item of await pendingWebPunches(organizationId,employeeId)){
