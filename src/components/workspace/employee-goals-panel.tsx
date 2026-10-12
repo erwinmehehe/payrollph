@@ -6,7 +6,7 @@ type Goal={
 };
 export function EmployeeGoalsPanel({organizationId}:{organizationId:number}){
  const [goals,setGoals]=useState<Goal[]>([]);
- const [role,setRole]=useState("");
+ const [role,setRole]=useState("unverified");
  const [employeeId,setEmployeeId]=useState("");
  const [title,setTitle]=useState("");
  const [description,setDescription]=useState("");
@@ -21,8 +21,19 @@ export function EmployeeGoalsPanel({organizationId}:{organizationId:number}){
    const data=await response.json() as {goals:Goal[];viewerRole?:string};
    setGoals(data.goals);setRole(data.viewerRole??"");
  },[organizationId]);
- useEffect(()=>{let active=true;void refresh().catch(()=>{if(active)setMessage("Goal records unavailable.");});
-   return()=>{active=false};},[refresh]);
+ useEffect(()=>{
+   let active=true;
+   const controller=new AbortController();
+   fetch(`/api/hcm/simple-goals?organizationId=${organizationId}`,{
+     cache:"no-store",signal:controller.signal,
+   }).then(async response=>{
+     if(!response.ok)throw Error("Goal reviews are unavailable.");
+     return response.json() as Promise<{goals:Goal[];viewerRole?:string}>;
+   }).then(data=>{
+     if(active){setGoals(data.goals);setRole(data.viewerRole??"");}
+   }).catch(()=>{if(active)setMessage("Goal records unavailable.");});
+   return()=>{active=false;controller.abort();};
+ },[organizationId]);
  async function act(fields:Record<string,unknown>){
    setBusy(true);setMessage("");
    try{
@@ -39,7 +50,7 @@ export function EmployeeGoalsPanel({organizationId}:{organizationId:number}){
  return <section className="mx-auto max-w-3xl space-y-4 p-6">
    <h1 className="text-2xl font-semibold">Goals and review cycle</h1>
    <p>Company goals, separate HR review, and employee acknowledgement. This does not change wages.</p>
-   {role!=="employee"&&<form onSubmit={e=>{e.preventDefault();void act({
+   {role!==""&&role!=="unverified"&&role!=="employee"&&<form onSubmit={e=>{e.preventDefault();void act({
      action:"create",employeeId:Number(employeeId),title,description,dueDate,
    });}} className="space-y-2 rounded border p-3">
      <h2>Create employee goal</h2>
@@ -61,7 +72,7 @@ export function EmployeeGoalsPanel({organizationId}:{organizationId:number}){
      {role==="employee"&&goal.status==="reviewed"&&
        <button className="secondary-button" disabled={busy}
          onClick={()=>void act({action:"acknowledge",goalId:goal.id})}>Acknowledge review</button>}
-     {role!=="employee"&&goal.status==="active"&&<div className="space-y-2">
+     {role!==""&&role!=="unverified"&&role!=="employee"&&goal.status==="active"&&<div className="space-y-2">
        <label>Rating <select value={scores[goal.id]??3} onChange={e=>
          setScores(prev=>({...prev,[goal.id]:Number(e.target.value)}))}>
          {[1,2,3,4,5].map(x=><option value={x} key={x}>{x}</option>)}
