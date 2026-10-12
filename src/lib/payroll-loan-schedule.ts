@@ -31,7 +31,7 @@ export function buildCompanyLoanSchedule(input: {
   // binary floats for stored centavos; this must match the signed loan terms.
   const n = input.months * input.installmentsPerMonth;
   const interestBig = (BigInt(principalCents) * BigInt(input.annualFlatInterestBasisPoints) *
-    BigInt(input.months) + 60_000n) / 120_000n;
+    BigInt(input.months) + BigInt(60_000)) / BigInt(120_000);
   if (interestBig > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error("LOAN_OVERFLOW");
   const interestCents = Number(interestBig);
   const totalPayableCents = principalCents + interestCents;
