@@ -1,4 +1,4 @@
-import { and, asc, count, eq, gte, ilike, inArray, lte, or } from "drizzle-orm";
+import { and, asc, count, eq, gte, ilike, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeScheduleAssignments,
@@ -13,6 +13,8 @@ import {
 } from "@/db/schema";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { wfmRosterScaleRulesEnabled } from "@/lib/workforce-roster-rules-server";
+import { rosterWindowDates } from "@/lib/workforce-roster-scale";
 import {
   resolveDailySchedule,
   type WorkforceScheduleOverride,
@@ -61,10 +63,14 @@ export async function GET(request: Request) {
   let weekDates: string[];
   try {
     weekDates = rosterWeekDates(startDate);
+    if (url.searchParams.has("endDate")) {
+      if (!wfmRosterScaleRulesEnabled()) throw Error("Roster date-range reads are not enabled.");
+      weekDates = rosterWindowDates(startDate, String(url.searchParams.get("endDate") ?? ""), 14);
+    }
   } catch {
     return Response.json({ error: "A valid seven-day window start (YYYY-MM-DD) is required." }, { status: 400 });
   }
-  const endDate = weekDates[6];
+  const endDate = weekDates[weekDates.length - 1];
   const page = Number(url.searchParams.get("page") ?? "1");
   if (!Number.isSafeInteger(page) || page < 1 || page > 10000) {
     return Response.json({ error: "Page must be an integer from 1 to 10000." }, { status: 400 });
@@ -105,6 +111,8 @@ export async function GET(request: Request) {
     startDate,
     endDate,
     weekDates,
+    windowingEnabled: wfmRosterScaleRulesEnabled(),
+    scope: "authorized-employee-page",
     page,
     pageSize: PAGE_SIZE,
     totalEmployees,
@@ -156,6 +164,7 @@ export async function GET(request: Request) {
       eq(employeeScheduleAssignments.organizationId, organizationId),
       inArray(employeeScheduleAssignments.employeeId, employeeIds),
       lte(employeeScheduleAssignments.effectiveFrom, endDate),
+      or(isNull(employeeScheduleAssignments.effectiveUntil), gte(employeeScheduleAssignments.effectiveUntil, startDate)),
     )),
     db.select().from(scheduleOverrides).where(and(
       eq(scheduleOverrides.organizationId, organizationId),
@@ -167,6 +176,7 @@ export async function GET(request: Request) {
       eq(employeeWorksiteAssignments.organizationId, organizationId),
       inArray(employeeWorksiteAssignments.employeeId, employeeIds),
       lte(employeeWorksiteAssignments.effectiveFrom, endDate),
+      or(isNull(employeeWorksiteAssignments.effectiveUntil), gte(employeeWorksiteAssignments.effectiveUntil, startDate)),
     )),
     db.select({
       id: worksites.id,
