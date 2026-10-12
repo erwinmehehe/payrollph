@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  loanSchedulePreview: {
+    env: "LOAN_SCHEDULE_PREVIEW_ENABLED",
+    owner: "Philippine Payroll / HR Operations",
+    risk: "P1 read-only employee/company and agency loan schedule previews",
+    approval: "Centavo schedule/golden tests, lawful deduction policy and independent finance review",
+  },
   wfmGreedyRoster: {
     env: "WFM_GREEDY_ROSTER_ENABLED",
     owner: "WFM Product / PH People Operations",
