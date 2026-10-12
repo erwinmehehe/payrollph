@@ -16,14 +16,20 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
     setOffline(queued.length);
   },[organizationId,employeeId]);
   useEffect(()=>{
+    let alive=true;
     let value:string;
     try{
       const k="wfm-employee-device-id";
       value=sessionStorage.getItem(k)??crypto.randomUUID();
       sessionStorage.setItem(k,value);
     }catch{value=crypto.randomUUID();}
-    setDeviceId(value);
-    void reload();
+    // Async boundary prevents cascading React state writes during effect setup.
+    void Promise.resolve().then(async()=>{
+      if(!alive)return;
+      setDeviceId(value);
+      await reload();
+    });
+    return()=>{alive=false};
   },[reload]);
   const sync=useCallback(async()=>{
     const outcome=await syncQueuedWebPunches(organizationId,employeeId).catch(()=>[]);
@@ -89,6 +95,10 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
     {policy?.photoMode!=="off"&&policy?.consent==="accepted"&&<label>
       Selfie evidence ({policy?.photoMode})<input type="file" accept="image/jpeg" capture="user" disabled={busy} onChange={e=>setPhoto(e.currentTarget.files?.[0]??null)}/>
     </label>}
+    {policy?.consent==="accepted"&&<button type="button" className="secondary-button" disabled={busy}
+      onClick={()=>{setPhoto(null);void consent("declined");}}>
+      Withdraw optional selfie consent
+    </button>}
     {policy?.consent==="declined"&&<p>Photo declined. You can submit an attendance entry for independent review.</p>}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
       {(["clock_in","break_start","break_end","clock_out"] as const).map(action=><button key={action} type="button" className="secondary-button" disabled={!policy||busy||!deviceId} onClick={()=>void submit(action)}>{action.replaceAll("_"," ").toUpperCase()}</button>)}
