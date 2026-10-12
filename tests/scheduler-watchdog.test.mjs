@@ -57,6 +57,7 @@ test("configuration pins distinct HTTPS hosts, a read-only token, and bounded po
   assert.equal(config.recoveryPolls, 2);
   for (const bad of [
     { SCHEDULER_MONITOR_TOKEN: "short" },
+    { SCHEDULER_MONITOR_TOKEN: "REPLACE_WITH_SEPARATE_32_BYTE_RANDOM_MONITOR_SECRET" },
     { SCHEDULER_MONITOR_TOKEN: env.SCHEDULER_MONITOR_TOKEN, WORKER_TOKEN: env.SCHEDULER_MONITOR_TOKEN },
     { SCHEDULER_WATCHDOG_STATUS_URL: "http://payroll.example.test/api/jobs/status" },
     { SCHEDULER_WATCHDOG_STATUS_URL: "https://prod.example.test/api/jobs/status" },
