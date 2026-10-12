@@ -51,7 +51,9 @@ function sqlSource(file) {
     sql = sql.replace(/^BEGIN;\s*$/gm, "").replace(/^COMMIT;\s*$/gm, "");
   }
   const actualSql = sql.replace(/--[^\n]*/g, "");
-  assert.ok(!/\b(DROP|TRUNCATE|DELETE|INSERT|UPDATE|GRANT|REVOKE)\b/i.test(actualSql),
+  // ON DELETE CASCADE/SET NULL is valid FK DDL, not a DELETE FROM mutation.
+  const mutationScan = actualSql.replace(/\bON\s+DELETE\s+(?:CASCADE|RESTRICT|SET\s+NULL|NO\s+ACTION)\b/gi, "");
+  assert.ok(!/\b(DROP|TRUNCATE|DELETE|INSERT|UPDATE|GRANT|REVOKE)\b/i.test(mutationScan),
     "Destructive or DML statement not allowed in migration rehearsal");
   assert.ok(actualSql.trim().length > 10 && !/\bCOMMIT\b|\bROLLBACK\b/i.test(actualSql));
   return sql;
