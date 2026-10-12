@@ -1,4 +1,4 @@
-**Integration hold (2026-10-12):** PR #915's competing numbered `0122_tenant_core_navigation.sql` was removed from `drizzle/` and preserved as an **unnumbered design proposal** under `docs/engineering/migration-proposals/`. This resolves the immediate SQL-prefix claim only; it does **not** resolve the incompatible application models (`module_navigation_mode` + `core` here versus `module_visibility` + `core_only` in #915). Do not merge the two feature implementations together, enable either flag, or apply SQL until one schema and one tenant-navigation API are selected, DB tests pass and a DBA approves the deployment train. This branch applied no Neon DDL.
+**Integration status (2026-10-13):** #915 now owns first-payroll onboarding only; its duplicate module fields, API and navigation implementation were removed. #874 owns the canonical `module_navigation_mode` + `enabled_modules` model and SQL 0122. Current-head CI, legacy-schema compatibility and browser acceptance must pass before source merge. Database migration and flag activation remain separately reviewed operations. No Neon DDL was applied.
 
 # Core module navigation
 
@@ -32,3 +32,6 @@ Rendered new/existing navigation snapshots and role/solo restrictions; PostgreSQ
 | More modules | Company-wide owner/admin/bookkeeper; HR/manager/employee denied | No selections initially; saving status and disabled checkboxes; inline error alert and toast; persisted selections after refresh | Browser captures empty/enabled at desktop/phone; real local MFA login; unauthorized API denial |
 
 Screenshots are synthetic acceptance evidence, not live employer approval. Artifacts exclude server logs, credentials, MFA secrets and session tokens. The workflow retains production MFA enforcement and signs in using a fictional account's authenticator code.
+## Pre-migration compatibility
+
+Optional navigation columns are intentionally absent from the shared `organizations` ORM projection. Ordinary organization SELECT/INSERT statements remain compatible before migration 0122. A separate tenant-scoped query reads preferences only when `CORE_MODULE_NAVIGATION_ENABLED` is exactly `true`; disabled requests do not query those columns. Browser fixtures apply the unchanged 0122 SQL only to their pinned empty disposable database. Real deployment requires reviewed migration receipts before enabling the flag.

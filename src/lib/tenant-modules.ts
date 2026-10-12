@@ -1,4 +1,5 @@
 /** Disclosure preferences never grant permissions or disable payroll controls. */
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 export const CORE_NAVIGATION_PAGES = ["Overview", "People", "Time & attendance", "Payroll", "Approvals", "Settings"] as const;
 export const TENANT_MODULES = [
   { id: "workforce", title: "Workforce and leave", detail: "Rosters, rotations and leave administration.", pages: ["Workforce", "Leave"] },
@@ -18,4 +19,23 @@ export function isTenantModuleId(value: unknown): value is TenantModuleId {
 }
 export function tenantModulePages(enabledModules: readonly string[]): Set<string> {
   return new Set(TENANT_MODULES.filter(m => enabledModules.includes(m.id)).flatMap(m => [...m.pages]));
+}
+
+/** Optional columns must never enter ordinary organization SELECT/INSERT projections. */
+export async function loadTenantModulePreferences(
+  organizationIds: readonly number[],
+  read: () => Promise<readonly { id: number; mode: unknown; enabledModules: unknown }[]>,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): Promise<Map<number, TenantModulePreferences>> {
+  const result = new Map<number, TenantModulePreferences>();
+  if (!criticalReleaseFlagEnabled("coreModuleNavigation", env) || organizationIds.length === 0) return result;
+  const allowed = new Set(organizationIds);
+  for (const row of await read()) {
+    if (!allowed.has(row.id)) continue;
+    result.set(row.id, {
+      mode: row.mode === "core" ? "core" : "all",
+      enabledModules: Array.isArray(row.enabledModules) ? row.enabledModules.filter(isTenantModuleId) : [],
+    });
+  }
+  return result;
 }

@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, organizations } from "@/db/schema";
+import { auditEvents } from "@/db/schema";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
@@ -25,7 +25,10 @@ export async function GET(request: Request) {
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
   const auth = await authorize(organizationId);
   if (auth instanceof Response) return auth;
-  const [org] = await db.select({ mode: organizations.moduleNavigationMode, enabledModules: organizations.enabledModules }).from(organizations).where(eq(organizations.id, organizationId)).limit(1);
+  const rows = await db.execute<{ mode: string; enabledModules: unknown }>(sql`
+    SELECT module_navigation_mode AS mode, enabled_modules AS "enabledModules"
+    FROM organizations WHERE id = ${organizationId} LIMIT 1`);
+  const org = rows.rows[0];
   return Response.json({ ...org, catalog: TENANT_MODULES }, { headers: { "Cache-Control": "no-store" } });
 }
 export async function PATCH(request: Request) {
@@ -43,11 +46,18 @@ export async function PATCH(request: Request) {
   if (paidDenied) return paidDenied;
   if (!isTenantModuleId(body.moduleId) || typeof body.enabled !== "boolean") return Response.json({ error: "Choose a known module and an enable/disable value." }, { status: 400 });
   const saved = await db.transaction(async tx => {
-    const [org] = await tx.select().from(organizations).where(eq(organizations.id, organizationId)).limit(1).for("update");
+    const rows = await tx.execute<{ mode: string; enabledModules: unknown }>(sql`
+      SELECT module_navigation_mode AS mode, enabled_modules AS "enabledModules"
+      FROM organizations WHERE id = ${organizationId} FOR UPDATE`);
+    const org = rows.rows[0];
     if (!org) throw new Error("Employer not found.");
     const enabled = new Set((Array.isArray(org.enabledModules) ? org.enabledModules : []).filter(isTenantModuleId));
     if (body.enabled) enabled.add(body.moduleId); else enabled.delete(body.moduleId);
-    const [result] = await tx.update(organizations).set({ enabledModules: [...enabled] }).where(eq(organizations.id, organizationId)).returning({ mode: organizations.moduleNavigationMode, enabledModules: organizations.enabledModules });
+    const updated = await tx.execute<{ mode: string; enabledModules: unknown }>(sql`
+      UPDATE organizations SET enabled_modules = ${JSON.stringify([...enabled])}::jsonb
+      WHERE id = ${organizationId}
+      RETURNING module_navigation_mode AS mode, enabled_modules AS "enabledModules"`);
+    const result = updated.rows[0];
     // State and the immutable audit receipt must commit or roll back together.
     await tx.insert(auditEvents).values({ organizationId, actor: user.name, action: "Tenant module visibility updated", resource: body.moduleId, metadata: { enabled: body.enabled } });
     return result;

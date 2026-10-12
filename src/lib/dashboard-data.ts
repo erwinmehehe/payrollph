@@ -1,7 +1,8 @@
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+import { loadTenantModulePreferences } from "./tenant-modules";
 import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { maskGovernmentId } from "@/lib/government-id-crypto";
-import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   approvalDelegations,
@@ -97,6 +98,18 @@ export async function getDashboardData(organizationId?: number) {
   }
 
   await ensureEmployeePayProfiles(selectedOrganization.id);
+
+  const modulePreferences = await loadTenantModulePreferences(organizationIds, async () => {
+    const rows = await db.execute<{ id: number; mode: unknown; enabledModules: unknown }>(sql`
+      SELECT id, module_navigation_mode AS mode, enabled_modules AS "enabledModules"
+      FROM organizations WHERE id IN (${sql.join(organizationIds.map(id => sql`${id}`), sql`, `)})`);
+    return rows.rows;
+  });
+  const organizationWithModules = (org: typeof selectedOrganization) => ({
+    ...org,
+    moduleNavigationMode: modulePreferences.get(org.id)?.mode ?? "all",
+    enabledModules: modulePreferences.get(org.id)?.enabledModules ?? [],
+  });
 
   const canViewPayroll = roleAllowed(access.role, PAYROLL_VIEW_ROLES);
   const canViewPeoplePay = roleAllowed(access.role, PEOPLE_PAYROLL_ROLES);
@@ -351,8 +364,8 @@ export async function getDashboardData(organizationId?: number) {
     user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
     capabilities,
-    organizations: orgs.map(org => ({ ...org, enabledModules: Array.isArray(org.enabledModules) ? org.enabledModules.filter((id): id is string => typeof id === "string") : [] })),
-    selectedOrganization: { ...selectedOrganization, enabledModules: Array.isArray(selectedOrganization.enabledModules) ? selectedOrganization.enabledModules.filter((id): id is string => typeof id === "string") : [] },
+    organizations: orgs.map(organizationWithModules),
+    selectedOrganization: organizationWithModules(selectedOrganization),
     employees: employeesWithPayBasis,
     orgUnits: units,
     payrollRuns: runRows,
