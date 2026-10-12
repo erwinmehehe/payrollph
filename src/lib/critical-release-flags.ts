@@ -48,6 +48,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 AI-assisted automation suggestions",
     approval: "Synthetic staging isolation and postmerge activation gates",
   },
+  wfmLoyversePos: {
+    env: "WFM_LOYVERSE_POS_ENABLED",
+    owner: "Workforce Operations",
+    risk: "P1 consented POS source access and historical aggregate import",
+    approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
+  },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
     owner: "Product",
