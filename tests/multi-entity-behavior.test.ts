@@ -88,6 +88,9 @@ test("transfer permissions require two explicit grants without authorizing cross
     actorUserId: 100,
   };
   assert.equal(canActOnEntityTransfer(source), true);
+  for (const actorUserId of [0, -1, 1.5, Number.NaN]) {
+    assert.equal(canActOnEntityTransfer({ ...source, actorUserId }), false);
+  }
   for (const role of ["group_hr", "employee", "payroll", "checker", "manager"]) {
     assert.equal(canActOnEntityTransfer({ ...source, role }), false, role);
   }
@@ -100,6 +103,9 @@ test("transfer permissions require two explicit grants without authorizing cross
   const approval = { ...source, action: "approve" as const, role: "admin",
     actorUserId: 200, makerUserId: 100 };
   assert.equal(canActOnEntityTransfer(approval), true);
+  for (const makerUserId of [0, -1, 1.5, Number.NaN]) {
+    assert.equal(canActOnEntityTransfer({ ...approval, makerUserId }), false);
+  }
   for (const action of ["approve", "reject", "apply"] as const) {
     assert.equal(canActOnEntityTransfer({ ...approval, action, makerUserId: 200 }), false);
     assert.equal(canActOnEntityTransfer({ ...approval, action, makerUserId: undefined }), false);
