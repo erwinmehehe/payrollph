@@ -1,3 +1,4 @@
+import { enhancedPunchEnabled } from "@/lib/workforce-punch-evidence";
 import { enforceSameOriginMutation, enforceSensitiveActionRateLimit } from "@/lib/security-request";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -77,6 +78,7 @@ export async function GET(request: Request) {
 
   return Response.json({
     date: todayStr,
+    enhancedPunch: { enabled: enhancedPunchEnabled() && user.role === "employee" },
     geofence: {
       required: geofencePilotEnabledForOrganization(organizationId),
       canClockWithLocation: user.role === "employee",
@@ -90,6 +92,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (enhancedPunchEnabled()) return Response.json({ error: "Enhanced punches must enter the independent reviewer queue.", code: "PUNCH_REVIEW_REQUIRED" }, { status: 409 });
   const originDenied = enforceSameOriginMutation(request);
   if (originDenied) return originDenied;
 
