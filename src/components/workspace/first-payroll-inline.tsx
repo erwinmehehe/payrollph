@@ -325,7 +325,7 @@ export function FirstPayrollInlineJourney({
     <ol style={{listStyle:"none",padding:0,display:"grid",gap:10,marginTop:14}}>
       {steps.map((step,index)=>{
         const owner = FIRST_PAYROLL_OWNER[step.key];
-        const handoff=assignments.find(row=>row.step===step.key);
+        const handoffRecord=assignments.find(row=>row.step===step.key);
         const isOpen=opened===step.key;
         return <li key={step.key} style={{border:"1px solid var(--line)",borderRadius:12,
           padding:12,background:"var(--canvas-subtle)",minWidth:0}}>
@@ -333,7 +333,7 @@ export function FirstPayrollInlineJourney({
             <div style={{minWidth:0}}><strong>{index+1}. {step.title}</strong>
               <p style={{fontSize:12,marginTop:5}}>{step.detail}</p>
               <small>Owner: {owner.role} · {step.state==="complete"?"Setup recorded":step.state==="review"?"Human review":step.state==="available"?"Ready for action":"Upcoming"}</small>
-              {handoff && <p role="status" style={{fontSize:12}}>Sent to {handoff.ownerTeam}; case #{handoff.id} · {handoff.status}.</p>}
+              {handoffRecord && <p role="status" style={{fontSize:12}}>Sent to {handoffRecord.ownerTeam}; case #{handoffRecord.id} · {handoffRecord.status}.</p>}
             </div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
               {canHandoff && step.state!=="complete" && <button type="button" className="secondary-button"
