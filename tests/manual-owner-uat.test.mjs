@@ -122,3 +122,19 @@ test("archive refuses corrupt evidence without moving or deleting the active fil
    assert.equal(existsSync(active), true);
  } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test("tampered local UAT source SHA cannot enter reports or archive paths", () => {
+  const s = createSession(sha);
+  for (const bad of ["../../other", "a".repeat(39), "b".repeat(41), "A".repeat(40), ""]) {
+    assert.throws(() => summarize({ ...s, sourceSha: bad }), /Invalid stored source SHA/);
+    assert.throws(() => renderSummary({ ...s, sourceSha: bad }), /Invalid stored source SHA/);
+  }
+});
+
+test("self-reported evidence cannot assert any independent release or certification gate", () => {
+  const s = createSession(sha);
+  for (const key of ["independentHumanAccepted", "realEmployerReconciled", "hardwareCertified",
+    "agencyAccepted", "moneyMoved", "productionAuthorized"]) {
+    assert.throws(() => summarize({ ...s, [key]: true }), /Local UAT cannot assert external acceptance/);
+  }
+});
