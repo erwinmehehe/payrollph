@@ -38,8 +38,8 @@ test("feature-specific SQL remains source-gated and no payout or employer transf
   assert.match(xendit, /DEFAULT 'paymongo'/);
   const multi = readFileSync(new URL(pending.get(119), sqlDir), "utf8");
   assert.match(multi, /UPDATE payroll_entries/);
-  assert.match(multi, /COMMIT;/);
-  assert.ok(!/\\b(?:TRUNCATE|DROP TABLE)\\b/i.test(multi));
+  assert.doesNotMatch(multi, /^COMMIT;$/m);
+  assert.doesNotMatch(multi, /\b(?:TRUNCATE|DROP TABLE)\b/i);
   const docs = readFileSync(new URL("../docs/engineering/pending-migration-release-train.md", import.meta.url), "utf8");
   assert.match(docs, /DO NOT RUN ON NEON/);
   assert.match(docs, /runtime DDL/);
