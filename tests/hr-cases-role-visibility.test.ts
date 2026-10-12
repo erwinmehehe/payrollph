@@ -20,7 +20,7 @@ test("assigned HR cases and payroll cases are mutually confidential", () => {
     assert.equal(hrCaseRoleCanWork("hr", assignee), assignee === "hr");
     assert.equal(hrCaseRoleCanWork("payroll", assignee), assignee === "payroll");
     for (const forbidden of ["employee", "manager", "bookkeeper", "checker", "viewer", ""]) {
-      assert.equal(hrCaseRoleCanWork(forbidden, assignee), false, \`\${forbidden} must not read \${kind}\`);
+      assert.equal(hrCaseRoleCanWork(forbidden, assignee), false, forbidden + " must not read " + kind);
     }
   }
   assert.equal(hrCaseRoleCanWork("owner", "unknown"), false);
