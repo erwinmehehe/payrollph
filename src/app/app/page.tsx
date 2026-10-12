@@ -106,7 +106,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       {access?.companyWide && ["owner", "admin", "hr"].includes(access.role) && criticalReleaseFlagEnabled("engagementSurvey") && (
         <Link href={`/app/engagement?organizationId=${companyOrganizationId}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">Engagement survey</Link>
       )}
-      {access?.companyWide && ["owner", "admin", "hr", "bookkeeper"].includes(access.role) && criticalReleaseFlagEnabled("goalsReviewCycle") && (
+      {access?.companyWide && ["owner", "admin", "hr"].includes(access.role) && criticalReleaseFlagEnabled("goalsReviewCycle") && (
         <Link href={`/app/goals-reviews?organizationId=${companyOrganizationId}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">Goals & reviews</Link>
       )}
       {canSeeMyTeam && (
