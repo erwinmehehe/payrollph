@@ -27,7 +27,7 @@ export const MODERN_SCHEMA_LINEAGE_SQL = [
   "    ('payroll_runs', 'id'),",
   "    ('payroll_runs', 'organization_id'),",
   "    ('payroll_entries', 'id'),",
-  "    ('payroll_entries', 'payroll_run_id')"
+  "    ('payroll_entries', 'payroll_run_id')",
   ")",
   'SELECT required.table_name AS "tableName",',
   '  required.column_name AS "columnName",',
