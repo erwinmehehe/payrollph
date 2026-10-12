@@ -34,6 +34,10 @@ test("PG16/18: unnumbered entity-interval proposal rejects tenant mismatch and o
       ["INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,2,100,'2026-02-01',NULL)", /EMPLOYEE_TENANT_MISMATCH/],
       ["INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,101,'2026-01-15','2026-02-01')", /INTERVAL_OVERLAP/],
       ["UPDATE public.employee_entity_assignments SET employee_id=2,organization_id=20 WHERE id=1", /IDENTITY_IMMUTABLE/],
+      ["UPDATE public.employee_entity_assignments SET legal_entity_id=101 WHERE id=1", /IDENTITY_IMMUTABLE/],
+      ["UPDATE public.employee_entity_assignments SET effective_from='2025-12-31' WHERE id=1", /IDENTITY_IMMUTABLE/],
+      ["UPDATE public.employee_entity_assignments SET effective_until='2026-01-30' WHERE id=1", /CLOSED_INTERVAL_IMMUTABLE/],
+      ["DELETE FROM public.employee_entity_assignments WHERE id=1", /HISTORY_IMMUTABLE/],
     ]) {
       await client.query("SAVEPOINT invalid_write");
       await assert.rejects(() => client.query(statement), error);
@@ -41,13 +45,19 @@ test("PG16/18: unnumbered entity-interval proposal rejects tenant mismatch and o
     }
     await client.query("INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,101,'2026-02-01',NULL)");
     // Boundaries are inclusive: a closed Jan 31 interval and an open Feb 1
-    // interval are adjacent, but extending Jan 31 into Feb 1 is forbidden.
+    // interval are adjacent. A closed interval cannot be extended retroactively.
     await client.query("SAVEPOINT invalid_update");
     await assert.rejects(
       () => client.query("UPDATE public.employee_entity_assignments SET effective_until='2026-02-01' WHERE id=1"),
-      /INTERVAL_OVERLAP/,
+      /CLOSED_INTERVAL_IMMUTABLE/,
     );
     await client.query("ROLLBACK TO SAVEPOINT invalid_update");
+    // A genuinely open interval may be closed once, but the closure must not
+    // silently rewrite the original employer or start date.
+    await client.query("SAVEPOINT valid_close");
+    await client.query("UPDATE public.employee_entity_assignments SET effective_until='2026-12-31' WHERE id=2");
+    await assert.rejects(() => client.query("UPDATE public.employee_entity_assignments SET effective_until='2027-01-01' WHERE id=2"), /CLOSED_INTERVAL_IMMUTABLE/);
+    await client.query("ROLLBACK TO SAVEPOINT valid_close");
     // The open-ended interval prevents any later insert for the same worker.
     await client.query("SAVEPOINT invalid_later");
     await assert.rejects(
