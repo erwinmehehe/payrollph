@@ -4,10 +4,13 @@ import test from "node:test";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../src/db";
 import {
-  employees, legalEntities, organizations, userLegalEntityGrants, userOrganizations, users,
+  employeeEntityBankAccounts, employees, legalEntities, legalEntityProfileChangeRequests,
+  organizations, userLegalEntityGrants, userOrganizations, users,
 } from "../src/db/schema";
 import { resolveMultiEntityContext, assertEntityResource } from "../src/lib/multi-entity-server";
 import { employeeScopePredicate } from "../src/lib/multi-entity-personnel-scope";
+import { encryptBankAccount } from "../src/lib/bank-account-crypto";
+import { encryptGovernmentId } from "../src/lib/government-id-crypto";
 
 /** Real PostgreSQL and Drizzle: two tenants, two employers, group and scoped HR. */
 test("multi-entity service rejects cross-entity and cross-tenant reads and ID enumeration", async () => {
@@ -46,6 +49,43 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
       { organizationId: tenantA.id, legalEntityId: a2.id, employeeNo: "A2", firstName: "Beta", lastName: "Staff", title: "Staff", avatarInitials: "BS", basicRate: "30000", startDate: "2026-01-01" },
       { organizationId: tenantB.id, legalEntityId: b1.id, employeeNo: "B1", firstName: "Foreign", lastName: "Staff", title: "Staff", avatarInitials: "FS", basicRate: "40000", startDate: "2026-01-01" },
     ]).returning();
+    // The newly staged registration and destination tables reject foreign
+    // tenant/employer IDs even if an application caller supplies guessed IDs.
+    const sealedProfile = encryptGovernmentId(JSON.stringify({ birTin: "123456789" }), {
+      required: true, env: { PII_ENCRYPTION_KEY: "2".repeat(64) },
+    });
+    assert.ok(sealedProfile?.startsWith("enc:govid:v1:"));
+    const proposal = {
+      organizationId: tenantA.id, legalEntityId: a1.id,
+      expectedEntityUpdatedAt: new Date(), effectiveDate: "2026-10-12",
+      changedFields: ["birTin"], profileEnvelope: sealedProfile!,
+      reason: "Synthetic employer registration exercise",
+      requestedByUserId: people[3].id,
+    };
+    const [legitimate] = await db.insert(legalEntityProfileChangeRequests)
+      .values(proposal).returning();
+    assert.equal(legitimate.organizationId, tenantA.id);
+    await assert.rejects(async () => {
+      await db.insert(legalEntityProfileChangeRequests).values({
+        ...proposal, legalEntityId: b1.id,
+      });
+    }, "Cross-tenant employer registration FK must reject the write");
+    const sealedBank = encryptBankAccount("123456789000", {
+      BANK_DATA_ENCRYPTION_KEY: "3".repeat(64),
+    });
+    assert.ok(sealedBank?.startsWith("enc:v1:"));
+    await assert.rejects(async () => {
+      await db.insert(employeeEntityBankAccounts).values({
+        organizationId: tenantA.id, legalEntityId: a1.id,
+        employeeId: foreignWorker.id,
+        bankCode: "BPI", accountName: "Synthetic worker",
+        accountEnvelope: sealedBank!,
+        effectiveFrom: "2026-10-12",
+      });
+    }, "Employee payout destination must reject a worker from another tenant");
+    await db.delete(legalEntityProfileChangeRequests)
+      .where(eq(legalEntityProfileChangeRequests.id, legitimate.id));
+
     const scoped = await resolveMultiEntityContext({
       userId: people[0].id, organizationId: tenantA.id, requested: a1.id,
     });
