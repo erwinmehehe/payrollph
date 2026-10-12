@@ -32,7 +32,7 @@ export function photoCaptureDecision(mode: PhotoMode, choice: "accepted" | "decl
  * Canonical input avoids server timezone inference or normalized invalid dates.
  */
 export function validDevicePunchTimestamp(value: string): boolean {
-  if (!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/.test(value)) return false;
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) return false;
   const parsed = new Date(value);
   return Number.isFinite(parsed.getTime()) && parsed.toISOString() === value;
 }
