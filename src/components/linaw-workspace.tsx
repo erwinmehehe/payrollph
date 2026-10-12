@@ -34,7 +34,8 @@ import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/compon
 import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
-import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
+import { FREELANCER_HIDDEN, NAVIGATION, tenantVisiblePages } from "@/components/workspace/nav";
+import { MoreModulesPanel } from "@/components/workspace/more-modules";
 import { OverviewView } from "@/components/workspace/overview";
 import { RoleOverviewView, type WorkspaceDashboardRole } from "@/components/workspace/role-overview";
 import {
@@ -149,10 +150,15 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       .filter((name) => !rolePages || rolePages.includes(name));
     // Keep the pilot menu small without ever granting access outside the
     // already calculated role/plan navigation entitlement.
-    return pilotFocusEnabled && !isFreelancer && !demoRole
-      ? pilotCoreNavigationPages(roleAllowedPages)
-      : roleAllowedPages;
-  }, [isFreelancer, rolePages, pilotFocusEnabled, demoRole]);
+    const focused = pilotFocusEnabled && !isFreelancer && !demoRole
+      ? pilotCoreNavigationPages(roleAllowedPages) : roleAllowedPages;
+    const mode = data.selectedOrganization.moduleVisibility === "core_only" ? "core_only" : "all";
+    const visible = tenantVisiblePages(focused, mode, data.selectedOrganization.enabledModules ?? []);
+    if (mode === "core_only" && !isFreelancer && !demoRole &&
+        data.access?.companyWide && ["owner", "admin"].includes(data.access.role)) visible.push("More modules");
+    return visible;
+  }, [isFreelancer, rolePages, pilotFocusEnabled, demoRole, data.selectedOrganization.moduleVisibility,
+      data.selectedOrganization.enabledModules, data.access]);
 
   // Only surface existing HR modules that this role, plan and pilot menu permit.
   const hrisShortcuts = useMemo(
@@ -638,6 +644,11 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
         {page === "Pricing" && <PricingPage plans={data.plans} onSelectPlan={(plan) => setCheckoutPlan(plan)} />}
         {page === "Audit trail" && <AuditPage events={data.auditEvents} organizationId={data.selectedOrganization.id} />}
         {page === "Settings" && <SettingsPage data={data} setNotice={noticeAdapter} initialTab={settingsInitialTab} />}
+        {page === "More modules" && availablePages.includes("More modules") && (
+          <MoreModulesPanel organization={data.selectedOrganization}
+            allowedPages={NAVIGATION.flatMap(g => g.items.map(i => i.name)).filter(name => !rolePages || rolePages.includes(name))}
+            onSaved={async () => { await refresh(); setPage("Overview"); }} />
+        )}
       </WorkspaceShell>
 
       <ToastStack toasts={toasts} onDismiss={dismiss} />
