@@ -24,6 +24,11 @@ const app = {
   hasMigrationReceipts: true,
   hasMigrationJournal: true,
   hasMigrationCutover: true,
+  hasPayoutBatches: true,
+  hasPayoutTransfers: true,
+  hasPayoutBatchTransfers: true,
+  hasPayoutProfiles: true,
+  hasWorkerEmploymentEvents: true,
   usersIdType: "integer",
   employeesIdType: "integer",
   payrollRunsIdType: "integer",
@@ -35,7 +40,7 @@ test("read-only fingerprint inspects PostgreSQL catalog metadata only", () => {
   assert.doesNotMatch(DATABASE_GENERATION_FINGERPRINT_SQL, /\b(?:INSERT|UPDATE|DELETE|DROP|ALTER|TRUNCATE)\b/i);
 });
 
-test("connected legacy UUID/client signature rejects numbered forward migration", () => {
+test("legacy UUID/client signature rejects numbered forward migration", () => {
   const result = assessDatabaseGeneration(old);
   assert.equal(result.generation, "legacy-client-uuid");
   assert.equal(result.eligibleForMigrationReview, false);
@@ -69,4 +74,43 @@ test("even canonical catalog plus journal is review-only, not authorization", ()
   assert.equal(result.eligibleForMigrationReview, true);
   assert.equal(result.productionMigrationApproved, false);
   assert.match(result.reason, /DBA_RECEIPTS_AND_CLONE_REHEARSAL/);
+});
+
+test("observed correct Neon app schema blocks the train until source prerequisites exist", () => {
+  const live = {
+    ...app,
+    hasMigrationReceipts: false,
+    hasMigrationJournal: false,
+    hasMigrationCutover: false,
+    hasPayoutBatches: false,
+    hasPayoutTransfers: false,
+    hasPayoutBatchTransfers: false,
+    hasPayoutProfiles: false,
+    hasWorkerEmploymentEvents: false,
+  };
+  const outcome = assessDatabaseGeneration(live);
+  assert.equal(outcome.generation, "organization-integer");
+  assert.equal(outcome.reason, "NUMBERED_TRAIN_PREREQUISITES_MISSING");
+  assert.deepEqual(outcome.missingTrainPrerequisites, [
+    "payout_batches", "payout_transfers", "payout_batch_transfers",
+    "payout_profiles", "worker_employment_events",
+  ]);
+  assert.equal(outcome.eligibleForMigrationReview, false);
+  assert.equal(outcome.productionMigrationApproved, false);
+});
+
+test("one missing source prerequisite blocks migration review despite journals", () => {
+  const outcome = assessDatabaseGeneration({ ...app, hasPayoutBatches: false });
+  assert.deepEqual(outcome.missingTrainPrerequisites, ["payout_batches"]);
+  assert.equal(outcome.eligibleForMigrationReview, false);
+  assert.equal(outcome.reason, "NUMBERED_TRAIN_PREREQUISITES_MISSING");
+});
+
+test("fingerprint catalogs direct dependencies of 0117 and 0119", () => {
+  for (const path of [
+    "payout_batches", "payout_transfers", "payout_batch_transfers",
+    "payout_profiles", "worker_employment_events",
+  ]) {
+    assert.ok(DATABASE_GENERATION_FINGERPRINT_SQL.includes("public." + path));
+  }
 });
