@@ -37,10 +37,14 @@ const env = {
   XENDIT_PAYOUTS_LIVE_APPROVED: "true",
 };
 
-test("Xendit is the default selection, but not a live permission", () => {
+test("Xendit is preferred only after the exact gate, preserving legacy PayMongo when disabled", () => {
   assert.equal(DEFAULT_PAYROLL_PAYOUT_PROVIDER, "xendit");
-  assert.equal(configuredPayrollPayoutProvider({}), "xendit");
+  assert.equal(configuredPayrollPayoutProvider({}), "paymongo");
+  assert.equal(configuredPayrollPayoutProvider({ XENDIT_PAYOUTS_ENABLED: "TRUE" }), "paymongo");
+  assert.equal(configuredPayrollPayoutProvider({ XENDIT_PAYOUTS_ENABLED: "true" }), "xendit");
   assert.equal(configuredPayrollPayoutProvider({ PAYROLL_PAYOUT_PROVIDER: "paymongo" }), "paymongo");
+  assert.throws(() => configuredPayrollPayoutProvider({ PAYROLL_PAYOUT_PROVIDER: "xendit" }), /XENDIT_PAYOUTS_ENABLED/);
+  assert.equal(configuredPayrollPayoutProvider({ ...env, PAYROLL_PAYOUT_PROVIDER: "paymongo" }), "paymongo");
   assert.throws(() => configuredPayrollPayoutProvider({ PAYROLL_PAYOUT_PROVIDER: "wire" }), /must be/);
   assert.equal(xenditPayrollLiveReadiness({ organizationId: 12, legalEntityId: 21 }, {}).ready, false);
   assert.equal(xenditPayrollLiveReadiness({ organizationId: 12, legalEntityId: 21 }, env).ready, true);

@@ -1,3 +1,5 @@
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+
 /**
  * Default for newly initiated payroll payouts. Selecting Xendit does not
  * authorize a transfer: payout submission has its own employer-bound gates.
@@ -9,9 +11,17 @@ export const DEFAULT_PAYROLL_PAYOUT_PROVIDER: PayrollPayoutProvider = "xendit";
 export function configuredPayrollPayoutProvider(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): PayrollPayoutProvider {
-  const chosen = (env.PAYROLL_PAYOUT_PROVIDER ?? DEFAULT_PAYROLL_PAYOUT_PROVIDER).trim().toLowerCase();
+  // Preserve existing PayMongo routing until the release-critical Xendit gate
+  // is explicitly enabled. Never silently fall back from a selected Xendit
+  // payout to PayMongo: that could duplicate a salary transfer.
+  const enabled = criticalReleaseFlagEnabled("xenditPayrollPayouts", env);
+  const defaultProvider = enabled ? DEFAULT_PAYROLL_PAYOUT_PROVIDER : "paymongo";
+  const chosen = (env.PAYROLL_PAYOUT_PROVIDER ?? defaultProvider).trim().toLowerCase();
   if (chosen !== "xendit" && chosen !== "paymongo") {
     throw new Error("PAYROLL_PAYOUT_PROVIDER must be xendit or paymongo.");
+  }
+  if (chosen === "xendit" && !enabled) {
+    throw new Error("XENDIT_PAYOUTS_ENABLED must be true before selecting Xendit.");
   }
   return chosen;
 }
@@ -21,7 +31,7 @@ export function xenditPayrollLiveReadiness(input: {
   legalEntityId: number | null;
 }, env: Readonly<Record<string, string | undefined>> = process.env) {
   const blockers: string[] = [];
-  if (env.XENDIT_PAYOUTS_ENABLED !== "true") blockers.push("XENDIT_PAYOUTS_ENABLED is not true.");
+  if (!criticalReleaseFlagEnabled("xenditPayrollPayouts", env)) blockers.push("XENDIT_PAYOUTS_ENABLED is not true.");
   if (env.XENDIT_PAYOUTS_LIVE_APPROVED !== "true") {
     blockers.push("Independent Xendit payroll payout acceptance has not been approved.");
   }

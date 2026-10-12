@@ -18,6 +18,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P0 payroll queue processing",
     approval: "Synthetic worker exercise and governed run approval",
   },
+  xenditPayrollPayouts: {
+    env: "XENDIT_PAYOUTS_ENABLED",
+    owner: "Treasury",
+    risk: "P0 external Xendit salary money movement",
+    approval: "Independent provider/treasury acceptance and exact employer/legal-entity authorization",
+  },
   paymongoDisbursements: {
     env: "PAYMONGO_DISBURSEMENTS_ENABLED",
     owner: "Treasury",
