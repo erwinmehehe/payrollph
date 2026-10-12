@@ -12,7 +12,7 @@ import { enhancedPunchEnabled } from "@/lib/workforce-punch-evidence";
 import { decryptPunchPhoto } from "@/lib/workforce-punch-photo-crypto";
 export const dynamic="force-dynamic";
 export const runtime="nodejs";
-const privateHeaders={"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"};
+const privateHeaders={"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","Cross-Origin-Resource-Policy":"same-origin"};
 async function reviewer(organizationId:number) {
   const user=await getSessionUser();
   if(!user)return {denied:Response.json({error:"Unauthorized."},{status:401}),user:null,access:null};
@@ -37,6 +37,14 @@ export async function GET(request:Request) {
   const context=await reviewer(organizationId);if(context.denied)return context.denied;
   const photoId=params.get("photoId");
   if(photoId) {
+    // Photo access is separately sensitive even for an authorized manager.
+    // Apply fresh MFA and a distributed limit before retrieving/decrypting bytes.
+    const mfa=requireSensitiveActionMfa(context.user!);if(mfa)return mfa;
+    const limited=await enforceSensitiveActionRateLimit(request,{
+      userId:context.user!.id,action:"wfm-photo-access",resourceId:organizationId,
+      limit:30,windowMs:5*60_000,
+    });
+    if(limited)return limited;
     const [photo]=await db.select().from(workforcePunchPhotoEvidence).where(and(eq(workforcePunchPhotoEvidence.id,photoId),eq(workforcePunchPhotoEvidence.organizationId,organizationId))).limit(1);
     if(!photo||!photo.sealedPhoto||photo.purgedAt||(!photo.legalHold&&photo.expiresAt<=new Date()))return new Response(null,{status:404,headers:privateHeaders});
     const [employee]=await db.select({orgUnitId:employees.orgUnitId}).from(employees).where(and(eq(employees.id,photo.employeeId),eq(employees.organizationId,organizationId))).limit(1);

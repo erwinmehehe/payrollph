@@ -83,4 +83,7 @@ test("staging and approval source guards preserve transaction-level safety",()=>
   assert.match(review,/pg_advisory_xact_lock\(/);
   assert.match(review,/attendanceRows\.length>1/);
   assert.match(review,/target<=current\.breakEnd/);
+  assert.match(review,/action:"wfm-photo-access"/);
+  assert.match(review,/requireSensitiveActionMfa\(context\.user!\)/);
+  assert.match(review,/Cross-Origin-Resource-Policy/);
 });
