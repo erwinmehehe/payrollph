@@ -14,7 +14,23 @@ export function PunchEvidenceReviewPanel({organizationId}:{organizationId:number
     if(!r.ok)throw Error(d.error??"Review queue unavailable");
     setRows(d.submissions??[]);
   },[organizationId]);
-  useEffect(()=>{let active=true;void load().catch(e=>{if(active)setError(String(e));});return()=>{active=false;};},[load]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(`/api/web-bundy/review?organizationId=${organizationId}`, {
+      cache: "no-store", signal: controller.signal,
+    })
+      .then(async response => {
+        if (response.status === 404) return [] as ReviewRow[];
+        const body = await response.json() as { submissions?: ReviewRow[]; error?: string };
+        if (!response.ok) throw Error(body.error ?? "Review queue unavailable");
+        return body.submissions ?? [];
+      })
+      .then(receipts => { if (!controller.signal.aborted) setRows(receipts); })
+      .catch(cause => {
+        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Review queue unavailable");
+      });
+    return () => controller.abort();
+  }, [organizationId]);
   async function decide(row:ReviewRow,decision:"approved"|"rejected"){
     setBusy(row.id);setError("");
     try{

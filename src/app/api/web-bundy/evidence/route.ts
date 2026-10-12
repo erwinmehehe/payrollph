@@ -132,7 +132,10 @@ export async function POST(request: Request) {
     eq(workforcePunchPhotoConsents.consentVersion,PUNCH_CONSENT_VERSION))).limit(1);
   const file=form.get("photo");
   const hasPhoto=file instanceof File && file.size>0;
-  const captureDecision=photoCaptureDecision(photoMode,consent?.choice??null,hasPhoto);
+  // Drizzle persists a generic string; an unexpected value must fail closed.
+  const rawChoice = consent?.choice;
+  const choice = rawChoice === "accepted" || rawChoice === "declined" ? rawChoice : null;
+  const captureDecision = photoCaptureDecision(photoMode, choice, hasPhoto);
   flags.push(...captureDecision.flags);
   let encrypted: string|null=null;
   if(captureDecision.capture && file instanceof File) {
