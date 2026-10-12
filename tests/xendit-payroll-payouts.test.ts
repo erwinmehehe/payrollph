@@ -4,6 +4,7 @@ import {
   DEFAULT_PAYROLL_PAYOUT_PROVIDER,
   configuredPayrollPayoutProvider,
   xenditPayrollLiveReadiness,
+  payrollPayoutProviderForReleaseReceipt,
 } from "../src/lib/payroll-payout-provider";
 import {
   buildXenditPayrollPayout,
@@ -46,6 +47,9 @@ test("Xendit is preferred only after the exact gate, preserving legacy PayMongo 
   assert.throws(() => configuredPayrollPayoutProvider({ PAYROLL_PAYOUT_PROVIDER: "xendit" }), /XENDIT_PAYOUTS_ENABLED/);
   assert.equal(configuredPayrollPayoutProvider({ ...env, PAYROLL_PAYOUT_PROVIDER: "paymongo" }), "paymongo");
   assert.throws(() => configuredPayrollPayoutProvider({ PAYROLL_PAYOUT_PROVIDER: "wire" }), /must be/);
+  assert.equal(payrollPayoutProviderForReleaseReceipt({}), "paymongo");
+  assert.equal(payrollPayoutProviderForReleaseReceipt({ PAYROLL_PAYOUT_PROVIDER: "xendit" }), null);
+  assert.equal(payrollPayoutProviderForReleaseReceipt({ XENDIT_PAYOUTS_ENABLED: "true" }), "xendit");
   assert.equal(xenditPayrollLiveReadiness({ organizationId: 12, legalEntityId: 21 }, {}).ready, false);
   assert.equal(xenditPayrollLiveReadiness({ organizationId: 12, legalEntityId: 21 }, env).ready, true);
   assert.equal(xenditPayrollLiveReadiness({ organizationId: 13, legalEntityId: 21 }, env).ready, false);

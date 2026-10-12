@@ -26,6 +26,19 @@ export function configuredPayrollPayoutProvider(
   return chosen;
 }
 
+/** A released payroll must never fail its committed response because a payout
+ * provider setting is missing, invalid or explicitly disabled. No fallback
+ * transfer provider is authorized by this read-only receipt helper. */
+export function payrollPayoutProviderForReleaseReceipt(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): PayrollPayoutProvider | null {
+  try {
+    return configuredPayrollPayoutProvider(env);
+  } catch {
+    return null;
+  }
+}
+
 export function xenditPayrollLiveReadiness(input: {
   organizationId: number;
   legalEntityId: number | null;

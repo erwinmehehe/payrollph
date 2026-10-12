@@ -22,7 +22,7 @@ import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
 import { checkPayrollReleaseSegregation } from "@/lib/payroll-release-segregation";
 import { connectedPayrollReleaseGateEnabled, safePayrollConnectedReleaseReadiness } from "@/lib/payroll-connected-release-gate-server";
-import { configuredPayrollPayoutProvider } from "@/lib/payroll-payout-provider";
+import { payrollPayoutProviderForReleaseReceipt } from "@/lib/payroll-payout-provider";
 
 const RELEASABLE = ["Ready for release"];
 
@@ -373,6 +373,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     postReleaseWarnings.push("Payroll was released, but webhook delivery could not be queued.");
   }
 
+  const receiptPayoutProvider = payrollPayoutProviderForReleaseReceipt();
+  if (!receiptPayoutProvider) {
+    postReleaseWarnings.push(
+      "Payroll is released, but the payout provider setting requires administrator correction. No salary transfer is authorized.",
+    );
+  }
   const receipt = {
     runId,
     periodLabel: run.periodLabel,
@@ -385,16 +391,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     },
     payout: {
       status: "awaiting-preflight" as const,
-      label: configuredPayrollPayoutProvider() === "xendit"
+      label: receiptPayoutProvider === "xendit"
         ? "Xendit is the selected payout rail. Complete the no-money preflight and separate treasury authorization before any salary transfer; live payouts remain disabled without employer approval."
-        : process.env.PAYMONGO_SECRET_KEY
-          && process.env.PAYMONGO_WALLET_ID
-          && process.env.PAYMONGO_WEBHOOK_SECRET
-          && process.env.PAYMONGO_DISBURSEMENTS_ENABLED === "true"
-            ? "Run the no-money PayMongo preflight, then submit the payout."
-            : "PayMongo is selected for this employer. Connect the wallet credentials and signed webhook, then run preflight. Bank files remain an optional fallback.",
+        : receiptPayoutProvider === "paymongo"
+          ? process.env.PAYMONGO_SECRET_KEY
+            && process.env.PAYMONGO_WALLET_ID
+            && process.env.PAYMONGO_WEBHOOK_SECRET
+            && process.env.PAYMONGO_DISBURSEMENTS_ENABLED === "true"
+              ? "Run the no-money PayMongo preflight, then submit the payout."
+              : "PayMongo is selected for this employer. Connect the wallet credentials and signed webhook, then run preflight. Bank files remain an optional fallback."
+          : "Payout provider configuration requires administrator correction. Payroll is released, but no payout has been initiated or authorized.",
       reference: null,
-      method: configuredPayrollPayoutProvider() === "xendit" ? "Xendit" : "PayMongo",
+      method: receiptPayoutProvider === "xendit" ? "Xendit"
+        : receiptPayoutProvider === "paymongo" ? "PayMongo" : null,
       completedAt: null,
     },
     payslips: {

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildPayrollHandoff, employeePayStatusLabel } from "../src/lib/payroll-handoff";
 import { derivePayrollPayoutState } from "../src/lib/payroll-payout-state";
+import { payrollPayoutProviderForReleaseReceipt } from "../src/lib/payroll-payout-provider";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -183,7 +184,7 @@ test("released payroll payout completion is audit-derived and ordered", () => {
   assert.equal(state.payout.reference, "BDO-BATCH-004821");
 });
 
-test("payout completion UX uses a gated Xendit default and preserves historical PayMongo and bank fallback", () => {
+test("payout completion UX keeps Xendit opt-in and preserves historical PayMongo and bank fallback", () => {
   const route = read("src/app/api/payroll-runs/[id]/exports/route.ts");
   const exportsView = read("src/components/workspace/exports.tsx");
   const payrollView = read("src/components/workspace/payroll-run.tsx");
@@ -201,7 +202,7 @@ test("payout completion UX uses a gated Xendit default and preserves historical 
 
   for (const marker of [
     "PAYOUT COMPLETION",
-    "Xendit is Linaw&apos;s default selected payroll payout rail.",
+    "Xendit is an opt-in salary payout rail",
     "<XenditPayoutPanel",
     'data-payout-stage="paymongo-preflight"',
     'data-payout-stage="completed"',
@@ -222,8 +223,18 @@ test("release receipt records selected payout provider and keeps bank files opti
   assert.ok(releaseRoute.includes('status: "waiting" as const'));
   assert.ok(releaseRoute.includes('status: "awaiting-preflight" as const'));
   assert.ok(releaseRoute.includes("Optional fallback: no final bank file has been generated."));
-  assert.ok(releaseRoute.includes('configuredPayrollPayoutProvider() === "xendit"'));
-  assert.ok(releaseRoute.includes('method: configuredPayrollPayoutProvider() === "xendit" ? "Xendit" : "PayMongo"'));
+  // Execute the same selection used to build the post-commit receipt:
+  // bad configuration may be reported, but cannot throw after release.
+  assert.equal(payrollPayoutProviderForReleaseReceipt({}), "paymongo");
+  assert.equal(payrollPayoutProviderForReleaseReceipt({
+    PAYROLL_PAYOUT_PROVIDER: "xendit",
+  }), null);
+  assert.equal(payrollPayoutProviderForReleaseReceipt({
+    PAYROLL_PAYOUT_PROVIDER: "xendit", XENDIT_PAYOUTS_ENABLED: "true",
+  }), "xendit");
+  assert.equal(payrollPayoutProviderForReleaseReceipt({
+    PAYROLL_PAYOUT_PROVIDER: "unsupported",
+  }), null);
   assert.ok(payrollView.includes('data-payout-status={visibleReleaseReceipt.payout.status}'));
   assert.ok(types.includes('"awaiting-preflight" | "ready" | "submitted" | "completed"'));
 });
