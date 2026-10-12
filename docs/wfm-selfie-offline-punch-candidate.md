@@ -1,6 +1,6 @@
 # WFM optional selfie + offline punching: candidate, feature disabled
 
-This **draft review-only** candidate follows the WFM-12 rules branch. Do not migrate `drizzle/0116_wfm_selfie_offline_receipts.sql` until `0115` is reviewed and applied. Both feature flags default off.
+This **draft review-only** candidate follows the WFM-12 rules branch. Its SQL has moved unchanged to `docs/engineering/migration-proposals/wfm-selfie-offline-receipts.sql`. It is NOT a numbered/applyable migration. Canonical #865 already defines `workforce_punch_photo_consents` and `workforce_punch_photo_evidence` with INCOMPATIBLE column layouts in `0118_wfm_punch_evidence.sql`; reconcile the two schema models before DBA allocation, migration rehearsal, merge or feature flag activation. Both flags stay OFF.
 
 ## Gating and use
 - `WFM_PUNCH_PHOTO_EVIDENCE_ENABLED=true` separately enables the opt-in employee image evidence UI/API. `DOCUMENT_UPLOADS_ENABLED=true`, malware scanner and `PII_ENCRYPTION_KEY` are required before uploads work.
