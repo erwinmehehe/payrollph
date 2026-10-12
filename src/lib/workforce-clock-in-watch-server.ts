@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeScheduleAssignments, employees, leaveRequests,
@@ -6,14 +6,18 @@ import {
 } from "@/db/schema";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
-import { clockInWatchSignals } from "@/lib/workforce-clock-in-watch";
+import { clockInWatchSignals, type ClockInWatchSignal } from "@/lib/workforce-clock-in-watch";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { scanActiveRosterAssignments, ROSTER_SCAN_PAGE_SIZE } from "@/lib/workforce-roster-scale";
 
-const MAX_ELIGIBLE_ASSIGNMENTS = 200;
+const MAX_LEGACY_ASSIGNMENTS = 200;
+const WORKER_BATCH_SIZE = 100;
 
 /**
- * Reconcile clock-in watch with authoritative WFM schedules, leave, and punches.
- * This is an opt-in, bounded manager nudge, not an attendance/absence decision.
- * A larger cohort is explicitly skipped, never silently partially scanned.
+ * Under the opt-in roster-scale gate, load all eligible assignments in
+ * deterministic keyset pages and stage signals only after a complete scan.
+ * No notification is emitted for a partial/failed scan. The caller's central
+ * scheduler still owns the fenced lease for the whole tick.
  */
 export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number) {
   if (!Number.isFinite(now.getTime())
@@ -21,131 +25,156 @@ export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number)
     return { skipped: true as const, reason: "invalid-clock-in-watch-config" };
   }
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(now);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(today)) {
+  if (!/^\d{4}-\d\d-\d\d$/.test(today)) {
     return { skipped: true as const, reason: "invalid-manila-business-date" };
   }
   const previous = new Date(today + "T00:00:00Z");
   previous.setUTCDate(previous.getUTCDate() - 1);
   const yesterday = previous.toISOString().slice(0, 10);
+  const enhanced = criticalReleaseFlagEnabled("wfmRosterScaleRules");
 
-  const assignmentRows = await db.select({
-    organizationId: employeeScheduleAssignments.organizationId,
-    employeeId: employeeScheduleAssignments.employeeId,
-  }).from(employeeScheduleAssignments).where(and(
-    lte(employeeScheduleAssignments.effectiveFrom, today),
-    or(isNull(employeeScheduleAssignments.effectiveUntil),
-      gte(employeeScheduleAssignments.effectiveUntil, yesterday)),
-  )).orderBy(
-    asc(employeeScheduleAssignments.organizationId),
-    asc(employeeScheduleAssignments.employeeId),
-  ).limit(MAX_ELIGIBLE_ASSIGNMENTS + 1);
-  if (assignmentRows.length > MAX_ELIGIBLE_ASSIGNMENTS) {
-    return { skipped: true as const, reason: "cohort-too-large", limit: MAX_ELIGIBLE_ASSIGNMENTS };
+  const rowsForPage = (afterId: number, limit: number) =>
+    db.select({
+      id: employeeScheduleAssignments.id,
+      organizationId: employeeScheduleAssignments.organizationId,
+      employeeId: employeeScheduleAssignments.employeeId,
+    }).from(employeeScheduleAssignments).where(and(
+      gt(employeeScheduleAssignments.id, afterId),
+      lte(employeeScheduleAssignments.effectiveFrom, today),
+      or(isNull(employeeScheduleAssignments.effectiveUntil),
+        gte(employeeScheduleAssignments.effectiveUntil, yesterday)),
+    )).orderBy(asc(employeeScheduleAssignments.id)).limit(limit);
+
+  const cohort = await scanActiveRosterAssignments({
+    fetchPage: rowsForPage,
+    pageSize: ROSTER_SCAN_PAGE_SIZE,
+    maxAssignments: enhanced ? 20_000 : MAX_LEGACY_ASSIGNMENTS,
+  });
+  if (!cohort.complete) {
+    return { skipped: true as const, reason: "cohort-too-large",
+      limit: enhanced ? 20_000 : MAX_LEGACY_ASSIGNMENTS };
   }
-  const ids = [...new Set(assignmentRows.map(row => row.employeeId))];
-  if (ids.length === 0) return { skipped: false as const, checked: 0, emitted: 0, exceptions: 0 };
+  if (cohort.workers.length === 0) {
+    return { skipped: false as const, checked: 0, emitted: 0,
+      exceptions: 0, assignmentsScanned: cohort.assignmentsScanned, pages: cohort.pages };
+  }
 
-  const [workerRows, punches, leaves, exits] = await Promise.all([
-    db.select({
-      id: employees.id, organizationId: employees.organizationId,
-      status: employees.status, startDate: employees.startDate,
-    }).from(employees).where(inArray(employees.id, ids)),
-    db.select({
-      organizationId: timePunches.organizationId, employeeId: timePunches.employeeId,
-      workDate: timePunches.workDate, timeIn: timePunches.timeIn,
-      timeOut: timePunches.timeOut,
-    }).from(timePunches).where(and(
-      inArray(timePunches.employeeId, ids),
-      gte(timePunches.workDate, yesterday), lte(timePunches.workDate, today),
-    )),
-    db.select({
-      organizationId: leaveRequests.organizationId, employeeId: leaveRequests.employeeId,
-      startDate: leaveRequests.startDate, endDate: leaveRequests.endDate,
-    }).from(leaveRequests).where(and(
-      inArray(leaveRequests.employeeId, ids),
-      eq(leaveRequests.status, "Approved"),
-      lte(leaveRequests.startDate, today), gte(leaveRequests.endDate, yesterday),
-    )),
-    db.select({
-      organizationId: separationRecords.organizationId, employeeId: separationRecords.employeeId,
-      status: separationRecords.status, lastDay: separationRecords.lastDay,
-    }).from(separationRecords).where(inArray(separationRecords.employeeId, ids)),
-  ]);
-  const eligibleOrgByEmployee = new Map(assignmentRows.map(row => [row.employeeId, row.organizationId]));
+  // Keep each worker/punch/leave/exit read within the same tenant and a
+  // bounded employee-ID page. A duplicate historical assignment never
+  // generates duplicate events, even across page boundaries.
+  const byOrganization = new Map<number, number[]>();
+  for (const worker of cohort.workers) {
+    const ids = byOrganization.get(worker.organizationId) ?? [];
+    ids.push(worker.employeeId);
+    byOrganization.set(worker.organizationId, ids);
+  }
   let checked = 0;
   let exceptions = 0;
-  const outcomes: Array<{ employeeId: number; workDate: string; eventKey: string }> = [];
-  for (const employee of workerRows) {
-    if (eligibleOrgByEmployee.get(employee.id) !== employee.organizationId
-      || employee.status !== "Active" || String(employee.startDate) > today) continue;
-    // A current exit with contradictory active HR status needs HR reconciliation,
-    // not an automated allegation of lateness.
-    const conflictingSeparation = exits.some(row =>
-      row.employeeId === employee.id
-      && row.organizationId === employee.organizationId
-      && ["draft", "approved", "released"].includes(row.status)
-      && String(row.lastDay) >= String(employee.startDate));
-    if (conflictingSeparation) continue;
-
-    let schedules;
-    try {
-      schedules = await resolveEmployeeScheduleWindow({
-        organizationId: employee.organizationId,
-        employeeId: employee.id,
-        startDate: yesterday,
-        endDate: today,
-      });
-    } catch {
-      // A contradictory or unresolved schedule must be corrected separately.
-      exceptions += 1;
-      continue;
-    }
-    for (const schedule of schedules) {
-      const workDate = schedule.date;
-      const approvedLeaveOnDate = leaves.some(row =>
-        row.organizationId === employee.organizationId
-        && row.employeeId === employee.id
-        && String(row.startDate) <= workDate
-        && String(row.endDate) >= workDate);
-      const dayPunches = punches.filter(row =>
-        row.organizationId === employee.organizationId
-        && row.employeeId === employee.id
-        && String(row.workDate) === workDate);
-      const signals = clockInWatchSignals({
-        candidate: {
-          organizationId: employee.organizationId,
-          employeeId: employee.id,
-          employeeStatus: employee.status,
-          employmentStartDate: String(employee.startDate),
-          schedule,
-          punches: dayPunches.map(p => ({ timeIn: p.timeIn, timeOut: p.timeOut })),
-          approvedLeaveOnDate,
-          conflictingSeparation: false,
-        },
-        now, graceMinutes,
-      });
-      checked += 1;
-      for (const signal of signals) {
-        await runAutomationEventSafely({
-          organizationId: signal.organizationId,
-          employeeId: signal.employeeId,
-          trigger: "attendance.clock_in_pending",
-          eventKey: signal.eventKey,
-          context: {
-            workDate: signal.workDate,
-            shiftDefinitionId: signal.shiftDefinitionId,
-            shiftStartTime: signal.shiftStartTime,
-            worksiteId: signal.worksiteId,
-            minutesSinceShiftStart: signal.minutesSinceShiftStart,
-            clockInWatchStatus: "unconfirmed",
-            // Never send a model a person's private attendance history.
-          },
-        });
-        outcomes.push({ employeeId: signal.employeeId, workDate, eventKey: signal.eventKey });
+  const pendingSignals: ClockInWatchSignal[] = [];
+  for (const [organizationId, employeeIds] of byOrganization) {
+    for (let index = 0; index < employeeIds.length; index += WORKER_BATCH_SIZE) {
+      const ids = employeeIds.slice(index, index + WORKER_BATCH_SIZE);
+      const [workerRows, punches, leaves, exits] = await Promise.all([
+        db.select({
+          id: employees.id, organizationId: employees.organizationId,
+          status: employees.status, startDate: employees.startDate,
+        }).from(employees).where(and(
+          eq(employees.organizationId, organizationId), inArray(employees.id, ids),
+        )),
+        db.select({
+          organizationId: timePunches.organizationId, employeeId: timePunches.employeeId,
+          workDate: timePunches.workDate, timeIn: timePunches.timeIn, timeOut: timePunches.timeOut,
+        }).from(timePunches).where(and(
+          eq(timePunches.organizationId, organizationId),
+          inArray(timePunches.employeeId, ids),
+          gte(timePunches.workDate, yesterday), lte(timePunches.workDate, today),
+        )),
+        db.select({
+          organizationId: leaveRequests.organizationId, employeeId: leaveRequests.employeeId,
+          startDate: leaveRequests.startDate, endDate: leaveRequests.endDate,
+        }).from(leaveRequests).where(and(
+          eq(leaveRequests.organizationId, organizationId),
+          inArray(leaveRequests.employeeId, ids),
+          eq(leaveRequests.status, "Approved"),
+          lte(leaveRequests.startDate, today), gte(leaveRequests.endDate, yesterday),
+        )),
+        db.select({
+          organizationId: separationRecords.organizationId, employeeId: separationRecords.employeeId,
+          status: separationRecords.status, lastDay: separationRecords.lastDay,
+        }).from(separationRecords).where(and(
+          eq(separationRecords.organizationId, organizationId),
+          inArray(separationRecords.employeeId, ids),
+        )),
+      ]);
+      const punchesByWorker = new Map<number, typeof punches>();
+      for (const punch of punches) {
+        const list = punchesByWorker.get(punch.employeeId) ?? [];
+        list.push(punch);
+        punchesByWorker.set(punch.employeeId, list);
+      }
+      for (const employee of workerRows) {
+        if (employee.organizationId !== organizationId
+          || employee.status !== "Active" || String(employee.startDate) > today) continue;
+        const conflictingSeparation = exits.some(row =>
+          row.employeeId === employee.id
+          && ["draft", "approved", "released"].includes(row.status)
+          && String(row.lastDay) >= String(employee.startDate));
+        if (conflictingSeparation) continue;
+        let schedules;
+        try {
+          schedules = await resolveEmployeeScheduleWindow({
+            organizationId, employeeId: employee.id, startDate: yesterday, endDate: today,
+          });
+        } catch {
+          exceptions += 1;
+          continue;
+        }
+        for (const schedule of schedules) {
+          const date = schedule.date;
+          const approvedLeaveOnDate = leaves.some(row =>
+            row.employeeId === employee.id
+            && String(row.startDate) <= date && String(row.endDate) >= date);
+          const dayPunches = (punchesByWorker.get(employee.id) ?? [])
+            .filter(row => String(row.workDate) === date);
+          const signals = clockInWatchSignals({
+            candidate: {
+              organizationId, employeeId: employee.id,
+              employeeStatus: employee.status,
+              employmentStartDate: String(employee.startDate),
+              schedule,
+              punches: dayPunches.map(row => ({ timeIn: row.timeIn, timeOut: row.timeOut })),
+              approvedLeaveOnDate,
+              conflictingSeparation: false,
+            },
+            now, graceMinutes,
+          });
+          checked += 1;
+          pendingSignals.push(...signals);
+        }
       }
     }
   }
-  return { skipped: false as const, checked, emitted: outcomes.length, exceptions,
-    // No employee identifiers or PII in the shared scheduler status output.
-  };
+
+  // No side effect occurred before this point: a truncated scan or any failed
+  // page read cannot silently create a partial set of manager alerts.
+  let emitted = 0;
+  for (const signal of pendingSignals) {
+    await runAutomationEventSafely({
+      organizationId: signal.organizationId,
+      employeeId: signal.employeeId,
+      trigger: "attendance.clock_in_pending",
+      eventKey: signal.eventKey,
+      context: {
+        workDate: signal.workDate,
+        shiftDefinitionId: signal.shiftDefinitionId,
+        shiftStartTime: signal.shiftStartTime,
+        worksiteId: signal.worksiteId,
+        minutesSinceShiftStart: signal.minutesSinceShiftStart,
+        clockInWatchStatus: "unconfirmed",
+      },
+    });
+    emitted += 1;
+  }
+  return { skipped: false as const, checked, emitted, exceptions,
+    assignmentsScanned: cohort.assignmentsScanned, pages: cohort.pages };
 }
