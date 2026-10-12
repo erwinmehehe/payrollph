@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { chromium } from "playwright";
 
 // Browser and database must remain disposable. Never run this against a live app.
@@ -23,6 +23,46 @@ const report = { mode:"synthetic-local-browser-only", employerId:fixture.organiz
 const browser=await chromium.launch({headless:true});
 let active=null;
 const contexts=[];
+const screenshotRoot = "qa-artifacts/first-payroll-screens";
+await mkdir(screenshotRoot, { recursive: true });
+// The screenshots compare each closed step with its opened, in-place editor;
+// they are synthetic desktop/phone evidence, NOT a before/after payroll calculation.
+async function captureStep(role, key, item, actionName) {
+  const button = item.getByRole("button", { name: actionName, exact: true });
+  const card = active.getByRole("region", { name: "First payroll setup readiness" });
+  for (const width of [390, 1280]) {
+    await active.setViewportSize({ width, height: 844 });
+    await card.screenshot({ path: `${screenshotRoot}/${key}-${role}-${width}-before.png`, animations: "disabled" });
+  }
+  await active.setViewportSize({ width: 390, height: 844 });
+  await button.click();
+  const panel = item.locator(`[aria-label="${key} inline setup"]`);
+  await panel.waitFor({ timeout: 45000 });
+  for (const width of [390, 1280]) {
+    await active.setViewportSize({ width, height: 844 });
+    const bounds = await panel.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, viewport: window.innerWidth };
+    });
+    assert.ok(bounds.left >= -1 && bounds.right <= bounds.viewport + 1,
+      `${key} inline panel must fit ${width}px width: ${JSON.stringify(bounds)}`);
+    await card.screenshot({ path: `${screenshotRoot}/${key}-${role}-${width}-after.png`, animations: "disabled" });
+  }
+  await active.setViewportSize({ width: 375, height: 812 });
+  report.steps.push(`${role}: ${key} closed/open desktop and phone screenshots, phone width verified`);
+  return panel;
+}
+async function screenshotCompleted(role, key) {
+  const card = active.getByRole("region", { name: "First payroll setup readiness" });
+  for (const width of [390, 1280]) {
+    await active.setViewportSize({ width, height: 844 });
+    await card.screenshot({ path: `${screenshotRoot}/${key}-${role}-${width}-completed.png`, animations: "disabled" });
+  }
+  await active.setViewportSize({ width: 375, height: 812 });
+}
+async function closeStep(item) {
+  await item.getByRole("button", { name: "Close panel", exact: true }).click();
+}
 async function enter(email){
   const context=await browser.newContext({viewport:{width:375,height:812}});
   contexts.push(context);
@@ -44,19 +84,17 @@ try{
   assert.match(await owner.card.innerText(),/Add active employees|Add people and payout details/);
 
   const employerStep=owner.steps.nth(0);
-  await employerStep.getByRole("button",{name:"Review company"}).click();
-  const companyPanel=employerStep.locator('[aria-label="company inline setup"]');
-  await companyPanel.waitFor();
+  const companyPanel=await captureStep("owner","company",employerStep,"Review company");
   await companyPanel.getByLabel("Pay schedule").selectOption("ph_semi_monthly");
   await companyPanel.getByRole("button",{name:"Save legal employer and schedule"}).click();
   await companyPanel.getByText("Legal employer and pay schedule confirmed.").waitFor({timeout:45000});
   assert.equal(new URL(active.url()).pathname,"/app","Company completed without page navigation");
   report.steps.push("owner: primary legal employer and pay calendar saved inline");
+  await screenshotCompleted("owner","company");
+  await closeStep(employerStep);
 
   const peopleStep=owner.steps.nth(1);
-  await peopleStep.getByRole("button",{name:"Open people"}).click();
-  const peoplePanel=peopleStep.locator('[aria-label="people inline setup"]');
-  await peoplePanel.waitFor();
+  const peoplePanel=await captureStep("owner","people",peopleStep,"Open people");
   await peoplePanel.getByRole("button",{name:"Add employee inline"}).click();
   const hire=peoplePanel.locator('section[aria-label="Add employee"]');
   await hire.waitFor();
@@ -73,15 +111,21 @@ try{
     active.waitForResponse(res=>res.url().endsWith("/api/employees") && res.request().method()==="POST",{timeout:45000}),
     hire.getByRole("button",{name:/Create & onboard/}).click(),
   ]);
-  assert.equal(created.status(),201,"Inline employee create: "+(await created.text()));
+  assert.equal(created.status(),201,"Inline employee create must succeed; inspect sanitized status only.");
   assert.equal(new URL(active.url()).pathname,"/app","Employee created without page navigation");
-  report.steps.push("owner: first employee and pay profile created inline, with synthetic TIN/bank");
+  report.steps.push("owner: first employee and pay profile created inline, with fictional payroll inputs");
+  await screenshotCompleted("owner","people");
+  await closeStep(peopleStep);
+  const reviewersStep=owner.steps.nth(3);
+  await captureStep("owner","reviewers",reviewersStep,"Review team access");
+  await closeStep(reviewersStep);
+  const exportsStep=owner.steps.nth(6);
+  await captureStep("owner","exports",exportsStep,"Open exports");
+  await closeStep(exportsStep);
 
   const hr=await enter("hcm-hr@example.test");
   const timeStep=hr.steps.nth(2);
-  await timeStep.getByRole("button",{name:"Review attendance"}).click();
-  const timePanel=timeStep.locator('[aria-label="time inline setup"]');
-  await timePanel.waitFor();
+  const timePanel=await captureStep("hr","time",timeStep,"Review attendance");
   await timePanel.getByLabel("Pay period start").fill("2026-10-01");
   await timePanel.getByLabel("Pay period end").fill("2026-10-15");
   await timePanel.getByRole("checkbox").check();
@@ -89,12 +133,12 @@ try{
   await timePanel.getByText("Period-specific HR review recorded.").waitFor({timeout:45000});
   assert.equal(new URL(active.url()).pathname,"/app","HR reviewed period inline");
   report.steps.push("HR: independent period-specific human review saved and resumable");
+  await screenshotCompleted("hr","time");
+  await closeStep(timeStep);
 
   const payroll=await enter("hcm-payroll@example.test");
   const payrollStep=payroll.steps.nth(4);
-  await payrollStep.getByRole("button",{name:/Prepare payroll|Open payroll run/}).click();
-  const panel=payrollStep.locator('[aria-label="payroll inline setup"]');
-  await panel.waitFor();
+  const panel=await captureStep("payroll","payroll",payrollStep,"Prepare payroll");
   await panel.getByLabel("Period start").fill("2026-10-01");
   await panel.getByLabel("Period end").fill("2026-10-15");
   await panel.getByLabel("Pay date").fill("2026-10-15");
@@ -112,6 +156,7 @@ try{
   assert.ok(preview.rows[0].net>=0);
   await panel.getByText("Preview ready for reconciliation").waitFor();
   report.steps.push("payroll: read-only preview ready with all statutory deduction columns");
+  await screenshotCompleted("payroll","payroll");
 
   const [draftResponse]=await Promise.all([
     active.waitForResponse(res=>res.url().endsWith("/api/payroll-runs") && res.request().method()==="POST",{timeout:45000}),
@@ -121,6 +166,11 @@ try{
     "Explicit draft creation refused: "+(await draftResponse.text()));
   assert.equal(new URL(active.url()).pathname,"/app","Payroll draft action remained inline");
   report.steps.push("payroll: explicit, separately confirmed draft run; no release or money movement");
+  await closeStep(payrollStep);
+  const checker = await enter("hcm-checker@example.test");
+  const approvalStep = checker.steps.nth(5);
+  await captureStep("checker","approval",approvalStep,"Review approvals");
+  await closeStep(approvalStep);
   report.result="PASS";
 }catch(error){
   await active?.screenshot({path:"qa-artifacts/first-payroll-zero-tenant-failed.png",fullPage:true}).catch(()=>{});
