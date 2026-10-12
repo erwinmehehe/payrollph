@@ -46,21 +46,27 @@ export async function runDueApprovalChainEscalations(now=new Date()){
     taskStatus:row.taskStatus,stepStatus:row.stepStatus,priority:row.priority,
    }))continue;
    // Conditional status recheck makes repeated leases/jobs idempotent.
-   const [updated]=await db.update(approvalTasks).set({
-    priority:"High",dueLabel:"Escalated: reviewer attention required",
-   }).where(and(
-     eq(approvalTasks.id,row.taskId),
-     eq(approvalTasks.organizationId,row.organizationId),
-     eq(approvalTasks.status,"Pending"),
-     eq(approvalTasks.priority,row.priority),
-   )).returning({id:approvalTasks.id});
-   if(!updated)continue;
-   await db.insert(auditEvents).values({
-     organizationId:row.organizationId,actor:"System scheduler",
-     action:"Approval chain overdue escalation",resource:"Approval task",
-     metadata:{approvalTaskId:row.taskId,instanceId:row.instanceId,
-       stepIndex:row.stepIndex,escalationAfterDays:step?.escalationAfterDays},
+   const changed=await db.transaction(async (tx)=>{
+     const [updated]=await tx.update(approvalTasks).set({
+       priority:"High",dueLabel:"Escalated: reviewer attention required",
+     }).where(and(
+       eq(approvalTasks.id,row.taskId),
+       eq(approvalTasks.organizationId,row.organizationId),
+       eq(approvalTasks.status,"Pending"),
+       eq(approvalTasks.priority,row.priority),
+     )).returning({id:approvalTasks.id});
+     if(!updated)return false;
+     // Audit and state transition commit atomically. If the append-only
+     // receipt fails, the approval task remains unchanged.
+     await tx.insert(auditEvents).values({
+       organizationId:row.organizationId,actor:"System scheduler",
+       action:"Approval chain overdue escalation",resource:"Approval task",
+       metadata:{approvalTaskId:row.taskId,instanceId:row.instanceId,
+         stepIndex:row.stepIndex,escalationAfterDays:step?.escalationAfterDays},
+     });
+     return true;
    });
+   if(!changed)continue;
    raised++;
  }
  return {skipped:false as const,raised};
