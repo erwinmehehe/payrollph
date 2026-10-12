@@ -68,6 +68,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
+      CI: "true"
       TZ: Asia/Manila
       # Fictional leave type for the fresh, single-tenant local CI database.
       # This is not an employer policy or a production conversion authorization.
@@ -98,6 +99,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: app_db
+          POSTGRES_INITDB_ARGS: "--encoding=UTF8"
         ports:
           - 5432:5432
         options: >-
@@ -115,6 +117,8 @@ jobs:
 
       - run: npm ci
       - run: npm run db:push
+      - name: Apply audit 0109 on isolated real PG16 before acceptance
+        run: node scripts/qa/apply-audit-0109-isolated.mjs
       - run: npm run build
 
       - name: Start production build

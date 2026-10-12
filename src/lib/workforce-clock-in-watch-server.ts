@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeScheduleAssignments, employees, leaveRequests,
@@ -7,13 +7,16 @@ import {
 import { runAutomationEventSafely } from "@/lib/automation";
 import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
 import { clockInWatchSignals } from "@/lib/workforce-clock-in-watch";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { scanClockWatchAssignments, CLOCK_WATCH_PAGE_SIZE } from "@/lib/workforce-clock-in-watch-paging";
 
 const MAX_ELIGIBLE_ASSIGNMENTS = 200;
 
 /**
  * Reconcile clock-in watch with authoritative WFM schedules, leave, and punches.
  * This is an opt-in, bounded manager nudge, not an attendance/absence decision.
- * A larger cohort is explicitly skipped, never silently partially scanned.
+ * Large cohorts are scanned only when the WFM paging release gate is enabled.
+ * Every bounded scan must complete before advisory events can be emitted.
  */
 export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number) {
   if (!Number.isFinite(now.getTime())
@@ -28,18 +31,30 @@ export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number)
   previous.setUTCDate(previous.getUTCDate() - 1);
   const yesterday = previous.toISOString().slice(0, 10);
 
-  const assignmentRows = await db.select({
+  // ID keyset paging avoids OFFSET gaps on a changing schedule table. This
+  // scanner completes before sending any advisory notification.
+  const loadAssignmentPage = (afterId: number, limit: number) => db.select({
+    id: employeeScheduleAssignments.id,
     organizationId: employeeScheduleAssignments.organizationId,
     employeeId: employeeScheduleAssignments.employeeId,
   }).from(employeeScheduleAssignments).where(and(
     lte(employeeScheduleAssignments.effectiveFrom, today),
     or(isNull(employeeScheduleAssignments.effectiveUntil),
       gte(employeeScheduleAssignments.effectiveUntil, yesterday)),
-  )).orderBy(
-    asc(employeeScheduleAssignments.organizationId),
-    asc(employeeScheduleAssignments.employeeId),
-  ).limit(MAX_ELIGIBLE_ASSIGNMENTS + 1);
-  if (assignmentRows.length > MAX_ELIGIBLE_ASSIGNMENTS) {
+    afterId > 0 ? gt(employeeScheduleAssignments.id, afterId) : undefined,
+  )).orderBy(asc(employeeScheduleAssignments.id)).limit(limit);
+
+  const pagingEnabled = criticalReleaseFlagEnabled("wfmClockWatchPaging");
+  const scan = pagingEnabled
+    ? await scanClockWatchAssignments(loadAssignmentPage, {
+        pageSize: CLOCK_WATCH_PAGE_SIZE,
+      })
+    : { complete: true as const, assignments: await loadAssignmentPage(0, MAX_ELIGIBLE_ASSIGNMENTS + 1) };
+  if (!scan.complete) {
+    return { skipped: true as const, reason: "cohort-scan-cap-exceeded", limit: scan.limit };
+  }
+  const assignmentRows = scan.assignments;
+  if (!pagingEnabled && assignmentRows.length > MAX_ELIGIBLE_ASSIGNMENTS) {
     return { skipped: true as const, reason: "cohort-too-large", limit: MAX_ELIGIBLE_ASSIGNMENTS };
   }
   const ids = [...new Set(assignmentRows.map(row => row.employeeId))];
