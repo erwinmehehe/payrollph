@@ -27,7 +27,7 @@ test("malformed or absent visibility never widens role-based navigation", () => 
 });
 
 test("existing rows remain full menu; new inserts receive core-only default", () => {
-  const sql = readFileSync("docs/engineering/migration-proposals/first-payroll-workspace-prefs.sql","utf8");
+  const sql = readFileSync("drizzle/0122_tenant_core_navigation.sql","utf8");
   assert.match(sql, /DEFAULT 'all'/);
   assert.match(sql, /ALTER COLUMN module_visibility SET DEFAULT 'core_only'/);
 });

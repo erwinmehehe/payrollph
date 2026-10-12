@@ -30,15 +30,15 @@ export async function loadReadOnlyFirstPayrollPreview(
   reader.select({role:userOrganizations.role}).from(userOrganizations).where(and(eq(userOrganizations.organizationId,organizationId),eq(userOrganizations.active,true))),
  ]);
  const legal=legalRows.find(e=>e.primaryEntity)??null;
- const recorded=progressRows[0]?.completedSteps??{};
+ const companyConfirmed=progressRows.some(row=>row.step==="company" && Boolean(row.data?.completedAt));
+ const timeReview=progressRows.find(row=>row.step==="time")?.data;
  const blockers:string[]=[];
  if(!legal)blockers.push("Missing active primary legal employer.");
- if(!recorded.company)blockers.push("Pay schedule has not been confirmed by an employer administrator.");
+ if(!companyConfirmed)blockers.push("Pay schedule has not been confirmed by an employer administrator.");
  if(legal?.payrollCalendarMode==="ph_semi_monthly"&&!isCanonicalPhSemiMonthlyPeriod(periodStart,periodEnd))
   blockers.push("Selected period does not match the employer's semi-monthly pay schedule.");
  if(!legal?.payrollCalendarMode)blockers.push("No pay schedule configured.");
- const review=recorded.time;
- if(!review||review.periodStart!==periodStart||review.periodEnd!==periodEnd)
+ if(!timeReview?.completedAt||timeReview.periodStart!==periodStart||timeReview.periodEnd!==periodEnd)
   blockers.push("An authorized HR reviewer must review attendance for this exact pay period.");
  if(!memberRows.some(r=>r.role==="payroll"))blockers.push("No active Payroll Officer role is assigned.");
  if(!memberRows.some(r=>r.role==="checker"))blockers.push("No active independent Checker role is assigned.");

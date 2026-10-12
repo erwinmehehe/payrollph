@@ -5931,12 +5931,16 @@ export const engagementSurveyParticipants = pgTable(
   ],
 );
 
+/** Matches the canonical source-only 0117 migration from PR #865 exactly. */
 export const firstPayrollJourneyProgress = pgTable("first_payroll_journey_progress", {
- organizationId: integer("organization_id").primaryKey().references(() => organizations.id,{onDelete:"cascade"}),
- stepOwners: jsonb("step_owners").$type<Record<string,string>>().notNull().default({}),
- completedSteps: jsonb("completed_steps").$type<Record<string,{byUserId:number;at:string;periodStart?:string;periodEnd?:string}>>().notNull().default({}),
- reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id,{onDelete:"set null"}),
- reviewedAt: timestamp("reviewed_at",{withTimezone:true}),
- updatedByUserId: integer("updated_by_user_id").references(() => users.id,{onDelete:"set null"}),
- updatedAt: timestamp("updated_at",{withTimezone:true}).notNull().defaultNow(),
-});
+  organizationId: integer("organization_id").notNull().references(() => organizations.id,{onDelete:"cascade"}),
+  step: varchar("step",{length:24}).notNull(),
+  ownerRole: varchar("owner_role",{length:24}).notNull(),
+  data: jsonb("data").$type<{
+    completedByUserId?:number;completedAt?:string;periodStart?:string;periodEnd?:string;
+  }>().notNull().default({}),
+  updatedByUserId: integer("updated_by_user_id").notNull().references(() => users.id),
+  updatedAt: timestamp("updated_at",{withTimezone:true}).notNull().defaultNow(),
+}, table => [
+  uniqueIndex("first_payroll_journey_tenant_step").on(table.organizationId,table.step),
+]);
