@@ -80,3 +80,12 @@ test("report route refuses ambiguous employer history before exporting data", ()
  assert.match(route, /ENTITY_ATTRIBUTION_REQUIRED/);
  assert.match(route, /status: 409/);
 });
+
+test("payroll aggregation preserves exact decimal centavos", () => {
+ const spec=validateBuilderSpec({dataset:"payroll",fields:["department","payrollCost","otLineCost"],groupBy:"department"},"payroll");
+ assert.deepEqual(runWhitelistedBuilder([
+  {department:"OPS",payrollCost:"0.10",otLineCost:"0.10"},
+  {department:"OPS",payrollCost:"0.20",otLineCost:"0.20"},
+  {department:"OPS",payrollCost:"99999999.99",otLineCost:"0.01"},
+ ],spec),[["OPS","100000000.29","0.31"]]);
+});
