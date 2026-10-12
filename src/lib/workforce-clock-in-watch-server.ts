@@ -126,9 +126,15 @@ export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number)
         if (conflictingSeparation) continue;
         let schedules;
         try {
-          schedules = await resolveEmployeeScheduleWindow({
-            organizationId, employeeId: employee.id, startDate: yesterday, endDate: today,
-          });
+          if (schedulesByWorker) {
+            const stored = schedulesByWorker.get(employee.id);
+            if (!stored || stored.length !== 2) throw Error("Unresolved batched schedule.");
+            schedules = stored;
+          } else {
+            schedules = await resolveEmployeeScheduleWindow({
+              organizationId, employeeId: employee.id, startDate: yesterday, endDate: today,
+            });
+          }
         } catch {
           exceptions += 1;
           continue;
