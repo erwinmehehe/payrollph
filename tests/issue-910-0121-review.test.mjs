@@ -5,7 +5,7 @@ import test from "node:test";
 const original = readFileSync(new URL("../drizzle/0121_multi_entity_v2_scope_transfer.sql", import.meta.url), "utf8");
 const names = ["bootstrap","schema","linked-payroll-attribution","initial-entity-grants","employment-interval-attribution"];
 const stage = name => readFileSync(new URL("../docs/sql/issue-910-review-only-0121-"+name+".sql", import.meta.url), "utf8");
-const body = name => stage(name).split("-- BEGIN_SOURCE_0121_STAGE --\n")[1]?.split("-- END_SOURCE_0121_STAGE --")[0]?.trim() ?? "";
+const body = name => stage(name).split(/-- BEGIN_SOURCE_0121_STAGE --\r?\n/)[1]?.split("-- END_SOURCE_0121_STAGE --")[0]?.trim() ?? "";
 const normalized = text => text.replace(/--[^\n]*/g,"").replace(/\s+/g," ").trim();
 const ddl = text => text.replace(/--[^\n]*/g,"").split(";").map(s=>s.trim()).filter(Boolean);
 const originalAnchors = [

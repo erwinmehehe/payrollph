@@ -40,9 +40,9 @@ const missingLive = Object.freeze([
   "positions",
   "job_profiles",
 ]);
-const source=path=>readFileSync(new URL("../"+path,import.meta.url),"utf8").trimEnd();
+const source=path=>readFileSync(new URL("../"+path,import.meta.url),"utf8").replaceAll("\r\n","\n").trimEnd();
 const proposed=readFileSync(
-  new URL("../docs/sql/issue-910-review-only-forward-predecessor.sql",import.meta.url),"utf8");
+  new URL("../docs/sql/issue-910-review-only-forward-predecessor.sql",import.meta.url),"utf8").replaceAll("\r\n","\n");
 
 function stage(path){
   const start="-- SOURCE STAGE "+path+"\n";
