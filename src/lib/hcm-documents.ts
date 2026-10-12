@@ -360,76 +360,67 @@ export async function runScheduledHcmDocumentExpiry(input: {
       now,
     );
 
-    if (row.status !== next.status) {
-      await db.update(hcmEmployeeDocumentCompliance).set({
-        status: next.status,
-        updatedAt: now,
-      }).where(and(
-        eq(hcmEmployeeDocumentCompliance.id, row.id),
-        eq(hcmEmployeeDocumentCompliance.organizationId, row.organizationId),
-      ));
-    }
-
     if (vaultEnabled) {
-      // If a document was replaced by another employee's file or belongs to
-      // another employer, no alert may be raised on its original compliance row.
-      const [attached] = await db.select({
-        id: documents.id,
-        scannedClean: documents.scannedClean,
-      }).from(documents).where(and(
-        eq(documents.id, row.documentId),
-        eq(documents.organizationId, row.organizationId),
-        eq(documents.employeeId, row.employeeId),
-      )).limit(1);
-      if (!attached || !canIssueExpiryNotice({
-        status: row.status,
-        documentId: row.documentId,
-        verifiedAt: row.verifiedAt,
-        scannedClean: attached.scannedClean,
-        expiryRequired: requirement.expiryRequired,
-      })) continue;
+      // Lock the live compliance row before changing its status or creating an
+      // HR alert. A concurrent replacement/waiver must win by locking order;
+      // stale scheduler snapshots may never emit notices for superseded bytes.
+      const snapshot = await db.transaction(async tx => {
+        const [fresh] = await tx.select().from(hcmEmployeeDocumentCompliance).where(and(
+          eq(hcmEmployeeDocumentCompliance.id, row.id),
+          eq(hcmEmployeeDocumentCompliance.organizationId, row.organizationId),
+          eq(hcmEmployeeDocumentCompliance.employeeId, row.employeeId),
+        )).for("update").limit(1);
+        if (!fresh || fresh.documentId !== row.documentId ||
+          String(fresh.expiresAt) !== String(row.expiresAt)) return null;
+        const [attached] = await tx.select({
+          scannedClean: documents.scannedClean,
+        }).from(documents).where(and(
+          eq(documents.id, fresh.documentId!),
+          eq(documents.organizationId, fresh.organizationId),
+          eq(documents.employeeId, fresh.employeeId),
+        )).limit(1);
+        if (!attached || !canIssueExpiryNotice({
+          status: fresh.status, documentId: fresh.documentId,
+          verifiedAt: fresh.verifiedAt, scannedClean: attached.scannedClean,
+          expiryRequired: requirement.expiryRequired,
+        })) return null;
 
-      if (next.status === "expired") {
-        // Preserve the existing one-time overdue automation event. Calendar
-        // milestones are pre-expiry alerts, not a replacement for overdue risk.
-        const automation = await runAutomationEventSafely({
-          organizationId: row.organizationId,
-          employeeId: row.employeeId,
-          trigger: "document.expires",
-          eventKey: `document-expiry:${row.id}:${String(row.expiresAt)}:expired`,
-          context: {
-            documentComplianceId: row.id, documentId: row.documentId,
-            documentRequirementId: requirement.id,
-            documentRequirementCode: requirement.code,
-            documentRequirementName: requirement.name, documentKind: requirement.kind,
-            expiryDate: String(row.expiresAt),
-            daysUntilExpiry: next.daysUntilExpiry,
-            documentStatus: "expired", eventActor: input.actor,
-          },
-        });
-        outcomes.push({ complianceId: row.id, status: "expired", employeeId: row.employeeId, automation });
-        continue;
-      }
+        // Updating and inserting inside the same transaction is atomic: a
+        // concurrent HR waiver cannot be silently overwritten by this tick.
+        if (fresh.status !== next.status) {
+          await tx.update(hcmEmployeeDocumentCompliance).set({
+            status: next.status, updatedAt: now,
+          }).where(and(
+            eq(hcmEmployeeDocumentCompliance.id, fresh.id),
+            eq(hcmEmployeeDocumentCompliance.organizationId, fresh.organizationId),
+          ));
+        }
+        if (next.status === "expired") {
+          return { milestoneDays: null, status: "expired" as const };
+        }
+        const { milestoneDays } = documentExpiryMilestone(String(fresh.expiresAt), now);
+        if (!milestoneDays) return null;
+        const [notice] = await tx.insert(hcmDocumentExpiryNotices).values({
+          organizationId: fresh.organizationId,
+          complianceId: fresh.id,
+          employeeId: fresh.employeeId,
+          documentId: fresh.documentId!,
+          expiresOn: String(fresh.expiresAt),
+          milestoneDays, createdAt: now,
+        }).onConflictDoNothing().returning({ id: hcmDocumentExpiryNotices.id });
+        return notice ? { milestoneDays, status: next.status } : null;
+      });
+      if (!snapshot) continue;
 
-      const { milestoneDays } = documentExpiryMilestone(String(row.expiresAt), now);
-      if (!milestoneDays) continue;
-      const [notice] = await db.insert(hcmDocumentExpiryNotices).values({
-        organizationId: row.organizationId,
-        complianceId: row.id,
-        employeeId: row.employeeId,
-        documentId: row.documentId,
-        expiresOn: String(row.expiresAt),
-        milestoneDays,
-        createdAt: now,
-      }).onConflictDoNothing().returning({ id: hcmDocumentExpiryNotices.id });
-      if (!notice) continue;
-      // The persisted, tenant-bound HR inbox remains authoritative even when
-      // a downstream optional automation rule has not been configured.
+      // External automations are out of the DB transaction: the durable,
+      // unique HR inbox is the authoritative source if an automation is down.
       const automation = await runAutomationEventSafely({
         organizationId: row.organizationId,
         employeeId: row.employeeId,
         trigger: "document.expires",
-        eventKey: `document-expiry:${row.id}:${String(row.expiresAt)}:milestone-${milestoneDays}`,
+        eventKey: `document-expiry:${row.id}:${row.documentId}:${String(row.expiresAt)}:${
+          snapshot.milestoneDays === null ? "expired" : "milestone-" + snapshot.milestoneDays
+        }`,
         context: {
           documentComplianceId: row.id,
           documentId: row.documentId,
@@ -439,15 +430,26 @@ export async function runScheduledHcmDocumentExpiry(input: {
           documentKind: requirement.kind,
           expiryDate: String(row.expiresAt),
           daysUntilExpiry: next.daysUntilExpiry,
-          reminderMilestoneDays: milestoneDays,
-          documentStatus: next.status,
-          eventActor: input.actor,
+          ...(snapshot.milestoneDays === null ? {} : {
+            reminderMilestoneDays: snapshot.milestoneDays,
+          }),
+          documentStatus: snapshot.status, eventActor: input.actor,
         },
       });
       outcomes.push({
-        complianceId: row.id, status: next.status, employeeId: row.employeeId, automation,
+        complianceId: row.id, status: snapshot.status, employeeId: row.employeeId, automation,
       });
       continue;
+    }
+
+    // Preserve pre-A-5 behavior exactly while the new vault is disabled.
+    if (row.status !== next.status) {
+      await db.update(hcmEmployeeDocumentCompliance).set({
+        status: next.status, updatedAt: now,
+      }).where(and(
+        eq(hcmEmployeeDocumentCompliance.id, row.id),
+        eq(hcmEmployeeDocumentCompliance.organizationId, row.organizationId),
+      ));
     }
     if (next.status !== "expiring" && next.status !== "expired") continue;
 
