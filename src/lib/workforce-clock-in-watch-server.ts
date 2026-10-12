@@ -6,6 +6,7 @@ import {
 } from "@/db/schema";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
+import { loadClockInWatchScheduleBatch } from "@/lib/workforce-clock-in-watch-batch";
 import { clockInWatchSignals, type ClockInWatchSignal } from "@/lib/workforce-clock-in-watch";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { scanActiveRosterAssignments, ROSTER_SCAN_PAGE_SIZE } from "@/lib/workforce-roster-scale";
@@ -106,6 +107,9 @@ export async function emitWorkforceClockInWatch(now: Date, graceMinutes: number)
           inArray(separationRecords.employeeId, ids),
         )),
       ]);
+      const schedulesByWorker = enhanced ? await loadClockInWatchScheduleBatch({
+        organizationId, employeeIds: ids, startDate: yesterday, endDate: today,
+      }) : null;
       const punchesByWorker = new Map<number, typeof punches>();
       for (const punch of punches) {
         const list = punchesByWorker.get(punch.employeeId) ?? [];
