@@ -393,7 +393,11 @@ export function planGreedyRoster(input:GreedyRosterInput):GreedyRosterResult {
 }
 function premiumWarnings(worker:GreedyWorker,slot:GreedySlot) {
   const warnings:string[]=[];
-  if(worker.restWeekday===new Date(slot.workDate+"T00:00:00Z").getUTCDay())warnings.push("Rest-day premium review required.");
+  const baselineRestDay=worker.existingDays.some(day=>
+    day.date===slot.workDate && day.isRestDay && day.source!=="unassigned");
+  if(baselineRestDay||worker.restWeekday===new Date(slot.workDate+"T00:00:00Z").getUTCDay()) {
+    warnings.push("Rest-day premium review required.");
+  }
   if(slot.holidayKind)warnings.push(slot.holidayKind+" holiday premium review required.");
   const start=timeMinute(slot.startTime);
   const end=timeMinute(slot.endTime)+(slot.spansMidnight?1440:0);
