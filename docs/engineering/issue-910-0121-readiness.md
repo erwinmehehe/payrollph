@@ -36,3 +36,16 @@ The original 0121 mixes these steps in one file. The extracts are *review artifa
 ## Rollback / operational hold
 
 Feature flags stay OFF: `MULTI_ENTITY_ENABLED`, `MULTI_ENTITY_TRANSFERS_ENABLED`, `MULTI_ENTITY_REGISTRATIONS_ENABLED` and money movement. No migration is authorized by successful CI or a draft PR. For additive schema, application rollback disables the feature while preserving immutable history; an in-transaction clone rehearsal must demonstrate complete DDL/DML rollback. Never rollback by deleting historical employer evidence, changing filing ownership or restoring the production default branch. **Issue #910 stays OPEN until independently signed review and clone/live receipt evidence.**
+
+## Non-authorizing scope integrity candidate (new)
+
+\`docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql\` proposes **13 composite tenant/employer foreign keys** and narrowly scoped unique reference indexes. Its use is demonstrated only in fictional, disposable PostgreSQL 16/18 tests. This candidate is **not** a new numbered migration and has **not** been approved by DBA/security; do not apply it to a real Neon branch or production. It does not claim that source migration \`0121\` alone provides a complete authorization boundary.
+
+The proposal closes *potential new-write* ambiguity for:
+- employee/current employer, payroll-run employer, person-to-assignment, and source/target transfer person-to-tenant matches;
+- user entity grants/preferences tied to an active tenant membership;
+- entry/run, payslip/entry, payroll job/run, payout batch/run, payout transfer/run, bank-file/run and year-end run/employer snapshots.
+
+These FKs are deliberately **NOT VALID**: PostgreSQL enforces them on new writes/updated keys but does not scan/rewrite existing historical rows. A named DBA must reconcile preexisting bad rows and separately run \`VALIDATE CONSTRAINT\` after every row is attributable; do not treat \`NOT VALID\` as a complete historical-isolation certificate. Nullable historical filing, bank and year-end scope remains blocked under the RFC until separately attributed.
+
+Existing pending PR #860 proposes overlapping employee/transfer tenant FKs. Reconcile duplicate names and exact current-head migration ordering before assigning a new SQL number. This review candidate must not be independently applied or mixed into 0121 without a forward-release plan and signed SQL hash.
