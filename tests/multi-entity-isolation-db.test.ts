@@ -78,6 +78,32 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
       assert.equal(assertEntityResource(ownerScoped.context, a1.id), null);
       assert.equal(assertEntityResource(ownerScoped.context, a2.id)?.status, 403);
     }
+    await db.insert(userLegalEntityGrants).values({
+      userId: people[3].id, organizationId: tenantA.id, legalEntityId: a2.id,
+    });
+    const multiGrantedOwner = await resolveMultiEntityContext({
+      userId: people[3].id, organizationId: tenantA.id,
+    });
+    assert.equal(multiGrantedOwner.ok, true);
+    if (!multiGrantedOwner.ok) throw new Error("unexpected deny");
+    assert.equal(multiGrantedOwner.context.canSwitch, true);
+    assert.equal(multiGrantedOwner.context.group, false);
+    assert.deepEqual(multiGrantedOwner.context.entities.map(e => e.id).sort((a,b) => a-b),
+      [a1.id, a2.id]);
+    assert.equal(assertEntityResource(multiGrantedOwner.context, a2.id)?.status, 403);
+    const ownerSelectedA2 = await resolveMultiEntityContext({
+      userId: people[3].id, organizationId: tenantA.id, requested: a2.id,
+    });
+    assert.equal(ownerSelectedA2.ok, true);
+    if (ownerSelectedA2.ok) {
+      assert.equal(assertEntityResource(ownerSelectedA2.context, a2.id), null);
+      assert.equal(assertEntityResource(ownerSelectedA2.context, a1.id)?.status, 403);
+    }
+    const ownerAllEvenWithTwoGrants = await resolveMultiEntityContext({
+      userId: people[3].id, organizationId: tenantA.id, requested: "all",
+    });
+    assert.equal(ownerAllEvenWithTwoGrants.ok, false);
+
     const group = await resolveMultiEntityContext({
       userId: people[1].id, organizationId: tenantA.id, requested: "all",
     });
