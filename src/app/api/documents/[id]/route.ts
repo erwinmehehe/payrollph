@@ -119,11 +119,13 @@ export async function GET(
     return Response.json({ error: "This legacy document is not yet available in the private vault." }, { status: 409 });
   }
   const body = Buffer.from(document.content, "base64");
-  if (document.sourceType === "generated") {
+  // After A-5 activation all legacy bytes must match their stored SHA-256,
+  // not only generated files. Unverified uploads must never be served.
+  if (vaultEnabled || document.sourceType === "generated") {
     const sha256 = createHash("sha256").update(body).digest("hex");
     if (sha256 !== document.sha256) {
       return Response.json({
-        error: "Generated document integrity verification failed.",
+        error: "Employee document integrity verification failed.",
       }, { status: 409 });
     }
   }
