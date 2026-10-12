@@ -40,7 +40,7 @@ async function enter(email){
   return {card,steps};
 }
 try{
-  const owner=await enter("first-payroll-owner@example.test");
+  const owner=await enter("first-payroll-gamma-owner@example.test");
   assert.match(await owner.card.innerText(),/Add active employees|Add people and payout details/);
 
   const employerStep=owner.steps.nth(0);

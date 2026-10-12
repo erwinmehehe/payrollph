@@ -44,12 +44,21 @@ async function main() {
       "hcm-hr@example.test", "hcm-payroll@example.test", "hcm-checker@example.test",
     ]));
   assert.equal(colleagues.length, 3, "Role recipients must be real synthetic users");
+  // Signup verification uniquely binds one owner to one self-serve employer.
+  // Model Gamma as a separate customer, not a second signup for Alpha's owner.
+  const [gammaOwner] = await db.insert(users).values({
+    email: "first-payroll-gamma-owner@example.test",
+    name: "Synthetic Gamma Onboarding Owner", role: "owner",
+    passwordHash: hashPassword("Synthetic-HCM-QA-Password-Only-2026!"),
+  }).returning({ id: users.id });
+  assert.ok(gammaOwner?.id && gammaOwner.id !== owner.id,
+    "Each synthetic self-serve employer needs a distinct verified signup owner");
   await db.insert(userOrganizations).values([
-    { userId: owner.id, organizationId: gamma.id, role: "owner", active: true },
+    { userId: gammaOwner.id, organizationId: gamma.id, role: "owner", active: true },
     ...colleagues.map(user => ({ userId: user.id, organizationId: gamma.id, role: user.role, active: true })),
   ]);
   await db.insert(saasSignupVerifications).values({
-    organizationId: gamma.id, userId: owner.id, tokenHash: "b".repeat(64),
+    organizationId: gamma.id, userId: gammaOwner.id, tokenHash: "b".repeat(64),
     expiresAt: new Date(Date.now() + 86400000), verifiedAt: new Date(),
   });
   await db.insert(subscriptions).values({ organizationId: gamma.id, status: "active", plan: "Core" });
