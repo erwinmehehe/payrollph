@@ -24,6 +24,10 @@ function useEmployees(organizationId: number) {
 export function ExpensesPanel({ organizationId, setNotice }: { organizationId: number; setNotice: (m: string) => void }) {
   const employees = useEmployees(organizationId);
   const [claims, setClaims] = useState<any[]>([]);
+  const [reviewMode, setReviewMode] = useState(false);
+  const [receiptUploadsEnabled, setReceiptUploadsEnabled] = useState(false);
+  const [reviewedCategories, setReviewedCategories] = useState<string[]>([]);
+  const [uploadingClaim, setUploadingClaim] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ employeeId: "", category: "Travel", description: "", amount: "", incurredOn: new Date().toISOString().slice(0, 10) });
 
@@ -36,7 +40,21 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
       const res = await fetch(`/api/expenses?organizationId=${organizationId}`);
       if (!res.ok) return;
       const data = await res.json();
-      if (alive) setClaims(data.claims ?? []);
+      if (alive) {
+        setClaims(data.claims ?? []);
+        setReviewMode(data.reimbursementReviewEnabled === true);
+        setReceiptUploadsEnabled(data.receiptUploadsEnabled === true);
+        const categories: string[] = Array.isArray(data.reviewedCategories)
+          ? data.reviewedCategories.filter((item: unknown): item is string => typeof item === "string")
+          : [];
+        setReviewedCategories(categories);
+        if (data.reimbursementReviewEnabled === true && categories.length) {
+          setForm(previous => ({
+            ...previous,
+            category: categories.includes(previous.category) ? previous.category : categories[0],
+          }));
+        }
+      }
     })();
     return () => { alive = false; };
   }, [organizationId, nonce]);
@@ -60,6 +78,24 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
     await load();
   }
 
+  async function uploadReceipt(id: number, file: File) {
+    setUploadingClaim(id);
+    try {
+      const payload = new FormData();
+      payload.set("claimId", String(id));
+      payload.set("file", file);
+      const response = await fetch("/api/expenses/receipts", { method: "POST", body: payload });
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Could not upload receipt.");
+      setNotice("Receipt scanned and saved to private document storage.");
+      load();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Could not upload receipt.");
+    } finally {
+      setUploadingClaim(null);
+    }
+  }
+
   async function decide(id: number, status: "approved" | "rejected") {
     const res = await fetch("/api/expenses", {
       method: "PATCH",
@@ -73,7 +109,8 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
   }
 
   const pendingTotal = claims.filter((c) => c.status === "approved" && c.payrollRunId == null)
-    .reduce((s, c) => s + Number(c.amount), 0);
+    .reduce((s, c) => s + Number(reviewMode ? c.approvedAmount ?? 0 : c.amount), 0);
+  const selectableCategories = reviewMode ? reviewedCategories : CATEGORIES;
 
   return (
     <div>
@@ -93,6 +130,9 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
       {open && (
         <div className="card" style={{ padding: 20, marginBottom: 16 }}>
           <form onSubmit={submit}>
+            {reviewMode && selectableCategories.length === 0 && (
+              <p role="alert">Finance must review at least one expense category and tax treatment before new claims can be submitted.</p>
+            )}
             <div className="setting-form">
               <label>Employee
                 <select required value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })}>
@@ -102,7 +142,7 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
               </label>
               <label>Category
                 <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                  {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+                  {selectableCategories.map((c) => <option key={c}>{c}</option>)}
                 </select>
               </label>
               <label>Amount
@@ -117,7 +157,7 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
             </div>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
               <button type="button" className="secondary-button" onClick={() => setOpen(false)}>Cancel</button>
-              <button className="primary-button">Submit claim</button>
+              <button className="primary-button" disabled={reviewMode && selectableCategories.length === 0}>Submit claim</button>
             </div>
           </form>
         </div>
@@ -143,6 +183,24 @@ export function ExpensesPanel({ organizationId, setNotice }: { organizationId: n
                         <CheckCircle2 size={15} className="i-green" />
                       </button>
                     )}
+                    {reviewMode && receiptUploadsEnabled && !c.receiptSha256 && c.status === "pending" && (
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: 4, marginRight: 8 }}>
+                        <span>Upload receipt</span>
+                        <input type="file" accept=".pdf,.png,.jpg,.jpeg"
+                          aria-label={"Receipt for claim " + c.id}
+                          disabled={uploadingClaim !== null}
+                          onChange={event => {
+                            const file = event.currentTarget.files?.[0];
+                            if (file) void uploadReceipt(c.id, file);
+                            event.currentTarget.value = "";
+                          }} />
+                      </label>
+                    )}
+                    {reviewMode && c.receiptSha256 && <a
+                      href={"/api/expenses/receipts?claimId=" + c.id}
+                      target="_blank" rel="noopener noreferrer" style={{ marginRight: 8 }}>
+                      View scanned receipt
+                    </a>}
                     {c.inExpenseReport && <small>Decide in expense report</small>}
                   </td>
                 </tr>
