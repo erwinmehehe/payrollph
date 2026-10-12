@@ -29,11 +29,15 @@ export function aggregateClosedPulse(input:{
 /** The goal writer and reviewer must be different human user IDs. */
 export function canIndependentlyReviewGoal(input:{
  makerUserId:number;reviewerUserId:number;
- employeeUserId?:number|null;alreadyReviewed:boolean;
+ subjectEmployeeId:number;reviewerEmployeeId?:number|null;alreadyReviewed:boolean;
 }){
  return Number.isSafeInteger(input.makerUserId)&&input.makerUserId>0
   &&Number.isSafeInteger(input.reviewerUserId)&&input.reviewerUserId>0
+  &&Number.isSafeInteger(input.subjectEmployeeId)&&input.subjectEmployeeId>0
+  &&(input.reviewerEmployeeId==null ||
+      (Number.isSafeInteger(input.reviewerEmployeeId) && input.reviewerEmployeeId>0))
   &&input.makerUserId!==input.reviewerUserId
-  &&(input.employeeUserId==null||input.employeeUserId!==input.reviewerUserId)
+  // Compare employee IDs to employee IDs, not user IDs to employee IDs.
+  &&(input.reviewerEmployeeId==null||input.reviewerEmployeeId!==input.subjectEmployeeId)
   &&!input.alreadyReviewed;
 }
