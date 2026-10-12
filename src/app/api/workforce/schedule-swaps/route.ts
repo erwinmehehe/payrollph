@@ -594,6 +594,23 @@ export async function POST(request: Request) {
           if (scheduleGuardrailBlocksMutation(lockedIssues)) {
             throw new Error("Swap approval would violate binding rest or overlap controls.");
           }
+          if (wfmRosterScaleRulesEnabled()) {
+            const originalWindow = await resolveEmployeeScheduleWindow({
+              organizationId, employeeId: planned.employeeId,
+              startDate: rosterDateOffset(planned.workDate, -7),
+              endDate: rosterDateOffset(planned.workDate, 7), executor: tx,
+            });
+            const checked = await checkWfmRosterPublish({
+              organizationId, employeeId: planned.employeeId, days: lockedWindow,
+              targetDates: [planned.workDate], executor: tx,
+              baselineRestDates: originalWindow.filter(day=>day.isRestDay).map(day=>day.date),
+            });
+            if(decideRosterRulePublish({findings:checked.findings,managerMayOverride:false}).blocked) {
+              throw new Error("Swap violates binding roster rules; use a separately governed schedule change.");
+            }
+            if(checked.findings.length) rosterRuleFindings.push({employeeId:planned.employeeId,findings:checked.findings});
+          }
+
         }
 
         const [requesterCreated] = await tx.insert(scheduleOverrides).values({
