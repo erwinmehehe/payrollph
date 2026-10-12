@@ -143,7 +143,7 @@ export function FilingEvidencePanel({
     return () => {
       active = false;
     };
-  }, [organizationId, agency, form, reloadKey]);
+  }, [organizationId, agency, form, reloadKey, entityContext?.enabled, run.legalEntityId]);
 
   const forRun = (records ?? []).filter((item) => item.agency === agency && item.form === form && item.payrollRunId === run.id);
   const currentVersion = definition?.generatorVersion;
