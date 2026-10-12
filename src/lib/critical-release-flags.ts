@@ -48,6 +48,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 consented POS source access and historical aggregate import",
     approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
   },
+  employeeHrCases: {
+    env: "EMPLOYEE_HR_CASES_ENABLED",
+    owner: "People Operations",
+    risk: "P1 confidential employee HR requests and COE approvals",
+    approval: "Scoped HR and ESS acceptance, SLA operations and independently signed COE review",
+  },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
     owner: "Product",

@@ -3026,6 +3026,42 @@ export const jobApplicants = pgTable("job_applicants", {
     .where(sql`${table.hiredEmployeeId} is not null`),
 ]);
 
+/** Confidential HR service requests, scoped to the employee and their employer. */
+export const employeeHrCases = pgTable("employee_hr_cases", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  caseType: varchar("case_type", { length: 32 }).notNull(),
+  subject: varchar("subject", { length: 160 }).notNull(),
+  description: text("description").notNull(),
+  assignedRole: varchar("assigned_role", { length: 24 }).notNull(),
+  status: varchar("status", { length: 24 }).notNull().default("open"),
+  slaDueAt: timestamp("sla_due_at", { withTimezone: true }).notNull(),
+  coeDocumentId: integer("coe_document_id").references(() => documents.id),
+  coeApprovedByUserId: integer("coe_approved_by_user_id").references(() => users.id),
+  coeApprovedAt: timestamp("coe_approved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("employee_hr_cases_employee_idx").on(table.organizationId, table.employeeId, table.createdAt),
+  index("employee_hr_cases_sla_idx").on(table.organizationId, table.status, table.slaDueAt),
+  check("employee_hr_cases_status_check", sql`${table.status} in ('open','in_progress','waiting_employee','resolved','closed')`),
+]);
+
+export const employeeHrCaseMessages = pgTable("employee_hr_case_messages", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  caseId: integer("case_id").notNull().references(() => employeeHrCases.id, { onDelete: "cascade" }),
+  actorUserId: integer("actor_user_id").notNull().references(() => users.id),
+  visibility: varchar("visibility", { length: 16 }).notNull(),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("employee_hr_case_messages_case_idx").on(table.organizationId, table.caseId, table.createdAt),
+  check("employee_hr_case_messages_visibility_check", sql`${table.visibility} in ('employee','internal')`),
+]);
+
 export const separationRecords = pgTable("separation_records", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
