@@ -200,7 +200,11 @@ test("every place that reads or writes the number goes through the crypto module
   const importRoute = read("src/app/api/employees/import/route.ts");
   const atomicCommit = read("src/lib/employee-import-batch-server.ts");
   assert.ok(importRoute.includes("handleEmployeeImportPreview("),
-    "Bulk route must delegate through the governed preview/commit handler");
+    "Opted-in import must delegate through the governed preview/commit handler");
+  assert.ok(importRoute.includes("bankAccount: encryptBankAccount(row.bankAccount)"),
+    "Flag-off legacy import must also encrypt bank account numbers on write");
+  assert.ok(!/bankAccount:\s*row\.bankAccount\b/.test(importRoute),
+    "Flag-off legacy import must never persist a plaintext bank account");
   assert.ok(atomicCommit.includes("bankAccount: encryptBankAccount(row.bankAccount)"),
     "Atomic employee import must encrypt bank account numbers on write");
   assert.ok(!/bankAccount:\s*row\.bankAccount\b/.test(atomicCommit),
