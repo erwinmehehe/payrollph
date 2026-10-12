@@ -72,7 +72,7 @@ export async function listOfflinePunches(organizationId: number, employeeId: num
     .sort((a, b) => a.deviceTimestamp.localeCompare(b.deviceTimestamp) || a.id.localeCompare(b.id));
 }
 
-async function deviceToken(organizationId: number, employeeId: number) {
+async function deviceToken() {
   // Stable per installation, not per employee, so sharing is reviewable.
   const key = "installation-device-token";
   const existing = await transact<{ key: string; token: string } | undefined>(
@@ -98,7 +98,7 @@ export async function queueOfflinePunch(input: {
     || !Number.isSafeInteger(input.employeeId) || input.employeeId < 1) {
     throw new Error("Select a valid employee and employer.");
   }
-  const device = await deviceToken(input.organizationId, input.employeeId);
+  const device = await deviceToken();
   const intent: OfflinePunchIntent = {
     id: crypto.randomUUID(),
     organizationId: input.organizationId,
