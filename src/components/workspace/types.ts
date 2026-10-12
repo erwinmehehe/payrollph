@@ -368,6 +368,7 @@ export type DashboardData = {
   multiEntity?: {
     enabled: true;
     group: boolean;
+    canSwitch?: boolean;
     role: string;
     legalEntityId: number | null;
     entities: Array<{ id: number; legalName: string; displayName: string; code: string }>;
