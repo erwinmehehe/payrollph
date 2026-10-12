@@ -310,7 +310,7 @@ export async function getDashboardData(organizationId?: number) {
   const canViewFirstPayrollReadiness =
     accountType !== "freelancer"
     && access.companyWide
-    && ["owner", "admin", "bookkeeper", "payroll"].includes(access.role);
+    && ["owner", "admin", "bookkeeper", "payroll", "hr", "checker"].includes(access.role);
   const firstPayrollMemberships = canViewFirstPayrollReadiness
     ? await db
         .select({ role: userOrganizations.role })

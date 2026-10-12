@@ -39,6 +39,7 @@ export function FirstPayrollReadinessCard({
   const organizationId=data?.selectedOrganization.id;
   useEffect(()=>{
     if(!guided||!organizationId)return;
+    setProgress(null);
     let cancelled=false;
     void fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"})
       .then(r=>r.ok?r.json():null)
@@ -104,7 +105,7 @@ export function FirstPayrollReadinessCard({
                 {opened===step.key?"Close panel":step.actionLabel} <ArrowRight size={13} />
               </button>
             )}
-            {opened===step.key&&data&&onRefresh&&<FirstPayrollInlinePanel key={step.key} step={step.key} data={data} onRefresh={onRefresh} onProgressUpdate={reloadProgress} onDecide={onDecide} canDecide={canDecide} canManageDelegations={canManageDelegations} notify={notify}/>}
+            {opened===step.key&&data&&onRefresh&&<FirstPayrollInlinePanel key={String(data.selectedOrganization.id)+":"+step.key} step={step.key} data={data} onRefresh={onRefresh} onProgressUpdate={reloadProgress} onDecide={onDecide} canDecide={canDecide} canManageDelegations={canManageDelegations} notify={notify}/>}
           </li>
         ))}
       </ol>}

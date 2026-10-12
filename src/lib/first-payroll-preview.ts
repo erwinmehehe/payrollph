@@ -26,7 +26,7 @@ export async function loadReadOnlyFirstPayrollPreview(
   reader.select().from(legalEntities).where(and(eq(legalEntities.organizationId,organizationId),eq(legalEntities.active,true))),
   reader.select().from(employees).where(and(eq(employees.organizationId,organizationId),eq(employees.status,"Active"),lte(employees.startDate,periodEnd))),
   reader.select().from(employeePayProfiles).where(eq(employeePayProfiles.organizationId,organizationId)),
-  reader.select().from(firstPayrollJourneyProgress).where(eq(firstPayrollJourneyProgress.organizationId,organizationId)).limit(1),
+  reader.select().from(firstPayrollJourneyProgress).where(eq(firstPayrollJourneyProgress.organizationId,organizationId)),
   reader.select({role:userOrganizations.role}).from(userOrganizations).where(and(eq(userOrganizations.organizationId,organizationId),eq(userOrganizations.active,true))),
  ]);
  const legal=legalRows.find(e=>e.primaryEntity)??null;
