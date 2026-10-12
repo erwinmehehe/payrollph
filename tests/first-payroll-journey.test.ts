@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { FirstPayrollReadinessCard } from "../src/components/workspace/first-payroll-readiness";
 import { buildFirstPayrollReadiness } from "../src/lib/first-payroll-readiness";
-import { buildFirstPayrollJourney } from "../src/lib/first-payroll-journey";
+import { FIRST_PAYROLL_STEPS, buildFirstPayrollJourney } from "../src/lib/first-payroll-journey";
 
 const base = { workspaceName: "Pilot Employer", employees: [{ status: "Active", bankAccount: "enc:v1:fixture", bankCode: "BPI" }], memberships: [{ role: "payroll" }, { role: "checker" }] };
 
@@ -66,5 +66,16 @@ test("self-serve owners receive a single guided journey without duplicate setup 
   const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
   const page = readFileSync("src/app/app/page.tsx", "utf8");
   assert.ok(page.includes("isSelfServeCustomer={isSelfServe}"));
-  assert.ok(workspace.includes("guided={isSelfServeCustomer}"));
+  assert.ok(workspace.includes('guided={isSelfServeCustomer || data.selectedOrganization.moduleVisibility === "core_only"}'));
+});
+
+test("seven canonical journey steps own role handoff metadata, not duplicated component arrays",()=>{
+  const keys=FIRST_PAYROLL_STEPS.map(x=>x.key);
+  assert.deepEqual(keys,["company","people","time","reviewers","payroll","approval","exports"]);
+  assert.deepEqual(new Set(keys).size,7);
+  assert.equal(FIRST_PAYROLL_STEPS.find(x=>x.key==="time")?.owner,"hr");
+  const ui=readFileSync("src/components/workspace/first-payroll-inline-panel.tsx","utf8");
+  const quick=readFileSync("src/components/saas-onboarding-quickstart.tsx","utf8");
+  assert.match(ui,/FIRST_PAYROLL_STEPS/);
+  assert.doesNotMatch(quick,/const steps\s*=/);
 });

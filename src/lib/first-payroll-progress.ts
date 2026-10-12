@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, firstPayrollJourneyProgress, legalEntities } from "@/db/schema";
+import { auditEvents, firstPayrollJourneyProgress, legalEntities, userOrganizations } from "@/db/schema";
 import { getAccess } from "@/lib/access";
 import { parseMigrationDate } from "./migration-date";
 import { FIRST_PAYROLL_STEPS, type FirstPayrollKey } from "./first-payroll-journey";
@@ -58,6 +58,15 @@ export async function saveJourneyProgress(input:JourneyUpdate) {
        .from(legalEntities).where(eq(legalEntities.organizationId,organizationId));
      if(!employers.some(e=>e.primaryEntity&&e.active))
        throw Error("An active primary legal employer is required.");
+   }
+   if (action === "handoff") {
+     const [recipient] = await tx.select({ userId: userOrganizations.userId })
+       .from(userOrganizations).where(and(
+         eq(userOrganizations.organizationId, organizationId),
+         eq(userOrganizations.role, input.targetRole!),
+         eq(userOrganizations.active, true),
+       )).limit(1);
+     if (!recipient) throw Error("Invite and activate a member with this role before handing off the step.");
    }
    const [previous]=await tx.select().from(firstPayrollJourneyProgress)
      .where(and(eq(firstPayrollJourneyProgress.organizationId,organizationId),eq(firstPayrollJourneyProgress.step,key))).limit(1);

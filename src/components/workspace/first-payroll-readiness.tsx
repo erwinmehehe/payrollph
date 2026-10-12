@@ -63,7 +63,7 @@ export function FirstPayrollReadinessCard({
       : step.state;
     return {...step,state};
   });
-  const defaultOwners = Object.fromEntries(FIRST_PAYROLL_STEPS.map(step=>[step.key,step.owner])) as Record<FirstPayrollKey,string>;
+  const ownerFor = (key:FirstPayrollKey) => FIRST_PAYROLL_STEPS.find(item=>item.key===key)?.owner ?? "owner";
 
   return (
     <section className="first-payroll-card" aria-label="First payroll setup readiness">
@@ -98,7 +98,7 @@ export function FirstPayrollReadinessCard({
               </span>
             </div>
             <p style={{ fontSize: 12, margin: "8px 0" }}>{step.detail}</p>
-            <p className="text-xs" style={{color:"var(--muted)"}}>Responsible: {progress?.stepOwners?.[step.key]??defaultOwners[step.key]}</p>
+            <p className="text-xs" style={{color:"var(--muted)"}}>Responsible: {progress?.stepOwners?.[step.key]??ownerFor(step.key)}</p>
             {data && onRefresh && (
               <button type="button" className="first-payroll-link" aria-expanded={opened===step.key} onClick={() => setOpened(current=>current===step.key?null:step.key)}>
                 {opened===step.key?"Close panel":step.actionLabel} <ArrowRight size={13} />

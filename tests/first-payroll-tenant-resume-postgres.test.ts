@@ -29,14 +29,14 @@ test("disposable PG16: owner -> HR -> payroll resume, ready preview, zero payrol
     payrollCalendarMode: "ph_semi_monthly", moduleVisibility: "core_only",
   }).returning({ id: organizations.id });
   try {
-    const people = await db.insert(users).values(["owner","hr","payroll","checker"].map(role => ({
+    const people = await db.insert(users).values(["owner","hr","payroll","checker","bookkeeper"].map(role => ({
       email: `first-payroll-${role}-${suffix}@example.test`,
       name: "Synthetic " + role, role, passwordHash: "synthetic-do-not-login",
     }))).returning({ id: users.id, name: users.name, role: users.role });
     await db.insert(userOrganizations).values(people.map(person => ({
       userId: person.id, organizationId: tenant.id, role: person.role, active: true,
     })));
-    const [owner, hr, payroll] = people;
+    const [owner, hr, payroll, , finance] = people;
     const employer = await ensurePrimaryLegalEntity(tenant.id, owner.id);
     assert.ok(employer?.id);
     assert.equal(employer?.payrollCalendarMode, "ph_semi_monthly");
@@ -59,6 +59,9 @@ test("disposable PG16: owner -> HR -> payroll resume, ready preview, zero payrol
     assert.equal(payrollResume?.completedSteps.company.byUserId, owner.id);
     assert.equal(payrollResume?.completedSteps.time.byUserId, hr.id);
     assert.equal(payrollResume?.completedSteps.time.periodEnd, "2026-10-15");
+    const financeResume = await readJourneyProgress(tenant.id);
+    assert.equal(financeResume?.completedSteps.time.byUserId, hr.id);
+    assert.equal(finance?.role, "bookkeeper");
 
     const [person] = await db.insert(employees).values({
       organizationId:tenant.id, legalEntityId:employer!.id,
