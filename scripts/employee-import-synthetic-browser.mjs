@@ -27,7 +27,14 @@ try {
         assert.equal(login.status(), 200, "Synthetic MFA sign-in must pass");
         await page.goto(base + "/app?organizationId=" + fixture.organizationId, { waitUntil: "domcontentloaded" });
         if (["owner", "hr"].includes(role)) {
-          // On phone layouts the sidebar remains in the DOM but is translated off-screen.\n          // Playwright :visible still matches it, so open the actual mobile drawer first.\n          if (width <= 390) {\n            const openNav = page.getByRole("button", { name: "Open navigation", exact: true });\n            await openNav.click();\n            await page.locator(".app-shell.drawer-open").waitFor();\n          }\n          await page.locator('[data-nav-name="People"]:visible').first().click();
+          // On phone layouts the sidebar remains in the DOM but is translated off-screen.
+          // Playwright :visible still matches it, so open the actual mobile drawer first.
+          if (width <= 390) {
+            const openNav = page.getByRole("button", { name: "Open navigation", exact: true });
+            await openNav.click();
+            await page.locator(".app-shell.drawer-open").waitFor();
+          }
+          await page.locator('[data-nav-name="People"]:visible').first().click();
           const administration = page.locator("details").filter({ has: page.locator("summary").filter({ hasText: "Employee administration" }) }).first();
           await administration.waitFor({ timeout: 60000 });
           if (!(await administration.getAttribute("open"))) await administration.locator("summary").click();
