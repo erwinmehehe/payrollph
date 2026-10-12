@@ -398,7 +398,8 @@ export async function getDashboardData(organizationId?: number, request?: Reques
     user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
     ...(entityContext.enabled ? { multiEntity: {
-      enabled: true as const, group: entityContext.group, role: entityContext.role,
+      enabled: true as const, group: entityContext.group,
+      canSwitch: entityContext.canSwitch, role: entityContext.role,
       legalEntityId: entityContext.legalEntityId,
       entities: entityContext.entities,
     } } : {}),
