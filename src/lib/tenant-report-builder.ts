@@ -64,6 +64,21 @@ export function validateBuilderSpec(spec: unknown, role: string): BuilderSpec {
   return { dataset, fields, groupBy: groupBy as BuilderSpec["groupBy"], filters: outFilters };
 }
 
+
+/** Exact decimal centavos for payroll reporting; no IEEE-754 money totals. */
+export function reportMoneyCentavos(value: string | number): bigint {
+ const raw=String(value);
+ if(!/^-?\d+(?:\.\d{1,2})?$/.test(raw))throw new Error("Payroll amount has invalid centavo precision.");
+ const negative=raw.startsWith("-");
+ const [whole,fraction=""]=raw.replace(/^-/, "").split(".");
+ const amount=BigInt(whole)*100n+BigInt(fraction.padEnd(2,"0"));
+ return negative?-amount:amount;
+}
+export function formatReportCentavos(value: bigint): string {
+ const abs=value<0n?-value:value;
+ return (value<0n?"-":"")+(abs/100n).toString()+"."+(abs%100n).toString().padStart(2,"0");
+}
+
 export function runWhitelistedBuilder(
   facts: readonly BuilderFact[], spec: BuilderSpec, maxRows = 5_000,
 ) {
@@ -78,9 +93,16 @@ export function runWhitelistedBuilder(
       if (!groups.has(group)) groups.set(group, { [spec.groupBy]: group });
       const row = groups.get(group)!;
       for (const field of measures) {
-        const n = Number(fact[field] ?? 0);
-        if (!Number.isFinite(n)) throw new Error("Report source contains invalid numeric evidence.");
-        row[field] = Number(row[field] ?? 0) + n;
+        if (BUILDER_SENSITIVE.includes(field)) {
+          row[field] = formatReportCentavos(
+            reportMoneyCentavos(String(row[field] ?? "0.00"))+
+            reportMoneyCentavos(fact[field] ?? "0.00")
+          );
+        } else {
+          const n = Number(fact[field] ?? 0);
+          if (!Number.isFinite(n)) throw new Error("Report source contains invalid numeric evidence.");
+          row[field] = Number(row[field] ?? 0) + n;
+        }
       }
     }
     const records = [...groups.values()].sort((a,b) => String(a[spec.groupBy!]).localeCompare(String(b[spec.groupBy!])));
