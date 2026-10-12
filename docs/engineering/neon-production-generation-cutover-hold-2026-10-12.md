@@ -34,7 +34,7 @@ PR #865 now proposes **seven source-only numbered migrations**, not the five-ste
 - **0118** WFM roster scaling: effective-dated assignment dependencies and policies require independent review.
 - **0119** Xendit provider extension: references the four payout tables **proposed** in 0115/0116. All were absent at the original catalog audit. It cannot run independently or treat draft DDL as already applied.
 - **0120** WFM punch evidence: employer privacy, photo consent, tenant isolation and retention still require review.
-- **0121** multi-entity scope transfer: references payout tables proposed in 0116 and historical `worker_employment_events`, which no 0115–0121 draft creates. Sensitive historical attribution needs independent DBA/payroll evidence.
+- **0121** multi-entity scope transfer: references payout tables proposed in 0116 and historical `job_profiles`, `positions`, `position_assignments` and `worker_employment_events`, which no 0115–0121 draft creates. Sensitive historical attribution needs independent DBA/payroll evidence.
 
 PR #874 proposes **0122** module disclosure after this train; it cannot skip approval of earlier steps.
 No source merge, passing test, or projected table creation grants permission to change production Neon.
@@ -71,9 +71,9 @@ The read-only `scripts/lib/canonical-migration-base-tables.mjs` now inventories 
 | 0118 WFM roster policies | Assignment-related base tables present | Not approved |
 | 0119 Xendit provider | payout_profiles/batches/transfers/links absent | Requires ordered 0115/0116; no provider activation |
 | 0120 WFM photo/punch evidence | Core worksite/employee/time tables present | Privacy and security review required |
-| 0121 multi-entity history | worker_employment_events absent; payout outputs unapplied | **Blocked** on historical source reconciliation and independently reviewed payroll backfills |
+| 0121 multi-entity history | job_profiles, positions, position_assignments and worker_employment_events absent; payout outputs unapplied | **Blocked** on historical source reconciliation and independently reviewed payroll backfills |
 
-These statuses describe the original 2026-10-12 catalog inspection and the current *proposed source order*, **not** a fresh live database inspection. The three migration-receipt / journal / cutover tables were absent. Do not fabricate receipts or apply replacement tables directly to production. The source-only `canonicalTrain` assessment never authorizes SQL deployment, tenant-security acceptance, payroll release or a payout.
+These statuses describe the original 2026-10-12 catalog inspection and the current *proposed source order*, **not** a fresh live database inspection. The historical source gate also requires `provider_events` (0110) and `workforce_demand_staffing_policies` (0114), plus the three job/position tables from 0022 and worker employment events from 0050. These are not created by 0115–0121. The three migration-receipt / journal / cutover tables were absent. Do not fabricate receipts or apply replacement tables directly to production. The source-only `canonicalTrain` assessment never authorizes SQL deployment, tenant-security acceptance, payroll release or a payout.
 
 ## Backup and clone safeguards verified in connected Neon
 
