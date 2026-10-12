@@ -1,0 +1,61 @@
+name: A-5 Private Object and Malware Contract (Synthetic Emulator)
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/lib/document-object-storage.ts"
+      - "src/lib/employee-document-vault.ts"
+      - "src/lib/storage.ts"
+      - "scripts/a5-local-private-object-acceptance.ts"
+      - ".github/workflows/a5-private-object-acceptance.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-minio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      NODE_ENV: "test"
+      EMPLOYEE_DOCUMENT_VAULT_ENABLED: "true"
+      DOCUMENT_OBJECT_STORAGE_ENDPOINT: "http://127.0.0.1:9000/"
+      DOCUMENT_OBJECT_STORAGE_BUCKET: "vault-a5-synthetic"
+      DOCUMENT_OBJECT_STORAGE_REGION: "us-east-1"
+      DOCUMENT_OBJECT_STORAGE_ACCESS_KEY_ID: "synthetic-vault-access"
+      DOCUMENT_OBJECT_STORAGE_SECRET_ACCESS_KEY: "synthetic-vault-key-for-disposable-emulator-only"
+      AWS_ACCESS_KEY_ID: "synthetic-vault-access"
+      AWS_SECRET_ACCESS_KEY: "synthetic-vault-key-for-disposable-emulator-only"
+      AWS_DEFAULT_REGION: "us-east-1"
+      AWS_EC2_METADATA_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Launch isolated localhost-only S3 emulator
+        run: |
+          docker run -d --rm --name a5-minio \
+            -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER="$AWS_ACCESS_KEY_ID" \
+            -e MINIO_ROOT_PASSWORD="$AWS_SECRET_ACCESS_KEY" \
+            quay.io/minio/minio:latest server /data >/dev/null
+          for i in $(seq 1 50); do
+            if curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Synthetic object emulator unavailable"
+          exit 1
+      - name: Create private test bucket without public access
+        run: |
+          aws --endpoint-url http://127.0.0.1:9000 s3api create-bucket \
+            --bucket "$DOCUMENT_OBJECT_STORAGE_BUCKET" >/dev/null
+      - name: Verify private storage, signed GET, expiry, immutable upload and synthetic scanner decisions
+        run: npx tsx scripts/a5-local-private-object-acceptance.ts
+      - name: Tear down synthetic object emulator
+        if: always()
+        run: docker rm -f a5-minio >/dev/null 2>&1 || true
