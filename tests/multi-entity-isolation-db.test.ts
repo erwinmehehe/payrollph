@@ -5,6 +5,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../src/db";
 import {
   employeeEntityBankAccounts, employees, legalEntities, legalEntityProfileChangeRequests,
+  legalEntityStatutoryRegistrations, legalEntityTransferLiabilityEvidence, entityTransferRequests,
   organizations, userLegalEntityGrants, userOrganizations, users,
 } from "../src/db/schema";
 import { resolveMultiEntityContext, assertEntityResource } from "../src/lib/multi-entity-server";
@@ -83,8 +84,69 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
         effectiveFrom: "2026-10-12",
       });
     }, "Employee payout destination must reject a worker from another tenant");
+    // Match an approved registration version to the *same* tenant, employer
+    // and source change request. Numeric request IDs from another tenant or
+    // legal employer must not be accepted as historical registration evidence.
+    const [foreignProposal] = await db.insert(legalEntityProfileChangeRequests)
+      .values({
+        ...proposal, organizationId: tenantB.id, legalEntityId: b1.id,
+        requestedByUserId: people[2].id,
+      }).returning();
+    const [otherEmployerProposal] = await db.insert(legalEntityProfileChangeRequests)
+      .values({ ...proposal, legalEntityId: a2.id }).returning();
+    const [validVersion] = await db.insert(legalEntityStatutoryRegistrations)
+      .values({
+        organizationId: tenantA.id, legalEntityId: a1.id,
+        revision: 1, effectiveDate: "2026-10-12", profileEnvelope: sealedProfile!,
+        approvedByUserId: people[3].id, sourceChangeId: legitimate.id,
+      }).returning();
+    assert.equal(validVersion.sourceChangeId, legitimate.id);
+    for (const sourceChangeId of [foreignProposal.id, otherEmployerProposal.id]) {
+      await assert.rejects(async () => {
+        await db.insert(legalEntityStatutoryRegistrations).values({
+          organizationId: tenantA.id, legalEntityId: a1.id,
+          revision: 2, effectiveDate: "2026-10-13", profileEnvelope: sealedProfile!,
+          approvedByUserId: people[3].id, sourceChangeId,
+        });
+      }, "Immutable version source must match tenant and legal employer");
+    }
+
+    const [transfer] = await db.insert(entityTransferRequests).values({
+      organizationId: tenantA.id, employeeId: worker1.id,
+      fromLegalEntityId: a1.id, toLegalEntityId: a2.id,
+      effectiveDate: "2026-11-01", reason: "Synthetic service-continuity exercise",
+      serviceStartDate: worker1.startDate, leaveSnapshot: [],
+      thirteenthSnapshot: {}, continuityNote: "No wage liability moved",
+      requestedByUserId: people[3].id,
+    }).returning();
+    const validEvidence = {
+      organizationId: tenantA.id, employeeId: worker1.id,
+      transferRequestId: transfer.id,
+      fromLegalEntityId: a1.id, toLegalEntityId: a2.id,
+    };
+    const [acceptedEvidence] = await db.insert(legalEntityTransferLiabilityEvidence)
+      .values(validEvidence).returning();
+    assert.equal(acceptedEvidence.transferRequestId, transfer.id);
+    // A same-tenant but WRONG employee ID or swapped employers must also fail.
+    for (const invalid of [
+      { ...validEvidence, employeeId: worker2.id },
+      { ...validEvidence, fromLegalEntityId: a2.id, toLegalEntityId: a1.id },
+      { ...validEvidence, fromLegalEntityId: b1.id },
+    ]) {
+      await assert.rejects(async () => {
+        await db.insert(legalEntityTransferLiabilityEvidence).values(invalid);
+      }, "Liability evidence cannot reassign a different worker or payer");
+    }
+
+    await db.delete(legalEntityTransferLiabilityEvidence)
+      .where(eq(legalEntityTransferLiabilityEvidence.id, acceptedEvidence.id));
+    await db.delete(entityTransferRequests)
+      .where(eq(entityTransferRequests.id, transfer.id));
+    await db.delete(legalEntityStatutoryRegistrations)
+      .where(eq(legalEntityStatutoryRegistrations.id, validVersion.id));
     await db.delete(legalEntityProfileChangeRequests)
-      .where(eq(legalEntityProfileChangeRequests.id, legitimate.id));
+      .where(inArray(legalEntityProfileChangeRequests.id,
+        [legitimate.id, foreignProposal.id, otherEmployerProposal.id]));
 
     const scoped = await resolveMultiEntityContext({
       userId: people[0].id, organizationId: tenantA.id, requested: a1.id,
