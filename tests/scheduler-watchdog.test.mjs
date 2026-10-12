@@ -205,3 +205,23 @@ test("managed worker and alert container manifests keep activation off by defaul
   assert.equal(JSON.parse(app).crons, undefined,
     "Vercel Hobby must not gain a five-minute cron without an approved plan upgrade");
 });
+
+test("an undelivered DOWN incident survives probe recovery until receipt is delivered", async () => {
+  const h = harness([
+    response({ ok: false }, 503),
+    response({ ok: false }, 503),
+    response(healthy()),
+    response(healthy()),
+    response(healthy()),
+  ], { failFirstAlert: true });
+  const watchdog = createSchedulerWatchdog(config, { fetcher: h.fetcher, now: () => fixedNow });
+  assert.equal((await watchdog.poll()).notification, "none");
+  assert.equal((await watchdog.poll()).notification, "down-delivery-failed");
+  assert.equal((await watchdog.poll()).notification, "down-delivered",
+    "even an incident which recovers before webhook transport must produce a DOWN receipt");
+  assert.equal((await watchdog.poll()).notification, "recovery-delivered");
+  assert.equal((await watchdog.poll()).notification, "none");
+  assert.equal(h.posts.length, 3);
+  assert.match(JSON.parse(h.posts[1].body).text, /DOWN/);
+  assert.match(JSON.parse(h.posts[2].body).text, /RECOVERED/);
+});
