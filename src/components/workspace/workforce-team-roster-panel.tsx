@@ -21,6 +21,7 @@ import { useScopedAsyncResource } from "./use-scoped-async-resource";
 import type { WfmRosterFinding } from "@/lib/workforce-roster-rules";
 
 type TeamRosterResponse = {
+  windowingEnabled?: boolean;
   weekDates: string[];
   startDate: string;
   endDate: string;
@@ -520,14 +521,37 @@ export function WorkforceTeamRosterPanel({
                 placeholder="Explain why this roster change is needed"
               />
             </label>
+            {payload?.windowingEnabled && <label>
+              Policy exception reason (optional, 12+ characters for eligible blockers)
+              <input maxLength={240} value={ruleOverrideReason}
+                onChange={event => setRuleOverrideReason(event.target.value)}
+                placeholder="This cannot waive overlapping shifts, overtime caps or premiums" />
+            </label>}
             <label style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
               <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
               <span>I understand this approved change may require timesheet review and can affect payroll treatment.</span>
             </label>
           </div>
+          {payload?.windowingEnabled && <div style={{ padding: "0 18px 12px" }}>
+            <button type="button" className="secondary-button"
+              disabled={!shiftChoice || rulePreviewing || saving}
+              onClick={() => void checkRulesBeforePublish()}>
+              {rulePreviewing ? "Checking..." : "Check roster rules and premium implications"}
+            </button>
+            {rulePreview?.key === rulePreviewKey && <section aria-label="Pre-publish roster findings" role="status">
+              <p>{rulePreview.blocked ? "Blocking findings: do not publish." : "Rule preview passed. Review all premium warnings before publishing."}</p>
+              {rulePreview.findings.length === 0 && rulePreview.guardrailIssues.length === 0 && <p>No roster rule findings.</p>}
+              {rulePreview.findings.map((finding, index) => <p key={index}>
+                <strong>{finding.severity === "blocking" ? "BLOCKING" : "WARNING"} - {finding.code}</strong> - {finding.date}: {finding.message}
+              </p>)}
+              {rulePreview.guardrailIssues.map((issue, index) => <p key={index}>
+                <strong>{issue.blocking ? "BLOCKING" : "WARNING"} - Existing guardrail</strong> - {issue.detail}
+              </p>)}
+            </section>}
+          </div>}
           {editorError && <div className="notice notice-red" role="alert" style={{ margin: "0 18px 16px" }}>{editorError}</div>}
           <div className="run-actions" style={{ padding: "0 18px 18px" }}>
-            <button type="button" className="primary-button brand" disabled={saving || !reason.trim() || !acknowledged || !shiftChoice || (!payload?.shifts.length && shiftChoice !== "REST")} onClick={() => void saveOverride()}>
+            <button type="button" className="primary-button brand" disabled={saving || rulePreviewing || !reason.trim() || !acknowledged || !shiftChoice || (!payload?.shifts.length && shiftChoice !== "REST") || (payload?.windowingEnabled === true && (rulePreview?.key !== rulePreviewKey || rulePreview.blocked))} onClick={() => void saveOverride()}>
               {saving ? <Spinner label="Saving" /> : <ShieldCheck size={15} />} Apply audited override
             </button>
           </div>
