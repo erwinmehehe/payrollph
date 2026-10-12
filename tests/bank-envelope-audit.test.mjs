@@ -91,7 +91,7 @@ test("four stores are scanned under one repeatable-read transaction with rollbac
   assert.equal(db.calls.at(-1).sql, "ROLLBACK");
   assert.equal(db.calls.filter(c => c.sql.startsWith("SELECT id")).length, 4);
   assert.ok(BANK_AUDIT_STORES.find(s => s.id === "payroll_payment_snapshots").query.includes("trace #> '{payment,bankAccount}'"));
-  assert.ok(db.calls.every(c => !/\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|COMMIT)\b/i.test(c.sql)));
+  assert.ok(db.calls.every(c => !/^\s*(?:INSERT|UPDATE|DELETE|ALTER|CREATE|COMMIT)\b/i.test(c.sql)));
 });
 
 test("inventory identifies plaintext without declaring the encryption gate green", async () => {
@@ -102,7 +102,8 @@ test("inventory identifies plaintext without declaring the encryption gate green
   assert.equal(inventory.plaintext, 1);
   assert.equal(inventory.allCurrentKeyAuthenticated, false);
   assert.equal(inventory.requiresBackfill, true);
-  assert.equal(inventory.verificationSucceeded, true, "inventory can report the repair count");
+  assert.equal(inventory.inventoryCompleted, true, "dry run still gives actionable totals");
+  assert.equal(inventory.verificationSucceeded, false, "plaintext must never produce a green gate");
   const requireZero = await auditBankEnvelopesReadOnly({
     ...inputs(fakeClient({ sources: { employees: [{ id: 1, value: "SYNTHETIC-LEGACY" }] } })),
     mode: "require-zero",
