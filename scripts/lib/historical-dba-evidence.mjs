@@ -3,6 +3,15 @@
  * A catalog match is NEVER an applied-SQL receipt or a release authorization.
  * Never select payroll, employee, government-ID or bank account rows.
  */
+export function requireCatalogAuditTransport(url) {
+  const entries = [...url.searchParams.entries()];
+  // node-postgres interprets URL query parameters as connection options.
+  // Permit only the one reviewed TLS option; reject target/startup overrides.
+  if (entries.length !== 1 || entries[0][0] !== "sslmode" || entries[0][1] !== "verify-full") {
+    throw Error("HISTORICAL_TARGET_TRANSPORT_OVERRIDE");
+  }
+}
+
 export const HISTORICAL_GROUPS=Object.freeze([
   {source:"drizzle/0022_job_architecture_positions.sql",
    tables:["job_profiles","workforce_plans","positions","position_assignments"],

@@ -8,7 +8,7 @@
  */
 import { inventoryMigrationSources } from "./lib/migration-receipt-audit.mjs";
 import {
-  HISTORICAL_GROUPS,PINNED_NEON,inspectReadOnlyHistoricalEvidence,
+  HISTORICAL_GROUPS,PINNED_NEON,inspectReadOnlyHistoricalEvidence,requireCatalogAuditTransport,
 } from "./lib/historical-dba-evidence.mjs";
 
 const mode=process.argv[2];
@@ -61,6 +61,7 @@ async function verify(){
  let target;
  try{target=new URL(e.PRODUCTION_MIGRATION_AUDIT_DATABASE_URL);}
  catch{throw Error("HISTORICAL_URL_MISSING");}
+ requireCatalogAuditTransport(target);
  if(!["postgres:","postgresql:"].includes(target.protocol) ||
     target.hostname!==PINNED_NEON.host ||
     !["","5432"].includes(target.port) ||

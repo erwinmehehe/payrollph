@@ -4,10 +4,17 @@ import { inventoryMigrationSources } from "../scripts/lib/migration-receipt-audi
 import {
   HISTORICAL_ITEMS, HISTORICAL_GROUPS, PINNED_NEON,
   HISTORICAL_CATALOG_QUERY, IDENTITY_QUERY,
-  buildHistoricalEvidence, inspectReadOnlyHistoricalEvidence,
+  buildHistoricalEvidence, inspectReadOnlyHistoricalEvidence, requireCatalogAuditTransport,
 } from "../scripts/lib/historical-dba-evidence.mjs";
 
 const manifest=()=>inventoryMigrationSources("drizzle");
+test("catalog audit transport rejects driver overrides and duplicate TLS settings", () => {
+  const base = "postgresql://audit:synthetic@example.test/neondb?sslmode=verify-full";
+  requireCatalogAuditTransport(new URL(base));
+  for (const suffix of ["&host=other.test", "&port=5433", "&user=owner", "&password=other", "&options=-c%20role%3Downer", "&sslmode=disable", "&sslrootcert=/tmp/key"]) {
+    assert.throws(() => requireCatalogAuditTransport(new URL(base + suffix)), /TRANSPORT_OVERRIDE/);
+  }
+});
 const rows=()=>HISTORICAL_ITEMS.map(x=>({key:x.key,present:true}));
 const identity=()=>({
  database_name:PINNED_NEON.database,
