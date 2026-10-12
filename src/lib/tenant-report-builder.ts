@@ -101,3 +101,8 @@ export function leaveRangeFullyWithinReport(
 ): boolean {
   return leaveStart >= reportStart && leaveEnd <= reportEnd;
 }
+
+/** Company-wide membership alone is not authority to export multiple legal employers. */
+export function builderRequiresEntityRole(activeLegalEmployers: number): boolean {
+  return !Number.isSafeInteger(activeLegalEmployers) || activeLegalEmployers > 1;
+}
