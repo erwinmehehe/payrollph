@@ -8,11 +8,11 @@ import { workspacePagesForRole } from "../src/lib/workspace-role-ui";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { dashboardFixture } from "./fixtures/dashboard-ui";
 
-const options = { enabled: true, mode: "core", enabledModules: [], canManageModules: true };
+const options = { enabled: true, mode: "core", enabledModules: [], canManageModules: true, companyWide: true };
 function snapshot(mode: string, enabled = true, modules: string[] = []) {
   const groups = tenantNavigationGroups({ ...options, enabled, mode, enabledModules: modules });
   const pages = groups.flatMap(g => g.items.map(i => i.name));
-  const data = { ...dashboardFixture, coreModuleNavigationEnabled: enabled, selectedOrganization: { ...dashboardFixture.selectedOrganization, moduleNavigationMode: mode, enabledModules: modules } };
+  const data = { ...dashboardFixture, access: { role: "owner", companyWide: true, orgUnitName: null }, coreModuleNavigationEnabled: enabled, selectedOrganization: { ...dashboardFixture.selectedOrganization, moduleNavigationMode: mode, enabledModules: modules } };
   const html = renderToStaticMarkup(createElement(WorkspaceShell, { data, page: "Overview", onPage: () => {}, notifications: [], onOpenPalette: () => {}, onSwitchClient: () => {}, onSignOut: () => {}, workspaceRole: "owner", visiblePages: pages }, null));
   const names = [...html.matchAll(/data-nav-name="([^"]+)"/g)].map(m => m[1].replaceAll("&amp;", "&"));
   if (/class="sidebar-settings-link/.test(html)) names.push("Settings");
@@ -39,6 +39,8 @@ test("opt-ins disclose only chosen pages and never expand role or freelancer acc
   assert.ok(!enabled.includes("Automation"));
   const checker = tenantNavigationGroups({ ...options, enabledModules: ["spend", "automation"], rolePages: workspacePagesForRole("checker"), canManageModules: false }).flatMap(g => g.items.map(i => i.name));
   assert.deepEqual(checker, ["Overview", "Approvals"]);
+  const scoped = tenantNavigationGroups({ ...options, companyWide: false }).flatMap(g => g.items.map(i => i.name));
+  assert.ok(!scoped.includes("More modules"));
   const solo = tenantNavigationGroups({ ...options, isFreelancer: true }).flatMap(g => g.items.map(i => i.name));
   assert.ok(!solo.includes("People") && !solo.includes("More modules"));
   assert.equal(criticalReleaseFlagEnabled("coreModuleNavigation", {}), false);

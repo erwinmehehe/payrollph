@@ -151,7 +151,7 @@ export const MODULE_NAV_ITEMS: NavItem[] = [
 ];
 export type TenantNavigationOptions = {
   enabled: boolean; mode?: string; enabledModules?: readonly string[];
-  isFreelancer?: boolean; rolePages?: readonly string[] | null; canManageModules?: boolean;
+  isFreelancer?: boolean; rolePages?: readonly string[] | null; canManageModules?: boolean; companyWide?: boolean;
 };
 export function tenantNavigationGroups(options: TenantNavigationOptions): NavGroup[] {
   const core = options.enabled && options.mode === "core" && !options.isFreelancer;
@@ -161,7 +161,7 @@ export function tenantNavigationGroups(options: TenantNavigationOptions): NavGro
   if (core) {
     const canReport = ["Analytics", "Exports"].some(allowed);
     if (canReport) groups.find(g => g.label === "Operate")!.items.push(MODULE_NAV_ITEMS[0]);
-    if (options.canManageModules) groups.find(g => g.label === "Manage")!.items.push(MODULE_NAV_ITEMS[1]);
+    if (options.canManageModules && options.companyWide === true) groups.find(g => g.label === "Manage")!.items.push(MODULE_NAV_ITEMS[1]);
   }
   return groups.filter(g => g.items.length);
 }

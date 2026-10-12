@@ -108,7 +108,7 @@ export function WorkspaceShell({
   const profileAvatarIndex = ({ owner: 0, admin: 0, hr: 1, payroll: 2, checker: 3, bookkeeper: 4, employee: 5 } as Record<string, number>)[avatarRole] ?? 0;
   const defaultPage = visiblePages?.[0] ?? "Overview";
   const coreModules = data.coreModuleNavigationEnabled === true && data.selectedOrganization.moduleNavigationMode === "core" && !isFreelancer;
-  const tenantGroups = tenantNavigationGroups({ enabled: data.coreModuleNavigationEnabled === true, mode: data.selectedOrganization.moduleNavigationMode, enabledModules: data.selectedOrganization.enabledModules, isFreelancer, canManageModules: ["owner", "admin", "bookkeeper"].includes(workspaceRole ?? "") });
+  const tenantGroups = tenantNavigationGroups({ enabled: data.coreModuleNavigationEnabled === true, mode: data.selectedOrganization.moduleNavigationMode, enabledModules: data.selectedOrganization.enabledModules, isFreelancer, companyWide: data.access?.companyWide, canManageModules: ["owner", "admin", "bookkeeper"].includes(workspaceRole ?? "") });
   const allowedItems = tenantGroups.flatMap(group => group.items).filter(item => !visiblePages || visiblePages.includes(item.name));
   const primarySet = new Set(primaryPages ?? allowedItems.map((item) => item.name));
   const settingsAvailable = allowedItems.some((item) => item.name === "Settings");

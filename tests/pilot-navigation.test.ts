@@ -36,7 +36,7 @@ test("legacy pilot navigation intersects roles while tenant core opt-ins remain 
     assert.ok(!pilot.includes("Automation") && !pilot.includes("Expenses"));
     if (rolePages.includes("Approvals")) assert.ok(pilot.includes("Approvals"));
   }
-  const core = tenantNavigationPages({ enabled: true, mode: "core", enabledModules: ["spend"], canManageModules: true }, true);
+  const core = tenantNavigationPages({ enabled: true, mode: "core", enabledModules: ["spend"], canManageModules: true, companyWide: true }, true);
   assert.ok(core.includes("Reports") && core.includes("More modules") && core.includes("Expenses"));
   assert.ok(!core.includes("Automation"));
 });
