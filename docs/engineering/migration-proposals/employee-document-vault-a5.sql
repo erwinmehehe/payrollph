@@ -2,6 +2,7 @@
 -- migration without DBA reconciliation of the canonical #865 0115-0121 train.
 -- CI may apply only to a disposable PostgreSQL or isolated QA branch.
 ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "object_storage_key" varchar(512);
+ALTER TABLE "documents" ADD COLUMN IF NOT EXISTS "uploaded_by_user_id" integer REFERENCES "users"("id") ON DELETE SET NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS "documents_object_storage_key_unique"
   ON "documents" ("object_storage_key")
   WHERE "object_storage_key" IS NOT NULL;

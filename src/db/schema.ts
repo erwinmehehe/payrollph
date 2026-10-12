@@ -2054,6 +2054,9 @@ export const documents = pgTable("documents", {
   sourceKey: varchar("source_key", { length: 160 }),
   generationMetadata: jsonb("generation_metadata").notNull().default({}),
   uploadedBy: varchar("uploaded_by", { length: 120 }).notNull(),
+  // Human uploader provenance is required for the gated independent HR checker.
+  // Historical names cannot be silently promoted to a trusted user identity.
+  uploadedByUserId: integer("uploaded_by_user_id").references(() => users.id, { onDelete: "set null" }),
   // A-5: null for historical Postgres-backed documents. New scanned uploads
   // store a private object key and an empty legacy content sentinel.
   // Historical base64 is migrated separately with verified hashes and legal holds.

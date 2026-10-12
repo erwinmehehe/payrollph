@@ -27,17 +27,20 @@ const { Client } = require("pg");
     // removes ONLY proposed A-5 columns/tables, then applies its real SQL.
     await client.query('DROP TABLE IF EXISTS "hcm_document_expiry_notices"');
     await client.query('ALTER TABLE "documents" DROP COLUMN IF EXISTS "object_storage_key"');
+    await client.query('ALTER TABLE "documents" DROP COLUMN IF EXISTS "uploaded_by_user_id"');
     await client.query(ddl);
     await client.query(ddl); // source proposal must be idempotent
     const cols = await client.query(
       "SELECT column_name, is_nullable FROM information_schema.columns " +
       "WHERE table_schema='public' AND table_name='documents' " +
-      "AND column_name IN ('object_storage_key','content') ORDER BY column_name"
+      "AND column_name IN ('object_storage_key','uploaded_by_user_id','content') ORDER BY column_name"
     );
     assert.deepEqual(cols.rows.map(row => row.column_name).sort(),
-      ["content", "object_storage_key"]);
+      ["content", "object_storage_key", "uploaded_by_user_id"]);
     assert.equal(cols.rows.find(row => row.column_name === "object_storage_key").is_nullable,
       "YES", "historical records must retain null object keys before backfill");
+    assert.equal(cols.rows.find(row => row.column_name === "uploaded_by_user_id").is_nullable,
+      "YES", "historical uploader identity cannot be inferred from display name");
     const idx = await client.query(
       "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname='public' " +
       "AND tablename='hcm_document_expiry_notices'"

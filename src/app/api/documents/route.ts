@@ -286,6 +286,7 @@ export async function POST(request: Request) {
           scannedClean: true,
           scanNote: scan.note,
           uploadedBy: user.name,
+          uploadedByUserId: user.id,
           objectStorageKey: storageKey,
           content: "", // non-base64 compatibility sentinel until reviewed migration
         }).returning({
@@ -322,7 +323,8 @@ export async function POST(request: Request) {
           resource: String(stored.id),
           metadata: { documentId: stored.id, employeeId,
             requirementId: requirement?.id ?? null,
-            sha256: hash, byteSize: bytes.byteLength, malwareScanClean: true },
+            sha256: hash, byteSize: bytes.byteLength, malwareScanClean: true,
+            uploadedByUserId: user.id },
         });
         return { row: stored, compliance: documentCompliance };
       });

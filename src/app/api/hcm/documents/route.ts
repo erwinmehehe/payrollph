@@ -18,6 +18,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { canStaffOpenEmployeeVault, isMandatoryDocumentMissing } from "@/lib/employee-document-vault";
+import { verifyEmployeeVaultDocument } from "@/lib/employee-document-vault-verification";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   documentComplianceStatus,
@@ -587,6 +588,20 @@ export async function POST(request: Request) {
     const scope = assertScope(access, employee.orgUnitId);
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
     if (!row.documentId) return Response.json({ error: "No submitted document is linked to this requirement." }, { status: 409 });
+
+    if (criticalReleaseFlagEnabled("employeeDocumentVault")) {
+      const deniedMfa = requireSensitiveActionMfa(user);
+      if (deniedMfa) return deniedMfa;
+      const decision = await verifyEmployeeVaultDocument({
+        organizationId, employeeId: employee.id, complianceId: row.id,
+        expectedDocumentId: row.documentId,
+        checkerUserId: user.id, checkerName: user.name,
+      });
+      if (!decision.ok) return Response.json({ error: decision.message }, {
+        status: decision.code === "NOT_FOUND" ? 404 : 409,
+      });
+      return Response.json(decision.row, { headers: { "Cache-Control": "private, no-store" } });
+    }
 
     const [requirement] = await db.select().from(hcmDocumentRequirements).where(and(
       eq(hcmDocumentRequirements.id, row.requirementId),
