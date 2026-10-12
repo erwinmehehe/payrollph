@@ -1,7 +1,9 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  documents,
   employees,
+  hcmDocumentExpiryNotices,
   hcmDocumentRequirements,
   hcmEmployeeDocumentCompliance,
   hcmPolicyAssignments,
@@ -10,6 +12,8 @@ import {
   positions,
 } from "@/db/schema";
 import { runAutomationEventSafely } from "@/lib/automation";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { canIssueExpiryNotice, documentExpiryMilestone } from "@/lib/employee-document-vault";
 
 export type HcmTargetConditions = {
   orgUnitIds?: number[];
@@ -316,6 +320,7 @@ export async function runScheduledHcmDocumentExpiry(input: {
   now?: Date;
 }) {
   const now = input.now ?? new Date();
+  const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
   const [requirements, compliance] = await Promise.all([
     db.select().from(hcmDocumentRequirements).where(eq(hcmDocumentRequirements.active, true)),
     db.select().from(hcmEmployeeDocumentCompliance),
@@ -331,6 +336,10 @@ export async function runScheduledHcmDocumentExpiry(input: {
 
   for (const row of compliance) {
     if (!row.documentId || !row.expiresAt || row.status === "waived") continue;
+    // A submitted file must never become "verified" via the nightly expiry job.
+    // Under the new vault, only actual HR-verified, non-waived records are eligible.
+    if (vaultEnabled && (row.verifiedAt === null ||
+      !["current", "expiring", "expired"].includes(row.status))) continue;
     const requirement = requirementById.get(row.requirementId);
     if (!requirement || requirement.organizationId !== row.organizationId) continue;
 
@@ -350,6 +359,63 @@ export async function runScheduledHcmDocumentExpiry(input: {
       ));
     }
 
+    if (vaultEnabled) {
+      // If a document was replaced by another employee's file or belongs to
+      // another employer, no alert may be raised on its original compliance row.
+      const [attached] = await db.select({
+        id: documents.id,
+        scannedClean: documents.scannedClean,
+      }).from(documents).where(and(
+        eq(documents.id, row.documentId),
+        eq(documents.organizationId, row.organizationId),
+        eq(documents.employeeId, row.employeeId),
+      )).limit(1);
+      if (!attached || !canIssueExpiryNotice({
+        status: row.status,
+        documentId: row.documentId,
+        verifiedAt: row.verifiedAt,
+        scannedClean: attached.scannedClean,
+        expiryRequired: requirement.expiryRequired,
+      })) continue;
+
+      const { milestoneDays } = documentExpiryMilestone(String(row.expiresAt), now);
+      if (!milestoneDays) continue;
+      const [notice] = await db.insert(hcmDocumentExpiryNotices).values({
+        organizationId: row.organizationId,
+        complianceId: row.id,
+        employeeId: row.employeeId,
+        documentId: row.documentId,
+        expiresOn: String(row.expiresAt),
+        milestoneDays,
+        createdAt: now,
+      }).onConflictDoNothing().returning({ id: hcmDocumentExpiryNotices.id });
+      if (!notice) continue;
+      // The persisted, tenant-bound HR inbox remains authoritative even when
+      // a downstream optional automation rule has not been configured.
+      const automation = await runAutomationEventSafely({
+        organizationId: row.organizationId,
+        employeeId: row.employeeId,
+        trigger: "document.expires",
+        eventKey: `document-expiry:${row.id}:${String(row.expiresAt)}:milestone-${milestoneDays}`,
+        context: {
+          documentComplianceId: row.id,
+          documentId: row.documentId,
+          documentRequirementId: requirement.id,
+          documentRequirementCode: requirement.code,
+          documentRequirementName: requirement.name,
+          documentKind: requirement.kind,
+          expiryDate: String(row.expiresAt),
+          daysUntilExpiry: next.daysUntilExpiry,
+          reminderMilestoneDays: milestoneDays,
+          documentStatus: next.status,
+          eventActor: input.actor,
+        },
+      });
+      outcomes.push({
+        complianceId: row.id, status: next.status, employeeId: row.employeeId, automation,
+      });
+      continue;
+    }
     if (next.status !== "expiring" && next.status !== "expired") continue;
 
     const automation = await runAutomationEventSafely({
