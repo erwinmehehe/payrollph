@@ -40,6 +40,7 @@ export function schedulerWatchdogConfiguration(env) {
   const monitorToken = env?.SCHEDULER_MONITOR_TOKEN;
   if (typeof monitorToken !== "string" ||
       monitorToken !== monitorToken.trim() || /[\r\n]/.test(monitorToken) ||
+      /^(?:REPLACE|CHANGE_ME|EXAMPLE|INSERT_|YOUR_)/i.test(monitorToken) ||
       Buffer.byteLength(monitorToken, "utf8") < 32 ||
       (env.WORKER_TOKEN && env.WORKER_TOKEN === monitorToken) ||
       (env.CRON_SECRET && env.CRON_SECRET === monitorToken)) fail();
