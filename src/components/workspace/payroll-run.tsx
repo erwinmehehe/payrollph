@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
+import { EntityBadge } from "./multi-entity-ui";
 import { PayrollConnectedImpactPanel } from "./payroll-connected-impact-panel";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
@@ -375,6 +376,9 @@ export function PayrollRunView({
 
   return (
     <>
+      {data.multiEntity?.enabled && <div style={{ marginBottom: 12 }}>
+        <EntityBadge context={data.multiEntity} legalEntityId={run?.legalEntityId} />
+      </div>}
       <PageHeading
         eyebrow={
           payrollOfficerMode
