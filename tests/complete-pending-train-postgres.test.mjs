@@ -62,6 +62,55 @@ test("PG16/18: unnumbered entity-interval proposal rejects tenant mismatch and o
   }
 });
 
+// Supplemental *concurrent* witness, isolated from public tables in a distinct
+// disposable schema. Qualifier rewriting is only for the private test fixture.
+test("PG16/18: two writers lock the same employee and reject overlapping intervals", {
+  skip: !REHEARSAL, timeout: 120000,
+}, async () => {
+  const target = isolatedUrl();
+  const quotedSchema = '"interval_guard_ci_' + process.pid + "_" + Date.now() + '"';
+  const setup = new pg.Client({ connectionString: target, query_timeout: 90000 });
+  const first = new pg.Client({ connectionString: target, query_timeout: 90000 });
+  const second = new pg.Client({ connectionString: target, query_timeout: 90000 });
+  let created = false;
+  await setup.connect();
+  try {
+    await setup.query("CREATE SCHEMA " + quotedSchema);
+    created = true;
+    await setup.query("CREATE TABLE " + quotedSchema + ".employees(id integer PRIMARY KEY,organization_id integer NOT NULL)");
+    await setup.query("CREATE TABLE " + quotedSchema + ".employee_entity_assignments(id serial PRIMARY KEY,organization_id integer NOT NULL,employee_id integer NOT NULL,legal_entity_id integer NOT NULL,effective_from date NOT NULL,effective_until date)");
+    await setup.query("INSERT INTO " + quotedSchema + ".employees VALUES(1,10)");
+    const ddl = readFileSync(new URL("../docs/engineering/migration-proposals/employee-entity-interval-guard.sql", import.meta.url), "utf8");
+    await setup.query("SET search_path TO " + quotedSchema + ",public");
+    await setup.query(ddl.replaceAll("public.", quotedSchema + "."));
+    await setup.query("RESET search_path");
+    await first.connect();
+    await second.connect();
+    const insert = (entity, from, until) => "INSERT INTO " + quotedSchema + ".employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES(10,1," + entity + ",'" + from + "','" + until + "')";
+    await first.query("BEGIN");
+    await first.query(insert(100, "2026-01-01", "2026-03-31"));
+    await second.query("BEGIN");
+    await second.query("SET LOCAL lock_timeout = '500ms'");
+    await assert.rejects(() => second.query(insert(101, "2026-02-01", "2026-04-30")), error =>
+      error?.code === "55P03", "Second writer must wait for the employee row lock");
+    await second.query("ROLLBACK");
+    await first.query("COMMIT");
+    await second.query("BEGIN");
+    await assert.rejects(() => second.query(insert(101, "2026-02-01", "2026-04-30")),
+      /ENTITY_ASSIGNMENT_INTERVAL_OVERLAP/);
+    await second.query("ROLLBACK");
+    const count = await setup.query("SELECT count(*)::integer AS n FROM " + quotedSchema + ".employee_entity_assignments");
+    assert.equal(count.rows[0].n, 1);
+  } finally {
+    await first.query("ROLLBACK").catch(() => {});
+    await second.query("ROLLBACK").catch(() => {});
+    await first.end().catch(() => {});
+    await second.end().catch(() => {});
+    try { if (created) await setup.query("DROP SCHEMA " + quotedSchema + " CASCADE"); }
+    finally { await setup.end(); }
+  }
+});
+
 // The source DDL may only run against disposable CI PostgreSQL 16/18.
 function isolatedUrl() {
   return assertIsolatedMigrationTarget({
