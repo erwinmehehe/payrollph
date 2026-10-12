@@ -68,7 +68,7 @@ export function FirstPayrollInlineJourney({
   const [assignmentError, setAssignmentError] = useState("");
   const [handoffBusy, setHandoffBusy] = useState<string | null>(null);
   const [settingNotice, setSettingNotice] = useState("");
-  const [preview, setPreview] = useState<FirstPayrollPreview | null>(null);
+  const [previewResult, setPreviewResult] = useState<{ key: string; value: FirstPayrollPreview } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState("");
   const [employers, setEmployers] = useState<Employer[]>([]);
@@ -81,6 +81,8 @@ export function FirstPayrollInlineJourney({
   const [scopeOrgUnitId, setScopeOrgUnitId] = useState<number | null>(null);
   const [confirmDraft, setConfirmDraft] = useState(false);
   const [reloadProgress, setReloadProgress] = useState(0);
+  const previewKey = JSON.stringify([orgId, periodStart, periodEnd, payDate, scopeOrgUnitId, legalEntityId]);
+  const preview = previewResult?.key === previewKey ? previewResult.value : null;
 
   const canHandoff = companyWide && ["owner", "admin", "bookkeeper", "hr"].includes(role);
   const canManageTeam = companyWide && ["owner", "admin", "bookkeeper"].includes(role);
@@ -125,10 +127,8 @@ export function FirstPayrollInlineJourney({
     return () => { active = false; };
   }, [orgId]);
 
-  // Preview is invalidated when ANY input changes. Never reuse stale costs.
-  useEffect(() => {
-    setPreview(null); setPreviewError(""); setConfirmDraft(false);
-  }, [periodStart, periodEnd, payDate, scopeOrgUnitId, orgId]);
+  // Render only the result belonging to the current tenant and input snapshot.
+  // Late responses cannot make another cutoff's costs usable for draft creation.
 
   async function handoff(step: FirstPayrollKey) {
     setHandoffBusy(step); setAssignmentError("");
@@ -147,7 +147,7 @@ export function FirstPayrollInlineJourney({
   }
 
   async function calculatePreview() {
-    setPreviewLoading(true); setPreview(null); setPreviewError(""); setConfirmDraft(false);
+    setPreviewLoading(true); setPreviewResult(null); setPreviewError(""); setConfirmDraft(false);
     try {
       const response = await fetch("/api/first-payroll/preview", {
         method:"POST", headers:{"Content-Type":"application/json"},
@@ -155,7 +155,7 @@ export function FirstPayrollInlineJourney({
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Payroll preview unavailable.");
-      setPreview(body as FirstPayrollPreview);
+      setPreviewResult({ key: previewKey, value: body as FirstPayrollPreview });
     } catch (error) {
       setPreviewError(error instanceof Error ? error.message : "Payroll preview failed.");
     } finally { setPreviewLoading(false); }
