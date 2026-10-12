@@ -65,3 +65,13 @@ jobs:
         run: |
           cat qa-artifacts/wfm-migration-synthetic-rehearsal.json
           cat qa-artifacts/wfm-migration-injected-failure.json
+      - name: Retain sanitized migration and rollback receipts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: wfm-0115-0116-0118-synthetic-rehearsal
+          path: |
+            qa-artifacts/wfm-migration-synthetic-rehearsal.json
+            qa-artifacts/wfm-migration-injected-failure.json
+          retention-days: 14
+          if-no-files-found: warn
