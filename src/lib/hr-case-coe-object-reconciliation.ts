@@ -1,7 +1,6 @@
-import { and, eq, isNull, like, lte } from "drizzle-orm";
+import { and, eq, like, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents, documents, employeeHrCases } from "@/db/schema";
-import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { deleteDocumentObject } from "@/lib/document-object-storage";
 import { documentObjectIdentityMatches } from "@/lib/employee-document-vault";
 
@@ -102,15 +101,27 @@ export async function reconcilePendingCoeDocument(
   });
 }
 
-/** Runs only behind both HR case and private-vault flags via the leased scheduler. */
+/**
+ * Orphan cleanup must survive disabling a feature flag after a partial rollout,
+ * otherwise private files are stranded indefinitely. Check schema existence
+ * first; old deployments lacking the additive HR/vault migrations are skipped.
+ * The lease of the parent retention scheduler prevents overlapping job ticks.
+ */
 export async function sweepPendingCoeObjects(now = new Date(), limit = 50,
   deleteObject: DeleteObject = deleteDocumentObject) {
-  if (!criticalReleaseFlagEnabled("employeeHrCases") ||
-      !criticalReleaseFlagEnabled("employeeDocumentVault")) {
-    return { enabled: false as const, inspected: 0, deleted: 0, retryRequired: 0 };
-  }
   if (!Number.isFinite(now.getTime()) || !Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
     throw new Error("INVALID_COE_SWEEP_INPUT");
+  }
+  const readiness = await db.execute<{ schema_ready: boolean }>(sql`
+    SELECT to_regclass('public.employee_hr_cases') IS NOT NULL
+      AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'documents'
+          AND column_name = 'object_storage_key'
+      ) AS schema_ready
+  `);
+  if (readiness.rows[0]?.schema_ready !== true) {
+    return { enabled: false as const, inspected: 0, deleted: 0, retryRequired: 0 };
   }
   const stale = await db.select({ id: documents.id }).from(documents).where(and(
     eq(documents.scannedClean, false), eq(documents.sourceType, "generated"),
