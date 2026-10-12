@@ -19,3 +19,8 @@ export function isTenantModuleId(value: unknown): value is TenantModuleId {
 export function tenantModulePages(enabledModules: readonly string[]): Set<string> {
   return new Set(TENANT_MODULES.filter(m => enabledModules.includes(m.id)).flatMap(m => [...m.pages]));
 }
+
+/** Storage capability is separate from the flag; partial SQL is not usable. */
+export function hasTenantModuleColumns(columns: readonly string[]): boolean {
+  return columns.includes("module_navigation_mode") && columns.includes("enabled_modules");
+}

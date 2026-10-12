@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasTenantModuleColumns } from "../src/lib/tenant-module-storage";
+import { hasTenantModuleColumns } from "../src/lib/tenant-modules";
 import { tenantNavigationGroups } from "../src/components/workspace/nav";
 
 test("missing or partly migrated 0122 columns cannot enable module reads", () => {

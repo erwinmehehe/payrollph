@@ -1,4 +1,5 @@
 import { pool } from "@/db";
+import { hasTenantModuleColumns } from "@/lib/tenant-modules";
 import { integer, jsonb, pgTable, varchar } from "drizzle-orm/pg-core";
 
 /**
@@ -12,10 +13,6 @@ export const organizationModuleSettings = pgTable("organizations", {
   moduleNavigationMode: varchar("module_navigation_mode", { length: 8 }).notNull(),
   enabledModules: jsonb("enabled_modules").$type<string[]>().notNull(),
 });
-
-export function hasTenantModuleColumns(columns: readonly string[]): boolean {
-  return columns.includes("module_navigation_mode") && columns.includes("enabled_modules");
-}
 
 /** Fail closed before any optional query on databases that lack 0122. */
 export async function tenantModuleStorageAvailable(): Promise<boolean> {
