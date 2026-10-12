@@ -8,3 +8,5 @@ Scope: Existing `/api/v1/employees` (GET/POST) and `/api/v1/payroll-runs` stay u
 - GET /api/v1/journal-entries (payroll:read; audited balanced debit/credit draft CSV based on immutable run totals).
 
 API description in `docs/openapi-payrollph-v1.yaml`. No external accounting connection or automatic ledger posts. Reconcile chart-of-accounts mappings with accounting reviewers before activation. Data-scope review must check tenant and **legal employer** scope, pending multi-entity RFC approval. The API key grants tenant read; group-level legal-employer grants are not implemented.
+
+**Multi-entity boundary:** The extended v1 authorization rejects organizations with more than one active legal entity until entity-scoped API token grants are implemented and tested under RFC B-8. Tenant-scoped keys are never treated as cross-entity group-HR permission.
