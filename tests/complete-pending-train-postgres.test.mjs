@@ -15,6 +15,125 @@ const names = [
   "0121_multi_entity_v2_scope_transfer.sql",
 ];
 
+test("PG16/18: unnumbered entity-interval proposal rejects tenant mismatch and overlaps", {
+  skip: !REHEARSAL, timeout: 120000,
+}, async () => {
+  const client = new pg.Client({ connectionString: isolatedUrl() });
+  await client.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("DROP TABLE IF EXISTS public.employee_entity_assignments, public.employees, public.legal_entities CASCADE");
+    await client.query("CREATE TABLE public.employees(id integer PRIMARY KEY, organization_id integer NOT NULL)");
+    await client.query("CREATE TABLE public.legal_entities(id integer PRIMARY KEY, organization_id integer NOT NULL)");
+    await client.query("CREATE TABLE public.employee_entity_assignments(id serial PRIMARY KEY, organization_id integer NOT NULL, employee_id integer NOT NULL, legal_entity_id integer NOT NULL, effective_from date NOT NULL, effective_until date,created_at timestamptz NOT NULL DEFAULT now())");
+    await client.query("INSERT INTO public.employees VALUES (1,10),(2,20)");
+    await client.query("INSERT INTO public.legal_entities VALUES (100,10),(101,10),(200,20)");
+    const sql = readFileSync(new URL("../docs/engineering/migration-proposals/employee-entity-interval-guard.sql", import.meta.url), "utf8");
+    await client.query(sql);
+    await client.query(sql);
+    await client.query("INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,100,'2026-01-01','2026-01-31')");
+    for (const [statement, error] of [
+      ["INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,2,100,'2026-02-01',NULL)", /EMPLOYEE_TENANT_MISMATCH/],
+      ["INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,200,'2026-02-01',NULL)", /LEGAL_ENTITY_TENANT_MISMATCH/],
+      ["INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,101,'2026-01-15','2026-02-01')", /INTERVAL_OVERLAP/],
+      ["UPDATE public.employee_entity_assignments SET employee_id=2,organization_id=20 WHERE id=1", /IDENTITY_IMMUTABLE/],
+      ["UPDATE public.employee_entity_assignments SET legal_entity_id=101 WHERE id=1", /IDENTITY_IMMUTABLE/],
+      ["UPDATE public.employee_entity_assignments SET effective_from='2025-12-31' WHERE id=1", /IDENTITY_IMMUTABLE/],
+      ["UPDATE public.employee_entity_assignments SET created_at=created_at + interval '1 second' WHERE id=1", /IDENTITY_IMMUTABLE/],
+      ["UPDATE public.employee_entity_assignments SET effective_until='2026-01-30' WHERE id=1", /CLOSED_INTERVAL_IMMUTABLE/],
+      ["DELETE FROM public.employee_entity_assignments WHERE id=1", /HISTORY_IMMUTABLE/],
+    ]) {
+      await client.query("SAVEPOINT invalid_write");
+      await assert.rejects(() => client.query(statement), error);
+      await client.query("ROLLBACK TO SAVEPOINT invalid_write");
+    }
+    // Failed inserts above still advance serial sequences, even after SAVEPOINT rollback.
+    // Capture the actual row key rather than assuming the next assignment has id=2.
+    const inserted = await client.query("INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,101,'2026-02-01',NULL) RETURNING id");
+    const openAssignmentId = inserted.rows[0].id;
+    // Boundaries are inclusive: a closed Jan 31 interval and an open Feb 1
+    // interval are adjacent. A closed interval cannot be extended retroactively.
+    await client.query("SAVEPOINT invalid_update");
+    await assert.rejects(
+      () => client.query("UPDATE public.employee_entity_assignments SET effective_until='2026-02-01' WHERE id=1"),
+      /CLOSED_INTERVAL_IMMUTABLE/,
+    );
+    await client.query("ROLLBACK TO SAVEPOINT invalid_update");
+    // A genuinely open interval may be closed once, but the closure must not
+    // silently rewrite the original employer or start date.
+    await client.query("SAVEPOINT valid_close");
+    const closed = await client.query("UPDATE public.employee_entity_assignments SET effective_until='2026-12-31' WHERE id=$1", [openAssignmentId]);
+    assert.equal(closed.rowCount, 1, "The first closure must update the open interval");
+    await assert.rejects(
+      () => client.query("UPDATE public.employee_entity_assignments SET effective_until='2027-01-01' WHERE id=$1", [openAssignmentId]),
+      /CLOSED_INTERVAL_IMMUTABLE/,
+    );
+    await client.query("ROLLBACK TO SAVEPOINT valid_close");
+    // The open-ended interval prevents any later insert for the same worker.
+    await client.query("SAVEPOINT invalid_later");
+    await assert.rejects(
+      () => client.query("INSERT INTO public.employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES (10,1,101,'2027-01-01',NULL)"),
+      /INTERVAL_OVERLAP/,
+    );
+    await client.query("ROLLBACK TO SAVEPOINT invalid_later");
+    assert.equal((await client.query("SELECT count(*)::integer n FROM public.employee_entity_assignments")).rows[0].n, 2);
+  } finally {
+    await client.query("ROLLBACK").catch(() => {});
+    await client.end();
+  }
+});
+
+// Supplemental *concurrent* witness, isolated from public tables in a distinct
+// disposable schema. Qualifier rewriting is only for the private test fixture.
+test("PG16/18: two writers lock the same employee and reject overlapping intervals", {
+  skip: !REHEARSAL, timeout: 120000,
+}, async () => {
+  const target = isolatedUrl();
+  const quotedSchema = '"interval_guard_ci_' + process.pid + "_" + Date.now() + '"';
+  const setup = new pg.Client({ connectionString: target, query_timeout: 90000 });
+  const first = new pg.Client({ connectionString: target, query_timeout: 90000 });
+  const second = new pg.Client({ connectionString: target, query_timeout: 90000 });
+  let created = false;
+  await setup.connect();
+  try {
+    await setup.query("CREATE SCHEMA " + quotedSchema);
+    created = true;
+    await setup.query("CREATE TABLE " + quotedSchema + ".employees(id integer PRIMARY KEY,organization_id integer NOT NULL)");
+    await setup.query("CREATE TABLE " + quotedSchema + ".legal_entities(id integer PRIMARY KEY,organization_id integer NOT NULL)");
+    await setup.query("CREATE TABLE " + quotedSchema + ".employee_entity_assignments(id serial PRIMARY KEY,organization_id integer NOT NULL,employee_id integer NOT NULL,legal_entity_id integer NOT NULL,effective_from date NOT NULL,effective_until date,created_at timestamptz NOT NULL DEFAULT now())");
+    await setup.query("INSERT INTO " + quotedSchema + ".employees VALUES(1,10)");
+    await setup.query("INSERT INTO " + quotedSchema + ".legal_entities VALUES(100,10),(101,10)");
+    const ddl = readFileSync(new URL("../docs/engineering/migration-proposals/employee-entity-interval-guard.sql", import.meta.url), "utf8");
+    await setup.query("SET search_path TO " + quotedSchema + ",public");
+    await setup.query(ddl.replaceAll("public.", quotedSchema + "."));
+    await setup.query("RESET search_path");
+    await first.connect();
+    await second.connect();
+    const insert = (entity, from, until) => "INSERT INTO " + quotedSchema + ".employee_entity_assignments(organization_id,employee_id,legal_entity_id,effective_from,effective_until) VALUES(10,1," + entity + ",'" + from + "','" + until + "')";
+    await first.query("BEGIN");
+    await first.query(insert(100, "2026-01-01", "2026-03-31"));
+    await second.query("BEGIN");
+    await second.query("SET LOCAL lock_timeout = '500ms'");
+    await assert.rejects(() => second.query(insert(101, "2026-02-01", "2026-04-30")), error =>
+      error?.code === "55P03", "Second writer must wait for the employee row lock");
+    await second.query("ROLLBACK");
+    await first.query("COMMIT");
+    await second.query("BEGIN");
+    await assert.rejects(() => second.query(insert(101, "2026-02-01", "2026-04-30")),
+      /ENTITY_ASSIGNMENT_INTERVAL_OVERLAP/);
+    await second.query("ROLLBACK");
+    const count = await setup.query("SELECT count(*)::integer AS n FROM " + quotedSchema + ".employee_entity_assignments");
+    assert.equal(count.rows[0].n, 1);
+  } finally {
+    await first.query("ROLLBACK").catch(() => {});
+    await second.query("ROLLBACK").catch(() => {});
+    await first.end().catch(() => {});
+    await second.end().catch(() => {});
+    try { if (created) await setup.query("DROP SCHEMA " + quotedSchema + " CASCADE"); }
+    finally { await setup.end(); }
+  }
+});
+
 // The source DDL may only run against disposable CI PostgreSQL 16/18.
 function isolatedUrl() {
   return assertIsolatedMigrationTarget({
