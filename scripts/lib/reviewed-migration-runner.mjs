@@ -1,0 +1,214 @@
+import { createHash } from "node:crypto";
+import { lstatSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { reconcileMigrationReceipts } from "./migration-receipt-audit.mjs";
+
+const MIGRATION_PATH = /^drizzle\/([0-9]{4})_[a-z0-9][a-z0-9_-]*\.sql$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+const DISALLOWED_SQL = /(?:^|[;\n])\s*(?:BEGIN\b|COMMIT\b|ROLLBACK\b|SAVEPOINT\b|RELEASE\s+SAVEPOINT\b|SET\s+(?:ROLE|SESSION)\b|CREATE\s+INDEX\s+CONCURRENTLY\b|VACUUM\b|REINDEX\s+CONCURRENTLY\b|CREATE\s+DATABASE\b|DROP\s+DATABASE\b)/im;
+
+function refuse(reason) {
+  throw new Error("REVIEWED_MIGRATION_" + reason);
+}
+
+function evidence(value) {
+  return typeof value === "string" && value.trim().length >= 8 &&
+    value.length <= 240 && !/[\r\n\0]/.test(value);
+}
+
+export function cutoverSourceManifest(inventory, throughPrefix) {
+  if (!Number.isInteger(throughPrefix) || throughPrefix < 1 || throughPrefix > 9999 ||
+      !Array.isArray(inventory?.files) || inventory.files.length === 0) {
+    refuse("CUTOVER_INVALID");
+  }
+  const files = inventory.files.filter(file => Number(file.prefix) <= throughPrefix);
+  if (!files.length || !files.some(file => Number(file.prefix) === throughPrefix)) {
+    refuse("CUTOVER_PREFIX_NOT_IN_SOURCE");
+  }
+  const canonical = files.map(file => file.path + "\0" + file.sha256 + "\n").join("");
+  const digest = createHash("sha256").update(canonical, "utf8").digest("hex");
+  return {
+    files,
+    digest,
+    throughPrefix,
+    duplicatePrefixes: inventory.duplicatePrefixes.filter(group => Number(group.prefix) <= throughPrefix),
+  };
+}
+
+/**
+ * This is the single source of plan decisions. It cannot adopt old SQL by
+ * guessing: a DBA-reviewed cutover hash and every historic full-path receipt
+ * must match before even one forward migration becomes eligible.
+ */
+export function evaluateReviewedMigration({
+  inventory, cutover, receipts, applied, requestedPath, expectedSha256,
+}) {
+  const pathMatch = typeof requestedPath === "string" && requestedPath.match(MIGRATION_PATH);
+  if (!pathMatch || !SHA256.test(expectedSha256 ?? "")) refuse("REQUEST_INVALID");
+  const throughPrefix = Number(cutover?.historicalPrefix);
+  const historic = cutoverSourceManifest(inventory, throughPrefix);
+  if (!SHA256.test(cutover?.historicalManifestSha256 ?? "") ||
+      historic.digest !== cutover.historicalManifestSha256 ||
+      !evidence(cutover.evidenceRef) || !evidence(cutover.reviewedBy) ||
+      !cutover.reviewedAt || !Number.isFinite(new Date(cutover.reviewedAt).getTime())) {
+    refuse("CUTOVER_EVIDENCE_OR_HASH_MISMATCH");
+  }
+  if (!Array.isArray(receipts) || !Array.isArray(applied)) refuse("JOURNAL_MISSING");
+  const historicReceipts = receipts.filter(row => {
+    const match = String(row?.migrationPath ?? "").match(MIGRATION_PATH);
+    if (!match) refuse("HISTORICAL_RECEIPT_PATH_INVALID");
+    return Number(match[1]) <= throughPrefix;
+  });
+  const checked = reconcileMigrationReceipts(historic, historicReceipts);
+  if (!checked.receiptsReconciled) refuse("HISTORICAL_RECEIPTS_UNRECONCILED");
+
+  const nextFiles = inventory.files.filter(file => Number(file.prefix) > throughPrefix)
+    .sort((a, b) => Number(a.prefix) - Number(b.prefix) || a.path.localeCompare(b.path, "en"));
+  for (let index = 0; index < nextFiles.length; index += 1) {
+    if (Number(nextFiles[index].prefix) !== throughPrefix + index + 1) {
+      refuse("NEW_PREFIX_GAP_OR_DUPLICATE");
+    }
+  }
+  if (applied.length > nextFiles.length) refuse("JOURNAL_EXCEEDS_SOURCE");
+  const recorded = new Set();
+  for (let index = 0; index < applied.length; index += 1) {
+    const row = applied[index];
+    const source = nextFiles[index];
+    if (!source || row?.migrationPath !== source.path ||
+        Number(row.migrationNumber) !== Number(source.prefix) ||
+        row.sourceSha256 !== source.sha256 ||
+        recorded.has(row.migrationPath) ||
+        !evidence(row.appliedBy) || !evidence(row.changeRef) ||
+        !row.appliedAt || !Number.isFinite(new Date(row.appliedAt).getTime())) {
+      refuse("JOURNAL_DRIFT_OR_OUT_OF_ORDER");
+    }
+    recorded.add(row.migrationPath);
+  }
+
+  const requested = nextFiles.find(file => file.path === requestedPath);
+  if (!requested || requested.sha256 !== expectedSha256) refuse("SOURCE_SHA_OR_PATH_MISMATCH");
+  const appliedIndex = nextFiles.findIndex(file => file.path === requestedPath);
+  if (appliedIndex > applied.length) refuse("PREVIOUS_MIGRATION_MISSING");
+  return {
+    status: appliedIndex < applied.length ? "already-applied" : "ready",
+    path: requested.path,
+    migrationNumber: Number(requested.prefix),
+    sha256: requested.sha256,
+    historicReceiptsVerified: checked.checkedFiles,
+    historicCollisionGroups: checked.duplicatePrefixGroups,
+    forwardMigrationsApplied: applied.length,
+    cutoverManifestSha256: historic.digest,
+    productionReleaseApproved: false,
+  };
+}
+
+/** Reject psql meta-commands, transaction escapes and journal self-modification. */
+export function loadReviewedSql(directory, file) {
+  if (!file || !MIGRATION_PATH.test(file.path) || !SHA256.test(file.sha256 ?? "")) {
+    refuse("SQL_IDENTITY_INVALID");
+  }
+  const filename = file.path.slice("drizzle/".length);
+  const path = join(directory, filename);
+  if (!lstatSync(path).isFile()) refuse("SQL_NOT_REGULAR_FILE");
+  const bytes = readFileSync(path);
+  if (createHash("sha256").update(bytes).digest("hex") !== file.sha256) refuse("SQL_CHANGED_AFTER_PLAN");
+  const content = bytes.toString("utf8");
+  if (!content.trim() || content.includes("\0") || content.includes("\uFFFD") ||
+      /(?:^|\n)\s*\\/.test(content) || DISALLOWED_SQL.test(content) ||
+      /\bpayrollph_(?:schema_migrations|migration_cutover|release_migration_receipts)\b/i.test(content)) {
+    refuse("SQL_REQUIRES_NONTRANSACTIONAL_OR_MANUAL_REVIEW");
+  }
+  return content;
+}
+
+/**
+ * One migration/one transaction. Apply acquires a transaction-scoped lock
+ * before reading the journal, and inserts the immutable receipt in the SAME
+ * transaction as the SQL. A broken connection cannot commit a partial file.
+ * The caller is responsible for authorizing the protected release workflow.
+ */
+export async function runReviewedMigrationOnClient({
+  client, inventory, sourceDirectory = "drizzle", mode, requestedPath,
+  expectedSha256, expectedDatabaseName, operator = "", approvalRef = "",
+  allowElevatedRoleForIsolatedTest = false,
+}) {
+  if (mode !== "plan" && mode !== "apply") refuse("MODE_INVALID");
+  if (!/^[A-Za-z0-9_]{1,63}$/.test(expectedDatabaseName ?? "")) refuse("DATABASE_NAME_INVALID");
+  if (mode === "apply" && (!evidence(operator) || !evidence(approvalRef))) {
+    refuse("APPLY_EVIDENCE_MISSING");
+  }
+  let open = false;
+  try {
+    await client.query(mode === "plan"
+      ? "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"
+      : "BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED, READ WRITE");
+    open = true;
+    await client.query("SET LOCAL lock_timeout = '5000ms'");
+    await client.query("SET LOCAL statement_timeout = '90000ms'");
+    await client.query("SET LOCAL search_path = pg_catalog");
+    if (mode === "apply") {
+      await client.query("SELECT pg_catalog.pg_advisory_xact_lock(20261012, 4)");
+    }
+    const identity = (await client.query(
+      "SELECT current_database() AS \"databaseName\", " +
+      "current_setting('transaction_read_only') = 'on' AS \"readOnly\", " +
+      "pg_catalog.pg_is_in_recovery() AS \"inRecovery\", " +
+      "EXISTS (SELECT 1 FROM pg_catalog.pg_roles r WHERE r.rolname = current_user AND " +
+      "(r.rolsuper OR r.rolcreatedb OR r.rolcreaterole OR r.rolbypassrls)) AS \"elevated\""
+    )).rows[0];
+    if (identity?.databaseName !== expectedDatabaseName ||
+        identity.readOnly !== (mode === "plan") ||
+        (mode === "apply" && identity.inRecovery) ||
+        (identity.elevated && !allowElevatedRoleForIsolatedTest)) refuse("DATABASE_ROLE_OR_IDENTITY_REJECTED");
+
+    const tables = (await client.query(
+      "SELECT to_regclass('public.payrollph_release_migration_receipts') IS NOT NULL AS \"receipts\", " +
+      "to_regclass('public.payrollph_migration_cutover') IS NOT NULL AS \"cutover\", " +
+      "to_regclass('public.payrollph_schema_migrations') IS NOT NULL AS \"journal\""
+    )).rows[0];
+    if (!tables?.receipts || !tables?.cutover || !tables?.journal) refuse("DBA_BOOTSTRAP_REQUIRED");
+    const adopted = (await client.query(
+      "SELECT historical_prefix AS \"historicalPrefix\", " +
+      "historical_manifest_sha256 AS \"historicalManifestSha256\", evidence_ref AS \"evidenceRef\", " +
+      "reviewed_by AS \"reviewedBy\", reviewed_at AS \"reviewedAt\" " +
+      "FROM public.payrollph_migration_cutover WHERE id = 1"
+    )).rows;
+    if (adopted.length !== 1) refuse("CUTOVER_NOT_ADOPTED");
+
+    const receipts = (await client.query(
+      "SELECT migration_path AS \"migrationPath\", source_sha256 AS sha256, disposition, " +
+      "evidence_ref AS \"evidenceRef\", reviewed_by AS \"reviewedBy\", recorded_at AS \"recordedAt\" " +
+      "FROM public.payrollph_release_migration_receipts ORDER BY migration_path"
+    )).rows;
+    const applied = (await client.query(
+      "SELECT migration_path AS \"migrationPath\", migration_number AS \"migrationNumber\", " +
+      "source_sha256 AS \"sourceSha256\", applied_by AS \"appliedBy\", " +
+      "change_ref AS \"changeRef\", applied_at AS \"appliedAt\" " +
+      "FROM public.payrollph_schema_migrations ORDER BY migration_number"
+    )).rows;
+    const decision = evaluateReviewedMigration({
+      inventory, cutover: adopted[0], receipts, applied, requestedPath, expectedSha256,
+    });
+    let sqlApplied = false;
+    if (mode === "apply" && decision.status === "ready") {
+      const sql = loadReviewedSql(sourceDirectory, decision);
+      await client.query("SET LOCAL search_path = public, pg_catalog");
+      await client.query(sql);
+      await client.query(
+        "INSERT INTO public.payrollph_schema_migrations " +
+        "(migration_path, migration_number, source_sha256, applied_by, change_ref) " +
+        "VALUES ($1, $2, $3, $4, $5)",
+        [decision.path, decision.migrationNumber, decision.sha256, operator, approvalRef],
+      );
+      sqlApplied = true;
+    }
+    await client.query(mode === "plan" ? "ROLLBACK" : "COMMIT");
+    open = false;
+    return { ...decision, mode, sqlApplied, databaseNameMatched: true };
+  } catch (error) {
+    if (open) {
+      try { await client.query("ROLLBACK"); } catch { /* invalid/disconnected connection */ }
+    }
+    throw error;
+  }
+}
