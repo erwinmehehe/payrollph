@@ -1,6 +1,7 @@
 import { and, inArray, isNotNull, lt, or } from "drizzle-orm";
 import { db } from "@/db";
 import { purgeExpiredRejectedApplicants } from "@/lib/recruitment-applicant-retention";
+import { sweepPendingCoeObjects } from "@/lib/hr-case-coe-object-reconciliation";
 import {
   emailChangeTokens,
   marketingLeads,
@@ -154,9 +155,11 @@ export async function purgeExpiredOperationalData(now = Date.now()) {
   // A-2 default OFF. No new candidate table query occurs unless its separately
   // approved privacy migration and DPO retention policy have been activated.
   const applicantPrivacy = await purgeExpiredRejectedApplicants(new Date(now));
+  const pendingCoeObjects = await sweepPendingCoeObjects(new Date(now));
 
   return {
     applicantPrivacyPurged: applicantPrivacy.purged,
+    pendingCoeObjectRecovery: pendingCoeObjects,
     sessions: deletedSessions.length,
     passwordResetTokens: deletedPasswordTokens.length,
     emailChangeTokens: deletedEmailTokens.length,
