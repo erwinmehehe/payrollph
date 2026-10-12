@@ -48,8 +48,12 @@ test("the first payroll preview route and calculator have no write operations", 
   assert.match(route, /loadReadOnlyFirstPayrollPreview/);
   assert.match(loader, /calculateEmployeePay/);
   for (const source of [route, loader]) {
-    assert.doesNotMatch(source, /\.insert\(|\.update\(|\.delete\(|\.transaction\(|enqueuePayrollRun|drainPayrollQueue/);
+    assert.doesNotMatch(source, /\.insert\(|\.update\(|\.delete\(|enqueuePayrollRun|drainPayrollQueue/);
   }
+  // The route reads all sources in one consistent read-only payroll snapshot.
+  assert.match(route, /db\.transaction\(/);
+  assert.match(route, /SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY/);
+  assert.doesNotMatch(loader, /\.transaction\(/);
 });
 
 test("first-time fixed-salary tenant can reach preview-ready with only read operations",async()=>{
@@ -84,4 +88,23 @@ test("first-time fixed-salary tenant can reach preview-ready with only read oper
   assert.equal(result.rows.length,1);
   assert.ok((result.rows[0].gross??0)>0);
   assert.equal(result.previewReady,true,JSON.stringify(result.blockers));
+});
+
+test("multi-employer preview refuses unscoped worker disclosure",async()=>{
+ process.env.DATABASE_URL ??= "postgresql://local:local@127.0.0.1:1/offline";
+ const {loadReadOnlyFirstPayrollPreview}=await import("../src/lib/first-payroll-preview");
+ const tables:Record<string,unknown[]>={
+  organizations:[{id:9}],
+  legal_entities:[{id:1,primaryEntity:true,active:true},{id:2,primaryEntity:false,active:true}],
+  employees:[{id:19,legalEntityId:2,firstName:"Protected",lastName:"Employee"}],
+ };
+ const reader={select(){let table="";const q:Record<string,unknown>={};
+  q.from=(target:Parameters<typeof getTableName>[0])=>{table=getTableName(target);return q;};
+  q.where=()=>q;q.limit=()=>q;
+  q.then=(resolve:(items:unknown[])=>unknown)=>Promise.resolve(tables[table]??[]).then(resolve);
+  return q;
+ }} as unknown as Pick<typeof db,"select">;
+ await assert.rejects(loadReadOnlyFirstPayrollPreview({
+  organizationId:9,periodStart:"2026-10-01",periodEnd:"2026-10-15",payDate:"2026-10-15"
+ },reader),/MULTI_ENTITY_PREVIEW_REQUIRES_SCOPED_AUTHORIZATION/);
 });
