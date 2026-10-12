@@ -164,7 +164,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
       )}
 
       <EnterpriseBiExportPanel organizationId={organizationId} notify={notify} />
-      <HcmReportBuilderPanel organizationId={organizationId} />
+      <HcmReportBuilderPanel key={organizationId} organizationId={organizationId} />
 
       <div className="report-grid">
         {REPORTS.map((report) => {
