@@ -20,6 +20,8 @@ import {
 } from "@/lib/bank-account-crypto";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { ensurePrimaryLegalEntity } from "@/lib/legal-entity";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import {
   enforceSameOriginMutation,
   requireSensitiveActionMfa,
@@ -95,6 +97,8 @@ export async function GET(request: Request) {
       "Only payroll operators can select a legal employer for payroll.",
     );
     if (denied) return denied;
+    const scope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+    if (!scope.ok) return scope.response;
     const entities = await db.select({
       id: legalEntities.id,
       code: legalEntities.code,
@@ -105,6 +109,8 @@ export async function GET(request: Request) {
       .where(and(
         eq(legalEntities.organizationId, organizationId),
         eq(legalEntities.active, true),
+        scope.context.enabled && scope.context.legalEntityId !== null
+          ? eq(legalEntities.id, scope.context.legalEntityId) : undefined,
       ))
       .orderBy(asc(legalEntities.id));
     return Response.json({ legalEntities: entities });
@@ -269,6 +275,12 @@ export async function PATCH(request: Request) {
   if (mfaDenied) return mfaDenied;
 
   if (action === "assign_employee") {
+    if (criticalReleaseFlagEnabled("multiEntity")) {
+      return Response.json({
+        error: "Legal employer changes require independently approved, effective-dated transfer.",
+        code: "ENTITY_TRANSFER_REQUIRES_APPROVAL",
+      }, { status: 409 });
+    }
     const employeeId = Number(body.employeeId);
     const legalEntityId = Number(body.legalEntityId);
     if (!Number.isInteger(employeeId) || !Number.isInteger(legalEntityId)) {
