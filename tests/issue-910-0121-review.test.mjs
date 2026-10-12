@@ -40,10 +40,16 @@ test("#910 extracts are docs-only and do not grant execution approval",()=>{
   }
 });
 test("#910 schema is additive-only with zero row mutations and no historical event fabrication",()=>{
-  const statements=ddl(body("schema"));
+  // The PostgreSQL dollar-quoted control block contains nested semicolons.
+  // Extract it before tokenizing top-level DDL statements.
+  const sql=body("schema");
+  const control=sql.match(/DO\s+\$checks\$[\s\S]*?END \$checks\$;/i);
+  assert.ok(control,"composite FK review block must be present");
+  assert.doesNotMatch(control[0],/\b(?:INSERT INTO|UPDATE\s+\w+\s+SET|DELETE FROM|TRUNCATE)\b/i);
+  const statements=ddl(sql.replace(control[0],""));
   assert.ok(statements.length>10);
   for(const statement of statements){
-    assert.match(statement,/^(?:ALTER TABLE|CREATE (?:UNIQUE )?INDEX|CREATE TABLE|DO\s+\$checks\$)/i);
+    assert.match(statement,/^(?:ALTER TABLE|CREATE (?:UNIQUE )?INDEX|CREATE TABLE)/i);
     assert.doesNotMatch(statement,/^(?:INSERT|UPDATE|DELETE|TRUNCATE|DROP|BEGIN|COMMIT)/i);
   }
   assert.doesNotMatch(body("schema"),/CREATE TABLE IF NOT EXISTS worker_employment_events/i);
