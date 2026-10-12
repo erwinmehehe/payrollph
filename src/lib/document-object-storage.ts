@@ -97,7 +97,10 @@ export async function putDocumentObject(key: string, bytes: Uint8Array, mime: st
   const url = signedDocumentObjectUrl(key, "PUT", config);
   const response = await (options.fetchImpl ?? fetch)(url, {
     method: "PUT", body: Buffer.from(bytes),
-    headers: { "Content-Type": mime, "Cache-Control": "private, no-store" },
+    // Conditional PUT prevents a later writer from silently replacing
+    // malware-scanned bytes at an existing private object key.
+    headers: { "Content-Type": mime, "Cache-Control": "private, no-store",
+      "If-None-Match": "*" },
     cache: "no-store", redirect: "error", signal: AbortSignal.timeout(20000),
   });
   if (!response.ok) throw new Error("Private document upload failed with HTTP " + response.status);
