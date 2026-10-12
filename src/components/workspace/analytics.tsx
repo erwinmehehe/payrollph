@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ClipboardCheck, Download, FileBarChart2, Gauge, RefreshCw, ShieldCheck, TrendingDown, UsersRound, WalletCards } from "lucide-react";
 import type { DashboardData, Notify } from "./types";
 import { EnterpriseBiExportPanel } from "@/components/enterprise-bi-export-panel";
+import { useWorkflowUi } from "./workflow-ui-context";
+import { CustomReportBuilder } from "./custom-report-builder";
 import { PeopleIntelligenceOverview } from "./people-intelligence";
 import type { PeopleIntelligenceSummary } from "@/lib/hcm-people-intelligence";
 import {
@@ -39,6 +41,7 @@ type ReportResult = {
 };
 
 export function AnalyticsView({ data, notify }: { data: DashboardData; notify: Notify }) {
+  const customReportsEnabled = useWorkflowUi().reportBuilder;
   const [active, setActive] = useState<ReportKey>("workforce");
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [result, setResult] = useState<ReportResult | null>(null);
@@ -124,6 +127,8 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         }
       />
 
+      {customReportsEnabled && <CustomReportBuilder organizationId={organizationId}
+        active={active} report={result} onReport={key => { setActive(key as ReportKey); setState("loading"); }} />}
       <section className="stats-grid">
         <Metric
           label="Runs on record"
