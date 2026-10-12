@@ -28,8 +28,6 @@ export function HcmReportBuilderPanel({ organizationId }: { organizationId: numb
   const [error, setError] = useState("");
   useEffect(() => {
     let alive = true;
-    setEnabled(false);
-    setPreview(null);
     (async () => {
       try {
         const res = await fetch(`/api/hcm-report-builder?organizationId=${organizationId}`, { cache: "no-store" });
