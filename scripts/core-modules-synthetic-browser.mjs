@@ -27,7 +27,7 @@ try {
         await page.goto(base + "/app?organizationId=" + fixture.organizationId, { waitUntil: "domcontentloaded" });
         if (role === "owner" && state === "after") {
           const more = page.locator('[data-nav-name="More modules"]:visible').first();
-          if (width === 390 && !(await more.count())) await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+          // CSS keeps the sidebar present in the DOM while translated offscreen on phones.\n          // Open the real mobile drawer instead of relying on :visible/count().\n          if (width <= 390) {\n            await page.getByRole("button", { name: "Open navigation", exact: true }).click();\n            await page.locator(".app-shell.drawer-open").waitFor();\n          }
           await more.waitFor({ timeout: 60000 });
           await more.click();
           const panel = page.getByRole("region", { name: "More modules" });
