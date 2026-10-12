@@ -39,3 +39,7 @@ npm run build
 ```
 
 Do not enable either flag without independent two-tenant, large-population and 375px browser tests; verified leave-interval/midnight/competency and scheduling-rule sign-off; production DB readiness; and a no-money shadow comparison. No public access, automatic shift publication or bank connectivity is added in this iteration.
+
+## Conservative pilot policy and source integrity
+
+A disabled or zero-valued legacy guardrail does not disable the solver's separate 660-minute rest, six-consecutive-day, and 2,880-minute rolling-week pilot safeguards. An existing stricter configured setting is honored. The baseline and proposed schedules are evaluated with the same effective blocking policy, so pre-existing violations cannot be misclassified as introduced by this one draft. Unassigned schedule dates, invalid rest-day configuration and previously approved day-off overrides are never silently replaced by a recommendation.
