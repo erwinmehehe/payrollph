@@ -6,6 +6,7 @@ import test from "node:test";
 import pg from "pg";
 import { assertIsolatedMigrationTarget } from "../scripts/lib/isolated-migration-target.mjs";
 import { inventoryMigrationSources } from "../scripts/lib/migration-receipt-audit.mjs";
+import { assertModernSchemaLineage } from "../scripts/lib/schema-lineage-preflight.mjs";
 import { cutoverSourceManifest, runReviewedMigrationOnClient } from "../scripts/lib/reviewed-migration-runner.mjs";
 
 const ONLY_ISOLATED = process.env.MIGRATION_REHEARSAL_MODE === "isolated-ci-only";
@@ -39,6 +40,20 @@ test("Postgres 16: verified baseline, read-only preview, concurrent one-time com
   const two = new pg.Client({ connectionString: url });
   try {
     await admin.connect();
+    await assert.rejects(() => assertModernSchemaLineage(admin),
+      /REVIEWED_MIGRATION_LEGACY_SCHEMA_INCOMPATIBLE/,
+      "a blank/non-modern database must not receive a forward migration");
+    // Disposable identity-only schema fixtures; no employee or payroll rows.
+    // The production legacy schema uses UUID/client_id and must fail instead.
+    for (const sql of [
+      "CREATE TABLE public.organizations (id integer PRIMARY KEY)",
+      "CREATE TABLE public.employees (id integer PRIMARY KEY, organization_id integer NOT NULL)",
+      "CREATE TABLE public.payroll_runs (id integer PRIMARY KEY, organization_id integer NOT NULL)",
+      "CREATE TABLE public.payroll_entries (id integer PRIMARY KEY, payroll_run_id integer NOT NULL)",
+      "CREATE TABLE public.payout_transfers (id integer PRIMARY KEY)",
+      "CREATE TABLE public.provider_events (id integer PRIMARY KEY)",
+    ]) await admin.query(sql);
+    await assert.doesNotReject(() => assertModernSchemaLineage(admin));
     await admin.query(readFileSync("docs/engineering/production-migration-receipt-journal-template.sql", "utf8"));
     await admin.query(readFileSync("docs/engineering/reviewed-migration-cutover-template.sql", "utf8"));
     for (const file of historic.files) {
@@ -108,6 +123,12 @@ test("Postgres 16: verified baseline, read-only preview, concurrent one-time com
       await admin.query("DROP TABLE IF EXISTS public.payrollph_schema_migrations");
       await admin.query("DROP TABLE IF EXISTS public.payrollph_migration_cutover");
       await admin.query("DROP TABLE IF EXISTS public.payrollph_release_migration_receipts");
+      await admin.query("DROP TABLE IF EXISTS public.provider_events");
+      await admin.query("DROP TABLE IF EXISTS public.payout_transfers");
+      await admin.query("DROP TABLE IF EXISTS public.payroll_entries");
+      await admin.query("DROP TABLE IF EXISTS public.payroll_runs");
+      await admin.query("DROP TABLE IF EXISTS public.employees");
+      await admin.query("DROP TABLE IF EXISTS public.organizations");
     } catch { /* disposable DB discarded on workflow exit */ }
     try { await admin.end(); } catch { /* disposable DB */ }
     rmSync(dir, { recursive: true, force: true });
