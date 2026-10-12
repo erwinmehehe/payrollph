@@ -25,7 +25,7 @@ async function main() {
     await db.insert(userOrganizations).values({ userId: user.id, organizationId: tenant.id, role, orgUnitId: role === "manager" ? unit.id : null });
     if (role === "owner") await db.insert(userOrganizations).values({ userId: user.id, organizationId: existing.id, role });
   }
-  await db.insert(subscriptions).values([tenant.id, existing.id].map(organizationId => ({ organizationId, plan: "Core", status: "active" })));
+  await db.insert(subscriptions).values([tenant.id, existing.id].map(organizationId => ({ organizationId, plan: "Scale", status: "active" })));
   writeFileSync("/tmp/build-block-fixture.json", JSON.stringify({ organizationId: tenant.id, existingId: existing.id }), { mode: 0o600 });
   console.log("Disposable role fixtures seeded; no live accounts or external providers used.");
 }

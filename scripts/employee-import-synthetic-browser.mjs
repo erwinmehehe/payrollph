@@ -39,7 +39,9 @@ try {
             await panel.waitFor();
             await panel.screenshot({ path: `qa-artifacts/employee-import/${role}-${width}-empty.png` });
             await panel.getByLabel("CSV file").setInputFiles({ name: "500-synthetic.csv", mimeType: "text/csv", buffer: Buffer.from(importFixtureCsv()) });
+            const previewResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/employees/import" && response.request().method() === "POST");
             await panel.getByRole("button", { name: "Preview upload" }).click();
+            assert.equal((await previewResponse).status(), 200, "Entitled synthetic tenant must receive a preview");
             await panel.getByRole("status").filter({ hasText: "500 rows" }).waitFor();
             assert.match(await panel.innerText(), /500 rows · 20 errors · 0 warnings/);
             assert.equal(await panel.getByRole("button", { name: "Commit selected rows" }).isDisabled(), true);
@@ -49,7 +51,9 @@ try {
             assert.equal(decodeURIComponent(csvLink.split(",").slice(1).join(",")).split("\n").length, 21);
             await panel.getByRole("button", { name: "Skip all error rows" }).click();
             assert.equal(await panel.getByRole("button", { name: "Commit selected rows" }).isDisabled(), true);
+            const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === "/api/employees/import" && response.request().method() === "POST");
             await panel.getByRole("button", { name: "Refresh preview" }).click();
+            assert.equal((await refreshed).status(), 200);
             await panel.getByRole("button", { name: "Commit selected rows" }).waitFor();
             await page.waitForFunction(() => ![...document.querySelectorAll("button")].find(b => b.textContent === "Commit selected rows")?.disabled);
             const bounds = await panel.evaluate(el => ({ left: el.getBoundingClientRect().left, right: el.getBoundingClientRect().right, width: window.innerWidth }));
