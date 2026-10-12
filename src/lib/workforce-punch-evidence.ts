@@ -11,7 +11,7 @@ export function validPunchUuid(value: string): boolean {
 }
 export type PunchAction = typeof PUNCH_ACTIONS[number];
 export type PhotoMode = "off" | "optional" | "required";
-export type PunchFlag = "offline-synced" | "clock-skew" | "shared-device" | "impossible-travel" | "photo-missing" | "consent-declined" | "geofence-unverified" | "time-invalid";
+export type PunchFlag = "offline-synced" | "clock-skew" | "shared-device" | "impossible-travel" | "photo-missing" | "consent-declined" | "geofence-unverified" | "geofence-verified" | "photo-policy-changed" | "time-invalid";
 
 export function enhancedPunchEnabled(): boolean {
   return criticalReleaseFlagEnabled("workforcePunchEvidence");
