@@ -6,6 +6,15 @@ That is a separate unresolved P0-4 risk, not a supported migration executor.
 The SQL files here are not a single ordered sequence; read this before running anything.
 A DBA must reconcile production history before disabling runtime writers.
 
+**New P0-4 source-only transition:** `scripts/run-reviewed-migration.mjs` now
+provides an independent, manually approved, checksum-backed **forward-only**
+executor **after** a DBA adopts a verified historical prefix. It does not
+replay this folder, replace `db:push` for synthetic CI, or turn off runtime
+compatibility DDL automatically. The historic receipts, a reviewed cutover
+manifest, a separate applied migration journal, sanitized clone rehearsal and
+protected manual release environment are mandatory. See
+[`reviewed-migration-runner.md`](../docs/engineering/reviewed-migration-runner.md).
+
 ## A fresh **disposable development or CI** database
 
 ```

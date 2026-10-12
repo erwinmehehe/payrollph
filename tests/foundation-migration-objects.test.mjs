@@ -46,7 +46,7 @@ test("duplicate, unknown, missing and malformed catalog evidence fail closed", (
 
 test("static SQL cannot query employee/payroll or bank row values", () => {
   assert.match(FOUNDATION_OBJECTS_SQL,/pg_catalog\.pg_trigger/);
-  assert.match(FOUNDATION_OBJECTS_SQL,/information_schema\.columns/);
+  assert.match(FOUNDATION_OBJECTS_SQL,/pg_catalog\.pg_attribute/);
   assert.doesNotMatch(FOUNDATION_OBJECTS_SQL,/\bSELECT\s+\*\s+FROM\s+(?:public\.)?(?:employees|payroll_entries|payroll_runs)\b/i);
   assert.doesNotMatch(FOUNDATION_OBJECTS_SQL,/\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\s+(?:TABLE|INTO|FROM|public\.)/i);
 });

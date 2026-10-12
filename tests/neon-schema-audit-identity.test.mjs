@@ -28,6 +28,20 @@ const expected = {
   expectedEndpointId: "ep-cool-hat-b7e7gpoo",
 };
 
+test("catalog audit refuses connection overrides before constructing a client", () => {
+  const prefix = "postgresql://readonly:synthetic@" + expectedHost + "/neondb";
+  for (const query of ["host=wrong.invalid", "port=5433", "user=owner", "password=wrong",
+    "options=-c%20neon.branch_id%3Dbr-forged", "sslkey=/tmp/private.key",
+    "sslmode=disable", "sslmode=require&sslmode=require"]) {
+    assert.throws(() => requireExpectedSchemaAuditTarget({ ...valid,
+      PRODUCTION_SCHEMA_AUDIT_DATABASE_URL: prefix + "?" + query,
+    }), /CONNECTION_OPTIONS_REJECTED/);
+  }
+  assert.doesNotThrow(() => requireExpectedSchemaAuditTarget({ ...valid,
+    PRODUCTION_SCHEMA_AUDIT_DATABASE_URL: prefix + "?sslmode=verify-full&channel_binding=require",
+  }));
+});
+
 test("requires explicit Neon endpoint and database pins without logging credentials", () => {
   const r = requireExpectedSchemaAuditTarget(valid);
   assert.equal(r.expectedDatabaseName, "neondb");

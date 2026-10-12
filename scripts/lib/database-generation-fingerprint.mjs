@@ -13,12 +13,16 @@ function publicBaseTableFlag(table, alias) {
   return `  EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='${table}' AND c.relkind IN ('r','p')) AS "${alias}",`;
 }
 
+function publicIdType(table, alias) {
+  return `  (SELECT pg_catalog.format_type(a.atttypid,a.atttypmod) FROM pg_catalog.pg_attribute a JOIN pg_catalog.pg_class c ON c.oid=a.attrelid JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname='${table}' AND c.relkind IN ('r','p') AND a.attname='id' AND a.attnum>0 AND NOT a.attisdropped) AS "${alias}"`;
+}
+
 export const DATABASE_GENERATION_FINGERPRINT_SQL = [
   "SELECT",
   "  current_database() AS \"databaseName\",",
   "  current_setting('server_version_num')::integer AS \"serverVersionNum\",",
-  "  (SELECT count(*)::integer FROM information_schema.tables",
-  "   WHERE table_schema = 'public' AND table_type = 'BASE TABLE') AS \"publicTableCount\",",
+  "  (SELECT count(*)::integer FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace",
+  "   WHERE n.nspname = 'public' AND c.relkind IN ('r','p')) AS \"publicTableCount\",",
   publicBaseTableFlag("clients", "hasLegacyClients"),
   publicBaseTableFlag("organizations", "hasOrganizations"),
   publicBaseTableFlag("payroll_lines", "hasLegacyPayrollLines"),
@@ -36,12 +40,9 @@ export const DATABASE_GENERATION_FINGERPRINT_SQL = [
   publicBaseTableFlag("positions", "hasPositions"),
   publicBaseTableFlag("position_assignments", "hasPositionAssignments"),
   publicBaseTableFlag("worker_employment_events", "hasWorkerEmploymentEvents"),
-  "  (SELECT data_type FROM information_schema.columns",
-  "   WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'id') AS \"usersIdType\",",
-  "  (SELECT data_type FROM information_schema.columns",
-  "   WHERE table_schema = 'public' AND table_name = 'employees' AND column_name = 'id') AS \"employeesIdType\",",
-  "  (SELECT data_type FROM information_schema.columns",
-  "   WHERE table_schema = 'public' AND table_name = 'payroll_runs' AND column_name = 'id') AS \"payrollRunsIdType\"",
+  publicIdType("users", "usersIdType") + ",",
+  publicIdType("employees", "employeesIdType") + ",",
+  publicIdType("payroll_runs", "payrollRunsIdType"),
 ].join("\n");
 
 const isUuid = (type) => type === "uuid";
