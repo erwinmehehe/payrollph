@@ -43,3 +43,5 @@ Do not enable either flag without independent two-tenant, large-population and 3
 ## Conservative pilot policy and source integrity
 
 A disabled or zero-valued legacy guardrail does not disable the solver's separate 660-minute rest, six-consecutive-day, and 2,880-minute rolling-week pilot safeguards. An existing stricter configured setting is honored. The baseline and proposed schedules are evaluated with the same effective blocking policy, so pre-existing violations cannot be misclassified as introduced by this one draft. Unassigned schedule dates, invalid rest-day configuration and previously approved day-off overrides are never silently replaced by a recommendation.
+
+The pilot is currently limited to worksites explicitly configured for `Asia/Manila`. Invalid recorded shift durations fail the full preview rather than quietly reducing fairness totals. Consecutive-day failures have an explicit unfilled reason instead of a generic blocker.
