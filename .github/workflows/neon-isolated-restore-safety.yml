@@ -1,0 +1,38 @@
+name: Neon Isolated Snapshot Restore Safety (Source Only)
+
+on:
+  pull_request:
+    paths:
+      - "scripts/lib/neon-isolated-restore-safety.mjs"
+      - "tests/neon-isolated-restore-safety.test.mjs"
+      - "docs/engineering/neon-restore-no-promote-runbook.md"
+      - ".github/workflows/neon-isolated-restore-safety.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/lib/neon-isolated-restore-safety.mjs"
+      - "tests/neon-isolated-restore-safety.test.mjs"
+      - ".github/workflows/neon-isolated-restore-safety.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  no-promote:
+    name: Assert no snapshot restore can promote or repoint production
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact PR source without persisted credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Syntax and non-promoting restore tests (no Neon credentials)
+        run: |
+          node --check scripts/lib/neon-isolated-restore-safety.mjs
+          node --check tests/neon-isolated-restore-safety.test.mjs
+          node --test tests/neon-isolated-restore-safety.test.mjs

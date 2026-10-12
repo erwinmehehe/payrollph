@@ -5914,3 +5914,44 @@ export const workforceDemandStaffingPolicyEvents = pgTable(
     check("wfm_staffing_policy_event_hash_check", sql`${t.policySha256} ~ '^[a-f0-9]{64}$' and ${t.receiptSha256} ~ '^[a-f0-9]{64}$'`),
   ],
 );
+
+/**
+ * A survey stores aggregate counters only. Participation is recorded separately
+ * with no rating, and no individual response rows exist to link to an employee.
+ * Results are disclosed only after the survey is closed with >=5 participants.
+ */
+export const engagementSurveys = pgTable(
+  "engagement_surveys",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    question: varchar("question", { length: 240 }).notNull(),
+    status: varchar("status", { length: 12 }).notNull().default("open"),
+    responseCount: integer("response_count").notNull().default(0),
+    scoreSum: integer("score_sum").notNull().default(0),
+    createdByUserId: integer("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp("closed_at", { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("engagement_surveys_one_open_per_org").on(table.organizationId).where(sql`${table.status} = 'open'`),
+    index("engagement_surveys_org_status_idx").on(table.organizationId, table.status),
+    check("engagement_surveys_status_check", sql`${table.status} in ('open','closed')`),
+    check("engagement_surveys_aggregate_check", sql`${table.responseCount} >= 0 and ${table.scoreSum} >= ${table.responseCount} and ${table.scoreSum} <= ${table.responseCount} * 5`),
+  ],
+);
+
+export const engagementSurveyParticipants = pgTable(
+  "engagement_survey_participants",
+  {
+    id: serial("id").primaryKey(),
+    organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+    surveyId: integer("survey_id").notNull().references(() => engagementSurveys.id, { onDelete: "cascade" }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+    // No rating or timestamp: participation cannot identify an answer.
+  },
+  (table) => [
+    uniqueIndex("engagement_survey_participants_one_per_worker").on(table.surveyId, table.employeeId),
+    index("engagement_survey_participants_org_idx").on(table.organizationId, table.surveyId),
+  ],
+);
