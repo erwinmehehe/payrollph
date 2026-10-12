@@ -3026,6 +3026,29 @@ export const jobApplicants = pgTable("job_applicants", {
     .where(sql`${table.hiredEmployeeId} is not null`),
 ]);
 
+/**
+ * A-2 applicant privacy: independent additive table so default-off recruiting
+ * does not query columns absent from the live job_applicants schema.
+ * The release migration also installs a composite employer/candidate FK.
+ */
+export const applicantPrivacyEvidence = pgTable("applicant_privacy_evidence", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  applicantId: integer("applicant_id").notNull().references(() => jobApplicants.id, { onDelete: "cascade" }),
+  legalBasis: varchar("legal_basis", { length: 32 }).notNull(),
+  privacyNoticeVersion: varchar("privacy_notice_version", { length: 64 }).notNull(),
+  consentCapturedAt: timestamp("consent_captured_at", { withTimezone: true }).notNull(),
+  sourceEvidenceReference: varchar("source_evidence_reference", { length: 200 }).notNull(),
+  rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+  legalHold: boolean("legal_hold").notNull().default(false),
+  purgedAt: timestamp("purged_at", { withTimezone: true }),
+  purgedByUserId: integer("purged_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("applicant_privacy_org_candidate_unique").on(table.organizationId, table.applicantId),
+  index("applicant_privacy_rejection_due_idx").on(table.organizationId, table.rejectedAt, table.purgedAt),
+]);
+
 export const separationRecords = pgTable("separation_records", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
