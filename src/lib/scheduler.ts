@@ -7,7 +7,7 @@ import { schedulerState } from "@/db/schema";
 import { drainWebhookRetries } from "@/lib/webhooks";
 import { drainOutboxRetries } from "@/lib/mailer";
 import { purgeExpiredOperationalData } from "@/lib/data-retention";
-import { enhancedPunchEnabled } from "@/lib/workforce-punch-evidence";
+import { enhancedPunchEnabled, drainExpiredPunchPhotoBatches } from "@/lib/workforce-punch-evidence";
 import { purgeExpiredPunchPhotos } from "@/lib/workforce-punch-retention";
 import { drainMarketingLeadNotifications } from "@/lib/marketing-leads";
 import { runScheduledStatutoryRemittanceSync } from "@/lib/statutory-remittance-actions";
@@ -116,10 +116,24 @@ async function runScheduledJobs(
     || now.getTime() - retentionState.lastRunAt.getTime() >= 24 * 60 * 60 * 1000;
   if (retentionDue) await assertLeaseOwnership();
   const retention = retentionDue ? await purgeExpiredOperationalData(now.getTime()) : null;
-  // Retention shares the fenced scheduler lease and does not touch attendance/payroll.
-  if (retentionDue && enhancedPunchEnabled()) {
+  // Retention must continue after selfie collection is disabled; otherwise
+  // switching the feature flag OFF strands existing encrypted evidence.
+  // Older databases without the optional migration should not fail cleanup.
+  let punchPhotoPurge: { purged: number; batches: number } | null = null;
+  if (retentionDue) {
     await assertLeaseOwnership();
-    await purgeExpiredPunchPhotos(now);
+    const presence = await db.execute<{ photo_table_exists: boolean }>(
+      sql`SELECT to_regclass('public.workforce_punch_photo_evidence') IS NOT NULL AS photo_table_exists`,
+    );
+    const hasPhotoTable = presence.rows[0]?.photo_table_exists === true;
+    if (!hasPhotoTable && enhancedPunchEnabled()) {
+      throw Error("Enhanced punch collection enabled before punch evidence migration.");
+    }
+    if (hasPhotoTable) {
+      punchPhotoPurge = await drainExpiredPunchPhotoBatches(
+        () => purgeExpiredPunchPhotos(now, 250), assertLeaseOwnership,
+      );
+    }
   }
   await assertLeaseOwnership();
   const statutoryRemittanceActions = await runScheduledStatutoryRemittanceSync({
@@ -344,7 +358,7 @@ async function runScheduledJobs(
 
   if (retentionDue) {
     await assertLeaseOwnership();
-    const retentionPayload = { at: now.toISOString(), deleted: retention };
+    const retentionPayload = { at: now.toISOString(), deleted: retention, punchPhotos: punchPhotoPurge };
     if (retentionState) {
       await db.update(schedulerState).set({
         lastRunAt: now,
@@ -365,6 +379,7 @@ async function runScheduledJobs(
     mailRetries: mailRetried.length,
     marketingLeadNotifications: marketingLeadResults.filter((item) => item.notified).length,
     retentionPurge: retention,
+    punchPhotoPurge,
     statutoryRemittanceActions,
     contributionCaseEscalations,
     automationResumes,

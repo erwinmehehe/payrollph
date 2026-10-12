@@ -75,3 +75,9 @@ After all gates pass, release owners may separately authorize ordered migration,
 environment secrets, scheduler monitoring, worksite policy enablement and a
 limited pilot. Merge/source approval by itself is **not** permission to enable
 selfie attendance or transmit payout instructions.
+
+## Retention safety correction (source-only)
+
+Purge is no longer conditional on the selfie collection flag: when the optional evidence table is present, the fenced central scheduler checks due encrypted records even if `WFM_PUNCH_EVIDENCE_ENABLED=false`. Without the table and with collection disabled, existing databases continue unaffected. When collection is enabled but the table is missing, the scheduled job fails closed. Bounded 250-photo batches are repeatedly drained; an exhausted limit fails the job instead of falsely acknowledging retention completion. The run records how many encrypted photos were purged, without employee identifiers.
+
+**Operational gate remains:** The central scheduler and its external trigger/health monitoring must actually be deployed and running. Disabling the central scheduler is not a retention plan; require a separately authorized manual/alternate purge path and alerting if paused. Verify backup copy deletion/restore expiry, authorized legal holds, a large backlog, and key rotation with the DPO. No production table, schedule, provider or selfie feature is enabled by this code patch.

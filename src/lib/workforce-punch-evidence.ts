@@ -57,6 +57,32 @@ export function impossibleTravel(previous: LocationSample | null, next: Location
   const km = 6371.0088 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(Math.max(0, 1 - a)));
   return km > 10 && (hours <= 0 || km / hours > maxKph);
 }
+/** Drain a bounded number of photo batches under the scheduler lease.
+ * If the limit is exhausted, fail the scheduled run so operations can retry
+ * and alert instead of recording a false 90-day purge success.
+ */
+export async function drainExpiredPunchPhotoBatches(
+  nextBatch: () => Promise<{ purged: number; remainingPossiblyDue: boolean }>,
+  assertLease: () => Promise<void>,
+  maxBatches = 20,
+): Promise<{ purged: number; batches: number }> {
+  if (!Number.isSafeInteger(maxBatches) || maxBatches < 1 || maxBatches > 20) {
+    throw Error("Invalid photo retention batch bound.");
+  }
+  let purged = 0;
+  for (let batch = 1; batch <= maxBatches; batch++) {
+    await assertLease();
+    const result = await nextBatch();
+    if (!Number.isSafeInteger(result.purged) || result.purged < 0 ||
+      typeof result.remainingPossiblyDue !== "boolean") {
+      throw Error("Invalid photo retention batch result.");
+    }
+    purged += result.purged;
+    if (!result.remainingPossiblyDue) return { purged, batches: batch };
+  }
+  throw Error("WFM punch photo retention backlog exceeded bounded purge; operator review required.");
+}
+
 export function photoExpiry(receivedAt: Date, days = PUNCH_PHOTO_RETENTION_DAYS) {
   return new Date(receivedAt.getTime() + days * 86_400_000);
 }

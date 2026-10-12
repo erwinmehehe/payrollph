@@ -3,7 +3,7 @@ import test from "node:test";
 import {readFileSync} from "node:fs";
 import {randomBytes} from "node:crypto";
 import {criticalReleaseFlagEnabled} from "../src/lib/critical-release-flags";
-import {photoCaptureDecision,evaluatePunchTiming,photosDueForPurge,photoExpiry,impossibleTravel,validPunchUuid,validDevicePunchTimestamp} from "../src/lib/workforce-punch-evidence";
+import {photoCaptureDecision,evaluatePunchTiming,photosDueForPurge,photoExpiry,impossibleTravel,validPunchUuid,validDevicePunchTimestamp,drainExpiredPunchPhotoBatches} from "../src/lib/workforce-punch-evidence";
 import {encryptPunchPhoto,decryptPunchPhoto,stripJpegMetadata} from "../src/lib/workforce-punch-photo-crypto";
 import {resolveWebBundyPunchAnchor} from "../src/lib/web-bundy-overnight-anchor";
 
@@ -176,4 +176,27 @@ test("cutoff changes and reviewed punches serialize before any paid attendance w
   assert.match(locksRoute,/await tx\.update\(workforceAttendancePeriodLocks\)/);
   assert.match(evidenceRoute,/claimedEmployeeId/);
   assert.match(evidenceRoute,/Number\(claimedEmployeeId\)!==employee!\.id/);
+});
+
+test("scheduled photo purge drains all due batches even when selfie collection is OFF",async()=>{
+  assert.equal(criticalReleaseFlagEnabled("workforcePunchEvidence",{
+    WFM_PUNCH_EVIDENCE_ENABLED:"false",
+  }),false);
+  let leaseChecks=0,called=0;
+  const result=await drainExpiredPunchPhotoBatches(async()=>{
+    called++;
+    return {purged:called===1?250:17,remainingPossiblyDue:called===1};
+  },async()=>{leaseChecks++;},5);
+  assert.deepEqual(result,{purged:267,batches:2});
+  assert.equal(leaseChecks,2);
+});
+test("photo purge refuses to certify success if backlog exceeds bounded capacity",async()=>{
+  let leaseChecks=0;
+  await assert.rejects(drainExpiredPunchPhotoBatches(async()=>({
+    purged:250,remainingPossiblyDue:true,
+  }),async()=>{leaseChecks++;},2),/backlog exceeded/);
+  assert.equal(leaseChecks,2);
+  await assert.rejects(drainExpiredPunchPhotoBatches(async()=>({
+    purged:-1,remainingPossiblyDue:false,
+  }),async()=>undefined,1),/Invalid photo retention batch result/);
 });
