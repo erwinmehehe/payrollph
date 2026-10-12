@@ -194,7 +194,7 @@ test("private pilot readiness requires authenticated operator token and never ex
 
 
 test("optional operator endpoints stay protected without blocking a controlled pilot", () => {
-  const readiness = read("src/app/api/readiness/route.ts");
+  const readiness = (read("src/app/api/readiness/route.ts") + read("src/lib/operational-readiness.ts"));
   const jobs = read("src/app/api/jobs/tick/route.ts");
   const preflight = read("scripts/security-preflight.ts");
 
@@ -254,7 +254,7 @@ test("production pilot sign-off verifies independent figures server-side instead
 
 
 test("a no-money payroll pilot cannot silently clear the broad-launch production gate", () => {
-  const readiness = read("src/app/api/readiness/route.ts");
+  const readiness = (read("src/app/api/readiness/route.ts") + read("src/lib/operational-readiness.ts"));
   const signoff = read("src/app/api/payroll-runs/[id]/pilot-signoff/route.ts");
   const card = read("src/components/workspace/production-pilot-signoff.tsx");
 

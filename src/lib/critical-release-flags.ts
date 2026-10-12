@@ -6,6 +6,10 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  publicIntakeProof: {
+    env: "PUBLIC_INTAKE_PROOF_ENABLED", owner: "Security",
+    risk: "Public enquiry and signup anti-automation", approval: "Proof replay, limits and accessible intake acceptance",
+  },
   operationalStatusDetails: {
     env: "OPERATIONAL_STATUS_DETAILS_ENABLED", owner: "Security",
     risk: "Authenticated operational status details", approval: "Endpoint visibility acceptance",
