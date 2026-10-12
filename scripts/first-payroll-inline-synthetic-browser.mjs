@@ -102,7 +102,7 @@ try {
           offenders: [...document.querySelectorAll("body *")].map(el => {
             const box = el.getBoundingClientRect();
             const label = el.tagName.toLowerCase() + (typeof el.className === "string"
-              ? "." + el.className.trim().split(/\\s+/).slice(0, 3).join(".") : "");
+              ? "." + el.className.trim().split(/\s+/).slice(0, 3).join(".") : "");
             return { label: label.slice(0, 120), left: Math.round(box.left),
               right: Math.round(box.right), width: Math.round(box.width) };
           }).filter(el => el.right > innerWidth + 2 || el.left < -2)
