@@ -1,12 +1,19 @@
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { reconcileMigrationReceipts } from "./migration-receipt-audit.mjs";
 import { assertModernSchemaLineage } from "./schema-lineage-preflight.mjs";
 
 const MIGRATION_PATH = /^drizzle\/([0-9]{4})_[a-z0-9][a-z0-9_-]*\.sql$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-const DISALLOWED_SQL = /\b(?:BEGIN|COMMIT|ROLLBACK|SAVEPOINT|SET|RESET|DISCARD|VACUUM|CREATE\s+DATABASE|DROP\s+DATABASE|ALTER\s+SYSTEM|CREATE\s+INDEX\s+CONCURRENTLY|REINDEX\s+CONCURRENTLY)\b/i;
+// Match top-level SQL statement *starts*, not words within legitimate DML.
+// UPDATE ... SET is valid transactional SQL; a standalone SET is not.
+const DISALLOWED_STATEMENT_START = /^(?:ABORT|BEGIN|COMMIT|END|ROLLBACK|START\s+TRANSACTION|SAVEPOINT|RELEASE\s+SAVEPOINT|SET|RESET|DISCARD|VACUUM|REINDEX|CREATE\s+DATABASE|DROP\s+DATABASE|ALTER\s+SYSTEM|CREATE\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY|DROP\s+INDEX\s+CONCURRENTLY|REFRESH\s+MATERIALIZED\s+VIEW\s+CONCURRENTLY|PREPARE\s+TRANSACTION)\b/i;
+
+function containsSqlTransactionEscape(content) {
+  return sqlExecutableTokens(content).split(";").some(statement =>
+    DISALLOWED_STATEMENT_START.test(statement.trim()));
+}
 
 /** SQL token view outside strings, dollar-quoted function bodies and comments.
  * Any unclosed quote/comment aborts the migration before DB access.
@@ -167,12 +174,25 @@ export function loadReviewedSql(directory, file) {
   }
   const filename = file.path.slice("drizzle/".length);
   const path = join(directory, filename);
-  if (!lstatSync(path).isFile()) refuse("SQL_NOT_REGULAR_FILE");
-  const bytes = readFileSync(path);
+  // Open one O_NOFOLLOW descriptor and read from that same descriptor. This
+  // avoids the lstat(path) / readFileSync(path) TOCTOU and rejects symlinks.
+  // A race replacing the pathname after open cannot change the pinned bytes.
+  if (!Number.isInteger(constants.O_NOFOLLOW) || constants.O_NOFOLLOW === 0) {
+    refuse("SQL_NOFOLLOW_REQUIRED");
+  }
+  let descriptor;
+  let bytes;
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    if (!fstatSync(descriptor).isFile()) refuse("SQL_NOT_REGULAR_FILE");
+    bytes = readFileSync(descriptor);
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
   if (createHash("sha256").update(bytes).digest("hex") !== file.sha256) refuse("SQL_CHANGED_AFTER_PLAN");
   const content = bytes.toString("utf8");
   if (!content.trim() || content.includes("\0") || content.includes("\uFFFD") ||
-      /(?:^|\n)\s*\\/.test(content) || DISALLOWED_SQL.test(sqlExecutableTokens(content)) ||
+      /(?:^|\n)\s*\\/.test(content) || containsSqlTransactionEscape(content) ||
       /\bpayrollph_(?:schema_migrations|migration_cutover|release_migration_receipts)\b/i.test(content)) {
     refuse("SQL_REQUIRES_NONTRANSACTIONAL_OR_MANUAL_REVIEW");
   }

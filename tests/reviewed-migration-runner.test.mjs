@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, symlinkSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -312,5 +312,51 @@ test("P0-4 live Neon legacy lineage cannot be treated as a numbered migration ba
     assert.ok(!db.calls.some(sql => sql.startsWith("INSERT INTO")));
     assert.equal(db.state.applied.length, 0);
     assert.equal(db.calls.at(-1), "ROLLBACK");
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+
+test("normal UPDATE ... SET is accepted as transactional DML but session SET is blocked", () => {
+  const f = fixture();
+  try {
+    const path = join(f.directory, "0022_forward.sql");
+    const statements = [
+      "UPDATE payroll_entries SET status = 'draft' WHERE id = 1;",
+      "WITH x AS (SELECT 1) UPDATE payroll_entries SET status = 'draft' WHERE id = 1;",
+      "CREATE OR REPLACE FUNCTION example() RETURNS void LANGUAGE plpgsql AS $$ BEGIN UPDATE x SET y=2; END $$;",
+    ];
+    for (const sql of statements) {
+      writeFileSync(path, sql + "\n");
+      const source = inventoryMigrationSources(f.directory).files.find(file => file.path === f.target.path);
+      assert.equal(loadReviewedSql(f.directory, source), sql + "\n");
+    }
+    for (const sql of [
+      "SET search_path = public;",
+      "UPDATE payroll_entries SET status = 'draft'; COMMIT;",
+      "START TRANSACTION; UPDATE payroll_entries SET status = 'draft';",
+      "REINDEX TABLE example;",
+      "DROP INDEX CONCURRENTLY example;",
+    ]) {
+      writeFileSync(path, sql + "\n");
+      const source = inventoryMigrationSources(f.directory).files.find(file => file.path === f.target.path);
+      assert.throws(() => loadReviewedSql(f.directory, source),
+        /SQL_REQUIRES_NONTRANSACTIONAL_OR_MANUAL_REVIEW/);
+    }
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("reviewed SQL file reader refuses a symlink even if it points to a valid file", () => {
+  const f = fixture();
+  try {
+    const path = join(f.directory, "0022_forward.sql");
+    // Open a link to another source file, which would have passed a later
+    // read if an attacker replaced the path between lstat and read.
+    unlinkSync(path);
+    symlinkSync(join(f.directory, "0023_followup.sql"), path);
+    const candidate = {
+      path: "drizzle/0022_forward.sql",
+      sha256: f.inventory.files.find(x => x.path === "drizzle/0023_followup.sql").sha256,
+    };
+    assert.throws(() => loadReviewedSql(f.directory, candidate));
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
