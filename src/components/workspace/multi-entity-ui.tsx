@@ -328,7 +328,7 @@ export function EntityTransferInbox({ context, organizationId, onRefresh }: {
     try {
       const response = await fetch("/api/multi-entity/transfers", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action }),
+        body: JSON.stringify({ organizationId, id, action }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Decision failed.");
