@@ -112,7 +112,23 @@ async function main() {
     ...demo, requestType: "trial-access",
     email: trialEmail, intakeProof: await obtain(base, trialEmail),
   };
-  assert.equal((await post(base, "/api/demo-requests", trial)).status, 201, "trial intake must persist");
+  // The five prior same-IP demo requests intentionally exhaust the real
+  // hourly bucket. Verify the legitimate limiter rather than letting it
+  // masquerade as a failure of a later, independent trial-acceptance case.
+  assert.equal((await post(base, "/api/demo-requests", trial)).status, 429,
+    "sixth same-IP request must be limited even with a valid proof");
+  assert.equal(await leadCount(trialEmail), 0, "rate-limited lead must not persist");
+  // Disposable PG16 fixture only: clear this known synthetic limiter bucket.
+  // Never attempt this reset in staging, production, or against Neon.
+  const testLimiter = "demo-request:unknown";
+  const fixtureHit = await pool.query<{ hits: number }>(
+    "SELECT hits FROM rate_limit_hits WHERE bucket_key = $1 ORDER BY window_start DESC LIMIT 1",
+    [testLimiter],
+  );
+  assert.ok(Number(fixtureHit.rows[0]?.hits) >= 6, "rate limiter was truly exhausted");
+  await pool.query("DELETE FROM rate_limit_hits WHERE bucket_key = $1", [testLimiter]);
+  assert.equal((await post(base, "/api/demo-requests", trial)).status, 201,
+    "trial intake must persist after isolated fixture-rate reset");
   assert.equal(await leadCount(trialEmail), 1);
 
   const quoteEmail = mail("quote");
