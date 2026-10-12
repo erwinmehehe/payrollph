@@ -208,9 +208,15 @@ export function loadReviewedSql(directory, file) {
 export async function runReviewedMigrationOnClient({
   client, inventory, sourceDirectory = "drizzle", mode, requestedPath,
   expectedSha256, expectedDatabaseName, operator = "", approvalRef = "",
-  allowElevatedRoleForIsolatedTest = false,
+  allowElevatedRoleForIsolatedTest = false, expectedNeonIdentity = null,
 }) {
   if (mode !== "plan" && mode !== "apply") refuse("MODE_INVALID");
+  if (!allowElevatedRoleForIsolatedTest &&
+      (!/^([a-z0-9-]{1,60})$/.test(expectedNeonIdentity?.projectId ?? "") ||
+       !/^br-[a-z0-9-]{6,60}$/.test(expectedNeonIdentity?.branchId ?? "") ||
+       !/^ep-[a-z0-9-]{6,60}$/.test(expectedNeonIdentity?.endpointId ?? ""))) {
+    refuse("NEON_TARGET_PIN_REQUIRED");
+  }
   if (!/^[A-Za-z0-9_]{1,63}$/.test(expectedDatabaseName ?? "")) refuse("DATABASE_NAME_INVALID");
   if (mode === "apply" && (!evidence(operator) || !evidence(approvalRef))) {
     refuse("APPLY_EVIDENCE_MISSING");
@@ -229,6 +235,9 @@ export async function runReviewedMigrationOnClient({
     }
     const identity = (await client.query(
       "SELECT current_database() AS \"databaseName\", " +
+      "current_setting('neon.project_id', true) AS \"neonProjectId\", " +
+      "current_setting('neon.branch_id', true) AS \"neonBranchId\", " +
+      "current_setting('neon.endpoint_id', true) AS \"neonEndpointId\", " +
       "current_setting('transaction_read_only') = 'on' AS \"readOnly\", " +
       "pg_catalog.pg_is_in_recovery() AS \"inRecovery\", " +
       "EXISTS (SELECT 1 FROM pg_catalog.pg_roles r WHERE r.rolname = current_user AND " +
@@ -246,6 +255,10 @@ export async function runReviewedMigrationOnClient({
       "AS \"canReadSensitiveRows\""
     )).rows[0];
     if (identity?.databaseName !== expectedDatabaseName ||
+        (!allowElevatedRoleForIsolatedTest &&
+          (identity.neonProjectId !== expectedNeonIdentity.projectId ||
+           identity.neonBranchId !== expectedNeonIdentity.branchId ||
+           identity.neonEndpointId !== expectedNeonIdentity.endpointId)) ||
         identity.readOnly !== (mode === "plan") ||
         (mode === "apply" && identity.inRecovery) ||
         (identity.elevated && !allowElevatedRoleForIsolatedTest) ||

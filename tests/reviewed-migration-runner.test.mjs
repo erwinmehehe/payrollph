@@ -54,6 +54,12 @@ function recorded(file, extra = {}) {
     ...extra,
   };
 }
+const TEST_NEON_IDENTITY = Object.freeze({
+  projectId: "calm-wave-70219564",
+  branchId: "br-lucky-sound-b79i56jw",
+  endpointId: "ep-cool-hat-b7e7gpoo",
+});
+
 function fakeClient(f, opts = {}) {
   const calls = [];
   const state = { applied: [...(opts.applied ?? [])], throwDuringSql: Boolean(opts.throwDuringSql) };
@@ -63,6 +69,9 @@ function fakeClient(f, opts = {}) {
       calls.push(sql);
       if (sql.includes('AS "databaseName"')) return { rows: [{
         databaseName: "app_db",
+        neonProjectId: TEST_NEON_IDENTITY.projectId,
+        neonBranchId: TEST_NEON_IDENTITY.branchId,
+        neonEndpointId: TEST_NEON_IDENTITY.endpointId,
         readOnly: calls.some(line => line.includes("READ ONLY")),
         inRecovery: false,
         elevated: false,
@@ -187,7 +196,7 @@ test("plan uses READ ONLY/rollback and never executes SQL or inserts receipts", 
     const result = await runReviewedMigrationOnClient({
       client: db, inventory: f.inventory, sourceDirectory: f.directory,
       mode: "plan", requestedPath: f.target.path, expectedSha256: f.target.sha256,
-      expectedDatabaseName: "app_db",
+      expectedDatabaseName: "app_db", expectedNeonIdentity: TEST_NEON_IDENTITY,
     });
     assert.equal(result.status, "ready");
     assert.equal(result.sqlApplied, false);
@@ -205,7 +214,7 @@ test("apply locks, records once, commits; reentry sees already applied and canno
     const args = {
       client: db, inventory: f.inventory, sourceDirectory: f.directory,
       mode: "apply", requestedPath: f.target.path, expectedSha256: f.target.sha256,
-      expectedDatabaseName: "app_db",
+      expectedDatabaseName: "app_db", expectedNeonIdentity: TEST_NEON_IDENTITY,
       operator: "reviewed-operator", approvalRef: "DBA-CHANGE-2026-001",
     };
     const first = await runReviewedMigrationOnClient(args);
@@ -227,7 +236,7 @@ test("SQL failure rolls back without writing an application receipt", async () =
     await assert.rejects(runReviewedMigrationOnClient({
       client: db, inventory: f.inventory, sourceDirectory: f.directory,
       mode: "apply", requestedPath: f.target.path, expectedSha256: f.target.sha256,
-      expectedDatabaseName: "app_db",
+      expectedDatabaseName: "app_db", expectedNeonIdentity: TEST_NEON_IDENTITY,
       operator: "reviewed-operator", approvalRef: "DBA-CHANGE-2026-001",
     }), /synthetic statement failure/);
     assert.equal(db.state.applied.length, 0);
@@ -265,7 +274,7 @@ test("plan rejects overprivileged audit accounts and mismatched target databases
     const base = {
       inventory: f.inventory, sourceDirectory: f.directory,
       mode: "plan", requestedPath: f.target.path,
-      expectedSha256: f.target.sha256, expectedDatabaseName: "app_db",
+      expectedSha256: f.target.sha256, expectedDatabaseName: "app_db", expectedNeonIdentity: TEST_NEON_IDENTITY,
     };
     for (const identity of [
       { hasWritePrivileges: true },
@@ -291,7 +300,7 @@ test("missing uniqueness or primary-key constraints block even a read-only plan"
         client: fakeClient(f, { constraints }),
         inventory: f.inventory, sourceDirectory: f.directory,
         mode: "plan", requestedPath: f.target.path,
-        expectedSha256: f.target.sha256, expectedDatabaseName: "app_db",
+        expectedSha256: f.target.sha256, expectedDatabaseName: "app_db", expectedNeonIdentity: TEST_NEON_IDENTITY,
       }), /LEDGER_CONSTRAINTS_MISSING/);
     }
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
@@ -304,7 +313,7 @@ test("P0-4 live Neon legacy lineage cannot be treated as a numbered migration ba
     await assert.rejects(() => runReviewedMigrationOnClient({
       client: db, inventory: f.inventory, sourceDirectory: f.directory,
       mode: "apply", requestedPath: f.target.path, expectedSha256: f.target.sha256,
-      expectedDatabaseName: "app_db", operator: "reviewed-operator",
+      expectedDatabaseName: "app_db", expectedNeonIdentity: TEST_NEON_IDENTITY, operator: "reviewed-operator",
       approvalRef: "DBA-CHANGE-2026-001",
     }), /REVIEWED_MIGRATION_LEGACY_SCHEMA_INCOMPATIBLE/);
     assert.ok(db.calls.some(sql => sql.includes('AS "matchesExpectedType"')),
@@ -358,5 +367,34 @@ test("reviewed SQL file reader refuses a symlink even if it points to a valid fi
       sha256: f.inventory.files.find(x => x.path === "drizzle/0023_followup.sql").sha256,
     };
     assert.throws(() => loadReviewedSql(f.directory, candidate));
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+
+test("wrong Neon project, branch or endpoint is rejected before inspecting migration ledger", async () => {
+  const f = fixture();
+  try {
+    const inputs = {
+      inventory: f.inventory, sourceDirectory: f.directory,
+      mode: "apply", requestedPath: f.target.path, expectedSha256: f.target.sha256,
+      expectedDatabaseName: "app_db", expectedNeonIdentity: TEST_NEON_IDENTITY,
+      operator: "synthetic-operator", approvalRef: "SYNTHETIC-CHANGE-001",
+    };
+    for (const change of [
+      { neonProjectId: "wrong-project" },
+      { neonBranchId: "br-snapshot-test" },
+      { neonEndpointId: "ep-snapshot-endpoint" },
+      { neonBranchId: null },
+    ]) {
+      const fake = fakeClient(f, { identity: change });
+      await assert.rejects(runReviewedMigrationOnClient({ ...inputs, client: fake }),
+        /DATABASE_ROLE_OR_IDENTITY_REJECTED/);
+      assert.equal(fake.state.applied.length, 0);
+      assert.equal(fake.calls.at(-1), "ROLLBACK");
+      assert.equal(fake.calls.some(sql => sql.includes("FROM public.payrollph_migration_cutover")), false);
+    }
+    await assert.rejects(runReviewedMigrationOnClient({
+      ...inputs, client: fakeClient(f), expectedNeonIdentity: null,
+    }), /NEON_TARGET_PIN_REQUIRED/);
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });

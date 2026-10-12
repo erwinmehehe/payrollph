@@ -54,6 +54,9 @@ jobs:
     env:
       REVIEWED_SHA: ${{ inputs.reviewed_sha }}
       EXPECTED_PRODUCTION_DATABASE_NAME: ${{ inputs.expected_database_name }}
+      EXPECTED_PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
+      EXPECTED_PRODUCTION_NEON_BRANCH_ID: ${{ vars.PRODUCTION_NEON_BRANCH_ID }}
+      EXPECTED_PRODUCTION_NEON_ENDPOINT_ID: ${{ vars.PRODUCTION_NEON_ENDPOINT_ID }}
       MIGRATION_FILE: ${{ inputs.migration_file }}
       MIGRATION_SHA256: ${{ inputs.migration_sha256 }}
       MIGRATION_APPROVAL_REF: ${{ inputs.approval_ref }}
@@ -65,6 +68,13 @@ jobs:
           set -euo pipefail
           if [[ ! "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]] || [ "$REVIEWED_SHA" != "$GITHUB_SHA" ]; then
             echo 'Expected reviewed main SHA does not match this workflow commit.'
+            exit 1
+          fi
+          # These are protected production environment variables, not PR inputs.
+          if [[ ! "$EXPECTED_PRODUCTION_NEON_PROJECT_ID" =~ ^[a-z0-9-]{1,60}$ ]] ||
+             [[ ! "$EXPECTED_PRODUCTION_NEON_BRANCH_ID" =~ ^br-[a-z0-9-]{6,60}$ ]] ||
+             [[ ! "$EXPECTED_PRODUCTION_NEON_ENDPOINT_ID" =~ ^ep-[a-z0-9-]{6,60}$ ]]; then
+            echo 'Verified Neon project/branch/endpoint identity variables are missing.'
             exit 1
           fi
           if [[ ! "$EXPECTED_PRODUCTION_DATABASE_NAME" =~ ^[A-Za-z0-9_]{1,63}$ ]]; then
