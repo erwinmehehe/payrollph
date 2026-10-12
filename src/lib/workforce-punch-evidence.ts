@@ -5,6 +5,10 @@ export const PUNCH_PHOTO_RETENTION_DAYS = 90;
 export const PUNCH_MAX_SKEW_MINUTES = 10;
 export const PUNCH_MAX_IMAGE_BYTES = 512 * 1024;
 export const PUNCH_ACTIONS = ["clock_in", "break_start", "break_end", "clock_out"] as const;
+/** Strict RFC 4122 UUID shape used by browser crypto.randomUUID and future v7 clients. */
+export function validPunchUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
 export type PunchAction = typeof PUNCH_ACTIONS[number];
 export type PhotoMode = "off" | "optional" | "required";
 export type PunchFlag = "offline-synced" | "clock-skew" | "shared-device" | "impossible-travel" | "photo-missing" | "consent-declined" | "time-invalid";

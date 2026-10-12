@@ -8,7 +8,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { attendanceMutationLock,loadActiveAttendanceLocks } from "@/lib/workforce-attendance-lock";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import { reconcileAttendanceExceptionEvents } from "@/lib/workforce-attendance-exception-events";
-import { enhancedPunchEnabled } from "@/lib/workforce-punch-evidence";
+import { enhancedPunchEnabled, validPunchUuid } from "@/lib/workforce-punch-evidence";
 import { decryptPunchPhoto } from "@/lib/workforce-punch-photo-crypto";
 export const dynamic="force-dynamic";
 export const runtime="nodejs";
@@ -37,6 +37,7 @@ export async function GET(request:Request) {
   const context=await reviewer(organizationId);if(context.denied)return context.denied;
   const photoId=params.get("photoId");
   if(photoId) {
+    if(!validPunchUuid(photoId))return new Response(null,{status:404,headers:privateHeaders});
     // Photo access is separately sensitive even for an authorized manager.
     // Apply fresh MFA and a distributed limit before retrieving/decrypting bytes.
     const mfa=requireSensitiveActionMfa(context.user!);if(mfa)return mfa;

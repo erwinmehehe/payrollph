@@ -12,7 +12,7 @@ import { authorizedGeofenceSites } from "@/lib/workforce-geofence-server";
 import { evaluateGeofenceFix, geofencePilotEnabledForOrganization } from "@/lib/workforce-geofence";
 import { encryptPunchPhoto, decryptPunchPhoto, stripJpegMetadata } from "@/lib/workforce-punch-photo-crypto";
 import { documentUploadsEnabled, scanUpload } from "@/lib/storage";
-import { enhancedPunchEnabled, photoCaptureDecision, photoExpiry, evaluatePunchTiming, impossibleTravel, resolvedWorksiteDecision, PUNCH_CONSENT_VERSION, PUNCH_MAX_IMAGE_BYTES, PUNCH_ACTIONS, type PhotoMode } from "@/lib/workforce-punch-evidence";
+import { enhancedPunchEnabled, photoCaptureDecision, photoExpiry, evaluatePunchTiming, impossibleTravel, resolvedWorksiteDecision, PUNCH_CONSENT_VERSION, PUNCH_MAX_IMAGE_BYTES, PUNCH_ACTIONS, validPunchUuid, type PhotoMode } from "@/lib/workforce-punch-evidence";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -105,7 +105,8 @@ export async function POST(request: Request) {
   if(rawSource!=="offline"&&rawSource!=="online")return respond({error:"Invalid punch source."},400);
   const source=rawSource;
   const deviceOccurredAt=String(form.get("deviceOccurredAt")??"");
-  if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(clientPunchId)||!/^[0-9a-f-]{36}$/i.test(deviceId))return respond({error:"Invalid device or punch identifier."},400);
+  if(!validPunchUuid(clientPunchId)||!validPunchUuid(deviceId))
+    return respond({error:"Invalid device or punch identifier."},400);
   const now=new Date();
   const flags=PUNCH_ACTIONS.includes(action as typeof PUNCH_ACTIONS[number])?evaluatePunchTiming(deviceOccurredAt,now,source):[];
   if(flags.includes("time-invalid")) return respond({error:"Device timestamp must be valid and within the allowed offline window. Ask HR for a manual review."},422);

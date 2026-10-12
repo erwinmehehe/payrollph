@@ -3,7 +3,7 @@ import test from "node:test";
 import {readFileSync} from "node:fs";
 import {randomBytes} from "node:crypto";
 import {criticalReleaseFlagEnabled} from "../src/lib/critical-release-flags";
-import {photoCaptureDecision,evaluatePunchTiming,photosDueForPurge,photoExpiry,impossibleTravel} from "../src/lib/workforce-punch-evidence";
+import {photoCaptureDecision,evaluatePunchTiming,photosDueForPurge,photoExpiry,impossibleTravel,validPunchUuid} from "../src/lib/workforce-punch-evidence";
 import {encryptPunchPhoto,decryptPunchPhoto,stripJpegMetadata} from "../src/lib/workforce-punch-photo-crypto";
 
 test("flag stays OFF unless explicitly enabled",()=>{
@@ -86,4 +86,14 @@ test("staging and approval source guards preserve transaction-level safety",()=>
   assert.match(review,/action:"wfm-photo-access"/);
   assert.match(review,/requireSensitiveActionMfa\(context\.user!\)/);
   assert.match(review,/Cross-Origin-Resource-Policy/);
+});
+
+test("UUID inputs are exact length and shape before touching varchar(36) columns",()=>{
+  assert.equal(validPunchUuid("00000000-0000-4000-8000-000000000001"),true);
+  assert.equal(validPunchUuid("01234567-89ab-7cde-8fab-0123456789ab"),true);
+  for(const bad of [
+    "", "-".repeat(36), "f".repeat(36), "00000000-0000-4000-8000-000000000001x",
+    "00000000-0000-4000-8000-000000000001".repeat(2),
+    "00000000-0000-0000-0000-000000000001",
+  ])assert.equal(validPunchUuid(bad),false,bad.slice(0,40));
 });
