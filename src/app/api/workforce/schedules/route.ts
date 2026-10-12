@@ -710,8 +710,10 @@ export async function POST(request: Request) {
 
     if (wfmRosterScaleRulesEnabled()) {
       try {
+        const baselineDays = await resolveEmployeeScheduleWindow({organizationId,employeeId,startDate:addDays(effectiveFrom,-7),endDate:addDays(effectiveFrom,13)});
         const check = await checkWfmRosterPublish({
           organizationId, employeeId, days: prospectiveRuleDays,
+          baselineRestDates: baselineDays.filter(day=>day.isRestDay).map(day=>day.date),
           targetDates: prospectiveRuleDays.filter(d => d.date >= effectiveFrom && (!effectiveUntil || d.date <= effectiveUntil)).map(d => d.date),
         });
         preflightRuleFindings = check.findings;
@@ -770,11 +772,14 @@ export async function POST(request: Request) {
         // Re-evaluate under the same employer advisory lock as the write.
         // Manager exceptions waive only configured scheduling policies, never
         // overlap, approved OT caps or payroll premiums.
+        const originalLockedDays = wfmRosterScaleRulesEnabled()
+          ? await resolveEmployeeScheduleWindow({organizationId,employeeId,startDate:addDays(effectiveFrom,-7),endDate:addDays(effectiveFrom,13),executor:tx}) : [];
         const lockedRuleResult = wfmRosterScaleRulesEnabled()
           ? await checkWfmRosterPublish({
               organizationId, employeeId, days: lockedWindow,
               targetDates: lockedWindow.filter(d => d.date >= effectiveFrom && (!effectiveUntil || d.date <= effectiveUntil)).map(d => d.date),
               executor: tx,
+              baselineRestDates: originalLockedDays.filter(day=>day.isRestDay).map(day=>day.date),
             })
           : null;
         const lockedRuleDecision = decideRosterRulePublish({
@@ -956,8 +961,10 @@ export async function POST(request: Request) {
 
     if (wfmRosterScaleRulesEnabled()) {
       try {
+        const baselineDays = await resolveEmployeeScheduleWindow({organizationId,employeeId,startDate:addDays(workDate,-7),endDate:addDays(workDate,7)});
         const check = await checkWfmRosterPublish({
           organizationId, employeeId, days: prospectiveRuleDays,
+          baselineRestDates: baselineDays.filter(day=>day.isRestDay).map(day=>day.date),
           targetDates: [workDate],
         });
         preflightRuleFindings = check.findings;
@@ -1015,11 +1022,14 @@ export async function POST(request: Request) {
         // Re-evaluate under the same employer advisory lock as the write.
         // Manager exceptions waive only configured scheduling policies, never
         // overlap, approved OT caps or payroll premiums.
+        const originalLockedDays = wfmRosterScaleRulesEnabled()
+          ? await resolveEmployeeScheduleWindow({organizationId,employeeId,startDate:addDays(workDate,-7),endDate:addDays(workDate,7),executor:tx}) : [];
         const lockedRuleResult = wfmRosterScaleRulesEnabled()
           ? await checkWfmRosterPublish({
               organizationId, employeeId, days: lockedWindow,
               targetDates: [workDate],
               executor: tx,
+              baselineRestDates: originalLockedDays.filter(day=>day.isRestDay).map(day=>day.date),
             })
           : null;
         const lockedRuleDecision = decideRosterRulePublish({
