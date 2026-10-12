@@ -1,0 +1,30 @@
+name: Manual Owner UAT Evidence Integrity (Offline)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/qa/manual-owner-uat.mjs"
+      - "tests/manual-owner-uat.test.mjs"
+      - "docs/qa/local-owner-wfm-journey-uat.md"
+      - ".github/workflows/manual-owner-uat-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Verify UAT evidence never auto-passes or claims external certification
+        run: node --test tests/manual-owner-uat.test.mjs
+      - name: Verify canonical scenario list can render with no DB or network setup
+        run: node scripts/qa/manual-owner-uat.mjs list
