@@ -16,7 +16,6 @@ jobs:
       PUBLIC_INTAKE_PROOF_ENABLED: "true"
       NEXT_PUBLIC_PUBLIC_INTAKE_PROOF_ENABLED: "true"
       DEMO_MODE: "false"
-      CORE_SCHEMA_COMPATIBILITY_MODE: "read-only"
       WORKER_TOKEN: ci-worker-token-00000000000000000000000000000000
       READINESS_TOKEN: ci-readiness-token-0000000000000000000000000000
       SETUP_TOKEN: ci-setup-token-0000000000000000000000000000000
@@ -53,8 +52,6 @@ jobs:
           echo "PII_ENCRYPTION_KEY=$pii" >> "$GITHUB_ENV"
           echo "PUBLIC_INTAKE_PROOF_SECRET=$proof" >> "$GITHUB_ENV"
       - run: npm run db:push
-        env:
-          CORE_SCHEMA_COMPATIBILITY_MODE: ""
       - run: npm run build
       - name: Start production build with isolated PostgreSQL
         run: |
