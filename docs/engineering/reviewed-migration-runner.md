@@ -46,3 +46,44 @@ The following are **still P0-4 blockers** after this source work: DBA adoption o
 ## Separate security and payroll gates
 
 Bank encryption is verified by the existing protected **Production Bank Encryption** workflow in dry-run and independently approved apply mode, including all four bank stores and current-key envelope verification. Do not access secrets or run bank backfills as part of the migration executor. Actual first-pilot signoff still requires scheduler liveness, independent payroll reconciliation, tax/agency acceptance, bank UAT and a witnessed restore. A clean migration plan or journal is not permission to release pay.
+
+
+## Required modern schema-lineage fingerprint (legacy Neon safety)
+
+The reviewed forward runner now executes a **catalog-only PostgreSQL
+fingerprint before reading any migration journal or applying SQL**.
+`scripts/lib/schema-lineage-preflight.mjs` requires contemporary
+`organizations`, `employees`, `payroll_runs`, `payroll_entries`,
+`payout_transfers`, and `provider_events` identifiers with expected
+`integer` columns. It does not inspect employees, payroll lines or
+bank-account values. Missing tables, UUID IDs, missing
+`organization_id`, ambiguous PostgreSQL catalog output or any unexpected
+column type fail with a non-sensitive release-blocking error.
+
+A historical `clients` / UUID / `client_id` application schema is **not**
+a database merely waiting for a few numbered `drizzle/` files: it is
+a distinct schema lineage. Do **not** adopt or invent historical
+migration receipts for it. Do not run `db:push` or apply current-model
+Drizzle SQL to a legacy database, even if the existing tables have the
+same names (`employees`, `payroll_runs`). The two models have different
+tenant and primary/foreign key identities.
+
+A separate conversion requires a signed, tested plan covering:
+- A fresh empty database with a clean current-schema baseline **or** an
+  explicitly designed, reversible staged transformation, not automatic
+  in-place changes to UUID primary keys.
+- Demonstrable backups and verified restoration of the legacy branch before
+  any transfer, with privacy controls and environment-scoped access.
+- Stable mapping tables for client UUID to organization integer and
+  employee/payroll UUID to integer references; referential integrity,
+  user membership, approvals, time and payroll history reconciled.
+- Explicit independent checks of payroll centavos and bank encryption with
+  **no plaintext account data in logs, exports, or issue comments**.
+- A protected schema cutover transaction and an application commit that
+  understands the target schema. A modern-schema migration journal is
+  established only after the clean baseline is verified, not fabricated
+  to make a legacy database look up-to-date.
+
+These requirements are not met by this source-only PR. An all-zero
+legacy-demo flag would not prove bank fields synthetic. The production
+release flag remains closed, and the legacy database remains unchanged.
