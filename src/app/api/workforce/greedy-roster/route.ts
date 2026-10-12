@@ -2,6 +2,7 @@ import { getAccess, assertOrganizationRole, WORKFORCE_MANAGER_ROLES } from "@/li
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { phWorkDateAt } from "@/lib/workforce-manager-actions";
+import { enforceSensitiveActionRateLimit } from "@/lib/security-request";
 import { previewEmployerGreedyRoster } from "@/lib/workforce-greedy-roster-server";
 
 export const dynamic="force-dynamic";
@@ -38,6 +39,11 @@ export async function GET(request:Request) {
   if(!access||(!access.companyWide&&access.orgUnitId===null)){
     return Response.json({error:"No active workforce scope."},{status:403,headers:noStore});
   }
+  const limited=await enforceSensitiveActionRateLimit(request,{
+    userId:user.id,action:"wfm-greedy-roster-preview",resourceId:organizationId,
+    limit:8,windowMs:5*60_000,
+  });
+  if(limited)return limited;
   try{
     const preview=await previewEmployerGreedyRoster({
       organizationId,worksiteId,startDate,endDate,
