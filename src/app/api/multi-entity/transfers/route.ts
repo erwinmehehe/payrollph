@@ -121,7 +121,9 @@ export async function POST(request: Request) {
   }).from(payrollEntries).innerJoin(payrollRuns, eq(payrollEntries.payrollRunId, payrollRuns.id))
     .where(and(eq(payrollEntries.employeeId, employeeId),
       eq(payrollRuns.organizationId, organizationId),
-      eq(payrollRuns.legalEntityId, worker.legalEntityId), eq(payrollRuns.status, "Released")));
+      eq(payrollRuns.legalEntityId, worker.legalEntityId), eq(payrollRuns.status, "Released"),
+      gte(payrollRuns.periodEnd, effectiveDate.slice(0, 4) + "-01-01"),
+      lte(payrollRuns.periodEnd, previousDate(effectiveDate))));
   let sourceBasic = 0;
   let source13thPaid = 0;
   try {
@@ -149,6 +151,7 @@ export async function POST(request: Request) {
           sourceThirteenthPaid: source13thPaid.toFixed(2),
           sourceLegalEntityId: worker.legalEntityId,
           sourceEmploymentStart: worker.startDate,
+          taxYear: Number(effectiveDate.slice(0, 4)),
           reconciliation: "requires_employer_by_employer_payroll_review",
         },
         continuityNote: "Service date and leave records remain attached to the one worker. 13th-month base/paid amounts and legal liability must be reconciled by employer; a transfer is not a separation.",
