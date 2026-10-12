@@ -162,3 +162,16 @@ test("review approval holds multiple days under payroll cutoff and uses atomic a
   assert.match(offline,/installationPunchDeviceId/);
   assert.match(offline,/transaction\.oncomplete/);
 });
+
+test("cutoff changes and reviewed punches serialize before any paid attendance write",()=>{
+  const locksRoute=readFileSync("src/app/api/workforce/attendance-locks/route.ts","utf8");
+  const reviewRoute=readFileSync("src/app/api/web-bundy/review/route.ts","utf8");
+  const evidenceRoute=readFileSync("src/app/api/web-bundy/evidence/route.ts","utf8");
+  assert.match(locksRoute,/pg_advisory_xact_lock\(6109/);
+  assert.match(reviewRoute,/pg_advisory_xact_lock\(6109/);
+  assert.match(locksRoute,/await tx\.insert\(auditEvents\)/);
+  assert.match(locksRoute,/await tx\.insert\(workforceAttendancePeriodLocks\)/);
+  assert.match(locksRoute,/await tx\.update\(workforceAttendancePeriodLocks\)/);
+  assert.match(evidenceRoute,/claimedEmployeeId/);
+  assert.match(evidenceRoute,/Number\(claimedEmployeeId\)!==employee!\.id/);
+});
