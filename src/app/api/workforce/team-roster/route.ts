@@ -11,7 +11,7 @@ import {
   shiftDefinitions,
   worksites,
 } from "@/db/schema";
-import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { wfmRosterScaleRulesEnabled } from "@/lib/workforce-roster-rules-server";
 import { rosterWindowDates } from "@/lib/workforce-roster-scale";
@@ -49,8 +49,8 @@ export async function GET(request: Request) {
   const denied = await assertOrganizationRole(
     user.id,
     organizationId,
-    PEOPLE_ADMIN_ROLES,
-    "Only People administrators can review the team roster.",
+    wfmRosterScaleRulesEnabled() ? WORKFORCE_MANAGER_ROLES : PEOPLE_ADMIN_ROLES,
+    "Only authorized workforce managers can review the team roster.",
   );
   if (denied) return denied;
 
