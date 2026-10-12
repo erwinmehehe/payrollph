@@ -4,7 +4,7 @@
  *
  * Run only in an approved private workspace using two CSV exports:
  * node scripts/reconcile-private-employer-payroll.mjs reference.csv candidate.csv
- * Headers (both): periodStart,periodEnd,payDate,employeeNo,gross,sss,philHealth,pagIbig,withholding,net
+ * Headers (both): legalEmployerId,periodStart,periodEnd,payDate,employeeNo,gross,sss,philHealth,pagIbig,withholding,net
  *
  * This is a mathematical acceptance gate, NOT a legal/agency filing, payroll
  * approval, payout authorization, or independent reviewer attestation.
@@ -13,7 +13,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const money = ["gross", "sss", "philHealth", "pagIbig", "withholding", "net"];
-const required = ["periodStart", "periodEnd", "payDate", "employeeNo", ...money];
+const required = ["legalEmployerId", "periodStart", "periodEnd", "payDate", "employeeNo", ...money];
 const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value) &&
   !Number.isNaN(new Date(value + "T00:00:00Z").getTime()) &&
   new Date(value + "T00:00:00Z").toISOString().slice(0,10) === value;
@@ -54,10 +54,14 @@ function parsePayroll(csv) {
   if (!rawHeader) throw Error("EMPTY_CSV");
   const header = rawHeader.map(v => v.trim());
   if (header.length !== new Set(header).size || required.some(k => !header.includes(k))) throw Error("MISSING_OR_DUPLICATE_HEADER");
-  const byNo = new Map();let period = null;
+  const byNo = new Map();let period = null; let employer = null;
   for (const line of lines) {
     if (line.length !== header.length) throw Error("INVALID_COLUMN_COUNT");
     const row = Object.fromEntries(header.map((key, index) => [key,line[index]?.trim()??""]));
+    const legalEmployerId = row.legalEmployerId;
+    if (!legalEmployerId || legalEmployerId.length > 120) throw Error("INVALID_LEGAL_EMPLOYER");
+    if (employer && employer !== legalEmployerId) throw Error("MIXED_LEGAL_EMPLOYERS");
+    employer = legalEmployerId;
     const employeeNo = row.employeeNo.toLowerCase();
     if (!employeeNo || byNo.has(employeeNo)) throw Error("MISSING_OR_DUPLICATE_EMPLOYEE");
     const p = [row.periodStart,row.periodEnd,row.payDate];
@@ -67,10 +71,11 @@ function parsePayroll(csv) {
     byNo.set(employeeNo,Object.fromEntries(money.map(k => [k,toCents(row[k])])));
   }
   if (!period || byNo.size === 0) throw Error("EMPTY_PAYROLL");
-  return {period,byNo};
+  return {period,byNo,employer};
 }
 export function comparePayrollCsv(referenceCsv,candidateCsv) {
   const reference = parsePayroll(referenceCsv),candidate = parsePayroll(candidateCsv);
+  if (reference.employer !== candidate.employer) throw Error("LEGAL_EMPLOYER_MISMATCH");
   if (reference.period.join("|") !== candidate.period.join("|")) throw Error("PAYROLL_PERIOD_MISMATCH");
   let missingCandidate = 0,unexpectedCandidate = 0,compared = 0,varianceOverCent = 0,maxVarianceCents = 0n;
   const fieldFailures = Object.fromEntries(money.map(k => [k,0]));
@@ -91,7 +96,7 @@ export function comparePayrollCsv(referenceCsv,candidateCsv) {
     period: { start: reference.period[0], end: reference.period[1], payDate: reference.period[2] },
     referenceEmployees:reference.byNo.size,candidateEmployees:candidate.byNo.size,
     employeesCompared:compared,missingCandidate,unexpectedCandidate,varianceOverCent,
-    maximumAbsoluteVariancePesos:(Number(maxVarianceCents)/100).toFixed(2),
+    maximumAbsoluteVariancePesos:(maxVarianceCents / 100n).toString() + "." + (maxVarianceCents % 100n).toString().padStart(2, "0"),
     differencesByField:fieldFailures,
     threshold:"PHP 0.01 absolute per employee per field",
     realEmployerDataSupplied: "not-attested-by-script",
