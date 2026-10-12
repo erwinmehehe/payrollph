@@ -1,9 +1,9 @@
-import { and, eq, gte, lte, desc, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents, employees, employeeEntityAssignments, entityTransferRequests,
   historicalPayrollEntries, legalEntities, leaveBalances, payrollEntries, payrollRuns, workerEmploymentEvents,
-  workerEffectiveChanges,
+  workerEffectiveChanges, userLegalEntityGrants,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertEntityResource, resolveMultiEntityContext } from "@/lib/multi-entity-server";
@@ -11,6 +11,7 @@ import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { manilaCalendarDate } from "@/lib/payroll-period-ui";
 import { readBasicAndThirteenth } from "@/lib/final-pay";
+import { canActOnEntityTransfer, type TransferAction } from "@/lib/multi-entity-policy";
 
 export const dynamic = "force-dynamic";
 const disabled = () => Response.json({ error: "Entity transfers are unavailable." }, { status: 404 });
@@ -26,7 +27,14 @@ function validDate(ymd: string) {
     && new Date(ymd + "T00:00:00Z").toISOString().slice(0, 10) === ymd;
 }
 const managementRoles = new Set(["owner", "admin", "bookkeeper", "hr"]);
-const checkerRoles = new Set(["owner", "admin", "bookkeeper"]);
+
+async function transferGrants(organizationId: number, userId: number): Promise<number[]> {
+  return (await db.select({ id: userLegalEntityGrants.legalEntityId })
+    .from(userLegalEntityGrants).where(and(
+      eq(userLegalEntityGrants.organizationId, organizationId),
+      eq(userLegalEntityGrants.userId, userId),
+    ))).map(row => row.id);
+}
 
 export async function GET(request: Request) {
   if (!criticalReleaseFlagEnabled("multiEntity")) return disabled();
@@ -37,21 +45,43 @@ export async function GET(request: Request) {
   const scope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
   if (!scope.ok) return scope.response;
   if (!managementRoles.has(scope.context.role) && scope.context.role !== "group_hr") return fail("People role required.", 403);
+  const grants = scope.context.group ? [] : await transferGrants(organizationId, user.id);
   const where = and(eq(entityTransferRequests.organizationId, organizationId),
     scope.context.legalEntityId === null ? undefined
       : eq(entityTransferRequests.fromLegalEntityId, scope.context.legalEntityId));
-  const rows = await db.select().from(entityTransferRequests).where(where)
+  // Never send full leave or payroll line-item snapshots to list consumers;
+  // group HR receives service metadata, not raw salary or bank evidence.
+  const rows = await db.select({
+    id: entityTransferRequests.id,
+    employeeId: entityTransferRequests.employeeId,
+    fromLegalEntityId: entityTransferRequests.fromLegalEntityId,
+    toLegalEntityId: entityTransferRequests.toLegalEntityId,
+    effectiveDate: entityTransferRequests.effectiveDate,
+    status: entityTransferRequests.status,
+    requestedByUserId: entityTransferRequests.requestedByUserId,
+  }).from(entityTransferRequests).where(where)
     .orderBy(desc(entityTransferRequests.id)).limit(100);
   const destinations = await db.select({
     id: legalEntities.id, legalName: legalEntities.legalName,
     displayName: legalEntities.displayName,
   }).from(legalEntities).where(and(
     eq(legalEntities.organizationId, organizationId), eq(legalEntities.active, true),
+    scope.context.group ? undefined : inArray(legalEntities.id, grants),
   ));
+  const mutationsEnabled = criticalReleaseFlagEnabled("multiEntityTransfers");
   return Response.json({
-    transfers: rows, destinations: scope.context.group
-      ? destinations
-      : destinations.filter(entity => entity.id === scope.context.legalEntityId),
+    transfers: rows.map(row => ({
+      ...row,
+      canReview: mutationsEnabled && canActOnEntityTransfer({
+        role: scope.context.role, action: "approve",
+        selectedEntityId: scope.context.legalEntityId,
+        sourceEntityId: row.fromLegalEntityId,
+        targetEntityId: row.toLegalEntityId,
+        grantedEntityIds: grants, actorUserId: user.id,
+        makerUserId: row.requestedByUserId,
+      }),
+    })),
+    destinations, mutationsEnabled,
   }, { headers: { "Cache-Control": "no-store, private" } });
 }
 
@@ -75,8 +105,8 @@ export async function POST(request: Request) {
     return fail("A valid worker, target employer, future/current effective date and reason are required.", 422);
   const scope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
   if (!scope.ok) return scope.response;
-  if (!scope.context.group || !managementRoles.has(scope.context.role))
-    return fail("A group-level People administrator is required to propose an inter-employer transfer.", 403);
+  if (scope.context.group || !managementRoles.has(scope.context.role))
+    return fail("Only an explicitly granted employer administrator may propose a transfer.", 403);
   const mfa = requireSensitiveActionMfa(user);
   if (mfa) return mfa;
   const [employee, target] = await Promise.all([
@@ -90,8 +120,14 @@ export async function POST(request: Request) {
     return fail("Worker and distinct target employer must belong to the same tenant.", 404);
   const scopeDenied = assertEntityResource(scope.context, worker.legalEntityId);
   if (scopeDenied) return scopeDenied;
-  // A scoped maker can request a transfer out of their entity; independent
-  // tenant-wide checker must approve destination ownership later.
+  const grants = await transferGrants(organizationId, user.id);
+  if (!canActOnEntityTransfer({
+    role: scope.context.role, action: "propose",
+    selectedEntityId: scope.context.legalEntityId,
+    sourceEntityId: worker.legalEntityId,
+    targetEntityId: toLegalEntityId,
+    grantedEntityIds: grants, actorUserId: user.id,
+  })) return fail("Explicit access to both source and target employers is required.", 403);
   const [openMove, acrossCutoff, approvedHcm] = await Promise.all([
     db.select({ id: entityTransferRequests.id }).from(entityTransferRequests)
       .where(and(eq(entityTransferRequests.organizationId, organizationId),
@@ -214,14 +250,19 @@ export async function PATCH(request: Request) {
     userId: user.id, organizationId: requestRow.organizationId, request,
   });
   if (!scope.ok) return scope.response;
-  // The checker needs authority over BOTH legal employers, not just the
-  // employee's current entity. Source-only HR cannot complete the move.
-  if (!scope.context.group || !checkerRoles.has(scope.context.role))
-    return fail("Independent group-level checker required.", 403);
+  // Group HR is a read-only reporting principal. A mutation requires
+  // explicit source AND destination employer grants, not group visibility.
+  const grants = await transferGrants(requestRow.organizationId, user.id);
+  if (!canActOnEntityTransfer({
+    role: scope.context.role, action: action as TransferAction,
+    selectedEntityId: scope.context.legalEntityId,
+    sourceEntityId: requestRow.fromLegalEntityId,
+    targetEntityId: requestRow.toLegalEntityId,
+    grantedEntityIds: grants, actorUserId: user.id,
+    makerUserId: requestRow.requestedByUserId,
+  })) return fail("Independent, dual-employer checker authorization required.", 403);
   const mfa = requireSensitiveActionMfa(user);
   if (mfa) return mfa;
-  if (requestRow.requestedByUserId === user.id)
-    return fail("Maker-checker: requester cannot approve or apply their own transfer.", 403);
   const today = manilaCalendarDate();
   if (action === "apply" && (requestRow.status !== "approved" || requestRow.effectiveDate > today))
     return fail("Only approved and due transfers can be applied.");
