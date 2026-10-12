@@ -50,8 +50,10 @@ export function WorkforcePunchEvidencePanel(input: {
       }),
       fetch(`/api/workforce/offline-punches?organizationId=${organizationId}`, {
         signal: abort.signal, cache: "no-store",
-      }).then(r => {
-        if (!abort.signal.aborted && r.ok) setOfflineEnabled(true);
+      }).then(async r => {
+        if (!r.ok) return;
+        const body = await r.json() as {canQueueSelf?:boolean};
+        if (!abort.signal.aborted && body.canQueueSelf === true) setOfflineEnabled(true);
       }),
       updatePending(),
     ]).catch(() => { /* Offline capability is loaded only from a prior authorized view. */ });

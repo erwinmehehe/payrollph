@@ -74,6 +74,10 @@ export async function GET(request:Request){
   const scope=assertScope(access,employee?.orgUnitId??null);
   if(!employee||!scope.ok)return Response.json({error:"Outside review scope."},{status:403});
   try{
+    await recordAuditEvent({organizationId,actor:user.name,
+      action:"Encrypted WFM punch image opened by reviewer",
+      resource:"Attendance evidence",
+      metadata:{photoEvidenceId:image.id,employeeId:image.employeeId}});
     const bytes=decryptPunchPhoto(image.sealedPhoto);
     return new Response(new Uint8Array(bytes),{headers:{...PRIVATE,"Content-Type":image.mimeType}});
   }catch{return Response.json({error:"Encrypted evidence unavailable."},{status:503});}
@@ -174,18 +178,23 @@ export async function POST(request:Request){
  if(body.action==="link"){
    const photoId=String(body.photoEvidenceId??"");
    const punchId=Number(body.punchId);
-   if(!UUID.test(photoId)||!Number.isSafeInteger(punchId)||punchId<1)
+   const actionType=String(body.actionType??"");
+   if(!["clock_in","clock_out"].includes(actionType)
+     ||!UUID.test(photoId)||!Number.isSafeInteger(punchId)||punchId<1)
      return Response.json({error:"Evidence id and punch id required."},{status:400});
-   const [punch]=await db.select({id:timePunches.id}).from(timePunches).where(and(
+   const [punch]=await db.select({id:timePunches.id,
+     timeIn:timePunches.timeIn,timeOut:timePunches.timeOut}).from(timePunches).where(and(
      eq(timePunches.id,punchId),eq(timePunches.organizationId,organizationId),
      eq(timePunches.employeeId,auth.employee!.id),
    )).limit(1);
-   if(!punch)return Response.json({error:"Punch is outside employee scope."},{status:404});
+   if(!punch||!(actionType==="clock_in"?punch.timeIn:punch.timeOut))
+     return Response.json({error:"Matching punched action was not recorded."},{status:404});
    const cutoff=new Date(Date.now()-60*60_000);
    const [linked]=await db.update(workforcePunchPhotoEvidence).set({punchId})
      .where(and(eq(workforcePunchPhotoEvidence.id,photoId),
        eq(workforcePunchPhotoEvidence.organizationId,organizationId),
        eq(workforcePunchPhotoEvidence.employeeId,auth.employee!.id),
+       eq(workforcePunchPhotoEvidence.actionType,actionType),
        gte(workforcePunchPhotoEvidence.createdAt,cutoff),
      )).returning({id:workforcePunchPhotoEvidence.id});
    if(!linked)return Response.json({error:"Evidence is missing or too old to attach."},{status:409});

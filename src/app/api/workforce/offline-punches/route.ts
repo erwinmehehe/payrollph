@@ -46,7 +46,7 @@ export async function GET(request:Request){
      eq(workforceOfflinePunchReceipts.organizationId,organizationId),
      eq(workforceOfflinePunchReceipts.employeeId,self.employee!.id),
    )).orderBy(desc(workforceOfflinePunchReceipts.serverReceivedAt)).limit(100);
-   return Response.json({receipts:rows,requiresHumanReview:true},{headers:PRIVATE});
+   return Response.json({receipts:rows,requiresHumanReview:true,canQueueSelf:true},{headers:PRIVATE});
  }
  const denied=await assertOrganizationRole(user.id,organizationId,PEOPLE_ADMIN_ROLES,
    "HR review role required for offline receipts.");
@@ -70,7 +70,7 @@ export async function GET(request:Request){
    eq(workforceOfflinePunchReceipts.status,"pending_review"),
    !access.companyWide?eq(employees.orgUnitId,access.orgUnitId!):undefined,
  )).orderBy(desc(workforceOfflinePunchReceipts.serverReceivedAt)).limit(100);
- return Response.json({receipts:rows,requiresHumanReview:true},{headers:PRIVATE});
+ return Response.json({receipts:rows,requiresHumanReview:true,canQueueSelf:false},{headers:PRIVATE});
 }
 
 export async function POST(request:Request){

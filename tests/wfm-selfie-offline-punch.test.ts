@@ -57,3 +57,16 @@ test("two WFM feature flags are default-off",()=>{
  assert.equal(criticalReleaseFlagEnabled("wfmOfflinePunchQueue",{}),false);
  assert.equal(criticalReleaseFlagEnabled("wfmPunchEvidence",{WFM_PUNCH_PHOTO_EVIDENCE_ENABLED:"true"}),true);
 });
+
+test("offline queue scope isolates employer and worker entries, even on a shared browser", async()=>{
+ const { scopedOfflinePunches } = await import("../src/lib/workforce-offline-punch-client");
+ const records=[
+  {id:"a",organizationId:1,employeeId:5,actionType:"clock_in" as const,
+   worksiteId:null,deviceToken:"random",deviceTimestamp:"2026-10-12T01:00:00Z"},
+  {id:"b",organizationId:2,employeeId:5,actionType:"clock_in" as const,
+   worksiteId:null,deviceToken:"random",deviceTimestamp:"2026-10-12T01:00:00Z"},
+  {id:"c",organizationId:1,employeeId:6,actionType:"clock_in" as const,
+   worksiteId:null,deviceToken:"random",deviceTimestamp:"2026-10-12T01:00:00Z"},
+ ];
+ assert.deepEqual(scopedOfflinePunches(records,1,5).map(x=>x.id),["a"]);
+});

@@ -73,7 +73,8 @@ export async function listOfflinePunches(organizationId: number, employeeId: num
 }
 
 async function deviceToken(organizationId: number, employeeId: number) {
-  const key = `device:${organizationId}:${employeeId}`;
+  // Stable per installation, not per employee, so sharing is reviewable.
+  const key = "installation-device-token";
   const existing = await transact<{ key: string; token: string } | undefined>(
     META, "readonly", store => store.get(key),
   );
