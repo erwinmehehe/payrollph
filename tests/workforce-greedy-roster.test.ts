@@ -123,8 +123,8 @@ test("an unassigned day or approved day-off cannot be filled by inventing a publ
 test("advisory baseline guardrails are evaluated consistently and cannot introduce a blocker by switching modes",()=>{
   const s=slot(1,dateAfter(date,2));
   const baseline=worker(1,[s],{existingDays:[
-    schedule(date,[segment("08:00","16:00")]),
-    schedule(dateAfter(date,1),[segment("09:00","17:00")]),
+    schedule(date,[segment("12:00","23:00")]),
+    schedule(dateAfter(date,1),[segment("00:00","08:00")]),
     schedule(dateAfter(date,2)),
   ],approvedOvertimeByDate:{}});
   // Historic 60-minute rest is already present. The proposed day-three shift
