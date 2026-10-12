@@ -759,7 +759,9 @@ export function ExportsView({
                 organizationId={organizationId}
                 agency={item.agency}
                 form={item.form}
-                run={{ id: run.id, periodLabel: run.periodLabel, periodEnd: run.periodEnd }}
+                run={{ id: run.id, periodLabel: run.periodLabel, periodEnd: run.periodEnd,
+                  legalEntityId: run.legalEntityId }}
+                entityContext={data.multiEntity}
                 notify={notify}
                 onRefresh={onRefresh}
               />
