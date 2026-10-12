@@ -49,7 +49,8 @@ is not equivalent to a witnessed restore.
 2. Provision **two separate OIDC IAM roles** constrained to the exact
    `erwinmehehe/payrollph` GitHub environment identities:
    `payrollph-production-backup` for immutable PutObject, bucket
-   versioning/Object Lock checks, KMS encrypt/data-key and head-object;
+   versioning/Object Lock checks, **GetBucketPublicAccessBlock** (all four
+   settings must be true), KMS encrypt/data-key and head-object;
    `payrollph-production-restore` for GetObject/object retention and
    KMS decrypt. Neither role gets broad bucket listing or delete access.
    Use an AWS account trust policy that pins the repository and
