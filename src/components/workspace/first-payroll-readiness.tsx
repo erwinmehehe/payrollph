@@ -25,11 +25,10 @@ export function FirstPayrollReadinessCard({
   organizationId?: number;
   canAssign?: boolean;
 }) {
+  const inlineEnabled = useWorkflowUi().firstPayrollInline && organizationId !== undefined;
   // Keep the export/filing handoff visible after the first run is released.
   // Once a second run exists, the employer has completed the initial journey.
   if (readiness.firstPayrollReleased && readiness.payrollRunCount > 1) return null;
-
-  const inlineEnabled = useWorkflowUi().firstPayrollInline && organizationId !== undefined;
   const percent = Math.round((readiness.completed / readiness.total) * 100);
   const journey = buildFirstPayrollJourney(readiness);
 
