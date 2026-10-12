@@ -100,7 +100,7 @@ export function FirstPayrollReadinessCard({
         ))}
       </div>}
 
-      {inlineEnabled && <FirstPayrollInline
+      {inlineEnabled && organizationId !== undefined && <FirstPayrollInline
         readiness={readiness} organizationId={organizationId}
         canAssign={canAssign} onPage={onPage} onNewRun={onNewRun}
         allowedPages={allowedPages} onSettings={onSettings}
