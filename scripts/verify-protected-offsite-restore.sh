@@ -33,10 +33,10 @@ head_sha="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
   --key "$RESTORE_S3_OBJECT_KEY" --version-id "$RESTORE_S3_VERSION_ID" \
   --query 'Metadata."encrypted-sha256"' --output text)"
 head_source="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
-  --key "$RESTORE_S3_OBJECT_KEY" \
+  --key "$RESTORE_S3_OBJECT_KEY" --version-id "$RESTORE_S3_VERSION_ID" \
   --query 'Metadata."source-commit"' --output text)"
 lock_mode="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
-  --key "$RESTORE_S3_OBJECT_KEY" \
+  --key "$RESTORE_S3_OBJECT_KEY" --version-id "$RESTORE_S3_VERSION_ID" \
   --query ObjectLockMode --output text)"
 if [[ "$head_sha" != "$RESTORE_CIPHERTEXT_SHA256" ||
       "$head_source" != "$RESTORE_ARCHIVE_SOURCE_SHA" ||
