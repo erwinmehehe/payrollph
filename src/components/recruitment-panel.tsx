@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import {
   CheckCircle2,
   ChevronRight,
@@ -48,6 +49,7 @@ type Requisition = {
   } | null;
   employmentType: string;
   status: string;
+  careersPublished?: boolean;
   description: string;
   applicantCount: number;
   interviewCount: number;
@@ -99,6 +101,8 @@ export function RecruitmentPanel({
   setNotice: (message: string) => void;
   onHired?: () => Promise<void>;
 }) {
+  const careersEnabled = useWorkflowUi().recruitmentJourney;
+  const [publishing, setPublishing] = useState(false);
   const [requisitions, setRequisitions] = useState<Requisition[]>([]);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [selectedReqId, setSelectedReqId] = useState<number | null>(null);
@@ -283,6 +287,22 @@ export function RecruitmentPanel({
     }
   }
 
+  async function toggleCareers(req: Requisition) {
+    if (publishing || !req.positionId) return;
+    setPublishing(true);
+    try {
+      const response = await fetch("/api/careers/admin", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, requisitionId: req.id, published: !req.careersPublished }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Publishing failed.");
+      await load();
+      setNotice(body.published ? "Vacancy published on the careers page." : "Vacancy unpublished.");
+    } catch (e) { setNotice(e instanceof Error ? e.message : "Could not publish vacancy."); }
+    finally { setPublishing(false); }
+  }
+
   const activeReq = requisitions.find((row) => row.id === selectedReqId) ?? requisitions[0];
   const reqApplicants = applicants.filter((row) => (activeReq ? row.requisitionId === activeReq.id : false));
   const totalHired = applicants.filter((row) => row.stage === "hired").length;
@@ -312,6 +332,10 @@ export function RecruitmentPanel({
           </p>
         </div>
         <div className="page-actions">
+          {careersEnabled && <a className="secondary-button"
+            href={"/careers?organizationId=" + organizationId} target="_blank" rel="noopener noreferrer">
+            View careers page
+          </a>}
           <button
             className="secondary-button"
             onClick={() => setShowAppModal(true)}
@@ -467,7 +491,15 @@ export function RecruitmentPanel({
               <span style={{ display: "block", fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
                 {activeReq.hiredCount} hired · {activeReq.applicantCount} applicants
               </span>
-              {activeReq.planHandoffEvidence?.version === "hcm-plan-requisition-lineage-v1" && (
+              {careersEnabled && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
+            <button type="button" className="secondary-button" disabled={publishing || !activeReq.positionId ||
+              ["filled","cancelled"].includes(activeReq.status)}
+              onClick={() => void toggleCareers(activeReq)}>
+              {publishing ? "Updating…" : activeReq.careersPublished ? "Unpublish from careers" : "Publish to careers"}
+            </button>
+            <span role="status">{activeReq.careersPublished ? "Publicly listed" : "Not public"}</span>
+          </div>}
+          {activeReq.planHandoffEvidence?.version === "hcm-plan-requisition-lineage-v1" && (
                 <span style={{ display: "block", fontSize: 10, color: "var(--muted)", marginTop: 5 }}>
                   Plan #{activeReq.planHandoffEvidence.planId} · published baseline v{activeReq.planHandoffEvidence.baselineVersion} · applied execution #{activeReq.planHandoffEvidence.executionId}
                 </span>
