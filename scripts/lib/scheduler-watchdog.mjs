@@ -175,6 +175,8 @@ export function createSchedulerWatchdog(config, deps = {}) {
   let failures = 0;
   let successes = 0;
   let alerted = false;
+  let outagePending = false;
+  let outageReason = "network-failure";
   return {
     async poll() {
       const probe = await fetchSchedulerLiveness(config, deps);
@@ -182,18 +184,27 @@ export function createSchedulerWatchdog(config, deps = {}) {
       if (!probe.healthy) {
         failures += 1;
         successes = 0;
-        if (failures >= config.failurePolls && !alerted) {
-          const sent = await notify(config, "DOWN", probe.reason, deps);
-          notification = sent ? "down-delivered" : "down-delivery-failed";
-          if (sent) alerted = true;
+        if (failures >= config.failurePolls) {
+          outagePending = true;
+          outageReason = probe.reason;
         }
       } else {
         successes += 1;
         failures = 0;
-        if (alerted && successes >= config.recoveryPolls) {
-          const sent = await notify(config, "RECOVERED", "healthy", deps);
-          notification = sent ? "recovery-delivered" : "recovery-delivery-failed";
-          if (sent) alerted = false;
+      }
+      if (outagePending && !alerted) {
+        // Keep the outage receipt pending even if the probe recovers before
+        // the notification endpoint does; never lose a real DOWN incident.
+        const sent = await notify(config, "DOWN", outageReason, deps);
+        notification = sent ? "down-delivered" : "down-delivery-failed";
+        if (sent) alerted = true;
+      } else if (outagePending && alerted && probe.healthy &&
+                 successes >= config.recoveryPolls) {
+        const sent = await notify(config, "RECOVERED", "healthy", deps);
+        notification = sent ? "recovery-delivered" : "recovery-delivery-failed";
+        if (sent) {
+          alerted = false;
+          outagePending = false;
         }
       }
       return {
