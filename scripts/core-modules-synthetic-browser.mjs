@@ -29,8 +29,9 @@ try {
           const more = page.locator('[data-nav-name="More modules"]:visible').first();
           // CSS keeps the sidebar present in the DOM while translated offscreen on phones.
           // Open the real mobile drawer instead of relying on :visible/count().
-          if (width <= 390) {
-            await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+          const openNav = page.getByRole("button", { name: "Open navigation", exact: true });
+          if (await openNav.isVisible()) {
+            await openNav.click();
             await page.locator(".app-shell.drawer-open").waitFor();
           }
           await more.waitFor({ timeout: 60000 });
