@@ -16,6 +16,12 @@ CREATE TABLE IF NOT EXISTS applicant_privacy_evidence (
   legal_hold BOOLEAN NOT NULL DEFAULT FALSE,
   purged_at TIMESTAMPTZ,
   purged_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  deletion_requested_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  deletion_requested_at TIMESTAMPTZ,
+  deletion_reason VARCHAR(500),
+  deletion_reviewed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  deletion_reviewed_at TIMESTAMPTZ,
+  deletion_review_evidence_reference VARCHAR(200),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT applicant_privacy_employer_fk
     FOREIGN KEY (organization_id, applicant_id)
