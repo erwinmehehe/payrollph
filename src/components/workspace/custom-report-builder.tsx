@@ -41,12 +41,17 @@ export function CustomReportBuilder({ organizationId, active, report, onReport }
 
   useEffect(() => {
     if (!report || !pending || pending.reportKey !== active) return;
-    setSelectedFields(pending.selectedFields.filter(column => report.columns.includes(column)));
-    setFilters(pending.rowFilters.filter(f => report.columns.includes(f.field)));
-    setName(pending.name);
-    setField(report.columns[0] ?? "");
-    setChosen(pending.id);
-    setPending(null);
+    let alive = true;
+    void Promise.resolve().then(() => {
+      if (!alive) return;
+      setSelectedFields(pending.selectedFields.filter(column => report.columns.includes(column)));
+      setFilters(pending.rowFilters.filter(f => report.columns.includes(f.field)));
+      setName(pending.name);
+      setField(report.columns[0] ?? "");
+      setChosen(pending.id);
+      setPending(null);
+    });
+    return () => { alive = false; };
   }, [report, pending, active]);
 
   const projected = useMemo(() => report
