@@ -57,6 +57,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
   // await, so switching report or client never cascades a synchronous render.
   // `alive` stops a slow response from overwriting a newer one.
   useEffect(() => {
+    if (data.multiEntity?.enabled && data.multiEntity.role === "group_hr") return;
     let alive = true;
     (async () => {
       try {
@@ -85,7 +86,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
     return () => {
       alive = false;
     };
-  }, [organizationId, active, nonce, peopleAsOf, peopleWindowDays]);
+  }, [organizationId, active, nonce, peopleAsOf, peopleWindowDays, data.multiEntity?.enabled, data.multiEntity?.role]);
 
   const reload = useCallback(() => {
     setState("loading");
@@ -113,6 +114,14 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
   const totalCost = data.payrollRuns.reduce((sum, run) => sum + Number(run.grossPay), 0);
   const totalNet = data.payrollRuns.reduce((sum, run) => sum + Number(run.netPay), 0);
   const exceptions = data.payrollRuns.reduce((sum, run) => sum + run.exceptions, 0);
+
+  if (data.multiEntity?.enabled && data.multiEntity.role === "group_hr") {
+    return <>
+      <PageHeading eyebrow="Group HR" title="Group headcount and payroll cost"
+        copy="Read-only company-by-company headcount and released payroll cost. Legal employers remain separate." />
+      <GroupEntityReports context={data.multiEntity} organizationId={organizationId} />
+    </>;
+  }
 
   return (
     <>
