@@ -16,6 +16,7 @@ import {
   HandCoins,
   LayoutDashboard,
   Package,
+  PanelsTopLeft,
   Trophy,
   ReceiptText,
   RefreshCcw,
@@ -60,6 +61,7 @@ export const NAVIGATION: NavGroup[] = [
     label: "Workspace",
     items: [
       { name: "Overview", icon: LayoutDashboard, hint: "Payroll status, approvals and cost at a glance", tone: "blue" },
+      { name: "More modules", icon: PanelsTopLeft, hint: "Find additional authorized payroll and HR modules", tone: "teal" },
       { name: "Payroll", icon: WalletCards, hint: "Prepare, approve, release and export a run", tone: "green", badge: "runs" },
       { name: "People", icon: UsersRound, hint: "Employee directory, import and structure", tone: "purple", badge: "people" },
       { name: "Migration", icon: RefreshCcw, hint: "Switch from another payroll or HRIS with validated imports", tone: "teal" },
