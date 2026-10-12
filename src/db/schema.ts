@@ -5,6 +5,7 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   integer,
   index,
   jsonb,
@@ -13,6 +14,7 @@ import {
   serial,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -260,7 +262,10 @@ export const employees = pgTable("employees", {
   education: varchar("education", { length: 120 }),
   startDate: date("start_date").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, table => [
+  // Schema-first disposable CI needs a tenant-consistent FK parent key.
+  unique("employees_org_id_workflows_unique").on(table.organizationId, table.id),
+]);
 
 export const employeeMweClassifications = pgTable(
   "employee_mwe_classifications",
@@ -5840,6 +5845,96 @@ export const workforceDemandForecastScores = pgTable(
   ],
 );
 
+
+/**
+ * Opt-in workforce punch evidence. The legacy time_punches schema and payroll
+ * engine are untouched. Only an independent checker may promote a staged row.
+ * Apply drizzle/0120_wfm_punch_evidence.sql before enabling the release flag.
+ */
+export const worksitePunchPolicies = pgTable("worksite_punch_policies", {
+  worksiteId: integer("worksite_id").primaryKey().references(() => worksites.id, { onDelete: "cascade" }),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  photoMode: varchar("photo_mode", { length: 12 }).notNull().default("off"),
+  updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("worksite_punch_policies_org_idx").on(table.organizationId),
+  check("worksite_punch_photo_mode_check", sql`${table.photoMode} in ('off', 'optional', 'required')`),
+]);
+
+export const workforcePunchPhotoConsents = pgTable("workforce_punch_photo_consents", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  consentVersion: varchar("consent_version", { length: 32 }).notNull(),
+  choice: varchar("choice", { length: 16 }).notNull(),
+  decidedByUserId: integer("decided_by_user_id").notNull().references(() => users.id),
+  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("workforce_punch_consent_unique").on(table.organizationId, table.employeeId, table.consentVersion),
+  check("workforce_punch_consent_choice_check", sql`${table.choice} in ('accepted', 'declined')`),
+  foreignKey({
+    name: "workforce_punch_consent_employee_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id],
+  }).onDelete("cascade"),
+]);
+
+export const workforcePunchPhotoEvidence = pgTable("workforce_punch_photo_evidence", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  sealedPhoto: text("sealed_photo"),
+  mimeType: varchar("mime_type", { length: 24 }).notNull().default("image/jpeg"),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  purgedAt: timestamp("purged_at", { withTimezone: true }),
+  legalHold: boolean("legal_hold").notNull().default(false),
+}, (table) => [
+  index("workforce_punch_photo_expiry_idx").on(table.expiresAt),
+  index("workforce_punch_photo_employee_idx").on(table.organizationId, table.employeeId),
+  foreignKey({
+    name: "workforce_punch_photo_employee_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id],
+  }).onDelete("cascade"),
+]);
+
+export const workforcePunchSubmissions = pgTable("workforce_punch_submissions", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  clientPunchId: varchar("client_punch_id", { length: 36 }).notNull(),
+  actionType: varchar("action_type", { length: 20 }).notNull(),
+  workDate: date("work_date").notNull(),
+  deviceOccurredAt: timestamp("device_occurred_at", { withTimezone: true }).notNull(),
+  serverReceivedAt: timestamp("server_received_at", { withTimezone: true }).notNull().defaultNow(),
+  receivedSource: varchar("received_source", { length: 12 }).notNull(),
+  worksiteId: integer("worksite_id").references(() => worksites.id, { onDelete: "set null" }),
+  photoEvidenceId: varchar("photo_evidence_id", { length: 36 }).references(() => workforcePunchPhotoEvidence.id, { onDelete: "set null" }),
+  deviceDigest: varchar("device_digest", { length: 64 }).notNull(),
+  flags: jsonb("flags").$type<string[]>().notNull().default([]),
+  status: varchar("status", { length: 16 }).notNull().default("pending"),
+  requestedByUserId: integer("requested_by_user_id").notNull().references(() => users.id),
+  reviewedByUserId: integer("reviewed_by_user_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNote: varchar("review_note", { length: 240 }),
+  approvedTimeSource: varchar("approved_time_source", { length: 12 }),
+  timePunchId: integer("time_punch_id").references(() => timePunches.id, { onDelete: "set null" }),
+}, (table) => [
+  uniqueIndex("workforce_punch_client_id_unique").on(table.organizationId, table.employeeId, table.clientPunchId),
+  index("workforce_punch_pending_idx").on(table.organizationId, table.status, table.serverReceivedAt),
+  index("workforce_punch_signal_idx").on(table.organizationId, table.deviceDigest, table.serverReceivedAt),
+  index("workforce_punch_employee_time_idx").on(table.organizationId, table.employeeId, table.deviceOccurredAt),
+  check("workforce_punch_submission_status_check", sql`${table.status} in ('pending', 'approved', 'rejected')`),
+  check("workforce_punch_submission_source_check", sql`${table.receivedSource} in ('online', 'offline')`),
+  foreignKey({
+    name: "workforce_punch_submission_employee_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id],
+  }).onDelete("cascade"),
+]);
+
 /**
  * Proposed and independently approved aggregate demand productivity policy.
  * The scope and numeric assumptions are immutable after INSERT. Only status,
@@ -5952,3 +6047,31 @@ export const engagementSurveyParticipants = pgTable(
     index("engagement_survey_participants_org_idx").on(table.organizationId, table.surveyId),
   ],
 );
+
+/**
+ * Opt-in, tenant-owned scheduling policy for WFM roster publish warnings and
+ * blockers. No changes to payroll-engine math or prior guardrail semantics.
+ */
+export const workforceRosterRulePolicies = pgTable("workforce_roster_rule_policies", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().unique().references(() => organizations.id, { onDelete: "cascade" }),
+  active: boolean("active").notNull().default(true),
+  maxDailyMinutes: integer("max_daily_minutes").notNull().default(720),
+  maxRollingSevenDayMinutes: integer("max_rolling_seven_day_minutes").notNull().default(2880),
+  minRestBetweenShiftsMinutes: integer("min_rest_between_shifts_minutes").notNull().default(660),
+  ordinaryDailyMinutes: integer("ordinary_daily_minutes").notNull().default(480),
+  approvedOvertimeCapMinutes: integer("approved_overtime_cap_minutes").notNull().default(0),
+  enforcementMode: varchar("enforcement_mode", { length: 16 }).notNull().default("block"),
+  updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("wfm_roster_rules_org_idx").on(table.organizationId),
+  check("wfm_roster_rules_limits_check", sql`(
+    ${table.maxDailyMinutes} between 480 and 1440
+    and ${table.maxRollingSevenDayMinutes} between 480 and 10080
+    and ${table.minRestBetweenShiftsMinutes} between 0 and 1440
+    and ${table.ordinaryDailyMinutes} between 480 and 720
+    and ${table.approvedOvertimeCapMinutes} between 0 and 10080
+    and ${table.enforcementMode} in ('block', 'advisory')
+  )`),
+]);

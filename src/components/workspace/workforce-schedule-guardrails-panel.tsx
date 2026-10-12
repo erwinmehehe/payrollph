@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { ShieldAlert } from "lucide-react";
+import { WfmRosterRulePolicyPanel } from "./wfm-roster-rule-policy-panel";
 import type { ScheduleGuardrailPolicy } from "@/lib/workforce-schedule-guardrails";
 import type { DashboardData, Notify } from "./types";
 import { Spinner, Status } from "./ui";
@@ -188,6 +189,7 @@ export function WorkforceScheduleGuardrailsPanel({
           </button>
         </div>
       )}
+      <WfmRosterRulePolicyPanel organizationId={organizationId} canManage={editable} />
     </article>
   );
 }
