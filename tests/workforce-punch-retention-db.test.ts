@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import {randomUUID} from "node:crypto";
 import {and,eq,inArray} from "drizzle-orm";
 import {db} from "../src/db";
@@ -84,4 +85,12 @@ test("real purge job erases expired ciphertext but preserves held and future ten
     await db.delete(organizations).where(eq(organizations.id,orgA.id));
     await db.delete(organizations).where(eq(organizations.id,orgB.id));
   }
+});
+
+
+test("retention scheduler never selects photo ciphertext into worker memory",()=>{
+ const source=readFileSync("src/lib/workforce-punch-retention.ts","utf8");
+ assert.doesNotMatch(source,/db\.select\(\)\.from\(workforcePunchPhotoEvidence\)/);
+ assert.match(source,/db\.select\(\{id:workforcePunchPhotoEvidence\.id\}\)/);
+ assert.match(source,/limit>250/);
 });
