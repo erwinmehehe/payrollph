@@ -14,6 +14,7 @@ import {
   serial,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -102,7 +103,9 @@ export const legalEntities = pgTable(
   },
   (table) => [
     uniqueIndex("legal_entities_org_code_unique").on(table.organizationId, table.code),
-    uniqueIndex("legal_entities_org_id_unique").on(table.organizationId, table.id),
+    // A table-level UNIQUE constraint is available during CREATE TABLE,
+    // before Drizzle emits dependent composite FKs in disposable db:push.
+    unique("legal_entities_org_id_unique").on(table.organizationId, table.id),
     uniqueIndex("legal_entities_org_primary_unique")
       .on(table.organizationId)
       .where(sql`${table.primaryEntity} = true`),
@@ -264,7 +267,7 @@ export const employees = pgTable("employees", {
   startDate: date("start_date").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [
-  uniqueIndex("employee_org_id_for_entity_scope").on(table.organizationId, table.id),
+  unique("employee_org_id_for_entity_scope").on(table.organizationId, table.id),
 ]);
 
 export const employeeMweClassifications = pgTable(
