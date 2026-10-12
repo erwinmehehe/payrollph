@@ -24,3 +24,10 @@ export function reimbursementSettlementDecision(
   if (!payable || storedMoneyCentavos(payable) !== storedMoneyCentavos(lineAmount)) return "amount_changed";
   return "settle";
 }
+
+/** A private receipt is immutable after initial scan, before claim approval. */
+export function claimCanAttachReceipt(claim: {
+  status: string; payrollRunId: number | null; receiptStorageKey: string | null;
+}): boolean {
+  return claim.status === "pending" && claim.payrollRunId === null && claim.receiptStorageKey === null;
+}
