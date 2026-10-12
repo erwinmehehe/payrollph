@@ -79,7 +79,6 @@ export function evaluateWfmRosterRules(input: {
 }): WfmRosterFinding[] {
   const {policy}=input;
   if(!validateRosterRulePolicy(policy))throw Error("Invalid organization roster rules.");
-  if(!policy.active)return [];
   const days=[...input.days].sort((a,b)=>a.date.localeCompare(b.date));
   const target=new Set(input.targetDates??days.map(d=>d.date));
   const intervals:Interval[]=[];
@@ -111,7 +110,7 @@ export function evaluateWfmRosterRules(input: {
       });
       else {
         const gap=current.start-latest.end;
-        if(gap<policy.minRestBetweenShiftsMinutes)result.push({
+        if(policy.active && gap<policy.minRestBetweenShiftsMinutes)result.push({
           code:"MIN_REST_BETWEEN_SHIFTS",severity:mode,date:current.date,relatedDate:latest.date,
           message:`Only ${Math.round(gap)} minutes between shifts; employer minimum is ${policy.minRestBetweenShiftsMinutes} minutes.`,
           actualMinutes:Math.round(gap),thresholdMinutes:policy.minRestBetweenShiftsMinutes,overrideEligible:true,
@@ -121,7 +120,7 @@ export function evaluateWfmRosterRules(input: {
     if(!latest||current.end>latest.end)latest=current;
   }
   for(const day of days){
-    if(!target.has(day.date))continue;
+    if(!target.has(day.date)||!policy.active)continue;
     const paid=paidByDay.get(day.date)??0;
     if(paid>policy.maxDailyMinutes)result.push({
       code:"MAX_DAILY_HOURS",severity:mode,date:day.date,
@@ -138,8 +137,9 @@ export function evaluateWfmRosterRules(input: {
     });
     const scheduledOvertime=Math.max(0,paid-policy.ordinaryDailyMinutes);
     const approvedDaily=input.approvedOvertimeMinutesByDate?.[day.date];
-    const cap=approvedDaily!==undefined ? approvedDaily :
-      policy.approvedOvertimeCapMinutes>0 ? policy.approvedOvertimeCapMinutes : null;
+    const caps = [approvedDaily, policy.approvedOvertimeCapMinutes > 0 ? policy.approvedOvertimeCapMinutes : undefined]
+      .filter((value): value is number => value !== undefined);
+    const cap = caps.length > 0 ? Math.min(...caps) : null;
     if(cap!==null&&scheduledOvertime>cap)result.push({
       code:"OVERTIME_APPROVED_CAP",severity:"blocking",date:day.date,
       message:`Proposed overtime ${scheduledOvertime} minutes exceeds approved cap of ${cap} minutes; seek separate overtime approval.`,
