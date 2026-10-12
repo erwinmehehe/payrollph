@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  DATABASE_GENERATION_FINGERPRINT_SQL,
   assessDatabaseGeneration,
 } from "../scripts/lib/database-generation-fingerprint.mjs";
 
@@ -159,4 +160,16 @@ test("every historic SQL prerequisite independently blocks migration review", ()
     assert.equal(result.productionMigrationApproved, false);
     assert.equal(result.reason, "NUMBERED_TRAIN_PREREQUISITES_MISSING");
   }
+});
+
+test("static catalog SELECT includes comma-separated historical prerequisite flags", () => {
+  for (const flag of [
+    "hasProviderEvents", "hasDemandStaffingPolicies", "hasJobProfiles",
+    "hasPositions", "hasPositionAssignments", "hasWorkerEmploymentEvents",
+  ]) {
+    assert.ok(DATABASE_GENERATION_FINGERPRINT_SQL.includes('AS "' + flag + '",'),
+      flag + " must remain an independent SELECT expression");
+  }
+  assert.doesNotMatch(DATABASE_GENERATION_FINGERPRINT_SQL,
+    /\\bSELECT\\s+\\*\\s+FROM\\s+(?:public\\.)?(?:employees|payroll_entries|payroll_runs)\\b/i);
 });
