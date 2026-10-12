@@ -543,7 +543,7 @@ export async function POST(request: Request) {
       });
       return { status: 200, payload: {
         id: batch.id, status: "approved", published: overrideIds.length, overrideIds,
-        ruleFindings: checked.ruleFindings ?? [],
+        ruleFindings: ('ruleFindings' in checked ? checked.ruleFindings : []),
       } };
     }, { isolationLevel: "read committed" });
     return Response.json(decision.payload, { status: decision.status, headers: noStore });
