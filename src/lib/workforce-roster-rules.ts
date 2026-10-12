@@ -104,7 +104,9 @@ export function evaluateWfmRosterRules(input: {
   intervals.sort((a,b)=>a.start-b.start||a.end-b.end);
   let latest:Interval|null=null;
   for(const current of intervals){
-    if(latest&&target.has(current.date)){
+    // A published shift can also conflict with the following, unchanged shift.
+    // Inspect both sides of a target date, not only the newly edited date.
+    if(latest&&(target.has(current.date)||target.has(latest.date))){
       if(current.start<latest.end)result.push({
         code:"OVERLAPPING_SHIFTS",severity:"blocking",date:current.date,relatedDate:latest.date,
         message:`Shift ${current.code} starting at minute ${Math.round(current.start % 1440)} overlaps ${latest.code}; overlap cannot be overridden.`,overrideEligible:false,
@@ -121,20 +123,30 @@ export function evaluateWfmRosterRules(input: {
     if(!latest||current.end>latest.end)latest=current;
   }
   for(const day of days){
-    if(!target.has(day.date)||!policy.active)continue;
+    if(!policy.active)continue;
     const paid=paidByDay.get(day.date)??0;
+    const isTarget=target.has(day.date);
+    // A change on Tuesday may create a weekly cap breach on Wednesday through
+    // the following Monday; checking Tuesday alone misses that future window.
+    const currentOrdinal=dateOrdinal(day.date);
+    const affectsRollingWeek=[...target].some(date=>{
+      const offset=currentOrdinal-dateOrdinal(date);
+      return offset>=0&&offset<7;
+    });
+    const weekly=affectsRollingWeek?[...paidByDay].filter(([date])=>
+      currentOrdinal-dateOrdinal(date)>=0&&currentOrdinal-dateOrdinal(date)<7
+    ).reduce((sum,[,value])=>sum+value,0):0;
+    if(affectsRollingWeek&&weekly>policy.maxRollingSevenDayMinutes)result.push({
+      code:"MAX_WEEKLY_HOURS",severity:mode,date:day.date,
+      message:`Rolling seven-day scheduled paid time ${weekly} minutes exceeds employer cap of ${policy.maxRollingSevenDayMinutes} minutes.`,
+      actualMinutes:weekly,thresholdMinutes:policy.maxRollingSevenDayMinutes,overrideEligible:true,
+    });
+    // Daily time, approved OT and premium implications apply to changed days.
+    if(!isTarget)continue;
     if(paid>policy.maxDailyMinutes)result.push({
       code:"MAX_DAILY_HOURS",severity:mode,date:day.date,
       message:`Scheduled paid time ${paid} minutes exceeds employer daily cap of ${policy.maxDailyMinutes} minutes.`,
       actualMinutes:paid,thresholdMinutes:policy.maxDailyMinutes,overrideEligible:true,
-    });
-    const currentOrdinal=dateOrdinal(day.date);
-    const weekly=[...paidByDay].filter(([date])=>currentOrdinal-dateOrdinal(date)>=0&&currentOrdinal-dateOrdinal(date)<7)
-      .reduce((sum,[,value])=>sum+value,0);
-    if(weekly>policy.maxRollingSevenDayMinutes)result.push({
-      code:"MAX_WEEKLY_HOURS",severity:mode,date:day.date,
-      message:`Rolling seven-day scheduled paid time ${weekly} minutes exceeds employer cap of ${policy.maxRollingSevenDayMinutes} minutes.`,
-      actualMinutes:weekly,thresholdMinutes:policy.maxRollingSevenDayMinutes,overrideEligible:true,
     });
     const scheduledOvertime=Math.max(0,paid-policy.ordinaryDailyMinutes);
     const approvedDaily=input.approvedOvertimeMinutesByDate?.[day.date];
