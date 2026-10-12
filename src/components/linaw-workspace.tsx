@@ -1,4 +1,5 @@
 "use client";
+import { InlineFirstPayrollJourney } from "@/components/workspace/inline-first-payroll-journey";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -468,6 +469,20 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
             )}
             {data.firstPayrollReadiness && (
               <FirstPayrollReadinessCard
+                inlineJourney={data.inlineFirstPayrollEnabled ? <InlineFirstPayrollJourney
+              key={data.selectedOrganization.id}
+              organizationId={data.selectedOrganization.id}
+              revision={JSON.stringify([data.firstPayrollReadiness, data.employees])}
+              notify={notify}
+              onRefresh={async () => { await refresh(); }}
+              workflows={{
+                people: availablePages.includes("People") ? <PeopleView data={data} onRefresh={async () => { await refresh(); }} onAddEmployee={() => setNewHireOpen(true)} onPage={() => {}} canManage={canManagePeople} /> : <p>Send to HR to add and review people.</p>,
+                time: availablePages.includes("Time & attendance") ? <TimeView data={data} onOpenBundy={() => setWebBundyOpen(true)} notify={notify} canManage={canManageTime} /> : <p>Send to HR for attendance review.</p>,
+                payroll: availablePages.includes("Payroll") ? <PayrollRunView data={data} busy={busy} onNewRun={() => setNewPayrollOpen(true)} onProcess={processRun} onRelease={releaseRun} onDecide={decideTask} onPage={() => {}} onRefresh={async () => { await refresh(); }} notify={notify} availablePages={availablePages} /> : null,
+                approval: availablePages.includes("Approvals") ? <ApprovalsView data={data} busy={busy} canDecide={canDecideApprovals} canManageDelegations={canManageDelegations} onDecide={decideTask} onRefresh={async () => { await refresh(); }} notify={notify} /> : <p>Send to the independent checker for approval.</p>,
+                exports: availablePages.includes("Exports") ? <ExportsView data={data} notify={notify} onRefresh={async () => { await refresh(); }} /> : <p>Send to finance for exports after release.</p>,
+              }}
+                  /> : undefined}
                 readiness={data.firstPayrollReadiness}
                 guided={isSelfServeCustomer}
                 allowedPages={availablePages}
@@ -686,6 +701,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       )}
       {newHireOpen && (
         <NewHireModal
+          statutoryFields={data.inlineFirstPayrollEnabled === true}
           organizationId={data.selectedOrganization.id}
           onClose={() => setNewHireOpen(false)}
           onCreated={async () => {

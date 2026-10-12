@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { ArrowRight, Check, CircleAlert, ShieldCheck, UsersRound, WalletCards } from "lucide-react";
 import type { FirstPayrollReadiness as FirstPayrollReadinessState } from "@/lib/first-payroll-readiness";
 import { buildFirstPayrollJourney } from "@/lib/first-payroll-journey";
@@ -11,6 +12,7 @@ export function FirstPayrollReadinessCard({
   onSettings,
   allowedPages,
   guided = false,
+  inlineJourney,
 }: {
   readiness: FirstPayrollReadinessState;
   onPage: (page: string) => void;
@@ -18,10 +20,13 @@ export function FirstPayrollReadinessCard({
   onSettings?: (tab: "organization" | "team") => void;
   allowedPages: readonly string[];
   guided?: boolean;
+  inlineJourney?: ReactNode;
 }) {
   // Keep the export/filing handoff visible after the first run is released.
   // Once a second run exists, the employer has completed the initial journey.
   if (readiness.firstPayrollReleased && readiness.payrollRunCount > 1) return null;
+
+  if (inlineJourney) return inlineJourney;
 
   const percent = Math.round((readiness.completed / readiness.total) * 100);
   const journey = buildFirstPayrollJourney(readiness);

@@ -5886,3 +5886,13 @@ export const workforceDemandStaffingPolicyEvents = pgTable(
     check("wfm_staffing_policy_event_hash_check", sql`${t.policySha256} ~ '^[a-f0-9]{64}$' and ${t.receiptSha256} ~ '^[a-f0-9]{64}$'`),
   ],
 );
+
+/** Shared tenant journey state. No payroll approval authority is stored here. */
+export const firstPayrollJourneyProgress = pgTable("first_payroll_journey_progress", {
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  step: varchar("step", { length: 24 }).notNull(),
+  ownerRole: varchar("owner_role", { length: 24 }).notNull(),
+  data: jsonb("data").notNull().default({}),
+  updatedByUserId: integer("updated_by_user_id").notNull().references(() => users.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [uniqueIndex("first_payroll_journey_tenant_step").on(table.organizationId, table.step)]);

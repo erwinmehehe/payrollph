@@ -1,3 +1,4 @@
+import { FIRST_PAYROLL_STEPS } from "./first-payroll-journey";
 export type FirstPayrollReadinessItem = {
   key: "workspace" | "employees" | "payout" | "payroll-officer" | "checker";
   label: string;
@@ -45,27 +46,28 @@ export function buildFirstPayrollReadiness(input: {
   const checkerCount = input.memberships.filter((member) => member.role === "checker").length;
   const workspaceReady = input.workspaceName.trim().length >= 2;
 
+  const step = (key: string) => FIRST_PAYROLL_STEPS.find(s => s.key === key)!;
   const items: FirstPayrollReadinessItem[] = [
     {
       key: "workspace",
-      label: "Company workspace",
+      label: step("company").title,
       detail: workspaceReady
         ? `${input.workspaceName} is ready for payroll setup.`
         : "Complete the company workspace details before payroll.",
       ready: workspaceReady,
       actionPage: "Settings",
-      actionLabel: "Company settings",
+      actionLabel: step("company").actionLabel,
     },
     {
       key: "employees",
-      label: "Active employee roster",
+      label: step("people").title,
       detail:
         activeEmployees.length > 0
           ? `${activeEmployees.length} active employee${activeEmployees.length === 1 ? "" : "s"} in the payroll roster.`
           : "Add or import at least one active employee.",
       ready: activeEmployees.length > 0,
       actionPage: "People",
-      actionLabel: "Add employees",
+      actionLabel: step("people").actionLabel,
     },
     {
       key: "payout",

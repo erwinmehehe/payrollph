@@ -1,3 +1,4 @@
+import { criticalReleaseFlagEnabled } from "./critical-release-flags";
 import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { maskGovernmentId } from "@/lib/government-id-crypto";
 import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
@@ -304,7 +305,7 @@ export async function getDashboardData(organizationId?: number) {
   const canViewFirstPayrollReadiness =
     accountType !== "freelancer"
     && access.companyWide
-    && ["owner", "admin", "bookkeeper", "payroll"].includes(access.role);
+    && (["owner", "admin", "bookkeeper", "payroll"].includes(access.role) || (criticalReleaseFlagEnabled("inlineFirstPayroll") && ["hr", "checker"].includes(access.role)));
   const firstPayrollMemberships = canViewFirstPayrollReadiness
     ? await db
         .select({ role: userOrganizations.role })
@@ -345,6 +346,7 @@ export async function getDashboardData(organizationId?: number) {
 
   return {
     firstPayrollReadiness,
+    inlineFirstPayrollEnabled: criticalReleaseFlagEnabled("inlineFirstPayroll"),
     user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
     capabilities,

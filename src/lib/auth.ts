@@ -85,7 +85,7 @@ export async function revokeSessionsByIds(ids: number[]) {
   return ids.length;
 }
 
-export async function getSessionUser() {
+export async function getSessionUser(options: { readOnly?: boolean } = {}) {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -107,18 +107,18 @@ export async function getSessionUser() {
   if (!row) return null;
 
   if (!row.user.active) {
-    await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
+    if (!options.readOnly) await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
     return null;
   }
 
   const policy = await effectiveSessionPolicyForUser(row.user.id);
   const createdAt = new Date(row.session.createdAt).getTime();
   if (Date.now() - createdAt > policy.maxHours * 60 * 60 * 1000) {
-    await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
+    if (!options.readOnly) await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
     return null;
   }
   if (policy.requireMfa && !row.session.mfaVerifiedAt) {
-    await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
+    if (!options.readOnly) await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
     return null;
   }
   const lastSeen = row.session.lastSeenAt ? new Date(row.session.lastSeenAt).getTime() : 0;
@@ -126,11 +126,19 @@ export async function getSessionUser() {
     ? policy.idleMinutes * 60 * 1000
     : SESSION_IDLE_TIMEOUT_MS;
   if (lastSeen && Date.now() - lastSeen > idleTimeoutMs) {
-    await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
+    if (!options.readOnly) await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.id, row.session.id));
     return null;
   }
-  await enforceActiveSessionLimit(row.user.id, row.session.id, policy.maxActiveSessions);
-  if (Date.now() - lastSeen > LAST_SEEN_WRITE_INTERVAL_MS) {
+  if (options.readOnly) {
+    // Fail closed instead of repairing an over-limit account during a dry run.
+    const active = await db.select({ id: sessions.id }).from(sessions).where(and(
+      eq(sessions.userId, row.user.id), isNull(sessions.revokedAt), gt(sessions.expiresAt, new Date()),
+    ));
+    if (active.length > policy.maxActiveSessions) return null;
+  } else {
+    await enforceActiveSessionLimit(row.user.id, row.session.id, policy.maxActiveSessions);
+  }
+  if (!options.readOnly && Date.now() - lastSeen > LAST_SEEN_WRITE_INTERVAL_MS) {
     await db.update(sessions).set({ lastSeenAt: new Date() }).where(eq(sessions.id, row.session.id));
   }
 

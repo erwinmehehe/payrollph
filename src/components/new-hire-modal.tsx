@@ -14,8 +14,10 @@ export function NewHireModal({
   organizationId,
   onClose,
   onCreated,
+  statutoryFields = false,
 }: {
   organizationId: number;
+  statutoryFields?: boolean;
   onClose: () => void;
   onCreated: () => void;
 }) {
@@ -27,6 +29,10 @@ export function NewHireModal({
     bankCode: "",
     mobile: "",
     title: "",
+    tin: "",
+    sssNo: "",
+    philHealthNo: "",
+    pagIbigNo: "",
     payBasis: "monthly",
     rateAmount: "",
     standardWorkDaysPerMonth: "22",
@@ -88,6 +94,7 @@ export function NewHireModal({
             <label>First name<input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} /></label>
             <label>Last name<input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} /></label>
             <label>Work email<input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="for payslip delivery" /></label>
+            {statutoryFields && (["tin", "sssNo", "philHealthNo", "pagIbigNo"] as const).map(key => <label key={key}>{key === "tin" ? "TIN" : key === "sssNo" ? "SSS number" : key === "philHealthNo" ? "PhilHealth number" : "Pag-IBIG number"}<input value={form[key]} onChange={e => setForm({ ...form, [key]: e.target.value })} autoComplete="off" /></label>)}
             <label>Job title<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
             <label>Bank / payout code<input value={form.bankCode} onChange={(e) => setForm({ ...form, bankCode: e.target.value.toUpperCase() })} placeholder="BDO / BPI / UB / ..." /></label>
             <label>Account number<input value={form.bankAccount} onChange={(e) => setForm({ ...form, bankAccount: e.target.value })} placeholder="encrypted after save" autoComplete="off" /></label>

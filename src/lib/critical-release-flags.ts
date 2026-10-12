@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  inlineFirstPayroll: {
+    env: "INLINE_FIRST_PAYROLL_ENABLED",
+    owner: "Payroll Product",
+    risk: "P1 tenant onboarding and payroll dry run",
+    approval: "Inline journey, tenant handoff and read-only preview acceptance",
+  },
   centralScheduler: {
     env: "CENTRAL_SCHEDULER_ENABLED",
     owner: "Operations",

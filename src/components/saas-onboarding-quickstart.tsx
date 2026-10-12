@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Building2, CheckCircle2, ClipboardList, CreditCard, FileCheck2, UsersRound } from "lucide-react";
+import { ArrowRight, CheckCircle2, CreditCard, FileCheck2 } from "lucide-react";
+
+import { buildFirstPayrollJourney } from "@/lib/first-payroll-journey";
+import { buildFirstPayrollReadiness } from "@/lib/first-payroll-readiness";
 
 export function SaasOnboardingQuickstart({
   companyName, employees, runs, onPage, onAddEmployee,
@@ -12,40 +15,15 @@ export function SaasOnboardingQuickstart({
   onPage: (page: string) => void;
   onAddEmployee: () => void;
 }) {
-  const steps = [
-    {
-      label: "Review company and employer details",
-      detail: "Confirm the legal employer, registration IDs and payroll calendar.",
-      complete: false,
-      icon: Building2,
-      action: () => onPage("Settings"),
-      actionLabel: "Company settings",
-    },
-    {
-      label: "Add or import employees",
-      detail: "Start with staff profiles, bank destinations, work arrangements and statutory numbers.",
-      complete: employees > 0,
-      icon: UsersRound,
-      action: onAddEmployee,
-      actionLabel: "Add an employee",
-    },
-    {
-      label: "Configure time and leave",
-      detail: "Review attendance, leave, holidays and payroll cutoffs before your first run.",
-      complete: false,
-      icon: ClipboardList,
-      action: () => onPage("Time & attendance"),
-      actionLabel: "Review attendance",
-    },
-    {
-      label: "Prepare your first payroll",
-      detail: "Run the readiness checks, calculate, review and release.",
-      complete: runs > 0,
-      icon: FileCheck2,
-      action: () => onPage("Payroll"),
-      actionLabel: "Open payroll",
-    },
-  ];
+  const steps = buildFirstPayrollJourney(buildFirstPayrollReadiness({
+    workspaceName: companyName,
+    employees: Array.from({ length: employees }, () => ({ status: "Active" })),
+    memberships: [], payrollStatuses: Array.from({ length: runs }, () => "Draft"),
+  })).map(step => ({
+    label: step.title, detail: step.detail, complete: step.state === "complete",
+    icon: FileCheck2, actionLabel: step.actionLabel,
+    action: step.key === "people" ? onAddEmployee : () => onPage(step.page),
+  }));
   return (
     <section className="mb-5 rounded-[20px] border border-[#c9dff8] bg-[#f7fbff] p-5" aria-label="First payroll onboarding">
       <div className="flex flex-wrap items-start justify-between gap-4">

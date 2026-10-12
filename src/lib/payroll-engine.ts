@@ -2,6 +2,7 @@ import { roundedBasicPayBuckets, roundedGrossFromBuckets, statutoryTrueUpDecisio
 import { allocateMandatoryDeductions } from "@/lib/payroll-mandatory-shortfall";
 import { and, asc, eq, gte, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { db, pool } from "@/db";
+const productionDb = db;
 import {
   calamityAdvisories,
   compensationComponents,
@@ -468,15 +469,31 @@ export async function drainPayrollQueue(maxJobs = 50, targetRunId?: number) {
   return results;
 }
 
+type PreviewRun = Pick<typeof payrollRuns.$inferSelect, "id" | "legalEntityId" | "scopeOrgUnitId" | "periodStart" | "periodEnd" | "payDate" | "periodLabel" | "employeeCount">;
+export type PayrollDryRunRow = { employeeId: number; name: string; gross: number; sss: number; philHealth: number; pagIbig: number; withholding: number; net: number; missingTin: boolean; missingBank: boolean; status: string };
+
+/** Uses the exact production input loader and calculator, without schema repair,
+ * account sealing, run/job creation, entries, payslips or audit writes. The caller
+ * must supply a PostgreSQL READ ONLY transaction for defense in depth. */
+export async function previewPayrollWithReader(reader: typeof db, organizationId: number, run: PreviewRun) {
+  const result = await processPayrollChunk({ runId: 0, organizationId, chunkIndex: 0, chunkSize: Number.MAX_SAFE_INTEGER, preview: { reader, run } });
+  return result.previewRows ?? [];
+}
+
 async function processPayrollChunk(input: {
   runId: number;
   organizationId: number;
   chunkIndex: number;
   chunkSize: number;
+  preview?: { reader: typeof db; run: PreviewRun };
 }) {
-  await ensureLeavePayrollSchema();
-  await ensureEmployeePayProfiles(input.organizationId);
-  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, input.runId));
+  const db = input.preview?.reader ?? productionDb;
+  const previewRows: PayrollDryRunRow[] = [];
+  if (!input.preview) {
+    await ensureLeavePayrollSchema();
+    await ensureEmployeePayProfiles(input.organizationId);
+  }
+  const [run] = input.preview ? [input.preview.run] : await db.select().from(payrollRuns).where(eq(payrollRuns.id, input.runId));
   if (!run) throw new Error("Payroll run missing");
   const [organization] = await db.select().from(organizations)
     .where(eq(organizations.id, input.organizationId))
@@ -525,7 +542,7 @@ async function processPayrollChunk(input: {
     .where(employeeWhere)
     .orderBy(asc(employees.id));
 
-  if (allEmployees.length !== run.employeeCount) {
+  if (!input.preview && allEmployees.length !== run.employeeCount) {
     throw new Error(
       "Payroll employee scope changed after calculation was queued. Recalculate so the run uses one consistent active-employee cohort.",
     );
@@ -533,7 +550,7 @@ async function processPayrollChunk(input: {
   const chunk = allEmployees.slice(input.chunkIndex * input.chunkSize, (input.chunkIndex + 1) * input.chunkSize);
   // Authenticate all account snapshots before writing any payroll entry for this chunk.
   const sealedPaymentBankAccounts = new Map<number, string | null>();
-  for (const employee of chunk) {
+  for (const employee of input.preview ? [] : chunk) {
     sealedPaymentBankAccounts.set(employee.id, sealPayrollPaymentBankAccount(employee.bankAccount));
   }
   const chunkIds = chunk.map((employee) => employee.id);
@@ -595,8 +612,8 @@ async function processPayrollChunk(input: {
     restDayRevisionsByEmployee.set(revision.employeeId, [...(restDayRevisionsByEmployee.get(revision.employeeId) ?? []), revision]);
   }
   if (chunk.length === 0) {
-    await finalizeRun(input.runId);
-    return { done: true, chunkIndex: input.chunkIndex, processedEmployees: 0 };
+    if (!input.preview) await finalizeRun(input.runId);
+    return { done: true, chunkIndex: input.chunkIndex, processedEmployees: 0, previewRows };
   }
 
   const advisories = await db.select().from(calamityAdvisories).where(and(
@@ -1617,6 +1634,12 @@ async function processPayrollChunk(input: {
     chunkNet += calc.net;
     if (calc.status === "Exception") chunkExceptions += 1;
 
+    if (input.preview) {
+      const deduction = (code: string) => -Number(calc.lineItems.find((line) => line.code === code)?.amount ?? 0);
+      previewRows.push({ employeeId: employee.id, name: `${employee.firstName} ${employee.lastName}`, gross: calc.gross, net: calc.net, sss: deduction("SSS"), philHealth: deduction("PHIC"), pagIbig: deduction("HDMF") + deduction("HDMF_VOL"), withholding: deduction("WHT"), missingTin: !employee.tin?.trim(), missingBank: !employee.bankAccount?.trim() || !employee.bankCode?.trim(), status: calc.status });
+      continue;
+    }
+
     const [entry] = await db.insert(payrollEntries).values({
       payrollRunId: input.runId,
       employeeId: employee.id,
@@ -1667,6 +1690,8 @@ async function processPayrollChunk(input: {
     });
 
   }
+
+  if (input.preview) return { done: true, chunkIndex: 0, processedEmployees: chunk.length, previewRows };
 
   const processedChunks = input.chunkIndex + 1;
   const totalChunks = Math.max(1, Math.ceil(allEmployees.length / input.chunkSize));
