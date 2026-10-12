@@ -145,6 +145,33 @@ export function isBelowMinimum(monthlyBasic: number, region: string, daysPerMont
   };
 }
 
+/**
+ * Advisory minimum-wage check for the actual WORK period, never the later
+ * payday. Where an effective-date boundary falls inside the period, callers
+ * must review the employee's dates and applicable locality tier separately.
+ * This check does not recalculate statutory wages or change MWE tax status.
+ */
+export function wageScreenForWorkPeriod(
+  monthlyBasic: number,
+  region: string,
+  daysPerMonth: number,
+  periodStart: string,
+  periodEnd: string,
+  wageClass?: RegionVIIWageClass,
+) {
+  const start = verifiedWageDate(periodStart);
+  const end = verifiedWageDate(periodEnd);
+  if (start > end) throw new Error("Wage screening work period starts after it ends.");
+  const startOrder = wageOrderFor(region, start, wageClass);
+  const check = isBelowMinimum(monthlyBasic, region, daysPerMonth, end, wageClass);
+  return {
+    ...check,
+    startOrder,
+    effectiveDateChange: startOrder.dailyRate !== check.order.dailyRate
+      || startOrder.wageOrder !== check.order.wageOrder,
+  };
+}
+
 export type HolidayKind = "regular" | "special" | "rest";
 export type HolidayCalendarEntry = { date: string; name: string; kind: HolidayKind };
 
