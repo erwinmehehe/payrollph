@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   readSquareSandboxDay, parseSquareDemandSync, selectSquareDemandRevisions,
@@ -32,6 +33,7 @@ function sourcePage(pages:Array<{payments?:unknown[];cursor?:string;errors?:unkn
     assert.equal(headers.get("Square-Version"),"2026-09-16");
     assert.equal(headers.get("authorization"),"Bearer "+sample.accessToken);
     assert.equal(options?.method,"GET");
+    assert.equal(options?.redirect,"error","bearer token must never follow redirects");
     const page=pages[i++]??{};
     return Response.json(page);
   }) as typeof fetch;
@@ -115,6 +117,7 @@ test("source failures do not produce partial zero-count imports",async()=>{
   const cases=[
     [{payments:[payment("x1111","2026-09-20T11:00:00+08:00","COMPLETED","WRONGSITE")]}],
     [{payments:[{id:"x1111",created_at:"garbled",status:"COMPLETED",location_id:"SBPHLOC111"}]}],
+    [{payments:[payment("x1111","2026-09-20T11:00:00")]}],
     [{payments:[],cursor:"repeat"},{payments:[],cursor:"repeat"}],
     [{payments:[],errors:[{code:"BAD_AUTH"}]}],
     [{payments:Array.from({length:101},(_,i)=>payment("abcde"+i,"2026-09-20T10:00:00+08:00"))}],
@@ -143,4 +146,20 @@ test("no foreign/invalid prior revisions can authorize a full-day sync",async()=
   }),SquareDemandSourceError);
   assert.equal(aggregate.counts.every(x=>x===0),true);
   assert.match(aggregate.boundary,/point-in-time API scan/);
+});
+
+// Cross-employer and custom-permission denials must occur before provider
+// configuration discovery or a source scan on both read and write endpoints.
+test("Square route enforces exact tenant permission overlay before checking connector config",()=>{
+  const route=readFileSync("src/app/api/workforce/demand-observations/square-sandbox/route.ts","utf8");
+  const get=route.slice(route.indexOf("export async function GET("),route.indexOf("export async function POST("));
+  const post=route.slice(route.indexOf("export async function POST("));
+  assert.ok(get.includes("assertOrganizationRole("));
+  assert.ok(post.includes("assertOrganizationRole("));
+  assert.ok(get.indexOf("assertOrganizationRole(")<get.indexOf("squareSandboxConnection("));
+  assert.ok(post.indexOf("assertOrganizationRole(")<post.indexOf("squareSandboxConnection("));
+  assert.match(get,/siteAuthorized\(organizationId,worksiteId,access\)/);
+  assert.match(post,/siteAuthorized\(scope.organizationId,scope.worksiteId,access\)/);
+  assert.ok(post.includes("requireSensitiveActionMfa(user)"));
+  assert.ok(post.includes("enforceSensitiveActionRateLimit(request"));
 });
