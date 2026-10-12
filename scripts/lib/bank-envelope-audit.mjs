@@ -125,7 +125,9 @@ export async function auditBankEnvelopesReadOnly({
       mode, stores: totals, plaintext, unreadable, authenticated,
       allCurrentKeyAuthenticated: plaintext === 0 && unreadable === 0,
       requiresBackfill: plaintext > 0,
-      verificationSucceeded: unreadable === 0 && (mode !== "require-zero" || plaintext === 0),
+      inventoryCompleted: true,
+      // A completed dry-run with remaining plaintext is still a RED gate.
+      verificationSucceeded: plaintext === 0 && unreadable === 0,
       readOnly: true,
       changesApplied: false,
       productionReleaseApproved: false,
