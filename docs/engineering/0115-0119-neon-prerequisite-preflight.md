@@ -18,9 +18,23 @@
 4. tests/pending-train-postgres-rehearsal.test.mjs runs only in GitHub Actions against the hard-coded disposable local PostgreSQL 16 database; it is skipped elsewhere. It reproduces absent payout prerequisites using a transaction-local DROP that is rolled back, then rehearses two preserved source candidates plus 0115-0119 in one transaction with a second rollback. It inspects idempotency guards, the Xendit check constraint and representative new tables. **No Neon branch or production SQL is altered by these tests.**
 5. .github/workflows/ci.yml enables the guarded migration test within the existing disposable PG16 CI job after db:push. Failure blocks the draft and must not be bypassed.
 
-## Neon capacity blocker and next review
+## Neon isolated rehearsal — verified 2026-10-12
 
-Neon now reports 10 branches in a project capped at 10. A new attempt returned HTTP 422 BRANCH LIMIT EXCEEDED. Earlier attempts returned HTTP 401; current catalog reads work. Existing branches include payrollph-pr865-rehearsal-20261012, which has the 0115 first-payroll progress object, but is independently owned; do not delete, reset or rewrite it without authorization. An isolated PG18 branch rehearsal remains incomplete until a truly available, approved branch exists.
+The owner explicitly authorized deleting `temporary-endpoint-parking-20261012` to free a test branch slot. After verifying its exact ID, parent, nondefault/unprotected status and no child branches, the branch was deleted and its removal confirmed.
+
+Created a dedicated child of the correct `neon-almond-ridge/main`:
+- Branch name: `payrollph-pr865-integrated-rehearsal-20261012`
+- Branch ID: `br-weathered-term-b7ztb2ki`
+- Parent: `br-lucky-sound-b79i56jw`
+- Database: `neondb`, PostgreSQL 18.6
+- Ephemeral expiry: **2026-10-19 06:00 UTC**
+- Initial state: 112 public tables, 3 payroll runs, no journal and none of the proposed 0115/0116 tables
+
+**Tested only the additive, source-identical 0115 and 0116 SQL on this child**. Every statement was verified as CREATE TABLE/CREATE INDEX IF NOT EXISTS before being executed as one atomic transaction. Both the initial and repeat execution succeeded (6 SQL statements each). The child then had 114 public tables, with `first_payroll_journey_progress`, `workforce_roster_rule_policies`, four planned indexes, two progress foreign keys and the WFM rule CHECK. Payroll-run count remained 3. Independently re-read `main`: 112 public tables, neither 0115/0116 table, 3 payroll runs. No employee, government ID, bank account, payroll row contents or photos were queried.
+
+**Boundaries:** This is a database **compatibility rehearsal only**, not a release apply or approved historic receipt. The tests are not evidence that a reviewed migration executor/receipt journal was used. No 0117, 0118, 0119, 0120, payout, historical backfill, payment call, feature flag or production DDL was executed by this rehearsal. 0117 remains blocked by absent payout base tables; 0119 by its additional employment-history and payout prerequisites. Older experimental Neon branches were untouched.
+
+Further PG18 rehearsal requires a reviewed dependency-complete train, verified receipt/cutover data, a restore witness and explicit agreement about financial/privacy-sensitive test data. Do not infer that 0115/0116 are production-approved solely because they were structurally compatible.
 
 ## Release acceptance order
 
