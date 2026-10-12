@@ -2,7 +2,7 @@ import { and, eq, gte, lte, asc } from "drizzle-orm";
 import { db } from "@/db";
 import { employees, leaveRequests, orgUnits, payrollEntries, payrollRuns, separationRecords } from "@/db/schema";
 import { runBiExport, validateBiExportFilters } from "@/lib/bi-exports";
-import { leaveRangeFullyWithinReport, type BuilderDataset, type BuilderFact } from "@/lib/tenant-report-builder";
+import { leaveRangeFullyWithinReport, reportMoneyCentavos, formatReportCentavos, type BuilderDataset, type BuilderFact } from "@/lib/tenant-report-builder";
 
 export async function getBuilderFacts(input: {
   organizationId: number; dataset: BuilderDataset;
@@ -116,11 +116,12 @@ export async function getBuilderFacts(input: {
       if (!item || typeof item !== "object" || Array.isArray(item)) return amount;
       const line = item as { code?: unknown; amount?: unknown };
       if (line.code !== "OT") return amount;
-      const value = Number(line.amount);
-      if (!Number.isFinite(value) || value < 0) throw new Error("Stored OT line item needs review.");
+      const value = reportMoneyCentavos(String(line.amount));
+      if (value < 0n) throw new Error("Stored OT line item needs review.");
       return amount + value;
-    }, 0);
+    }, 0n);
     return { department: row.orgUnit ?? "Unallocated", status: row.runStatus,
-      payrollCost: Number(row.grossPay), otLineCost };
+      payrollCost: formatReportCentavos(reportMoneyCentavos(String(row.grossPay))),
+      otLineCost: formatReportCentavos(otLineCost) };
   });
 }
