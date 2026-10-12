@@ -6,6 +6,41 @@ import {db} from "../src/db";
 import {organizations,employees,workforcePunchPhotoEvidence} from "../src/db/schema";
 import {purgeExpiredPunchPhotos} from "../src/lib/workforce-punch-retention";
 
+
+/**
+ * Drizzle wraps PostgreSQL errors in a generic "Failed query" exception.
+ * Inspect the original SQLSTATE/constraint in the cause chain rather than
+ * checking the wrapper's text. Never accept unrelated FK or query failures.
+ */
+function isPhotoTenantViolation(error: unknown): boolean {
+  let current: unknown = error;
+  for (let depth = 0; depth < 5; depth++) {
+    if (!current || typeof current !== "object") return false;
+    const value = current as {
+      code?: unknown; constraint?: unknown; message?: unknown; cause?: unknown;
+    };
+    if (value.code === "23503" &&
+      value.constraint === "workforce_punch_photo_employee_tenant_fk") return true;
+    if (value.code === "23514" &&
+      typeof value.message === "string" &&
+      value.message.includes("WFM_PUNCH_TENANT_MISMATCH")) return true;
+    current = value.cause;
+  }
+  return false;
+}
+
+test("tenant photo constraint assertion inspects the PG cause without accepting unrelated failures",()=>{
+  assert.equal(isPhotoTenantViolation(new Error("Failed query")),false);
+  assert.equal(isPhotoTenantViolation({cause:{code:"23503",
+    constraint:"workforce_punch_photo_employee_tenant_fk"}}),true);
+  assert.equal(isPhotoTenantViolation({cause:{code:"23503",
+    constraint:"some_other_fk"}}),false);
+  assert.equal(isPhotoTenantViolation({code:"23514",
+    message:"WFM_PUNCH_TENANT_MISMATCH"}),true);
+  assert.equal(isPhotoTenantViolation({code:"23514",
+    message:"unrelated check constraint"}),false);
+});
+
 test("real purge job erases expired ciphertext but preserves held and future tenant evidence",async()=>{
   const suffix=randomUUID().slice(0,9);
   const [orgA,orgB]=await db.insert(organizations).values([
@@ -32,7 +67,8 @@ test("real purge job erases expired ciphertext but preserves held and future ten
         id:randomUUID(),organizationId:orgB.id,employeeId:a.id,
         expiresAt:future,sealedPhoto:"synthetic-wrong-tenant",
       });
-    },/WFM_PUNCH_TENANT_MISMATCH|workforce_punch_photo_employee_tenant_fk/);
+    }, isPhotoTenantViolation,
+    "The database must reject a photo whose employee belongs to another tenant.");
     const result=await purgeExpiredPunchPhotos(new Date("2026-10-12T00:00:00.000Z"));
     assert.ok(result.purged>=2);
     const rows=await db.select().from(workforcePunchPhotoEvidence).where(inArray(workforcePunchPhotoEvidence.id,ids));
