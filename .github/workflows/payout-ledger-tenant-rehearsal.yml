@@ -3,14 +3,14 @@ name: A-1 and A-2 Payout Ledger Tenant Integrity (Disposable Postgres)
 on:
   pull_request:
     paths:
-      - "docs/sql/pending-payout-ledger.sql"
+      - "drizzle/0116_payout_ledger_foundation.sql"
       - "drizzle/0110_provider_events_inbox.sql"
       - "tests/payout-ledger-tenant-guard-postgres.test.mjs"
       - ".github/workflows/payout-ledger-tenant-rehearsal.yml"
   push:
     branches: [main]
     paths:
-      - "docs/sql/pending-payout-ledger.sql"
+      - "drizzle/0116_payout_ledger_foundation.sql"
       - "drizzle/0110_provider_events_inbox.sql"
       - "tests/payout-ledger-tenant-guard-postgres.test.mjs"
       - ".github/workflows/payout-ledger-tenant-rehearsal.yml"
