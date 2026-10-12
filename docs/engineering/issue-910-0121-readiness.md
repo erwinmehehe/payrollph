@@ -41,6 +41,21 @@ The original 0121 mixes these steps in one file. The extracts are *review artifa
 - [ ] Confirm independent DBA approval, exact SHA-256 source and path journal, authorized operator, protected migration executor, staging receipts, rollback/restore evidence, change record and release owner.
 - [ ] Re-test flag-off parity, four golden payroll suites, TypeScript, lint, all tenant/entity API/worker/export isolation and real-device UAT.
 
+
+## Source-backed missing-predecessor candidate — review-only
+
+A separate, **unnumbered** SQL candidate now exists at `docs/sql/issue-910-review-only-forward-predecessor.sql`. It consists of the original additive statements from exact existing source files, ordered:
+
+`0022_job_architecture_positions.sql` → `0050_hcm_core_worker_history.sql` (**DDL only**) → `0052_hcm_effective_dated_changes.sql` → `0110_provider_events_inbox.sql` → `0112_wfm_operational_demand_observations.sql` → `0113_wfm_issued_demand_forecasts.sql` → `0114_wfm_demand_staffing_policies.sql`.
+
+**Material exclusion:** The original 0050 SQL ends with an `UPDATE positions SET legal_entity_id = employees.legal_entity_id` sourced through active position assignments. This is *not* historically valid when an employee may have changed employers. The candidate **omits this DML entirely**. It neither invents worker events nor assigns historical position ownership. A separate DBA/payroll legal-entity attribution decision must handle those positions, if any, only from trustworthy effective-dated evidence.
+
+Production read-only table/column/index evidence establishes **12 source target tables missing**: job profiles, positions and assignments; worker employment events; worker effective-dated changes; provider inbox; operational demand imports/revisions; issued-demand issues/scores; staffing policies/events. `workforce_plans` is **present**, with the expected 11 columns and both historical 0022 indexes, so it must **not be dropped or recreated**. The proposed `CREATE TABLE IF NOT EXISTS workforce_plans` does not recreate it; the DBA must independently compare existing constraints, ownership, rows and external dependencies before considering execution.
+
+`tests/issue-910-forward-predecessor-postgres.test.mjs` is restricted to disposable, synthetic PostgreSQL 16/18 only. It drops the 12 synthetic source targets inside a transaction, **preserves the existing workforce-plans structure and a seeded plan**, tests a worker/payroll-centavo record, rebuilds the 12 objects in dependency order, checks idempotent replay, rejects a duplicate active primary assignment, verifies historic position employer stays `NULL` even if current employee employer is set, and rolls back the entire transaction. No external database, live Neon branch or real employer copy is connected.
+
+**Release position:** Successful tests can approve *source candidate quality*, not authentic applied history, database authorization or production deployment. The DBA must reconcile source-path/sha256 against signed external release records; review each CREATE/ALTER/index/DO statement against current live catalog; assign a noncolliding forward migration number in an independent PR; obtain immutable backup/restore evidence; rehearse on a newly approved isolated protected clone; validate payroll and filing attribution; then obtain independent DBA, HR/payroll/legal, security and operations sign-off. `0121` remains a separate later authorization requiring its own backfill decisions. Do not merge a review-only candidate into the executable `drizzle/` train or bypass `ORDERED_RELEASE_MIGRATIONS_ENABLED`.
+
 ## Rollback / operational hold
 
 Feature flags stay OFF: `MULTI_ENTITY_ENABLED`, `MULTI_ENTITY_TRANSFERS_ENABLED`, `MULTI_ENTITY_REGISTRATIONS_ENABLED` and money movement. No migration is authorized by successful CI or a draft PR. For additive schema, application rollback disables the feature while preserving immutable history; an in-transaction clone rehearsal must demonstrate complete DDL/DML rollback. Never rollback by deleting historical employer evidence, changing filing ownership or restoring the production default branch. **Issue #910 stays OPEN until independently signed review and clone/live receipt evidence.**
