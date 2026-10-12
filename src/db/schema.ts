@@ -475,7 +475,17 @@ export const hcmPulseSurveys = pgTable("hcm_pulse_surveys", {
   aggregateAverage: numeric("aggregate_average", { precision: 4, scale: 2 }),
   aggregateDistribution: jsonb("aggregate_distribution"),
   closedAt: timestamp("closed_at", { withTimezone: true }),
-}, table => [index("hcm_pulse_org_status_idx").on(table.organizationId,table.status)]);
+}, table => [
+  index("hcm_pulse_org_status_idx").on(table.organizationId,table.status),
+  check("hcm_pulse_survey_status_check", sql`${table.status} in ('open','closed')`),
+  check("hcm_pulse_aggregate_privacy_check", sql`(
+    (${table.aggregateCount} is null and ${table.aggregateAverage} is null
+      and ${table.aggregateDistribution} is null)
+    or (${table.aggregateCount} >= 5 and ${table.aggregateAverage} between 1 and 5
+      and jsonb_typeof(${table.aggregateDistribution}) = 'array'
+      and jsonb_array_length(${table.aggregateDistribution}) = 5)
+  )`),
+]);
 
 export const hcmPulseSurveyResponses = pgTable("hcm_pulse_survey_responses", {
   id: serial("id").primaryKey(),
