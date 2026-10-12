@@ -1,0 +1,87 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import test from "node:test";
+import { and, eq, inArray } from "drizzle-orm";
+import { db } from "../src/db";
+import {
+  employees, legalEntities, organizations, userLegalEntityGrants, userOrganizations, users,
+} from "../src/db/schema";
+import { resolveMultiEntityContext, assertEntityResource } from "../src/lib/multi-entity-server";
+
+/** Real PostgreSQL and Drizzle: two tenants, two employers, group and scoped HR. */
+test("multi-entity service rejects cross-entity and cross-tenant reads and ID enumeration", async () => {
+  const previous = process.env.MULTI_ENTITY_ENABLED;
+  process.env.MULTI_ENTITY_ENABLED = "true";
+  const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
+  const [tenantA, tenantB] = await db.insert(organizations).values([
+    { name: "Scope A " + suffix, legalName: "Scope A " + suffix },
+    { name: "Scope B " + suffix, legalName: "Scope B " + suffix },
+  ]).returning();
+  const members: number[] = [];
+  try {
+    const [a1, a2, b1] = await db.insert(legalEntities).values([
+      { organizationId: tenantA.id, code: "A1", legalName: "A1 " + suffix, displayName: "A1", primaryEntity: true },
+      { organizationId: tenantA.id, code: "A2", legalName: "A2 " + suffix, displayName: "A2" },
+      { organizationId: tenantB.id, code: "B1", legalName: "B1 " + suffix, displayName: "B1", primaryEntity: true },
+    ]).returning();
+    const people = await db.insert(users).values([
+      { name: "Scoped " + suffix, email: "scoped-"+suffix+"@example.test", passwordHash: "synthetic", role: "hr" },
+      { name: "Group " + suffix, email: "group-"+suffix+"@example.test", passwordHash: "synthetic", role: "owner" },
+      { name: "Foreign " + suffix, email: "foreign-"+suffix+"@example.test", passwordHash: "synthetic", role: "owner" },
+    ]).returning();
+    members.push(...people.map(p=>p.id));
+    await db.insert(userOrganizations).values([
+      { userId: people[0].id, organizationId: tenantA.id, role: "hr", active: true },
+      { userId: people[1].id, organizationId: tenantA.id, role: "owner", active: true },
+      { userId: people[2].id, organizationId: tenantB.id, role: "owner", active: true },
+    ]);
+    await db.insert(userLegalEntityGrants).values({
+      userId: people[0].id, organizationId: tenantA.id, legalEntityId: a1.id,
+    });
+    const [worker1, worker2, foreignWorker] = await db.insert(employees).values([
+      { organizationId: tenantA.id, legalEntityId: a1.id, employeeNo: "A1", firstName: "Alpha", lastName: "Staff", title: "Staff", avatarInitials: "AS", basicRate: "20000", startDate: "2026-01-01" },
+      { organizationId: tenantA.id, legalEntityId: a2.id, employeeNo: "A2", firstName: "Beta", lastName: "Staff", title: "Staff", avatarInitials: "BS", basicRate: "30000", startDate: "2026-01-01" },
+      { organizationId: tenantB.id, legalEntityId: b1.id, employeeNo: "B1", firstName: "Foreign", lastName: "Staff", title: "Staff", avatarInitials: "FS", basicRate: "40000", startDate: "2026-01-01" },
+    ]).returning();
+    const scoped = await resolveMultiEntityContext({
+      userId: people[0].id, organizationId: tenantA.id, requested: a1.id,
+    });
+    assert.equal(scoped.ok, true);
+    if (!scoped.ok) throw new Error("unexpected deny");
+    assert.equal(assertEntityResource(scoped.context, worker1.legalEntityId), null);
+    assert.equal(assertEntityResource(scoped.context, worker2.legalEntityId)?.status, 403);
+    assert.equal(assertEntityResource(scoped.context, foreignWorker.legalEntityId)?.status, 403);
+    for (const requested of [a2.id, b1.id, "all"]) {
+      const attempt = await resolveMultiEntityContext({
+        userId: people[0].id, organizationId: tenantA.id, requested,
+      });
+      assert.equal(attempt.ok, false);
+      if (!attempt.ok) assert.equal(attempt.response.status, 403);
+    }
+    const group = await resolveMultiEntityContext({
+      userId: people[1].id, organizationId: tenantA.id, requested: "all",
+    });
+    assert.equal(group.ok, true);
+    if (!group.ok) throw new Error("unexpected deny");
+    assert.deepEqual(group.context.entities.map(e=>e.id).sort((a,b)=>a-b), [a1.id,a2.id]);
+    const foreignEntity = await resolveMultiEntityContext({
+      userId: people[1].id, organizationId: tenantA.id, requested: b1.id,
+    });
+    assert.equal(foreignEntity.ok, false);
+    const noMembership = await resolveMultiEntityContext({
+      userId: people[2].id, organizationId: tenantA.id, requested: a1.id,
+    });
+    assert.equal(noMembership.ok, false);
+    // Queries for scoped roles must ALWAYS bind tenant and legal employer.
+    const inScope = await db.select({ id: employees.id }).from(employees).where(and(
+      eq(employees.organizationId, tenantA.id), eq(employees.legalEntityId, scoped.context.legalEntityId!),
+    ));
+    assert.deepEqual(inScope.map(row=>row.id), [worker1.id]);
+    assert.ok(!inScope.some(row => row.id===worker2.id || row.id===foreignWorker.id));
+  } finally {
+    await db.delete(organizations).where(inArray(organizations.id, [tenantA.id, tenantB.id]));
+    if (members.length) await db.delete(users).where(inArray(users.id, members));
+    if (previous === undefined) delete process.env.MULTI_ENTITY_ENABLED;
+    else process.env.MULTI_ENTITY_ENABLED = previous;
+  }
+});
