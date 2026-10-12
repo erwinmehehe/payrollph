@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PILOT_CORE_PAGES, pilotCoreNavigationPages, pilotFocusEnabledForOrganization } from "../src/lib/pilot-navigation";
-import { NAVIGATION, FREELANCER_HIDDEN, tenantNavigationGroups } from "../src/components/workspace/nav";
+import { NAVIGATION, FREELANCER_HIDDEN, tenantNavigationPages } from "../src/components/workspace/nav";
 import { workspacePagesForRole } from "../src/lib/workspace-role-ui";
 
 test("pilot focus is disabled for every org unless enabled AND individually allowed", () => {
@@ -28,13 +28,15 @@ test("pilot menu includes core payroll pages only and cannot add pages to a rest
   assert.ok(FREELANCER_HIDDEN.has("Payroll"));
 });
 
-test("tenant disclosure and pilot navigation intersect the role's existing permissions", () => {
+test("legacy pilot navigation intersects roles while tenant core opt-ins remain reachable", () => {
   for (const role of ["hr", "payroll", "checker", "bookkeeper"]) {
     const rolePages = workspacePagesForRole(role)!;
-    const disclosed = tenantNavigationGroups({ enabled: true, mode: "core", enabledModules: ["spend", "automation"], rolePages }).flatMap(group => group.items.map(item => item.name));
-    const pilot = pilotCoreNavigationPages(disclosed);
+    const pilot = tenantNavigationPages({ enabled: true, mode: "all", rolePages }, true);
     assert.ok(pilot.every(page => rolePages.includes(page)), role);
     assert.ok(!pilot.includes("Automation") && !pilot.includes("Expenses"));
-    if (rolePages.includes("Approvals")) assert.ok(pilot.includes("Approvals"), "Independent approval remains reachable");
+    if (rolePages.includes("Approvals")) assert.ok(pilot.includes("Approvals"));
   }
+  const core = tenantNavigationPages({ enabled: true, mode: "core", enabledModules: ["spend"], canManageModules: true }, true);
+  assert.ok(core.includes("Reports") && core.includes("More modules") && core.includes("Expenses"));
+  assert.ok(!core.includes("Automation"));
 });

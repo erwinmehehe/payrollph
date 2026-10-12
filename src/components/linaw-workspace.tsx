@@ -36,7 +36,7 @@ import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/compon
 import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
-import { tenantNavigationGroups } from "@/components/workspace/nav";
+import { tenantNavigationPages } from "@/components/workspace/nav";
 import { OverviewView } from "@/components/workspace/overview";
 import { RoleOverviewView, type WorkspaceDashboardRole } from "@/components/workspace/role-overview";
 import {
@@ -63,7 +63,6 @@ import type { DashboardData, PayrollReleaseReceipt, PricingPlan } from "@/compon
 import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, roleHasPeopleWorkspace, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
-import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
@@ -146,12 +145,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
   const coreModules = data.coreModuleNavigationEnabled === true && data.selectedOrganization.moduleNavigationMode === "core" && !isFreelancer;
   const primaryPages = coreModules ? ["Overview", "People", "Time & attendance", "Payroll", "Approvals", "Reports", "More modules"] : workspacePrimaryPagesForRole(effectiveRole);
   const availablePages = useMemo(() => {
-    const roleAllowedPages = tenantNavigationGroups({ enabled: data.coreModuleNavigationEnabled === true, mode: data.selectedOrganization.moduleNavigationMode, enabledModules: data.selectedOrganization.enabledModules, isFreelancer, rolePages, canManageModules: ["owner", "admin", "bookkeeper"].includes(effectiveRole ?? "") }).flatMap(group => group.items).map(item => item.name);
-    // Keep the pilot menu small without ever granting access outside the
-    // already calculated role/plan navigation entitlement.
-    return pilotFocusEnabled && !isFreelancer && !demoRole
-      ? pilotCoreNavigationPages(roleAllowedPages)
-      : roleAllowedPages;
+    return tenantNavigationPages({ enabled: data.coreModuleNavigationEnabled === true, mode: data.selectedOrganization.moduleNavigationMode, enabledModules: data.selectedOrganization.enabledModules, isFreelancer, rolePages, canManageModules: ["owner", "admin", "bookkeeper"].includes(effectiveRole ?? "") }, pilotFocusEnabled && !demoRole);
   }, [data.coreModuleNavigationEnabled, data.selectedOrganization.moduleNavigationMode, data.selectedOrganization.enabledModules, effectiveRole, isFreelancer, rolePages, pilotFocusEnabled, demoRole]);
 
   // Only surface existing HR modules that this role, plan and pilot menu permit.

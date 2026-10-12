@@ -1,4 +1,5 @@
 import { CORE_NAVIGATION_PAGES, tenantModulePages } from "@/lib/tenant-modules";
+import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 import {
   AlertCircle,
   BadgeDollarSign,
@@ -163,4 +164,11 @@ export function tenantNavigationGroups(options: TenantNavigationOptions): NavGro
     if (options.canManageModules) groups.find(g => g.label === "Manage")!.items.push(MODULE_NAV_ITEMS[1]);
   }
   return groups.filter(g => g.items.length);
+}
+
+export function tenantNavigationPages(options: TenantNavigationOptions, pilotFocus = false): string[] {
+  const pages = tenantNavigationGroups(options).flatMap(group => group.items.map(item => item.name));
+  const core = options.enabled && options.mode === "core" && !options.isFreelancer;
+  // Tenant opt-ins take precedence over the older pilot menu reduction.
+  return pilotFocus && !core && !options.isFreelancer ? pilotCoreNavigationPages(pages) : pages;
 }
