@@ -78,7 +78,12 @@ export async function GET(request: Request) {
     )).orderBy(desc(legalEntityStatutoryRegistrations.revision)).limit(30),
   ]);
   // Proposals and approved profiles are encrypted, and never returned by GET.
-  return Response.json({ requests, versions }, { headers: { "Cache-Control": "no-store, private" } });
+  return Response.json({
+    requests: requests.map(row => ({
+      ...row, canReview: row.status === "pending_approval" && row.requestedByUserId !== user.id,
+    })),
+    versions, today: manilaCalendarDate(),
+  }, { headers: { "Cache-Control": "no-store, private" } });
 }
 
 export async function POST(request: Request) {
