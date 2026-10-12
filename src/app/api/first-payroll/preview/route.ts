@@ -2,6 +2,8 @@ import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, PAYROLL_VIEW_ROLES } from "@/lib/access";
 import { parseMigrationDate } from "@/lib/migration-date";
 import { loadReadOnlyFirstPayrollPreview } from "@/lib/first-payroll-preview";
+import { db } from "@/db";
+import { sql } from "drizzle-orm";
 import { firstPayrollInlineAvailable } from "@/lib/first-payroll-inline-gate";
 export const dynamic="force-dynamic";
 
@@ -24,7 +26,10 @@ export async function GET(request:Request){
  const access=await getAccess(user.id,organizationId);
  if(!access?.companyWide)return Response.json({error:"Company-wide payroll access required."},{status:403});
  try {
-  const data=await loadReadOnlyFirstPayrollPreview({organizationId,periodStart,periodEnd,payDate});
+  const data=await db.transaction(async tx=>{
+   await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY`);
+   return loadReadOnlyFirstPayrollPreview({organizationId,periodStart,periodEnd,payDate},tx);
+  });
   return Response.json(data,{headers:{"Cache-Control":"private, no-store"}});
  }catch(e){
   return Response.json({error:e instanceof Error?e.message:"Preview unavailable."},{status:422});
