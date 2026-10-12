@@ -11,7 +11,7 @@ import {
 import { calculateEmployeePay } from "../src/lib/payroll-engine";
 import { enginePreviewRow, loadFirstPayrollPreview } from "../src/lib/first-payroll-preview";
 import { validFirstPayrollPreviewDates } from "../src/lib/first-payroll-preview-contract";
-import { FIRST_PAYROLL_OWNER, isFirstPayrollKey } from "../src/lib/first-payroll-ownership";
+import { FIRST_PAYROLL_OWNER, isFirstPayrollKey, canOpenInlineFirstPayroll } from "../src/lib/first-payroll-ownership";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { statutoryRuleVersionsForDate } from "../src/lib/ph-statutory-rule-packs";
 import { nationalHolidayCalendarForDate } from "../src/lib/wage-orders";
@@ -34,6 +34,22 @@ test("seven governed steps have one role owner and invalid handoff keys are deni
     ["owner","hr","hr","owner","payroll","checker","bookkeeper"]);
   for(const unsafe of [null,undefined,"","__proto__","toString","release","time-released",1])
     assert.equal(isFirstPayrollKey(unsafe),false);
+});
+
+test("role and feature policy hides new screens for existing tenants, demo and scoped roles", () => {
+  for(const role of ["owner","admin","bookkeeper","hr","payroll","checker"]) {
+    assert.equal(canOpenInlineFirstPayroll({
+      enabled:true,selfServeCustomer:true,companyWide:true,demoRole:false,role,
+    }),true,role);
+  }
+  for(const input of [
+    {enabled:false,selfServeCustomer:true,companyWide:true,demoRole:false,role:"owner"},
+    {enabled:true,selfServeCustomer:false,companyWide:true,demoRole:false,role:"owner"},
+    {enabled:true,selfServeCustomer:true,companyWide:false,demoRole:false,role:"hr"},
+    {enabled:true,selfServeCustomer:true,companyWide:true,demoRole:true,role:"owner"},
+    {enabled:true,selfServeCustomer:true,companyWide:true,demoRole:false,role:"employee"},
+    {enabled:true,selfServeCustomer:true,companyWide:true,demoRole:false,role:"manager"},
+  ]) assert.equal(canOpenInlineFirstPayroll(input),false);
 });
 
 test("bad dates and unsupported 17-day cutoff are rejected before engine use", () => {
