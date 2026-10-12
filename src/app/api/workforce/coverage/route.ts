@@ -59,6 +59,8 @@ import {
   scheduleGuardrailBlocksMutation,
 } from "@/lib/workforce-schedule-guardrails";
 import { resolveEmployeeScheduleWindow } from "@/lib/workforce-schedule-window";
+import { checkWfmRosterPublish, wfmRosterScaleRulesEnabled } from "@/lib/workforce-roster-rules-server";
+import { decideRosterRulePublish } from "@/lib/workforce-roster-rules";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import {
   resolveDailySchedule,
