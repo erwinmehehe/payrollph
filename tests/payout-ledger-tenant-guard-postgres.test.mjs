@@ -41,7 +41,7 @@ test("A-1/A-2 real Postgres rehearsal: unique/replay/tenant/immutable and rollba
     await client.query("INSERT INTO public.employees(id,organization_id) VALUES (301,101),(302,102)");
     await client.query("INSERT INTO public.payroll_entries(id,payroll_run_id,employee_id) VALUES (401,201,301),(402,202,302)");
     await client.query(readFileSync("drizzle/0110_provider_events_inbox.sql", "utf8"));
-    await client.query(readFileSync("docs/sql/pending-payout-ledger.sql", "utf8"));
+    await client.query(readFileSync("drizzle/0116_payout_ledger_foundation.sql", "utf8"));
     await client.query("COMMIT");
     transaction = false;
 
@@ -144,9 +144,9 @@ test("A-1/A-2 real Postgres rehearsal: unique/replay/tenant/immutable and rollba
   }
 });
 
-test("A-2 pending SQL stays unnumbered and never activates payout providers", () => {
-  const sql = readFileSync("docs/sql/pending-payout-ledger.sql", "utf8");
-  assert.match(sql, /Do not apply this candidate in production/i);
+test("A-2 canonical source-only 0116 never activates payout providers", () => {
+  const sql = readFileSync("drizzle/0116_payout_ledger_foundation.sql", "utf8");
+  assert.match(sql, /DO NOT APPLY ON NEON MAIN/i);
   assert.match(sql, /validate_payout_batch_scope/);
   assert.match(sql, /validate_payout_transfer_scope/);
   assert.match(sql, /validate_payout_batch_transfer_scope/);
