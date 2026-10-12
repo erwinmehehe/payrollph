@@ -9,6 +9,10 @@ import { pathToFileURL } from "node:url";
 import {
   DATABASE_GENERATION_FINGERPRINT_SQL, assessDatabaseGeneration,
 } from "./lib/database-generation-fingerprint.mjs";
+import {
+  CANONICAL_MIGRATION_BASE_TABLES_SQL,
+  assessCanonicalMigrationTables,
+} from "./lib/canonical-migration-base-tables.mjs";
 
 export async function audit(env = process.env) {
   const connectionString = env.PRODUCTION_SCHEMA_AUDIT_DATABASE_URL;
@@ -24,11 +28,14 @@ export async function audit(env = process.env) {
     const result = await client.query(DATABASE_GENERATION_FINGERPRINT_SQL);
     const row = result.rows[0];
     const assessment = assessDatabaseGeneration(row);
+    const targets = await client.query(CANONICAL_MIGRATION_BASE_TABLES_SQL);
+    const canonicalTrain = assessCanonicalMigrationTables(targets.rows);
     return {
       databaseName: row?.databaseName ?? null,
       serverVersionNum: row?.serverVersionNum ?? null,
       publicTableCount: row?.publicTableCount ?? null,
       generation: assessment.generation,
+      canonicalTrain,
       missingTrainPrerequisites: assessment.missingTrainPrerequisites ?? [],
       eligibleForMigrationReview: assessment.eligibleForMigrationReview,
       productionMigrationApproved: false,
