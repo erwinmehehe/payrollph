@@ -68,3 +68,19 @@ The new `scripts/lib/canonical-migration-base-tables.mjs` distinguishes source-d
 The three migration-receipt / journal / cutover tables remain absent. The 0117/0119 prerequisites must be reconciled with **source history**, not fabricated using placeholder tables or false applied receipts. The 0119 cross-entity and payroll-history backfill remains review gated.
 
 `scripts/audit-neon-schema-generation.mjs` now produces a separate `canonicalTrain` structural target assessment in addition to the original fail-closed generation fingerprint, within the same read-only transaction. **Passing any structural preflight does not imply successful DDL application, tenant isolation, DBA acceptance, or approval to merge or deploy.**
+
+## Backup and clone safeguards verified in connected Neon
+
+Read-only snapshot inventory initially returned no manual snapshots and no configured automated snapshot schedule. The default branch is currently unprotected; project history retention was reported as six hours. **No source/DDL migration was attempted.**
+
+A **manual, time-limited safety snapshot** was created on the same project, without changing tables or records:
+
+- Snapshot ID: `snap-red-sound-b798wnli`
+- Name: `payrollph-pre-865-readonly-audit-20261012`
+- Source: production/main `br-lucky-sound-b79i56jw`
+- Created: 2026-10-12 05:16:34 UTC
+- Expiry: 2026-10-19 00:00:00 UTC
+
+The snapshot was confirmed by a subsequent read-only list. It is a **temporary restore point**, not proof of a successful restoration, independent backup, recovery policy, or approval to run migrations. Validate recovery on a separately authorized isolated clone before cutover, and establish a sustainable schedule/branch protection with the infrastructure owner.
+
+An existing branch named `payrollph-db-migration-lab-20261012` is **not schema-identical** to current main: it lists 124 public tables against main's 112, including audit-chain, worker-position and demand tables absent on main. It must not be represented as an unmodified production clone or used as release evidence without reconciling those differences.
