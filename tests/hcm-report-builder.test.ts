@@ -87,3 +87,14 @@ test("payroll totals use centavo-safe aggregation without floating point drift",
     /centavo-unsafe/,
   );
 });
+
+test("large department cohort aggregates in bounded linear grouping work", () => {
+  const people = Array.from({ length: 20_000 }, () => ({
+    department: "Operations", status: "Active", headcount: 1,
+  }));
+  const report = buildWhitelistedReport(
+    { dataset: "people", fields: ["headcount"], groupBy: "department" },
+    "hr", people,
+  );
+  assert.deepEqual(report.rows, [{ department: "Operations", headcount: 20_000 }]);
+});

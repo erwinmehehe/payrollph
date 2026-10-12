@@ -54,7 +54,9 @@ export function buildWhitelistedReport(
   const groups = new Map<string, typeof filtered>();
   for (const row of filtered) {
     const key = spec.groupBy ? String(row[spec.groupBy] ?? "") : "All";
-    groups.set(key, [...(groups.get(key) ?? []), row]);
+    const groupRows = groups.get(key);
+    if (groupRows) groupRows.push(row);
+    else groups.set(key, [row]);
   }
   const rows = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([group, records]) => {
     const output: Record<string, string | number> = {};

@@ -82,6 +82,9 @@ export async function POST(request: Request) {
   const gate = await guard(session.id, organizationId);
   if (gate.denied) return gate.denied;
   const action = String(body.action ?? "");
+  if (!["answer", "create", "close"].includes(action)) {
+    return Response.json({ error: "Unknown survey action." }, { status: 400 });
+  }
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: session.id, action: "engagement-survey-"+action,
     resourceId: organizationId, limit: 15, windowMs: 5 * 60_000,
