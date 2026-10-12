@@ -20,6 +20,15 @@ import { latestApprovedPayoutDestinationChangeForRun } from "@/lib/payout-destin
 
 type PayrollRun = typeof payrollRuns.$inferSelect;
 
+/** Produce API-compatible integer cents without silently losing precision. */
+function checkedXenditPayeeTotalCents(rows: readonly { payee: XenditPayrollPayee }[]): number {
+  const cents = rows.reduce((total, row) => total + BigInt(row.payee.amountCents), BigInt(0));
+  if (cents > BigInt(Number.MAX_SAFE_INTEGER) || cents < BigInt(0)) {
+    throw new Error("XENDIT_UNSAFE_PAYOUT_TOTAL_CENTAVOS");
+  }
+  return Number(cents);
+}
+
 async function xenditFrozenPayroll(run: PayrollRun) {
   if (run.status !== "Released") throw new Error("Xendit payouts require a released payroll run.");
   if (!run.legalEntityId) throw new Error("Select the actual legal employer before Xendit payout.");
@@ -137,13 +146,13 @@ export async function preflightXenditPayroll(run: PayrollRun, actor: string) {
       runId: run.id, legalEntityId: run.legalEntityId,
       businessId: frozen.businessId, fingerprint: frozen.fingerprint,
       transferCount: frozen.rows.length,
-      amountCents: frozen.rows.reduce((sum, row) => sum + row.payee.amountCents, 0),
+      amountCents: checkedXenditPayeeTotalCents(frozen.rows),
       moneyMovedByLinaw: false,
       ...(ready ? {} : { blockers: readiness.blockers }),
     },
   });
   return { ready, provider: "xendit" as const, transferCount: frozen.rows.length,
-    totalAmountCents: frozen.rows.reduce((sum, row) => sum + row.payee.amountCents, 0),
+    totalAmountCents: checkedXenditPayeeTotalCents(frozen.rows),
     blockers: readiness.blockers, moneyMoved: false };
 }
 
