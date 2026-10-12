@@ -73,7 +73,7 @@ aws s3api put-object \
 saved_size="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
   --key "$object_key" --query ContentLength --output text)"
 saved_sha="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
-  --key "$object_key" --query 'Metadata.encrypted-sha256' --output text)"
+  --key "$object_key" --query 'Metadata."encrypted-sha256"' --output text)"
 if [[ "$saved_size" != "$encrypted_size" || "$saved_sha" != "$encrypted_sha" ]]; then
   echo "BACKUP_UPLOADED_OBJECT_VERIFICATION_FAILED" >&2
   exit 1
