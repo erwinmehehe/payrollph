@@ -28,6 +28,14 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'ENTITY_ASSIGNMENT_IDENTITY_IMMUTABLE' USING ERRCODE='23514';
   END IF;
+  -- Bare FK(legal_entity_id) does not enforce matching organization_id.
+  -- Lock the referenced legal entity while validating tenant consistency.
+  PERFORM le.id FROM public.legal_entities le
+    WHERE le.id = NEW.legal_entity_id AND le.organization_id = NEW.organization_id
+    FOR SHARE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ENTITY_ASSIGNMENT_LEGAL_ENTITY_TENANT_MISMATCH' USING ERRCODE='23514';
+  END IF;
   IF TG_OP = 'UPDATE' AND OLD.effective_until IS NOT NULL
       AND NEW.effective_until IS DISTINCT FROM OLD.effective_until THEN
     RAISE EXCEPTION 'ENTITY_ASSIGNMENT_CLOSED_INTERVAL_IMMUTABLE' USING ERRCODE='23514';
