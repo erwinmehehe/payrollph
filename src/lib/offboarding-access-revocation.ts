@@ -65,7 +65,10 @@ export async function revokeSeparatedEmployeeAccessTx(tx: DbTransaction, input: 
       disabledEmployeeLoginIds: disabled.map(row => row.id),
       revokedSessionCount: revoked.length,
       revokedEmployerMembershipIds: scopedMemberships.map(row => row.id),
-      externalITGrantsVerifiedRevoked: true,
+      // This transaction revokes only local sessions and memberships.
+      // External grant verification is separately governed; never imply it ran.
+      externalITGrantsVerifiedRevoked: false,
+      externalGrantInventoryVerified: false,
       externalProviderCallsMade: false,
     },
   });
