@@ -29,15 +29,14 @@ export async function resolveMultiEntityContext(input: {
   const access = await getAccess(input.userId, input.organizationId);
   if (!access || access.role === "employee")
     return { ok: false, response: denied("No company membership in this organization.") };
-  const sessionDenied = await assertOrganizationSessionPolicy(input.userId, input.organizationId);
-  if (sessionDenied) return { ok: false, response: sessionDenied };
-
   if (!criticalReleaseFlagEnabled("multiEntity")) {
     return { ok: true, context: {
       enabled: false, group: access.companyWide, legalEntityId: null,
       organizationId: input.organizationId, role: access.role, entities: [],
     } };
   }
+  const sessionDenied = await assertOrganizationSessionPolicy(input.userId, input.organizationId);
+  if (sessionDenied) return { ok: false, response: sessionDenied };
 
   const [entities, grants, preference] = await Promise.all([
     db.select({ id: legalEntities.id, legalName: legalEntities.legalName,
