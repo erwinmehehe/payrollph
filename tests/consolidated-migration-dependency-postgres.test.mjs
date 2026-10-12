@@ -4,7 +4,9 @@ import test from "node:test";
 import pg from "pg";
 
 const ciReady = process.env.CI === "true"
-  && process.env.PAYOUT_TRAIN_REHEARSAL === "isolated-localhost-pg-only";
+  && process.env.GITHUB_ACTIONS === "true"
+  && process.env.PAYOUT_TRAIN_REHEARSAL === "isolated-localhost-pg-only"
+  && ["16", "18"].includes(process.env.PAYOUT_REHEARSAL_PG_MAJOR);
 
 function localOnlyURL() {
   const value = process.env.DATABASE_URL;
@@ -51,6 +53,21 @@ test("0115 profiles then 0116 payout then 0119 Xendit: exact source, Postgres 16
   await client.connect();
   let inTxn = false;
   try {
+    // Verify disposable CI identity *before* even creating fictional tables.
+    const identity = await client.query(
+      "SELECT current_database() AS db, current_user AS role, current_setting('server_version_num')::integer AS version",
+    );
+    const info = identity.rows[0];
+    const expectedMajor = Number(process.env.PAYOUT_REHEARSAL_PG_MAJOR);
+    assert.ok(info?.db === "app_db" && info?.role === "postgres"
+      && info?.version >= expectedMajor * 10000
+      && info?.version < (expectedMajor + 1) * 10000,
+    "PAYOUT_TRAIN_DISPOSABLE_DATABASE_IDENTITY_INVALID");
+    const occupied = await client.query(
+      "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','m','f')) AS occupied",
+    );
+    assert.equal(occupied.rows[0]?.occupied, false,
+      "PAYOUT_TRAIN_DISPOSABLE_SCHEMA_NOT_EMPTY");
     await client.query("BEGIN");
     inTxn = true;
     for (const sql of [

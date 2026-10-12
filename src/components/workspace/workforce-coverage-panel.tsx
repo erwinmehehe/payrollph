@@ -15,6 +15,7 @@ import { WorkforceSquareSandboxPanel } from "./workforce-square-sandbox-panel";
 import { WorkforceLoyversePosPanel } from "./workforce-loyverse-pos-panel";
 import { WorkforceIssuedDemandPanel } from "./workforce-issued-demand-panel";
 import { WorkforceDemandStaffingPanel } from "./workforce-demand-staffing-panel";
+import { WorkforceGreedyRosterPanel } from "./workforce-greedy-roster-panel";
 import { WorkforceDemandStaffingPolicyAdmin } from "./workforce-demand-staffing-policy-admin";
 import { WorkforceDemandOutlookPanel } from "./workforce-demand-outlook-panel";
 import { previewWorkforceRecovery } from "@/lib/workforce-planning-preview";
@@ -791,6 +792,14 @@ export function WorkforceCoveragePanel({
           windowStart={startDate}
           windowEnd={endDate}
           dynamicGroupCode={dynamicGroupCode}
+        />
+      )}
+
+      {payload && !dynamicGroupCode && process.env.NEXT_PUBLIC_WFM_GREEDY_ROSTER_UI_ENABLED === "true" && (
+        <WorkforceGreedyRosterPanel
+          key={organizationId}
+          organizationId={organizationId}
+          worksites={payload.worksites}
         />
       )}
 
