@@ -58,3 +58,25 @@ export function validApplicantPrivacyDecision(reason: unknown, evidenceReference
     typeof evidenceReference === "string" && evidenceReference.trim().length >= 8 &&
     evidenceReference.trim().length <= 200 && !/[\r\n\u0000-\u001f]/.test(evidenceReference);
 }
+
+export function applicantErasureIndependentlyApproved(record: {
+  deletionRequestedByUserId: number | null;
+  deletionRequestedAt: Date | null;
+  deletionReason: string | null;
+  deletionReviewedByUserId: number | null;
+  deletionReviewedAt: Date | null;
+  deletionReviewEvidenceReference: string | null;
+}, now: Date): boolean {
+  const requested = record.deletionRequestedAt?.getTime() ?? Number.NaN;
+  const reviewed = record.deletionReviewedAt?.getTime() ?? Number.NaN;
+  const current = now.getTime();
+  return Number.isSafeInteger(record.deletionRequestedByUserId) &&
+    Number(record.deletionRequestedByUserId) > 0 &&
+    Number.isSafeInteger(record.deletionReviewedByUserId) &&
+    Number(record.deletionReviewedByUserId) > 0 &&
+    record.deletionRequestedByUserId !== record.deletionReviewedByUserId &&
+    Number.isFinite(requested) && Number.isFinite(reviewed) &&
+    reviewed >= requested && reviewed <= current &&
+    current - reviewed <= 30 * 24 * 60 * 60_000 &&
+    validApplicantPrivacyDecision(record.deletionReason, record.deletionReviewEvidenceReference);
+}
