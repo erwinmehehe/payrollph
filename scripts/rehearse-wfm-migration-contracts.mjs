@@ -169,6 +169,20 @@ async function verifyBehavior() {
     "INSERT INTO workforce_punch_photo_evidence(id,organization_id,employee_id,expires_at) VALUES ('ci-invalid',1,999,'2027-01-01T00:00:00Z')",
     [], "23503",
   );
+  // Direct SQL bypass probes: standalone foreign keys MUST NOT permit
+  // references to a different employer's employee, worksite or photo.
+  await rejected(
+    "INSERT INTO worksite_punch_policies(worksite_id,organization_id,photo_mode) VALUES (2000,1,'optional')",
+    [], "23514",
+  );
+  await rejected(
+    "INSERT INTO workforce_punch_photo_consents(organization_id,employee_id,consent_version,choice,decided_by_user_id) VALUES (1,200,'cross-tenant','accepted',10)",
+    [], "23514",
+  );
+  await rejected(
+    "INSERT INTO workforce_punch_photo_evidence(id,organization_id,employee_id,expires_at) VALUES ('ci-cross-tenant',1,200,'2027-01-01T00:00:00Z')",
+    [], "23514",
+  );
   checks.photoConsentConstraintsVerified = true;
 
   await client.query(
@@ -178,6 +192,26 @@ async function verifyBehavior() {
   await rejected(
     "INSERT INTO workforce_punch_submissions(organization_id,employee_id,client_punch_id,action_type,work_date,device_occurred_at,received_source,device_digest,requested_by_user_id) VALUES(1,100,'ci-punch-1','clock_in','2026-10-12','2026-10-12T00:00:00Z','offline',$1,10)",
     ["a".repeat(64)], "23505",
+  );
+  await rejected(
+    "INSERT INTO workforce_punch_submissions(organization_id,employee_id,client_punch_id,action_type,work_date,device_occurred_at,received_source,device_digest,requested_by_user_id) VALUES (1,200,'cross-tenant','clock_in','2026-10-12','2026-10-12T00:00:00Z','offline',$1,10)",
+    ["c".repeat(64)], "23514",
+  );
+  await rejected(
+    "INSERT INTO workforce_punch_submissions(organization_id,employee_id,client_punch_id,action_type,work_date,device_occurred_at,received_source,worksite_id,device_digest,requested_by_user_id) VALUES (1,100,'cross-site','clock_in','2026-10-12','2026-10-12T00:00:00Z','offline',2000,$1,10)",
+    ["d".repeat(64)], "23514",
+  );
+  await rejected(
+    "INSERT INTO workforce_punch_submissions(organization_id,employee_id,client_punch_id,action_type,work_date,device_occurred_at,received_source,device_digest,flags,requested_by_user_id) VALUES(1,100,'bad-flags','clock_in','2026-10-12','2026-10-12T00:00:00Z','offline',$1,'{}'::jsonb,10)",
+    ["e".repeat(64)], "23514",
+  );
+  await rejected(
+    "UPDATE workforce_punch_submissions SET status='approved', reviewed_by_user_id=10, reviewed_at=now(), review_note='same user approving own attendance' WHERE organization_id=1",
+    [], "23514",
+  );
+  await rejected(
+    "UPDATE workforce_punch_submissions SET time_punch_id=20000 WHERE organization_id=1",
+    [], "23514",
   );
   await rejected("UPDATE workforce_punch_submissions SET status='paid' WHERE organization_id=1", [], "23514");
   await rejected("UPDATE workforce_punch_submissions SET received_source='unknown' WHERE organization_id=1", [], "23514");

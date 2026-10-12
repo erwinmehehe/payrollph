@@ -29,3 +29,9 @@ Do not try to bypass the block by repointing this CI workflow at Neon.
 The source rehearsal now runs in a GitHub Actions PostgreSQL **16 and 18** matrix. The runner checks that its declared `WFM_REHEARSAL_PG_MAJOR` matches the disposable server's actual major version, verifies the exact SQL constraints and idempotent replay on both versions, and rolls back the whole transaction. The consolidated payout/first-payroll/WFM/multi-entity train also runs on 16 and 18 with synthetic fixtures. CI credentials may only target `127.0.0.1:5432/app_db`, not Neon.
 
 PG18 green is a **syntax/transactional compatibility** check, not evidence that the SQL was actually applied to an isolated Neon branch containing employer data. Neon branch capacity and migration preparation permissions must be addressed separately; do not reassign production endpoints or promote migration without independent DBA acceptance.
+
+## WFM tenant and maker-checker constraints
+
+The proposed `0120` DDL now enforces database-level same-organization references for worksite photo policies, employee photo consent, encrypted image evidence, and offline submissions. Submissions with cross-tenant worksites, photo references or attendance punch IDs fail closed. A newly inserted submission must remain pending; review requires a different human user ID, review timestamp, and a documented reason. Pending submissions cannot reference recorded time punches.
+
+The disposable PG16/PG18 rehearsal runs invalid direct-SQL attempts to verify these invariants. Application RBAC and scoped reviewer authorizations remain additional mandatory controls; a database user ID alone does **not** prove manager entitlement. No feature flag was activated and no existing attendance/payout record was modified.
