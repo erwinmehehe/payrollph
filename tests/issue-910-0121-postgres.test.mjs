@@ -229,16 +229,31 @@ test("#910: 0121 backfill uses immutable run employer, excludes ambiguous histor
       "UPDATE payroll_entries SET legal_entity_id=$1 WHERE id=$2", [b1,entryA]);
     await rejectSql(client,
       "UPDATE payslips SET legal_entity_id=$1 WHERE payroll_entry_id=$2", [b1,entryA]);
-    // Retry must not duplicate the PRIMARY entity, grants or service evidence.
-    const sizes=await one(client,
+    // A newly enrolled B HR member was intentionally created AFTER the first
+    // pass. One additional legitimate B grant is expected on the next pass;
+    // it is not a duplicate of the existing A grant.
+    const sizesBeforeEnrollment=await one(client,
       "SELECT (SELECT count(*)::int FROM employee_entity_assignments) AS assignments, " +
       "(SELECT count(*)::int FROM user_legal_entity_grants) AS grants, " +
       "(SELECT count(*)::int FROM legal_entities) AS entities");
     await client.query(SQL);
+    const enrolledGrant=await one(client,
+      "SELECT count(*)::int AS count FROM user_legal_entity_grants WHERE organization_id=$1 " +
+      "AND user_id=$2 AND legal_entity_id=$3",[b,foreignUser.id,b1]);
+    assert.equal(enrolledGrant.count,1);
+    const sizesAfterEnrollment=await one(client,
+      "SELECT (SELECT count(*)::int FROM employee_entity_assignments) AS assignments, " +
+      "(SELECT count(*)::int FROM user_legal_entity_grants) AS grants, " +
+      "(SELECT count(*)::int FROM legal_entities) AS entities");
+    assert.equal(sizesAfterEnrollment.grants,sizesBeforeEnrollment.grants+1);
+    assert.equal(sizesAfterEnrollment.assignments,sizesBeforeEnrollment.assignments);
+    assert.equal(sizesAfterEnrollment.entities,sizesBeforeEnrollment.entities);
+    // A retry with no further membership changes must be fully idempotent.
+    await client.query(SQL);
     assert.deepEqual(await one(client,
       "SELECT (SELECT count(*)::int FROM employee_entity_assignments) AS assignments, " +
       "(SELECT count(*)::int FROM user_legal_entity_grants) AS grants, " +
-      "(SELECT count(*)::int FROM legal_entities) AS entities"),sizes);
+      "(SELECT count(*)::int FROM legal_entities) AS entities"),sizesAfterEnrollment);
     assert.deepEqual(await one(client,
       "SELECT COALESCE(sum(gross_pay),0)::numeric(20,2)::text AS gross," +
       " COALESCE(sum(net_pay),0)::numeric(20,2)::text AS net FROM payroll_entries"),moneyBefore);
