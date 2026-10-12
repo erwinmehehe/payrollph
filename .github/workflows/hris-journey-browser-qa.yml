@@ -122,6 +122,8 @@ jobs:
         run: npx tsx scripts/hcm-people-home-synthetic-fixture.ts
       - name: Add unit managers, approval and onboarding acceptance records
         run: npx tsx scripts/hris-journey-synthetic-fixture.ts
+      - name: Prove first payroll owner-to-HR-to-payroll resume and read-only PG16 preview
+        run: npx tsx --test tests/first-payroll-tenant-resume-postgres.test.ts
       - name: Build local app with tenant-scoped synthetic flags
         run: npm run build
       - name: Install pinned Chromium

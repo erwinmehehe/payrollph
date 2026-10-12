@@ -5,7 +5,7 @@ export const FIRST_PAYROLL_STEPS = [
  { key:"company", owner:"owner", allowedOwners:["owner"] },
  { key:"people", owner:"hr", allowedOwners:["owner","hr"] },
  { key:"time", owner:"hr", allowedOwners:["hr"] },
- { key:"reviewers", owner:"owner", allowedOwners:["owner","admin"] },
+ { key:"reviewers", owner:"owner", allowedOwners:["owner"] },
  { key:"payroll", owner:"payroll", allowedOwners:["payroll","owner","bookkeeper"] },
  { key:"approval", owner:"checker", allowedOwners:["checker"] },
  { key:"exports", owner:"bookkeeper", allowedOwners:["bookkeeper","payroll","owner"] },

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
-import { and, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const isolated = (() => {
   if (process.env.CI !== "true" || process.env.GITHUB_ACTIONS !== "true" ||
@@ -100,6 +100,7 @@ test("disposable PG16: owner -> HR -> payroll resume, ready preview, zero payrol
     assert.equal((await db.select().from(payrollEntries)).length,before.entries.length);
     assert.equal(payroll.role,"payroll");
   } finally {
+    await db.delete(employees).where(eq(employees.organizationId,tenant.id));
     await db.delete(organizations).where(eq(organizations.id,tenant.id));
   }
 });
