@@ -5,7 +5,9 @@ import { chromium } from "playwright";
 /** Disposable DB + localhost only. Saves real Chromium evidence, never mockups. */
 assert.equal(process.env.CI, "true");
 assert.equal(process.env.HRIS_JOURNEY_ACCEPTANCE_MODE, "synthetic-postgres-only");
-assert.equal(process.env.HRIS_JOURNEY_ACCEPTANCE_URL, "http://127.0.0.1:3000");
+const base = process.env.HRIS_JOURNEY_ACCEPTANCE_URL;
+assert.ok(["http://127.0.0.1:3000","http://127.0.0.1:3001"].includes(base));
+assert.equal(new URL(base).hostname,"127.0.0.1");
 const database = new URL(process.env.DATABASE_URL ?? "");
 assert.ok(["localhost", "127.0.0.1"].includes(database.hostname));
 assert.equal(database.pathname, "/app_db");
@@ -33,12 +35,12 @@ try {
       const errors = [];
       page.on("pageerror", error => errors.push(error.message));
       try {
-        const login = await context.request.post("http://127.0.0.1:3000/api/auth/login", {
-          headers: { origin: "http://127.0.0.1:3000", "sec-fetch-site": "same-origin" },
+        const login = await context.request.post(base + "/api/auth/login", {
+          headers: { origin: base, "sec-fetch-site": "same-origin" },
           data: { email, password: "Synthetic-HCM-QA-Password-Only-2026!" },
         });
         assert.equal(login.status(), 200, role + " login must succeed");
-        await page.goto("http://127.0.0.1:3000/app?organizationId=1",
+        await page.goto(base + "/app?organizationId=1",
           { waitUntil: "domcontentloaded" });
         const inline = page.getByRole("region", { name: "Inline first-payroll journey" });
         const legacy = page.getByRole("region", { name: "First payroll setup readiness" });
