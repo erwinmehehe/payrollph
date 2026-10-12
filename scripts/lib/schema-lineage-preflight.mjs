@@ -14,8 +14,6 @@ export const REQUIRED_MODERN_SCHEMA_COLUMNS = Object.freeze([
   ["payroll_runs", "organization_id"],
   ["payroll_entries", "id"],
   ["payroll_entries", "payroll_run_id"],
-  ["payout_transfers", "id"],
-  ["provider_events", "id"],
 ]);
 
 /** Static query; interpolates no user data. Restricts metadata to public
@@ -29,9 +27,7 @@ export const MODERN_SCHEMA_LINEAGE_SQL = [
   "    ('payroll_runs', 'id'),",
   "    ('payroll_runs', 'organization_id'),",
   "    ('payroll_entries', 'id'),",
-  "    ('payroll_entries', 'payroll_run_id'),",
-  "    ('payout_transfers', 'id'),",
-  "    ('provider_events', 'id')",
+  "    ('payroll_entries', 'payroll_run_id')"
   ")",
   'SELECT required.table_name AS "tableName",',
   '  required.column_name AS "columnName",',
