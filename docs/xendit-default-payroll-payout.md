@@ -1,4 +1,4 @@
-**Release-train update (2026-10-12):** The canonical *source-only* Xendit migration is now `drizzle/0117_xendit_payout_provider.sql` in draft PR #865. Earlier candidate/reservation numbers below are historical. No Neon migration or Xendit money-out approval has occurred.
+**Release-train update (2026-10-12):** The canonical *source-only* Xendit migration is `drizzle/0119_xendit_payout_provider.sql`, already included in `main` through the source train from #865. PR #813 adds no separate numbered payout migration. This does **not** establish that SQL was applied to Neon or that Xendit money-out was approved. Former 0112/0114/0115/0117 Xendit reservations are obsolete.
 
 # Xendit default Philippine payroll disbursements — controlled release
 
@@ -9,7 +9,7 @@
 - Xendit V3 PHP salary payout API: `POST /v3/payouts` (one payout per employee), `GET /v3/payouts/{id}` and authenticated V3 payout webhooks.
 - Dedicated MONEY-OUT key, nonshared legal-employer and organization allow-list, business-ID match, explicit payout authorization and no automatic switch to PayMongo.
 - Frozen payroll input and employee account checks, exact-centavo totals, a keyed preflight fingerprint and cash-movement confirmation.
-- The existing immutable payroll payout ledger now supports provider `xendit` with **the same one-run exclusivity** as PayMongo. `drizzle/0117_xendit_payout_provider.sql` updates database constraints; **no live database migration was performed**.
+- The existing immutable payroll payout ledger now supports provider `xendit` with **the same one-run exclusivity** as PayMongo. `drizzle/0119_xendit_payout_provider.sql` updates database constraints; **no live database migration was performed**.
 - Atomic one-at-a-time employee payout claims (up to three API calls per request). A timeout, network interruption or malformed provider acknowledgment marks the recipient's state as **reconciliation_required** and blocks further salary submission for the same run. Do not treat an HTTP error as a bank failure.
 - Individual Xendit payout IDs recorded against the original payroll instructions. GET reconciliation is read-only at the provider; the authorized treasury operator can link an unrecognized payout only after providing an existing Xendit ID, which is re-verified against expected amount/reference/business ID.
 - Webhook authentication via `x-callback-token`, business/organization/legal-entity scoping, database-deduped events and explicit `reversed` handling. Reversed payouts are **not** automatically retried.
@@ -53,7 +53,7 @@ Set a public HTTPS Xendit payout webhook URL to `https://<your-app-host>/api/web
 
 ## Independent acceptance gates required before real payroll
 
-1. Apply/rehearse database migration 0117 only after approved WFM 0112 operational-demand, 0113 issued-demand and 0114 independently approved WFM staffing-policy migrations, 0110 event inbox, and 0111 geofenced WFM migration on isolated staging. Confirm strict provider constraint, per-run exclusivity and event dedup indexes under real PostgreSQL 16.
+1. Rehearse proposed `drizzle/0119_xendit_payout_provider.sql` on isolated PostgreSQL 16/18 against the canonical 0115–0118 dependency order and independently reviewed schema receipts. Confirm the provider constraint, one-run exclusivity and event deduplication. Do **not** apply it to Neon without separate DBA authorization, backup/rollback evidence and verified prerequisite migrations.
 2. Verify current V3 payout payload and SWIFT/e-wallet routing codes in Xendit's **authorized sandbox**. Validate BDO, BPI, other bank and e-wallet destinations, name formats, amount caps and current published channel availability.
 3. Independently authorize the legal employer, Xendit account, MONEY-OUT API scopes, funding source, fees, Payout Webhook token and finance approvals. Document whether Xendit's merchant account is permitted to make each employer's salary payments; no unapproved pooled/employer-crossing money movement.
 4. Exercise at least two independent payroll cutoffs with synthetic or employer-authorized data. Validate 100% individual amounts, cutoff release, idempotency, unknown timeout, duplicate call, rejected, failed, reversed, out-of-order webhook, mid-run interruption and treasury maker-checker controls.
@@ -69,7 +69,7 @@ Set a public HTTPS Xendit payout webhook URL to `https://<your-app-host>/api/web
 - `src/app/api/payroll-runs/[id]/xendit-payout/route.ts`
 - `src/app/api/webhooks/xendit-payout/route.ts`
 - `src/components/workspace/xendit-payout-panel.tsx`
-- `drizzle/0117_xendit_payout_provider.sql`
+- `drizzle/0119_xendit_payout_provider.sql`
 - `tests/xendit-payroll-payouts.test.ts`
 - `tests/xendit-payroll-ledger-integration.test.ts`
 
@@ -78,11 +78,8 @@ Official Xendit contracts: https://docs.xendit.co/apidocs/create-payout-v3 ; htt
 **Verification:** check `npm run lint`, `npx tsc --noEmit`, `npm test`, source isolation, pilot QA, and all payroll golden suites from PR CI. No GitHub merge, deployment, real credentials, or real payouts were performed by the assistant.
 
 
-## Unmerged SQL prefix reservation (2026-10-11)
+## Superseded migration-number history
 
-Xendit was renumbered from **0112** to **0114**, then independently moved from **0114** to **0115** in this unmerged draft so independent WFM demand migrations may be reviewed as 0112 and 0113. This does not establish what any real database has applied: the DBA must compare checksums and applied-object inventory before any SQL execution. This payout draft remains blocked by the WFM mainline prefix chain and independent treasury/provider acceptance. **Do not merge or enable money movement merely to satisfy a WFM SQL guard.**
+Earlier draft branch reservations for Xendit at 0112, 0114, 0115 and 0117 are obsolete. The canonical source tree on `main` now has `0115_payout_profiles_foundation.sql`, `0116_payout_ledger_foundation.sql`, `0117_inline_first_payroll_journey.sql`, `0118_wfm_roster_scale_rules.sql`, and `0119_xendit_payout_provider.sql`. PR #813 introduces no independently numbered SQL file.
 
-
-## Policy migration reservation update
-
-Unmerged WFM staffing policy draft following planner #837 reserves `0114_wfm_demand_staffing_policies.sql`. This independently unmerged payout draft therefore reserves `0115_xendit_payout_provider.sql`. No live schema changes or payout activation are authorized; the advisory history guard should remain blocked on payout PR #813 until earlier, separately approved WFM releases reach main. Never merge payout to resolve WFM blockers.
+These filenames describe version-controlled **source**, not a proven production migration history. An independent DBA must reconcile applied SQL hashes, constraints, legal-employer ledger ownership and rollback evidence before authorizing any live schema change. Treasury and payer authorization remain separate from source integration.
