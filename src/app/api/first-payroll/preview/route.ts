@@ -2,7 +2,8 @@ import { assertOrganizationRole, getAccess } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { loadFirstPayrollPreview, validFirstPayrollPreviewDates } from "@/lib/first-payroll-preview";
+import { loadFirstPayrollPreview } from "@/lib/first-payroll-preview";
+import { validFirstPayrollPreviewDates } from "@/lib/first-payroll-preview-contract";
 
 export const dynamic = "force-dynamic";
 const PREVIEW_ROLES = ["owner", "admin", "bookkeeper", "hr", "payroll", "checker"] as const;
