@@ -37,15 +37,22 @@ async function employeeSession(organizationId: number) {
   return { denied: employee ? null : respond({ error:"Employee unavailable." },404), user, employee:employee??null };
 }
 async function sitePolicy(organizationId: number, employeeId: number, date: string) {
-  const [primary] = await db.select({worksiteId:employeeWorksiteAssignments.worksiteId, decision:employeeWorksiteAssignments.decision}).from(employeeWorksiteAssignments)
-    .innerJoin(worksites,and(eq(worksites.id,employeeWorksiteAssignments.worksiteId),
-      eq(worksites.organizationId,organizationId),eq(worksites.active,true)))
+  // Determine the latest effective assignment before filtering worksite activity:
+  // otherwise an inactive newer deny would be hidden and expose an old allow.
+  const [primary] = await db.select({
+    worksiteId: employeeWorksiteAssignments.worksiteId,
+    decision: employeeWorksiteAssignments.decision,
+  }).from(employeeWorksiteAssignments)
     .where(and(eq(employeeWorksiteAssignments.organizationId,organizationId),
       eq(employeeWorksiteAssignments.employeeId,employeeId),
       lte(employeeWorksiteAssignments.effectiveFrom,date),
       or(isNull(employeeWorksiteAssignments.effectiveUntil),gte(employeeWorksiteAssignments.effectiveUntil,date))))
     .orderBy(desc(employeeWorksiteAssignments.effectiveFrom),desc(employeeWorksiteAssignments.id)).limit(1);
-  const siteId = resolvedWorksiteDecision(primary ? [primary] : []);
+  const selectedSiteId = resolvedWorksiteDecision(primary ? [primary] : []);
+  const [activeSite] = selectedSiteId === null ? [null] : await db.select({id:worksites.id})
+    .from(worksites).where(and(eq(worksites.id,selectedSiteId),
+      eq(worksites.organizationId,organizationId),eq(worksites.active,true))).limit(1);
+  const siteId = activeSite?.id ?? null;
   const [policy] = siteId === null ? [null] : await db.select().from(worksitePunchPolicies)
     .where(and(eq(worksitePunchPolicies.organizationId,organizationId),eq(worksitePunchPolicies.worksiteId,siteId))).limit(1);
   const sites = geofencePilotEnabledForOrganization(organizationId)
