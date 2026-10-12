@@ -98,7 +98,6 @@ test("archive preserves old SHA-bound outcomes and allows a new clean session", 
    writeFileSync(active, JSON.stringify(prior));
    writeFileSync(summary, renderSummary(prior));
    const archive = archiveLocalSession(active, summary, archivedId);
-   assert.ok(!existsSync(active));
    assert.ok(!existsSync(summary));
    const stored = JSON.parse(readFileSync(join(archive, "session.json"), "utf8"));
    assert.equal(stored.sourceSha, sha);
@@ -106,7 +105,7 @@ test("archive preserves old SHA-bound outcomes and allows a new clean session", 
    assert.match(readFileSync(join(archive, "summary.md"), "utf8"), /SELF-REPORTED/);
    assert.throws(() => archiveLocalSession(active, summary, archivedId));
    const next = createSession("b".repeat(40), false);
-   writeFileSync(active, JSON.stringify(next));
+   writeFileSync(active, JSON.stringify(next), { flag: "wx", mode: 0o600 });
    assert.equal(JSON.parse(readFileSync(active, "utf8")).outcomes["WFM-01"].status, "NOT_RUN");
    assert.equal(stored.outcomes["WFM-01"].status, "PASS");
  } finally { rmSync(root, { recursive: true, force: true }); }
