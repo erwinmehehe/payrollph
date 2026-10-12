@@ -6,20 +6,20 @@ import {
 } from "../scripts/lib/neon-isolated-restore-safety.mjs";
 
 const metadata = () => ({
-  projectId: "calm-wave-70219564",
-  snapshot: {id:"snap-red-sound-b798wnli",source_branch_id:"br-lucky-sound-b79i56jw"},
+  projectId: "sample-safe-project-123456",
+  snapshot: {id:"snap-synthetic-backup-abc123",source_branch_id:"br-original-main-abc123"},
   original: {
-    branchId:"br-lucky-sound-b79i56jw",
-    endpointId:"ep-cool-hat-b7e7gpoo",
-    endpointHost:"ep-cool-hat-b7e7gpoo.c-13.us-east-1.aws.neon.tech",
+    branchId:"br-original-main-abc123",
+    endpointId:"ep-synthetic-primary-abc123",
+    endpointHost:"ep-synthetic-primary-abc123.c-13.us-east-1.aws.neon.tech",
   },
   observedDefault: {
-    id:"br-lucky-sound-b79i56jw",name:"main",default:true,
+    id:"br-original-main-abc123",name:"main",default:true,
   },
   observedEndpoint: {
-    id:"ep-cool-hat-b7e7gpoo",
-    branch_id:"br-lucky-sound-b79i56jw",
-    host:"ep-cool-hat-b7e7gpoo.c-13.us-east-1.aws.neon.tech",
+    id:"ep-synthetic-primary-abc123",
+    branch_id:"br-original-main-abc123",
+    host:"ep-synthetic-primary-abc123.c-13.us-east-1.aws.neon.tech",
   },
   restoreBranchName:"payrollph-restore-rehearsal-20261012-isolated",
 });
@@ -27,14 +27,14 @@ const response = () => ({
   id:"br-isolated-restore-b7mzd0n2",
   name:"payrollph-restore-rehearsal-20261012-isolated",
   primary:false,default:false,
-  restored_from:"snap-red-sound-b798wnli",
+  restored_from:"snap-synthetic-backup-abc123",
 });
 
 test("always generate non-promoting, new-branch request without target_branch_id", () => {
   const plan=planIsolatedNeonRestore(metadata());
   assert.deepEqual(plan.request,{
-    project_id:"calm-wave-70219564",
-    snapshot_id:"snap-red-sound-b798wnli",
+    project_id:"sample-safe-project-123456",
+    snapshot_id:"snap-synthetic-backup-abc123",
     name:"payrollph-restore-rehearsal-20261012-isolated",
     finalize:false,
   });
@@ -52,9 +52,9 @@ test("reject override attempts, including implicit/explicit finalize and target 
   for(const patch of [
     {finalize:true},
     {finalize:false},
-    {target_branch_id:"br-lucky-sound-b79i56jw"},
-    {targetBranchId:"br-lucky-sound-b79i56jw"},
-    {existingBranchId:"br-lucky-sound-b79i56jw"},
+    {target_branch_id:"br-original-main-abc123"},
+    {targetBranchId:"br-original-main-abc123"},
+    {existingBranchId:"br-original-main-abc123"},
   ]) {
     assert.throws(()=>planIsolatedNeonRestore({...metadata(),...patch}),
       /NEON_RESTORE_UNREVIEWED_OVERRIDE/);
