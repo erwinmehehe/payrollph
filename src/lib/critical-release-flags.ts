@@ -24,6 +24,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P0 actual transfers and payouts",
     approval: "Independent money-movement authority, bank UAT and payout evidence",
   },
+  workforcePunchEvidence: {
+    env: "WFM_PUNCH_EVIDENCE_ENABLED",
+    owner: "People Operations / Privacy",
+    risk: "P1 employee attendance, photographic evidence and offline replay",
+    approval: "DPO policy, encryption key, staged review, expiry scheduler and employee pilot sign-off",
+  },
   documentUploads: {
     env: "DOCUMENT_UPLOADS_ENABLED",
     owner: "Security",
