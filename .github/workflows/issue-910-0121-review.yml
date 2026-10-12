@@ -4,8 +4,10 @@ on:
     paths:
       - "docs/sql/issue-910-review-only-0121-*.sql"
       - "docs/engineering/issue-910-0121-readiness.md"
+      - "docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql"
       - "tests/issue-910-0121-review.test.mjs"
       - "tests/issue-910-0121-postgres.test.mjs"
+      - "docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql"
       - "drizzle/0121_multi_entity_v2_scope_transfer.sql"
       - ".github/workflows/issue-910-0121-review.yml"
   push:
@@ -14,6 +16,7 @@ on:
       - "docs/sql/issue-910-review-only-0121-*.sql"
       - "tests/issue-910-0121-review.test.mjs"
       - "tests/issue-910-0121-postgres.test.mjs"
+      - "docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql"
       - "drizzle/0121_multi_entity_v2_scope_transfer.sql"
 permissions:
   contents: read
