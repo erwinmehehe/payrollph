@@ -31,3 +31,9 @@ export function claimCanAttachReceipt(claim: {
 }): boolean {
   return claim.status === "pending" && claim.payrollRunId === null && claim.receiptStorageKey === null;
 }
+
+/** Snapshot tax classification must agree with the rendered, approved payslip. */
+export function reimbursementLineTaxMatches(taxable: boolean, notes: readonly string[]): boolean {
+  const markers = notes.filter(note => note === "Taxable reimbursement" || note === "Non-taxable reimbursement");
+  return markers.length === 1 && markers[0] === (taxable ? "Taxable reimbursement" : "Non-taxable reimbursement");
+}

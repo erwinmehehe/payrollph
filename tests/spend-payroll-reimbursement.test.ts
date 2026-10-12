@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { approvedReimbursementAmount, reimbursementEligible, reimbursementSettlementDecision } from "../src/lib/spend-payroll-reimbursement";
+import { approvedReimbursementAmount, reimbursementEligible, reimbursementSettlementDecision, reimbursementLineTaxMatches } from "../src/lib/spend-payroll-reimbursement";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 const claim = { status: "approved", payrollRunId: null, amount: "500.00", approvedAmount: "450.01",
   categoryPolicyId: 8, receiptStorageKey: "private-documents/1/2/00000000-0000-4000-8000-000000000001",
@@ -23,4 +23,13 @@ test("reimbursement is independently reviewed and can settle only once", () => {
   assert.equal(reimbursementSettlementDecision({...claim, status: "paid", payrollRunId: 11 }, 10, "450.01", true), "paid_elsewhere");
   assert.equal(reimbursementSettlementDecision({...claim, receiptStorageKey: null}, 10, "450.01", true), "missing_evidence");
   assert.equal(reimbursementSettlementDecision(claim, 10, "500.00", true), "amount_changed");
+});
+
+test("payslip tax marker cannot drift after a category policy changes", () => {
+
+  assert.equal(reimbursementLineTaxMatches(true, ["Taxi fare", "Taxable reimbursement"]), true);
+  assert.equal(reimbursementLineTaxMatches(false, ["Taxi fare", "Non-taxable reimbursement"]), true);
+  assert.equal(reimbursementLineTaxMatches(true, ["Non-taxable reimbursement"]), false);
+  assert.equal(reimbursementLineTaxMatches(false, []), false);
+  assert.equal(reimbursementLineTaxMatches(true, ["Taxable reimbursement", "Non-taxable reimbursement"]), false);
 });

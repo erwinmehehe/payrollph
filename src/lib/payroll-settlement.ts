@@ -1,7 +1,7 @@
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { reimbursementSettlementDecision } from "@/lib/spend-payroll-reimbursement";
+import { reimbursementLineTaxMatches, reimbursementSettlementDecision } from "@/lib/spend-payroll-reimbursement";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
@@ -29,14 +29,16 @@ function money(value: number) {
 }
 
 function storedLines(value: unknown) {
-  if (!Array.isArray(value)) return [] as Array<{ code: string; amount: number }>;
+  if (!Array.isArray(value)) return [] as Array<{ code: string; amount: number; notes: string[] }>;
   return value.flatMap((raw) => {
     if (!raw || typeof raw !== "object") return [];
     const row = raw as Record<string, unknown>;
     if (typeof row.code !== "string") return [];
     const amount = Number(row.amount ?? 0);
     if (!Number.isFinite(amount)) return [];
-    return [{ code: row.code, amount }];
+    return [{ code: row.code, amount,
+      notes: Array.isArray(row.notes) ? row.notes.filter((v): v is string => typeof v === "string") : [],
+    }];
   });
 }
 
@@ -390,6 +392,7 @@ export async function settlePayrollRun(
       }
     }
 
+    const seenExpenseClaimIds = new Set<number>();
     let expensesSettled = 0;
     let advancesSettled = 0;
     let loanPaymentsSettled = 0;
@@ -402,6 +405,12 @@ export async function settlePayrollRun(
       for (const line of storedLines(entry.lineItems)) {
         const expenseId = numericId(line.code, "EXP-");
         if (expenseId) {
+          if (criticalReleaseFlagEnabled("spendPayroll")) {
+            if (seenExpenseClaimIds.has(expenseId)) {
+              throw new Error("The payroll register contains duplicate expense reimbursement " + expenseId + ".");
+            }
+            seenExpenseClaimIds.add(expenseId);
+          }
           const [claim] = await tx
             .select()
             .from(expenseClaims)
@@ -414,6 +423,9 @@ export async function settlePayrollRun(
             throw new Error(`Expense claim ${expenseId} no longer matches this payroll entry.`);
           }
           if (criticalReleaseFlagEnabled("spendPayroll")) {
+            if (!reimbursementLineTaxMatches(claim.taxable, line.notes)) {
+              throw new Error("Expense claim " + expenseId + " has a different taxable policy from its approved payslip.");
+            }
             const decision = reimbursementSettlementDecision({
               status: claim.status, payrollRunId: claim.payrollRunId,
               amount: claim.amount, approvedAmount: claim.approvedAmount,
