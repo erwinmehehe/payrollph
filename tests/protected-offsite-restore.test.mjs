@@ -16,6 +16,7 @@ function fixture(){
    archiveSourceSha:sourceSHA,
    objectKey:"payrollph/immutable-backups/backup-run-123-attempt-1-"+sourceSHA.slice(0,12)+".pgdump.age",
    expectedEncryptedSha256:"c".repeat(64),
+   s3VersionId:"synthetic-S3Version123456",
    awsRegion:"us-east-1",s3Bucket:"payrollph-private-locked-archive",
  };
 }
@@ -55,6 +56,9 @@ test("tampered object key, source hash, bucket, archive hash and AWS region fail
  blocks({archiveSourceSha:"short"},"UNTRUSTED_ENCRYPTED_ARCHIVE");
  blocks({s3Bucket:"some.bucket/other"},"UNTRUSTED_ENCRYPTED_ARCHIVE");
  blocks({awsRegion:"us-east-2"},"UNTRUSTED_ENCRYPTED_ARCHIVE");
+ blocks({s3VersionId:"null"},"UNTRUSTED_ENCRYPTED_ARCHIVE");
+ blocks({s3VersionId:"../untrusted?"},"UNTRUSTED_ENCRYPTED_ARCHIVE");
+ blocks({s3VersionId:""},"UNTRUSTED_ENCRYPTED_ARCHIVE");
 });
 
 test("restore is networkless ephemeral PG18, cipher verified before any decryption",()=>{
@@ -63,6 +67,7 @@ test("restore is networkless ephemeral PG18, cipher verified before any decrypti
  assert.match(sh,/postgres:18/);
  assert.match(sh,/RESTORE_CIPHERTEXT_TAMPERED/);
  assert.match(sh,/RESTORE_ARCHIVE_SOURCE_SHA/);
+ assert.match(sh,/--version-id "\$RESTORE_S3_VERSION_ID"/);
  assert.match(sh,/age -d -i/);
  assert.match(sh,/age -d -i "\$key" "\$archive"\s*\|\s*docker exec -i "\$container" pg_restore/);
  assert.doesNotMatch(sh,/decrypted\.pgdump|decrypted\.dump|\$work\/decrypted/);
@@ -86,6 +91,7 @@ test("manual private restore workflow never uses production DB or public artifac
  assert.doesNotMatch(wf,/^\s*schedule:\s*$/m);
  assert.match(wf,/environment: payrollph-production-restore/);
  assert.match(wf,/secrets\.RESTORE_AGE_PRIVATE_KEY/);
+ assert.match(wf,/inputs\.object_version_id/);
  assert.match(wf,/vars\.RESTORE_AWS_ROLE_ARN/);
  assert.match(wf,/id-token: write/);
  assert.doesNotMatch(wf,/DATABASE_URL/);
