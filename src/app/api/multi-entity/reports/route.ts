@@ -4,6 +4,7 @@ import { employees, legalEntities, payrollRuns } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canReadGroupReport, resolveMultiEntityContext } from "@/lib/multi-entity-server";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { sumPayrollAmounts } from "@/lib/multi-entity-money";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +24,14 @@ export async function GET(request: Request) {
     db.select({ id: legalEntities.id, displayName: legalEntities.displayName, code: legalEntities.code })
       .from(legalEntities).where(and(
         eq(legalEntities.organizationId, organizationId), eq(legalEntities.active, true),
+        allowed.context.legalEntityId === null ? undefined
+          : eq(legalEntities.id, allowed.context.legalEntityId),
       )),
     db.select({ legalEntityId: employees.legalEntityId, total: count() })
       .from(employees).where(and(
         eq(employees.organizationId, organizationId), eq(employees.status, "Active"),
+        allowed.context.legalEntityId === null ? undefined
+          : eq(employees.legalEntityId, allowed.context.legalEntityId),
       )).groupBy(employees.legalEntityId),
     db.select({
       legalEntityId: payrollRuns.legalEntityId,
@@ -35,6 +40,8 @@ export async function GET(request: Request) {
       runs: count(),
     }).from(payrollRuns).where(and(
       eq(payrollRuns.organizationId, organizationId), eq(payrollRuns.status, "Released"),
+      allowed.context.legalEntityId === null ? undefined
+        : eq(payrollRuns.legalEntityId, allowed.context.legalEntityId),
     )).groupBy(payrollRuns.legalEntityId),
   ]);
   const results = entities.map(entity => {
@@ -56,9 +63,10 @@ export async function GET(request: Request) {
     entities: results,
     totals: {
       headcount: results.reduce((sum, row) => sum + row.headcount, 0),
-      gross: (results.reduce((sum, row) => sum + Number(row.gross), 0)).toFixed(2),
-      net: (results.reduce((sum, row) => sum + Number(row.net), 0)).toFixed(2),
+      gross: sumPayrollAmounts(results.map(row => row.gross)),
+      net: sumPayrollAmounts(results.map(row => row.net)),
     },
     period: "All released payroll history",
+    selectedLegalEntityId: allowed.context.legalEntityId,
   }, { headers: { "Cache-Control": "no-store, private" } });
 }
