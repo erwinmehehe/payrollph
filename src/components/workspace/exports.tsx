@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
 import { FilingEvidencePanel } from "./filing-evidence";
+import { EntityBadge } from "./multi-entity-ui";
 import { Bir1601cRemittancePanel } from "./bir-1601c-remittance-panel";
 import { BookkeeperPayrollClose } from "./bookkeeper-payroll-close";
 import { ManagedPayrollControlRoom } from "./managed-payroll-control-room";
@@ -357,6 +358,8 @@ export function ExportsView({
               <div>
                 <div className="card-kicker">Source run</div>
                 <h2>Which run are we exporting?</h2>
+                {data.multiEntity?.enabled && <EntityBadge context={data.multiEntity}
+                  legalEntityId={run.legalEntityId} />}
                 <p>Bank, journal and worksheet exports all read this run&apos;s stored entries.</p>
               </div>
               <Status value={run.status} />
@@ -368,6 +371,10 @@ export function ExportsView({
                   {runs.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.periodLabel} · {item.scopeLabel} · {item.status}
+                      {data.multiEntity?.enabled ? " · " + (
+                        data.multiEntity.entities.find(entity => entity.id === item.legalEntityId)?.displayName
+                        ?? "Unknown legal entity"
+                      ) : ""}
                     </option>
                   ))}
                 </select>
