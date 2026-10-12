@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  auditEvents,
   documents,
   employees,
+  hcmDocumentExpiryNotices,
   hcmDocumentRequirements,
   hcmEmployeeDocumentCompliance,
   hcmPolicyAssignments,
@@ -14,6 +16,7 @@ import {
 import { assertOrganizationRole, assertScope, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import {
   documentComplianceStatus,
@@ -113,6 +116,14 @@ export async function GET(request: Request) {
     }).from(documents).where(eq(documents.organizationId, organizationId)),
   ]);
 
+  const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
+  const expiryNoticeRows = vaultEnabled
+    ? await db.select().from(hcmDocumentExpiryNotices).where(and(
+      eq(hcmDocumentExpiryNotices.organizationId, organizationId),
+      isNull(hcmDocumentExpiryNotices.acknowledgedAt),
+    )).orderBy(desc(hcmDocumentExpiryNotices.createdAt)).limit(500)
+    : [];
+
   const visibleStaff = access.companyWide
     ? staff
     : staff.filter((employee) => employee.orgUnitId === access.orgUnitId);
@@ -143,6 +154,25 @@ export async function GET(request: Request) {
       && new Date(row.dueAt).getTime() < now,
   }));
 
+  const complianceById = new Map(visibleCompliance.map(row => [row.id, row]));
+  const expiryNotices = expiryNoticeRows.flatMap(notice => {
+    if (!visibleEmployeeIds.has(notice.employeeId)) return [];
+    const row = complianceById.get(notice.complianceId);
+    if (!row || row.documentId !== notice.documentId ||
+      String(row.expiresAt) !== String(notice.expiresOn) ||
+      ["waived", "submitted", "missing"].includes(row.status)) return [];
+    const requirement = requirementById.get(row.requirementId);
+    if (!requirement || requirement.organizationId !== organizationId) return [];
+    return [{
+      id: notice.id, complianceId: notice.complianceId, documentId: notice.documentId,
+      employeeId: notice.employeeId,
+      employeeName: employeeById.get(notice.employeeId)?.name ?? "Employee",
+      requirementName: requirement.name, kind: requirement.kind,
+      expiresOn: String(notice.expiresOn), milestoneDays: notice.milestoneDays,
+      createdAt: notice.createdAt,
+    }];
+  });
+
   const complianceRows = visibleCompliance.map((row) => ({
     ...row,
     employee: employeeById.get(row.employeeId) ?? null,
@@ -152,6 +182,8 @@ export async function GET(request: Request) {
 
   return Response.json({
     policies,
+    vaultEnabled,
+    expiryNotices,
     assignments: acknowledgementRows,
     requirements,
     compliance: complianceRows,
@@ -171,8 +203,9 @@ export async function GET(request: Request) {
       submittedDocuments: complianceRows.filter((row) => row.status === "submitted").length,
       expiringDocuments: complianceRows.filter((row) => row.status === "expiring").length,
       expiredDocuments: complianceRows.filter((row) => row.status === "expired").length,
+      unacknowledgedExpiryNotices: expiryNotices.length,
     },
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request) {
@@ -210,6 +243,48 @@ export async function POST(request: Request) {
     windowMs: 5 * 60_000,
   });
   if (rateDenied) return rateDenied;
+
+  if (action === "acknowledge-expiry-notice") {
+    if (!criticalReleaseFlagEnabled("employeeDocumentVault")) {
+      return Response.json({ error: "Document expiry inbox is disabled." }, { status: 404 });
+    }
+    const noticeId = Number(body.noticeId);
+    if (!Number.isSafeInteger(noticeId) || noticeId <= 0) {
+      return Response.json({ error: "Valid noticeId required." }, { status: 422 });
+    }
+    const [notice] = await db.select().from(hcmDocumentExpiryNotices).where(and(
+      eq(hcmDocumentExpiryNotices.id, noticeId),
+      eq(hcmDocumentExpiryNotices.organizationId, organizationId),
+    )).limit(1);
+    if (!notice) return Response.json({ error: "Expiry notice not found." }, { status: 404 });
+    const [employee] = await db.select({ orgUnitId: employees.orgUnitId }).from(employees).where(and(
+      eq(employees.id, notice.employeeId), eq(employees.organizationId, organizationId),
+    )).limit(1);
+    if (!employee) return Response.json({ error: "Expiry notice not found." }, { status: 404 });
+    const scope = assertScope(access, employee.orgUnitId);
+    if (!scope.ok) return Response.json({ error: "Expiry notice not found." }, { status: 404 });
+
+    const decided = await db.transaction(async tx => {
+      const [updated] = await tx.update(hcmDocumentExpiryNotices).set({
+        acknowledgedAt: new Date(), acknowledgedByUserId: user.id,
+      }).where(and(
+        eq(hcmDocumentExpiryNotices.id, noticeId),
+        eq(hcmDocumentExpiryNotices.organizationId, organizationId),
+        isNull(hcmDocumentExpiryNotices.acknowledgedAt),
+      )).returning({ id: hcmDocumentExpiryNotices.id });
+      if (!updated) return null;
+      await tx.insert(auditEvents).values({
+        organizationId, actor: user.name, action: "HR document expiry notice acknowledged",
+        resource: String(noticeId),
+        metadata: { employeeId: notice.employeeId, complianceId: notice.complianceId,
+          milestoneDays: notice.milestoneDays, expiryDate: String(notice.expiresOn),
+          actorUserId: user.id },
+      });
+      return updated;
+    });
+    if (!decided) return Response.json({ error: "This notice was already acknowledged." }, { status: 409 });
+    return Response.json({ noticeId, acknowledged: true });
+  }
 
   if (action === "save-policy-draft") {
     if (!access.companyWide) {
