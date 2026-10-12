@@ -91,11 +91,17 @@ try {
   await payroll.getByRole("status").filter({ hasText: "Preview ready" }).waitFor();
   assert.equal(await payroll.getByRole("row").count() >= 2, true);
   assert.deepEqual(await snapshot(), before, "Preview request cannot write even session last-seen data");
-  const denied = await finance.context.request.get(base + `/api/first-payroll-journey/preview?organizationId=${fixture.foreignOrganizationId}`);
-  assert.equal(denied.status(), 403);
+  const denied = await page.evaluate(async organizationId => {
+    const response = await fetch(`/api/first-payroll-journey/preview?organizationId=${organizationId}`, { credentials: "same-origin" });
+    return response.status;
+  }, fixture.foreignOrganizationId);
+  assert.equal(denied, 403);
   const checker = await login("checker");
-  const wrongRole = await checker.context.request.get(base + `/api/first-payroll-journey/preview?organizationId=${fixture.organizationId}`);
-  assert.equal(wrongRole.status(), 403);
+  const wrongRole = await checker.page.evaluate(async organizationId => {
+    const response = await fetch(`/api/first-payroll-journey/preview?organizationId=${organizationId}`, { credentials: "same-origin" });
+    return response.status;
+  }, fixture.organizationId);
+  assert.equal(wrongRole, 403);
   await checker.context.close(); await finance.context.close();
   report.checkpoints.push("Finance resumes, reaches preview ready, database stays unchanged and foreign tenant/checker are denied");
   report.result = "PASS";
