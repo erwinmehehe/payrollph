@@ -102,7 +102,12 @@ function convertRestDay(value:string|null):number|null {
 function paidShift(segment:ResolvedDailySchedule["segments"][number]){
   const from=minute(segment.startTime);let to=minute(segment.endTime);
   if(segment.spansMidnight||to<=from)to+=1440;
-  return Math.max(0,to-from-segment.breakMinutes);
+  const gross=to-from;
+  if(!Number.isSafeInteger(segment.breakMinutes)||segment.breakMinutes<0||
+     gross<=0||gross>1440||segment.breakMinutes>=gross){
+    throw Error("Invalid committed shift duration; cannot rank worker fairness.");
+  }
+  return gross-segment.breakMinutes;
 }
 /** All database reads are scoped to the authenticated tenant and the selected worksite/unit. */
 export async function previewEmployerGreedyRoster(input:{
@@ -114,11 +119,12 @@ export async function previewEmployerGreedyRoster(input:{
   const guardStart=dayOffset(startDate,-7);
   const guardEnd=dayOffset(endDate,7);
   const [site]=await db.select({
-    id:worksites.id,orgUnitId:worksites.orgUnitId,active:worksites.active,
+    id:worksites.id,orgUnitId:worksites.orgUnitId,active:worksites.active,timezone:worksites.timezone,
   }).from(worksites).where(and(
     eq(worksites.organizationId,organizationId),eq(worksites.id,worksiteId),
   )).limit(1);
-  if(!site||!site.active||(!input.companyWide&&(site.orgUnitId==null||site.orgUnitId!==input.scopeOrgUnitId))){
+  if(!site||!site.active||site.timezone!=="Asia/Manila"||
+    (!input.companyWide&&(site.orgUnitId==null||site.orgUnitId!==input.scopeOrgUnitId))){
     throw Error("Worksite is unavailable in the permitted manager scope.");
   }
   const [requirements,allShifts,workerRows,policyRows,holidayRows]=await Promise.all([
