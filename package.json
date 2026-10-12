@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "db:push": "node scripts/guard-db-push.mjs && drizzle-kit push",
     "db:generate": "drizzle-kit generate",
+    "db:migration:reviewed": "node scripts/run-reviewed-migration.mjs",
     "security:preflight": "tsx scripts/security-preflight.ts",
     "seo:audit": "tsx scripts/seo-launch-audit.ts",
     "seo:routes": "tsx scripts/seo-route-audit.ts",
