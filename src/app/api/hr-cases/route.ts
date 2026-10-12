@@ -233,7 +233,9 @@ async function approveCoeWithRecovery(input: {
       });
       return updated;
       }),
-      recover: pendingDocumentId => reconcilePendingCoeDocument(pendingDocumentId),
+      recover: (pendingDocumentId, phase) => phase === "upload_ambiguous"
+        ? Promise.resolve("deferred_to_retention_sweep")
+        : reconcilePendingCoeDocument(pendingDocumentId),
     });
     return Response.json({ case: result });
   } catch {
