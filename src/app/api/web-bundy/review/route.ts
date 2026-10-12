@@ -1,18 +1,24 @@
 import { and,desc,eq,sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents,employees,timePunches,workforcePunchSubmissions,workforcePunchPhotoEvidence } from "@/db/schema";
+import { auditEvents,employees,timePunches,workforceAttendancePeriodLocks,workforcePunchSubmissions,workforcePunchPhotoEvidence } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole,getAccess,assertScope,WORKFORCE_MANAGER_ROLES } from "@/lib/access";
 import { requireSensitiveActionMfa,enforceSameOriginMutation,enforceSensitiveActionRateLimit } from "@/lib/security-request";
 import { recordAuditEvent } from "@/lib/audit";
-import { attendanceMutationLock,loadActiveAttendanceLocks } from "@/lib/workforce-attendance-lock";
+import { attendanceMutationLock } from "@/lib/workforce-attendance-lock";
 import { markTimesheetsStaleForEmployeeDate } from "@/lib/workforce-timesheet-server";
 import { reconcileAttendanceExceptionEvents } from "@/lib/workforce-attendance-exception-events";
 import { enhancedPunchEnabled, validPunchUuid } from "@/lib/workforce-punch-evidence";
 import { decryptPunchPhoto } from "@/lib/workforce-punch-photo-crypto";
+import { previousManilaWorkDate, resolveWebBundyPunchAnchor } from "@/lib/web-bundy-overnight-anchor";
 export const dynamic="force-dynamic";
 export const runtime="nodejs";
 const privateHeaders={"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff","Cross-Origin-Resource-Policy":"same-origin"};
+function manilaWorkDate(at:Date):string {
+  return new Intl.DateTimeFormat("en-CA",{
+    timeZone:"Asia/Manila",year:"numeric",month:"2-digit",day:"2-digit",
+  }).format(at);
+}
 async function reviewer(organizationId:number) {
   const user=await getSessionUser();
   if(!user)return {denied:Response.json({error:"Unauthorized."},{status:401}),user:null,access:null};
@@ -81,81 +87,146 @@ export async function POST(request:Request) {
   const decision=String(body.decision),timeSource=String(body.timeSource),reviewNote=String(body.note??"").trim().slice(0,240);
   if(!["approved","rejected"].includes(decision)||reviewNote.length<10||decision==="approved"&&!["device","server"].includes(timeSource))
     return Response.json({error:"Decision, explanation (10+ characters), and time source for approval are required."},{status:400});
-  const lock=attendanceMutationLock(await loadActiveAttendanceLocks(organizationId),String(submission.workDate),"correction");
-  if(lock&&decision==="approved")return Response.json({error:"Attendance locked. Reopen with authorized correction first."},{status:423});
-  const target= timeSource==="device"?submission.deviceOccurredAt:submission.serverReceivedAt;
-  // A reviewer cannot cause a time reversal. Default to no paid-hour mutation on any error.
+
+  // An APPROVAL is an attendance capture, not an authorization to bypass
+  // attendance/payroll cutoffs. Re-check the effective day inside the TX.
+  let approvedWorkDate:string|null=null;
   let result;
   try {
     result=await db.transaction(async tx=>{
-      // Serialize all approval decisions for this tenant/worker, including
-      // different pending submissions. A row lock on one submission is insufficient.
+      // Serialize reviews for the entire employee, not only the selected
+      // submission. The existing Web Bundy endpoint is disabled in pilot mode.
       await tx.execute(sql`select pg_advisory_xact_lock(${organizationId}::integer, ${submission.employeeId}::integer)`);
-      const locked=await tx.execute(sql`select id from workforce_punch_submissions where id = ${id} and organization_id = ${organizationId} and status = 'pending' for update`);
-      if(!locked.rows.length)throw Error("Already decided.");
-      const attendanceRows=await tx.select().from(timePunches).where(and(eq(timePunches.organizationId,organizationId),
-        eq(timePunches.employeeId,submission.employeeId),eq(timePunches.workDate,submission.workDate))).limit(2);
-      if(attendanceRows.length>1)throw Error("Conflicting attendance rows require manual correction.");
-      const current=attendanceRows[0];
+      const [fresh]=await tx.select().from(workforcePunchSubmissions).where(and(
+        eq(workforcePunchSubmissions.id,id),eq(workforcePunchSubmissions.organizationId,organizationId),
+      )).for("update").limit(1);
+      if(!fresh||fresh.status!=="pending")throw Error("Already decided.");
+      if(fresh.requestedByUserId===context.user!.id)throw Error("Maker cannot approve or reject their own punch.");
+      const target=timeSource==="device"?fresh.deviceOccurredAt:fresh.serverReceivedAt;
+      if(!Number.isFinite(target.getTime()))throw Error("Punch timestamp is invalid.");
+      const chosenDate=manilaWorkDate(target);
+      const previousDate=previousManilaWorkDate(chosenDate);
       let punchId:number|null=null;
-      if(decision==="approved") {
+      let effectiveDate=String(fresh.workDate);
+      if(decision==="approved"){
+        // Lock both dates before choosing the attendance anchor; disallow
+        // duplicate imported or corrected rows rather than guessing.
+        const todayRows=await tx.select().from(timePunches).where(and(
+          eq(timePunches.organizationId,organizationId),
+          eq(timePunches.employeeId,fresh.employeeId),
+          eq(timePunches.workDate,chosenDate),
+        )).for("update").limit(2);
+        const previousRows=await tx.select().from(timePunches).where(and(
+          eq(timePunches.organizationId,organizationId),
+          eq(timePunches.employeeId,fresh.employeeId),
+          eq(timePunches.workDate,previousDate),
+        )).for("update").limit(2);
+        if(todayRows.length>1||previousRows.length>1)
+          throw Error("Conflicting attendance rows require manual correction.");
+        const anchor=resolveWebBundyPunchAnchor({
+          today:chosenDate,now:target,todayPunch:todayRows[0]??null,
+          previousPunch:previousRows[0]??null,
+          action:fresh.actionType as "clock_in"|"break_start"|"break_end"|"clock_out",
+        });
+        if(anchor.previousShiftNeedsReview)
+          throw Error("Previous shift has an unresolved conflict; request a reviewed correction.");
+        if(anchor.previousOpenRequiresClose)
+          throw Error("A previous shift remains open; close it or request a reviewed correction.");
+        effectiveDate=anchor.workDate;
+        const current=anchor.usePrevious?previousRows[0]:todayRows[0];
+        if(current&&current.source!=="web_bundy")
+          throw Error("Non-Web-Bundy attendance can only be changed by an authorized HR correction.");
+        const locks=(await tx.select().from(workforceAttendancePeriodLocks).where(
+          eq(workforceAttendancePeriodLocks.organizationId,organizationId),
+        ).for("share")).filter(lock=>lock.status==="locked");
+        // Lock both the original device day and all dates touched by the
+        // selected timestamp. No cutoff can be bypassed by choosing "server".
+        for(const date of new Set([String(fresh.workDate),chosenDate,effectiveDate])){
+          if(attendanceMutationLock(locks,date,"capture"))
+            throw Error("Attendance or payroll cutoff is locked; request an authorized HR correction.");
+        }
         const update:Record<string,Date>={};
-        if(submission.actionType==="clock_in") {
-          if(current?.timeIn||current?.timeOut||current?.breakStart||current?.breakEnd)throw Error("Clock-in conflicts with existing attendance.");
+        if(fresh.actionType==="clock_in"){
+          if(current?.timeIn||current?.timeOut||current?.breakStart||current?.breakEnd)
+            throw Error("Clock-in conflicts with existing attendance.");
           update.timeIn=target;
-        } else if(submission.actionType==="clock_out"){
+        }else if(fresh.actionType==="clock_out"){
           if(!current?.timeIn||current.timeOut||target<=current.timeIn||
             (current.breakStart&&!current.breakEnd)||(current.breakEnd&&target<=current.breakEnd))
             throw Error("Clock-out conflicts with existing attendance.");
           update.timeOut=target;
-        }else if(submission.actionType==="break_start"){
-          if(!current?.timeIn||current.breakStart||current.timeOut||target<=current.timeIn)throw Error("Break-start conflicts with existing attendance.");
+        }else if(fresh.actionType==="break_start"){
+          if(!current?.timeIn||current.breakStart||current.timeOut||target<=current.timeIn)
+            throw Error("Break-start conflicts with existing attendance.");
           update.breakStart=target;
-        }else if(submission.actionType==="break_end"){
-          if(!current?.breakStart||current.breakEnd||current.timeOut||target<=current.breakStart)throw Error("Break-end conflicts with existing attendance.");
+        }else if(fresh.actionType==="break_end"){
+          if(!current?.breakStart||current.breakEnd||current.timeOut||target<=current.breakStart)
+            throw Error("Break-end conflicts with existing attendance.");
           update.breakEnd=target;
-        } else throw Error("Invalid punch action.");
-        if(current) {
-          const [updated]=await tx.update(timePunches).set({...update,status:submission.actionType==="clock_out"?"Complete":"Incomplete",notes:"Approved enhanced Web Bundy evidence #"+id})
-            .where(and(eq(timePunches.id,current.id),eq(timePunches.organizationId,organizationId))).returning({id:timePunches.id});
+        }else throw Error("Invalid punch action.");
+        if(current){
+          const [updated]=await tx.update(timePunches).set({
+            ...update,status:fresh.actionType==="clock_out"?"Complete":"Incomplete",
+            notes:"Approved enhanced Web Bundy evidence #"+id,
+          }).where(and(eq(timePunches.id,current.id),eq(timePunches.organizationId,organizationId)))
+            .returning({id:timePunches.id});
+          if(!updated)throw Error("Attendance changed during review; retry.");
           punchId=updated.id;
         }else{
+          if(fresh.actionType!=="clock_in")throw Error("Clock in before approving subsequent punch actions.");
+          const location=fresh.worksiteId
+            ? (fresh.flags.includes("geofence-verified")?"GPS-verified worksite #":"Assigned worksite #")+fresh.worksiteId
+            : "Web Bundy (worksite not verified)";
           const [created]=await tx.insert(timePunches).values({
-            organizationId,employeeId:submission.employeeId,workDate:submission.workDate,timeIn:target,
-            status:"Incomplete",source:"web_bundy",location:submission.worksiteId?"Verified worksite #"+submission.worksiteId:"Web Bundy",
+            organizationId,employeeId:fresh.employeeId,workDate:effectiveDate,timeIn:target,
+            status:"Incomplete",source:"web_bundy",location,
             notes:"Approved enhanced Web Bundy evidence #"+id,
           }).returning({id:timePunches.id});
           punchId=created.id;
         }
+        // Invalidate calculated timecards for every affected Manila day,
+        // within this same transaction as the attendance change and audit.
+        for(const workDate of new Set([effectiveDate,String(fresh.workDate)])){
+          await markTimesheetsStaleForEmployeeDate({
+            organizationId,employeeId:fresh.employeeId,workDate,executor:tx,
+          });
+        }
+        approvedWorkDate=effectiveDate;
       }
-      const [saved]=await tx.update(workforcePunchSubmissions).set({status:decision,reviewedByUserId:context.user!.id,
-        reviewedAt:new Date(),reviewNote,approvedTimeSource:decision==="approved"?timeSource:null,timePunchId:punchId})
-        .where(and(eq(workforcePunchSubmissions.id,id),eq(workforcePunchSubmissions.organizationId,organizationId),
-          eq(workforcePunchSubmissions.status,"pending"))).returning({id:workforcePunchSubmissions.id,status:workforcePunchSubmissions.status});
+      const [saved]=await tx.update(workforcePunchSubmissions).set({
+        status:decision,reviewedByUserId:context.user!.id,
+        reviewedAt:new Date(),reviewNote,
+        approvedTimeSource:decision==="approved"?timeSource:null,timePunchId:punchId,
+      }).where(and(
+        eq(workforcePunchSubmissions.id,id),eq(workforcePunchSubmissions.organizationId,organizationId),
+        eq(workforcePunchSubmissions.status,"pending"),
+      )).returning({id:workforcePunchSubmissions.id,status:workforcePunchSubmissions.status});
       if(!saved)throw Error("Already decided.");
-      if(decision==="approved") {
-        // Keep calculated timecards out of payroll until rebuilt. If this
-        // invalidation fails the attendance decision must also roll back.
-        await markTimesheetsStaleForEmployeeDate({
-          organizationId,employeeId:submission.employeeId,
-          workDate:String(submission.workDate),executor:tx,
-        });
-      }
-      // Attendance decision and immutable audit must commit or roll back together.
       await tx.insert(auditEvents).values({
-        organizationId,actor:context.user!.name,
-        action:"Enhanced Web Bundy punch "+decision,
+        organizationId,actor:context.user!.name,action:"Enhanced Web Bundy punch "+decision,
         resource:String(id),metadata:{
-          submissionId:id,employeeId:submission.employeeId,
+          submissionId:id,employeeId:fresh.employeeId,
           decision,reviewNote,timeSource:decision==="approved"?timeSource:null,
-          flags:submission.flags,
+          sourceWorkDate:String(fresh.workDate),approvedWorkDate:decision==="approved"?effectiveDate:null,
+          flags:fresh.flags,
         },
       });
       return saved;
     });
-  }catch(error){return Response.json({error:error instanceof Error?error.message:"Review conflict."},{status:409});}
-  if(decision==="approved") {
-    await reconcileAttendanceExceptionEvents({organizationId,employeeId:submission.employeeId,workDate:String(submission.workDate)});
+  }catch(error){
+    return Response.json({error:error instanceof Error?error.message:"Review conflict."},{status:409,headers:privateHeaders});
   }
-  return Response.json({ok:true,submission:result},{headers:privateHeaders});
+  if(decision==="approved"&&approvedWorkDate){
+    try{
+      await reconcileAttendanceExceptionEvents({
+        organizationId,employeeId:submission.employeeId,workDate:String(approvedWorkDate),
+      });
+    }catch{
+      // The transaction committed. Do not claim the whole review failed and
+      // tempt a second attendance promotion; expose the partial sync warning.
+      return Response.json({ok:true,submission:result,approvedWorkDate,
+        warning:"Attendance approved; exception reconciliation requires follow-up."},{headers:privateHeaders});
+    }
+  }
+  return Response.json({ok:true,submission:result,approvedWorkDate},{headers:privateHeaders});
 }
