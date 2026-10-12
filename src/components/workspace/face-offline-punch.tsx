@@ -40,8 +40,12 @@ export function FaceOfflinePunchPanel({ organizationId, employeeId }: {
 
   useEffect(() => {
     mountedRef.current = true;
-    setOnline(navigator.onLine);
-    setQueued(readQueue(key));
+    // Defer hydration from device storage until after the initial render.
+    queueMicrotask(() => {
+      if (!mountedRef.current) return;
+      setOnline(navigator.onLine);
+      setQueued(readQueue(key));
+    });
     const change = () => setOnline(navigator.onLine);
     window.addEventListener("online", change);
     window.addEventListener("offline", change);
