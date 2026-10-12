@@ -2,7 +2,7 @@ import { and, eq, gte, lte, desc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents, employees, employeeEntityAssignments, entityTransferRequests,
-  legalEntities, leaveBalances, payrollEntries, payrollRuns, workerEmploymentEvents,
+  historicalPayrollEntries, legalEntities, leaveBalances, payrollEntries, payrollRuns, workerEmploymentEvents,
   workerEffectiveChanges,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -124,6 +124,20 @@ export async function POST(request: Request) {
       eq(payrollRuns.legalEntityId, worker.legalEntityId), eq(payrollRuns.status, "Released"),
       gte(payrollRuns.periodEnd, effectiveDate.slice(0, 4) + "-01-01"),
       lte(payrollRuns.periodEnd, previousDate(effectiveDate))));
+  const importedHistory = await db.select({
+    legalEntityId: historicalPayrollEntries.legalEntityId,
+    basicSalary: historicalPayrollEntries.basicSalary,
+    thirteenthMonth: historicalPayrollEntries.thirteenthMonth,
+  }).from(historicalPayrollEntries).where(and(
+    eq(historicalPayrollEntries.organizationId, organizationId),
+    eq(historicalPayrollEntries.employeeId, employeeId),
+    gte(historicalPayrollEntries.payDate, effectiveDate.slice(0, 4) + "-01-01"),
+    lte(historicalPayrollEntries.payDate, previousDate(effectiveDate)),
+  ));
+  if (importedHistory.some(row => row.legalEntityId === null
+    || (row.legalEntityId === worker.legalEntityId && row.basicSalary === null))) {
+    return fail("Historical payroll source employer or 13th-month basic salary is unattributed. Reconcile before transfer.", 409);
+  }
   let sourceBasic = 0;
   let source13thPaid = 0;
   try {
@@ -131,6 +145,11 @@ export async function POST(request: Request) {
       const source = readBasicAndThirteenth(row.lineItems);
       sourceBasic += source.basic;
       source13thPaid += source.thirteenthPaid;
+    }
+    for (const row of importedHistory) {
+      if (row.legalEntityId !== worker.legalEntityId) continue;
+      sourceBasic += Number(row.basicSalary ?? 0);
+      source13thPaid += Number(row.thirteenthMonth ?? 0);
     }
   } catch {
     return fail("Existing payroll adjustment is missing verified year attribution. Reconcile 13th-month evidence before transfer.", 409);
@@ -143,6 +162,7 @@ export async function POST(request: Request) {
         toLegalEntityId, effectiveDate, reason, serviceStartDate: worker.startDate,
         leaveSnapshot: leaves, thirteenthSnapshot: {
           sourceRunIds: history.map(row => row.payrollRunId),
+          attributedImportCount: importedHistory.filter(row => row.legalEntityId === worker.legalEntityId).length,
           recordedLineItems: history.map(row => ({
             runId: row.payrollRunId, periodStart: row.periodStart,
             periodEnd: row.periodEnd, lineItems: row.lineItems,
