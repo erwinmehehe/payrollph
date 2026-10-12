@@ -50,7 +50,9 @@ jobs:
     timeout-minutes: 15
     env:
       CI: "true"
+      GITHUB_ACTIONS: "true"
       PAYOUT_TRAIN_REHEARSAL: isolated-localhost-pg-only
+      PAYOUT_REHEARSAL_PG_MAJOR: "${{ matrix.postgres }}"
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
