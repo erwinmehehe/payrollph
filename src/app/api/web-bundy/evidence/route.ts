@@ -106,7 +106,8 @@ export async function POST(request: Request) {
     if(source==="offline") flags.push("clock-skew");
     else {
       const geoRaw=form.get("geolocation");
-      const geo=typeof geoRaw==="string" ? JSON.parse(geoRaw) : null;
+      let geo: unknown = null;
+      if (typeof geoRaw === "string") { try { geo=JSON.parse(geoRaw); } catch { return respond({error:"Invalid location evidence."},422); } }
       const decision=evaluateGeofenceFix({fix:geo,sites,now:now.getTime()});
       if(!decision.ok)return respond({error:decision.error,code:decision.code},422);
     }
