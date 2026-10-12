@@ -77,13 +77,39 @@ test("Postgres 16: verified baseline, read-only preview, concurrent one-time com
     );
     await one.connect();
     await two.connect();
+    // Actual PostgreSQL privilege enforcement; identities below are synthetic
+    // session fixtures, not evidence of any Neon endpoint or employer restore.
+    for (const role of ["synthetic_migration_audit", "synthetic_migration_writer", "synthetic_runtime"]) {
+      await admin.query(`CREATE ROLE ${role} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS`);
+      await admin.query(`GRANT USAGE ON SCHEMA public TO ${role}`);
+    }
+    await admin.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
+    await admin.query("GRANT CREATE ON SCHEMA public TO synthetic_migration_writer");
+    await admin.query("GRANT SELECT ON public.payrollph_release_migration_receipts, public.payrollph_migration_cutover, public.payrollph_schema_migrations TO synthetic_migration_audit, synthetic_migration_writer");
+    await admin.query("GRANT INSERT ON public.payrollph_schema_migrations TO synthetic_migration_writer");
+    await admin.query("GRANT SELECT, INSERT, UPDATE, DELETE ON public.employees TO synthetic_runtime");
+    const expectedNeonIdentity = {
+      projectId: "synthetic-project", branchId: "br-synthetic-baseline", endpointId: "ep-synthetic-baseline",
+    };
+    for (const client of [admin, one, two]) {
+      await client.query("SELECT set_config('neon.project_id', $1, false), set_config('neon.branch_id', $2, false), set_config('neon.endpoint_id', $3, false)",
+        Object.values(expectedNeonIdentity));
+    }
+    await one.query("SET ROLE synthetic_migration_writer");
+    await two.query("SET ROLE synthetic_migration_writer");
     const args = {
       inventory, sourceDirectory: dir, expectedDatabaseName: "app_db",
       requestedPath: current.path, expectedSha256: current.sha256,
       operator: "synthetic-operator", approvalRef: "SYNTHETIC-APPROVED-CHANGE",
-      allowElevatedRoleForIsolatedTest: true,
+      expectedNeonIdentity,
+      releaseEnvironment: { ORDERED_RELEASE_MIGRATIONS_ENABLED: "true" },
     };
-    const preview = await runReviewedMigrationOnClient({ ...args, client: one, mode: "plan" });
+    await assert.rejects(() => runReviewedMigrationOnClient({ ...args, client: one, mode: "plan" }), /DATABASE_ROLE_OR_IDENTITY_REJECTED/);
+    await admin.query("SET ROLE synthetic_migration_audit");
+    const preview = await runReviewedMigrationOnClient({ ...args, client: admin, mode: "plan" });
+    await assert.rejects(() => admin.query("SELECT * FROM public.employees"), /permission denied/);
+    await assert.rejects(() => admin.query("CREATE TABLE public.synthetic_audit_ddl(id integer)"), /permission denied/);
+    await admin.query("RESET ROLE");
     assert.equal(preview.status, "ready");
     assert.equal(preview.sqlApplied, false);
     assert.equal((await admin.query("SELECT count(*)::int AS count FROM public.payrollph_schema_migrations")).rows[0].count, 0);
@@ -95,6 +121,17 @@ test("Postgres 16: verified baseline, read-only preview, concurrent one-time com
     ]);
     assert.deepEqual([first.status, second.status].sort(), ["already-applied", "ready"]);
     assert.equal([first.sqlApplied, second.sqlApplied].filter(Boolean).length, 1);
+    assert.equal((await admin.query("SELECT count(*)::int AS count FROM public.payrollph_schema_migrations")).rows[0].count, 1);
+
+    await assert.rejects(() => one.query("UPDATE public.payrollph_schema_migrations SET change_ref = 'tampered-evidence'"), /permission denied/);
+    await assert.rejects(() => one.query("DELETE FROM public.payrollph_schema_migrations"), /permission denied/);
+    await two.query("RESET ROLE");
+    await two.query("SET ROLE synthetic_runtime");
+    await assert.rejects(() => two.query("CREATE TABLE public.synthetic_runtime_ddl(id integer)"), /permission denied/);
+    await assert.rejects(() => two.query("ALTER TABLE public.employees ADD COLUMN synthetic_runtime_ddl integer"), /must be owner/);
+    await assert.rejects(() => runReviewedMigrationOnClient({
+      ...args, client: two, mode: "apply", requestedPath: failing.path, expectedSha256: failing.sha256,
+    }), /permission denied/);
     assert.equal((await admin.query("SELECT count(*)::int AS count FROM public.payrollph_schema_migrations")).rows[0].count, 1);
     assert.deepEqual((await admin.query("SELECT id, organization_id FROM public.synthetic_forward_once")).rows,
       [{ id: 1, organization_id: 101 }]);
@@ -116,13 +153,14 @@ test("Postgres 16: verified baseline, read-only preview, concurrent one-time com
     await admin.query("UPDATE public.payrollph_schema_migrations SET source_sha256 = $1 WHERE migration_path = $2",
       ["f".repeat(64), current.path]);
     await assert.rejects(() => runReviewedMigrationOnClient({
-      ...args, client: one, mode: "plan",
+      ...args, client: one, mode: "apply",
     }), /JOURNAL_DRIFT_OR_OUT_OF_ORDER/);
   } finally {
     for (const client of [one, two]) {
       try { await client.end(); } catch { /* disposable service */ }
     }
     try {
+      await admin.query("RESET ROLE");
       await admin.query("DROP TABLE IF EXISTS public.synthetic_forward_must_rollback");
       await admin.query("DROP TABLE IF EXISTS public.synthetic_forward_once");
       await admin.query("DROP TABLE IF EXISTS public.payrollph_schema_migrations");
@@ -134,6 +172,10 @@ test("Postgres 16: verified baseline, read-only preview, concurrent one-time com
       await admin.query("DROP TABLE IF EXISTS public.payroll_runs");
       await admin.query("DROP TABLE IF EXISTS public.employees");
       await admin.query("DROP TABLE IF EXISTS public.organizations");
+      for (const role of ["synthetic_migration_audit", "synthetic_migration_writer", "synthetic_runtime"]) {
+        await admin.query(`DROP OWNED BY ${role}`);
+        await admin.query(`DROP ROLE ${role}`);
+      }
     } catch { /* disposable DB discarded on workflow exit */ }
     try { await admin.end(); } catch { /* disposable DB */ }
     rmSync(dir, { recursive: true, force: true });

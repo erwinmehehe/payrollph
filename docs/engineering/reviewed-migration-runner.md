@@ -35,7 +35,7 @@ Run **Production Reviewed SQL Migration (Manual, Protected)** on the reviewed ma
 
 The protected workflow checks its SHA and inputs **before installing dependencies**. No production credentials are available during `npm ci`. Both modes first run a read-only receipt/journal/source check; apply then acquires a database advisory lock, checks the exact same source again with the writer, executes one approved SQL file, and inserts the forward journal row atomically. Plan opens a repeatable-read **READ ONLY** transaction and always rolls it back.
 
-**Limitations:** A checked commit is not necessarily the live deployed commit. The DBA/release owner must coordinate pre-deploy schema rollout and verify the deployed application SHA separately. Arbitrary SQL can mutate business tables. The executor is not a replacement for security and DBA review of each statement, data backfill, lock-time risk, maintenance window, rollback/forward repair and backup. Its 90-second statement timeout is a protective default, not a production performance certification. A successfully applied post-cutover SQL still needs separate independently verified receipt evidence in the historical release journal so the read-only source inventory can reconcile that new file.
+**Limitations:** A checked commit is not necessarily the live deployed commit. The DBA/release owner must coordinate pre-deploy schema rollout and verify the deployed application SHA separately. Arbitrary SQL can mutate business tables. The executor is not a replacement for security and DBA review of each statement, data backfill, lock-time risk, maintenance window, rollback/forward repair and backup. Its 90-second statement timeout is a protective default, not a production performance certification. Historical adoption receipts describe only the adopted boundary; forward files are recorded in the separate execution journal. A historical receipt outside that boundary blocks execution rather than being silently ignored.
 
 ## Synthetic testing and hard stops
 
@@ -116,3 +116,12 @@ A repository administrator must configure and verify actual GitHub branch
 rules and independent approval requirements, including the separate protected
 production Actions environment. This source guard does not itself enable
 branch protection, approve DBA receipts or permit production migration.
+
+
+## Approved Stage 1–2 boundary and default-off proof
+
+Written decisions for #870 authorize source implementation only. `ORDERED_RELEASE_MIGRATIONS_ENABLED` defaults OFF; only exact `true` permits APPLY. Both the CLI (before constructing a client) and transaction executor enforce it. Protected environment variables supply it; no PR input can enable it. Source manifest generation and read-only PLAN remain available. No runtime compatibility helper is removed or changed.
+
+The PostgreSQL rehearsal now uses actual restricted audit and writer roles rather than bypassing privilege checks. It executes denial of runtime CREATE/ALTER, sensitive-row reads by audit, and writer UPDATE/DELETE of evidence; concurrent apply and failure rollback remain behavioral. Synthetic Neon identity settings are fixtures, not real endpoint evidence. A separate disposable backup/restore drill checks hashes, constraints and rollback. It does not certify a production-like employer restore or production RTO.
+
+NOT done: actual independently adopted target baseline/manifest and dependency review, production-like sanitized restore, protected environment/credential provisioning, runtime writer retirement (Stages 3–4), backfills, UI/readiness panel, production DDL or activation. UI screenshots are not applicable to Stage 1–2 because this PR introduces no UI. `core-schema-compat.ts` and `payroll-engine.ts` remain unchanged. If legacy writers are unsafe during rollback, keep maintenance mode and preserve additive schema/journals; never automatically reenable them.

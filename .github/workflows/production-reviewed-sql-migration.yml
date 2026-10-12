@@ -52,6 +52,7 @@ jobs:
     timeout-minutes: 20
     environment: production
     env:
+      ORDERED_RELEASE_MIGRATIONS_ENABLED: ${{ vars.ORDERED_RELEASE_MIGRATIONS_ENABLED }}
       REVIEWED_SHA: ${{ inputs.reviewed_sha }}
       EXPECTED_PRODUCTION_DATABASE_NAME: ${{ inputs.expected_database_name }}
       EXPECTED_PRODUCTION_NEON_PROJECT_ID: ${{ vars.PRODUCTION_NEON_PROJECT_ID }}
@@ -87,6 +88,10 @@ jobs:
             exit 1
           fi
           if [ "${{ inputs.mode }}" = apply ]; then
+            if [ "${ORDERED_RELEASE_MIGRATIONS_ENABLED:-}" != "true" ]; then
+              echo 'SQL apply blocked: ORDERED_RELEASE_MIGRATIONS_ENABLED is OFF.'
+              exit 1
+            fi
             if [ "${GITHUB_REF_PROTECTED:-}" != "true" ]; then
               echo 'SQL apply blocked: the GitHub main branch must be protected.'
               exit 1

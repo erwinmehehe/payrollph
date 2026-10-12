@@ -41,6 +41,8 @@ function sqlExecutableTokens(text) {
       continue;
     }
     if (text[i] === "'" || text[i] === '"') {
+      const escapeString = text[i] === "'" && i > 0 && /[eE]/.test(text[i - 1]) &&
+        (i < 2 || !/[A-Za-z0-9_$]/.test(text[i - 2]));
       const quote = text[i++];
       let closed = false;
       while (i < text.length) {
@@ -48,7 +50,7 @@ function sqlExecutableTokens(text) {
           if (text[i + 1] === quote) { i += 2; continue; }
           i += 1; closed = true; break;
         }
-        if (quote === "'" && text[i] === "\\" && text[i + 1] !== undefined) {
+        if (quote === "'" && escapeString && text[i] === "\\" && text[i + 1] !== undefined) {
           i += 2; continue;
         }
         i += 1;
@@ -75,6 +77,10 @@ function sqlExecutableTokens(text) {
 
 function refuse(reason) {
   throw new Error("REVIEWED_MIGRATION_" + reason);
+}
+
+export function requireOrderedMigrationApplyEnabled(env = process.env) {
+  if (env.ORDERED_RELEASE_MIGRATIONS_ENABLED !== "true") refuse("FLAG_DISABLED");
 }
 
 function evidence(value) {
@@ -123,7 +129,8 @@ export function evaluateReviewedMigration({
   const historicReceipts = receipts.filter(row => {
     const match = String(row?.migrationPath ?? "").match(MIGRATION_PATH);
     if (!match) refuse("HISTORICAL_RECEIPT_PATH_INVALID");
-    return Number(match[1]) <= throughPrefix;
+    if (Number(match[1]) > throughPrefix) refuse("HISTORICAL_RECEIPT_OUTSIDE_BASELINE");
+    return true;
   });
   const checked = reconcileMigrationReceipts(historic, historicReceipts);
   if (!checked.receiptsReconciled) refuse("HISTORICAL_RECEIPTS_UNRECONCILED");
@@ -210,8 +217,10 @@ export async function runReviewedMigrationOnClient({
   client, inventory, sourceDirectory = "drizzle", mode, requestedPath,
   expectedSha256, expectedDatabaseName, operator = "", approvalRef = "",
   allowElevatedRoleForIsolatedTest = false, expectedNeonIdentity = null,
+  releaseEnvironment = process.env,
 }) {
   if (mode !== "plan" && mode !== "apply") refuse("MODE_INVALID");
+  if (mode === "apply") requireOrderedMigrationApplyEnabled(releaseEnvironment);
   if (!allowElevatedRoleForIsolatedTest &&
       (!/^([a-z0-9-]{1,60})$/.test(expectedNeonIdentity?.projectId ?? "") ||
        !/^br-[a-z0-9-]{6,60}$/.test(expectedNeonIdentity?.branchId ?? "") ||
@@ -231,6 +240,8 @@ export async function runReviewedMigrationOnClient({
     await client.query("SET LOCAL lock_timeout = '5000ms'");
     await client.query("SET LOCAL statement_timeout = '90000ms'");
     await client.query("SET LOCAL search_path = pg_catalog");
+    // Match the lexer's ordinary-string semantics regardless of role defaults.
+    await client.query("SET LOCAL standard_conforming_strings = on");
     if (mode === "apply") {
       await client.query("SELECT pg_catalog.pg_advisory_xact_lock(20261012, 4)");
     }

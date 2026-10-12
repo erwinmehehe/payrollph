@@ -5,7 +5,7 @@
  * --apply requires a protected exact-main workflow and DBA credentials.
  */
 import { inventoryMigrationSources } from "./lib/migration-receipt-audit.mjs";
-import { cutoverSourceManifest, runReviewedMigrationOnClient } from "./lib/reviewed-migration-runner.mjs";
+import { cutoverSourceManifest, runReviewedMigrationOnClient, requireOrderedMigrationApplyEnabled } from "./lib/reviewed-migration-runner.mjs";
 import {
   requirePinnedNeonMigrationTarget, requireProtectedMainForMigrationApply,
 } from "./lib/migration-neon-target.mjs";
@@ -70,6 +70,7 @@ async function main() {
     throw new Error("REVIEWED_MIGRATION_MODE_OR_ARGS_INVALID");
   }
   const mode = plan ? "plan" : "apply";
+  if (apply) requireOrderedMigrationApplyEnabled();
   // Fail before creating a database client, including on non-main PR commits.
   authorizedEnvironment(mode, options, process.env);
   requireProtectedMainForMigrationApply(process.env, mode);

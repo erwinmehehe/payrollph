@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, symlinkSync, unlinkSync } from "nod
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
+import { spawnSync } from "node:child_process";
 import { inventoryMigrationSources } from "../scripts/lib/migration-receipt-audit.mjs";
 import { REQUIRED_MODERN_SCHEMA_COLUMNS } from "../scripts/lib/schema-lineage-preflight.mjs";
 import {
@@ -58,6 +59,46 @@ const TEST_NEON_IDENTITY = Object.freeze({
   projectId: "calm-wave-70219564",
   branchId: "br-lucky-sound-b79i56jw",
   endpointId: "ep-cool-hat-b7e7gpoo",
+});
+
+test("flag-off apply fails before any SQL, including isolated-role bypass", async () => {
+  for (const raw of [undefined, "", "false", "TRUE", "1", " true"] ) {
+    let queries = 0;
+    await assert.rejects(() => runReviewedMigrationOnClient({
+      mode: "apply", allowElevatedRoleForIsolatedTest: true,
+      releaseEnvironment: { ORDERED_RELEASE_MIGRATIONS_ENABLED: raw },
+      client: { async query() { queries++; throw new Error("must not connect"); } },
+    }), /REVIEWED_MIGRATION_FLAG_DISABLED/);
+    assert.equal(queries, 0);
+  }
+  const result = spawnSync(process.execPath, ["scripts/run-reviewed-migration.mjs",
+    "--apply", "--file", "drizzle/0115_synthetic.sql", "--sha256", "a".repeat(64)], {
+    encoding: "utf8", env: { ...process.env, ORDERED_RELEASE_MIGRATIONS_ENABLED: "false" },
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /REVIEWED_MIGRATION_FLAG_DISABLED/);
+});
+
+test("historical adoption refuses receipts outside the explicit baseline", () => {
+  const f = fixture();
+  try {
+    assert.throws(() => review(f, { receipts: [...f.receipts, {
+      ...f.receipts[0], migrationPath: f.target.path, sha256: f.target.sha256,
+    }] }), /HISTORICAL_RECEIPT_OUTSIDE_BASELINE/);
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("ordinary backslashes cannot hide a COMMIT when standard strings are on", () => {
+  const f = fixture();
+  try {
+    const path = join(f.directory, "0022_forward.sql");
+    writeFileSync(path, "SELECT '\\'; COMMIT; SELECT 'tail';\n");
+    const changed = inventoryMigrationSources(f.directory).files.find(file => file.path === f.target.path);
+    assert.throws(() => loadReviewedSql(f.directory, changed), /SQL_REQUIRES_NONTRANSACTIONAL_OR_MANUAL_REVIEW/);
+    writeFileSync(path, "SELECT E'it\\'s quoted; COMMIT;';\n");
+    const safe = inventoryMigrationSources(f.directory).files.find(file => file.path === f.target.path);
+    assert.doesNotThrow(() => loadReviewedSql(f.directory, safe));
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
 
 function fakeClient(f, opts = {}) {
@@ -213,6 +254,7 @@ test("apply locks, records once, commits; reentry sees already applied and canno
     const db = fakeClient(f);
     const args = {
       client: db, inventory: f.inventory, sourceDirectory: f.directory,
+      releaseEnvironment: { ORDERED_RELEASE_MIGRATIONS_ENABLED: "true" },
       mode: "apply", requestedPath: f.target.path, expectedSha256: f.target.sha256,
       expectedDatabaseName: "app_db", expectedNeonIdentity: TEST_NEON_IDENTITY,
       operator: "reviewed-operator", approvalRef: "DBA-CHANGE-2026-001",
@@ -235,6 +277,7 @@ test("SQL failure rolls back without writing an application receipt", async () =
     const db = fakeClient(f, { throwDuringSql: true });
     await assert.rejects(runReviewedMigrationOnClient({
       client: db, inventory: f.inventory, sourceDirectory: f.directory,
+      releaseEnvironment: { ORDERED_RELEASE_MIGRATIONS_ENABLED: "true" },
       mode: "apply", requestedPath: f.target.path, expectedSha256: f.target.sha256,
       expectedDatabaseName: "app_db", expectedNeonIdentity: TEST_NEON_IDENTITY,
       operator: "reviewed-operator", approvalRef: "DBA-CHANGE-2026-001",
@@ -312,6 +355,7 @@ test("P0-4 live Neon legacy lineage cannot be treated as a numbered migration ba
     const db = fakeClient(f, { legacyLineage: true });
     await assert.rejects(() => runReviewedMigrationOnClient({
       client: db, inventory: f.inventory, sourceDirectory: f.directory,
+      releaseEnvironment: { ORDERED_RELEASE_MIGRATIONS_ENABLED: "true" },
       mode: "apply", requestedPath: f.target.path, expectedSha256: f.target.sha256,
       expectedDatabaseName: "app_db", expectedNeonIdentity: TEST_NEON_IDENTITY, operator: "reviewed-operator",
       approvalRef: "DBA-CHANGE-2026-001",
@@ -376,6 +420,7 @@ test("wrong Neon project, branch or endpoint is rejected before inspecting migra
   try {
     const inputs = {
       inventory: f.inventory, sourceDirectory: f.directory,
+      releaseEnvironment: { ORDERED_RELEASE_MIGRATIONS_ENABLED: "true" },
       mode: "apply", requestedPath: f.target.path, expectedSha256: f.target.sha256,
       expectedDatabaseName: "app_db", expectedNeonIdentity: TEST_NEON_IDENTITY,
       operator: "synthetic-operator", approvalRef: "SYNTHETIC-CHANGE-001",

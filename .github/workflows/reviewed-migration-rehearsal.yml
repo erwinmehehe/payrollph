@@ -74,3 +74,16 @@ jobs:
         run: node --test tests/reviewed-migration-postgres.test.mjs
       - name: Source-only inventory remains non-mutating
         run: node scripts/audit-production-migration-receipts.mjs --inventory
+      - name: Rehearse synthetic isolated backup and restore
+        env:
+          DR_REHEARSAL_MODE: isolated-ci-only
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: bash scripts/verify-backup-restore.sh
+      - name: Preserve synthetic restore evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: reviewed-migration-synthetic-restore
+          path: qa-artifacts/dr-rehearsal.json
+          retention-days: 14
+          if-no-files-found: error
