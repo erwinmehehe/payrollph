@@ -1,4 +1,4 @@
-**Migration conflict resolved in source (2026-10-12):** The only canonical numbered punch-evidence SQL is proposed as `drizzle/0120_wfm_punch_evidence.sql` in draft PR #865. This PR no longer creates duplicate `drizzle/0112` SQL. PR #856 remains **DRAFT, NO MERGE** until merged #855 Web Bundy overnight/role fixes are manually reconciled and independently validated. No Neon migration, image collection or offline attendance activation is authorized.
+**Migration conflict resolved in source (2026-10-12):** The sole canonical punch-evidence migration source is `drizzle/0120_wfm_punch_evidence.sql`, merged through PR #865 into `main`; this is source-only, not applied to live Neon. This PR no longer creates duplicate `drizzle/0112` SQL. PR #856 remains **DRAFT, NO MERGE** until merged #855 Web Bundy overnight/role fixes are manually reconciled and independently validated. No Neon migration, image collection or offline attendance activation is authorized.
 
 # Privacy incident and processor register — draft for DPO acceptance
 
