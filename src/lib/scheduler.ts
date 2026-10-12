@@ -23,6 +23,7 @@ import { runScheduledPerformanceEvidenceSealing } from "@/lib/hcm-performance-ev
 import { resumeDueAutomationExecutions } from "@/lib/automation";
 import { runScheduledAutomationTemporalEvents } from "@/lib/automation-temporal-events";
 import { sealAuditEvents } from "@/lib/audit-chain";
+import { runDueApprovalChainEscalations } from "@/lib/approval-chain-escalation-server";
 import { runScheduledComplianceDeadlineAlerts } from "@/lib/compliance-deadline-alerts";
 
 const MIN_INTERVAL_MS = 30_000;
@@ -114,6 +115,8 @@ async function runScheduledJobs(
     || now.getTime() - retentionState.lastRunAt.getTime() >= 24 * 60 * 60 * 1000;
   if (retentionDue) await assertLeaseOwnership();
   const retention = retentionDue ? await purgeExpiredOperationalData(now.getTime()) : null;
+  await assertLeaseOwnership();
+  const approvalEscalations = await runDueApprovalChainEscalations(now);
   await assertLeaseOwnership();
   const statutoryRemittanceActions = await runScheduledStatutoryRemittanceSync({
     actor: "System scheduler",
@@ -358,6 +361,7 @@ async function runScheduledJobs(
     mailRetries: mailRetried.length,
     marketingLeadNotifications: marketingLeadResults.filter((item) => item.notified).length,
     retentionPurge: retention,
+    approvalEscalations,
     statutoryRemittanceActions,
     contributionCaseEscalations,
     automationResumes,

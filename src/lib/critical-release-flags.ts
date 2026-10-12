@@ -48,6 +48,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 consented POS source access and historical aggregate import",
     approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
   },
+  approvalChainEscalations: {
+    env: "APPROVAL_CHAIN_ESCALATIONS_ENABLED",
+    owner: "People Governance",
+    risk: "P1 overdue approval escalation and stricter payroll maker-checker identity gate",
+    approval: "Delegation expiry, distinct-human and scheduler idempotency UAT",
+  },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
     owner: "Product",

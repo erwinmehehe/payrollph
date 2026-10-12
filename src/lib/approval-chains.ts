@@ -16,6 +16,7 @@ export type ApprovalChainStepDefinition = {
   dueLabel?: string;
   priority?: string;
   minimumAmount?: number;
+  escalationAfterDays?: number;
   // A group narrows the existing named/role approver; it never replaces one.
   dynamicGroupCode?: string;
   // Frozen when an approval request starts; never accepted from policy input.
@@ -38,6 +39,10 @@ function normalizeApprovalChainSteps(value: unknown): ApprovalChainStepDefinitio
     const dynamicGroupCode = row.dynamicGroupCode == null ? "" : String(row.dynamicGroupCode).trim().toLowerCase();
     if (dynamicGroupCode && !/^[a-z0-9][a-z0-9-]{0,79}$/.test(dynamicGroupCode)) return null;
     const minimumRaw = row.minimumAmount == null || row.minimumAmount === "" ? 0 : Number(row.minimumAmount);
+    const escalationDays = row.escalationAfterDays == null || row.escalationAfterDays === ""
+      ? null : Number(row.escalationAfterDays);
+    if (escalationDays !== null &&
+      (!Number.isSafeInteger(escalationDays) || escalationDays < 1 || escalationDays > 30)) return null;
     if (!label || !approver || !Number.isFinite(minimumRaw) || minimumRaw < 0 || minimumRaw > 999_999_999_999.99) {
       return null;
     }
@@ -51,6 +56,7 @@ function normalizeApprovalChainSteps(value: unknown): ApprovalChainStepDefinitio
       dueLabel: dueLabel.slice(0, 80) || "Review required",
       priority: priority.slice(0, 32) || "Normal",
       minimumAmount,
+      ...(escalationDays !== null ? { escalationAfterDays: escalationDays } : {}),
       ...(dynamicGroupCode ? { dynamicGroupCode } : {}),
     });
   }

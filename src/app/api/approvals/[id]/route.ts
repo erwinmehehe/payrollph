@@ -4,6 +4,8 @@ import { db } from "@/db";
 import { approvalChainInstances, approvalTasks, auditEvents, automationExecutions, employees, hcmBusinessProcessInstances, hcmBusinessProcessInstanceSteps, leaveRequestIntervalSets, leaveRequests, payrollRuns, workforceTimesheets, workforcePlanningScenarios, workforcePlans } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { canDecide } from "@/lib/delegation";
+import { payrollMakerCheckerDecision } from "@/lib/approval-human-separation";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { authorizedDynamicGroupMember } from "@/lib/dynamic-group-authorization";
 import {
   frozenGovernedHandoffEvidence,
@@ -243,6 +245,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         error: "Maker-checker control: the person who submitted this payroll cannot approve it.",
         maker: submission.actor,
       }, { status: 403 });
+    }
+    if (criticalReleaseFlagEnabled("approvalChainEscalations")) {
+      const separation = payrollMakerCheckerDecision({
+        makerUserId: metadata.makerUserId,
+        checkerUserId: sessionUser.id,
+        declaredApproverUserId: Number.isSafeInteger(assignedApproverUserId)
+          ? assignedApproverUserId : null,
+        namedApproverUsed: actor.toLowerCase() === task.approver.toLowerCase(),
+      });
+      if (!separation.ok) {
+        return Response.json({
+          error: "Payroll approval requires two distinct identified human users.",
+          code: separation.code,
+        }, { status: 403 });
+      }
     }
 
     if (
