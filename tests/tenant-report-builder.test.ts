@@ -51,3 +51,10 @@ test("recorded turnover facts roll up without confusing them with current separa
  ],spec);
  assert.deepEqual(rows,[["OPS","1","2","1"]]);
 });
+
+test("partial-window approved leave is rejected rather than overstated", async () => {
+ const {leaveRangeFullyWithinReport} = await import("../src/lib/tenant-report-builder");
+ assert.equal(leaveRangeFullyWithinReport("2026-10-01","2026-10-05","2026-10-01","2026-10-31"),true);
+ assert.equal(leaveRangeFullyWithinReport("2026-09-29","2026-10-05","2026-10-01","2026-10-31"),false);
+ assert.equal(leaveRangeFullyWithinReport("2026-10-25","2026-11-02","2026-10-01","2026-10-31"),false);
+});
