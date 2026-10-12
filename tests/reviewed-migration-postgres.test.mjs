@@ -7,6 +7,7 @@ import pg from "pg";
 import { assertIsolatedMigrationTarget } from "../scripts/lib/isolated-migration-target.mjs";
 import { inventoryMigrationSources } from "../scripts/lib/migration-receipt-audit.mjs";
 import { assertModernSchemaLineage } from "../scripts/lib/schema-lineage-preflight.mjs";
+import { assertHistoricalCatalog } from "../scripts/lib/historical-catalog-gate.mjs";
 import { cutoverSourceManifest, runReviewedMigrationOnClient } from "../scripts/lib/reviewed-migration-runner.mjs";
 
 const ONLY_ISOLATED = process.env.MIGRATION_REHEARSAL_MODE === "isolated-ci-only";
@@ -52,6 +53,12 @@ test("Postgres 16: verified baseline, read-only preview, concurrent one-time com
       "CREATE TABLE public.payroll_entries (id integer PRIMARY KEY, payroll_run_id integer NOT NULL)",
     ]) await admin.query(sql);
     await assert.doesNotReject(() => assertModernSchemaLineage(admin));
+    // Against REAL PostgreSQL catalogs (not a stub), a source-history
+    // cutover falsely labeled 0114 must be rejected before SQL can run.
+    // The disposable fixture has modern integer IDs but lacks the
+    // historical job/WFM/provider structures.
+    await assert.rejects(() => assertHistoricalCatalog(admin,114),
+      /REVIEWED_MIGRATION_HISTORICAL_CATALOG_OBJECTS_MISSING/);
     await admin.query(readFileSync("docs/engineering/production-migration-receipt-journal-template.sql", "utf8"));
     await admin.query(readFileSync("docs/engineering/reviewed-migration-cutover-template.sql", "utf8"));
     for (const file of historic.files) {
