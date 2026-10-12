@@ -4,22 +4,31 @@ on:
   pull_request:
     paths:
       - "scripts/lib/protected-offsite-backup-policy.mjs"
+      - "scripts/lib/protected-offsite-restore-policy.mjs"
       - "scripts/validate-protected-offsite-backup.mjs"
+      - "scripts/validate-protected-offsite-restore.mjs"
       - "scripts/backup-neon-offsite-encrypted.sh"
+      - "scripts/verify-protected-offsite-restore.sh"
       - "scripts/rehearse-encrypted-offsite-backup.sh"
       - "scripts/sql/protected-neon-backup-source.sql"
       - ".github/workflows/protected-neon-offsite-backup.yml"
+      - ".github/workflows/protected-neon-offsite-restore.yml"
       - ".github/workflows/encrypted-offsite-backup-ci.yml"
       - "tests/protected-offsite-backup.test.mjs"
+      - "tests/protected-offsite-restore.test.mjs"
   push:
     branches: [main]
     paths:
       - "scripts/lib/protected-offsite-backup-policy.mjs"
+      - "scripts/lib/protected-offsite-restore-policy.mjs"
       - "scripts/validate-protected-offsite-backup.mjs"
+      - "scripts/validate-protected-offsite-restore.mjs"
       - "scripts/backup-neon-offsite-encrypted.sh"
+      - "scripts/verify-protected-offsite-restore.sh"
       - "scripts/rehearse-encrypted-offsite-backup.sh"
       - ".github/workflows/encrypted-offsite-backup-ci.yml"
       - "tests/protected-offsite-backup.test.mjs"
+      - "tests/protected-offsite-restore.test.mjs"
 
 permissions:
   contents: read
@@ -58,10 +67,13 @@ jobs:
       - name: Test backup request policy and deny unsafe targets
         run: |
           node --check scripts/lib/protected-offsite-backup-policy.mjs
+          node --check scripts/lib/protected-offsite-restore-policy.mjs
           node --check scripts/validate-protected-offsite-backup.mjs
+          node --check scripts/validate-protected-offsite-restore.mjs
           bash -n scripts/backup-neon-offsite-encrypted.sh
+          bash -n scripts/verify-protected-offsite-restore.sh
           bash -n scripts/rehearse-encrypted-offsite-backup.sh
-          node --test tests/protected-offsite-backup.test.mjs
+          node --test tests/protected-offsite-backup.test.mjs tests/protected-offsite-restore.test.mjs
       - name: Install age on disposable GitHub runner
         run: |
           sudo apt-get update -qq
