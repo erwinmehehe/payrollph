@@ -1,10 +1,10 @@
 # Consolidated proposed SQL release train: 0115-0121
 
-**DRAFT / DO NOT RUN ON NEON MAIN.** This is a dependent-source patch on
-PR #865, not an approved historical migration replay. The last numbered
+**DRAFT / DO NOT RUN ON NEON MAIN.** This is the canonical source-only
+train in PR #865, not an approved historical migration replay. The last numbered
 historical SQL on GitHub main is 0114. Old duplicate prefix groups remain
-unchanged; a modern path/hash execution journal has NOT been adopted on
-Neon main.
+unchanged; an evidence-backed historical receipt journal with exact
+source path and SHA-256 has NOT been adopted on Neon main.
 
 ## Canonical dependency order (all seven are newly numbered DRAFT files)
 
@@ -24,9 +24,9 @@ in historical records, or applied in any actual database is renamed.
 
 ### Source handoff and PR dependencies
 
-- Canonical branch: this dependent branch, based on PR #865. Once reviewed,
-  integrate it into the source train and retire the old 0115-0119
-  reservations (which existed only in the unmerged draft).
+- Canonical branch: PR #865 itself. Old 0115-0119 unmerged draft
+  reservations are retired on this branch; do not replay or cherry-pick
+  them separately into main.
 - PR #893 contains the original strengthened **unnumbered** A-2 payout
   candidate and standalone disposable PostgreSQL checks. Its guarded SQL
   has been copied verbatim into the new proposed 0116 after its comment
