@@ -5819,7 +5819,7 @@ export const workforceDemandForecastScores = pgTable(
 /**
  * Opt-in workforce punch evidence. The legacy time_punches schema and payroll
  * engine are untouched. Only an independent checker may promote a staged row.
- * Apply drizzle/0118_wfm_punch_evidence.sql before enabling the release flag.
+ * Apply drizzle/0120_wfm_punch_evidence.sql before enabling the release flag.
  */
 export const worksitePunchPolicies = pgTable("worksite_punch_policies", {
   worksiteId: integer("worksite_id").primaryKey().references(() => worksites.id, { onDelete: "cascade" }),
