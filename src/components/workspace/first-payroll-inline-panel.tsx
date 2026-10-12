@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { EmployeeImportPreviewPanel } from "@/components/employee-import-preview-panel";
 import { NewHireModal } from "@/components/new-hire-modal";
 import { FIRST_PAYROLL_STEPS, type FirstPayrollKey } from "@/lib/first-payroll-journey";
+import { INVITABLE_ROLES } from "@/lib/roles";
 import { ApprovalsView } from "./approvals";
 import { ExportsView } from "./exports";
 import type { DashboardData, Notify } from "./types";
@@ -167,10 +168,10 @@ export function FirstPayrollInlinePanel({
      {reviewed&&<p>Reviewed by user #{reviewed.byUserId} for {reviewed.periodStart} to {reviewed.periodEnd}.</p>}
    </div>}
    {step==="reviewers"&&<div className="grid gap-3">
-     <p>Invite distinct payroll and checker users. A pending invitation does not count as an active reviewer.</p>
+     <p>Invite HR for the time review, then a payroll officer, independent checker and finance/bookkeeper as needed. Invitations must be accepted before a role handoff.</p>
      <label>Work email<input type="email" value={email} onChange={e=>setEmail(e.target.value)}/></label>
      <label>Role<select value={role} onChange={e=>setRole(e.target.value)}>
-       <option value="payroll">Payroll officer</option><option value="checker">Independent checker</option>
+       {INVITABLE_ROLES.filter(item=>["hr","payroll","checker","bookkeeper"].includes(item.id)).map(item=><option key={item.id} value={item.id}>{item.label}</option>)}
      </select></label>
      <button type="button" className="primary-button" disabled={busy||!email||!reviewersCanEdit}
        onClick={()=>void send("/api/invitations","POST",{email,role},`Invitation sent for ${role}; acceptance still required.`).then(ok=>{if(ok)setEmail("");})}>
