@@ -1104,6 +1104,109 @@ export async function PATCH(request: Request) {
     if (releaseDenied) return releaseDenied;
   }
 
+  if (action === "waive_clearance") {
+    if (!criticalReleaseFlagEnabled("offboardingClearance")) {
+      return Response.json({ error: "Documented clearance waivers are disabled." }, { status: 404 });
+    }
+    const department = body.department;
+    const reason = typeof body.waiverReason === "string" ? body.waiverReason.trim() : "";
+    const evidenceReference = typeof body.waiverEvidenceReference === "string"
+      ? body.waiverEvidenceReference.trim() : "";
+    if (!isOffboardingDepartment(department) || !waiverEvidenceValid(reason, evidenceReference)) {
+      return Response.json({
+        error: "Choose IT, Admin, Finance or HR; include an evidence reference of 8–200 characters and a reason of 20–500 characters.",
+      }, { status: 422 });
+    }
+    if (!waiverReviewerEligible({
+      role: access.role, companyWide: access.companyWide,
+      actorUserId: user.id, preparedByUserId: sep.preparedByUserId,
+    })) {
+      return Response.json({
+        error: "An independent company-wide owner/admin must authorize the waiver, not the final-pay preparer.",
+      }, { status: 403 });
+    }
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+    const limitDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id, action: "separation-clearance-waiver",
+      resourceId: id, limit: 5, windowMs: 30 * 60_000,
+    });
+    if (limitDenied) return limitDenied;
+
+    try {
+      const result = await db.transaction(async tx => {
+        const [fresh] = await tx.select().from(separationRecords).where(and(
+          eq(separationRecords.id, id),
+          eq(separationRecords.organizationId, sep.organizationId),
+        )).for("update").limit(1);
+        if (!fresh || fresh.status !== "draft" || fresh[DEPARTMENT_FIELDS[department]]) {
+          throw new Error("OFFBOARDING_WAIVER_STALE");
+        }
+        if (!waiverReviewerEligible({
+          role: access.role, companyWide: access.companyWide,
+          actorUserId: user.id, preparedByUserId: fresh.preparedByUserId,
+        })) throw new Error("OFFBOARDING_WAIVER_MAKER_CHECKER");
+        if (department === "it") {
+          const grants = await tx.select({ state: itAccessGrants.state }).from(itAccessGrants)
+            .where(and(eq(itAccessGrants.organizationId, fresh.organizationId),
+              eq(itAccessGrants.employeeId, fresh.employeeId)));
+          if (!externalAccessRevoked(grants.map(grant => grant.state))) {
+            throw new Error("OFFBOARDING_IT_ACCESS_PENDING");
+          }
+        }
+        const [waiver] = await tx.insert(separationClearanceWaivers).values({
+          organizationId: fresh.organizationId,
+          separationId: fresh.id, employeeId: fresh.employeeId,
+          department, reason, evidenceReference,
+          authorizedByUserId: user.id,
+        }).onConflictDoNothing().returning({ id: separationClearanceWaivers.id });
+        if (!waiver) throw new Error("OFFBOARDING_WAIVER_EXISTS");
+        const waivers = await tx.select().from(separationClearanceWaivers).where(and(
+          eq(separationClearanceWaivers.organizationId, fresh.organizationId),
+          eq(separationClearanceWaivers.separationId, fresh.id),
+          isNull(separationClearanceWaivers.revokedAt),
+        ));
+        const progress = offboardingClearanceStatus(fresh, waivers);
+        const [updated] = await tx.update(separationRecords).set({
+          clearanceStatus: progress.ready ? "cleared" : "in_progress",
+        }).where(and(
+          eq(separationRecords.id, fresh.id),
+          eq(separationRecords.organizationId, fresh.organizationId),
+          eq(separationRecords.status, "draft"),
+        )).returning({ id: separationRecords.id });
+        if (!updated) throw new Error("OFFBOARDING_WAIVER_STALE");
+        await tx.insert(auditEvents).values({
+          organizationId: fresh.organizationId, actor: user.name,
+          action: "Separation department clearance independently waived",
+          resource: "Separation #" + fresh.id,
+          metadata: {
+            waiverId: waiver.id, employeeId: fresh.employeeId,
+            actorUserId: user.id, preparerUserId: fresh.preparedByUserId,
+            department, reason, evidenceReference,
+            allClearancesResolved: progress.ready,
+            externalITAccessStillMustBeRevoked: true,
+          },
+        });
+        return { waiverId: waiver.id, department, clearanceReady: progress.ready,
+          waivedDepartments: progress.waived };
+      }, { isolationLevel: "serializable" });
+      return Response.json(result, { status: 201 });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message === "OFFBOARDING_IT_ACCESS_PENDING") {
+        return Response.json({ code: message,
+          error: "All external application grants must actually be revoked before waiving any unresolved IT equipment." }, { status: 409 });
+      }
+      if (message.startsWith("OFFBOARDING_WAIVER_") ||
+        (error && typeof error === "object" && "code" in error &&
+          (error as { code?: string }).code === "23505")) {
+        return Response.json({ code: "OFFBOARDING_WAIVER_CONFLICT",
+          error: "The waiver or final-pay package changed; refresh and obtain independent review again." }, { status: 409 });
+      }
+      throw error;
+    }
+  }
+
   if (action === "clearance") {
     // A clearance is separate from final-pay approval; it must be a real,
     // individually evidenced assertion by its authorized department.
