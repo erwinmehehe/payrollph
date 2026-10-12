@@ -1,13 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { legalEntities } from "@/db/schema";
+import { auditEvents, legalEntities } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, ORG_ADMIN_ROLES } from "@/lib/access";
 import { resolveMultiEntityContext, assertEntityResource } from "@/lib/multi-entity-server";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { enforceSameOriginMutation, requireSensitiveActionMfa } from "@/lib/security-request";
 import { encryptBankAccount, maskBankAccount } from "@/lib/bank-account-crypto";
-import { recordAuditEvent } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 function mask(value: string | null) {
@@ -91,7 +90,8 @@ export async function PATCH(request: Request) {
     const bankCode = body.disbursementBankCode === undefined
       ? old.disbursementBankCode : stringValue(body.disbursementBankCode, 16);
     if (bankAccount && !bankCode) return fail("Bank code is required with an account.", 422);
-    const [updated] = await db.update(legalEntities).set({
+    const updated = await db.transaction(async tx => {
+      const [record] = await tx.update(legalEntities).set({
       legalName, registeredAddress,
       birTin, birBranchCode: branch,
       sssEmployerNo: stringValue(body.sssEmployerNo, 24) ?? old.sssEmployerNo,
@@ -102,15 +102,18 @@ export async function PATCH(request: Request) {
       disbursementAccountName: stringValue(body.disbursementAccountName, 160) ?? old.disbursementAccountName,
       disbursementAccount: bankAccount ? encryptBankAccount(bankAccount) : old.disbursementAccount,
       updatedAt: new Date(),
-    }).where(and(eq(legalEntities.id, legalEntityId),
-      eq(legalEntities.organizationId, organizationId))).returning();
-    await recordAuditEvent({
-      organizationId, actor: user.name, action: "Legal employer settings updated",
-      resource: String(legalEntityId), metadata: {
-        legalEntityId, changedFields: Object.keys(body).filter(key =>
-          key !== "organizationId" && key !== "legalEntityId"),
-        actorUserId: user.id, sensitiveValuesRedacted: true,
-      },
+      }).where(and(eq(legalEntities.id, legalEntityId),
+        eq(legalEntities.organizationId, organizationId))).returning();
+      if (!record) throw new Error("Employer changed during update.");
+      await tx.insert(auditEvents).values({
+        organizationId, actor: user.name, action: "Legal employer settings updated",
+        resource: String(legalEntityId), metadata: {
+          legalEntityId, changedFields: Object.keys(body).filter(key =>
+            key !== "organizationId" && key !== "legalEntityId"),
+          actorUserId: user.id, sensitiveValuesRedacted: true,
+        },
+      });
+      return record;
     });
     return Response.json({ entity: present(updated) });
   } catch (error) {
