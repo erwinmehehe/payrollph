@@ -117,18 +117,36 @@ export async function getDashboardData(organizationId?: number, request?: Reques
     selectedEntityId === null ? undefined : eq(employees.legalEntityId, selectedEntityId),
     !access.companyWide && access.orgUnitId ? eq(employees.orgUnitId, access.orgUnitId) : undefined,
   );
+  // Resolve the personnel boundary inside each SQL read, not after fetching
+  // other employers' confidential time, leave or compensation evidence.
+  // Group HR's All view intentionally includes all current-tenant entities.
+  const restrictedEmployeeIds = db.select({ id: employees.id })
+    .from(employees).where(employeeFilter);
+  const restrictEntityEmployeeRows = entityContext.enabled && selectedEntityId !== null;
 
   const [employeeRows, payProfileRows, payRevisionRowsRaw, restDayRevisionRowsRaw, retroRowsRaw, runRows, taskRowsRaw, auditRows, plans, templates, advisories, freelancer, punchRowsRaw, delegationRows, leaveRowsRaw, leavePolicyRows, units, wages, provisionRowsRaw, separationRowsRaw] = await Promise.all([
     db.select().from(employees).where(employeeFilter).orderBy(asc(employees.id)),
-    db.select().from(employeePayProfiles).where(eq(employeePayProfiles.organizationId, selectedOrganization.id)),
+    db.select().from(employeePayProfiles).where(and(
+      eq(employeePayProfiles.organizationId, selectedOrganization.id),
+      restrictEntityEmployeeRows ? inArray(employeePayProfiles.employeeId, restrictedEmployeeIds) : undefined,
+    )),
     canViewPeoplePay
-      ? db.select().from(employeePayRevisions).where(eq(employeePayRevisions.organizationId, selectedOrganization.id)).orderBy(desc(employeePayRevisions.effectiveDate), desc(employeePayRevisions.id))
+      ? db.select().from(employeePayRevisions).where(and(
+          eq(employeePayRevisions.organizationId, selectedOrganization.id),
+          restrictEntityEmployeeRows ? inArray(employeePayRevisions.employeeId, restrictedEmployeeIds) : undefined,
+        )).orderBy(desc(employeePayRevisions.effectiveDate), desc(employeePayRevisions.id))
       : Promise.resolve([]),
     canViewPeoplePay
-      ? db.select().from(employeeRestDayRevisions).where(eq(employeeRestDayRevisions.organizationId, selectedOrganization.id)).orderBy(desc(employeeRestDayRevisions.effectiveDate), desc(employeeRestDayRevisions.id))
+      ? db.select().from(employeeRestDayRevisions).where(and(
+          eq(employeeRestDayRevisions.organizationId, selectedOrganization.id),
+          restrictEntityEmployeeRows ? inArray(employeeRestDayRevisions.employeeId, restrictedEmployeeIds) : undefined,
+        )).orderBy(desc(employeeRestDayRevisions.effectiveDate), desc(employeeRestDayRevisions.id))
       : Promise.resolve([]),
     canViewPeoplePay
-      ? db.select().from(employeePayRetroAdjustments).where(eq(employeePayRetroAdjustments.organizationId, selectedOrganization.id)).orderBy(desc(employeePayRetroAdjustments.id))
+      ? db.select().from(employeePayRetroAdjustments).where(and(
+          eq(employeePayRetroAdjustments.organizationId, selectedOrganization.id),
+          restrictEntityEmployeeRows ? inArray(employeePayRetroAdjustments.employeeId, restrictedEmployeeIds) : undefined,
+        )).orderBy(desc(employeePayRetroAdjustments.id))
       : Promise.resolve([]),
     canViewPayroll
       ? db.select().from(payrollRuns).where(
@@ -139,7 +157,8 @@ export async function getDashboardData(organizationId?: number, request?: Reques
           ),
         ).orderBy(desc(payrollRuns.id))
       : Promise.resolve([]),
-    (!entityContext.enabled || entityContext.group) && (access.companyWide || ["manager", "checker"].includes(access.role))
+    (!entityContext.enabled || entityContext.group) && access.role !== "group_hr" &&
+      (access.companyWide || ["manager", "checker"].includes(access.role))
       ? db.select().from(approvalTasks).where(eq(approvalTasks.organizationId, selectedOrganization.id)).orderBy(asc(approvalTasks.id))
       : Promise.resolve([]),
     canViewAudit
@@ -151,11 +170,17 @@ export async function getDashboardData(organizationId?: number, request?: Reques
       : Promise.resolve([]),
     db.select().from(calamityAdvisories).where(eq(calamityAdvisories.organizationId, selectedOrganization.id)),
     db.select().from(freelancerProfiles).where(eq(freelancerProfiles.organizationId, selectedOrganization.id)),
-    db.select().from(timePunches).where(eq(timePunches.organizationId, selectedOrganization.id)).orderBy(desc(timePunches.workDate)),
+    db.select().from(timePunches).where(and(
+      eq(timePunches.organizationId, selectedOrganization.id),
+      restrictEntityEmployeeRows ? inArray(timePunches.employeeId, restrictedEmployeeIds) : undefined,
+    )).orderBy(desc(timePunches.workDate)),
     canViewDelegations
       ? db.select().from(approvalDelegations).where(eq(approvalDelegations.organizationId, selectedOrganization.id)).orderBy(desc(approvalDelegations.id))
       : Promise.resolve([]),
-    db.select().from(leaveRequests).where(eq(leaveRequests.organizationId, selectedOrganization.id)).orderBy(desc(leaveRequests.id)),
+    db.select().from(leaveRequests).where(and(
+      eq(leaveRequests.organizationId, selectedOrganization.id),
+      restrictEntityEmployeeRows ? inArray(leaveRequests.employeeId, restrictedEmployeeIds) : undefined,
+    )).orderBy(desc(leaveRequests.id)),
     db.select().from(leavePolicies).where(eq(leavePolicies.organizationId, selectedOrganization.id)).orderBy(asc(leavePolicies.id)),
     db.select().from(orgUnits).where(
       and(
@@ -165,7 +190,10 @@ export async function getDashboardData(organizationId?: number, request?: Reques
       ),
     ),
     db.select().from(minWageOrders),
-    db.select().from(provisioningTasks).where(eq(provisioningTasks.organizationId, selectedOrganization.id)),
+    db.select().from(provisioningTasks).where(and(
+      eq(provisioningTasks.organizationId, selectedOrganization.id),
+      restrictEntityEmployeeRows ? inArray(provisioningTasks.employeeId, restrictedEmployeeIds) : undefined,
+    )),
     canViewPeoplePay
       ? db.select({
           id: separationRecords.id,
