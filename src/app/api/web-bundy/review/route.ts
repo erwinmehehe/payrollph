@@ -1,4 +1,4 @@
-import { and,desc,eq,sql } from "drizzle-orm";
+import { and,asc,eq,sql } from "drizzle-orm";
 import { db } from "@/db";
 import { auditEvents,employees,timePunches,workforceAttendancePeriodLocks,workforcePunchSubmissions,workforcePunchPhotoEvidence } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
@@ -64,6 +64,8 @@ export async function GET(request:Request) {
     try{return new Response(new Uint8Array(decryptPunchPhoto(photo.sealedPhoto)),{headers:{...privateHeaders,"Content-Type":"image/jpeg"}});}
     catch{return Response.json({error:"Cannot decrypt image."},{status:503,headers:privateHeaders});}
   }
+  // Show oldest pending submissions first to allow chronologically dependent
+  // clock-in -> break -> clock-out approval even with a large new-punch backlog.
   // Scope BEFORE the 100-row page limit. Otherwise company-wide rows can
   // starve a unit-scoped manager's queue indefinitely.
   const scopeClause=context.access?.companyWide?undefined:
@@ -72,7 +74,8 @@ export async function GET(request:Request) {
     .from(workforcePunchSubmissions).innerJoin(employees,and(eq(employees.id,workforcePunchSubmissions.employeeId),eq(employees.organizationId,organizationId)))
     .where(and(eq(workforcePunchSubmissions.organizationId,organizationId),
       eq(workforcePunchSubmissions.status,"pending"),scopeClause))
-    .orderBy(desc(workforcePunchSubmissions.id)).limit(100);
+    .orderBy(asc(workforcePunchSubmissions.serverReceivedAt),
+      asc(workforcePunchSubmissions.id)).limit(100);
   return Response.json({submissions:rows.filter(row=>assertScope(context.access,row.orgUnitId).ok).map(row=>({
     ...row.submission,deviceDigest:undefined,name:row.name+" "+row.lastName,
   }))},{headers:privateHeaders});

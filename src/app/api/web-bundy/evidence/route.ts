@@ -114,16 +114,20 @@ export async function POST(request: Request) {
   const deviceOccurredAt=String(form.get("deviceOccurredAt")??"");
   if(!validPunchUuid(clientPunchId)||!validPunchUuid(deviceId))
     return respond({error:"Invalid device or punch identifier."},400);
+  // Resolve a server-committed action BEFORE checking current cutoff, photo
+  // policy or 31-day replay age. A lost HTTP response may be retried after
+  // those policies change: acknowledging an existing, owner-scoped punch is
+  // read-only and cannot mutate locked attendance or create a second punch.
+  const [existing]=await db.select({id:workforcePunchSubmissions.id,status:workforcePunchSubmissions.status})
+    .from(workforcePunchSubmissions).where(and(eq(workforcePunchSubmissions.organizationId,organizationId),
+      eq(workforcePunchSubmissions.employeeId,employee!.id),eq(workforcePunchSubmissions.clientPunchId,clientPunchId))).limit(1);
+  if(existing)return respond({ok:true,id:existing.id,status:existing.status,duplicate:true,clientPunchId});
   const now=new Date();
   const flags=PUNCH_ACTIONS.includes(action as typeof PUNCH_ACTIONS[number])?evaluatePunchTiming(deviceOccurredAt,now,source):[];
   if(flags.includes("time-invalid")) return respond({error:"Device timestamp must be valid and within the allowed offline window. Ask HR for a manual review."},422);
   const date=workDate(new Date(deviceOccurredAt));
   const attendanceLock=attendanceMutationLock(await loadActiveAttendanceLocks(organizationId),date,"capture");
   if(attendanceLock) return respond({error:"Attendance period is locked. Request a reviewed correction.",code:"ATTENDANCE_PERIOD_LOCKED"},423);
-  const [existing]=await db.select({id:workforcePunchSubmissions.id,status:workforcePunchSubmissions.status})
-    .from(workforcePunchSubmissions).where(and(eq(workforcePunchSubmissions.organizationId,organizationId),
-      eq(workforcePunchSubmissions.employeeId,employee!.id),eq(workforcePunchSubmissions.clientPunchId,clientPunchId))).limit(1);
-  if(existing)return respond({ok:true,id:existing.id,status:existing.status,duplicate:true,clientPunchId});
   const {photoMode,worksiteId,sites}=await sitePolicy(organizationId,employee!.id,date);
   if(geofencePilotEnabledForOrganization(organizationId)&&(action==="clock_in"||action==="clock_out")) {
     // Never accept stale offline raw GPS as valid location proof.

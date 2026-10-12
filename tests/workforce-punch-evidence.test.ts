@@ -221,3 +221,23 @@ test("photo purge refuses to certify success if backlog exceeds bounded capacity
     purged:-1,remainingPossiblyDue:false,
   }),async()=>undefined,1),/Invalid photo retention batch result/);
 });
+
+test("existing same-employee punch receipt is resolved before later payroll locks or expiry",()=>{
+  const stage=readFileSync("src/app/api/web-bundy/evidence/route.ts","utf8");
+  const owner=stage.indexOf("const context=await employeeSession(organizationId)");
+  const idCheck=stage.indexOf("if(!validPunchUuid(clientPunchId)||!validPunchUuid(deviceId))");
+  const receipt=stage.indexOf("const [existing]=await db.select");
+  const cutoff=stage.indexOf("const attendanceLock=");
+  const timing=stage.indexOf('if(flags.includes("time-invalid"))');
+  assert.ok(owner>=0&&idCheck>owner&&receipt>idCheck,
+    "a receipt can only be retrieved after employee authorization and UUID validation");
+  assert.ok(receipt<timing&&receipt<cutoff,
+    "a previously staged punch must still acknowledge after clock age or payroll cutoff changes");
+  assert.match(stage,/duplicate:true,clientPunchId/);
+});
+test("independent review serves oldest pending attendance first after tenant scoping",()=>{
+  const source=readFileSync("src/app/api/web-bundy/review/route.ts","utf8");
+  assert.match(source,/eq\(workforcePunchSubmissions.status,"pending"\),scopeClause/);
+  assert.match(source,/orderBy\(asc\(workforcePunchSubmissions.serverReceivedAt\),/);
+  assert.match(source,/asc\(workforcePunchSubmissions.id\)\)\.limit\(100\)/);
+});
