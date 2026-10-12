@@ -146,6 +146,10 @@ export function itemOf(page: string) {
 
 /** Display-only preferences, intersected with existing role pages. Never grants RBAC. */
 export const CORE_ONLY_PAGES = ["Overview", "People", "Time & attendance", "Payroll", "Analytics", "Settings"] as const;
+/** Only an explicit stored all-mode permits the old complete navigation. */
+export function normalizedTenantModuleVisibility(value: unknown): "all" | "core_only" {
+  return value === "all" ? "all" : "core_only";
+}
 export function tenantVisiblePages(roleAllowed: readonly string[], mode: "all" | "core_only", enabled: readonly string[] = []): string[] {
   if (mode === "all") return roleAllowed.filter(page => page !== "More modules");
   const supported = new Set(ALL_ITEMS.map(item => item.name));

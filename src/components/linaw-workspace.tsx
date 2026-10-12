@@ -34,7 +34,7 @@ import { CommandPalette, usePaletteShortcut, type PaletteAction } from "@/compon
 import { ExportsView } from "@/components/workspace/exports";
 import { FirstPayrollReadinessCard } from "@/components/workspace/first-payroll-readiness";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
-import { FREELANCER_HIDDEN, NAVIGATION, tenantVisiblePages } from "@/components/workspace/nav";
+import { FREELANCER_HIDDEN, NAVIGATION, tenantVisiblePages, normalizedTenantModuleVisibility } from "@/components/workspace/nav";
 import { MoreModulesPanel } from "@/components/workspace/more-modules";
 import { OverviewView } from "@/components/workspace/overview";
 import { RoleOverviewView, type WorkspaceDashboardRole } from "@/components/workspace/role-overview";
@@ -152,7 +152,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
     // already calculated role/plan navigation entitlement.
     const focused = pilotFocusEnabled && !isFreelancer && !demoRole
       ? pilotCoreNavigationPages(roleAllowedPages) : roleAllowedPages;
-    const mode = data.selectedOrganization.moduleVisibility === "core_only" ? "core_only" : "all";
+    const mode = normalizedTenantModuleVisibility(data.selectedOrganization.moduleVisibility);
     const visible = tenantVisiblePages(focused, mode, data.selectedOrganization.enabledModules ?? []);
     if (mode === "core_only" && !isFreelancer && !demoRole &&
         data.access?.companyWide && ["owner", "admin"].includes(data.access.role)) visible.push("More modules");
