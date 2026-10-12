@@ -1,4 +1,4 @@
-**Merge sequencing hold (2026-10-12):** This draft reserves `drizzle/0122_tenant_module_disclosure.sql`, while PR #915 also reserves a different `drizzle/0122_tenant_core_navigation.sql`. These cannot both become independent 0122 production migrations. DBA must designate one canonical dependency-ordered migration; all module flags stay OFF. This branch applied no Neon DDL.
+**Integration hold (2026-10-12):** PR #915's competing numbered `0122_tenant_core_navigation.sql` was removed from `drizzle/` and preserved as an **unnumbered design proposal** under `docs/engineering/migration-proposals/`. This resolves the immediate SQL-prefix claim only; it does **not** resolve the incompatible application models (`module_navigation_mode` + `core` here versus `module_visibility` + `core_only` in #915). Do not merge the two feature implementations together, enable either flag, or apply SQL until one schema and one tenant-navigation API are selected, DB tests pass and a DBA approves the deployment train. This branch applied no Neon DDL.
 
 # Core module navigation
 
