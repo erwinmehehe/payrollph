@@ -45,7 +45,9 @@ function harness(sequence, options = {}) {
     }
     const next = sequence[Math.min(index++, sequence.length - 1)];
     if (next instanceof Error) throw next;
-    return next;
+    // HTTP fetch returns a fresh body on every call. Reusing one consumed
+    // Response artificially masks a stale-heartbeat failure as a network error.
+    return next instanceof Response ? next.clone() : next;
   };
   return { fetcher, observed, posts };
 }
