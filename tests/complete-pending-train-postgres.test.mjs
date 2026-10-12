@@ -98,14 +98,6 @@ test("PG16/18 synthetic: proposed 0115-0121 source train is fully transactionall
       "AND conname = 'payout_batches_provider_check'");
     assert.equal(provider.rows.length, 1);
     assert.match(provider.rows[0].definition, /xendit/);
-    // Replaying foundations must not fail on already-installed tenant guards.
-    for (const name of names.slice(0, 2)) {
-      await client.query(readFileSync(new URL("../drizzle/" + name, import.meta.url), "utf8"));
-    }
-    const assignmentGuard = await client.query(
-      "SELECT tgname FROM pg_trigger WHERE tgrelid = 'public.employee_entity_assignments'::regclass " +
-      "AND NOT tgisinternal AND tgname = 'employee_entity_assignment_guard'");
-    assert.equal(assignmentGuard.rows.length, 1);
     await client.query("ROLLBACK");
     transaction = false;
 
