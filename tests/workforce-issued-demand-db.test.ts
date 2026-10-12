@@ -4,7 +4,7 @@ import test from "node:test";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db";
 import {
-  organizations, users, worksites, auditEvents,
+  organizations, users, worksites,
   workforceDemandImportBatches, workforceDemandObservationRevisions,
   workforceDemandForecastIssues, workforceDemandForecastScores,
 } from "../src/db/schema";
@@ -194,7 +194,9 @@ test("isolated PostgreSQL freezes issue once, blocks early score, and never sile
       eq(workforceDemandObservationRevisions.organizationId, org.id));
     await db.delete(workforceDemandImportBatches).where(
       eq(workforceDemandImportBatches.organizationId, org.id));
-    await db.delete(auditEvents).where(eq(auditEvents.organizationId, org.id));
+    // Audit rows are append-only under migration 0109. Deleting this
+    // fictional organization below cascades its audit rows safely, without
+    // enabling the privileged audit-maintenance bypass for test cleanup.
     if (siteId) await db.delete(worksites).where(eq(worksites.id, siteId));
     if (userId) await db.delete(users).where(eq(users.id, userId));
     await db.delete(organizations).where(eq(organizations.id, org.id));

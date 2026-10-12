@@ -5,7 +5,7 @@ import { LinawWorkspace } from "@/components/linaw-workspace";
 import { SelfServicePortal } from "@/components/self-service-portal";
 import { getSessionUser } from "@/lib/auth";
 import { getDashboardData } from "@/lib/dashboard-data";
-import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, primaryCompanyOrganizationId, primaryEmployeeOrganizationId } from "@/lib/access";
+import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, PEOPLE_PAYROLL_ROLES, primaryCompanyOrganizationId, primaryEmployeeOrganizationId } from "@/lib/access";
 import { explicitHcmEmployerId, canOpenPeopleHome, peopleHomeEnabledForOrganization } from "@/lib/hcm-people-home-scope";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -16,7 +16,6 @@ import { pilotFocusEnabledForOrganization } from "@/lib/pilot-navigation";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
 import { hirePayrollReviewEnabledForEmployer } from "@/lib/hcm-hire-payroll-review";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +111,12 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
           className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">
           HR Requests
         </Link>
+      )}
+      {access?.companyWide && ["owner", "admin", "hr"].includes(access.role) && criticalReleaseFlagEnabled("engagementSurvey") && (
+        <Link href={`/app/engagement?organizationId=${companyOrganizationId}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">Engagement survey</Link>
+      )}
+      {access?.companyWide && ["owner", "admin", "hr"].includes(access.role) && criticalReleaseFlagEnabled("goalsReviewCycle") && (
+        <Link href={`/app/goals-reviews?organizationId=${companyOrganizationId}`} className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">Goals & reviews</Link>
       )}
       {canSeeMyTeam && (
         <Link
