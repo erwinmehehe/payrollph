@@ -14,6 +14,7 @@ import {
   serial,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
@@ -263,7 +264,7 @@ export const employees = pgTable("employees", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, table => [
   // Schema-first disposable CI needs a tenant-consistent FK parent key.
-  uniqueIndex("employees_org_id_workflows_unique").on(table.organizationId, table.id),
+  unique("employees_org_id_workflows_unique").on(table.organizationId, table.id),
 ]);
 
 export const employeeMweClassifications = pgTable(
