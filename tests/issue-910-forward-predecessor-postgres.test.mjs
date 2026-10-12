@@ -106,7 +106,7 @@ test("#910 source-faithful predecessor excludes ONLY unsafe 0050 employee-based 
   assert.doesNotMatch(proposed.replace(/--[^\n]*/g,""),
     /^\s*(?:INSERT|UPDATE|DELETE|DROP|TRUNCATE|COMMIT|ROLLBACK)\b/im);
   assert.match(stage(paths[1]),/CREATE TABLE IF NOT EXISTS "worker_employment_events"/);
-  assert.match(stage(paths[2]),/CREATE TABLE IF NOT EXISTS "worker_effective_changes"/);
+  assert.match(stage(paths[3]),/CREATE TABLE IF NOT EXISTS "worker_effective_changes"/);
   assert.doesNotMatch(stage(paths[1]),/SET "legal_entity_id" = e\."legal_entity_id"/);
   assert.doesNotMatch(stage(paths[2]),/^\s*(?:INSERT|UPDATE|DELETE)\b/gmi);
 });
