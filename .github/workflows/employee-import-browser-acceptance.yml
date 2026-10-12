@@ -1,0 +1,84 @@
+name: employee-import browser acceptance
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'scripts/employee-import-synthetic-*'
+      - 'tests/**'
+      - '.github/workflows/employee-import-browser-acceptance.yml'
+
+permissions:
+  contents: read
+concurrency:
+  group: employee-import-browser-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      TZ: Asia/Manila
+      CI: 'true'
+      BUILD_BLOCK_ACCEPTANCE_MODE: synthetic-postgres-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3001
+      DEMO_MODE: 'false'
+      REQUIRE_PRIVILEGED_MFA: 'true'
+      OPENAI_API_KEY: ''
+      NEXT_TELEMETRY_DISABLED: '1'
+      EMPLOYEE_IMPORT_PREVIEW_ENABLED: 'true'
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Ephemeral synthetic encryption keys
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          totp_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$totp_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
+      - run: npm run db:push
+      - run: npx tsx scripts/employee-import-synthetic-fixture.ts
+      - run: npm run build
+      - run: npm install --no-save --package-lock=false playwright
+      - run: npx playwright install --with-deps chromium
+      - name: Start flag-on and flag-off servers
+        run: |
+          npm run start -- --hostname 127.0.0.1 --port 3000 > /tmp/employee-import-on.log 2>&1 &
+          EMPLOYEE_IMPORT_PREVIEW_ENABLED=false npm run start -- --hostname 127.0.0.1 --port 3001 > /tmp/employee-import-off.log 2>&1 &
+          for port in 3000 3001; do
+            ready=false
+            for attempt in $(seq 1 60); do
+              if curl --silent --fail "http://127.0.0.1:$port/login" > /dev/null; then ready=true; break; fi
+              sleep 1
+            done
+            test "$ready" = true
+          done
+      - name: Check roles, real MFA, flag parity and phone screens
+        run: node --import tsx scripts/employee-import-synthetic-browser.mjs
+      - name: Upload synthetic screenshots only
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: employee-import-screenshots
+          path: qa-artifacts/employee-import
+          if-no-files-found: warn
+          retention-days: 14

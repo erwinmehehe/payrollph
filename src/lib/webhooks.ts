@@ -1,6 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { and, eq, isNotNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { webhookDeliveries, webhookEndpoints } from "@/db/schema";
+import { providerEvents, webhookDeliveries, webhookEndpoints } from "@/db/schema";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { signWebhookPayload, type WebhookEvent } from "@/lib/webhook-signing";
 import { nextBackoffMs } from "@/lib/webhook-backoff";
 import { postValidatedWebhook } from "@/lib/security-network";
@@ -79,6 +81,24 @@ export async function dispatchWebhook(input: {
   event: WebhookEvent;
   data: Record<string, unknown>;
 }) {
+  // 0110 provider_events is an append-only idempotent ledger. The public API
+  // feed carries event metadata only, never webhook payloads, identifiers or
+  // banking details. Event capture cannot interrupt a payroll transaction.
+  if (criticalReleaseFlagEnabled("publicApiV1Extended")) {
+    try {
+      await db.insert(providerEvents).values({
+        provider: "linaw",
+        eventId: `linaw-${randomUUID()}`,
+        organizationId: input.organizationId,
+        eventType: input.event,
+      }).onConflictDoNothing();
+    } catch (error) {
+      // This is intentionally separate from financial authorization. Raise
+      // sanitized operational evidence rather than failing the payroll action.
+      console.error("Public API event metadata capture unavailable", error instanceof Error ? error.name : "unknown");
+    }
+  }
+
   const endpoints = await db.select().from(webhookEndpoints).where(and(
     eq(webhookEndpoints.organizationId, input.organizationId),
     eq(webhookEndpoints.active, true),
