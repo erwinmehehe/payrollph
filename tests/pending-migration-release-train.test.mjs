@@ -38,7 +38,11 @@ test("feature-specific SQL remains source-gated and no payout or employer transf
   assert.match(xendit, /DEFAULT 'paymongo'/);
   const multi = readFileSync(new URL(pending.get(119), sqlDir), "utf8");
   assert.match(multi, /UPDATE payroll_entries/);
-  assert.match(multi, /COMMIT;/);
+  // The protected executor, not the SQL file, owns atomic BEGIN/COMMIT.
+  assert.doesNotMatch(multi, /(?:^|\n)\s*(?:BEGIN|COMMIT|ROLLBACK)\s*;/mi);
+  // DML UPDATE SET clauses remain necessary for historical employer attribution.
+  assert.match(multi, /UPDATE payroll_entries e SET legal_entity_id/);
+  assert.match(multi, /FROM payroll_runs r WHERE e\.payroll_run_id = r\.id/);
   assert.ok(!/\\b(?:TRUNCATE|DROP TABLE)\\b/i.test(multi));
   const docs = readFileSync(new URL("../docs/engineering/pending-migration-release-train.md", import.meta.url), "utf8");
   assert.match(docs, /DO NOT RUN ON NEON/);
