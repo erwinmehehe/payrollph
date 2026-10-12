@@ -1,5 +1,15 @@
 import type { FirstPayrollReadiness } from "./first-payroll-readiness";
 
+export const FIRST_PAYROLL_STEPS = [
+ {key:"company", owner:"owner"},
+ {key:"people", owner:"hr"},
+ {key:"time", owner:"hr"},
+ {key:"reviewers", owner:"owner"},
+ {key:"payroll", owner:"payroll"},
+ {key:"approval", owner:"checker"},
+ {key:"exports", owner:"bookkeeper"},
+] as const;
+export type FirstPayrollKey = (typeof FIRST_PAYROLL_STEPS)[number]["key"];
 export type FirstPayrollJourneyState = "complete" | "available" | "review" | "upcoming";
 export type FirstPayrollJourneyStep = {
   key: "company" | "people" | "time" | "reviewers" | "payroll" | "approval" | "exports";
