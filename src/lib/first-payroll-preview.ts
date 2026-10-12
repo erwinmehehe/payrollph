@@ -69,6 +69,7 @@ export async function loadReadOnlyFirstPayrollPreview(
  for(const check of observed){
    if(check.present)blockers.push("Full payroll-context reconciliation required: "+check.name+" is recorded.");
  }
+ const hasUnreconciledContext=observed.some(check=>check.present);
  const asOf=statutoryRuleVersionsForDate(payDate);
  const holidayCalendar=nationalHolidayCalendarForDate(periodEnd);
  const byEmployee=new Map(profiles.map(p=>[p.employeeId,p]));
@@ -89,7 +90,8 @@ export async function loadReadOnlyFirstPayrollPreview(
    if(profile&&profile.payBasis!=="monthly")problems.push("Daily/hourly payroll requires approved worked-time inputs.");
    let gross:number|null=null,sss:number|null=null,philHealth:number|null=null,
        pagIbig:number|null=null,withholding:number|null=null,net:number|null=null;
-   if(profile&&profile.payBasis==="monthly"&&legal){
+   if(hasUnreconciledContext)problems.push("Calculated amounts withheld until all recorded payroll inputs are reconciled.");
+   if(!hasUnreconciledContext&&blockers.length===0&&problems.length===0&&profile&&profile.payBasis==="monthly"&&legal){
      try{
        const calc=calculateEmployeePay({
          employee,punches:[],advisories:[],unitName:"Unassigned",
@@ -106,7 +108,10 @@ export async function loadReadOnlyFirstPayrollPreview(
        const deduction=(code:string)=>Math.abs(Number(calc.lineItems.find(line=>line.code===code)?.amount??0));
        gross=calc.gross;sss=deduction("SSS");philHealth=deduction("PHIC");
        pagIbig=deduction("HDMF");withholding=deduction("WHT");net=calc.net;
-       if(calc.status==="Exception")problems.push("Payroll engine calculation requires human exception review.");
+       if(calc.status==="Exception"){
+         problems.push("Payroll engine calculation requires human exception review.");
+         gross=null;sss=null;philHealth=null;pagIbig=null;withholding=null;net=null;
+       }
      }catch{problems.push("Payroll calculator cannot safely resolve these employee inputs.");}
    }
    return {employeeId:employee.id,employeeNo:employee.employeeNo,name:employee.firstName+" "+employee.lastName,
