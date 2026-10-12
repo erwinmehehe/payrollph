@@ -12,11 +12,11 @@ export function sumPayrollAmounts(values: readonly string[]): string {
     if (fraction.length > 2 && /[1-9]/.test(fraction.slice(2))) {
       throw new Error("Payroll total contains unexplained sub-centavo precision.");
     }
-    const cents = BigInt(whole) * 10BigInt(0) +
+    const cents = BigInt(whole) * BigInt(100) +
       BigInt((fraction.slice(0, 2) + "00").slice(0, 2));
     centavos += sign === "-" ? -cents : cents;
   }
   const negative = centavos < BigInt(0);
   const absolute = negative ? -centavos : centavos;
-  return `${negative ? "-" : ""}${absolute / 10BigInt(0)}.${(absolute % 10BigInt(0)).toString().padStart(2, "0")}`;
+  return `${negative ? "-" : ""}${absolute / BigInt(100)}.${(absolute % BigInt(100)).toString().padStart(2, "0")}`;
 }
