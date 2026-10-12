@@ -220,3 +220,26 @@ test("SQL failure rolls back without writing an application receipt", async () =
     assert.equal(db.calls.includes("COMMIT"), false);
   } finally { rmSync(f.directory, { recursive: true, force: true }); }
 });
+
+test("SQL parser preserves dollar-quoted routines but forbids transaction escape after comments", () => {
+  const f = fixture();
+  try {
+    const path = join(f.directory, "0022_forward.sql");
+    writeFileSync(path, "-- COMMIT appears in comment only\nDO $$ BEGIN PERFORM 1; END $$;\n");
+    let changed = inventoryMigrationSources(f.directory).files.find(file => file.path === f.target.path);
+    assert.match(loadReviewedSql(f.directory, changed), /PERFORM 1/);
+    for (const sql of [
+      "SELECT 'COMMIT' AS harmless; /* ignored */ COMMIT;",
+      "SELECT 1; -- reviewed\nROLLBACK;",
+      "SET statement_timeout = '0';",
+      "CREATE INDEX CONCURRENTLY anything_idx ON table_name(id);",
+      "SELECT 1; /* nested /* comment */ still comment */ COMMIT;",
+      "DO $$ BEGIN PERFORM 1; END $$;\nSAVEPOINT escape;",
+      "SELECT $$ unterminated;"
+    ]) {
+      writeFileSync(path, sql);
+      changed = inventoryMigrationSources(f.directory).files.find(file => file.path === f.target.path);
+      assert.throws(() => loadReviewedSql(f.directory, changed), /REVIEWED_MIGRATION_SQL_/);
+    }
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
