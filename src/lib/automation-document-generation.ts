@@ -9,6 +9,8 @@ import {
   orgUnits,
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { documentObjectKey, putDocumentObject, deleteDocumentObject } from "@/lib/document-object-storage";
 import {
   getAutomationDocumentTemplate,
   type AutomationDocumentSnapshot,
@@ -49,6 +51,12 @@ export async function generateAutomationEmployeeDocument(input: {
   sourceKey: string;
   context?: Record<string, unknown>;
   actor?: string;
+  // Server-only injected adapter for disposable PostgreSQL + fake S3 tests.
+  // Never populated from an HTTP request.
+  objectStore?: {
+    put: (key: string, bytes: Uint8Array, mime: string) => Promise<void>;
+    delete: (key: string) => Promise<void>;
+  };
 }) {
   const template = getAutomationDocumentTemplate(input.templateId);
   if (!template) {
@@ -162,7 +170,22 @@ export async function generateAutomationEmployeeDocument(input: {
     generatedAt: snapshot.generatedAt,
   };
 
-  const [created] = await db.insert(documents).values({
+  const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
+  const storageKey = vaultEnabled ? documentObjectKey(input.organizationId, employee.id) : null;
+  if (storageKey) {
+    try {
+      await (input.objectStore?.put ?? putDocumentObject)(
+        storageKey, bytes, "text/plain; charset=utf-8",
+      );
+    } catch {
+      throw new AutomationDocumentGenerationError("Private generated-document storage is unavailable.");
+    }
+  }
+  // Retain sourceKey idempotency under concurrent generation. Any orphan
+  // object written before a rejected SQL insert is cleaned up best-effort.
+  let created: typeof documents.$inferSelect | undefined;
+  try {
+    [created] = await db.insert(documents).values({
     organizationId: input.organizationId,
     employeeId: employee.id,
     kind: template.kind,
@@ -176,8 +199,18 @@ export async function generateAutomationEmployeeDocument(input: {
     sourceKey,
     generationMetadata: metadata,
     uploadedBy: input.actor ?? "Automation Studio",
-    content: bytes.toString("base64"),
+    content: vaultEnabled ? "" : bytes.toString("base64"),
+    ...(storageKey ? { objectStorageKey: storageKey } : {}),
   }).onConflictDoNothing().returning();
+  } catch (error) {
+    if (storageKey) {
+      await (input.objectStore?.delete ?? deleteDocumentObject)(storageKey).catch(() => {});
+    }
+    throw error;
+  }
+  if (storageKey && !created) {
+    await (input.objectStore?.delete ?? deleteDocumentObject)(storageKey).catch(() => {});
+  }
 
   const document = created ?? (await db.select().from(documents).where(and(
     eq(documents.organizationId, input.organizationId),

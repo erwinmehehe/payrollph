@@ -125,7 +125,9 @@ export async function GET(
     const sha256 = createHash("sha256").update(body).digest("hex");
     if (sha256 !== document.sha256) {
       return Response.json({
-        error: "Employee document integrity verification failed.",
+        error: document.sourceType === "generated"
+          ? "Generated document integrity verification failed."
+          : "Employee document integrity verification failed.",
       }, { status: 409 });
     }
   }
