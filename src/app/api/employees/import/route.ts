@@ -31,7 +31,13 @@ export async function POST(request: Request) {
   }
   const fileName = String(body.fileName ?? "upload.csv").slice(0, 200);
   const previewEnabled = criticalReleaseFlagEnabled("employeeImportPreview");
-  if (!previewEnabled && (body.action === "preview" || body.action === "commit")) return Response.json({ error: "Employee import preview is disabled." }, { status: 404 });
+  // Fail closed: the historical import path could partially commit employees and
+  // wrote import/audit rows even for dry-run requests. Preview-before-commit is
+  // now the only acceptable employee CSV write protocol.
+  if (!previewEnabled) return Response.json({
+    error: "Employee CSV import is paused until atomic preview acceptance is enabled.",
+    code: "EMPLOYEE_IMPORT_PREVIEW_DISABLED",
+  }, { status: 503 });
   const dryRun = Boolean(body.dryRun) || (previewEnabled && body.action === "preview");
 
   if (!Number.isInteger(organizationId) || !csv.trim()) {
