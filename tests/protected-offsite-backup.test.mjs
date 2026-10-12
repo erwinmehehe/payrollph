@@ -106,6 +106,6 @@ test("workflow cannot auto-run and cannot omit protected GitHub environment",()=
   assert.match(workflow,/id-token: write/);
   assert.match(workflow,/persist-credentials: false/);
   assert.match(workflow,/secrets\.BACKUP_PG_PASSWORD/);
-  assert.match(workflow,/GITHUB_REF/);
+  assert.match(workflow,/github\.ref == 'refs\/heads\/main'/);
   assert.doesNotMatch(workflow,/\$\{\{[^\n}]*\}(?!\})/);
 });
