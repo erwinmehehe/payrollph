@@ -233,7 +233,7 @@ export function FirstPayrollInlineJourney({
             <label>Pay date <input type="date" value={payDate} onChange={e=>setPayDate(e.target.value)}/></label>
             <label>Payroll unit <select value={scopeOrgUnitId ?? ""} onChange={e=>setScopeOrgUnitId(e.target.value?Number(e.target.value):null)}>
               {companyWide && <option value="">All authorized units</option>}
-              {(data.orgUnits ?? []).filter(unit=>companyWide || unit.id===data.access?.orgUnitId)
+              {(data.orgUnits ?? [])
                 .map(unit=><option key={unit.id} value={unit.id}>{unit.name}</option>)}
             </select></label>
           </div>
