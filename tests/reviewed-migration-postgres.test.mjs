@@ -50,8 +50,6 @@ test("Postgres 16: verified baseline, read-only preview, concurrent one-time com
       "CREATE TABLE public.employees (id integer PRIMARY KEY, organization_id integer NOT NULL)",
       "CREATE TABLE public.payroll_runs (id integer PRIMARY KEY, organization_id integer NOT NULL)",
       "CREATE TABLE public.payroll_entries (id integer PRIMARY KEY, payroll_run_id integer NOT NULL)",
-      "CREATE TABLE public.payout_transfers (id integer PRIMARY KEY)",
-      "CREATE TABLE public.provider_events (id integer PRIMARY KEY)",
     ]) await admin.query(sql);
     await assert.doesNotReject(() => assertModernSchemaLineage(admin));
     await admin.query(readFileSync("docs/engineering/production-migration-receipt-journal-template.sql", "utf8"));
