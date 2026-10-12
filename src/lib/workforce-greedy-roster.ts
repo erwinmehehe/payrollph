@@ -63,7 +63,7 @@ export type GreedyRosterInput = {
   rules: GreedyRosterRules;
 };
 export type GreedyRosterReason =
-  | "no_workers" | "skill_missing" | "site_ineligible" | "unavailable"
+  | "no_workers" | "already_assigned" | "skill_missing" | "site_ineligible" | "unavailable"
   | "approved_leave" | "source_unknown" | "designated_rest_day"
   | "overlapping_shift" | "minimum_rest" | "rolling_week_cap"
   | "daily_hours_cap" | "overtime_approval" | "other_roster_rule";
@@ -106,7 +106,7 @@ export type GreedyRosterResult = {
 const TIME = /^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/;
 const DATE = /^\d{4}-\d\d-\d\d$/;
 const REASONS: readonly GreedyRosterReason[] = [
-  "no_workers","source_unknown","approved_leave","unavailable","skill_missing",
+  "no_workers","already_assigned","source_unknown","approved_leave","unavailable","skill_missing",
   "site_ineligible","designated_rest_day","overlapping_shift","minimum_rest",
   "overtime_approval","daily_hours_cap","rolling_week_cap","other_roster_rule",
 ];
@@ -316,7 +316,10 @@ export function planGreedyRoster(input:GreedyRosterInput):GreedyRosterResult {
       const reasons=new Map<GreedyRosterReason,number>();
       const eligible:Array<{worker:GreedyWorker;score:number;minutes:number;unpopular:number}>=[];
       for(const worker of workers){
-        if(chosen.has(worker.employeeId))continue;
+        if(chosen.has(worker.employeeId)){
+          reasons.set("already_assigned",(reasons.get("already_assigned")??0)+1);
+          continue;
+        }
         const reason=checkDraft(worker,slot,projected.get(worker.employeeId)!,input.rules);
         if(reason){reasons.set(reason,(reasons.get(reason)??0)+1);continue;}
         const minutes=worker.fairnessPriorMinutes+(addedMinutes.get(worker.employeeId)??0);
@@ -356,7 +359,8 @@ export function planGreedyRoster(input:GreedyRosterInput):GreedyRosterResult {
     }
   }
   roster.sort((a,b)=>a.workDate.localeCompare(b.workDate)||
-    a.requirementId-b.requirementId||(a.source==="existing"?-1:1)||
+    a.requirementId-b.requirementId||
+    (Number(a.source==="suggested")-Number(b.source==="suggested"))||
     a.employeeId-b.employeeId);
   unfilled.sort((a,b)=>a.workDate.localeCompare(b.workDate)||
     a.requirementId-b.requirementId||a.position-b.position);
@@ -379,5 +383,8 @@ function premiumWarnings(worker:GreedyWorker,slot:GreedySlot) {
   const warnings:string[]=[];
   if(worker.restWeekday===new Date(slot.workDate+"T00:00:00Z").getUTCDay())warnings.push("Rest-day premium review required.");
   if(slot.holidayKind)warnings.push(slot.holidayKind+" holiday premium review required.");
+  const start=timeMinute(slot.startTime);
+  const end=timeMinute(slot.endTime)+(slot.spansMidnight?1440:0);
+  if(start>=1320||end>1320||slot.spansMidnight)warnings.push("Night differential review may be required.");
   return warnings;
 }
