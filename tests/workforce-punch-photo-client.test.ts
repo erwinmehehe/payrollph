@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {normalizePunchSelfie,selfieCanvasSize,SELFIE_MAX_BYTES} from "../src/lib/workforce-punch-photo-client";
+import {normalizePunchSelfie,selfieCanvasSize,SELFIE_MAX_BYTES,mayAttachPunchSelfie} from "../src/lib/workforce-punch-photo-client";
+import {readFileSync} from "node:fs";
 
 test("camera dimensions preserve aspect ratio and never enlarge a small photo",()=>{
   assert.deepEqual(selfieCanvasSize(4032,3024),{width:1280,height:960});
@@ -54,4 +55,19 @@ test("browser conversion keeps original only in memory and returns bounded JPEG 
     if(originalDocument)Object.defineProperty(globalThis,"document",originalDocument);
     else Reflect.deleteProperty(globalThis,"document");
   }
+});
+
+// The pending browser choice is not permission to upload after withdrawal intent.
+test("attempted consent withdrawal disables new photos even if backend is unreachable",()=>{
+  assert.equal(mayAttachPunchSelfie("accepted",false),true);
+  assert.equal(mayAttachPunchSelfie("accepted",true),false);
+  assert.equal(mayAttachPunchSelfie("declined",false),false);
+  assert.equal(mayAttachPunchSelfie(null,false),false);
+  const ui=readFileSync("src/components/enhanced-punch-controls.tsx","utf8");
+  const withdrawal=ui.indexOf("setPhotoCaptureBlocked(true)");
+  const consentPost=ui.indexOf('const res=await fetch("/api/web-bundy/consent"');
+  assert.ok(withdrawal>=0&&consentPost>withdrawal,
+    "local photo block must precede remote withdrawal attempt");
+  assert.match(ui,/mayAttachPunchSelfie\(policy\?\.consent,photoCaptureBlocked\)/);
+  assert.match(ui,/disabled=\{busy\|\|preparingPhoto\|\|photoCaptureBlocked\}/);
 });

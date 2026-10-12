@@ -69,3 +69,12 @@ export async function normalizePunchSelfie(file:File):Promise<File>{
     if("close" in image&&typeof image.close==="function")image.close();
   }
 }
+
+// Employee withdrawal intent must be enforced locally even while offline.
+// Server consent/withdrawal checks still remain authoritative for photo writes.
+export function mayAttachPunchSelfie(
+  consent:"accepted"|"declined"|null|undefined,
+  localWithdrawalPending:boolean,
+):boolean {
+  return consent==="accepted"&&!localWithdrawalPending;
+}

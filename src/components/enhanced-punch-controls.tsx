@@ -1,6 +1,6 @@
 "use client";
 import {useCallback,useEffect,useRef,useState} from "react";
-import {normalizePunchSelfie} from "@/lib/workforce-punch-photo-client";
+import {normalizePunchSelfie,mayAttachPunchSelfie} from "@/lib/workforce-punch-photo-client";
 import {installationPunchDeviceId,queueWebPunch,pendingWebPunches,syncQueuedWebPunches,isPunchReceipt,retryablePunchHttpStatus} from "@/lib/workforce-punch-offline-queue";
 type Policy={geofenceRequired:boolean;photoMode:"off"|"optional"|"required";consent:"accepted"|"declined"|null;consentVersion:string;pending:{id:number}[]};
 export function EnhancedPunchControls({organizationId,employeeId}:{organizationId:number;employeeId:number}){
@@ -8,6 +8,7 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
   const [deviceId,setDeviceId]=useState<string|null>(null);
   const [photo,setPhoto]=useState<File|null>(null);
   const [preparingPhoto,setPreparingPhoto]=useState(false);
+  const [photoCaptureBlocked,setPhotoCaptureBlocked]=useState(false);
   const photoRequest=useRef(0);
   const [offline,setOffline]=useState(0);
   const [message,setMessage]=useState("");
@@ -67,7 +68,7 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
   async function choosePhoto(file:File|null){
     const request=++photoRequest.current;
     setPhoto(null);
-    if(!file){setPreparingPhoto(false);return;}
+    if(!file||photoCaptureBlocked){setPreparingPhoto(false);return;}
     setPreparingPhoto(true);
     try{
       const jpeg=await normalizePunchSelfie(file);
@@ -85,13 +86,31 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
   }
   async function consent(choice:"accepted"|"declined"){
     if(choice==="declined"){
+      // Respect withdrawal intent immediately, even when the network fails.
+      // The backend must still confirm and purge non-held ciphertext.
       photoRequest.current++;
       setPhoto(null);
       setPreparingPhoto(false);
+      setPhotoCaptureBlocked(true);
     }
-    const res=await fetch("/api/web-bundy/consent",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({organizationId,choice})});
-    if(!res.ok){setMessage("Unable to save consent. Please retry.");return;}
-    await reload();
+    try{
+      const res=await fetch("/api/web-bundy/consent",{
+        method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({organizationId,choice}),
+      });
+      if(!res.ok){
+        setMessage(choice==="declined"
+          ?"Could not confirm withdrawal with the server. Selfie capture stays disabled here; contact HR or the DPO."
+          :"Unable to save photo consent. Please retry.");
+        return;
+      }
+      if(choice==="accepted")setPhotoCaptureBlocked(false);
+      await reload();
+    }catch{
+      setMessage(choice==="declined"
+        ?"Withdrawal could not reach the server. Selfie capture stays disabled here; contact HR or the DPO."
+        :"Unable to reach the server to save consent. Please retry.");
+    }
   }
   async function submit(actionType:string){
     if(!deviceId||busy||preparingPhoto)return;
@@ -117,7 +136,7 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
           }catch{setMessage("GPS could not be verified. Ask HR for a reviewed exception.");return;}
           data.set("geolocation",JSON.stringify(fix));
         }
-        if(photo&&policy?.consent==="accepted"&&policy.photoMode!=="off")data.set("photo",photo);
+        if(photo&&mayAttachPunchSelfie(policy?.consent,photoCaptureBlocked)&&policy?.photoMode!=="off")data.set("photo",photo);
         try{
           attemptedServer=true;
           const res=await fetch("/api/web-bundy/evidence",{method:"POST",body:data});
@@ -166,7 +185,7 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
       <button type="button" className="secondary-button" onClick={()=>void consent("declined")}>Decline photo evidence</button>
     </div>}
     {policy?.photoMode!=="off"&&policy?.consent==="accepted"&&<label>
-      Selfie evidence ({policy?.photoMode})<input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="user" disabled={busy||preparingPhoto} onChange={e=>{const file=e.currentTarget.files?.[0]??null;void choosePhoto(file);}}/>
+      Selfie evidence ({policy?.photoMode})<input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="user" disabled={busy||preparingPhoto||photoCaptureBlocked} onChange={e=>{const file=e.currentTarget.files?.[0]??null;void choosePhoto(file);}}/>
       {preparingPhoto&&<span role="status">Preparing selfie on this device…</span>}
       {photo&&<span role="status"> Selfie ready ({Math.round(photo.size/1024)} KB).</span>}
     </label>}
@@ -174,6 +193,7 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
       onClick={()=>{void consent("declined");}}>
       Withdraw optional selfie consent
     </button>}
+    {photoCaptureBlocked&&<p role="status">Selfie capture is disabled on this device following your withdrawal request. If it has not reached the server, contact HR or your Data Protection Officer. Attendance without a photo remains available for review.</p>}
     {policy?.consent==="declined"&&<p>Photo declined. You can submit an attendance entry for independent review.</p>}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
       {(["clock_in","break_start","break_end","clock_out"] as const).map(action=><button key={action} type="button" className="secondary-button" disabled={!policy||busy||preparingPhoto||!deviceId} onClick={()=>void submit(action)}>{action.replaceAll("_"," ").toUpperCase()}</button>)}

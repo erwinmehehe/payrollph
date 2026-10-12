@@ -105,3 +105,9 @@ Idempotent replays for the authenticated employee's exact `clientPunchId` now re
 ## Offline queue count and fast-clock hardening (source-only)
 
 On transient connectivity loss, the employee UI now reads its IndexedDB punch count before attempting a server policy refresh; it never represents the local queue as payable time. The server independently validates tenant, employee identity, worksite policy, cutoff and consent at sync. Transient HTTP 408/425/429/5xx responses are not authoritative rejection or confirmation, so the client queues the **same** idempotency UUID (without photos/GPS) for retry; definitive 4xx policy/identity denials require manual correction rather than endless replay. Where the server result and local save are both uncertain, the UI explicitly asks the employee to check with HR rather than claim no punch exists. Canonical device clocks up to 24 hours fast remain reviewable with timing flags; more implausible future timestamps still require HR correction, while no entry ever reaches payable attendance without distinct human approval. Synthetic tests were added; low-bandwidth real devices, account switching and offline-first cold launch remain separate unsigned acceptance gates.
+
+// Failed consent withdrawal must not silently reinstate photo capture on the
+// device. The employee UI now blocks capture immediately and continues to
+// provide a no-photo human-reviewed attendance path while requiring a separate
+// verified backend withdrawal/purge and DPO handling for disconnected requests.
+// Synthetic UI source/unit checks are NOT witnessed RA 10173 acceptance.
