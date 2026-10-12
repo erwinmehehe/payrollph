@@ -1,4 +1,5 @@
 import { criticalReleaseFlagEnabled } from "./critical-release-flags";
+import { organizationModuleSettings, tenantModuleStorageAvailable } from "@/lib/tenant-module-storage";
 import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { maskGovernmentId } from "@/lib/government-id-crypto";
 import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
@@ -72,6 +73,31 @@ export async function getDashboardData(organizationId?: number) {
     .from(organizations)
     .where(inArray(organizations.id, organizationIds))
     .orderBy(asc(organizations.id));
+
+  // The optional 0122 columns are not part of the shared Drizzle organization model.
+  // Never select them on a flag-off / pre-migration database; existing workspaces
+  // must continue to function before the controlled DBA migration.
+  const coreModuleNavigationEnabled = criticalReleaseFlagEnabled("coreModuleNavigation")
+    && await tenantModuleStorageAvailable();
+  const modulePreferences = coreModuleNavigationEnabled
+    ? await db.select({
+        id: organizationModuleSettings.id,
+        mode: organizationModuleSettings.moduleNavigationMode,
+        enabledModules: organizationModuleSettings.enabledModules,
+      }).from(organizationModuleSettings)
+        .where(inArray(organizationModuleSettings.id, organizationIds))
+    : [];
+  const modulePreferenceById = new Map(modulePreferences.map(p => [p.id, p]));
+  const decorateOrganization = (org: (typeof orgs)[number]) => {
+    const prefs = modulePreferenceById.get(org.id);
+    return {
+      ...org,
+      moduleNavigationMode: coreModuleNavigationEnabled ? prefs?.mode ?? "all" : "all",
+      enabledModules: coreModuleNavigationEnabled && Array.isArray(prefs?.enabledModules)
+        ? prefs.enabledModules.filter((id): id is string => typeof id === "string")
+        : [],
+    };
+  };
 
   const selectedOrganization = organizationId
     ? orgs.find((organization) => organization.id === organizationId)
@@ -346,13 +372,13 @@ export async function getDashboardData(organizationId?: number) {
 
   return {
     firstPayrollReadiness,
-    coreModuleNavigationEnabled: criticalReleaseFlagEnabled("coreModuleNavigation"),
+    coreModuleNavigationEnabled,
     employeeImportPreviewEnabled: criticalReleaseFlagEnabled("employeeImportPreview"),
     user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
     capabilities,
-    organizations: orgs.map(org => ({ ...org, enabledModules: Array.isArray(org.enabledModules) ? org.enabledModules.filter((id): id is string => typeof id === "string") : [] })),
-    selectedOrganization: { ...selectedOrganization, enabledModules: Array.isArray(selectedOrganization.enabledModules) ? selectedOrganization.enabledModules.filter((id): id is string => typeof id === "string") : [] },
+    organizations: orgs.map(decorateOrganization),
+    selectedOrganization: decorateOrganization(selectedOrganization),
     employees: employeesWithPayBasis,
     orgUnits: units,
     payrollRuns: runRows,

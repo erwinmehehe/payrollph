@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
-import { db } from "../src/db";
+import { readFileSync, writeFileSync } from "node:fs";
+import { db, pool } from "../src/db";
+import { organizationModuleSettings } from "../src/lib/tenant-module-storage";
 import { organizations, employees, users, userOrganizations, orgUnits, subscriptions } from "../src/db/schema";
 import { hashPassword } from "../src/lib/crypto";
 import { encryptTotpSecret } from "../src/lib/security-secret";
@@ -13,11 +14,14 @@ async function main() {
   assert.ok(["localhost", "127.0.0.1"].includes(address.hostname));
   assert.equal(address.pathname, "/app_db");
   assert.equal((await db.select().from(organizations)).length, 0, "An empty disposable database is required");
+  // This test-only installation exercises the actual proposed SQL against disposable PG16.
+  // Production migrations must use the reviewed executor; never call db:push there.
+  await pool.query(readFileSync("drizzle/0122_tenant_module_disclosure.sql", "utf8"));
   const [tenant, existing] = await db.insert(organizations).values([
     { name: "Synthetic new employer", legalName: "Synthetic employer" },
     { name: "Synthetic existing employer", legalName: "Synthetic employer" },
   ]).returning();
-  await db.update(organizations).set({ moduleNavigationMode: "all" }).where(eq(organizations.id, existing.id));
+  await db.update(organizationModuleSettings).set({ moduleNavigationMode: "all" }).where(eq(organizationModuleSettings.id, existing.id));
   const [unit] = await db.insert(orgUnits).values({ organizationId: tenant.id, code: "OPS", name: "Operations", type: "Department" }).returning();
   const [employee] = await db.insert(employees).values({ organizationId: tenant.id, orgUnitId: unit.id, employeeNo: "SYNTHETIC-SELF", firstName: "Synthetic", lastName: "Worker", title: "Staff", avatarInitials: "SW", basicRate: "30000", startDate: "2026-10-01" }).returning();
   const totpSecret = encryptTotpSecret("JBSWY3DPEHPK3PXP");
