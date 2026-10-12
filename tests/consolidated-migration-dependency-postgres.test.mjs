@@ -42,7 +42,7 @@ async function mustReject(client, sql, pgCode) {
   assert.equal(caught.code, pgCode);
 }
 
-test("0115 profiles then 0116 payout then 0119 Xendit: exact source, Postgres 16, no money out", {
+test("0115 profiles then 0116 payout then 0119 Xendit: exact source, Postgres 16/18, no money out", {
   skip: !ciReady, timeout: 60_000,
 }, async () => {
   const client = new pg.Client({

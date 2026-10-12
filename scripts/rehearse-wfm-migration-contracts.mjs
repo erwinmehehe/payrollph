@@ -1,5 +1,5 @@
 /**
- * Rollback-only PostgreSQL 16 contract rehearsal for the canonical,
+ * Rollback-only PostgreSQL 16/18 contract rehearsal for the canonical,
  * unmerged 0117, 0118, 0120 migration files.
  *
  * CI-only guard ensures this CANNOT connect to Neon, staging or production.
@@ -167,7 +167,23 @@ async function verifyBehavior() {
   );
   await rejected(
     "INSERT INTO workforce_punch_photo_evidence(id,organization_id,employee_id,expires_at) VALUES ('ci-invalid',1,999,'2027-01-01T00:00:00Z')",
-    [], "23503",
+    // BEFORE INSERT tenant guard rejects missing / other-tenant employees
+    // before the FK constraint can fire. Assert the exact guard SQLSTATE.
+    [], "23514",
+  );
+  // Direct SQL bypass probes: standalone foreign keys MUST NOT permit
+  // references to a different employer's employee, worksite or photo.
+  await rejected(
+    "INSERT INTO worksite_punch_policies(worksite_id,organization_id,photo_mode) VALUES (2000,1,'optional')",
+    [], "23514",
+  );
+  await rejected(
+    "INSERT INTO workforce_punch_photo_consents(organization_id,employee_id,consent_version,choice,decided_by_user_id) VALUES (1,200,'cross-tenant','accepted',10)",
+    [], "23514",
+  );
+  await rejected(
+    "INSERT INTO workforce_punch_photo_evidence(id,organization_id,employee_id,expires_at) VALUES ('ci-cross-tenant',1,200,'2027-01-01T00:00:00Z')",
+    [], "23514",
   );
   checks.photoConsentConstraintsVerified = true;
 
@@ -178,6 +194,26 @@ async function verifyBehavior() {
   await rejected(
     "INSERT INTO workforce_punch_submissions(organization_id,employee_id,client_punch_id,action_type,work_date,device_occurred_at,received_source,device_digest,requested_by_user_id) VALUES(1,100,'ci-punch-1','clock_in','2026-10-12','2026-10-12T00:00:00Z','offline',$1,10)",
     ["a".repeat(64)], "23505",
+  );
+  await rejected(
+    "INSERT INTO workforce_punch_submissions(organization_id,employee_id,client_punch_id,action_type,work_date,device_occurred_at,received_source,device_digest,requested_by_user_id) VALUES (1,200,'cross-tenant','clock_in','2026-10-12','2026-10-12T00:00:00Z','offline',$1,10)",
+    ["c".repeat(64)], "23514",
+  );
+  await rejected(
+    "INSERT INTO workforce_punch_submissions(organization_id,employee_id,client_punch_id,action_type,work_date,device_occurred_at,received_source,worksite_id,device_digest,requested_by_user_id) VALUES (1,100,'cross-site','clock_in','2026-10-12','2026-10-12T00:00:00Z','offline',2000,$1,10)",
+    ["d".repeat(64)], "23514",
+  );
+  await rejected(
+    "INSERT INTO workforce_punch_submissions(organization_id,employee_id,client_punch_id,action_type,work_date,device_occurred_at,received_source,device_digest,flags,requested_by_user_id) VALUES(1,100,'bad-flags','clock_in','2026-10-12','2026-10-12T00:00:00Z','offline',$1,'{}'::jsonb,10)",
+    ["e".repeat(64)], "23514",
+  );
+  await rejected(
+    "UPDATE workforce_punch_submissions SET status='approved', reviewed_by_user_id=10, reviewed_at=now(), review_note='same user approving own attendance' WHERE organization_id=1",
+    [], "23514",
+  );
+  await rejected(
+    "UPDATE workforce_punch_submissions SET time_punch_id=20000 WHERE organization_id=1",
+    [], "23514",
   );
   await rejected("UPDATE workforce_punch_submissions SET status='paid' WHERE organization_id=1", [], "23514");
   await rejected("UPDATE workforce_punch_submissions SET received_source='unknown' WHERE organization_id=1", [], "23514");
@@ -212,9 +248,10 @@ async function main() {
       "SELECT current_database() AS db, current_user AS role, current_setting('server_version_num')::integer AS version",
     );
     const row = fingerprint.rows[0];
-    assert.ok(row?.db === "app_db" && row?.role === "postgres" &&
-      row?.version >= 160000 && row?.version < 170000,
-    "WFM_REHEARSAL_DISPOSABLE_PG16_IDENTITY_FAILED");
+    const pgMajor = Number(process.env.WFM_REHEARSAL_PG_MAJOR);
+    assert.ok([16, 18].includes(pgMajor) && row?.db === "app_db" && row?.role === "postgres" &&
+      row?.version >= pgMajor * 10000 && row?.version < (pgMajor + 1) * 10000,
+    "WFM_REHEARSAL_DISPOSABLE_POSTGRES_MAJOR_MISMATCH");
     const existing = await client.query(
       "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','m','f')) OR EXISTS (SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname NOT IN ('public','pg_catalog','information_schema') AND nspname NOT LIKE 'pg_%') AS occupied",
     );
@@ -287,6 +324,7 @@ async function main() {
     sourceDigest: digest.digest("hex"),
     ...checks,
     mode: "isolated-ci-only",
+    postgresMajor: Number(process.env.WFM_REHEARSAL_PG_MAJOR),
     syntheticRowsOnly: true,
     realEmployerDataAccessed: false,
     productionCloneRehearsed: false,
@@ -295,11 +333,20 @@ async function main() {
     databaseChangesCommitted: false,
   }, null, 2) + "\n");
   console.log(injected
-    ? "WFM migration injected-failure rollback verified on synthetic PostgreSQL 16."
-    : "WFM 0115+0116+0118 synthetic contract and rollback rehearsal verified.");
+    ? "WFM migration injected-failure rollback verified on disposable PostgreSQL."
+    : "WFM 0117+0118+0120 synthetic contract and rollback rehearsal verified.");
 }
 
-await main().catch(() => {
-  console.error("WFM_MIGRATION_CONTRACT_REHEARSAL_FAILED; no external database was accessed.");
+await main().catch(error => {
+  // Emit only fixed synthetic check names and a validated SQLSTATE. Never dump
+  // the query, connection string, employee data or raw exception to CI.
+  const sqlstate = typeof error?.code === "string" && /^[A-Z0-9]{5}$/.test(error.code)
+    ? error.code : "UNKNOWN";
+  const reason = typeof error?.message === "string" && /^WFM_REHEARSAL_[A-Z0-9_]+$/.test(error.message)
+    ? error.message : "REDACTED";
+  const stage = Object.entries(checks).filter(([, passed]) => passed === true)
+    .map(([name]) => name).join(",");
+  console.error("WFM_MIGRATION_CONTRACT_REHEARSAL_FAILED sqlstate=" + sqlstate +
+    " reason=" + reason + " completed=" + stage + "; no external database was accessed.");
   process.exitCode = 1;
 });

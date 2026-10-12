@@ -1,10 +1,10 @@
 # Consolidated proposed SQL release train: 0115-0121
 
-**DRAFT / DO NOT RUN ON NEON MAIN.** This is a dependent-source patch on
-PR #865, not an approved historical migration replay. The last numbered
+**DRAFT / DO NOT RUN ON NEON MAIN.** This is the canonical source-only
+train in PR #865, not an approved historical migration replay. The last numbered
 historical SQL on GitHub main is 0114. Old duplicate prefix groups remain
-unchanged; a modern path/hash execution journal has NOT been adopted on
-Neon main.
+unchanged; an evidence-backed historical receipt journal with exact
+source path and SHA-256 has NOT been adopted on Neon main.
 
 ## Canonical dependency order (all seven are newly numbered DRAFT files)
 
@@ -24,17 +24,20 @@ in historical records, or applied in any actual database is renamed.
 
 ### Source handoff and PR dependencies
 
-- Canonical branch: this dependent branch, based on PR #865. Once reviewed,
-  integrate it into the source train and retire the old 0115-0119
-  reservations (which existed only in the unmerged draft).
+- Canonical branch: PR #865 itself. Old 0115-0119 unmerged draft
+  reservations are retired on this branch; do not replay or cherry-pick
+  them separately into main.
 - PR #893 contains the original strengthened **unnumbered** A-2 payout
   candidate and standalone disposable PostgreSQL checks. Its guarded SQL
   has been copied verbatim into the new proposed 0116 after its comment
   header; its tests must be kept. Do not independently apply both versions.
   Resolve duplicate source paths before any merge.
-- PR #894 is a separate conservative missing-prerequisite preflight for
-  the previous 0115-0119 train; update its checks to this canonical
-  0115-0121 mapping before considering rollout.
+- The original #894 source-only prerequisite work is superseded here.
+  `scripts/lib/pending-train-preflight.mjs` now inventories the canonical
+  0115-0121 steps, projects dependent CREATE outputs without treating them
+  as applied receipts, and **never** authorizes database migration. Its
+  source tests and a full-transaction PostgreSQL16 rollback rehearsal are
+  included on this branch.
 - Feature PRs #858, #859, #813, #856 and #860 must remove overlapping
   numbered SQL and depend on the canonical order; do not merge and apply
   standalone feature-local versions.
@@ -63,7 +66,7 @@ database `ddbb`.
 - `payrollph_release_migration_receipts`,
   `payrollph_schema_migrations`, and
   `payrollph_migration_cutover` are missing; historical application
-  order/checksums are UNKNOWN. Do not mark any historical file
+  order/checksums are UNKNOWN. A historical receipt must be independently\n  adopted and verified by the DBA before a forward migration is authorized.\n  Do not mark any historical file
   `applied` from table names alone.
 - Source declarations are more numerous than live objects and runtime
   compatibility DDL still exists in `src/lib/core-schema-compat.ts`.
@@ -111,6 +114,11 @@ swap production identities by default**.
 4. Rehearse 0115/0116/0119 in a **disposable PostgreSQL CI service**
    with synthetic data using
    `tests/consolidated-migration-dependency-postgres.test.mjs`.
+   Separately run `tests/complete-pending-train-postgres.test.mjs`
+   against another disposable PG16 service initialized with Drizzle:
+   execute the entire proposed 0115-0121 train inside a transaction,
+   verify scope/replay invariants and roll back to its original catalog
+   and payroll row counts.
    A real Neon staging clone additionally requires application/tenant
    security, rollback and schema parity evidence.
 5. Do not activate PayMongo/Xendit, employee bank file exports,

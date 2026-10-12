@@ -11,7 +11,11 @@ on:
       - "drizzle/0120_*.sql"
       - "drizzle/0121_*.sql"
       - "tests/pending-migration-release-train.test.mjs"
+      - "tests/pending-train-preflight.test.mjs"
+      - "scripts/lib/pending-train-preflight.mjs"
+      - "docs/engineering/0115-0121-neon-preflight.md"
       - "tests/consolidated-migration-dependency-postgres.test.mjs"
+      - "tests/complete-pending-train-postgres.test.mjs"
       - "docs/engineering/pending-migration-release-train.md"
       - ".github/workflows/consolidated-migration-train-ci.yml"
   push:
@@ -25,7 +29,11 @@ on:
       - "drizzle/0120_*.sql"
       - "drizzle/0121_*.sql"
       - "tests/pending-migration-release-train.test.mjs"
+      - "tests/pending-train-preflight.test.mjs"
+      - "scripts/lib/pending-train-preflight.mjs"
+      - "docs/engineering/0115-0121-neon-preflight.md"
       - "tests/consolidated-migration-dependency-postgres.test.mjs"
+      - "tests/complete-pending-train-postgres.test.mjs"
       - ".github/workflows/consolidated-migration-train-ci.yml"
 
 permissions:
@@ -33,8 +41,12 @@ permissions:
 
 jobs:
   synthetic-train:
-    name: Synthetic dependency train and SQL constraint checks
+    name: Synthetic dependency train and SQL constraint checks (PG${{ matrix.postgres }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
     timeout-minutes: 15
     env:
       CI: "true"
@@ -42,7 +54,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
-        image: postgres:16
+        image: postgres:${{ matrix.postgres }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -69,7 +81,55 @@ jobs:
       - name: Syntax and source lineage tests
         run: |
           node --check tests/pending-migration-release-train.test.mjs
+          node --check tests/pending-train-preflight.test.mjs
+          node --check scripts/lib/pending-train-preflight.mjs
           node --check tests/consolidated-migration-dependency-postgres.test.mjs
-          node --test tests/pending-migration-release-train.test.mjs
+          node --test tests/pending-migration-release-train.test.mjs tests/pending-train-preflight.test.mjs
       - name: Apply exact source SQL on disposable PostgreSQL; verify guards and rollback
         run: node --test tests/consolidated-migration-dependency-postgres.test.mjs
+
+  full-train-rollback:
+    name: Entire proposed 0115-0121 source train (disposable PG${{ matrix.postgres }} rollback)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      GITHUB_ACTIONS: "true"
+      PENDING_TRAIN_REHEARSAL_MODE: isolated-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Check out exact PR source without credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Initialize ONLY the disposable Postgres 16 fixture from Drizzle
+        run: npm run db:push
+      - name: Source syntax and full migration train rollback, no external DB
+        run: |
+          node --check tests/complete-pending-train-postgres.test.mjs
+          node --test tests/complete-pending-train-postgres.test.mjs
