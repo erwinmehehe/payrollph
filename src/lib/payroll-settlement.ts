@@ -1,7 +1,7 @@
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
-import { settlePayrollLoanBalance } from "@/lib/payroll-loan-settlement";
+import { payrollLoanPosting } from "@/lib/payroll-loan-settlement";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
@@ -648,10 +648,9 @@ export async function settlePayrollRun(
             throw new Error(`Loan ${loanId} is no longer active; recalculate payroll before release.`);
           }
 
-          // Exact centavos, never one-cent tolerance or floating point
-          // subtraction for an authoritative employee loan ledger.
-          const posting = settlePayrollLoanBalance({
-            plannedDeduction, remainingBalance: loan.remainingBalance,
+          // Exact-centavo validation is an explicit default-off rollout.
+          const posting = payrollLoanPosting({
+            loanId, plannedDeduction, remainingBalance: loan.remainingBalance,
             totalPaid: loan.totalPaid,
           });
           await tx.insert(loanPayments).values({

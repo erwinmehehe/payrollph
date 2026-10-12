@@ -1,6 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { settlePayrollLoanBalance } from "../src/lib/payroll-loan-settlement";
+import { payrollLoanPosting, settlePayrollLoanBalance } from "../src/lib/payroll-loan-settlement";
+
+test("flag-off reproduces existing release posting; exact true rejects a one-cent overdraft", () => {
+  const input = { loanId: 17, plannedDeduction: 100.01, remainingBalance: "100.00", totalPaid: "0.00" };
+  for (const env of [{}, { EXACT_PAYROLL_LOAN_SETTLEMENT_ENABLED: "false" }, { EXACT_PAYROLL_LOAN_SETTLEMENT_ENABLED: "TRUE" }]) {
+    assert.deepEqual(payrollLoanPosting(input, env), {
+      deduction: "100.01", remainingBalance: "0.00", totalPaid: "100.01", status: "paid_off",
+    });
+    assert.throws(() => payrollLoanPosting({ ...input, plannedDeduction: 100.02 }, env),
+      /Loan 17 balance changed after calculation; recalculate payroll before release\./);
+  }
+  assert.throws(() => payrollLoanPosting(input, { EXACT_PAYROLL_LOAN_SETTLEMENT_ENABLED: "true" }), /EXCEEDS_BALANCE/);
+  assert.deepEqual(payrollLoanPosting({ ...input, plannedDeduction: 100 }, { EXACT_PAYROLL_LOAN_SETTLEMENT_ENABLED: "true" }), {
+    deduction: "100.00", remainingBalance: "0.00", totalPaid: "100.00", status: "paid_off",
+  });
+});
 
 test("last payroll deduction pays principal to exact zero, not negative", () => {
   const first = settlePayrollLoanBalance({
