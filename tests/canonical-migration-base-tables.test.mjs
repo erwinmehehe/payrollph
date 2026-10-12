@@ -97,7 +97,7 @@ test("even complete physical table inventory is not migration approval", () => {
 });
 
 test("catalog predicate checks actual base tables, never a similarly named view", () => {
-  assert.match(CANONICAL_MIGRATION_BASE_TABLES_SQL, /pg_catalog\\.pg_class/);
-  assert.match(CANONICAL_MIGRATION_BASE_TABLES_SQL, /relkind IN \\('r','p'\\)/);
+  assert.match(CANONICAL_MIGRATION_BASE_TABLES_SQL, /pg_catalog\.pg_class/);
+  assert.match(CANONICAL_MIGRATION_BASE_TABLES_SQL, /relkind IN \('r','p'\)/);
   assert.doesNotMatch(CANONICAL_MIGRATION_BASE_TABLES_SQL, /to_regclass/);
 });
