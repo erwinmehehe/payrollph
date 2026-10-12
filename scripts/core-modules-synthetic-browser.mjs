@@ -27,11 +27,28 @@ try {
         page = await context.newPage();
         const base = `http://127.0.0.1:${port}`;
         if (!roleAuthState.has(role)) {
-          const login = await context.request.post(base + "/api/auth/login", {
-            headers: { origin: base, "sec-fetch-site": "same-origin" },
-            data: { email: role + "@build-block.example.test", password: "Synthetic-Build-Block-Only-2026!", totpCode: generateTotp("JBSWY3DPEHPK3PXP") },
-          });
-          assert.equal(login.status(), 200, "Synthetic MFA sign-in must pass");
+          // Exercise the actual rate limiter, never disable it. Two Next.js
+          // instances share this fixture's PostgreSQL/IP login counter, so
+          // a previous screenshot may temporarily exhaust the 60s window.
+          // Retry at most once, only for a server-advertised bounded window.
+          let login;
+          for (let attempt = 0; attempt < 2; attempt++) {
+            login = await context.request.post(base + "/api/auth/login", {
+              headers: { origin: base, "sec-fetch-site": "same-origin" },
+              data: {
+                email: role + "@build-block.example.test",
+                password: "Synthetic-Build-Block-Only-2026!",
+                totpCode: generateTotp("JBSWY3DPEHPK3PXP"),
+              },
+            });
+            if (login.status() !== 429 || attempt === 1) break;
+            const limited = await login.json().catch(() => ({}));
+            const waitMs = Number(limited.retryAfterMs);
+            // An account lockout has no bounded retryAfterMs: fail closed.
+            if (!Number.isFinite(waitMs) || waitMs < 0 || waitMs > 60_000) break;
+            await new Promise(resolve => setTimeout(resolve, Math.max(250, Math.ceil(waitMs) + 250)));
+          }
+          assert.equal(login.status(), 200, "Synthetic MFA sign-in must pass for role: " + role);
           roleAuthState.set(role, await context.storageState());
         }
         await page.goto(base + "/app?organizationId=" + fixture.organizationId, { waitUntil: "domcontentloaded" });
