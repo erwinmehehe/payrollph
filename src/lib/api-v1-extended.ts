@@ -30,7 +30,7 @@ export async function authorizeExtendedV1Read(request: Request, scope: string) {
       eq(legalEntities.active,true))).limit(2);
   if (extendedV1NeedsEntityScope(employerRows.length)) {
     return { ok: false as const, response: Response.json({
-      error:"Multiple legal employers require approved entity-scoped API credentials.",
+      error:"Exactly one verified active legal employer is required for this tenant-scoped API extension.",
     },{status:403}) };
   }
   return { ok: true as const, auth };
@@ -44,7 +44,14 @@ export function apiV1Page(searchParams: URLSearchParams, maxPageSize = 100) {
   return { limit, offset };
 }
 
-/** Fail closed on tenant-wide API extensions in multi-entity organizations. */
-export function extendedV1NeedsEntityScope(activeLegalEmployers:number) {
-  return !Number.isSafeInteger(activeLegalEmployers) || activeLegalEmployers > 1;
+/** Tenant-level API keys cannot infer employer ownership from zero or multiple active entities. */
+export function extendedV1NeedsEntityScope(activeLegalEmployers: number) {
+  return !Number.isSafeInteger(activeLegalEmployers) || activeLegalEmployers !== 1;
+}
+
+/** Invalid ISO dates return HTTP 400; do not throw from toISOString on NaN. */
+export function validApiV1DateOnly(input: unknown): input is string {
+  if (typeof input !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(input)) return false;
+  const timestamp = Date.parse(input + "T00:00:00Z");
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === input;
 }

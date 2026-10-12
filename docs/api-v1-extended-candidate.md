@@ -9,4 +9,4 @@ Scope: Existing `/api/v1/employees` (GET/POST) and `/api/v1/payroll-runs` stay u
 
 API description in `docs/openapi-payrollph-v1.yaml`. No external accounting connection or automatic ledger posts. Reconcile chart-of-accounts mappings with accounting reviewers before activation. Data-scope review must check tenant and **legal employer** scope, pending multi-entity RFC approval. The API key grants tenant read; group-level legal-employer grants are not implemented.
 
-**Multi-entity boundary:** The extended v1 authorization rejects organizations with more than one active legal entity until entity-scoped API token grants are implemented and tested under RFC B-8. Tenant-scoped keys are never treated as cross-entity group-HR permission.
+**Legal-employer boundary:** The extended v1 authorization permits exactly one active legal employer for the tenant. Zero matches are ambiguous legacy attribution and multiple matches require employer-scoped API token grants under RFC B-8. Both fail closed; tenant-scoped keys are never treated as cross-entity group-HR permission. Invalid journal date filters return a client error rather than an unhandled server exception.

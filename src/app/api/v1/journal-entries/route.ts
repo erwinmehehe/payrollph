@@ -2,7 +2,7 @@ import { and, asc, eq, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { payrollRuns } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
-import { authorizeExtendedV1Read } from "@/lib/api-v1-extended";
+import { authorizeExtendedV1Read, validApiV1DateOnly } from "@/lib/api-v1-extended";
 import { buildReleasedPayrollJournal, payrollJournalToCsv } from "@/lib/payroll-journal-export";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +13,7 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const startDate = params.get("startDate") ?? "";
   const endDate = params.get("endDate") ?? "";
-  const date = /^\d{4}-\d{2}-\d{2}$/;
-  if (!date.test(startDate) || !date.test(endDate)
-    || new Date(startDate + "T00:00:00Z").toISOString().slice(0, 10) !== startDate
-    || new Date(endDate + "T00:00:00Z").toISOString().slice(0, 10) !== endDate
+  if (!validApiV1DateOnly(startDate) || !validApiV1DateOnly(endDate)
     || endDate < startDate
     || Date.parse(endDate + "T00:00:00Z") - Date.parse(startDate + "T00:00:00Z") > 366 * 86_400_000) {
     return Response.json({ error: "Use a valid date window of at most 366 days." }, { status: 400 });

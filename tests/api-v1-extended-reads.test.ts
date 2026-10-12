@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   buildReleasedPayrollJournal, journalMoneyCentavos, payrollJournalToCsv,
 } from "../src/lib/payroll-journal-export";
-import { apiV1Page } from "../src/lib/api-v1-extended";
+import { apiV1Page, validApiV1DateOnly, extendedV1NeedsEntityScope } from "../src/lib/api-v1-extended";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 
 const run = { id: 12, organizationId: 4, legalEntityId: 9, status: "Released",
@@ -44,10 +44,19 @@ test("new API feature gate is default off", () => {
   assert.equal(criticalReleaseFlagEnabled("apiV1ExtendedReads", { API_V1_EXTENDED_READS_ENABLED: "true" }), true);
 });
 
-test("API v1 extension cannot serve cross-entity data with a tenant-only key",async()=>{
- const {extendedV1NeedsEntityScope}=await import("../src/lib/api-v1-extended");
- assert.equal(extendedV1NeedsEntityScope(0),false);
- assert.equal(extendedV1NeedsEntityScope(1),false);
- assert.equal(extendedV1NeedsEntityScope(2),true);
- assert.equal(extendedV1NeedsEntityScope(Number.NaN),true);
+test("API v1 extension rejects missing/ambiguous or cross-entity attribution", () => {
+ assert.equal(extendedV1NeedsEntityScope(0), true);
+ assert.equal(extendedV1NeedsEntityScope(-1), true);
+ assert.equal(extendedV1NeedsEntityScope(1), false);
+ assert.equal(extendedV1NeedsEntityScope(2), true);
+ assert.equal(extendedV1NeedsEntityScope(Number.NaN), true);
+});
+
+test("journal export rejects malformed dates without throwing a server error", () => {
+ for (const invalid of ["", "2026-13-01", "2026-02-30", "2026-02-29", "2026-00-01", "2026-10-01T00:00:00Z"]) {
+   assert.equal(validApiV1DateOnly(invalid), false, invalid);
+ }
+ for (const valid of ["2026-10-12", "2024-02-29", "2026-12-31"]) {
+   assert.equal(validApiV1DateOnly(valid), true, valid);
+ }
 });
