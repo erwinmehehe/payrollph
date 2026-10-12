@@ -42,6 +42,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 AI-assisted automation suggestions",
     approval: "Synthetic staging isolation and postmerge activation gates",
   },
+  wfmClockWatchPaging: {
+    env: "WFM_CLOCK_WATCH_PAGING_ENABLED",
+    owner: "Workforce Operations",
+    risk: "P1 bounded complete-cohort clock-in watch over 200 assignments",
+    approval: "WFM-12 synthetic scale/lease evidence and independent operations sign-off",
+  },
   wfmLoyversePos: {
     env: "WFM_LOYVERSE_POS_ENABLED",
     owner: "Workforce Operations",
