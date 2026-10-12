@@ -6,6 +6,18 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  wfmGreedyRoster: {
+    env: "WFM_GREEDY_ROSTER_ENABLED",
+    owner: "WFM Product / PH People Operations",
+    risk: "P1 generated roster suggestions from personnel eligibility and fairness history",
+    approval: "Determinism, tenant isolation, rule/leave/skills UAT, and independent workforce review",
+  },
+  wfmRosterScaleRules: {
+    env: "WFM_ROSTER_SCALE_RULES_ENABLED",
+    owner: "WFM Operations / Philippine Payroll",
+    risk: "P1 large-roster notification completeness and labor-rule schedule publish",
+    approval: "Synthetic 1000-assignment pagination, verified roster publish UAT, payroll review and operational sign-off",
+  },
   multiEntity: {
     env: "MULTI_ENTITY_ENABLED",
     owner: "Security / Payroll Operations",
