@@ -190,7 +190,8 @@ test("#910: 0121 backfill uses immutable run employer, excludes ambiguous histor
     assert.equal(primaryC.count,1);
     const assignments=await client.query(
       "SELECT employee_id,legal_entity_id,effective_from::text AS start " +
-      "FROM employee_entity_assignments ORDER BY employee_id");
+      "FROM employee_entity_assignments WHERE employee_id=ANY($1::int[]) ORDER BY employee_id",
+      [[worker1,workerMoved,workerTransferred,workerB]]);
     assert.deepEqual(assignments.rows.map(row=>row.employee_id).sort((x,y)=>x-y),
       [worker1,workerB].sort((x,y)=>x-y),
       "known historical cross-employer earnings or transfer must block inferred interval");
