@@ -1,0 +1,126 @@
+name: First Payroll Inline Browser QA (Synthetic Only)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/api/first-payroll/**"
+      - "src/components/workspace/first-payroll-inline.tsx"
+      - "src/lib/first-payroll-*.ts"
+      - "src/lib/payroll-engine.ts"
+      - "src/lib/critical-release-flags.ts"
+      - "src/components/linaw-workspace.tsx"
+      - "src/app/app/page.tsx"
+      - "scripts/first-payroll-inline-synthetic-browser.mjs"
+      - "tests/first-payroll-inline-preview-behavior.test.ts"
+      - ".github/workflows/first-payroll-inline-browser-qa.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flagged-first-payroll-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      HRIS_JOURNEY_ACCEPTANCE_MODE: synthetic-postgres-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      APP_BASE_URL: http://127.0.0.1:3000
+      TRUSTED_APP_ORIGINS: http://127.0.0.1:3000,http://127.0.0.1:3001
+      DEMO_MODE: "false"
+      REQUIRE_PRIVILEGED_MFA: "false"
+      OPENAI_API_KEY: ""
+      NEXT_TELEMETRY_DISABLED: "1"
+      TOTP_ENCRYPTION_KEY: "4444444444444444444444444444444444444444444444444444444444444444"
+      HCM_PEOPLE_HOME_ACCEPTANCE_MODE: synthetic-postgres-only
+      HCM_PEOPLE_HOME_ENABLED: "true"
+      NEXT_PUBLIC_HCM_PEOPLE_HOME_ENABLED: "true"
+      HCM_PEOPLE_HOME_ORG_IDS: "1,2"
+      HCM_MY_TEAM_ENABLED: "true"
+      NEXT_PUBLIC_HCM_MY_TEAM_ENABLED: "true"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Disposable synthetic encryption key
+        shell: bash
+        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Prepare disposable schema and fictional two-employer fixture
+        run: |
+          npm run db:push
+          npx tsx scripts/hcm-people-home-synthetic-fixture.ts
+          npx tsx scripts/hris-journey-synthetic-fixture.ts
+          npx tsx scripts/first-payroll-mobile-synthetic-fixture.ts
+      - name: TypeScript and read-only first payroll behavior tests
+        run: |
+          npm run typecheck
+          TZ=Asia/Manila npx tsx --test tests/first-payroll-inline-preview-behavior.test.ts
+      - name: Build localhost app, feature default OFF
+        env:
+          FIRST_PAYROLL_INLINE_UI_ENABLED: "false"
+        run: npm run build
+      - name: Install pinned Chromium
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run local apps with flag OFF and ON on distinct ports
+        shell: bash
+        run: |
+          FIRST_PAYROLL_INLINE_UI_ENABLED=false nohup npm start -- -H 127.0.0.1 -p 3000 > /tmp/first-payroll-off.log 2>&1 &
+          FIRST_PAYROLL_INLINE_UI_ENABLED=true nohup npm start -- -H 127.0.0.1 -p 3001 > /tmp/first-payroll-on.log 2>&1 &
+          for port in 3000 3001; do
+            success=0
+            for attempt in {1..60}; do
+              if curl -fsS "http://127.0.0.1:$port/login" >/dev/null; then success=1; break; fi
+              sleep 2
+            done
+            if [ "$success" -ne 1 ]; then
+              echo "Synthetic local server did not start on $port"
+              exit 1
+            fi
+          done
+      - name: Screenshot flag-OFF legacy first payroll at five viewports, two roles
+        env:
+          FIRST_PAYROLL_INLINE_CAPTURE_MODE: before
+          HRIS_JOURNEY_ACCEPTANCE_URL: http://127.0.0.1:3000
+        run: node scripts/first-payroll-inline-synthetic-browser.mjs
+      - name: Screenshot flag-ON inline journey and execute preview UI
+        env:
+          FIRST_PAYROLL_INLINE_CAPTURE_MODE: after
+          HRIS_JOURNEY_ACCEPTANCE_URL: http://127.0.0.1:3001
+        run: node scripts/first-payroll-inline-synthetic-browser.mjs
+      - name: Upload synthetic-only before/after mobile evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: first-payroll-inline-synthetic-browser
+          path: |
+            qa-artifacts/first-payroll-inline-*.json
+            qa-artifacts/first-payroll-inline-*.png
+          if-no-files-found: ignore
+          retention-days: 7
