@@ -119,9 +119,9 @@ test("legal employer confirmation fails closed for missing, different or partial
 test("group payroll cost totals use exact centavos, including negatives and large sums", () => {
   assert.equal(sumPayrollAmounts(["0", "0.00", "100.01", "-0.01"]), "100.00");
   assert.equal(sumPayrollAmounts(["9007199254740992.01", "0.02"]), "9007199254740992.03");
-  assert.equal(sumPayrollAmounts(["0.00400"]), "0.00");
+  assert.equal(sumPayrollAmounts(["0.0000"]), "0.00");
   assert.equal(sumPayrollAmounts(["-0.01", "-0.02"]), "-0.03");
-  for (const invalid of ["", "1e4", "Infinity", "NaN", "1.005", "1,000.00"]) {
+  for (const invalid of ["", "1e4", "Infinity", "NaN", "1.005", "0.00400", "1,000.00"]) {
     assert.throws(() => sumPayrollAmounts([invalid]), /not a valid decimal|sub-centavo/);
   }
 });
