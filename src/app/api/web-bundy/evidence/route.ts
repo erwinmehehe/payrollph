@@ -123,7 +123,7 @@ export async function POST(request: Request) {
   const [existing]=await db.select({id:workforcePunchSubmissions.id,status:workforcePunchSubmissions.status})
     .from(workforcePunchSubmissions).where(and(eq(workforcePunchSubmissions.organizationId,organizationId),
       eq(workforcePunchSubmissions.employeeId,employee!.id),eq(workforcePunchSubmissions.clientPunchId,clientPunchId))).limit(1);
-  if(existing)return respond({ok:true,id:existing.id,status:existing.status,duplicate:true});
+  if(existing)return respond({ok:true,id:existing.id,status:existing.status,duplicate:true,clientPunchId});
   const {photoMode,worksiteId,sites}=await sitePolicy(organizationId,employee!.id,date);
   if(geofencePilotEnabledForOrganization(organizationId)&&(action==="clock_in"||action==="clock_out")) {
     // Never accept stale offline raw GPS as valid location proof.
@@ -248,7 +248,7 @@ export async function POST(request: Request) {
     // A racing retry neither creates a duplicate audit event nor misstates a reviewed punch.
     return {id:duplicate.id,status:duplicate.status,flags:duplicate.flags,duplicate:true};
   });
-  return respond({ok:true,id:result.id,status:result.status,flags:result.flags,duplicate:result.duplicate,
+  return respond({ok:true,id:result.id,status:result.status,flags:result.flags,duplicate:result.duplicate,clientPunchId,
     message:result.duplicate?"Existing submission returned.":"Punch received; awaiting independent human review."},
     result.duplicate?200:202);
 }

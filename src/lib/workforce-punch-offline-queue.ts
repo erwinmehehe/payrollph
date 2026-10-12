@@ -89,8 +89,30 @@ export async function pendingWebPunches(org:number,employee:number):Promise<Queu
   return all.filter(p=>p.organizationId===org&&p.employeeId===employee).sort((a,b)=>a.deviceOccurredAt.localeCompare(b.deviceOccurredAt));
 }
 export async function deleteQueuedPunch(id:string){await withObjectStore("readwrite",store=>store.delete(id));}
-export async function syncQueuedWebPunches(organizationId:number,employeeId:number, signal?:AbortSignal) {
-  const results:{id:string;status:"synced"|"failed";message:string}[]=[];
+/**
+ * A 2xx response is not a durable punch receipt. Auth redirects, proxy HTML,
+ * malformed JSON, or another punch's receipt must NEVER empty IndexedDB.
+ * The server echoes the opaque client UUID (no personal information).
+ */
+export type PunchReceipt = {
+  ok: true; id: number; status: "pending" | "approved" | "rejected";
+  clientPunchId: string;
+};
+export function isPunchReceipt(value: unknown, clientPunchId: string): value is PunchReceipt {
+  if (!value || typeof value !== "object") return false;
+  const receipt = value as Record<string, unknown>;
+  return receipt.ok === true
+    && receipt.clientPunchId === clientPunchId
+    && typeof receipt.id === "number"
+    && Number.isSafeInteger(receipt.id) && receipt.id > 0
+    && (receipt.status === "pending" || receipt.status === "approved" || receipt.status === "rejected");
+}
+export type PunchSyncResult = {id:string;status:"synced"|"failed";message:string};
+
+/** Coalesce an automatic reconnect and a manual sync for this one employee. */
+const runningSyncs = new Map<string, Promise<PunchSyncResult[]>>();
+async function performQueuedPunchSync(organizationId:number,employeeId:number,signal?:AbortSignal):Promise<PunchSyncResult[]> {
+  const results:PunchSyncResult[]=[];
   for(const item of await pendingWebPunches(organizationId,employeeId)){
     if(signal?.aborted)break;
     const body=new FormData();
@@ -98,18 +120,37 @@ export async function syncQueuedWebPunches(organizationId:number,employeeId:numb
     body.set("source","offline");
     try {
       const res=await fetch("/api/web-bundy/evidence",{method:"POST",body,signal});
-      const response=await res.json().catch(()=>({}));
-      if(res.ok) {
+      const response:unknown=await res.json().catch(()=>null);
+      if(res.ok&&isPunchReceipt(response,item.id)) {
+        // Delete only after a matching server-side, idempotent receipt.
         await deleteQueuedPunch(item.id);
         results.push({id:item.id,status:"synced",message:"Queued for human review"});
       } else {
-        results.push({id:item.id,status:"failed",message:typeof response.error==="string"?response.error:"Sync rejected"});
+        const error=response && typeof response==="object"
+          ? (response as {error?:unknown}).error : null;
+        results.push({id:item.id,status:"failed",message:typeof error==="string"
+          ?error.slice(0,200):"No verified server receipt; saved punch was kept for retry."});
+        // Never skip a rejected clock-in and send later clock-out actions out of order.
+        break;
       }
     }catch{
-      results.push({id:item.id,status:"failed",message:"Still offline or server unreachable"});
+      results.push({id:item.id,status:"failed",message:"Still offline or server unreachable; punch remains on device."});
       break;
     }
   }
   return results;
 }
+export function syncQueuedWebPunches(organizationId:number,employeeId:number,signal?:AbortSignal):Promise<PunchSyncResult[]> {
+  const key=`${organizationId}:${employeeId}`;
+  const running=runningSyncs.get(key);
+  if(running)return running;
+  const task=performQueuedPunchSync(organizationId,employeeId,signal);
+  runningSyncs.set(key,task);
+  void task.then(
+    ()=>{if(runningSyncs.get(key)===task)runningSyncs.delete(key);},
+    ()=>{if(runningSyncs.get(key)===task)runningSyncs.delete(key);},
+  );
+  return task;
+}
+
 export function offlineQueueSupported(){return typeof indexedDB!=="undefined";}

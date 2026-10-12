@@ -1,6 +1,6 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
-import {installationPunchDeviceId,queueWebPunch,pendingWebPunches,syncQueuedWebPunches} from "@/lib/workforce-punch-offline-queue";
+import {installationPunchDeviceId,queueWebPunch,pendingWebPunches,syncQueuedWebPunches,isPunchReceipt} from "@/lib/workforce-punch-offline-queue";
 type Policy={geofenceRequired:boolean;photoMode:"off"|"optional"|"required";consent:"accepted"|"declined"|null;consentVersion:string;pending:{id:number}[]};
 export function EnhancedPunchControls({organizationId,employeeId}:{organizationId:number;employeeId:number}){
   const [policy,setPolicy]=useState<Policy|null>(null);
@@ -36,9 +36,16 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
     return()=>{alive=false;};
   },[reload]);
   const sync=useCallback(async()=>{
-    const outcome=await syncQueuedWebPunches(organizationId,employeeId).catch(()=>[]);
-    if(outcome.some(item=>item.status==="synced"))setMessage("Synced punches are pending independent reviewer approval.");
-    await reload();
+    try {
+      const outcome=await syncQueuedWebPunches(organizationId,employeeId);
+      const failed=outcome.find(item=>item.status==="failed");
+      if(failed)setMessage("Sync paused. Unconfirmed punches remain on this device. "+failed.message);
+      else if(outcome.some(item=>item.status==="synced"))
+        setMessage("Synced punches are pending independent reviewer approval.");
+    }catch{
+      setMessage("Saved punches could not be read. Nothing was confirmed or deleted.");
+    }
+    await reload().catch(()=>undefined);
   },[organizationId,employeeId,reload]);
   useEffect(()=>{
     const connected=()=>{void sync();};
@@ -76,9 +83,22 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
         if(photo&&policy?.consent==="accepted"&&policy.photoMode!=="off")data.set("photo",photo);
         try{
           const res=await fetch("/api/web-bundy/evidence",{method:"POST",body:data});
-          const result=await res.json() as {error?:string;flags?:string[]};
-          setMessage(res.ok?"Submitted for human review."+(result.flags?.length?" Flags: "+result.flags.join(", "):""):result.error??"Submission rejected.");
-          if(res.ok)setPhoto(null);
+          const result:unknown=await res.json().catch(()=>null);
+          if(res.ok&&isPunchReceipt(result,item.id)){
+            const receipt=result as {status:string;flags?:string[]};
+            setMessage(receipt.status==="pending"
+              ?"Submitted for human review."+(receipt.flags?.length?" Flags: "+receipt.flags.join(", "):"")
+              :"Earlier submission confirmed ("+receipt.status+").");
+            setPhoto(null);
+          }else if(res.ok){
+            // A proxy/login HTML or wrong response cannot prove the punch arrived.
+            // Replay with the SAME UUID; server idempotency prevents duplication.
+            await queueWebPunch(item);
+            setMessage("Server confirmation missing. Saved on this device for retry without photo.");
+          }else{
+            const error=result&&typeof result==="object"?(result as {error?:unknown}).error:null;
+            setMessage(typeof error==="string"?error:"Submission rejected. Ask HR if you cannot retry.");
+          }
         }catch{
           await queueWebPunch(item);
           setMessage("Network interrupted. Saved on device for later sync (without photo).");
