@@ -89,12 +89,26 @@ CREATE TABLE IF NOT EXISTS legal_entity_transfer_liability_evidence (
 CREATE UNIQUE INDEX IF NOT EXISTS legal_entity_transfer_liability_unique
   ON legal_entity_transfer_liability_evidence(organization_id, transfer_request_id);
 
+-- Immutable child evidence must match the exact authenticated parent
+-- tenant, employer, employee and (for transfers) BOTH legal employers.
+-- A standalone numeric source_change_id/transfer_request_id FK is insufficient.
+CREATE UNIQUE INDEX IF NOT EXISTS entity_profile_request_scope_reference_unique
+  ON legal_entity_profile_change_requests(organization_id, legal_entity_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS entity_transfer_scope_reference_unique
+  ON entity_transfer_requests(
+    organization_id, id, employee_id, from_legal_entity_id, to_legal_entity_id);
+
 -- Composite tenant-bound references guard against unsafe numeric foreign IDs.
 DO $entity_composite$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='entity_versions_tenant_fk') THEN
     ALTER TABLE legal_entity_statutory_registrations ADD CONSTRAINT entity_versions_tenant_fk
       FOREIGN KEY (organization_id, legal_entity_id) REFERENCES legal_entities(organization_id,id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='entity_registration_source_request_fk') THEN
+    ALTER TABLE legal_entity_statutory_registrations ADD CONSTRAINT entity_registration_source_request_fk
+      FOREIGN KEY (organization_id, legal_entity_id, source_change_id)
+      REFERENCES legal_entity_profile_change_requests(organization_id, legal_entity_id, id);
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='entity_profile_requests_tenant_fk') THEN
     ALTER TABLE legal_entity_profile_change_requests ADD CONSTRAINT entity_profile_requests_tenant_fk
@@ -119,6 +133,13 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='entity_transfer_liability_person_tenant_fk') THEN
     ALTER TABLE legal_entity_transfer_liability_evidence ADD CONSTRAINT entity_transfer_liability_person_tenant_fk
       FOREIGN KEY (organization_id, employee_id) REFERENCES employees(organization_id,id);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='entity_transfer_liability_approved_source_fk') THEN
+    ALTER TABLE legal_entity_transfer_liability_evidence ADD CONSTRAINT entity_transfer_liability_approved_source_fk
+      FOREIGN KEY (organization_id, transfer_request_id, employee_id,
+        from_legal_entity_id, to_legal_entity_id)
+      REFERENCES entity_transfer_requests(organization_id, id, employee_id,
+        from_legal_entity_id, to_legal_entity_id);
   END IF;
 END $entity_composite$;
 
