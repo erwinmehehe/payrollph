@@ -150,7 +150,7 @@ BEGIN
   RETURN NEW;
 END $$;
 
-CREATE TRIGGER payout_batch_tenant_guard
+CREATE OR REPLACE TRIGGER payout_batch_tenant_guard
   BEFORE INSERT OR UPDATE OF organization_id, payroll_run_id
   ON payout_batches FOR EACH ROW EXECUTE FUNCTION validate_payout_batch_scope();
 
@@ -173,7 +173,7 @@ BEGIN
   RETURN NEW;
 END $$;
 
-CREATE TRIGGER payout_transfer_tenant_guard
+CREATE OR REPLACE TRIGGER payout_transfer_tenant_guard
   BEFORE INSERT OR UPDATE OF organization_id, payroll_run_id, payroll_entry_id, employee_id
   ON payout_transfers FOR EACH ROW EXECUTE FUNCTION validate_payout_transfer_scope();
 
@@ -195,7 +195,7 @@ BEGIN
   RETURN NEW;
 END $$;
 
-CREATE TRIGGER payout_batch_transfer_tenant_guard
+CREATE OR REPLACE TRIGGER payout_batch_transfer_tenant_guard
   BEFORE INSERT OR UPDATE OF organization_id, payout_batch_id, payout_transfer_id
   ON payout_batch_transfers FOR EACH ROW EXECUTE FUNCTION validate_payout_batch_transfer_scope();
 

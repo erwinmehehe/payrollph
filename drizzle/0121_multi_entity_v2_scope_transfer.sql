@@ -86,6 +86,38 @@ CREATE UNIQUE INDEX IF NOT EXISTS employee_entity_assignment_start_unique ON emp
 CREATE INDEX IF NOT EXISTS employee_entity_assignment_effective_idx ON employee_entity_assignments(organization_id,legal_entity_id,effective_from);
 CREATE UNIQUE INDEX IF NOT EXISTS employee_entity_one_open_unique ON employee_entity_assignments(organization_id,employee_id) WHERE effective_until IS NULL;
 
+-- Lock the employee row to serialize concurrent interval inserts/updates.
+-- A start-date uniqueness constraint alone permits overlapping closed ranges.
+CREATE OR REPLACE FUNCTION validate_employee_entity_assignment()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  PERFORM e.id FROM public.employees e
+    WHERE e.id = NEW.employee_id AND e.organization_id = NEW.organization_id
+    FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ENTITY_ASSIGNMENT_EMPLOYEE_TENANT_MISMATCH' USING ERRCODE='23514';
+  END IF;
+  IF TG_OP = 'UPDATE' AND (
+    NEW.employee_id IS DISTINCT FROM OLD.employee_id OR
+    NEW.organization_id IS DISTINCT FROM OLD.organization_id
+  ) THEN
+    RAISE EXCEPTION 'ENTITY_ASSIGNMENT_IDENTITY_IMMUTABLE' USING ERRCODE='23514';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.employee_entity_assignments a
+    WHERE a.organization_id = NEW.organization_id AND a.employee_id = NEW.employee_id
+      AND a.id IS DISTINCT FROM NEW.id
+      AND daterange(a.effective_from, a.effective_until, '[]') &&
+          daterange(NEW.effective_from, NEW.effective_until, '[]')
+  ) THEN
+    RAISE EXCEPTION 'ENTITY_ASSIGNMENT_INTERVAL_OVERLAP' USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE OR REPLACE TRIGGER employee_entity_assignment_guard
+  BEFORE INSERT OR UPDATE ON employee_entity_assignments
+  FOR EACH ROW EXECUTE FUNCTION validate_employee_entity_assignment();
+
 CREATE TABLE IF NOT EXISTS entity_transfer_requests (
   id serial PRIMARY KEY,
   organization_id integer NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
