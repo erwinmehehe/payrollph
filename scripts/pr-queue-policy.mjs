@@ -125,6 +125,12 @@ export function formatQueueSummary(result, currentNumber) {
   return lines.join("\n");
 }
 
+/** Print verified queue findings without writing API data to runner-owned files. */
+export function reportQueueOutcome(result, currentNumber, print = (value) => process.stdout.write(value)) {
+  print(formatQueueSummary(result, currentNumber) + "\n");
+  return result.failures.length > 0;
+}
+
 async function githubList(path, token, maxPages = MAX_PAGES) {
   const collected = [];
   for (let page = 1; page <= maxPages; page += 1) {
@@ -162,9 +168,8 @@ export async function main(env = process.env) {
     filesByNumber[pr.number] = await githubList(root + "/pulls/" + pr.number + "/files", token);
   }
   const result = evaluatePullQueue(prs, filesByNumber, currentNumber);
-  const summary = formatQueueSummary(result, currentNumber);
-  // Print a read-only assessment without writing untrusted GitHub API values\n  // into runner-owned files (avoids a network-to-file CodeQL taint path).\n  process.stdout.write(summary + "\n");
-  if (result.failures.length) process.exitCode = 1;
+  // Report evidence only via stdout, never a runner-owned file.
+  if (reportQueueOutcome(result, currentNumber)) process.exitCode = 1;
   return result;
 }
 

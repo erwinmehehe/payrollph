@@ -6,6 +6,15 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  orderedReleaseMigrations: {
+    env: "ORDERED_RELEASE_MIGRATIONS_ENABLED", owner: "Database Operations",
+    risk: "P0 deployment-only schema changes",
+    approval: "DBA baseline adoption, protected release and restore rehearsal",
+  },
+  employeeImportPreview: {
+    env: "EMPLOYEE_IMPORT_PREVIEW_ENABLED", owner: "People Operations",
+    risk: "P1 atomic employee CSV intake", approval: "500-row preview and rollback acceptance",
+  },
   centralScheduler: {
     env: "CENTRAL_SCHEDULER_ENABLED",
     owner: "Operations",
@@ -53,6 +62,30 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Workforce Operations",
     risk: "P1 consented POS source access and historical aggregate import",
     approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
+  },
+  publicApiV1Extended: {
+    env: "PUBLIC_API_V1_EXTENDED_ENABLED",
+    owner: "Integrations",
+    risk: "P1 scoped employee/org-unit/pay statement API reads and event feed",
+    approval: "Tenant-isolation integration tests, API token scope review and privacy acceptance",
+  },
+  tenantReportBuilder: {
+    env: "TENANT_REPORT_BUILDER_ENABLED",
+    owner: "People Analytics",
+    risk: "P1 payroll-cost CSV exports and workforce reporting permissions",
+    approval: "Role-based salary redaction, audit evidence and scoped export sign-off",
+  },
+  goalsReviewCycle: {
+    env: "GOALS_REVIEW_CYCLE_ENABLED",
+    owner: "People Operations",
+    risk: "P2 optional goals and review cycle landing page",
+    approval: "Existing performance authorization and read-only journey acceptance",
+  },
+  engagementSurvey: {
+    env: "ENGAGEMENT_SURVEY_ENABLED",
+    owner: "People Operations",
+    risk: "P1 anonymous employee feedback and small-cohort inference",
+    approval: "Minimum cohort privacy tests, consent and retention review",
   },
   hcmEngagementSurvey: {
     env: "HCM_ENGAGEMENT_SURVEY_ENABLED",
