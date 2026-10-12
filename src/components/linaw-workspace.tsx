@@ -743,6 +743,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
       {newHireOpen && (
         <NewHireModal
           organizationId={data.selectedOrganization.id}
+          multiEntity={data.multiEntity}
           onClose={() => setNewHireOpen(false)}
           onCreated={async () => {
             await refresh();
