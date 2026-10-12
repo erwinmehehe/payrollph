@@ -2,7 +2,7 @@ import { and, asc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import {
   employeeAvailabilityRules, employeeScheduleAssignments, employeeWorksiteAssignments,
-  employees, holidays, hcmWorkArrangements, hcmWorksiteAuthorizations,
+  employees, holidays, hcmWorksiteAuthorizations,
   leaveRequestIntervalSets, leaveRequestIntervals, leaveRequests,
   overtimeRequests, positionAssignments, positions, scheduleOverrides,
   schedulePatternDays, schedulePatternSegments, schedulePatterns,
@@ -12,7 +12,6 @@ import {
 import { evaluateEmployeeFromCapabilityData, loadCapabilityEligibilityData } from "@/lib/hcm-workforce-eligibility-server";
 import { evaluateSiteEligibility } from "@/lib/hcm-worksite-eligibility";
 import { loadSiteEligibilityEvidence } from "@/lib/hcm-worksite-eligibility-server";
-import { evaluateScheduleGuardrails } from "@/lib/workforce-schedule-guardrails";
 import { resolveEmployeeJobProfileAtDate, assertUnambiguousRoleDemand } from "@/lib/workforce-role-demand";
 import { resolveDailySchedule, type ResolvedDailySchedule, type WorkforceScheduleOverride, type WorkforceScheduleOverrideSegment } from "@/lib/workforce-scheduling";
 import { selectEffectiveWorksiteAssignment } from "@/lib/workforce-worksite";
@@ -159,7 +158,7 @@ export async function previewEmployerGreedyRoster(input:{
   const profileIds=[...new Set(requirements.map(row=>row.jobProfileId).filter((id):id is number=>id!==null))];
   const [availabilityRows,approvedLeaves,approvedOT,positionRows,roleAssignments,
     patterns,patternDays,patternSegments,assignmentRows,overrideRows,worksiteAssignments,
-    separations,siteData,capabilityData]=await Promise.all([
+    separations,siteData,capabilityData,siteAuthorizationRows]=await Promise.all([
     ids.length?db.select().from(employeeAvailabilityRules).where(and(
       eq(employeeAvailabilityRules.organizationId,organizationId),
       inArray(employeeAvailabilityRules.employeeId,ids),
@@ -220,6 +219,14 @@ export async function previewEmployerGreedyRoster(input:{
     )):[],
     loadSiteEligibilityEvidence(organizationId,ids),
     loadCapabilityEligibilityData({organizationId,employeeIds:ids,jobProfileIds:profileIds}),
+    ids.length?db.select().from(hcmWorksiteAuthorizations).where(and(
+      eq(hcmWorksiteAuthorizations.organizationId,organizationId),
+      inArray(hcmWorksiteAuthorizations.employeeId,ids),
+      lte(hcmWorksiteAuthorizations.effectiveFrom,endDate),
+      or(isNull(hcmWorksiteAuthorizations.effectiveUntil),
+        gte(hcmWorksiteAuthorizations.effectiveUntil,startDate)),
+    )):[],
+
   ]);
   const currentLeaveSets=approvedLeaves.length
     ?await db.select().from(leaveRequestIntervalSets).where(and(
@@ -319,10 +326,25 @@ export async function previewEmployerGreedyRoster(input:{
           workDate:slot.workDate,
         }).eligible)skill="unqualified";
       }
+      // Rehydrate explicit allow/deny evidence. The shared batch-loader
+      // currently drops the authorization decision field in its projected
+      // output; never allow an explicit denial to become an implicit grant.
       const siteEligibility=evaluateSiteEligibility({
-        ...siteData,employeeId:worker.id,date:slot.workDate,worksiteId,
+        ...siteData,
+        primaryAssignments:siteData.primaryAssignments.filter(row=>row.decision==="allow"),
+        authorizations:siteAuthorizationRows.map(row=>({
+          id:row.id,employeeId:row.employeeId,worksiteId:row.worksiteId,
+          decision:row.decision==="deny"?"deny" as const:"allow" as const,
+          effectiveFrom:String(row.effectiveFrom),
+          effectiveUntil:row.effectiveUntil?String(row.effectiveUntil):null,
+        })),
+        employeeId:worker.id,date:slot.workDate,worksiteId,
       });
-      const siteStatus:WorkerSlotEvidence["site"]=!siteEligibility.eligible?"ineligible":
+      const primaryDenied=siteData.primaryAssignments.some(row=>
+        row.employeeId===worker.id && row.worksiteId===worksiteId &&
+        row.decision==="deny" && row.effectiveFrom<=slot.workDate &&
+        (!row.effectiveUntil||row.effectiveUntil>=slot.workDate));
+      const siteStatus:WorkerSlotEvidence["site"]=!siteEligibility.eligible||primaryDenied?"ineligible":
         siteEligibility.source==="legacy"?"unknown":"eligible";
       const available=timedAvailabilityBlocks({
         workDate:slot.workDate,startTime:slot.startTime,endTime:slot.endTime,
