@@ -4,9 +4,12 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Check, Download, FileCheck2, Info } from "lucide-react";
 import type { Notify } from "./types";
 import { Segmented, Status, formatDate } from "./ui";
+import { EntityBadge } from "./multi-entity-ui";
+import type { DashboardData } from "./types";
 
 type FilingRecord = {
   id: number;
+  legalEntityId: number;
   payrollRunId: number | null;
   agency: string;
   form: string;
@@ -87,13 +90,15 @@ export function FilingEvidencePanel({
   agency,
   form,
   run,
+  entityContext,
   notify,
   onRefresh,
 }: {
   organizationId: number;
   agency: string;
   form: string;
-  run: { id: number; periodLabel: string; periodEnd?: string };
+  run: { id: number; periodLabel: string; periodEnd?: string; legalEntityId?: number | null };
+  entityContext?: DashboardData["multiEntity"];
   notify: Notify;
   onRefresh: () => Promise<void>;
 }) {
@@ -116,7 +121,8 @@ export function FilingEvidencePanel({
 
   useEffect(() => {
     let active = true;
-    fetch(`/api/compliance/filing-validations?organizationId=${organizationId}`, { cache: "no-store" })
+    fetch(`/api/compliance/filing-validations?organizationId=${organizationId}${entityContext?.enabled && run.legalEntityId
+      ? "&legalEntityId=" + run.legalEntityId : ""}`, { cache: "no-store" })
       .then(async (response) => ({ ok: response.ok, payload: await response.json().catch(() => ({})) }))
       .then(({ ok, payload }) => {
         if (!active) return;
@@ -289,6 +295,7 @@ export function FilingEvidencePanel({
         <div>
           <div className="card-kicker">AGENCY EVIDENCE</div>
           <h2>{copy?.title ?? `${agency} ${form}`}</h2>
+          {entityContext?.enabled && <EntityBadge context={entityContext} legalEntityId={run.legalEntityId} />}
           <p>
             Linaw does not submit to {agencyLabel}. This keeps proof of what happened when you did: the exact file, the
             reference {agencyLabel} gave you, and who recorded it.
