@@ -29,6 +29,10 @@ export async function loadReadOnlyFirstPayrollPreview(
   reader.select().from(firstPayrollJourneyProgress).where(eq(firstPayrollJourneyProgress.organizationId,organizationId)),
   reader.select({role:userOrganizations.role}).from(userOrganizations).where(and(eq(userOrganizations.organizationId,organizationId),eq(userOrganizations.active,true))),
  ]);
+ // Refuse multi-employer reads until a separate employer-scoped authorization path is approved.
+ if(legalRows.length>1 || (legalRows.length===1 &&
+     people.some(employee=>employee.legalEntityId!=null && employee.legalEntityId!==legalRows[0].id)))
+   throw Error("MULTI_ENTITY_PREVIEW_REQUIRES_SCOPED_AUTHORIZATION");
  const legal=legalRows.find(e=>e.primaryEntity)??null;
  const companyConfirmed=progressRows.some(row=>row.step==="company" && Boolean(row.data?.completedAt));
  const timeReview=progressRows.find(row=>row.step==="time")?.data;
