@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import test from "node:test";
-import { decideEntityAccess, entityResourceAllowed, entityConfirmationMatches, validateLegalEmployerSettingsPatch, VERSIONED_EMPLOYER_FIELDS } from "../src/lib/multi-entity-policy";
+import { canActOnEntityTransfer, decideEntityAccess, entityResourceAllowed, entityConfirmationMatches, validateLegalEmployerSettingsPatch, VERSIONED_EMPLOYER_FIELDS } from "../src/lib/multi-entity-policy";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
 import { EntityBadge, EntitySwitcher, EntityFilter } from "../src/components/workspace/multi-entity-ui";
 
@@ -60,6 +60,51 @@ test("owner/admin/bookkeeper never inherit cross-entity group access", () => {
     assert.equal(entityResourceAllowed(scoped, 11), true);
     assert.equal(entityResourceAllowed(scoped, 22), false);
     assert.equal(decideEntityAccess({ ...granted, requested: 22 }).ok, false);
+  }
+});
+
+test("multi-granted administrators default to one entity, not an implicit group view", () => {
+  const input = { role: "owner", availableEntityIds: [22, 11], grantedEntityIds: [22, 11] };
+  const initial = decideEntityAccess({ ...input, requested: undefined });
+  assert.equal(initial.ok, true);
+  if (initial.ok) {
+    assert.equal(initial.group, false);
+    assert.equal(initial.selectedEntityId, 11);
+    assert.equal(entityResourceAllowed(initial, 22), false);
+    assert.equal(entityResourceAllowed(initial, 11), true);
+  }
+  assert.equal(decideEntityAccess({ ...input, requested: "all" }).ok, false);
+  const explicit = decideEntityAccess({ ...input, requested: 22 });
+  assert.equal(entityResourceAllowed(explicit, 11), false);
+  assert.equal(entityResourceAllowed(explicit, 22), true);
+});
+
+test("transfer permissions require two explicit grants without authorizing cross-entity reads", () => {
+  const source = {
+    action: "propose" as const, role: "hr", selectedEntityId: 11,
+    sourceEntityId: 11, targetEntityId: 22, grantedEntityIds: [11, 22],
+    actorUserId: 100,
+  };
+  assert.equal(canActOnEntityTransfer(source), true);
+  for (const role of ["group_hr", "employee", "payroll", "checker", "manager"]) {
+    assert.equal(canActOnEntityTransfer({ ...source, role }), false, role);
+  }
+  assert.equal(canActOnEntityTransfer({ ...source, grantedEntityIds: [11] }), false);
+  assert.equal(canActOnEntityTransfer({ ...source, grantedEntityIds: [22] }), false);
+  assert.equal(canActOnEntityTransfer({ ...source, targetEntityId: 999 }), false);
+  assert.equal(canActOnEntityTransfer({ ...source, selectedEntityId: null }), false);
+  assert.equal(canActOnEntityTransfer({ ...source, selectedEntityId: 22 }), false);
+  assert.equal(canActOnEntityTransfer({ ...source, sourceEntityId: 22, targetEntityId: 22 }), false);
+  const approval = { ...source, action: "approve" as const, role: "admin",
+    actorUserId: 200, makerUserId: 100 };
+  assert.equal(canActOnEntityTransfer(approval), true);
+  for (const action of ["approve", "reject", "apply"] as const) {
+    assert.equal(canActOnEntityTransfer({ ...approval, action, makerUserId: 200 }), false);
+    assert.equal(canActOnEntityTransfer({ ...approval, action, makerUserId: undefined }), false);
+    assert.equal(canActOnEntityTransfer({ ...approval, action, role: "group_hr" }), false);
+    assert.equal(canActOnEntityTransfer({ ...approval, action, role: "hr" }), false);
+    assert.equal(canActOnEntityTransfer({ ...approval, action, grantedEntityIds: [11] }), false);
+    assert.equal(canActOnEntityTransfer({ ...approval, action, grantedEntityIds: [22] }), false);
   }
 });
 
