@@ -24,7 +24,7 @@ Record device make/model, OS/browser, screenshot hash, build URL and exact SHA. 
 With the employer's permission, an independent payroll reviewer exports *both* previous validated payroll/reference and the PayrollPH calculation for the **same employer, period, pay date and all employees** to a protected workstation. No bank transfer, no use of a production payout API.
 
 Both local CSV exports require:
-`periodStart,periodEnd,payDate,employeeNo,gross,sss,philHealth,pagIbig,withholding,net`
+`legalEmployerId,periodStart,periodEnd,payDate,employeeNo,gross,sss,philHealth,pagIbig,withholding,net`
 
 Run locally:
 
@@ -32,7 +32,7 @@ Run locally:
 node scripts/reconcile-private-employer-payroll.mjs /private/reference.csv /private/candidate.csv
 ```
 
-The script fails on duplicated/missing employees, period mismatch, malformed currency values or **any per-employee field difference over PHP 0.01**. It reports aggregate metrics only, never raw employee IDs or salary rows. A passing mathematical comparison is **not an attested independent reconciliation** until the designated reviewer signs the private evidence record and documents statutory-rule/version, attendance, adjustments, exceptions and source provenance. Keep identifiable CSVs out of GitHub, CI and public logs. Deletion/retention follows the employer's policy.
+The script fails on a missing/mismatched legal employer, duplicated/missing employees, period mismatch, malformed currency values or **any per-employee field difference over PHP 0.01**. It reports aggregate metrics only, never raw employee IDs or salary rows. A passing mathematical comparison is **not an attested independent reconciliation** until the designated reviewer signs the private evidence record and documents statutory-rule/version, attendance, adjustments, exceptions and source provenance. Keep identifiable CSVs out of GitHub, CI and public logs. Deletion/retention follows the employer's policy.
 
 ## D. Migration and filing separation
 
