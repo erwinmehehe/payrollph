@@ -25,7 +25,7 @@ test("PG16/18: unnumbered entity-interval proposal rejects tenant mismatch and o
     await client.query("DROP TABLE IF EXISTS public.employee_entity_assignments, public.employees, public.legal_entities CASCADE");
     await client.query("CREATE TABLE public.employees(id integer PRIMARY KEY, organization_id integer NOT NULL)");
     await client.query("CREATE TABLE public.legal_entities(id integer PRIMARY KEY, organization_id integer NOT NULL)");
-    await client.query("CREATE TABLE public.employee_entity_assignments(id serial PRIMARY KEY, organization_id integer NOT NULL, employee_id integer NOT NULL, legal_entity_id integer NOT NULL, effective_from date NOT NULL, effective_until date)");
+    await client.query("CREATE TABLE public.employee_entity_assignments(id serial PRIMARY KEY, organization_id integer NOT NULL, employee_id integer NOT NULL, legal_entity_id integer NOT NULL, effective_from date NOT NULL, effective_until date,created_at timestamptz NOT NULL DEFAULT now())");
     await client.query("INSERT INTO public.employees VALUES (1,10),(2,20)");
     await client.query("INSERT INTO public.legal_entities VALUES (100,10),(101,10),(200,20)");
     const sql = readFileSync(new URL("../docs/engineering/migration-proposals/employee-entity-interval-guard.sql", import.meta.url), "utf8");
@@ -39,6 +39,7 @@ test("PG16/18: unnumbered entity-interval proposal rejects tenant mismatch and o
       ["UPDATE public.employee_entity_assignments SET employee_id=2,organization_id=20 WHERE id=1", /IDENTITY_IMMUTABLE/],
       ["UPDATE public.employee_entity_assignments SET legal_entity_id=101 WHERE id=1", /IDENTITY_IMMUTABLE/],
       ["UPDATE public.employee_entity_assignments SET effective_from='2025-12-31' WHERE id=1", /IDENTITY_IMMUTABLE/],
+      ["UPDATE public.employee_entity_assignments SET created_at=created_at + interval '1 second' WHERE id=1", /IDENTITY_IMMUTABLE/],
       ["UPDATE public.employee_entity_assignments SET effective_until='2026-01-30' WHERE id=1", /CLOSED_INTERVAL_IMMUTABLE/],
       ["DELETE FROM public.employee_entity_assignments WHERE id=1", /HISTORY_IMMUTABLE/],
     ]) {
@@ -99,7 +100,7 @@ test("PG16/18: two writers lock the same employee and reject overlapping interva
     created = true;
     await setup.query("CREATE TABLE " + quotedSchema + ".employees(id integer PRIMARY KEY,organization_id integer NOT NULL)");
     await setup.query("CREATE TABLE " + quotedSchema + ".legal_entities(id integer PRIMARY KEY,organization_id integer NOT NULL)");
-    await setup.query("CREATE TABLE " + quotedSchema + ".employee_entity_assignments(id serial PRIMARY KEY,organization_id integer NOT NULL,employee_id integer NOT NULL,legal_entity_id integer NOT NULL,effective_from date NOT NULL,effective_until date)");
+    await setup.query("CREATE TABLE " + quotedSchema + ".employee_entity_assignments(id serial PRIMARY KEY,organization_id integer NOT NULL,employee_id integer NOT NULL,legal_entity_id integer NOT NULL,effective_from date NOT NULL,effective_until date,created_at timestamptz NOT NULL DEFAULT now())");
     await setup.query("INSERT INTO " + quotedSchema + ".employees VALUES(1,10)");
     await setup.query("INSERT INTO " + quotedSchema + ".legal_entities VALUES(100,10),(101,10)");
     const ddl = readFileSync(new URL("../docs/engineering/migration-proposals/employee-entity-interval-guard.sql", import.meta.url), "utf8");
