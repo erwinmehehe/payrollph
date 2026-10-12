@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import test from "node:test";
 import { canActOnEntityTransfer, decideEntityAccess, entityResourceAllowed, entityConfirmationMatches, validateLegalEmployerSettingsPatch, VERSIONED_EMPLOYER_FIELDS } from "../src/lib/multi-entity-policy";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
+import { sumPayrollAmounts } from "../src/lib/multi-entity-money";
 import { EntityBadge, EntitySwitcher, EntityFilter } from "../src/components/workspace/multi-entity-ui";
 
 const entities = [
@@ -113,6 +114,16 @@ test("legal employer confirmation fails closed for missing, different or partial
     assert.equal(entityConfirmationMatches("Alpha Manufacturing Inc.", value), false);
   }
   assert.equal(entityConfirmationMatches("Alpha Manufacturing Inc.", "Alpha Manufacturing Inc."), true);
+});
+
+test("group payroll cost totals use exact centavos, including negatives and large sums", () => {
+  assert.equal(sumPayrollAmounts(["0", "0.00", "100.01", "-0.01"]), "100.00");
+  assert.equal(sumPayrollAmounts(["9007199254740992.01", "0.02"]), "9007199254740992.03");
+  assert.equal(sumPayrollAmounts(["0.00400"]), "0.00");
+  assert.equal(sumPayrollAmounts(["-0.01", "-0.02"]), "-0.03");
+  for (const invalid of ["", "1e4", "Infinity", "NaN", "1.005", "1,000.00"]) {
+    assert.throws(() => sumPayrollAmounts([invalid]), /not a valid decimal|sub-centavo/);
+  }
 });
 
 test("flag-off entity widgets preserve empty legacy markup, including no switcher", () => {
