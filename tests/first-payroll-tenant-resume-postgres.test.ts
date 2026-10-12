@@ -36,7 +36,7 @@ test("disposable PG16: owner -> HR -> payroll resume, ready preview, zero payrol
     await db.insert(userOrganizations).values(people.map(person => ({
       userId: person.id, organizationId: tenant.id, role: person.role, active: true,
     })));
-    const [owner, hr, payroll, , finance] = people;
+    const [owner, hr, payroll, checker, finance] = people;
     const employer = await ensurePrimaryLegalEntity(tenant.id, owner.id);
     assert.ok(employer?.id);
     assert.equal(employer?.payrollCalendarMode, "ph_semi_monthly");
@@ -59,6 +59,15 @@ test("disposable PG16: owner -> HR -> payroll resume, ready preview, zero payrol
     assert.equal(payrollResume?.completedSteps.company.byUserId, owner.id);
     assert.equal(payrollResume?.completedSteps.time.byUserId, hr.id);
     assert.equal(payrollResume?.completedSteps.time.periodEnd, "2026-10-15");
+    await assert.rejects(saveJourneyProgress({
+      organizationId:tenant.id, userId:checker.id,userName:checker.name,role:"checker",
+      key:"payroll",action:"handoff",targetRole:"bookkeeper",
+    }),/responsible role|administrator/);
+    await saveJourneyProgress({
+      organizationId:tenant.id, userId:payroll.id,userName:payroll.name,role:"payroll",
+      key:"payroll",action:"handoff",targetRole:"bookkeeper",
+    });
+    assert.equal((await readJourneyProgress(tenant.id))?.stepOwners.payroll,"bookkeeper");
     const financeResume = await readJourneyProgress(tenant.id);
     assert.equal(financeResume?.completedSteps.time.byUserId, hr.id);
     assert.equal(finance?.role, "bookkeeper");

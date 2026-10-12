@@ -1,7 +1,7 @@
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, getAccess } from "@/lib/access";
 import { enforceSameOriginMutation } from "@/lib/security-request";
-import { isJourneyKey, readJourneyProgress, saveJourneyProgress } from "@/lib/first-payroll-progress";
+import { canReadFirstPayrollProgress, isJourneyKey, readJourneyProgress, saveJourneyProgress } from "@/lib/first-payroll-progress";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const user = await getSessionUser();
@@ -12,7 +12,8 @@ export async function GET(request: Request) {
   const denied = await assertMembership(user.id, organizationId);
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
-  if (!access?.companyWide) return Response.json({error:"Company-wide access required"},{status:403});
+  if (!access?.companyWide || !canReadFirstPayrollProgress(access.role))
+    return Response.json({error:"Journey progress requires an authorized company-wide role"},{status:403});
   return Response.json({progress:await readJourneyProgress(organizationId)});
 }
 export async function PATCH(request: Request) {
@@ -27,7 +28,8 @@ export async function PATCH(request: Request) {
   const denied = await assertMembership(user.id, organizationId);
   if (denied) return denied;
   const access = await getAccess(user.id, organizationId);
-  if (!access?.companyWide) return Response.json({error:"Company-wide access required"},{status:403});
+  if (!access?.companyWide || !canReadFirstPayrollProgress(access.role))
+    return Response.json({error:"Journey progress requires an authorized company-wide role"},{status:403});
   if (!["handoff","time_review","company_confirm"].includes(body.action))
     return Response.json({error:"Unknown journey action"},{status:422});
   try {

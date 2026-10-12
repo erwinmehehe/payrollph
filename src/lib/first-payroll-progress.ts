@@ -6,6 +6,10 @@ import { parseMigrationDate } from "./migration-date";
 import { FIRST_PAYROLL_STEPS, type FirstPayrollKey } from "./first-payroll-journey";
 
 export type JourneyOwner = "owner" | "hr" | "payroll" | "checker" | "bookkeeper";
+export function canReadFirstPayrollProgress(role:string):boolean {
+ const roles=new Set<string>(["admin",...FIRST_PAYROLL_STEPS.flatMap(step=>step.allowedOwners)]);
+ return roles.has(role);
+}
 export function isJourneyKey(value: unknown): value is FirstPayrollKey {
   return typeof value === "string" && FIRST_PAYROLL_STEPS.some(step=>step.key===value);
 }
@@ -39,7 +43,8 @@ export type JourneyUpdate={
 export async function saveJourneyProgress(input:JourneyUpdate) {
  const {organizationId,userId,role,key,action}=input;
  const access=await getAccess(userId,organizationId);
- if(!access?.companyWide||access.role!==role)throw Error("Company-wide authorized membership required.");
+ if(!access?.companyWide||access.role!==role||!canReadFirstPayrollProgress(role))
+  throw Error("Company-wide authorized membership required.");
  if(action==="time_review"&&
    (key!=="time"||role!=="hr"||input.acknowledged!==true||
     !parseMigrationDate(input.periodStart)||!parseMigrationDate(input.periodEnd)||
@@ -59,7 +64,12 @@ export async function saveJourneyProgress(input:JourneyUpdate) {
      if(!employers.some(e=>e.primaryEntity&&e.active))
        throw Error("An active primary legal employer is required.");
    }
+   const [previous]=await tx.select().from(firstPayrollJourneyProgress)
+     .where(and(eq(firstPayrollJourneyProgress.organizationId,organizationId),eq(firstPayrollJourneyProgress.step,key))).limit(1);
    if (action === "handoff") {
+     const currentOwner=previous?.ownerRole??FIRST_PAYROLL_STEPS.find(s=>s.key===key)!.owner;
+     if (!["owner","admin"].includes(role) && currentOwner!==role)
+       throw Error("Only the responsible role or an employer administrator may hand off this step.");
      const [recipient] = await tx.select({ userId: userOrganizations.userId })
        .from(userOrganizations).where(and(
          eq(userOrganizations.organizationId, organizationId),
@@ -68,8 +78,6 @@ export async function saveJourneyProgress(input:JourneyUpdate) {
        )).limit(1);
      if (!recipient) throw Error("Invite and activate a member with this role before handing off the step.");
    }
-   const [previous]=await tx.select().from(firstPayrollJourneyProgress)
-     .where(and(eq(firstPayrollJourneyProgress.organizationId,organizationId),eq(firstPayrollJourneyProgress.step,key))).limit(1);
    const definition=FIRST_PAYROLL_STEPS.find(s=>s.key===key)!;
    const ownerRole=action==="handoff" ? input.targetRole! : (previous?.ownerRole??definition.owner);
    const now=new Date();
