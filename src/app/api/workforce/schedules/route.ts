@@ -19,8 +19,12 @@ import {
   assertScope,
   getAccess,
   PEOPLE_ADMIN_ROLES,
+  WORKFORCE_MANAGER_ROLES,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { rosterRuleOverrideAuditMetadata } from "@/lib/audit-chain";
+import { checkWfmRosterPublish, wfmRosterScaleRulesEnabled } from "@/lib/workforce-roster-rules-server";
+import { decideRosterRulePublish, type WfmRosterFinding } from "@/lib/workforce-roster-rules";
 import { getSessionUser } from "@/lib/auth";
 import {
   enforceSameOriginMutation,
@@ -366,8 +370,8 @@ export async function POST(request: Request) {
   const denied = await assertOrganizationRole(
     user.id,
     organizationId,
-    PEOPLE_ADMIN_ROLES,
-    "Only People administrators can manage workforce schedules.",
+    action === "create_override" && wfmRosterScaleRulesEnabled() ? WORKFORCE_MANAGER_ROLES : PEOPLE_ADMIN_ROLES,
+    "Only authorized People or workforce managers can change schedules.",
   );
   if (denied) return denied;
 
@@ -675,6 +679,8 @@ export async function POST(request: Request) {
 
     const guardrailPolicy = await scheduleGuardrailPolicy(organizationId);
     let guardrailIssues;
+    let prospectiveRuleDays: Awaited<ReturnType<typeof resolveEmployeeScheduleWindow>> = [];
+    let preflightRuleFindings: WfmRosterFinding[] = [];
     try {
       const prospectiveDays = await resolveEmployeeScheduleWindow({
         organizationId,
@@ -695,16 +701,41 @@ export async function POST(request: Request) {
         days: prospectiveDays,
         policy: guardrailPolicy,
       });
+      prospectiveRuleDays = prospectiveDays;
     } catch (error) {
       return Response.json({
         error: error instanceof Error ? error.message : "Could not validate the prospective schedule.",
       }, { status: 409 });
     }
 
+    if (wfmRosterScaleRulesEnabled()) {
+      try {
+        const baselineDays = await resolveEmployeeScheduleWindow({organizationId,employeeId,startDate:addDays(effectiveFrom,-7),endDate:addDays(effectiveFrom,13)});
+        const check = await checkWfmRosterPublish({
+          organizationId, employeeId, days: prospectiveRuleDays,
+          baselineRestDates: baselineDays.filter(day=>day.isRestDay).map(day=>day.date),
+          targetDates: prospectiveRuleDays.filter(d => d.date >= effectiveFrom && (!effectiveUntil || d.date <= effectiveUntil)).map(d => d.date),
+        });
+        preflightRuleFindings = check.findings;
+        const decision = decideRosterRulePublish({
+          findings: check.findings, overrideReason: String(body.ruleOverrideReason ?? ""),
+          managerMayOverride: ["owner", "admin", "hr", "manager"].includes(access.role),
+        });
+        if (decision.blocked) return Response.json({
+          error: "Roster publish blocked by workforce rules; review blockers or request an authorized, reasoned policy exception.",
+          code: "WFM_ROSTER_RULES_BLOCKED", ruleFindings: check.findings,
+          policy: check.policy,
+        }, { status: 409 });
+      } catch {
+        return Response.json({ error: "Roster rule evidence could not be verified. No schedule was published." }, { status: 409 });
+      }
+    }
+
     if (scheduleGuardrailBlocksMutation(guardrailIssues)) {
       return Response.json({
         error: "WFM schedule guardrails blocked this roster assignment.",
         guardrailIssues,
+        ruleFindings: preflightRuleFindings,
       }, { status: 409 });
     }
 
@@ -738,6 +769,25 @@ export async function POST(request: Request) {
         if (scheduleGuardrailBlocksMutation(lockedIssues)) {
           throw new Error("Concurrent roster changes now breach workforce assignment guardrails.");
         }
+        // Re-evaluate under the same employer advisory lock as the write.
+        // Manager exceptions waive only configured scheduling policies, never
+        // overlap, approved OT caps or payroll premiums.
+        const originalLockedDays = wfmRosterScaleRulesEnabled()
+          ? await resolveEmployeeScheduleWindow({organizationId,employeeId,startDate:addDays(effectiveFrom,-7),endDate:addDays(effectiveFrom,13),executor:tx}) : [];
+        const lockedRuleResult = wfmRosterScaleRulesEnabled()
+          ? await checkWfmRosterPublish({
+              organizationId, employeeId, days: lockedWindow,
+              targetDates: lockedWindow.filter(d => d.date >= effectiveFrom && (!effectiveUntil || d.date <= effectiveUntil)).map(d => d.date),
+              executor: tx,
+              baselineRestDates: originalLockedDays.filter(day=>day.isRestDay).map(day=>day.date),
+            })
+          : null;
+        const lockedRuleDecision = decideRosterRulePublish({
+          findings: lockedRuleResult?.findings ?? [],
+          overrideReason: String(body.ruleOverrideReason ?? ""),
+          managerMayOverride: ["owner", "admin", "hr", "manager"].includes(access.role),
+        });
+        if (lockedRuleDecision.blocked) throw Error("Prospective roster rule blocker changed before commit.");
         const [created] = await tx.insert(employeeScheduleAssignments).values({
           organizationId, employeeId, patternId, effectiveFrom, effectiveUntil,
           anchorDate, workLocationOrgUnitId, worksiteId, reason, createdBy: user.name,
@@ -755,15 +805,24 @@ export async function POST(request: Request) {
             assignmentId: created.id, employeeId, patternId, effectiveFrom,
             effectiveUntil, anchorDate, workLocationOrgUnitId, worksiteId,
             staleTimesheetIds: staleTimesheets.map((row) => row.id),
+            rosterRuleFindings: lockedRuleResult?.findings ?? [],
+            ...(lockedRuleDecision.overriddenCodes.length ? { rosterRuleOverride:
+              rosterRuleOverrideAuditMetadata({
+                managerUserId: user.id, reason: lockedRuleDecision.reason!,
+                overriddenCodes: lockedRuleDecision.overriddenCodes,
+              }) } : {}),
+
           },
         });
-        return { created, staleTimesheets, lockedIssues, lockedPolicy };
+        return { created, staleTimesheets, lockedIssues, lockedPolicy, lockedRuleResult, lockedRuleDecision };
       }, { isolationLevel: "read committed" });
 
       return Response.json({
         assignment: result.created,
         guardrailIssues: result.lockedIssues,
         guardrailPolicy: result.lockedPolicy,
+        ruleFindings: result.lockedRuleResult?.findings ?? [],
+        ruleOverride: result.lockedRuleDecision.overriddenCodes.length ? { codes: result.lockedRuleDecision.overriddenCodes, reason: result.lockedRuleDecision.reason } : null,
         staleTimesheetIds: result.staleTimesheets.map((row) => row.id),
       }, { status: 201 });
     } catch {
@@ -869,6 +928,8 @@ export async function POST(request: Request) {
 
     const guardrailPolicy = await scheduleGuardrailPolicy(organizationId);
     let guardrailIssues;
+    let prospectiveRuleDays: Awaited<ReturnType<typeof resolveEmployeeScheduleWindow>> = [];
+    let preflightRuleFindings: WfmRosterFinding[] = [];
     try {
       const prospectiveDays = await resolveEmployeeScheduleWindow({
         organizationId,
@@ -891,16 +952,41 @@ export async function POST(request: Request) {
         days: prospectiveDays,
         policy: guardrailPolicy,
       });
+      prospectiveRuleDays = prospectiveDays;
     } catch (error) {
       return Response.json({
         error: error instanceof Error ? error.message : "Could not validate the prospective override.",
       }, { status: 409 });
     }
 
+    if (wfmRosterScaleRulesEnabled()) {
+      try {
+        const baselineDays = await resolveEmployeeScheduleWindow({organizationId,employeeId,startDate:addDays(workDate,-7),endDate:addDays(workDate,7)});
+        const check = await checkWfmRosterPublish({
+          organizationId, employeeId, days: prospectiveRuleDays,
+          baselineRestDates: baselineDays.filter(day=>day.isRestDay).map(day=>day.date),
+          targetDates: [workDate],
+        });
+        preflightRuleFindings = check.findings;
+        const decision = decideRosterRulePublish({
+          findings: check.findings, overrideReason: String(body.ruleOverrideReason ?? ""),
+          managerMayOverride: ["owner", "admin", "hr", "manager"].includes(access.role),
+        });
+        if (decision.blocked) return Response.json({
+          error: "Roster publish blocked by workforce rules; review blockers or request an authorized, reasoned policy exception.",
+          code: "WFM_ROSTER_RULES_BLOCKED", ruleFindings: check.findings,
+          policy: check.policy,
+        }, { status: 409 });
+      } catch {
+        return Response.json({ error: "Roster rule evidence could not be verified. No schedule was published." }, { status: 409 });
+      }
+    }
+
     if (scheduleGuardrailBlocksMutation(guardrailIssues)) {
       return Response.json({
         error: "WFM schedule guardrails blocked this roster override.",
         guardrailIssues,
+        ruleFindings: preflightRuleFindings,
       }, { status: 409 });
     }
 
@@ -933,6 +1019,25 @@ export async function POST(request: Request) {
         if (scheduleGuardrailBlocksMutation(lockedIssues)) {
           throw new Error("Concurrent roster changes now breach override guardrails.");
         }
+        // Re-evaluate under the same employer advisory lock as the write.
+        // Manager exceptions waive only configured scheduling policies, never
+        // overlap, approved OT caps or payroll premiums.
+        const originalLockedDays = wfmRosterScaleRulesEnabled()
+          ? await resolveEmployeeScheduleWindow({organizationId,employeeId,startDate:addDays(workDate,-7),endDate:addDays(workDate,7),executor:tx}) : [];
+        const lockedRuleResult = wfmRosterScaleRulesEnabled()
+          ? await checkWfmRosterPublish({
+              organizationId, employeeId, days: lockedWindow,
+              targetDates: [workDate],
+              executor: tx,
+              baselineRestDates: originalLockedDays.filter(day=>day.isRestDay).map(day=>day.date),
+            })
+          : null;
+        const lockedRuleDecision = decideRosterRulePublish({
+          findings: lockedRuleResult?.findings ?? [],
+          overrideReason: String(body.ruleOverrideReason ?? ""),
+          managerMayOverride: ["owner", "admin", "hr", "manager"].includes(access.role),
+        });
+        if (lockedRuleDecision.blocked) throw Error("Prospective roster rule blocker changed before commit.");
         const [created] = await tx.insert(scheduleOverrides).values({
           organizationId, employeeId, workDate, kind, isRestDay, segments,
           workLocationOrgUnitId, worksiteId, reason,
@@ -950,14 +1055,23 @@ export async function POST(request: Request) {
             overrideId: created.id, employeeId, workDate, kind, isRestDay,
             shiftSegments: segments, workLocationOrgUnitId, worksiteId, reason,
             staleTimesheetIds: staleTimesheets.map((row) => row.id),
+            rosterRuleFindings: lockedRuleResult?.findings ?? [],
+            ...(lockedRuleDecision.overriddenCodes.length ? { rosterRuleOverride:
+              rosterRuleOverrideAuditMetadata({
+                managerUserId: user.id, reason: lockedRuleDecision.reason!,
+                overriddenCodes: lockedRuleDecision.overriddenCodes,
+              }) } : {}),
+
           },
         });
-        return { created, staleTimesheets, lockedIssues, lockedPolicy };
+        return { created, staleTimesheets, lockedIssues, lockedPolicy, lockedRuleResult, lockedRuleDecision };
       }, { isolationLevel: "read committed" });
       return Response.json({
         override: result.created,
         guardrailIssues: result.lockedIssues,
         guardrailPolicy: result.lockedPolicy,
+        ruleFindings: result.lockedRuleResult?.findings ?? [],
+        ruleOverride: result.lockedRuleDecision.overriddenCodes.length ? { codes: result.lockedRuleDecision.overriddenCodes, reason: result.lockedRuleDecision.reason } : null,
         staleTimesheetIds: result.staleTimesheets.map((row) => row.id),
       }, { status: 201 });
     } catch {

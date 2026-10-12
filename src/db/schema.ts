@@ -32,7 +32,6 @@ export const organizations = pgTable("organizations", {
   pagIbigEmployerNo: varchar("pagibig_employer_no", { length: 24 }),
   statutoryDeductionTiming: varchar("statutory_deduction_timing", { length: 24 }).notNull().default("split"),
   payrollCalendarMode: varchar("payroll_calendar_mode", { length: 24 }).notNull().default("flexible"),
-  // Existing organizations retain all modules after the 0115 backfill.
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -5929,6 +5928,7 @@ export const engagementSurveyParticipants = pgTable(
   ],
 );
 
+
 /** Matches the canonical source-only 0117 migration from PR #865 exactly. */
 export const firstPayrollJourneyProgress = pgTable("first_payroll_journey_progress", {
   organizationId: integer("organization_id").notNull().references(() => organizations.id,{onDelete:"cascade"}),
@@ -5941,4 +5941,32 @@ export const firstPayrollJourneyProgress = pgTable("first_payroll_journey_progre
   updatedAt: timestamp("updated_at",{withTimezone:true}).notNull().defaultNow(),
 }, table => [
   uniqueIndex("first_payroll_journey_tenant_step").on(table.organizationId,table.step),
+]);
+
+/**
+ * Opt-in, tenant-owned scheduling policy for WFM roster publish warnings and
+ * blockers. No changes to payroll-engine math or prior guardrail semantics.
+ */
+export const workforceRosterRulePolicies = pgTable("workforce_roster_rule_policies", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().unique().references(() => organizations.id, { onDelete: "cascade" }),
+  active: boolean("active").notNull().default(true),
+  maxDailyMinutes: integer("max_daily_minutes").notNull().default(720),
+  maxRollingSevenDayMinutes: integer("max_rolling_seven_day_minutes").notNull().default(2880),
+  minRestBetweenShiftsMinutes: integer("min_rest_between_shifts_minutes").notNull().default(660),
+  ordinaryDailyMinutes: integer("ordinary_daily_minutes").notNull().default(480),
+  approvedOvertimeCapMinutes: integer("approved_overtime_cap_minutes").notNull().default(0),
+  enforcementMode: varchar("enforcement_mode", { length: 16 }).notNull().default("block"),
+  updatedByUserId: integer("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("wfm_roster_rules_org_idx").on(table.organizationId),
+  check("wfm_roster_rules_limits_check", sql`(
+    ${table.maxDailyMinutes} between 480 and 1440
+    and ${table.maxRollingSevenDayMinutes} between 480 and 10080
+    and ${table.minRestBetweenShiftsMinutes} between 0 and 1440
+    and ${table.ordinaryDailyMinutes} between 480 and 720
+    and ${table.approvedOvertimeCapMinutes} between 0 and 10080
+    and ${table.enforcementMode} in ('block', 'advisory')
+  )`),
 ]);
