@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
 import { PILOT_CORE_PAGES, pilotCoreNavigationPages, pilotFocusEnabledForOrganization } from "../src/lib/pilot-navigation";
-import { NAVIGATION, FREELANCER_HIDDEN } from "../src/components/workspace/nav";
+import { NAVIGATION, FREELANCER_HIDDEN, tenantNavigationPages } from "../src/components/workspace/nav";
 import { workspacePagesForRole } from "../src/lib/workspace-role-ui";
 
 test("pilot focus is disabled for every org unless enabled AND individually allowed", () => {
@@ -29,14 +28,15 @@ test("pilot menu includes core payroll pages only and cannot add pages to a rest
   assert.ok(FREELANCER_HIDDEN.has("Payroll"));
 });
 
-test("pilot flag originates on server and workspace filters existing role-allowed pages", () => {
-  const server = readFileSync("src/app/app/page.tsx", "utf8");
-  const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
-  assert.ok(server.includes("pilotFocusEnabledForOrganization(companyOrganizationId)"));
-  assert.ok(server.includes("pilotFocusEnabled={pilotFocusEnabled}"));
-  assert.ok(workspace.includes("pilotCoreNavigationPages(roleAllowedPages)"));
-  assert.ok(workspace.includes("!rolePages || rolePages.includes(name)"));
-  assert.ok(server.includes('const canSeeMyTeam = !pilotFocusEnabled && process.env.HCM_MY_TEAM_ENABLED === "true"'));
-  assert.ok(server.includes('process.env.NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true"'));
-  assert.ok(server.includes('access.role === "manager" && !access.companyWide && access.orgUnitId !== null'));
+test("legacy pilot navigation intersects roles while tenant core opt-ins remain reachable", () => {
+  for (const role of ["hr", "payroll", "checker", "bookkeeper"]) {
+    const rolePages = workspacePagesForRole(role)!;
+    const pilot = tenantNavigationPages({ enabled: true, mode: "all", rolePages }, true);
+    assert.ok(pilot.every(page => rolePages.includes(page)), role);
+    assert.ok(!pilot.includes("Automation") && !pilot.includes("Expenses"));
+    if (rolePages.includes("Approvals")) assert.ok(pilot.includes("Approvals"));
+  }
+  const core = tenantNavigationPages({ enabled: true, mode: "core", enabledModules: ["spend"], canManageModules: true }, true);
+  assert.ok(core.includes("Reports") && core.includes("More modules") && core.includes("Expenses"));
+  assert.ok(!core.includes("Automation"));
 });

@@ -6,6 +6,10 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  coreModuleNavigation: {
+    env: "CORE_MODULE_NAVIGATION_ENABLED", owner: "Product",
+    risk: "P2 tenant module disclosure", approval: "New and existing tenant navigation snapshots",
+  },
   centralScheduler: {
     env: "CENTRAL_SCHEDULER_ENABLED",
     owner: "Operations",
