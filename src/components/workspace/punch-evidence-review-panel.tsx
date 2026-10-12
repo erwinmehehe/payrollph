@@ -46,8 +46,13 @@ function PunchEvidenceReviewView({organizationId}:{organizationId:number}){
   },[load]);
   useEffect(()=>{
     const controller=new AbortController();
-    void refresh(controller.signal);
-    return ()=>{controller.abort();requestGeneration.current++;};
+    // Load after the effect commits; avoid synchronous cascading React state
+    // changes when the review panel mounts or the employer changes.
+    const handle=window.setTimeout(()=>{void refresh(controller.signal);},0);
+    return ()=>{
+      window.clearTimeout(handle);
+      controller.abort();requestGeneration.current++;
+    };
   },[refresh]);
 
   async function decide(row:ReviewRow,decision:"approved"|"rejected"){
