@@ -74,11 +74,38 @@ saved_size="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
   --key "$object_key" --query ContentLength --output text)"
 saved_sha="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
   --key "$object_key" --query 'Metadata."encrypted-sha256"' --output text)"
+# Verify the actual immutable stored version, not only the requested PUT options.
+# A key can have several immutable versions; the restore must pin VersionId.
+saved_version="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
+  --key "$object_key" --query VersionId --output text)"
+saved_lock="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
+  --key "$object_key" --query ObjectLockMode --output text)"
+saved_retention="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
+  --key "$object_key" --query ObjectLockRetainUntilDate --output text)"
+saved_encryption="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
+  --key "$object_key" --query ServerSideEncryption --output text)"
+saved_kms="$(aws s3api head-object --bucket "$BACKUP_S3_BUCKET" \
+  --key "$object_key" --query SSEKMSKeyId --output text)"
+if [[ -z "$saved_version" || "$saved_version" == None || "$saved_version" == null ||
+      "$saved_lock" != COMPLIANCE || "$saved_encryption" != aws:kms ||
+      "$saved_kms" != "$BACKUP_KMS_KEY_ARN" ||
+      "$saved_retention" == None || "$saved_retention" == null ]]; then
+  echo "BACKUP_STORED_OBJECT_CONTROLS_NOT_VERIFIED" >&2
+  exit 1
+fi
+stored_until="$(date -u -d "$saved_retention" +%s)" ||
+  { echo "BACKUP_RETAIN_UNTIL_INVALID" >&2; exit 1; }
+requested_until="$(date -u -d "$retention_until" +%s)"
+if (( stored_until < requested_until )); then
+  echo "BACKUP_RETENTION_SHORTER_THAN_REQUESTED" >&2
+  exit 1
+fi
+
 if [[ "$saved_size" != "$encrypted_size" || "$saved_sha" != "$encrypted_sha" ]]; then
   echo "BACKUP_UPLOADED_OBJECT_VERIFICATION_FAILED" >&2
   exit 1
 fi
 
 # Metadata-only receipt; no database contents, decrypted artifacts or keys.
-printf '{"kind":"p0-4-encrypted-offsite-backup","status":"encrypted-archived-not-restored","sourceCommit":"%s","objectKey":"%s","encryptedBytes":%s,"encryptedSha256":"%s","objectLockUntil":"%s","productionRestorePerformed":false,"recoveryCertified":false}\n' \
-  "$GITHUB_SHA" "$object_key" "$encrypted_size" "$encrypted_sha" "$retention_until"
+printf '{"kind":"p0-4-encrypted-offsite-backup","status":"encrypted-archived-not-restored","sourceCommit":"%s","objectKey":"%s","encryptedBytes":%s,"encryptedSha256":"%s","objectLockUntil":"%s","s3VersionId":"%s","productionRestorePerformed":false,"recoveryCertified":false}\n' \
+  "$GITHUB_SHA" "$object_key" "$encrypted_size" "$encrypted_sha" "$retention_until" "$saved_version"
