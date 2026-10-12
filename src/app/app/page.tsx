@@ -15,6 +15,8 @@ import { assertOrganizationSessionPolicy } from "@/lib/organization-auth-policy"
 import { pilotFocusEnabledForOrganization } from "@/lib/pilot-navigation";
 import { deriveMyTeamScope } from "@/lib/hcm-my-team-contract";
 import { hirePayrollReviewEnabledForEmployer } from "@/lib/hcm-hire-payroll-review";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -94,6 +96,9 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
     hirePayrollReviewEnabledForEmployer(companyOrganizationId) &&
     !!access?.companyWide && ["owner", "admin", "hr"].includes(access.role) &&
     (await assertOrganizationRole(user.id, companyOrganizationId, PEOPLE_ADMIN_ROLES)) === null;
+  const canSeeHrCases = criticalReleaseFlagEnabled("employeeHrCases") &&
+    !!access && ["owner", "admin", "hr", "payroll"].includes(access.role) &&
+    !(await assertOrganizationRole(user.id, companyOrganizationId, PEOPLE_PAYROLL_ROLES));
   const canSeeMyTeam = !pilotFocusEnabled && process.env.HCM_MY_TEAM_ENABLED === "true" &&
     process.env.NEXT_PUBLIC_HCM_MY_TEAM_ENABLED === "true" &&
     !!access && (
@@ -102,6 +107,12 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
     );
   return <>
     <div className="mx-auto flex max-w-7xl flex-wrap justify-end gap-3 px-5 pt-3">
+      {canSeeHrCases && (
+        <Link href={"/hcm/hr-cases?organizationId=" + data.selectedOrganization.id}
+          className="rounded-lg border border-emerald-700 px-4 py-2 text-sm font-semibold text-emerald-800 hover:bg-emerald-50">
+          HR Requests
+        </Link>
+      )}
       {canSeeMyTeam && (
         <Link
           href={"/hcm/my-team?organizationId=" + data.selectedOrganization.id}
