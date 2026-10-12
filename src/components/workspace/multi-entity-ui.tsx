@@ -217,13 +217,14 @@ type TransferRow = {
 };
 type Destination = { id: number; legalName: string; displayName: string };
 export function EntityTransferDialog({
-  employee, context, organizationId, onClose, onRefresh,
+  employee, context, organizationId, onClose, onRefresh, initialTargetId,
 }: {
   employee: Employee; context: EntityWorkspace; organizationId: number;
+  initialTargetId?: number | null;
   onClose: () => void; onRefresh: () => Promise<void>;
 }) {
   const [options, setOptions] = useState<Destination[]>([]);
-  const [target, setTarget] = useState("");
+  const [target, setTarget] = useState(initialTargetId ? String(initialTargetId) : "");
   const [effectiveDate, setEffectiveDate] = useState("");
   const [reason, setReason] = useState("");
   const [status, setStatus] = useState<"loading" | "ready" | "saving" | "error">("loading");
