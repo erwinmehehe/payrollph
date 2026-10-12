@@ -160,5 +160,12 @@ WHERE e.legal_entity_id IS NOT NULL
       AND h.from_legal_entity_id IS DISTINCT FROM h.to_legal_entity_id
       AND h.from_legal_entity_id IS NOT NULL
   )
+  AND NOT EXISTS (
+    SELECT 1 FROM payroll_entries pe
+    JOIN payroll_runs pr ON pr.id=pe.payroll_run_id
+    WHERE pe.employee_id=e.id
+      AND pr.organization_id=e.organization_id
+      AND (pr.legal_entity_id IS NULL OR pr.legal_entity_id IS DISTINCT FROM e.legal_entity_id)
+  )
 ON CONFLICT DO NOTHING;
 COMMIT;
