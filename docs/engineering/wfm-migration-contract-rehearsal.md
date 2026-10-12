@@ -23,3 +23,9 @@ requires independent DBA, HR, DPO, and security acceptance.
 **Live Neon rehearsal at the time of writing:** the temporary
 \`payrollph-pr865-rehearsal-20261012\` branch previously rehearsed the *older source file* named 0115_inline_first_payroll_journey.sql (now proposed 0117) and did not rehearse the new 0115/0116 payout foundations. This is NOT proof the new numbered train ran on Neon. Direct 0116 execution was blocked by tool safety checks.
 Do not try to bypass the block by repointing this CI workflow at Neon.
+
+## PostgreSQL 18 version-parity validation
+
+The source rehearsal now runs in a GitHub Actions PostgreSQL **16 and 18** matrix. The runner checks that its declared `WFM_REHEARSAL_PG_MAJOR` matches the disposable server's actual major version, verifies the exact SQL constraints and idempotent replay on both versions, and rolls back the whole transaction. The consolidated payout/first-payroll/WFM/multi-entity train also runs on 16 and 18 with synthetic fixtures. CI credentials may only target `127.0.0.1:5432/app_db`, not Neon.
+
+PG18 green is a **syntax/transactional compatibility** check, not evidence that the SQL was actually applied to an isolated Neon branch containing employer data. Neon branch capacity and migration preparation permissions must be addressed separately; do not reassign production endpoints or promote migration without independent DBA acceptance.

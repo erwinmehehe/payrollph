@@ -41,8 +41,12 @@ permissions:
 
 jobs:
   synthetic-train:
-    name: Synthetic dependency train and SQL constraint checks
+    name: Synthetic dependency train and SQL constraint checks (PG${{ matrix.postgres }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
     timeout-minutes: 15
     env:
       CI: "true"
@@ -50,7 +54,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
-        image: postgres:16
+        image: postgres:${{ matrix.postgres }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -85,8 +89,12 @@ jobs:
         run: node --test tests/consolidated-migration-dependency-postgres.test.mjs
 
   full-train-rollback:
-    name: Entire proposed 0115-0121 source train (disposable PG16 rollback)
+    name: Entire proposed 0115-0121 source train (disposable PG${{ matrix.postgres }} rollback)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["16", "18"]
     timeout-minutes: 15
     env:
       CI: "true"
@@ -95,7 +103,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     services:
       postgres:
-        image: postgres:16
+        image: postgres:${{ matrix.postgres }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

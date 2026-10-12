@@ -1,5 +1,5 @@
 /**
- * Rollback-only PostgreSQL 16 contract rehearsal for the canonical,
+ * Rollback-only PostgreSQL 16/18 contract rehearsal for the canonical,
  * unmerged 0117, 0118, 0120 migration files.
  *
  * CI-only guard ensures this CANNOT connect to Neon, staging or production.
@@ -212,9 +212,10 @@ async function main() {
       "SELECT current_database() AS db, current_user AS role, current_setting('server_version_num')::integer AS version",
     );
     const row = fingerprint.rows[0];
-    assert.ok(row?.db === "app_db" && row?.role === "postgres" &&
-      row?.version >= 160000 && row?.version < 170000,
-    "WFM_REHEARSAL_DISPOSABLE_PG16_IDENTITY_FAILED");
+    const pgMajor = Number(process.env.WFM_REHEARSAL_PG_MAJOR);
+    assert.ok([16, 18].includes(pgMajor) && row?.db === "app_db" && row?.role === "postgres" &&
+      row?.version >= pgMajor * 10000 && row?.version < (pgMajor + 1) * 10000,
+    "WFM_REHEARSAL_DISPOSABLE_POSTGRES_MAJOR_MISMATCH");
     const existing = await client.query(
       "SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p','m','f')) OR EXISTS (SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname NOT IN ('public','pg_catalog','information_schema') AND nspname NOT LIKE 'pg_%') AS occupied",
     );
@@ -287,6 +288,7 @@ async function main() {
     sourceDigest: digest.digest("hex"),
     ...checks,
     mode: "isolated-ci-only",
+    postgresMajor: Number(process.env.WFM_REHEARSAL_PG_MAJOR),
     syntheticRowsOnly: true,
     realEmployerDataAccessed: false,
     productionCloneRehearsed: false,
@@ -295,8 +297,8 @@ async function main() {
     databaseChangesCommitted: false,
   }, null, 2) + "\n");
   console.log(injected
-    ? "WFM migration injected-failure rollback verified on synthetic PostgreSQL 16."
-    : "WFM 0115+0116+0118 synthetic contract and rollback rehearsal verified.");
+    ? "WFM migration injected-failure rollback verified on disposable PostgreSQL."
+    : "WFM 0117+0118+0120 synthetic contract and rollback rehearsal verified.");
 }
 
 await main().catch(() => {

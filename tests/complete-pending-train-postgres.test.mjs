@@ -15,7 +15,7 @@ const names = [
   "0121_multi_entity_v2_scope_transfer.sql",
 ];
 
-// The branch can only exercise source DDL against a disposable local CI PG16.
+// The source DDL may only run against disposable CI PostgreSQL 16/18.
 function isolatedUrl() {
   return assertIsolatedMigrationTarget({
     ...process.env, MIGRATION_REHEARSAL_MODE: process.env.PENDING_TRAIN_REHEARSAL_MODE,
@@ -25,7 +25,7 @@ function isolatedUrl() {
 const payoutTables = "public.payout_batch_transfers, public.payout_transfers, " +
   "public.payout_batches, public.payout_profiles";
 
-test("PG16 synthetic: missing payout prerequisites block proposed 0119 atomically", {
+test("PG16/18 synthetic: missing payout prerequisites block proposed 0119 atomically", {
   skip: !REHEARSAL, timeout: 120000,
 }, async () => {
   const client = new pg.Client({ connectionString: isolatedUrl(), query_timeout: 90000 });
@@ -44,7 +44,7 @@ test("PG16 synthetic: missing payout prerequisites block proposed 0119 atomicall
   }
 });
 
-test("PG16 synthetic: proposed 0115-0121 source train is fully transactionally reversible", {
+test("PG16/18 synthetic: proposed 0115-0121 source train is fully transactionally reversible", {
   skip: !REHEARSAL, timeout: 120000,
 }, async () => {
   // No connection can be opened outside the disposable GitHub Actions DB.
