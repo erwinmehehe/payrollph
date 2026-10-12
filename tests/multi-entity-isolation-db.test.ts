@@ -7,6 +7,7 @@ import {
   employees, legalEntities, organizations, userLegalEntityGrants, userOrganizations, users,
 } from "../src/db/schema";
 import { resolveMultiEntityContext, assertEntityResource } from "../src/lib/multi-entity-server";
+import { employeeScopePredicate } from "../src/lib/multi-entity-personnel-scope";
 
 /** Real PostgreSQL and Drizzle: two tenants, two employers, group and scoped HR. */
 test("multi-entity service rejects cross-entity and cross-tenant reads and ID enumeration", async () => {
@@ -92,11 +93,23 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
     });
     assert.equal(noMembership.ok, false);
     // Queries for scoped roles must ALWAYS bind tenant and legal employer.
-    const inScope = await db.select({ id: employees.id }).from(employees).where(and(
-      eq(employees.organizationId, tenantA.id), eq(employees.legalEntityId, scoped.context.legalEntityId!),
-    ));
-    assert.deepEqual(inScope.map(row=>row.id), [worker1.id]);
-    assert.ok(!inScope.some(row => row.id===worker2.id || row.id===foreignWorker.id));
+    const inScope = await db.select({ id: employees.id }).from(employees)
+      .where(employeeScopePredicate({
+        organizationId: tenantA.id,
+        legalEntityId: scoped.context.legalEntityId!,
+        orgUnitId: null,
+      }));
+    assert.deepEqual(inScope.map(row => row.id), [worker1.id]);
+    assert.ok(!inScope.some(row => row.id === worker2.id || row.id === foreignWorker.id));
+    // The same predicate is used by the real workspace loader. Group HR may
+    // see both employers inside one tenant, NEVER the other tenant's rows.
+    const inGroup = await db.select({ id: employees.id }).from(employees)
+      .where(employeeScopePredicate({
+        organizationId: tenantA.id, legalEntityId: null, orgUnitId: null,
+      }));
+    assert.deepEqual(inGroup.map(row => row.id).sort((a,b) => a-b),
+      [worker1.id, worker2.id].sort((a,b) => a-b));
+    assert.ok(!inGroup.some(row => row.id === foreignWorker.id));
   } finally {
     await db.delete(organizations).where(inArray(organizations.id, [tenantA.id, tenantB.id]));
     if (members.length) await db.delete(users).where(inArray(users.id, members));
