@@ -131,7 +131,9 @@ export function CustomReportBuilder({ organizationId, active, report, onReport }
           <input type="checkbox" checked={!selectedFields.length || selectedFields.includes(column)}
             onChange={event => setSelectedFields(previous => {
               const all = previous.length ? previous : report!.columns;
-              return event.target.checked ? [...new Set([...all, column])] : all.filter(x=>x!==column);
+              if (event.target.checked) return [...new Set([...all, column])];
+              // At least one field is required; [] means untouched/all.
+              return all.length <= 1 ? all : all.filter(x=>x!==column);
             })}/>
           {column}
         </label>)}
