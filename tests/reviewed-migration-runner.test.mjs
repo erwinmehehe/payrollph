@@ -1,0 +1,222 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import test from "node:test";
+import { inventoryMigrationSources } from "../scripts/lib/migration-receipt-audit.mjs";
+import {
+  cutoverSourceManifest, evaluateReviewedMigration, loadReviewedSql,
+  runReviewedMigrationOnClient,
+} from "../scripts/lib/reviewed-migration-runner.mjs";
+
+function fixture() {
+  const directory = mkdtempSync(join(tmpdir(), "payrollph-forward-migration-"));
+  writeFileSync(join(directory, "0021_legacy_a.sql"), "CREATE TABLE historical_a(id int);\n");
+  writeFileSync(join(directory, "0021_legacy_b.sql"), "CREATE TABLE historical_b(id int);\n");
+  writeFileSync(join(directory, "0022_forward.sql"), "CREATE TABLE isolated_forward_fixture(id integer PRIMARY KEY);\n");
+  writeFileSync(join(directory, "0023_followup.sql"), "ALTER TABLE isolated_forward_fixture ADD COLUMN marker text;\n");
+  const inventory = inventoryMigrationSources(directory);
+  const historic = cutoverSourceManifest(inventory, 21);
+  const cutover = {
+    historicalPrefix: 21,
+    historicalManifestSha256: historic.digest,
+    evidenceRef: "DBA-CUTOVER-2026-01",
+    reviewedBy: "Independent DBA",
+    reviewedAt: new Date("2026-10-12T00:00:00Z"),
+  };
+  const receipts = historic.files.map(file => ({
+    migrationPath: file.path,
+    sha256: file.sha256,
+    disposition: "applied",
+    evidenceRef: "DBA-HIST-2026-001",
+    reviewedBy: "Independent DBA",
+    recordedAt: new Date("2026-10-12T00:00:00Z"),
+  }));
+  const target = inventory.files.find(file => file.path === "drizzle/0022_forward.sql");
+  return { directory, inventory, cutover, receipts, target, applied: [] };
+}
+function review(f, over = {}) {
+  return evaluateReviewedMigration({
+    inventory: f.inventory, cutover: f.cutover, receipts: f.receipts,
+    applied: f.applied, requestedPath: f.target.path, expectedSha256: f.target.sha256,
+    ...over,
+  });
+}
+function recorded(file, extra = {}) {
+  return {
+    migrationPath: file.path,
+    migrationNumber: Number(file.prefix),
+    sourceSha256: file.sha256,
+    appliedBy: "reviewed-operator",
+    changeRef: "DBA-CHANGE-2026-001",
+    appliedAt: new Date("2026-10-12T00:00:00Z"),
+    ...extra,
+  };
+}
+function fakeClient(f, opts = {}) {
+  const calls = [];
+  const state = { applied: [...(opts.applied ?? [])], throwDuringSql: Boolean(opts.throwDuringSql) };
+  return {
+    calls, state,
+    async query(sql, args = []) {
+      calls.push(sql);
+      if (sql.includes('AS "databaseName"')) return { rows: [{
+        databaseName: "app_db",
+        readOnly: calls.some(line => line.includes("READ ONLY")),
+        inRecovery: false,
+        elevated: false,
+      }] };
+      if (sql.includes('AS "receipts"')) return { rows: [{
+        receipts: true, cutover: true, journal: true,
+      }] };
+      if (sql.includes("FROM public.payrollph_migration_cutover")) return { rows: [f.cutover] };
+      if (sql.includes("FROM public.payrollph_release_migration_receipts")) return { rows: f.receipts };
+      if (sql.includes("FROM public.payrollph_schema_migrations")) return { rows: state.applied };
+      if (sql.startsWith("INSERT INTO public.payrollph_schema_migrations")) {
+        state.applied.push(recorded(f.target, {
+          migrationPath: args[0], migrationNumber: args[1], sourceSha256: args[2],
+          appliedBy: args[3], changeRef: args[4],
+        }));
+      }
+      if (sql === "CREATE TABLE isolated_forward_fixture(id integer PRIMARY KEY);\n" &&
+          state.throwDuringSql) throw new Error("synthetic statement failure");
+      return { rows: [] };
+    },
+  };
+}
+
+test("full paths, not duplicate historic number prefixes, identify reviewed adoption", () => {
+  const f = fixture();
+  try {
+    assert.equal(f.receipts.length, 2);
+    assert.equal(cutoverSourceManifest(f.inventory, 21).duplicatePrefixes.length, 1);
+    const plan = review(f);
+    assert.equal(plan.status, "ready");
+    assert.equal(plan.migrationNumber, 22);
+    assert.equal(plan.historicReceiptsVerified, 2);
+    assert.equal(plan.productionReleaseApproved, false);
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("missing, inaccurate and unreviewed historical receipts cannot authorize a forward migration", () => {
+  const f = fixture();
+  try {
+    assert.throws(() => review(f, { receipts: f.receipts.slice(1) }), /HISTORICAL_RECEIPTS_UNRECONCILED/);
+    assert.throws(() => review(f, {
+      receipts: [{ ...f.receipts[0], sha256: "0".repeat(64) }, f.receipts[1]],
+    }), /HISTORICAL_RECEIPTS_UNRECONCILED/);
+    assert.throws(() => review(f, {
+      receipts: [{ ...f.receipts[0], disposition: "not-applied" }, f.receipts[1]],
+    }), /HISTORICAL_RECEIPTS_UNRECONCILED/);
+    assert.throws(() => review(f, { cutover: {
+      ...f.cutover, historicalManifestSha256: "f".repeat(64),
+    } }), /CUTOVER_EVIDENCE_OR_HASH_MISMATCH/);
+    assert.throws(() => review(f, { cutover: {
+      ...f.cutover, reviewedBy: "",
+    } }), /CUTOVER_EVIDENCE_OR_HASH_MISMATCH/);
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("applied migration cannot rerun; source or journal drift fails closed", () => {
+  const f = fixture();
+  try {
+    assert.equal(review(f, { applied: [recorded(f.target)] }).status, "already-applied");
+    assert.throws(() => review(f, { applied: [recorded(f.target, {
+      sourceSha256: "f".repeat(64),
+    })] }), /JOURNAL_DRIFT_OR_OUT_OF_ORDER/);
+    assert.throws(() => review(f, { applied: [recorded(f.target), recorded(f.target)] }),
+      /JOURNAL_DRIFT_OR_OUT_OF_ORDER/);
+    assert.throws(() => review(f, { expectedSha256: "f".repeat(64) }),
+      /SOURCE_SHA_OR_PATH_MISMATCH/);
+    assert.throws(() => review(f, { requestedPath: "../drizzle/baseline.sql" }),
+      /REQUEST_INVALID/);
+    assert.throws(() => review(f, { requestedPath: "drizzle/0023_followup.sql" }),
+      /PREVIOUS_MIGRATION_MISSING/);
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("new forward prefix gaps or collisions are never implicitly ordered", () => {
+  const f = fixture();
+  try {
+    const without22 = { ...f.inventory, files: f.inventory.files.filter(row => row.path !== f.target.path) };
+    assert.throws(() => review(f, { inventory: without22 }), /NEW_PREFIX_GAP_OR_DUPLICATE/);
+    const duplicate = { ...f.inventory, files: [...f.inventory.files, {
+      path: "drizzle/0022_other.sql", prefix: "0022", sha256: f.target.sha256,
+    }] };
+    assert.throws(() => review(f, { inventory: duplicate }), /NEW_PREFIX_GAP_OR_DUPLICATE/);
+    const next = f.inventory.files.find(row => row.path === "drizzle/0023_followup.sql");
+    assert.equal(review(f, { applied: [recorded(f.target)], requestedPath: next.path,
+      expectedSha256: next.sha256 }).status, "ready");
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("exact-byte checks reject changed SQL and transaction or journal escapes", () => {
+  const f = fixture();
+  try {
+    assert.match(loadReviewedSql(f.directory, f.target), /CREATE TABLE isolated_forward_fixture/);
+    writeFileSync(join(f.directory, "0022_forward.sql"), "COMMIT;\nDROP TABLE employees;\n");
+    assert.throws(() => loadReviewedSql(f.directory, f.target), /SQL_CHANGED_AFTER_PLAN/);
+    writeFileSync(join(f.directory, "0022_forward.sql"), "COMMIT;\n");
+    const updated = inventoryMigrationSources(f.directory).files.find(file => file.path === f.target.path);
+    assert.throws(() => loadReviewedSql(f.directory, updated), /SQL_REQUIRES_NONTRANSACTIONAL_OR_MANUAL_REVIEW/);
+    writeFileSync(join(f.directory, "0022_forward.sql"), "ALTER TABLE payrollph_schema_migrations DROP COLUMN source_sha256;");
+    const journal = inventoryMigrationSources(f.directory).files.find(file => file.path === f.target.path);
+    assert.throws(() => loadReviewedSql(f.directory, journal), /SQL_REQUIRES_NONTRANSACTIONAL_OR_MANUAL_REVIEW/);
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("plan uses READ ONLY/rollback and never executes SQL or inserts receipts", async () => {
+  const f = fixture();
+  try {
+    const db = fakeClient(f);
+    const result = await runReviewedMigrationOnClient({
+      client: db, inventory: f.inventory, sourceDirectory: f.directory,
+      mode: "plan", requestedPath: f.target.path, expectedSha256: f.target.sha256,
+      expectedDatabaseName: "app_db",
+    });
+    assert.equal(result.status, "ready");
+    assert.equal(result.sqlApplied, false);
+    assert.ok(db.calls[0].includes("READ ONLY"));
+    assert.equal(db.calls.at(-1), "ROLLBACK");
+    assert.equal(db.calls.some(line => line.includes("INSERT INTO")), false);
+    assert.equal(db.calls.includes("CREATE TABLE isolated_forward_fixture(id integer PRIMARY KEY);\n"), false);
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("apply locks, records once, commits; reentry sees already applied and cannot submit twice", async () => {
+  const f = fixture();
+  try {
+    const db = fakeClient(f);
+    const args = {
+      client: db, inventory: f.inventory, sourceDirectory: f.directory,
+      mode: "apply", requestedPath: f.target.path, expectedSha256: f.target.sha256,
+      expectedDatabaseName: "app_db",
+      operator: "reviewed-operator", approvalRef: "DBA-CHANGE-2026-001",
+    };
+    const first = await runReviewedMigrationOnClient(args);
+    const second = await runReviewedMigrationOnClient(args);
+    assert.equal(first.sqlApplied, true);
+    assert.equal(second.status, "already-applied");
+    assert.equal(second.sqlApplied, false);
+    assert.equal(db.state.applied.length, 1);
+    assert.equal(db.calls.filter(line => line.includes("pg_advisory_xact_lock")).length, 2);
+    assert.equal(db.calls.filter(line => line === "CREATE TABLE isolated_forward_fixture(id integer PRIMARY KEY);\n").length, 1);
+    assert.equal(db.calls.filter(line => line === "COMMIT").length, 2);
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
+
+test("SQL failure rolls back without writing an application receipt", async () => {
+  const f = fixture();
+  try {
+    const db = fakeClient(f, { throwDuringSql: true });
+    await assert.rejects(runReviewedMigrationOnClient({
+      client: db, inventory: f.inventory, sourceDirectory: f.directory,
+      mode: "apply", requestedPath: f.target.path, expectedSha256: f.target.sha256,
+      expectedDatabaseName: "app_db",
+      operator: "reviewed-operator", approvalRef: "DBA-CHANGE-2026-001",
+    }), /synthetic statement failure/);
+    assert.equal(db.state.applied.length, 0);
+    assert.equal(db.calls.at(-1), "ROLLBACK");
+    assert.equal(db.calls.includes("COMMIT"), false);
+  } finally { rmSync(f.directory, { recursive: true, force: true }); }
+});
