@@ -7,8 +7,11 @@ import { ApprovalsView } from "./approvals";
 import { ExportsView } from "./exports";
 import type { DashboardData, Notify } from "./types";
 
-const DEFAULT_ROLES = Object.fromEntries(FIRST_PAYROLL_STEPS.map(step=>[step.key, step.owner])) as Record<FirstPayrollKey,string>;
-const ROLES = Object.fromEntries(FIRST_PAYROLL_STEPS.map(step=>[step.key, step.allowedOwners])) as Record<FirstPayrollKey,readonly string[]>;
+function firstPayrollStep(key: FirstPayrollKey) {
+  const found = FIRST_PAYROLL_STEPS.find(item => item.key === key);
+  if (!found) throw new Error("Unknown journey step");
+  return found;
+}
 type RecordedStep = { byUserId:number;at:string;periodStart?:string;periodEnd?:string };
 type Progress = { stepOwners?:Record<string,string>;completedSteps?:Record<string,RecordedStep>;reviewedByUserId?:number|null };
 type PreviewRow = { employeeId:number;name:string;gross:number|null;sss:number|null;philHealth:number|null;pagIbig:number|null;withholding:number|null;net:number|null;blockers:string[] };
@@ -23,6 +26,8 @@ export function FirstPayrollInlinePanel({
  canDecide?:boolean;canManageDelegations?:boolean;notify?:Notify;
 }) {
  const organizationId=data.selectedOrganization.id;
+ const defaultOwner=firstPayrollStep(step).owner;
+ const permittedOwners: readonly string[]=firstPayrollStep(step).allowedOwners;
  const [progress,setProgress]=useState<Progress|null>(null);
  const [error,setError]=useState("");const [notice,setNotice]=useState("");const [busy,setBusy]=useState(false);
  const [company,setCompany]=useState(data.selectedOrganization.legalName);
@@ -32,7 +37,7 @@ export function FirstPayrollInlinePanel({
  const [peopleMode,setPeopleMode]=useState<"add"|"import">("add");
  const [showHire,setShowHire]=useState(false);
  const [email,setEmail]=useState("");const [role,setRole]=useState("payroll");
- const [target,setTarget]=useState(DEFAULT_ROLES[step]);
+ const [target,setTarget]=useState<string>(defaultOwner);
  const [start,setStart]=useState("");const [end,setEnd]=useState("");const [payDate,setPayDate]=useState("");
  const [acknowledged,setAcknowledged]=useState(false);
  const [preview,setPreview]=useState<Preview|null>(null);
@@ -45,7 +50,7 @@ export function FirstPayrollInlinePanel({
       const reviewed=p?.completedSteps?.time;
       if(reviewed?.periodStart)setStart(reviewed.periodStart);
       if(reviewed?.periodEnd)setEnd(reviewed.periodEnd);
-      const owner=p?.stepOwners?.[step];if(owner&&ROLES[step].includes(owner))setTarget(owner);
+      const owner=p?.stepOwners?.[step];if(owner&&permittedOwners.includes(owner))setTarget(owner);
    }).catch(()=>{if(!cancelled)setError("Could not load saved progress for this employer.");});
   return ()=>{cancelled=true;};
  },[organizationId,step]);
@@ -107,13 +112,13 @@ export function FirstPayrollInlinePanel({
  const reviewersCanEdit=["owner","admin"].includes(data.access?.role??"");
  const handoff=<div className="mt-4 flex flex-wrap items-center gap-2">
    <label>Responsible role <select value={target} onChange={e=>setTarget(e.target.value)}>
-     {ROLES[step].map(r=><option key={r} value={r}>{r}</option>)}
+     {permittedOwners.map(r=><option key={r} value={r}>{r}</option>)}
    </select></label>
    <button type="button" className="secondary-button" disabled={busy}
      onClick={()=>void send("/api/first-payroll/progress","PATCH",{key:step,action:"handoff",targetRole:target},"Handoff recorded for the selected role.")}>
      Send to {target}
    </button>
-   <small>Current owner: {progress?.stepOwners?.[step]??DEFAULT_ROLES[step]}</small>
+   <small>Current owner: {progress?.stepOwners?.[step]??defaultOwner}</small>
  </div>;
  return <div className="mt-3 rounded-xl border p-4" aria-label={step+" inline setup"}>
    {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}

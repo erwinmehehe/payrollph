@@ -39,7 +39,6 @@ export function FirstPayrollReadinessCard({
   const organizationId=data?.selectedOrganization.id;
   useEffect(()=>{
     if(!guided||!organizationId)return;
-    setProgress(null);
     let cancelled=false;
     void fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"})
       .then(r=>r.ok?r.json():null)
