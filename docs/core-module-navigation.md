@@ -1,3 +1,5 @@
+**Merge sequencing hold (2026-10-12):** This draft reserves `drizzle/0122_tenant_module_disclosure.sql`, while PR #915 also reserves a different `drizzle/0122_tenant_core_navigation.sql`. These cannot both become independent 0122 production migrations. DBA must designate one canonical dependency-ordered migration; all module flags stay OFF. This branch applied no Neon DDL.
+
 # Core module navigation
 
 Default off: CORE_MODULE_NAVIGATION_ENABLED=true. DEPENDS ON #865 canonical 0115-0121 source train; 0122 is not valid for isolated apply until the preceding migrations have reviewed journal receipts and a rehearsed database cutover. Apply drizzle/0122_tenant_module_disclosure.sql before any separately reviewed module activation (never use db:push on Neon production): old rows become all, future rows default core.

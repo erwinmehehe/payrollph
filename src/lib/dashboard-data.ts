@@ -347,6 +347,7 @@ export async function getDashboardData(organizationId?: number) {
   return {
     firstPayrollReadiness,
     coreModuleNavigationEnabled: criticalReleaseFlagEnabled("coreModuleNavigation"),
+    employeeImportPreviewEnabled: criticalReleaseFlagEnabled("employeeImportPreview"),
     user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
     capabilities,

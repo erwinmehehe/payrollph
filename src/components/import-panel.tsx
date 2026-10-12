@@ -1,5 +1,6 @@
 "use client";
 
+import { EmployeeImportPreviewPanel } from "./employee-import-preview-panel";
 import { useState } from "react";
 import { FileSpreadsheet, Upload, UsersRound } from "lucide-react";
 
@@ -24,7 +25,10 @@ type ImportResult = {
   upgradeRequired?: boolean;
 };
 
-export function ImportPanel({ organizationId, onImported }: { organizationId: number; onImported: () => void }) {
+export function ImportPanel({ organizationId, onImported, previewEnabled = false }: { organizationId: number; onImported: () => void; previewEnabled?: boolean }) {
+  return previewEnabled ? <EmployeeImportPreviewPanel key={organizationId} organizationId={organizationId} onImported={onImported} /> : <LegacyImportPanel organizationId={organizationId} onImported={onImported} />;
+}
+function LegacyImportPanel({ organizationId, onImported }: { organizationId: number; onImported: () => void }) {
   const [open, setOpen] = useState(false);
   const [csv, setCsv] = useState("");
   const [fileName, setFileName] = useState("upload.csv");
