@@ -10,6 +10,10 @@ import {
   PEOPLE_ADMIN_ROLES,
 } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
+import { recordAuditEvent } from "@/lib/audit";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { documentObjectIdentityMatches } from "@/lib/employee-document-vault";
+import { documentStorageConfig, signedDocumentObjectUrl } from "@/lib/document-object-storage";
 
 export const dynamic = "force-dynamic";
 
@@ -68,12 +72,48 @@ export async function GET(
     }
   }
 
-  if (!document.scannedClean && process.env.NODE_ENV === "production") {
+  const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
+  if (!document.scannedClean && (process.env.NODE_ENV === "production" || vaultEnabled)) {
     return Response.json({
       error: "This document is not available because malware scanning has not verified it as clean.",
     }, { status: 409 });
   }
 
+  if (document.objectStorageKey) {
+    // An object key must be tied to the exact tenant/employee from the
+    // authorized document row, not merely have a plausible string prefix.
+    if (!documentObjectIdentityMatches(document.objectStorageKey,
+      document.organizationId, document.employeeId)) {
+      return Response.json({ error: "Private document storage integrity check failed." }, { status: 409 });
+    }
+    let signed: URL;
+    try {
+      signed = signedDocumentObjectUrl(document.objectStorageKey,
+        "GET", documentStorageConfig(), { expirySeconds: 60 });
+    } catch {
+      return Response.json({ error: "Private document storage is unavailable." }, { status: 503 });
+    }
+    // Persist view evidence *before* exposing the one-minute URL. Any audit
+    // failure must fail closed rather than returning untracked private bytes.
+    await recordAuditEvent({
+      organizationId: document.organizationId, actor: user.name,
+      action: "Employee document viewed", resource: String(document.id),
+      metadata: { documentId: document.id, employeeId: document.employeeId,
+        actorUserId: user.id, source: "private-object",
+        sha256: document.sha256 },
+    });
+    return new Response(null, { status: 302, headers: {
+      "Location": signed.toString(),
+      "Cache-Control": "private, no-store",
+      "Referrer-Policy": "no-referrer",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "default-src 'none'; sandbox",
+    } });
+  }
+
+  if (vaultEnabled && document.content.length === 0) {
+    return Response.json({ error: "This legacy document is not yet available in the private vault." }, { status: 409 });
+  }
   const body = Buffer.from(document.content, "base64");
   if (document.sourceType === "generated") {
     const sha256 = createHash("sha256").update(body).digest("hex");
@@ -84,6 +124,15 @@ export async function GET(
     }
   }
 
+  if (vaultEnabled) {
+    await recordAuditEvent({
+      organizationId: document.organizationId, actor: user.name,
+      action: "Employee document viewed", resource: String(document.id),
+      metadata: { documentId: document.id, employeeId: document.employeeId,
+        actorUserId: user.id, source: "verified-legacy",
+        sha256: document.sha256 },
+    });
+  }
   return new Response(body, {
     headers: {
       "Content-Type": document.mimeType,
