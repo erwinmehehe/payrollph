@@ -30,6 +30,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 uploaded personal documents",
     approval: "Malware scanner and retention acceptance",
   },
+  tenantReportBuilder: {
+    env: "TENANT_REPORT_BUILDER_ENABLED",
+    owner: "HR Analytics",
+    risk: "P1 scoped personnel and payroll report exports",
+    approval: "Role/tenant isolation, CSV audit and independent BI reconciliation",
+  },
   openAiDrafts: {
     env: "OPENAI_AUTOMATION_DRAFT_ENABLED",
     owner: "Privacy",
