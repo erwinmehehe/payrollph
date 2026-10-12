@@ -11,6 +11,7 @@ type Preview=GreedyRosterResult & {source:{
 }};
 const descriptions:Record<GreedyRosterReason,string>={
   no_workers:"No workers in the authorized roster",
+  already_assigned:"Qualified worker already occupies this requirement slot",
   skill_missing:"Missing role, skill or required credential",
   site_ineligible:"Worksite authorization does not permit the shift",
   unavailable:"Recorded unavailable time conflicts with shift",
