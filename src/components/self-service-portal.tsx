@@ -34,6 +34,7 @@ import { EmployeeWorkforcePanel } from "@/components/employee-workforce-panel";
 import { EmployeeExplainPay } from "@/components/employee-explain-pay";
 import { EmployeeContributionIssueModal } from "@/components/employee-contribution-issue-modal";
 import { EmployeeDocumentsPanel } from "@/components/employee-documents-panel";
+import { EmployeeHrCasesPanel } from "@/components/employee-hr-cases-panel";
 import { HcmSelfProbationReviews } from "@/components/hcm-self-probation-reviews";
 import { HcmSelfPerformance } from "@/components/hcm-self-performance";
 import { WebBundyModal } from "@/components/web-bundy-modal";
@@ -1077,7 +1078,10 @@ export function SelfServicePortal() {
       )}
 
       {tab === "documents" && data.employer && (
-        <EmployeeDocumentsPanel organizationId={data.employer.id} language={language} />
+        <>
+          <EmployeeDocumentsPanel organizationId={data.employer.id} language={language} />
+          <EmployeeHrCasesPanel language={language} />
+        </>
       )}
 
       {tab === "performance" && (

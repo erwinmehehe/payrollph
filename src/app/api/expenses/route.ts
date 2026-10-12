@@ -1,7 +1,10 @@
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { auditEvents, employees, expenseClaims, expenseReportItems } from "@/db/schema";
+import { auditEvents, employees, expenseCategoryPolicies, expenseClaims, expenseReportItems } from "@/db/schema";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { approvedReimbursementAmount } from "@/lib/spend-payroll-reimbursement";
+import { documentUploadsEnabled } from "@/lib/storage";
 import { assertMembership, assertOrganizationRole, assertScope, getAccess, PEOPLE_PAYROLL_ROLES } from "@/lib/access";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
@@ -64,10 +67,19 @@ export async function GET(request: Request) {
     : [];
   const reportedIds = new Set(reportedItems.map(item => item.claimId));
   const approved = visibleRows.filter((row) => row.status === "approved" && row.payrollRunId == null);
+  const spendEnabled = criticalReleaseFlagEnabled("spendPayroll");
 
+  const policies = spendEnabled
+    ? await db.select({ category: expenseCategoryPolicies.category }).from(expenseCategoryPolicies)
+      .where(eq(expenseCategoryPolicies.organizationId, organizationId))
+    : [];
   return Response.json({
+    reimbursementReviewEnabled: spendEnabled,
+    receiptUploadsEnabled: spendEnabled && criticalReleaseFlagEnabled("employeeDocumentVault") && documentUploadsEnabled(),
+    reviewedCategories: policies.map(item => item.category),
     claims: visibleRows.map(row => ({ ...row, inExpenseReport: reportedIds.has(row.id) })),
-    pendingReimbursement: Number(approved.reduce((sum, row) => sum + Number(row.amount), 0).toFixed(2)),
+    pendingReimbursement: Number(approved.reduce((sum, row) => sum +
+      Number(spendEnabled ? row.approvedAmount ?? 0 : row.amount), 0).toFixed(2)),
   });
 }
 
@@ -125,13 +137,29 @@ export async function POST(request: Request) {
     if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
   }
 
+  const spendEnabled = criticalReleaseFlagEnabled("spendPayroll");
+  const strictAmount = spendEnabled ? approvedReimbursementAmount(body.amount, body.amount) : null;
+  if (spendEnabled && strictAmount === null) {
+    return Response.json({ error: "Claim amount must be a positive exact centavo value." }, { status: 422 });
+  }
+  const [policy] = spendEnabled
+    ? await db.select().from(expenseCategoryPolicies).where(and(
+      eq(expenseCategoryPolicies.organizationId, organizationId),
+      eq(expenseCategoryPolicies.category, category.slice(0, 60)),
+    )).limit(1)
+    : [undefined];
+  if (spendEnabled && !policy) {
+    return Response.json({ error: "Category needs an approved tax-treatment policy." }, { status: 422 });
+  }
   const [row] = await db.insert(expenseClaims).values({
     organizationId,
     employeeId,
     submittedByUserId: user.id,
     category: category.slice(0, 60),
+    categoryPolicyId: policy?.id ?? null,
+    taxable: policy?.taxable ?? false,
     description: description.slice(0, 240),
-    amount: amount.toFixed(2),
+    amount: strictAmount ?? amount.toFixed(2),
     incurredOn,
     status: "pending",
   }).returning();
@@ -178,6 +206,13 @@ export async function PATCH(request: Request) {
   if (!employee) return Response.json({ error: "Employee not found in this workspace." }, { status: 404 });
   const scope = assertScope(access, employee.orgUnitId);
   if (!scope.ok) return Response.json({ error: scope.error }, { status: scope.status });
+  const spendEnabled = criticalReleaseFlagEnabled("spendPayroll");
+  const approvedAmount = spendEnabled && status === "approved"
+    ? approvedReimbursementAmount(body.approvedAmount ?? existing.amount, existing.amount)
+    : null;
+  if (spendEnabled && status === "approved" && approvedAmount === null) {
+    return Response.json({ error: "Approved amount must be exact and cannot exceed the submitted amount." }, { status: 422 });
+  }
   const decided = await db.transaction(async tx => {
     // This lock pairs with expense report submission's claim-row locks.
     // Checking report membership outside this transaction would permit a
@@ -190,23 +225,34 @@ export async function PATCH(request: Request) {
       .where(and(eq(expenseReportItems.organizationId, existing.organizationId), eq(expenseReportItems.claimId, id))).limit(1);
     if (reported) throw new Error("CLAIM_IN_REPORT");
     if (!fresh || fresh.status !== "pending") throw new Error("CLAIM_STALE");
+    if (spendEnabled && status === "approved" && (
+      !fresh.receiptStorageKey || !fresh.receiptSha256 || fresh.categoryPolicyId === null ||
+      approvedReimbursementAmount(approvedAmount, fresh.amount) === null
+    )) throw new Error("CLAIM_RECEIPT_OR_POLICY_REQUIRED");
     // Legacy rows without a verified maker cannot satisfy independent
     // checker separation. Reconcile the origin before allowing a decision.
     if (fresh.submittedByUserId == null) throw new Error("CLAIM_MAKER_UNKNOWN");
     if (fresh.submittedByUserId === user.id) throw new Error("CLAIM_SELF_REVIEW");
-    const [row] = await tx.update(expenseClaims).set({ status, decidedBy: user.name }).where(and(
+    const [row] = await tx.update(expenseClaims).set({
+      status, decidedBy: user.name,
+      ...(spendEnabled ? { approvedAmount } : {}),
+    }).where(and(
       eq(expenseClaims.id, id), eq(expenseClaims.organizationId, existing.organizationId),
       eq(expenseClaims.status, "pending"),
     )).returning();
     if (!row) throw new Error("CLAIM_STALE");
     await tx.insert(auditEvents).values({
       organizationId: existing.organizationId, actor: user.name, action: `Expense claim ${status}`,
-      resource: `${existing.category} ${existing.amount}`, metadata: { claimId: id, employeeId: existing.employeeId, actorUserId: user.id },
+      resource: `${existing.category} ${existing.amount}`, metadata: { claimId: id, employeeId: existing.employeeId, actorUserId: user.id,
+        ...(spendEnabled ? { approvedAmount, taxPolicyId: fresh.categoryPolicyId,
+          taxable: fresh.taxable, receiptSha256: fresh.receiptSha256 } : {}) },
     });
     return row;
   }).catch(error => error instanceof Error ? error : new Error("CLAIM_STALE"));
   if (decided instanceof Error) {
-    const message = decided.message === "CLAIM_IN_REPORT"
+    const message = decided.message === "CLAIM_RECEIPT_OR_POLICY_REQUIRED"
+      ? "A scanned private receipt and independently reviewed category are required before approval."
+      : decided.message === "CLAIM_IN_REPORT"
       ? "This claim belongs to an expense report. Decide the report in Spend management."
       : decided.message === "CLAIM_SELF_REVIEW"
         ? "You cannot approve or reject a claim you submitted."

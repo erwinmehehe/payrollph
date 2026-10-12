@@ -14,6 +14,8 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { enforceSameOriginMutation } from "@/lib/security-request";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { isMandatoryDocumentMissing } from "@/lib/employee-document-vault";
 
 export const dynamic = "force-dynamic";
 
@@ -118,6 +120,7 @@ export async function GET() {
         && new Date(row.dueAt).getTime() < now,
     })),
     documentRequirements: compliance,
+    vaultEnabled: criticalReleaseFlagEnabled("employeeDocumentVault"),
     summary: {
       acknowledgementRequired: assignments.filter((row) => row.status === "assigned").length,
       overdueAcknowledgements: assignments.filter(
@@ -125,7 +128,10 @@ export async function GET() {
           && row.dueAt != null
           && new Date(row.dueAt).getTime() < now,
       ).length,
-      missingDocuments: compliance.filter((row) => row.status === "missing").length,
+      missingDocuments: compliance.filter((row) =>
+        criticalReleaseFlagEnabled("employeeDocumentVault")
+          ? isMandatoryDocumentMissing(row) : row.status === "missing"
+      ).length,
       submittedDocuments: compliance.filter((row) => row.status === "submitted").length,
       expiringDocuments: compliance.filter((row) => row.status === "expiring").length,
       expiredDocuments: compliance.filter((row) => row.status === "expired").length,

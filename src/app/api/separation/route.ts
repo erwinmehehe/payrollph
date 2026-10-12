@@ -24,6 +24,7 @@ import {
   positionAssignments,
   positions,
   separationRecords,
+  separationClearanceWaivers,
   workerEffectiveChanges,
   workerEmploymentEvents,
 } from "@/db/schema";
@@ -45,6 +46,12 @@ import { ensureSeparationSchema } from "@/lib/separation-schema";
 import { enforceSensitiveActionRateLimit, requireSensitiveActionMfa } from "@/lib/security-request";
 import { runLifecycleAutomations } from "@/lib/automation";
 import { requestOffboardingIT } from "@/lib/it-offboarding";
+import { revokeSeparatedEmployeeAccessTx } from "@/lib/offboarding-access-revocation";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import {
+  DEPARTMENT_FIELDS, externalAccessRevoked, isOffboardingDepartment,
+  offboardingClearanceStatus, waiverEvidenceValid, waiverReviewerEligible,
+} from "@/lib/offboarding-clearance";
 import { seedProvisioning } from "@/lib/provisioning";
 import { runEmployeeFieldChangeAutomations } from "@/lib/automation-change-events";
 import { startHcmBusinessProcessTx, supervisoryOrgForEffectiveChange } from "@/lib/hcm-business-process";
@@ -309,10 +316,25 @@ export async function GET(request: Request) {
     .where(access.companyWide ? filter : and(filter, eq(employees.orgUnitId, access.orgUnitId!)))
     .orderBy(desc(separationRecords.id));
 
+  const offboardingEnabled = criticalReleaseFlagEnabled("offboardingClearance");
+  const waiverRows = offboardingEnabled && records.length > 0
+    ? await db.select().from(separationClearanceWaivers).where(and(
+        eq(separationClearanceWaivers.organizationId, organizationId),
+        inArray(separationClearanceWaivers.separationId, records.map(row => row.sep.id)),
+        isNull(separationClearanceWaivers.revokedAt),
+      ))
+    : [];
   return Response.json({
     currentUserId: user.id,
     manualReleaseEnabled: process.env.FINAL_PAY_MANUAL_RELEASE_ENABLED === "true",
+    offboardingClearanceEnabled: offboardingEnabled,
+    canAuthorizeClearanceWaivers: offboardingEnabled && access.companyWide &&
+      ["owner", "admin"].includes(access.role),
     separations: records.map(({ sep, employee }) => ({
+      waivedDepartments: offboardingEnabled ? offboardingClearanceStatus(sep, waiverRows).waived : [],
+      clearanceReady: offboardingEnabled
+        ? offboardingClearanceStatus(sep, waiverRows).ready
+        : sep.itCleared && sep.adminCleared && sep.financeCleared && sep.hrCleared,
       ...sep,
       employeeName: `${employee.firstName} ${employee.lastName}`,
       employeeNo: employee.employeeNo,
@@ -824,6 +846,18 @@ export async function POST(request: Request) {
           eq(separationRecords.organizationId, organizationId),
         )).returning();
         if (!updated) throw new Error("Open separation package changed while it was being recomputed.");
+        if (criticalReleaseFlagEnabled("offboardingClearance")) {
+          // Any recomputation invalidates Finance's waiver; a material change
+          // to the approved exit facts invalidates every other waiver.
+          await tx.update(separationClearanceWaivers).set({
+            revokedAt: new Date(), revokedByUserId: user.id,
+          }).where(and(
+            eq(separationClearanceWaivers.organizationId, organizationId),
+            eq(separationClearanceWaivers.separationId, updated.id),
+            isNull(separationClearanceWaivers.revokedAt),
+            separationFactsChanged ? undefined : eq(separationClearanceWaivers.department, "finance"),
+          ));
+        }
         record = updated;
       } else {
         const [inserted] = await tx.insert(separationRecords).values({
@@ -1068,6 +1102,109 @@ export async function PATCH(request: Request) {
     if (releaseDenied) return releaseDenied;
   }
 
+  if (action === "waive_clearance") {
+    if (!criticalReleaseFlagEnabled("offboardingClearance")) {
+      return Response.json({ error: "Documented clearance waivers are disabled." }, { status: 404 });
+    }
+    const department = body.department;
+    const reason = typeof body.waiverReason === "string" ? body.waiverReason.trim() : "";
+    const evidenceReference = typeof body.waiverEvidenceReference === "string"
+      ? body.waiverEvidenceReference.trim() : "";
+    if (!isOffboardingDepartment(department) || !waiverEvidenceValid(reason, evidenceReference)) {
+      return Response.json({
+        error: "Choose IT, Admin, Finance or HR; include an evidence reference of 8–200 characters and a reason of 20–500 characters.",
+      }, { status: 422 });
+    }
+    if (!waiverReviewerEligible({
+      role: access.role, companyWide: access.companyWide,
+      actorUserId: user.id, preparedByUserId: sep.preparedByUserId,
+    })) {
+      return Response.json({
+        error: "An independent company-wide owner/admin must authorize the waiver, not the final-pay preparer.",
+      }, { status: 403 });
+    }
+    const mfaDenied = requireSensitiveActionMfa(user);
+    if (mfaDenied) return mfaDenied;
+    const limitDenied = await enforceSensitiveActionRateLimit(request, {
+      userId: user.id, action: "separation-clearance-waiver",
+      resourceId: id, limit: 5, windowMs: 30 * 60_000,
+    });
+    if (limitDenied) return limitDenied;
+
+    try {
+      const result = await db.transaction(async tx => {
+        const [fresh] = await tx.select().from(separationRecords).where(and(
+          eq(separationRecords.id, id),
+          eq(separationRecords.organizationId, sep.organizationId),
+        )).for("update").limit(1);
+        if (!fresh || fresh.status !== "draft" || fresh[DEPARTMENT_FIELDS[department]]) {
+          throw new Error("OFFBOARDING_WAIVER_STALE");
+        }
+        if (!waiverReviewerEligible({
+          role: access.role, companyWide: access.companyWide,
+          actorUserId: user.id, preparedByUserId: fresh.preparedByUserId,
+        })) throw new Error("OFFBOARDING_WAIVER_MAKER_CHECKER");
+        if (department === "it") {
+          const grants = await tx.select({ state: itAccessGrants.state }).from(itAccessGrants)
+            .where(and(eq(itAccessGrants.organizationId, fresh.organizationId),
+              eq(itAccessGrants.employeeId, fresh.employeeId)));
+          if (!externalAccessRevoked(grants.map(grant => grant.state), fresh.itCleared)) {
+            throw new Error("OFFBOARDING_IT_ACCESS_PENDING");
+          }
+        }
+        const [waiver] = await tx.insert(separationClearanceWaivers).values({
+          organizationId: fresh.organizationId,
+          separationId: fresh.id, employeeId: fresh.employeeId,
+          department, reason, evidenceReference,
+          authorizedByUserId: user.id,
+        }).onConflictDoNothing().returning({ id: separationClearanceWaivers.id });
+        if (!waiver) throw new Error("OFFBOARDING_WAIVER_EXISTS");
+        const waivers = await tx.select().from(separationClearanceWaivers).where(and(
+          eq(separationClearanceWaivers.organizationId, fresh.organizationId),
+          eq(separationClearanceWaivers.separationId, fresh.id),
+          isNull(separationClearanceWaivers.revokedAt),
+        ));
+        const progress = offboardingClearanceStatus(fresh, waivers);
+        const [updated] = await tx.update(separationRecords).set({
+          clearanceStatus: progress.ready ? "cleared" : "in_progress",
+        }).where(and(
+          eq(separationRecords.id, fresh.id),
+          eq(separationRecords.organizationId, fresh.organizationId),
+          eq(separationRecords.status, "draft"),
+        )).returning({ id: separationRecords.id });
+        if (!updated) throw new Error("OFFBOARDING_WAIVER_STALE");
+        await tx.insert(auditEvents).values({
+          organizationId: fresh.organizationId, actor: user.name,
+          action: "Separation department clearance independently waived",
+          resource: "Separation #" + fresh.id,
+          metadata: {
+            waiverId: waiver.id, employeeId: fresh.employeeId,
+            actorUserId: user.id, preparerUserId: fresh.preparedByUserId,
+            department, reason, evidenceReference,
+            allClearancesResolved: progress.ready,
+            externalITAccessStillMustBeRevoked: true,
+          },
+        });
+        return { waiverId: waiver.id, department, clearanceReady: progress.ready,
+          waivedDepartments: progress.waived };
+      }, { isolationLevel: "serializable" });
+      return Response.json(result, { status: 201 });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message === "OFFBOARDING_IT_ACCESS_PENDING") {
+        return Response.json({ code: message,
+          error: "All external application grants must actually be revoked before waiving any unresolved IT equipment." }, { status: 409 });
+      }
+      if (message.startsWith("OFFBOARDING_WAIVER_") ||
+        (error && typeof error === "object" && "code" in error &&
+          (error as { code?: string }).code === "23505")) {
+        return Response.json({ code: "OFFBOARDING_WAIVER_CONFLICT",
+          error: "The waiver or final-pay package changed; refresh and obtain independent review again." }, { status: 409 });
+      }
+      throw error;
+    }
+  }
+
   if (action === "clearance") {
     // A clearance is separate from final-pay approval; it must be a real,
     // individually evidenced assertion by its authorized department.
@@ -1148,9 +1285,28 @@ export async function PATCH(request: Request) {
           financeCleared: field === "financeCleared" ? requested : fresh.financeCleared,
           hrCleared: field === "hrCleared" ? requested : fresh.hrCleared,
         };
+        let resolved = Object.values(next).every(Boolean);
+        if (criticalReleaseFlagEnabled("offboardingClearance")) {
+          // A changed department sign-off invalidates that department's
+          // previous exception, preserving its audit/history record.
+          await tx.update(separationClearanceWaivers).set({
+            revokedAt: new Date(), revokedByUserId: user.id,
+          }).where(and(
+            eq(separationClearanceWaivers.organizationId, sep.organizationId),
+            eq(separationClearanceWaivers.separationId, id),
+            eq(separationClearanceWaivers.department, field.slice(0, -7)),
+            isNull(separationClearanceWaivers.revokedAt),
+          ));
+          const remainingWaivers = await tx.select().from(separationClearanceWaivers).where(and(
+            eq(separationClearanceWaivers.organizationId, sep.organizationId),
+            eq(separationClearanceWaivers.separationId, id),
+            isNull(separationClearanceWaivers.revokedAt),
+          ));
+          resolved = offboardingClearanceStatus({ ...fresh, ...next }, remainingWaivers).ready;
+        }
         const [row] = await tx.update(separationRecords).set({
           ...next,
-          clearanceStatus: Object.values(next).every(Boolean) ? "cleared" : "in_progress",
+          clearanceStatus: resolved ? "cleared" : "in_progress",
         }).where(and(
           eq(separationRecords.id, id),
           eq(separationRecords.organizationId, sep.organizationId),
@@ -1254,7 +1410,21 @@ export async function PATCH(request: Request) {
         unpaidMandatoryDeductions: shortfall,
       }, { status: 409 });
     }
-    if (!(sep.itCleared && sep.adminCleared && sep.financeCleared && sep.hrCleared)) {
+    if (criticalReleaseFlagEnabled("offboardingClearance")) {
+      const currentWaivers = await db.select().from(separationClearanceWaivers).where(and(
+        eq(separationClearanceWaivers.organizationId, sep.organizationId),
+        eq(separationClearanceWaivers.separationId, sep.id),
+        isNull(separationClearanceWaivers.revokedAt),
+      ));
+      const progress = offboardingClearanceStatus(sep, currentWaivers);
+      if (!progress.ready) {
+        return Response.json({
+          code: "FINAL_PAY_CLEARANCE_PENDING",
+          error: "Complete or independently waive all department clearances before approval or release.",
+          missingDepartments: progress.missing,
+        }, { status: 409 });
+      }
+    } else if (!(sep.itCleared && sep.adminCleared && sep.financeCleared && sep.hrCleared)) {
       return Response.json({ error: "IT, Admin, Finance, and HR clearance must all be complete first." }, { status: 409 });
     }
 
@@ -1307,7 +1477,22 @@ export async function PATCH(request: Request) {
           if (fresh.preparedByUserId === user.id) {
             throw new Error("FINAL_PAY_MAKER_CHECKER_REQUIRED");
           }
-          if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
+          if (criticalReleaseFlagEnabled("offboardingClearance")) {
+            const waivers = await tx.select().from(separationClearanceWaivers).where(and(
+              eq(separationClearanceWaivers.organizationId, fresh.organizationId),
+              eq(separationClearanceWaivers.separationId, fresh.id),
+              isNull(separationClearanceWaivers.revokedAt),
+            ));
+            if (!offboardingClearanceStatus(fresh, waivers).ready) {
+              throw new Error("FINAL_PAY_CLEARANCE_STALE");
+            }
+            const grants = await tx.select({ state: itAccessGrants.state }).from(itAccessGrants)
+              .where(and(eq(itAccessGrants.organizationId, fresh.organizationId),
+                eq(itAccessGrants.employeeId, fresh.employeeId)));
+            if (!externalAccessRevoked(grants.map(grant => grant.state), fresh.itCleared)) {
+              throw new Error("FINAL_PAY_IT_ACCESS_PENDING");
+            }
+          } else if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
             throw new Error("FINAL_PAY_CLEARANCE_STALE");
           }
           const frozen = (fresh.computationSnapshot ?? {}) as Record<string, unknown>;
@@ -1411,7 +1596,22 @@ export async function PATCH(request: Request) {
         || fresh.preparedByUserId === fresh.approvedByUserId) {
         throw new Error("FINAL_PAY_THREE_ACTOR_REQUIRED: preparer, checker, and releaser must be three distinct accounts.");
       }
-      if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
+      if (criticalReleaseFlagEnabled("offboardingClearance")) {
+        const waivers = await tx.select().from(separationClearanceWaivers).where(and(
+          eq(separationClearanceWaivers.organizationId, fresh.organizationId),
+          eq(separationClearanceWaivers.separationId, fresh.id),
+          isNull(separationClearanceWaivers.revokedAt),
+        ));
+        if (!offboardingClearanceStatus(fresh, waivers).ready) {
+          throw new Error("FINAL_PAY_CLEARANCE_STALE");
+        }
+        const grants = await tx.select({ state: itAccessGrants.state }).from(itAccessGrants)
+          .where(and(eq(itAccessGrants.organizationId, fresh.organizationId),
+            eq(itAccessGrants.employeeId, fresh.employeeId)));
+        if (!externalAccessRevoked(grants.map(grant => grant.state), fresh.itCleared)) {
+          throw new Error("FINAL_PAY_IT_ACCESS_PENDING");
+        }
+      } else if (!(fresh.itCleared && fresh.adminCleared && fresh.financeCleared && fresh.hrCleared)) {
         throw new Error("Final-pay operational clearances changed after approval. Refresh and reapprove.");
       }
 
@@ -1566,6 +1766,13 @@ export async function PATCH(request: Request) {
         eq(employees.status, "Separating"),
       )).returning({ id: employees.id });
       if (!separatedWorker) throw new Error("FINAL_PAY_WORKER_STATE_CHANGED: worker status changed during release.");
+
+      if (criticalReleaseFlagEnabled("offboardingClearance")) {
+        await revokeSeparatedEmployeeAccessTx(tx, {
+          organizationId: fresh.organizationId, employeeId: fresh.employeeId,
+          separationId: fresh.id, actorUserId: user.id, actorName: user.name,
+        });
+      }
 
       if (activeAssignment) {
         const [closedAssignment] = await tx.update(positionAssignments).set({

@@ -215,7 +215,13 @@ test("all three source-money decisions read from their own transaction and never
   assert.ok(loader.includes("const reader = options.executor ?? db"));
   assert.ok(!loader.includes("await db.select("));
   assert.equal((api.match(/const transactionSources = await loadFinalPaySources\(/g) ?? []).length, 3);
-  assert.equal((api.match(/isolationLevel: "serializable"/g) ?? []).length, 3);
+  // Independent clearance waivers add a fourth serializable decision.
+  // Keep the three source-money loaders above mandatory as well.
+  assert.equal((api.match(/isolationLevel: "serializable"/g) ?? []).length, 4);
+  const waiverStart = api.indexOf('if (action === "waive_clearance")');
+  assert.ok(waiverStart >= 0);
+  assert.ok(api.slice(waiverStart, api.indexOf('isolationLevel: "serializable"', waiverStart))
+    .includes("db.transaction"));
   // Loan settlement now preserves the lock-bound snapshot but applies only
   // to independently reviewed, still-authorized loan IDs.
   assert.ok(api.includes("const eligibleLoanIds = new Set(transactionLoanAuthority.eligibleLoanIds);"));
