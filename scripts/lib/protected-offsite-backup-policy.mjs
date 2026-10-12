@@ -24,7 +24,7 @@ export function validateProtectedBackupRequest(values) {
   }
   const {
     eventName, repository, ref, githubSha, reviewedSha, runId, runAttempt,
-    workflowEnvironment, changeRef, neonProjectId, neonBranchId,
+    workflowEnvironment, changeRef, actor, allowedActors, neonProjectId, neonBranchId,
     neonEndpointId, dbHost, dbPort, dbName, dbUser, awsRegion,
     s3Bucket, s3Prefix, kmsKeyArn, ageRecipient,
   } = values;
@@ -33,7 +33,10 @@ export function validateProtectedBackupRequest(values) {
       !matches(githubSha,/^[0-9a-f]{40}$/) || githubSha!==reviewedSha ||
       !matches(changeRef,/^P0-4-[A-Za-z0-9-]{8,100}$/) ||
       !matches(runId,/^[0-9]{1,16}$/) ||
-      !matches(runAttempt,/^[1-9][0-9]{0,4}$/)) {
+      !matches(runAttempt,/^[1-9][0-9]{0,4}$/) ||
+      !matches(actor,/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/) ||
+      !matches(allowedActors,/^[A-Za-z0-9][A-Za-z0-9,-]{0,256}$/) ||
+      !allowedActors.split(",").includes(actor)) {
     reject("UNPROTECTED_OR_UNREVIEWED_SOURCE");
   }
   if (neonProjectId!==PINNED_SOURCE.projectId ||
