@@ -1,7 +1,7 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
 import {queueWebPunch,pendingWebPunches,syncQueuedWebPunches} from "@/lib/workforce-punch-offline-queue";
-type Policy={photoMode:"off"|"optional"|"required";consent:"accepted"|"declined"|null;pending:{id:number}[]};
+type Policy={geofenceRequired:boolean;photoMode:"off"|"optional"|"required";consent:"accepted"|"declined"|null;pending:{id:number}[]};
 export function EnhancedPunchControls({organizationId,employeeId}:{organizationId:number;employeeId:number}){
   const [policy,setPolicy]=useState<Policy|null>(null);
   const [deviceId,setDeviceId]=useState<string|null>(null);
@@ -52,6 +52,17 @@ export function EnhancedPunchControls({organizationId,employeeId}:{organizationI
         const data=new FormData();
         data.set("organizationId",String(organizationId));data.set("clientPunchId",item.id);data.set("deviceId",deviceId);
         data.set("actionType",actionType);data.set("deviceOccurredAt",item.deviceOccurredAt);data.set("source","online");
+        if (policy?.geofenceRequired && (actionType==="clock_in"||actionType==="clock_out")) {
+          if (!navigator.geolocation) {setMessage("GPS is unavailable. Ask HR for reviewed attendance correction.");return;}
+          let fix:{latitude:number;longitude:number;accuracyMeters:number;capturedAt:string};
+          try {
+            fix=await new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(
+              p=>resolve({latitude:p.coords.latitude,longitude:p.coords.longitude,
+                accuracyMeters:p.coords.accuracy,capturedAt:new Date(p.timestamp).toISOString()}),
+              ()=>reject(Error("GPS was not approved.")),{enableHighAccuracy:true,maximumAge:0,timeout:15000}));
+          }catch{setMessage("GPS could not be verified. Ask HR for a reviewed exception.");return;}
+          data.set("geolocation",JSON.stringify(fix));
+        }
         if(photo&&policy?.consent==="accepted"&&policy.photoMode!=="off")data.set("photo",photo);
         try{
           const res=await fetch("/api/web-bundy/evidence",{method:"POST",body:data});
