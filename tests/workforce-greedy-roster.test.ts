@@ -191,6 +191,19 @@ test("rolling seven-day threshold blocks a seventh full eight-hour shift",()=>{
   assert.equal(singleReason(s,[w]),"rolling_week_cap");
 });
 
+test("consecutive-day policy blockers get an actionable unfilled reason",()=>{
+  const s=slot(5,dateAfter(date,6));
+  const days=Array.from({length:7},(_,index)=>schedule(dateAfter(date,index),
+    index<6?[segment("08:00","16:00")]:[]));
+  const candidate=worker(5,[s],{existingDays:days});
+  const result=plan([s],[candidate],{schedule:{
+    minimumRestMinutes:0,maxConsecutiveWorkingDays:6,
+    rollingSevenDayMinutes:0,enforcementMode:"block",active:true,
+  },maxRollingSevenDayPaidMinutes:10080});
+  assert.equal(result.roster.length,0);
+  assert.equal(result.unfilled[0].reason,"consecutive_day_cap");
+});
+
 test("designated rest day is not silently scheduled",()=>{
   const s=slot(1,date);
   const monday=new Date(date+"T00:00:00Z").getUTCDay();
