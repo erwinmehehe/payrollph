@@ -1,0 +1,67 @@
+name: WFM 0115 0116 0118 SQL Rehearsal (Disposable PostgreSQL)
+
+on:
+  pull_request:
+    paths:
+      - "drizzle/0115_inline_first_payroll_journey.sql"
+      - "drizzle/0116_wfm_roster_scale_rules.sql"
+      - "drizzle/0118_wfm_punch_evidence.sql"
+      - "scripts/rehearse-wfm-migration-contracts.mjs"
+      - ".github/workflows/wfm-migration-contract-rehearsal.yml"
+  push:
+    branches: [main]
+    paths:
+      - "drizzle/0115_inline_first_payroll_journey.sql"
+      - "drizzle/0116_wfm_roster_scale_rules.sql"
+      - "drizzle/0118_wfm_punch_evidence.sql"
+      - "scripts/rehearse-wfm-migration-contracts.mjs"
+      - ".github/workflows/wfm-migration-contract-rehearsal.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-sql-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      GITHUB_ACTIONS: "true"
+      MIGRATION_REHEARSAL_MODE: isolated-ci-only
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout exact PR source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Verify CI-only database guard (behavioral)
+        run: node --test tests/isolated-migration-target.test.mjs
+      - name: Execute exact source SQL twice, exercise constraints, rollback all
+        run: node scripts/rehearse-wfm-migration-contracts.mjs
+      - name: Execute exact source SQL, inject failure, confirm rollback all
+        run: node scripts/rehearse-wfm-migration-contracts.mjs --inject-failure
+      - name: Report sanitized result
+        run: |
+          cat qa-artifacts/wfm-migration-synthetic-rehearsal.json
+          cat qa-artifacts/wfm-migration-injected-failure.json
