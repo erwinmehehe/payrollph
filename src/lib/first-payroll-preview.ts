@@ -78,7 +78,7 @@ export async function loadReadOnlyFirstPayrollPreview(
    else {
      try {
        const raw=decryptGovernmentId(employee.tin);
-       if(!raw||!/^\\d{9}$/.test(raw.replace(/-/g,"")))problems.push("Invalid TIN format");
+       if(!raw||!/^\d{9}$/.test(raw.replace(/-/g,"")))problems.push("Invalid TIN format");
      } catch { problems.push("TIN encryption cannot be verified with configured keys"); }
    }
    if(!employee.bankAccount||!employee.bankCode)problems.push("Missing bank payout destination");

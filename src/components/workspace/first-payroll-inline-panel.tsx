@@ -125,7 +125,7 @@ export function FirstPayrollInlinePanel({
    {step==="company"&&<div className="grid gap-3">
      <p>Update the primary legal employer. Its calendar, not the legacy organization projection, governs payroll.</p>
      <label>Legal employer name<input value={company} onChange={e=>setCompany(e.target.value)}/></label>
-     <label>Employer BIR TIN<input value={registrations.birTin} inputMode="numeric" maxLength={9} pattern="[0-9]{9}" onChange={e=>setRegistrations(p=>({...p,birTin:e.target.value.replace(/\\D/g,"")}))}/></label>
+     <label>Employer BIR TIN<input value={registrations.birTin} inputMode="numeric" maxLength={9} pattern="[0-9]{9}" onChange={e=>setRegistrations(p=>({...p,birTin:e.target.value.replace(/\D/g,"")}))}/></label>
      <label>SSS employer registration<input value={registrations.sssEmployerNo} onChange={e=>setRegistrations(p=>({...p,sssEmployerNo:e.target.value}))}/></label>
      <label>PhilHealth employer registration<input value={registrations.philHealthEmployerNo} onChange={e=>setRegistrations(p=>({...p,philHealthEmployerNo:e.target.value}))}/></label>
      <label>Pag-IBIG employer registration<input value={registrations.pagIbigEmployerNo} onChange={e=>setRegistrations(p=>({...p,pagIbigEmployerNo:e.target.value}))}/></label>
