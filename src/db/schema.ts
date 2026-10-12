@@ -5,6 +5,7 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   integer,
   index,
   jsonb,
@@ -260,7 +261,10 @@ export const employees = pgTable("employees", {
   education: varchar("education", { length: 120 }),
   startDate: date("start_date").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, table => [
+  // Schema-first disposable CI needs a tenant-consistent FK parent key.
+  uniqueIndex("employees_org_id_workflows_unique").on(table.organizationId, table.id),
+]);
 
 export const employeeMweClassifications = pgTable(
   "employee_mwe_classifications",
@@ -5843,6 +5847,11 @@ export const workforcePunchPhotoConsents = pgTable("workforce_punch_photo_consen
 }, (table) => [
   uniqueIndex("workforce_punch_consent_unique").on(table.organizationId, table.employeeId, table.consentVersion),
   check("workforce_punch_consent_choice_check", sql`${table.choice} in ('accepted', 'declined')`),
+  foreignKey({
+    name: "workforce_punch_consent_employee_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id],
+  }).onDelete("cascade"),
 ]);
 
 export const workforcePunchPhotoEvidence = pgTable("workforce_punch_photo_evidence", {
@@ -5858,6 +5867,11 @@ export const workforcePunchPhotoEvidence = pgTable("workforce_punch_photo_eviden
 }, (table) => [
   index("workforce_punch_photo_expiry_idx").on(table.expiresAt),
   index("workforce_punch_photo_employee_idx").on(table.organizationId, table.employeeId),
+  foreignKey({
+    name: "workforce_punch_photo_employee_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id],
+  }).onDelete("cascade"),
 ]);
 
 export const workforcePunchSubmissions = pgTable("workforce_punch_submissions", {
@@ -5888,6 +5902,11 @@ export const workforcePunchSubmissions = pgTable("workforce_punch_submissions", 
   index("workforce_punch_employee_time_idx").on(table.organizationId, table.employeeId, table.deviceOccurredAt),
   check("workforce_punch_submission_status_check", sql`${table.status} in ('pending', 'approved', 'rejected')`),
   check("workforce_punch_submission_source_check", sql`${table.receivedSource} in ('online', 'offline')`),
+  foreignKey({
+    name: "workforce_punch_submission_employee_tenant_fk",
+    columns: [table.organizationId, table.employeeId],
+    foreignColumns: [employees.organizationId, employees.id],
+  }).onDelete("cascade"),
 ]);
 
 /**

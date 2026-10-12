@@ -32,7 +32,7 @@ test("real purge job erases expired ciphertext but preserves held and future ten
         id:randomUUID(),organizationId:orgB.id,employeeId:a.id,
         expiresAt:future,sealedPhoto:"synthetic-wrong-tenant",
       });
-    },/WFM_PUNCH_TENANT_MISMATCH/);
+    },/WFM_PUNCH_TENANT_MISMATCH|workforce_punch_photo_employee_tenant_fk/);
     const result=await purgeExpiredPunchPhotos(new Date("2026-10-12T00:00:00.000Z"));
     assert.ok(result.purged>=2);
     const rows=await db.select().from(workforcePunchPhotoEvidence).where(inArray(workforcePunchPhotoEvidence.id,ids));

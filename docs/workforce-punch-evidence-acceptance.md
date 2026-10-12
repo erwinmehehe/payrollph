@@ -1,3 +1,5 @@
+**Disposable-schema tenant safeguard (2026-10-12):** Added composite employee tenant foreign keys to the Drizzle schema for photo consent, encrypted photo evidence and staged punch submissions. The retention integration test now accepts either the canonical 0120 trigger rejection or the equivalent database FK denial in a db:push-only test database. This avoids treating a missing procedural trigger as a successful cross-tenant insert. Canonical 0120 additionally checks worksite, photo/timecard association and independent review and must still be rehearsed separately. No live Neon SQL applied.
+
 # Enhanced Web Bundy evidence — independent acceptance record
 
 **Status:** UNSIGNED / NOT RELEASED. This document is a runnable acceptance
