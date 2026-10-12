@@ -181,14 +181,23 @@ export async function POST(request: Request) {
 const CORE_API_SCOPES = ["employees:read", "employees:write", "payroll:read"] as const;
 const EXTENDED_API_SCOPES = ["org-units:read", "payslips:read", "events:read"] as const;
 
+// The explicit allowlist is the security ceiling, not the active permission grant.
+// The feature flag restricts it further and is evaluated per request.
+const ALLOWED_API_SCOPES: ReadonlySet<string> = new Set([...CORE_API_SCOPES, ...EXTENDED_API_SCOPES]);
+
 function activeApiScopes() {
   return criticalReleaseFlagEnabled("publicApiV1Extended")
-    ? [...CORE_API_SCOPES, ...EXTENDED_API_SCOPES]
+    ? [...ALLOWED_API_SCOPES]
     : [...CORE_API_SCOPES];
 }
 
-function normalizeScopes(value: unknown) {
+export function normalizeScopes(
+  value: unknown,
+  extendedEnabled = criticalReleaseFlagEnabled("publicApiV1Extended"),
+): string[] {
+  const available = new Set<string>(extendedEnabled ? ALLOWED_API_SCOPES : CORE_API_SCOPES);
   if (!Array.isArray(value) || value.length === 0) return ["employees:read", "payroll:read"];
-  const scopes = value.filter((scope): scope is string => typeof scope === "string" && activeApiScopes().includes(scope as "employees:read" | "employees:write" | "payroll:read" | "org-units:read" | "payslips:read" | "events:read"));
+  const scopes = value.filter((scope): scope is string =>
+    typeof scope === "string" && available.has(scope));
   return scopes.length ? [...new Set(scopes)] : ["employees:read", "payroll:read"];
 }
