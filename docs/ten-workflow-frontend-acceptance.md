@@ -30,7 +30,7 @@ The new release registry lives in `src/lib/critical-release-flags.ts`. Unset fla
 
 | Block / screen | Flag-ON roles | Empty, loading, error, outcome states | Narrow-phone requirements |
 | --- | --- | --- | --- |
-| First payroll inline drawers and blockers | Existing workspace first-payroll roles; owner/admin/HR with company-wide scope may send to team | Seven steps; ready/blocked/review, errors and sending status; no employee or no checker; handoff records operational case, does not grant role | Horizontal preview grid scroll, action buttons wrap; modal remains accessible |
+| First payroll — canonical main #915, not duplicate #862 UI | Existing company-wide payroll roles and governed first-payroll progress | Canonical source-backed readiness and reviewer/maker gate remain authoritative. The old unused seven-step #862 drawer and cosmetic preview mapper have been removed; its separate legacy handoff API stays default-off and unwired | Verify existing 320/375/390/430px mobile first-payroll journey and old flag-off parity |
 | Import upload / correction grid | Existing authorized People import roles | CSV file chooser; parse/validation error, upload/network failure, no rows, all/valid/error filter, corrected CSV download; commit after validation when new flag on | Grid scrolls, filter and download remain reachable |
 | Core-only nav / More modules | New self-service customer workspaces under flag, each role's already permitted modules | Core tab list and module directory; restricted modules visibly unavailable; existing tenants not opted in | Standard mobile drawer; tiles reflow at 320px |
 | Camera consent and offline claim | Employee linked to their own identity; reviewer queue restricted to authorized company HR | Consent unchecked, camera requesting/ready/denied, online/offline, queued unsent, sync sending/error, HR pending/flagged/dismissed; no raw face photo stored | Web Bundy modal max 95vw/90vh scroll; check camera no overflow and all buttons reachable |
@@ -41,7 +41,7 @@ The new release registry lives in `src/lib/critical-release-flags.ts`. Unset fla
 | Careers / job pipeline | Existing recruitment admins; public visitors see only explicitly published jobs, no private candidates | Published/unpublished/error; no published vacancy; application form and submit/sending/error/received; candidate Hire still goes through existing approval gates | Jobs stack, form single column at phone |
 | Employee case form / HR inbox | Linked employee sees only own cases; HR owner/admin/HR with existing unit constraints may view relevant cases | Form validation, loading, no submissions, status filters, error/retry, detail conversation, private HR note, resolution; no attachments yet | Scroll inbox and adaptive form/cards |
 
-**Critical distinctions / NOT fully implemented:** The first payroll drawers include inline blockers and handoffs but some underlying company/employee/time edits still use their governed existing screens; true in-drawer editing for every step is not certified. Approval-chain “escalation settings” currently use due/review labels and existing delegation controls; they do **not** automatically schedule escalation. The camera panel is a **non-biometric preview**; no live face template enrollment, matching, biometric retention, or anti-spoof model exists. Offline events are *claims*, not verified attendance and never used in payroll until separate HR correction. File uploads for employee cases are deliberately unsupported until scan/retention controls are integrated. Projected loan schedules and report previews are UI-only, not financial calculations or agency-approved formats.
+**Critical distinctions / NOT fully implemented:** The retired #862 seven-step preview/drawer is not the canonical #915 first-payroll workflow. The guarded legacy handoff endpoint and advisory flag stay unused and default-off until separate review. Approval-chain “escalation settings” currently use due/review labels and existing delegation controls; they do **not** automatically schedule escalation. The camera panel is a **non-biometric preview**; no live face template enrollment, matching, biometric retention, or anti-spoof model exists. Offline events are *claims*, not verified attendance and never used in payroll until separate HR correction. File uploads for employee cases are deliberately unsupported until scan/retention controls are integrated. Projected loan schedules and report previews are UI-only, not financial calculations or agency-approved formats.
 
 ## Data / migration design and rollback
 
@@ -51,7 +51,7 @@ The new release registry lives in `src/lib/critical-release-flags.ts`. Unset fla
 
 ## Executable tests added
 
-- `tests/workflow-frontend-behavior.test.ts` executes real flag decisions, first-payroll preview, multiline quoted CSV parser and spreadsheet-safe error download, report projections and formula-safe CSV, centavo-safe loan schedule, and React server-rendered screens for role-specific navigation/requests/camera/careers. Tests assert behavior, **not source-code grep**.
+- `tests/workflow-frontend-behavior.test.ts` executes real flag decisions, canonical first-payroll flag-off parity, multiline quoted CSV parser and spreadsheet-safe error download, report projections and formula-safe CSV, centavo-safe loan schedule, and React server-rendered screens for role-specific navigation/requests/camera/careers. Tests assert behavior, **not source-code grep**.
 - `tests/workflow-case-tenant-integration.test.ts` executes PostgreSQL two-tenant and multiple-employee fixtures, using the same tenant/employee predicates and composite FK refusal for foreign employee IDs and case IDs. Requires additive schema; before the migration is installed, this fixture reports explicit skipped status rather than pretending successful isolation.
 - Additional full HTTP authentication/permission, real camera/reconnect, maker-checker roster, hiring, browser and two-role tests are still required for release acceptance.
 
@@ -74,7 +74,7 @@ Use an **authenticated isolated staging tenant** and synthetic workers. Log the 
 
 | Screenshot target | Required captures |
 | --- | --- |
-| First payroll | Old checklist; new 7-step preview, opened blocker, send-to-role success/error |
+| First payroll | Canonical #915 guided workflow and genuine payroll preview; verify legacy behavior and no duplicate #862 drawer |
 | Import | Old import; new preview, error filter, downloadable error CSV |
 | New tenant navigation | Before original sidebar; after core-only nav, More modules, restricted card; mobile drawer |
 | Face/offline | Consent, camera permission denial/preview, offline queued banner, returned connectivity, HR flag queue |
