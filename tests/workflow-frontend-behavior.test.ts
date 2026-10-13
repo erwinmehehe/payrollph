@@ -33,7 +33,7 @@ const readiness: FirstPayrollReadiness = {
 
 test("all ten workflow UI flags are default OFF and require exact true", () => {
   const flags = {
-    firstPayrollInline: "FIRST_PAYROLL_INLINE_UI_ENABLED",
+    workflowFirstPayrollAdvisory: "FIRST_PAYROLL_INLINE_UI_ENABLED",
     importReview: "IMPORT_REVIEW_UI_ENABLED",
     coreOnlyNav: "CORE_ONLY_NAV_UI_ENABLED",
     faceOfflinePunch: "FACE_OFFLINE_PUNCH_UI_ENABLED",
