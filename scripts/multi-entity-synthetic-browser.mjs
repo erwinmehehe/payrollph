@@ -296,6 +296,19 @@ try {
     await capture(groupPage, "after-group-analytics");
   }, groupPage);
 
+  // The legacy /app route and all shared member-only APIs must not grant
+  // group_hr access when the entire feature is disabled, even if a group_hr
+  // membership has already been pre-provisioned for a future rollout.
+  const offGroup = await browser.newContext();
+  await login(offGroup, off, "entity-group@example.test");
+  const offGroupApp = await offGroup.newPage();
+  const offGroupResponse = await offGroupApp.goto(off + "/app?organizationId=1", {
+    waitUntil: "domcontentloaded", timeout: 60000,
+  });
+  assert.equal(offGroupResponse?.status(), 404, "Flag-OFF group_hr must not open the old company-wide workspace");
+  checks.push("Flag-OFF preprovisioned group HR has no legacy workspace access");
+  await offGroup.close();
+
   const disabled = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   await login(disabled, off, "entity-owner@example.test");
   assert.equal((await request(disabled, off, "/api/multi-entity/context?organizationId=1")).status, 404);

@@ -9,6 +9,7 @@ import {
   organizations, orgUnits, userEntityPreferences, userLegalEntityGrants, userOrganizations, users,
 } from "../src/db/schema";
 import { resolveMultiEntityContext, assertEntityResource } from "../src/lib/multi-entity-server";
+import { assertMembership, getAccess } from "../src/lib/access";
 import { employeeScopePredicate } from "../src/lib/multi-entity-personnel-scope";
 import { encryptBankAccount } from "../src/lib/bank-account-crypto";
 import { encryptGovernmentId } from "../src/lib/government-id-crypto";
@@ -271,6 +272,19 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
     assert.equal(group.ok, true);
     if (!group.ok) throw new Error("unexpected deny");
     assert.deepEqual(group.context.entities.map(e=>e.id).sort((a,b)=>a-b), [a1.id,a2.id]);
+    // Feature-OFF is a hard denial at BOTH shared access entrypoints, not
+    // merely the new /api/multi-entity URL. Other tenant roles retain legacy
+    // behavior without seeing a new group-wide capability by accident.
+    process.env.MULTI_ENTITY_ENABLED = "false";
+    try {
+      assert.equal(await getAccess(people[1].id, tenantA.id), null);
+      const deniedMembership = await assertMembership(people[1].id, tenantA.id);
+      assert.equal(deniedMembership?.status, 403);
+      assert.equal((await getAccess(people[3].id, tenantA.id))?.role, "owner");
+    } finally {
+      process.env.MULTI_ENTITY_ENABLED = "true";
+    }
+    assert.equal((await getAccess(people[1].id, tenantA.id))?.role, "group_hr");
     // Executed regression: a dedicated group_hr role with an org-unit
     // restriction is NOT a tenant-wide cross-entity principal. It cannot
     // enumerate All or explicitly name another employer while narrowed.
@@ -281,6 +295,8 @@ test("multi-entity service rejects cross-entity and cross-tenant reads and ID en
     await db.update(userOrganizations).set({ orgUnitId: restrictedUnit.id })
       .where(and(eq(userOrganizations.organizationId, tenantA.id),
         eq(userOrganizations.userId, people[1].id)));
+    assert.equal(await getAccess(people[1].id, tenantA.id), null);
+    assert.equal((await assertMembership(people[1].id, tenantA.id))?.status, 403);
     for (const requested of ["all", a1.id, a2.id]) {
       const restrictedGroup = await resolveMultiEntityContext({
         userId: people[1].id, organizationId: tenantA.id, requested,
