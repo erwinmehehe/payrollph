@@ -98,6 +98,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 consented POS source access and historical aggregate import",
     approval: "Merchant consent, exact worksite scope and independently reconciled source evidence",
   },
+  apiV1ExtendedReads: {
+    env: "API_V1_EXTENDED_READS_ENABLED",
+    owner: "Integrations",
+    risk: "P1 additional provider inbox and payroll accounting journal exports",
+    approval: "Entity-scoped API authorization, accounting reconciliation and privacy acceptance",
+  },
   publicApiV1Extended: {
     env: "PUBLIC_API_V1_EXTENDED_ENABLED",
     owner: "Integrations",
