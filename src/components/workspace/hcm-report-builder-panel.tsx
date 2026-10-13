@@ -21,6 +21,28 @@ const today = () => new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit",
 }).format(new Date());
 
+
+type CapabilityResult =
+  | { state: "enabled"; fields: Field[] }
+  | { state: "disabled" }
+  | { state: "error"; message: string };
+
+/** Fetch without React state changes; the caller handles resolved results. */
+async function readCapabilities(organizationId: number, signal?: AbortSignal): Promise<CapabilityResult> {
+  try {
+    const response = await fetch("/api/hcm-report-builder?organizationId=" + organizationId,
+      { cache: "no-store", signal });
+    // A 404 is the feature-off contract, not a blank report widget.
+    if (response.status === 404) return { state: "disabled" };
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(String(payload.error ?? "Report builder could not open."));
+    if (!Array.isArray(payload.fields)) throw new Error("Report fields are unavailable.");
+    return { state: "enabled", fields: payload.fields as Field[] };
+  } catch (err) {
+    return { state: "error", message: err instanceof Error ? err.message : "Report builder is unavailable." };
+  }
+}
+
 export function HcmReportBuilderPanel({ organizationId }: { organizationId: number }) {
   const [fieldsAvailable, setFieldsAvailable] = useState<Field[]>([]);
   const [capabilitiesOrganizationId, setCapabilitiesOrganizationId] = useState<number | null>(null);
@@ -37,41 +59,53 @@ export function HcmReportBuilderPanel({ organizationId }: { organizationId: numb
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const generation = useRef(0);
+  const capabilitiesGeneration = useRef(0);
 
-  const loadCapabilities = useCallback(async (signal?: AbortSignal) => {
-    // Initial effect starts only async network synchronization: no synchronous
-    // setState call during commit. Retry state updates occur in the click handler.
-    try {
-      const response = await fetch("/api/hcm-report-builder?organizationId=" + organizationId,
-        { cache: "no-store", signal });
-      if (signal?.aborted) return;
-      // A 404 is the default-off contract. Never flash a new card on the
-      // legacy workspace while checking a disabled release-critical feature.
-      if (response.status === 404) { setEnabled(false); setCapabilitiesOrganizationId(null); return; }
-      const payload = await response.json().catch(() => ({}));
-      if (signal?.aborted) return;
-      if (!response.ok) throw new Error(String(payload.error ?? "Report builder could not open."));
-      if (!Array.isArray(payload.fields)) throw new Error("Report fields are unavailable.");
-      setFieldsAvailable(payload.fields as Field[]);
-      setCapabilitiesOrganizationId(organizationId);
+  const applyCapabilities = useCallback((result: CapabilityResult, requestedOrgId: number, requestId: number, signal?: AbortSignal) => {
+    // A stale response cannot replace a different employer's available fields.
+    if (signal?.aborted || requestId !== capabilitiesGeneration.current) return;
+    if (result.state === "disabled") {
+      setEnabled(false);
+      setCapabilitiesOrganizationId(null);
+      setFieldsAvailable([]);
+      setError("");
+    } else if (result.state === "error") {
       setEnabled(true);
-    } catch (err) {
-      if (!signal?.aborted) {
-        setEnabled(true);
-        setFieldsAvailable([]);
-        setCapabilitiesOrganizationId(organizationId);
-        setError(err instanceof Error ? err.message : "Report builder is unavailable.");
-      }
-    } finally {
-      if (!signal?.aborted) setRetrieving(false);
+      setFieldsAvailable([]);
+      setCapabilitiesOrganizationId(requestedOrgId);
+      setError(result.message);
+    } else {
+      setEnabled(true);
+      setFieldsAvailable(result.fields);
+      setCapabilitiesOrganizationId(requestedOrgId);
+      setError("");
     }
-  }, [organizationId]);
+    setRetrieving(false);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadCapabilities(controller.signal);
-    return () => { controller.abort(); generation.current += 1; };
-  }, [loadCapabilities]);
+    const requestId = ++capabilitiesGeneration.current;
+    // Updating state only after this asynchronous fetch resolves keeps React
+    // effect setup free of synchronous cascading updates.
+    void readCapabilities(organizationId, controller.signal).then(result => {
+      applyCapabilities(result, organizationId, requestId, controller.signal);
+    });
+    return () => {
+      controller.abort();
+      capabilitiesGeneration.current += 1;
+      generation.current += 1;
+    };
+  }, [organizationId, applyCapabilities]);
+
+  const retryCapabilities = () => {
+    setRetrieving(true);
+    setError("");
+    const requestId = ++capabilitiesGeneration.current;
+    void readCapabilities(organizationId).then(result => {
+      applyCapabilities(result, organizationId, requestId);
+    });
+  };
 
   // Capabilities are valid only for the employer that issued them. During
   // employer switching, the previous employer must contribute no field list.
@@ -165,7 +199,7 @@ export function HcmReportBuilderPanel({ organizationId }: { organizationId: numb
         {retrieving && <p role="status">Loading available report fields…</p>}
         {error && fieldsAvailable.length === 0 && (
           <button type="button" className="secondary-button" disabled={retrieving}
-            onClick={() => { setRetrieving(true); setError(""); void loadCapabilities(); }}
+            onClick={retryCapabilities}
             style={{ justifySelf: "start" }}>
             Retry loading fields
           </button>
