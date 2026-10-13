@@ -150,6 +150,13 @@ jobs:
           BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
         run: npx tsx scripts/encrypt-bank-accounts.ts
 
+      - name: Authenticate existing bank envelopes using current key (read-only)
+        if: ${{ inputs.mode == 'dry-run' }}
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_BANK_AUDIT_DATABASE_URL }}
+          BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
+        run: npx tsx scripts/audit-bank-envelopes-readonly.mjs --inventory
+
       - name: Recheck all four stores immediately before approved apply
         if: ${{ inputs.mode == 'apply' }}
         env:
@@ -187,6 +194,13 @@ jobs:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
           BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
         run: npx tsx scripts/verify-bank-account-envelopes.ts
+
+      - name: Independent SELECT-only current-key four-store proof
+        if: ${{ inputs.mode == 'apply' }}
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_BANK_AUDIT_DATABASE_URL }}
+          BANK_DATA_ENCRYPTION_KEY: ${{ secrets.PRODUCTION_BANK_DATA_ENCRYPTION_KEY }}
+        run: npx tsx scripts/audit-bank-envelopes-readonly.mjs --require-zero
 
       - name: Verify live readiness sees encrypted bank data
         if: ${{ inputs.mode == 'apply' }}

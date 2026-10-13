@@ -1,0 +1,25 @@
+# Deploy on DIFFERENT infrastructure from worker/Next.js and attach external
+# host-down monitoring. A watchdog hosted beside the worker is not independent.
+services:
+  payrollph-scheduler-watchdog:
+    build:
+      context: ../..
+      dockerfile: deploy/scheduler/watchdog.Dockerfile
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ./watchdog.env
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

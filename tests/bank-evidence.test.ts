@@ -53,7 +53,7 @@ test("bank UAT stores only file identity/evidence, not the payroll file contents
 });
 
 test("manual corporate bank acceptance can satisfy bank readiness but generation alone cannot", () => {
-  const readiness = readFileSync("src/app/api/readiness/route.ts", "utf8");
+  const readiness = (readFileSync("src/app/api/readiness/route.ts", "utf8") + readFileSync("src/lib/operational-readiness.ts", "utf8"));
   assert.ok(readiness.includes("acceptedBankFileValidationCount"));
   assert.ok(readiness.includes("manualBankUatProven = acceptedBankFileValidations > 0"));
   assert.ok(readiness.includes("recorded corporate-portal acceptance evidence"));
