@@ -345,6 +345,22 @@ test("live gate uses GitHub API GET only, with read-only token and current-head 
   assert.ok(mock.calls.every(x => x.request.headers.Authorization.includes("synthetic-read-only")));
 });
 
+test("solo source gate admits the approved legacy blob but not changed or additional frozen code", async () => {
+  const file = { filename: "src/app/api/hcm/employment-term-decisions/[id]/evidence/route.ts",
+    status: "modified", sha: "49957255191041ee83440bd7f24ea5cfd72d491c" };
+  const solo = { ...env, INDEPENDENT_SOURCE_REVIEW_REQUIRED: "false" };
+  const approved = await checkIndependentReview(solo, fakeGithub({ files: [file], reviews: [] }).fetcher);
+  assert.equal(approved.ok, true);
+  assert.equal(approved.releaseAuthorized, false);
+  assert.equal(approved.approvalCount, 0);
+  for (const files of [[{ ...file, sha: "0".repeat(40) }], [file,
+    { filename: "src/lib/hcm-new.ts", status: "modified" }]]) {
+    const blocked = await checkIndependentReview(solo, fakeGithub({ files, reviews: [] }).fetcher);
+    assert.equal(blocked.ok, false);
+    assert.ok(blocked.blockers.includes("PILOT_HCM_WFM_FREEZE_ACTIVE"));
+  }
+});
+
 test("stale API PR head, unreadable permissions and insufficient scope fail closed", async () => {
   await assert.rejects(() => checkIndependentReview(env, fakeGithub({ mismatch: true }).fetcher),
     /REVIEW_GATE_PR_HEAD_OR_FILE_SET_UNVERIFIED/);
