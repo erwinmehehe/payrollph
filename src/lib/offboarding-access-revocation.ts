@@ -58,6 +58,14 @@ export async function revokeSeparatedEmployeeAccessTx(tx: DbTransaction, input: 
     : [];
   const retainedLogins = new Set(otherEmployerMemberships.map(row => row.userId));
   const disableIds = employeeUserIds.filter(id => !retainedLogins.has(id));
+  const retainedIds = employeeUserIds.filter(id => retainedLogins.has(id));
+  // A still-active account must not keep the separated employer's global
+  // employeeId pointer. Self-service endpoints can use that pointer even
+  // before reading tenant membership; require a new authorized HR link.
+  if (retainedIds.length) {
+    await tx.update(users).set({ employeeId: null })
+      .where(and(inArray(users.id, retainedIds), eq(users.role, "employee")));
+  }
   // Only disable the login if it no longer serves another employer.
   // All existing sessions must reauthenticate regardless of membership.
   const disabled = disableIds.length

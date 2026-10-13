@@ -40,5 +40,7 @@ invalidates all existing sessions, and preserves a still-active account for a
 different employer. An account with no surviving employer is disabled. Legacy
 membership rows without workerEmployeeId are included in the revocation.
 The attached disposable PostgreSQL test checks both employee membership scopes.
-Re-linking a global employeeId for the surviving employer remains a separate
-HR/identity review. No external IdP/SSO/MDM access is claimed revoked.
+The global employeeId is cleared in the same transaction for a surviving
+cross-employer login, preventing self-service routes from dereferencing the
+separated employee after a fresh sign-in. Linking the surviving employer's
+employee record requires separate HR/identity review. No external IdP/SSO/MDM access is claimed revoked.

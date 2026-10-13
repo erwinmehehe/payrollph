@@ -202,6 +202,8 @@ test("offboarding preserves other employer login but revokes original sessions a
     const [saved] = await db.select().from(users).where(eq(users.id, login.id));
     assert.equal(saved.active, true, "Employer B identity must remain usable");
     assert.equal(saved.localPasswordEnabled, true);
+    assert.equal(saved.employeeId, null,
+      "Surviving account must never retain the separated employer's self-service employee link");
     const [oldSession] = await db.select().from(sessions).where(eq(sessions.id, session.id));
     assert.ok(oldSession.revokedAt, "Existing sessions must reauthenticate");
     const persisted = await db.select().from(userOrganizations)
