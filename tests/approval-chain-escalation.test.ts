@@ -4,6 +4,7 @@ import { payrollMakerCheckerDecision,shouldEscalateApprovalStep } from "../src/l
 import { resolveApproversFromRows } from "../src/lib/delegation";
 import { validateApprovalChainSteps, approvalEscalationSnapshotHeld } from "../src/lib/approval-chains";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
+import { eligibleEscalationRecipient } from "../src/lib/approval-escalation-notifications";
 
 test("maker may not approve as their own delegate: identity beats named routing",()=>{
  const delegates=resolveApproversFromRows("Payroll checker",[
@@ -75,4 +76,31 @@ test("overdue pending action is escalated once without deciding it",()=>{
 test("approval escalation is disabled by default",()=>{
  assert.equal(criticalReleaseFlagEnabled("approvalChainEscalations",{}),false);
  assert.equal(criticalReleaseFlagEnabled("approvalChainEscalations",{APPROVAL_CHAIN_ESCALATIONS_ENABLED:"true"}),true);
+});
+
+
+test("advisory destination accepts only active tenant-scoped staff identifiers and role tokens", () => {
+ const base = {id: 14, email: "synthetic@example.test", name: "Synthetic owner",
+   role: "owner", orgUnitId: null};
+ assert.equal(eligibleEscalationRecipient(base, "role:owner"), true);
+ assert.equal(eligibleEscalationRecipient(base, "role:hr"), true);
+ assert.equal(eligibleEscalationRecipient(base, "user:14"), true);
+ assert.equal(eligibleEscalationRecipient(base, "user:15"), false);
+ assert.equal(eligibleEscalationRecipient({ ...base, orgUnitId: 9 }, "role:owner"), false);
+ assert.equal(eligibleEscalationRecipient({ ...base, role: "employee" }, "user:14"), false);
+ assert.equal(eligibleEscalationRecipient({ ...base, email: " " }, "user:14"), false);
+});
+test("advisory destination validation cannot create a delegated checker or bypass disabled policy", () => {
+ const base = {label:"Independent approval",approver:"role:finance",minimumAmount:0};
+ for (const destination of ["user:0", "user:-1", "role:all", "someone@example.test", "user:1;DELETE", "role:employee"]) {
+   assert.equal(validateApprovalChainSteps([{...base,escalationAfterDays:2,escalationRecipient:destination}],true),null);
+ }
+ assert.equal(validateApprovalChainSteps([{...base,escalationRecipient:"role:hr"}],true),null,
+   "A recipient without an escalation window is not a valid approval policy");
+ const steps=validateApprovalChainSteps([{...base,escalationAfterDays:2,escalationRecipient:"role:owner"}],true);
+ assert.equal(steps?.[0].approver,"role:finance",
+   "Advisory delivery must not alter the original checker");
+ assert.equal(steps?.[0].escalationRecipient,"role:owner");
+ assert.equal(validateApprovalChainSteps([{...base,escalationAfterDays:2,escalationRecipient:"role:owner"}],false),null);
+ assert.equal(approvalEscalationSnapshotHeld([{...base,escalationAfterDays:2,escalationRecipient:"role:owner"}],false),true);
 });
