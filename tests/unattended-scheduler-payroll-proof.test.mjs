@@ -88,6 +88,8 @@ test("workflow automatically provisions local Postgres and never activates a pro
   assert.match(source, /auditChainSeal\?\.sealed/);
   assert.match(source, /dispatchSchedulerTick/);
   assert.match(source, /spawn\("npm", \["run", "worker"\]/);
+  assert.match(source, /stdio: \["ignore", "ignore", "ignore"\]/);
+  assert.doesNotMatch(source, /openSync\(|closeSync\(|\/tmp\/payrollph-unattended-worker/);
   assert.doesNotMatch(source, /drainPayrollQueue\(|processNextPayrollJob\(|enqueuePayrollRun\(/);
   assert.match(source, /syntheticRunStatus/);
   assert.match(source, /statutoryFilingSubmitted: false/);
