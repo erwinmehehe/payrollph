@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, CheckCircle2, Download, FileCheck, FileText, HelpCircle, Plus, Shield, UserX, X } from "lucide-react";
 import { finalPayReviewCsv, finalPayReviewShortfall, finalPayLoanReviewSummary } from "@/lib/final-pay-review-evidence";
+import { manilaCalendarDate } from "@/lib/payroll-period-ui";
 
 type ReadyTermHandoff = {
   employeeId: number;
@@ -50,6 +51,8 @@ type SeparationRecord = {
   adminCleared: boolean;
   financeCleared: boolean;
   hrCleared: boolean;
+  clearanceReady?: boolean;
+  waivedDepartments?: Array<"it" | "admin" | "finance" | "hr">;
   prorated13thMonth: string;
   thirteenthEntitlement: string;
   thirteenthPaidYtd: string;
@@ -110,6 +113,15 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
   const [manualReleaseEnabled, setManualReleaseEnabled] = useState(false);
   const [clearanceEvidenceReference, setClearanceEvidenceReference] = useState("");
   const [clearanceReason, setClearanceReason] = useState("");
+  const [offboardingClearanceEnabled, setOffboardingClearanceEnabled] = useState(false);
+  const [canRevokeLocalAccess, setCanRevokeLocalAccess] = useState(false);
+  const [localAccessEvidenceReference, setLocalAccessEvidenceReference] = useState("");
+  const [localAccessBusy, setLocalAccessBusy] = useState(false);
+  const [canAuthorizeClearanceWaivers, setCanAuthorizeClearanceWaivers] = useState(false);
+  const [waiverDepartment, setWaiverDepartment] = useState<"it" | "admin" | "finance" | "hr">("it");
+  const [waiverEvidenceReference, setWaiverEvidenceReference] = useState("");
+  const [waiverReason, setWaiverReason] = useState("");
+  const [waiverBusy, setWaiverBusy] = useState(false);
   const [coeEvidenceReference, setCoeEvidenceReference] = useState("");
 
   const [form, setForm] = useState({
@@ -155,6 +167,9 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
         setSeparations(records);
         setCurrentUserId(Number.isInteger(data.currentUserId) ? data.currentUserId : null);
         setManualReleaseEnabled(data.manualReleaseEnabled === true);
+        setOffboardingClearanceEnabled(data.offboardingClearanceEnabled === true);
+        setCanRevokeLocalAccess(data.canRevokeLocalAccess === true);
+        setCanAuthorizeClearanceWaivers(data.canAuthorizeClearanceWaivers === true);
         const ids = records.filter((row) => row.status === "draft").map((row) => row.id);
         const query = new URLSearchParams({
           organizationId: String(organizationId),
@@ -287,6 +302,32 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     reload();
   }
 
+  async function authorizeClearanceWaiver(sep: SeparationRecord) {
+    if (!offboardingClearanceEnabled || !canAuthorizeClearanceWaivers || waiverBusy) return;
+    if (!window.confirm("Waive " + waiverDepartment.toUpperCase() + " clearance for " +
+      sep.employeeName + "? This is auditable and does not waive IT access revocation.")) return;
+    setWaiverBusy(true);
+    try {
+      const response = await fetch("/api/separation", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: sep.id, action: "waive_clearance", department: waiverDepartment,
+          waiverEvidenceReference: waiverEvidenceReference.trim(),
+          waiverReason: waiverReason.trim(),
+        }),
+      });
+      const data = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Waiver rejected.");
+      setWaiverEvidenceReference(""); setWaiverReason("");
+      setNotice("Independent department waiver recorded; final-pay approval is still separate.");
+      reload();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Clearance waiver failed.");
+      reload();
+    } finally { setWaiverBusy(false); }
+  }
+
   async function requestSeparationReadinessReview(id: number) {
     if (!reviewChainCode) {
       setNotice("Configure an active Automation Studio approval chain for the separation review first.");
@@ -331,6 +372,49 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
     setShowCoeModal(false);
     setSelectedRecord(null);
     reload();
+  }
+
+  async function revokeLocalAccess(id: number) {
+    if (localAccessBusy || localAccessEvidenceReference.trim().length < 8) return;
+    if (!window.confirm(
+      "Revoke the employee's local app sessions and memberships for this employer? "
+      + "This does NOT revoke external SSO/MDM application access, does NOT mark final pay "
+      + "released, and will preserve active memberships at other employers.",
+    )) return;
+    setLocalAccessBusy(true);
+    try {
+      const res = await fetch("/api/separation", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id, action: "revoke_local_access",
+          localAccessEvidenceReference: localAccessEvidenceReference.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setNotice(data.error ?? "Could not revoke local application access.");
+        return;
+      }
+      setNotice(
+        `Local employer access cutoff recorded: ${data.revokedSessionCount ?? 0} sessions invalidated. `
+        + "External identity-provider grants still require independent IT verification. "
+        + "Final pay has not been released.",
+      );
+      setLocalAccessEvidenceReference("");
+      setSelectedRecord(null);
+      reload();
+    } catch {
+      // A transport failure after commit has an unknown outcome. Do not
+      // claim revocation succeeded or failed; retain the evidence reference.
+      setNotice(
+        "Local access cutoff outcome is unknown because the request could not be confirmed. "
+        + "Refresh the separation and audit evidence before retrying.",
+      );
+      reload();
+    } finally {
+      setLocalAccessBusy(false);
+    }
   }
 
   async function transitionFinalPay(id: number, action: "approve" | "release") {
@@ -628,6 +712,42 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             </div>
           )}
 
+          {offboardingClearanceEnabled && canRevokeLocalAccess
+            && ["draft", "approved"].includes(selectedRecord.status) && (
+            <section style={{ marginTop: 14, padding: 14, border: "1px solid var(--line)", borderRadius: 10 }}>
+              <strong>Local application access cutoff (independent of final pay)</strong>
+              <p style={{ fontSize: 12 }}>
+                After the verified last working day, an independent HR/IT reviewer can
+                revoke this employer&apos;s local memberships and existing sessions.
+                No external SSO/MDM provider calls are made. Final-pay approval,
+                release, and money movement remain separate.
+              </p>
+              {selectedRecord.lastDay > manilaCalendarDate() && (
+                <p role="status" style={{ fontSize: 12 }}>
+                  Cutoff cannot run before {selectedRecord.lastDay} (Philippine date).
+                </p>
+              )}
+              <label>
+                Local access cutoff evidence reference
+                <input
+                  value={localAccessEvidenceReference}
+                  maxLength={200}
+                  onChange={event => setLocalAccessEvidenceReference(event.target.value)}
+                  placeholder="Reviewed HR/IT separation record"
+                />
+              </label>
+              <button className="secondary-button" style={{ marginTop: 8 }}
+                disabled={localAccessBusy
+                  || selectedRecord.lastDay > manilaCalendarDate()
+                  || selectedRecord.preparedByUserId == null
+                  || selectedRecord.preparedByUserId === currentUserId
+                  || localAccessEvidenceReference.trim().length < 8}
+                onClick={() => void revokeLocalAccess(selectedRecord.id)}>
+                {localAccessBusy ? "Recording local cutoff..." : "Revoke local access for this employer"}
+              </button>
+            </section>
+          )}
+
           <div style={{ marginTop: 14, padding: "12px 16px", borderRadius: 10, background: "var(--green-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <span style={{ fontSize: 10, textTransform: "uppercase", fontWeight: 800, color: "#0e3e34" }}>NET FINAL PAY DUE</span>
@@ -763,9 +883,37 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
             />
           </label>
           <p style={{ flexBasis: "100%", margin: "0", fontSize: 11 }}>
-            Clearances require an authorized departmental role, recent MFA and recorded evidence.
-            Only draft packages may change; finance/payroll approval requires all four reviews.
+            Clearances require department authority, MFA and evidence. Only draft packages may change.
           </p>
+          {offboardingClearanceEnabled && canAuthorizeClearanceWaivers && (
+            <fieldset style={{ flexBasis: "100%", display: "flex", flexWrap: "wrap",
+              gap: 10, border: "1px solid var(--line)", padding: 12, borderRadius: 8 }}>
+              <legend>Independent department clearance waiver</legend>
+              <label>Department
+                <select value={waiverDepartment}
+                  onChange={event => setWaiverDepartment(event.target.value as "it" | "admin" | "finance" | "hr")}>
+                  <option value="it">IT equipment (external access must be revoked)</option>
+                  <option value="admin">Administration</option>
+                  <option value="finance">Finance</option>
+                  <option value="hr">HR</option>
+                </select>
+              </label>
+              <label>Evidence reference
+                <input value={waiverEvidenceReference} maxLength={200}
+                  onChange={event => setWaiverEvidenceReference(event.target.value)}
+                  placeholder="Signed exception or decision reference" />
+              </label>
+              <label style={{ flex: "1 1 280px" }}>Documented waiver reason
+                <textarea value={waiverReason} maxLength={500} rows={2}
+                  onChange={event => setWaiverReason(event.target.value)}
+                  placeholder="Explain the unresolved task and independent decision" />
+              </label>
+              <small style={{ flexBasis: "100%" }}>
+                Only a company-wide owner/admin other than the final-pay preparer can authorize
+                this after MFA. External IT access and financial approval cannot be waived.
+              </small>
+            </fieldset>
+          )}
         </div>
         <div className="data-table-wrap">
           <table className="data-table">
@@ -790,16 +938,16 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                   <td>
                     <div style={{ display: "flex", gap: 4 }}>
                       <button className={`secondary-button ${sep.itCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} disabled={sep.status !== "draft" || clearanceEvidenceReference.trim().length < 8 || clearanceReason.trim().length < 12} onClick={() => updateClearance(sep.id, "it", !sep.itCleared)}>
-                        IT {sep.itCleared ? "✓" : "-"}
+                        IT {sep.itCleared ? "✓" : sep.waivedDepartments?.includes("it") ? "W" : "-"}
                       </button>
                       <button className={`secondary-button ${sep.adminCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} disabled={sep.status !== "draft" || clearanceEvidenceReference.trim().length < 8 || clearanceReason.trim().length < 12} onClick={() => updateClearance(sep.id, "admin", !sep.adminCleared)}>
-                        ADM {sep.adminCleared ? "✓" : "-"}
+                        ADM {sep.adminCleared ? "✓" : sep.waivedDepartments?.includes("admin") ? "W" : "-"}
                       </button>
                       <button className={`secondary-button ${sep.financeCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} disabled={sep.status !== "draft" || clearanceEvidenceReference.trim().length < 8 || clearanceReason.trim().length < 12} onClick={() => updateClearance(sep.id, "finance", !sep.financeCleared)}>
-                        FIN {sep.financeCleared ? "✓" : "-"}
+                        FIN {sep.financeCleared ? "✓" : sep.waivedDepartments?.includes("finance") ? "W" : "-"}
                       </button>
                       <button className={`secondary-button ${sep.hrCleared ? "active" : ""}`} style={{ height: 22, fontSize: 9, padding: "0 5px" }} disabled={sep.status !== "draft" || clearanceEvidenceReference.trim().length < 8 || clearanceReason.trim().length < 12} onClick={() => updateClearance(sep.id, "hr", !sep.hrCleared)}>
-                        HR {sep.hrCleared ? "✓" : "-"}
+                        HR {sep.hrCleared ? "✓" : sep.waivedDepartments?.includes("hr") ? "W" : "-"}
                       </button>
                     </div>
                   </td>
@@ -820,7 +968,21 @@ export function SeparationPanel({ organizationId, setNotice }: { organizationId:
                       <button className="primary-button" style={{ height: 26, fontSize: 10, padding: "0 8px" }} onClick={() => setSelectedRecord(sep)}>
                         Breakdown
                       </button>
-                      {sep.status === "draft" && (
+                      {offboardingClearanceEnabled && canAuthorizeClearanceWaivers &&
+                         sep.status === "draft" && sep.preparedByUserId != null &&
+                         sep.preparedByUserId !== currentUserId && (
+                           <button className="secondary-button" style={{ height: 26, fontSize: 10, padding: "0 8px" }}
+                             disabled={waiverBusy || waiverReason.trim().length < 20 ||
+                               waiverEvidenceReference.trim().length < 8 ||
+                               (waiverDepartment === "it" && (sep.itCleared || sep.waivedDepartments?.includes("it"))) ||
+                               (waiverDepartment === "admin" && (sep.adminCleared || sep.waivedDepartments?.includes("admin"))) ||
+                               (waiverDepartment === "finance" && (sep.financeCleared || sep.waivedDepartments?.includes("finance"))) ||
+                               (waiverDepartment === "hr" && (sep.hrCleared || sep.waivedDepartments?.includes("hr")))}
+                             onClick={() => void authorizeClearanceWaiver(sep)}>
+                             {waiverBusy ? "Reviewing..." : "Waive " + waiverDepartment.toUpperCase()}
+                           </button>
+                         )}
+                       {sep.status === "draft" && (
                         <button
                           className="secondary-button"
                           style={{ height: 26, fontSize: 10, padding: "0 8px" }}
