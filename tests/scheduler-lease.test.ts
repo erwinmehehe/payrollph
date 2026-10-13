@@ -30,6 +30,8 @@ test("a scheduler lease serializes workers and fences stale owners", async () =>
     `);
     assert.equal(await refreshSchedulerLease(first, jobName), false,
       "an expired owner cannot refresh and revive itself before takeover");
+    assert.equal(await releaseSchedulerLease(first, "completed", jobName), false,
+      "an expired owner cannot claim a successful release even before a rival takes over");
     assert.equal(await acquireSchedulerLease(second, jobName), true);
     assert.equal(await refreshSchedulerLease(first, jobName), false);
     assert.equal(await releaseSchedulerLease(first, "completed", jobName), false);

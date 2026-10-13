@@ -1,6 +1,8 @@
 import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { sameBankAccount } from "@/lib/bank-account-crypto";
+import { exactLoanPaymentReplayMatches, payrollLoanPosting } from "@/lib/payroll-loan-settlement";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import { holidayCalendarFingerprint } from "@/lib/payroll-calendar";
 import { NATIONAL_HOLIDAYS_2026, type HolidayCalendarEntry } from "@/lib/wage-orders";
 import { ensureEmployeePayProfiles } from "@/lib/pay-basis-schema";
@@ -630,8 +632,6 @@ export async function settlePayrollRun(
               eq(loanPayments.payrollRunId, run.id),
             ))
             .limit(1);
-          if (existingPayment) continue;
-
           const [loan] = await tx
             .select()
             .from(employeeLoans)
@@ -643,36 +643,47 @@ export async function settlePayrollRun(
           if (!loan || loan.employeeId !== entry.employeeId) {
             throw new Error(`Loan ${loanId} no longer matches this payroll entry.`);
           }
+          // Even an existing payment must bind to this tenant and employee.
+          // When exact settlement is enabled, an amount mismatch is NOT a
+          // successful idempotent replay, and aborts the release transaction.
+          if (existingPayment) {
+            if (criticalReleaseFlagEnabled("exactPayrollLoanSettlement") &&
+                !exactLoanPaymentReplayMatches(plannedDeduction, existingPayment.amount)) {
+              throw new Error(`Loan ${loanId} prior payment amount differs from this release; recalculate payroll.`);
+            }
+            continue;
+          }
           if (loan.status !== "active") {
             throw new Error(`Loan ${loanId} is no longer active; recalculate payroll before release.`);
           }
 
-          const remaining = Number(loan.remainingBalance);
-          if (plannedDeduction > remaining + 0.01) {
-            throw new Error(`Loan ${loanId} balance changed after calculation; recalculate payroll before release.`);
-          }
-
+          // Exact-centavo validation is an explicit default-off rollout.
+          const posting = payrollLoanPosting({
+            loanId, plannedDeduction, remainingBalance: loan.remainingBalance,
+            totalPaid: loan.totalPaid,
+          });
           await tx.insert(loanPayments).values({
             loanId,
             payrollRunId: run.id,
-            amount: money(plannedDeduction),
+            amount: posting.deduction,
             paymentDate: run.payDate,
             reference: `Auto-deduct ${run.periodLabel}`,
           });
-
-          const newBalance = Math.max(0, remaining - plannedDeduction);
-          const newPaid = Number(loan.totalPaid) + plannedDeduction;
           const [updatedLoan] = await tx.update(employeeLoans)
             .set({
-              remainingBalance: money(newBalance),
-              totalPaid: money(newPaid),
-              status: newBalance <= 0 ? "paid_off" : "active",
+              remainingBalance: posting.remainingBalance,
+              totalPaid: posting.totalPaid,
+              status: posting.status,
             })
             .where(and(
               eq(employeeLoans.id, loanId),
               eq(employeeLoans.organizationId, run.organizationId),
               eq(employeeLoans.status, "active"),
               eq(employeeLoans.remainingBalance, loan.remainingBalance),
+              // Exact posting must not overwrite a concurrent total-paid edit
+              // whose balance happened to remain unchanged.
+              criticalReleaseFlagEnabled("exactPayrollLoanSettlement")
+                ? eq(employeeLoans.totalPaid, loan.totalPaid) : undefined,
             ))
             .returning({ id: employeeLoans.id });
           if (!updatedLoan) {

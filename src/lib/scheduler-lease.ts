@@ -61,6 +61,9 @@ export async function releaseSchedulerLease(
      WHERE job_name = ${jobName}
        AND last_result->>'status' = 'running'
        AND last_result->>'ownerToken' = ${ownerToken}
+       -- Expired owners cannot claim either success or failure as a release.
+       -- Recovery must use an explicit new acquire; it cannot revive a stale token.
+       AND last_run_at >= NOW() - (${LEASE_TIMEOUT_MINUTES} * INTERVAL '1 minute')
     RETURNING id
   `);
   return result.rows.length === 1;

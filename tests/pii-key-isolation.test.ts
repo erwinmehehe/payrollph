@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createCipheriv, createHmac, randomBytes } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { register } from "../src/instrumentation";
 import { decryptGovernmentId, encryptGovernmentId, rotateGovernmentIdEncryption } from "../src/lib/government-id-crypto";
 import { decryptProfilePhoto, encryptProfilePhoto } from "../src/lib/ess-photo-crypto";
@@ -11,6 +12,26 @@ function legacyRow(prefix: string, key: Buffer, plain: string) {
   const bytes = Buffer.concat([cipher.update(plain), cipher.final()]);
   return prefix + [iv, cipher.getAuthTag(), bytes].map(x => x.toString("base64url")).join(":");
 }
+
+test("the real standalone production worker refuses work without its dedicated PII key", () => {
+  const boot = (pii: string, enabled: string) => spawnSync(process.execPath, ["--import", "tsx", "scripts/worker.ts"], {
+    cwd: process.cwd(), encoding: "utf8", timeout: 20_000,
+    env: { ...process.env, NODE_ENV: "production", DATABASE_URL: "postgresql://unused:unused@127.0.0.1:1/unused",
+      PII_ENCRYPTION_KEY: pii, BANK_DATA_ENCRYPTION_KEY: "11".repeat(32), TOTP_ENCRYPTION_KEY: "22".repeat(32),
+      WORKER_ENABLED: enabled, CENTRAL_SCHEDULER_ENABLED: "false", WORKER_POLL_MS: "3000" },
+  });
+  const missing = boot("", "true");
+  assert.equal(missing.error, undefined);
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /PII_ENCRYPTION_KEY must be a dedicated 32-byte key/);
+  assert.doesNotMatch(missing.stdout, /worker started/);
+  const off = boot("33".repeat(32), "false");
+  assert.equal(off.error, undefined);
+  assert.equal(off.status, 1);
+  assert.match(off.stderr, /WORKER_ENABLED must be true/);
+  assert.doesNotMatch(off.stderr, /PII_ENCRYPTION_KEY/);
+  assert.doesNotMatch(off.stdout, /worker started/);
+});
 
 test("production boot rejects missing dedicated PII key even with bank and TOTP keys", async () => {
   const previous = { ...process.env };
