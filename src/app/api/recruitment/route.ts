@@ -6,6 +6,7 @@ import {
   hcmSkillExpectationDefaults,
   hcmSkills,
   jobApplicants,
+  applicantPrivacyEvidence,
   jobProfiles,
   jobRequisitions,
   orgUnits,
@@ -22,6 +23,8 @@ import {
   getAccess,
 } from "@/lib/access";
 import { recordAuditEvent } from "@/lib/audit";
+import { applicantPrivacyControlsEnabled } from "@/lib/recruitment-applicant-privacy";
+import { requireApplicantConsent } from "@/lib/recruitment-applicant-privacy";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { positionControlFingerprint } from "@/lib/hcm-position-business-process";
 import { PlanRequisitionHandoffError, resolvePublishedPlanRequisitionLineage } from "@/lib/workforce-plan-requisition-handoff";
@@ -427,6 +430,13 @@ export async function POST(request: Request) {
     const email = String(body.email ?? "").trim().toLowerCase();
     const phone = String(body.phone ?? "").trim();
     const notes = String(body.notes ?? "").trim();
+    // This branch does not alter pre-existing HR intake until an approved
+    // privacy migration, notice, consent UI and human privacy release enable it.
+    let consent: ReturnType<typeof requireApplicantConsent> | null = null;
+    if (applicantPrivacyControlsEnabled()) {
+      try { consent = requireApplicantConsent(body); }
+      catch { return Response.json({ error: "Recorded candidate consent, notice version and source evidence are required before intake." }, { status: 422 }); }
+    }
 
     if (!Number.isInteger(requisitionId) || !fullName || !email) {
       return Response.json({ error: "Requisition, applicant name, and email are required." }, { status: 400 });
@@ -505,6 +515,16 @@ export async function POST(request: Request) {
         rating: 3,
         notes: notes.slice(0, 8000),
       }).returning();
+      if (consent) {
+        // Consent time is assigned by the server at actual application intake.
+        // We cannot retroactively invent notice evidence for legacy applicants.
+        await tx.insert(applicantPrivacyEvidence).values({
+          organizationId, applicantId: created.id, legalBasis: "consent",
+          privacyNoticeVersion: consent.privacyNoticeVersion,
+          sourceEvidenceReference: consent.sourceEvidenceReference,
+          consentCapturedAt: new Date(),
+        });
+      }
 
       return { created, requisitionTitle: freshReq.title };
     }).catch((error: unknown) => {
@@ -519,7 +539,7 @@ export async function POST(request: Request) {
       organizationId,
       actor: user.name,
       action: "Candidate application received",
-      resource: `${fullName} -> ${createdOrResponse.requisitionTitle}`,
+      resource: consent ? "Applicant #" + createdOrResponse.created.id : `${fullName} -> ${createdOrResponse.requisitionTitle}`,
       metadata: { applicantId: createdOrResponse.created.id, requisitionId, positionId: linkedPosition?.id ?? null },
     });
 
@@ -636,6 +656,17 @@ export async function PATCH(request: Request) {
       await tx.execute(sql`select pg_advisory_xact_lock(4102, ${linkedPosition.id})`);
     }
 
+    if (applicantPrivacyControlsEnabled()) {
+      await tx.execute(sql`SELECT id FROM job_applicants WHERE id = ${applicantId}
+        AND organization_id = ${applicant.organizationId} FOR UPDATE`);
+      const [privacy] = await tx.select({ purgedAt: applicantPrivacyEvidence.purgedAt })
+        .from(applicantPrivacyEvidence).where(and(
+          eq(applicantPrivacyEvidence.organizationId, applicant.organizationId),
+          eq(applicantPrivacyEvidence.applicantId, applicantId),
+        )).limit(1);
+      if (privacy?.purgedAt) throw new RecruitmentConflict("An erased candidate record is immutable.");
+    }
+
     const [freshApplicant] = await tx.select({
       stage: jobApplicants.stage,
       hiredEmployeeId: jobApplicants.hiredEmployeeId,
@@ -703,6 +734,16 @@ export async function PATCH(request: Request) {
       .set(updateData)
       .where(eq(jobApplicants.id, applicantId))
       .returning();
+    if (stage === "rejected" && applicantPrivacyControlsEnabled()) {
+      // Only applicants with real consent evidence can enter automatic purge.
+      // This never fabricates a rejection timestamp for historic candidates.
+      await tx.update(applicantPrivacyEvidence).set({ rejectedAt: new Date() })
+        .where(and(
+          eq(applicantPrivacyEvidence.organizationId, applicant.organizationId),
+          eq(applicantPrivacyEvidence.applicantId, applicantId),
+          isNull(applicantPrivacyEvidence.rejectedAt),
+        ));
+    }
 
     if (stage && ["interview", "offer"].includes(stage) && freshReq.status === "open") {
       await tx.update(jobRequisitions)
@@ -724,14 +765,14 @@ export async function PATCH(request: Request) {
     organizationId: applicant.organizationId,
     actor: user.name,
     action: stage ? `Candidate moved to stage: ${stage}` : "Candidate profile updated",
-    resource: applicant.fullName,
+    resource: applicantPrivacyControlsEnabled() ? "Applicant #" + applicantId : applicant.fullName,
     metadata: {
       applicantId,
       requisitionId: req.id,
       positionId: linkedPosition?.id ?? null,
       previousStage: updatedOrResponse.previousStage,
       stage: stage || updatedOrResponse.previousStage,
-      offeredSalary,
+      ...(applicantPrivacyControlsEnabled() ? {} : { offeredSalary }),
     },
   });
 

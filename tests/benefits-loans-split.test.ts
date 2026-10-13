@@ -26,3 +26,18 @@ test("large illustration cannot produce unbounded rows or authorize payroll dedu
  assert.ok(rows.length<=120);
  assert.ok(rows.at(-1)!.projectedBalance>0);
 });
+
+test("reconciled registry preserves source-only applicant privacy and sanitized telemetry", () => {
+  for (const key of ["applicantPrivacy", "sanitizedErrorTelemetry", "benefitsLoans"] as const) {
+    assert.equal(criticalReleaseFlagEnabled(key, {}), false);
+  }
+  assert.equal(criticalReleaseFlagEnabled("applicantPrivacy", { APPLICANT_PRIVACY_CONTROLS_ENABLED: "true" }), true);
+  assert.equal(criticalReleaseFlagEnabled("sanitizedErrorTelemetry", { SAFE_OTEL_ERRORS_ENABLED: "true" }), true);
+  assert.equal(resolveWorkflowUiFlags({
+    APPLICANT_PRIVACY_CONTROLS_ENABLED: "true", SAFE_OTEL_ERRORS_ENABLED: "true",
+    BENEFITS_LOANS_UI_ENABLED: "false",
+  }).benefitsLoans, false);
+  assert.equal(resolveWorkflowUiFlags({
+    BENEFITS_LOANS_UI_ENABLED: "true", MULTI_ENTITY_ENABLED: "true",
+  }).benefitsLoans, false);
+});
