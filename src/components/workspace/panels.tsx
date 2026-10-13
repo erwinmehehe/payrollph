@@ -530,7 +530,7 @@ export function CompliancePage({ data, setNotice, onOpenGovModal }: { data: Dash
         </section>
       )}
 
-      <YearEndPanel organizationId={data.selectedOrganization.id} setNotice={setNotice} birCandidateEnabled={data.bir1604cCandidateEnabled === true} />
+      <YearEndPanel key={[data.user?.id, data.selectedOrganization.id, data.multiEntity?.enabled ? data.multiEntity.legalEntityId ?? "all" : "legacy", data.access?.role].join(":")} organizationId={data.selectedOrganization.id} setNotice={setNotice} birCandidateEnabled={data.bir1604cCandidateEnabled === true} />
       <DoleThirteenthMonthReportPanel
         organizationId={data.selectedOrganization.id}
         notify={(message) => setNotice(message)}

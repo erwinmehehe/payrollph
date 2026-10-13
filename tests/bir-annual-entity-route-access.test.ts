@@ -6,7 +6,9 @@ const require = createRequire(import.meta.url);
 test("actual BIR candidate/evidence handlers deny another employer before tax source reads", async () => {
   process.env.DATABASE_URL ??= "postgresql://local:local@127.0.0.1:1/offline";
   const oldFlag = process.env.BIR_1604C_DAT_CANDIDATE_ENABLED;
+  const oldEntityFlag = process.env.MULTI_ENTITY_ENABLED;
   process.env.BIR_1604C_DAT_CANDIDATE_ENABLED = "true";
+  process.env.MULTI_ENTITY_ENABLED = "true";
   const restorers: Array<() => void> = [];
   function patch(path: string, overrides: Record<string, unknown>) {
     const id = require.resolve(path);
@@ -33,6 +35,7 @@ test("actual BIR candidate/evidence handlers deny another employer before tax so
   try {
     const candidate = await import("../src/app/api/bir/annual-employer/candidate/route");
     const evidence = await import("../src/app/api/bir/annual-employer/module-evidence/route");
+    const legacy = await import("../src/app/api/year-end/route");
     const url = "https://example.test/api/bir/annual-employer?organizationId=1&legalEntityId=22&taxYear=2026";
     const post = (mode: string) => new Request(url, { method: "POST",
       headers: { "content-type": "application/json" }, body: JSON.stringify({
@@ -45,6 +48,10 @@ test("actual BIR candidate/evidence handlers deny another employer before tax so
       assert.doesNotMatch(await response.text(), /TIN|sourceDigest|records|moduleV7/i);
     }
     assert.equal(sourceReads, 0);
+    for (const response of [await legacy.GET(new Request(url)), await legacy.POST(post("annualize"))]) {
+      assert.equal(response.status, 403);
+      assert.equal((await response.json()).code, "ENTITY_YEAR_END_DEFERRED");
+    }
     caller = null;
     assert.equal((await candidate.POST(post("template"))).status, 401);
     assert.equal((await evidence.GET(new Request(url))).status, 401);
@@ -60,5 +67,7 @@ test("actual BIR candidate/evidence handlers deny another employer before tax so
     for (const restore of restorers.reverse()) restore();
     if (oldFlag === undefined) delete process.env.BIR_1604C_DAT_CANDIDATE_ENABLED;
     else process.env.BIR_1604C_DAT_CANDIDATE_ENABLED = oldFlag;
+    if (oldEntityFlag === undefined) delete process.env.MULTI_ENTITY_ENABLED;
+    else process.env.MULTI_ENTITY_ENABLED = oldEntityFlag;
   }
 });
