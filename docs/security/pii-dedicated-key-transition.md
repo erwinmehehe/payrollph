@@ -21,3 +21,31 @@ Executed tests use fictional ciphertext and call the real startup hook, decrypto
 ## Isolated synthetic CI configuration
 
 The four import, browser, pilot and HTTP smoke workflows generate a new masked, in-memory 32-byte `PII_ENCRYPTION_KEY` for their disposable PostgreSQL test run. These are not real production keys and are never included in reports. The server retains its production startup failure if the key is absent. Startup also rejects a PII key that equals the configured bank or TOTP secret, preventing accidental same-key reuse across purposes; this is covered by the synthetic production-boot test.
+
+## S-2 controlled implementation: tenant-scoped legacy rewrap
+
+Use `scripts/rotate-pii-legacy.ts` only after security/DBA review. The command covers employee government identifiers, contractor TIN, employee ID change requests, verified optional ESS IDs and ESS profile photos. Photo bytes are verified against their stored size and SHA-256 before replacement. Existing current-key ciphertext is preserved byte-for-byte. Every update uses tenant ID, row ID and original ciphertext as compare-and-swap predicates; conflicts stop processing. Pages contain at most 100 records per store. It has no UI, payroll calculation, API, migration or feature activation side effects.
+
+Derive legacy purpose-specific keys **offline** from the actual historical parent as described above. Set `PII_ENCRYPTION_KEY` to a **new** independently generated 32-byte secret; never copy bank or TOTP secrets. When old bank/TOTP keys were used at different times, inventory provenance and migrate in separately approved passes with the corresponding derived keys. Do not guess keys or treat unreadable envelopes as blank. The service may read legacy envelopes only when `PII_LEGACY_READ_ENABLED=true`; this flag defaults OFF.
+
+Run a dry-run against a restored, tenant-scoped staging copy first:
+
+```bash
+export PII_ROTATION_ORGANIZATION_ID=<approved-synthetic-tenant-id>
+export EXPECTED_PRODUCTION_DATABASE_NAME=<verified-target-database>
+# Provision current and purpose-derived legacy keys through an approved secret store.
+# PII_LEGACY_READ_ENABLED=true is transition-only, not an encryption fallback.
+TZ=Asia/Manila npx tsx scripts/rotate-pii-legacy.ts
+```
+
+Check scanned/current/rewrap/empty totals, ensure all five stores were successfully authenticated, test restore and obtain separate DBA/security approval. **Only after approval**, run an operator-controlled apply on the intended restored/staging target, with explicit authorization:
+
+```bash
+export PII_ROTATION_APPROVAL_REF=<approved-change-reference>
+export PII_ROTATION_CONFIRMATION=APPLY_APPROVED_PII_ROTATION
+TZ=Asia/Manila npx tsx scripts/rotate-pii-legacy.ts --apply
+```
+
+Apply runs an authentication-only pass across every store before starting any changes. It is *not* globally transactional; on interruption, start with a fresh dry-run and reconcile counts. Concurrent changes fail closed instead of being overwritten. Run a final dry-run **without** `PII_LEGACY_READ_ENABLED`, the two legacy keys or `PII_ENCRYPTION_KEY_PREVIOUS`: all in-scope records must authenticate as already-current or empty. Retire legacy keys only after reconciling excluded tenants, other stores, backups, replicas and their retention. Production execution, backup validation and real-employer approval are not performed by this PR.
+
+Important: This command does not backfill plaintext identifiers. Use the separately approved plaintext migration only where explicitly needed. Existing authorization and maker-checker workflows are unchanged; operator write permission and DBA approval remain external controls.

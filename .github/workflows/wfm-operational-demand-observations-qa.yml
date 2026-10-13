@@ -50,7 +50,13 @@ jobs:
       - run: npm run lint
       - name: Ephemeral test-only bank encryption key
         shell: bash
-        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - name: Create disposable schema (never a production employer database)
         run: npm run db:push
       - name: Check required observation tables and uniqueness indexes

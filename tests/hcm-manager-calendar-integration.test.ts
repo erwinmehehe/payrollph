@@ -2,20 +2,22 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-test("My Team retains allowlisted calendar navigation alongside manager action center", () => {
-  const ui = readFileSync("src/components/hcm-my-team.tsx", "utf8");
-  assert.ok(ui.includes("HcmMyTeamActionCenter"));
-  assert.ok(ui.includes('process.env.NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ENABLED === "true"'));
-  assert.ok(ui.includes("NEXT_PUBLIC_HCM_TEAM_LEAVE_CALENDAR_ORG_IDS"));
-  assert.ok(ui.includes('id.trim() === String(organizationId)'));
-  assert.ok(ui.includes("/hcm/team-leave-calendar?organizationId="));
-  assert.ok(ui.includes("canOpenLeaveCalendar && data"));
-  assert.ok(ui.includes("pendingAttendanceCorrectionsThisPage"));
-  assert.ok(ui.includes("incompletePunchRecordsThisPage"));
-  assert.ok(ui.includes("/app?organizationId="));
-  const workspace = readFileSync("src/components/linaw-workspace.tsx", "utf8");
-  assert.ok(workspace.includes("requestedMyTeamWorkspacePage({"));
-  assert.ok(workspace.includes("pilotCoreNavigationPages"));
+test("My Team workflow navigation preserves its allowlist through tenant and pilot menus", async () => {
+  const { requestedMyTeamWorkspacePage, myTeamWorkflowHref } = await import("../src/lib/hcm-my-team-navigation");
+  const { tenantNavigationPages } = await import("../src/components/workspace/nav");
+  const { workspacePagesForRole } = await import("../src/lib/workspace-role-ui");
+  const rolePages = workspacePagesForRole("hr");
+  for (const mode of ["all", "core"]) {
+    const pages = tenantNavigationPages({ enabled: true, mode, rolePages }, true);
+    const input = { role: "hr", companyWide: true, accountType: "business", rolePages: pages, pilotFocusEnabled: true, demoMode: false };
+    assert.equal(requestedMyTeamWorkspacePage({ ...input, requestedPage: "Approvals" }), "Approvals");
+    assert.equal(requestedMyTeamWorkspacePage({ ...input, requestedPage: "Time & attendance" }), "Time & attendance");
+    assert.equal(requestedMyTeamWorkspacePage({ ...input, requestedPage: "Workforce" }), null);
+    assert.equal(requestedMyTeamWorkspacePage({ ...input, requestedPage: "Enterprise" }), null);
+    assert.equal(requestedMyTeamWorkspacePage({ ...input, requestedPage: "Approvals", role: "employee" }), null);
+  }
+  assert.equal(myTeamWorkflowHref(1, "Approvals"), "/app?organizationId=1&workspacePage=Approvals");
+  assert.equal(myTeamWorkflowHref(0, "Approvals"), null);
 });
 
 test("standalone HCM browser tests retain the calendar's disabled flags and manager counts", () => {

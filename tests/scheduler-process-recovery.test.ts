@@ -137,6 +137,10 @@ test("two separate OS processes serialize a lease; crash, takeover and stale com
 
     assert.equal((await perform("refresh", oldOwner)).ok, false,
       "a crashed/stalled process cannot revive its expired lease before takeover");
+    assert.equal((await perform("release", oldOwner)).ok, false,
+      "stale worker may not falsely complete an expired lease before takeover");
+    assert.equal((await perform("receipt", oldOwner, "stale")).ok, false,
+      "stale worker may not record a success receipt before takeover");
     const replacement = await perform("acquire", recoveredOwner);
     assert.equal(replacement.ok, true,
       "one new worker must be able to recover a genuinely expired lease");
