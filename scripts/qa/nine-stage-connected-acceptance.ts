@@ -24,7 +24,7 @@ type Stage = { name: string; status: "PASS" | "FAIL" | "BLOCKED" | "NOT_RUN"; ev
 const stages: Stage[] = names.map(name => ({ name, status: "NOT_RUN", evidence: [] }));
 const report = {
   schemaVersion: 1, sourceSha: process.env.PR_HEAD_SHA ?? "local",
-  generatedAt: new Date().toISOString(), result: "BLOCKED",
+  virtualGeneratedAt: new Date().toISOString(), githubRunId: process.env.GITHUB_RUN_ID ?? "local", result: "BLOCKED",
   scope: "synthetic-local-postgres16-only", independentHumanUat: "NOT_RUN",
   clock: { mode: "CI_GUARDED_VIRTUAL_MANILA_MONTH_END", manilaWorkDate: "2026-09-30",
     realWallClockAttendance: false, actualApiCapture: true },
