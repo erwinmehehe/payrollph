@@ -36,7 +36,10 @@ export function EntitySwitcher({ context, organizationId }: {
   const [error, setError] = useState("");
   if (!context?.enabled) return null;
   if (!context.group && !context.canSwitch) return (
-    <span className="topbar-link" role="status" aria-label="Assigned legal employer">
+    <span className="entity-switcher-control" role="status" aria-label="Assigned legal employer"
+      style={{ display: "inline-flex", alignItems: "center", minHeight: 32, maxWidth: "min(42vw, 250px)",
+        padding: "4px 8px", border: "1px solid var(--line)", borderRadius: 8,
+        background: "var(--canvas-subtle)", overflowWrap: "anywhere", fontSize: 12 }}>
       {context.entities.find(entity => entity.id === context.legalEntityId)?.displayName ?? "Assigned entity"}
     </span>
   );
@@ -57,7 +60,9 @@ export function EntitySwitcher({ context, organizationId }: {
     }
   }
   return (
-    <label className="topbar-link" style={{ display: "grid", gap: 3, minWidth: 120, maxWidth: "min(42vw, 250px)" }}>
+    <label className="entity-switcher-control" style={{ display: "grid", gap: 3, minWidth: "min(120px, 42vw)",
+      maxWidth: "min(42vw, 250px)", padding: "3px 7px", border: "1px solid var(--line)",
+      borderRadius: 8, background: "var(--canvas-subtle)" }}>
       <span style={{ fontSize: 10 }}>Legal entity</span>
       <select aria-label="Legal entity switcher" value={value} disabled={pending}
         onChange={event => void change(event.target.value)}
