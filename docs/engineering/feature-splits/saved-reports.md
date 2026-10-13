@@ -1,0 +1,4 @@
+# Split from #862 — saved report definitions and authorized report views
+**DRAFT / source-only.** `REPORT_BUILDER_UI_ENABLED` is strictly default OFF; `MULTI_ENTITY_ENABLED=true` forces UI OFF and denies legacy API access. No additional data privileges or payroll calculations: only an already-allowed report's server rows may be projected and exported.
+Before merge: current-head CI, 4 payroll golden suites, isolated saved table migrations and rollback under DBA #910, role/tenant redaction + employer-switch test for report source and saved definitions, 320/375/390/430px authenticated UI screenshots and independent privacy/security review of CSV/export/audit retention. Report names and filters must not leak other employers. The unnumbered SQL proposal is NOT approved or applied.
+After each future partial merge, reconcile shared `schema.ts`, critical flags, app page and UI context against current main; keep feature OFF until human signoff. No payouts or filings.

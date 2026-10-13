@@ -66,6 +66,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P0 external Xendit salary money movement",
     approval: "Independent provider/treasury acceptance and exact employer/legal-entity authorization",
   },
+  reportBuilder: {
+    env: "REPORT_BUILDER_UI_ENABLED",
+    owner: "Security / Reports",
+    risk: "P1 Saved report field and filter choices",
+    approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
+  },
   publicIntakeProof: {
     env: "PUBLIC_INTAKE_PROOF_ENABLED", owner: "Security",
     risk: "Public enquiry and signup anti-automation", approval: "Proof replay, limits and accessible intake acceptance",
