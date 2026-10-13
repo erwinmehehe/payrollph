@@ -4,6 +4,9 @@ on:
     paths:
       - "docs/sql/issue-910-review-only-0121-*.sql"
       - "docs/engineering/issue-910-0121-readiness.md"
+      - "docs/engineering/issue-910-provenance-live-catalog-20261013.md"
+      - "scripts/issue-910-source-manifest.mjs"
+      - "tests/issue-910-source-manifest.test.mjs"
       - "docs/sql/issue-910-review-only-post-0121-tenant-integrity.sql"
       - "tests/issue-910-0121-review.test.mjs"
       - "tests/issue-910-0121-postgres.test.mjs"
@@ -54,7 +57,10 @@ jobs:
         with:
           node-version: "22"
       - name: Verify SQL source integrity (NO database connection)
-        run: node --test tests/issue-910-0121-review.test.mjs
+        run: |
+          node --test tests/issue-910-0121-review.test.mjs
+          node --test tests/issue-910-source-manifest.test.mjs
+          node scripts/issue-910-source-manifest.mjs --json > /dev/null
 
   rehearsal-pg:
     name: Synthetic 0121 and predecessor rollback PostgreSQL ${{ matrix.postgres }}
