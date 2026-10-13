@@ -18,7 +18,7 @@ test("#910 0123 remains the next forward-only numbered SQL, with no row changes"
   assert.doesNotMatch(candidate.replace(/--[^\n]*/g, ""),
     /\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE|DROP\s+TABLE|MERGE\s+INTO|EXECUTE)\b/i);
   assert.doesNotMatch(candidate.replace(/--[^\n]*/g, ""),
-    /\b(?:BEGIN\s*;|COMMIT\s*;|ROLLBACK\s*;)\b/i);
+    /\b(?:BEGIN|COMMIT|ROLLBACK)\s*;/i);
   assert.match(candidate, /ISSUE910_MISSING_SCHEMA_PREREQUISITES/);
   assert.match(candidate, /ISSUE910_DUPLICATE_USER_ORGANIZATION_MEMBERSHIP/);
   assert.ok(candidate.indexOf("DO $issue910_preflight$") <
