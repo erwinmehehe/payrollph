@@ -62,15 +62,28 @@ export async function emitSafeOtelError(
   const endpoint = approvedOtlpEndpoint(env.OTLP_LOGS_ENDPOINT);
   const token = env.OTLP_LOGS_BEARER_TOKEN?.trim();
   if (!endpoint || !token || token.length < 32) return "misconfigured";
+  // Socket timeouts do not bound DNS resolution or injected transports.
+  // Bound the entire export and abort the HTTPS request at the deadline.
+  const controller = new AbortController();
+  let deadline: ReturnType<typeof setTimeout> | undefined;
   try {
-    const response = await transport({
+    const expired = new Promise<never>((_, reject) => {
+      deadline = setTimeout(() => {
+        controller.abort();
+        reject(new Error("Sanitized OTLP delivery deadline exceeded."));
+      }, 2_000);
+    });
+    const delivery = transport({
       url: endpoint,
       headers: { "Content-Type": "application/json", "Authorization": "Bearer " + token },
       body: JSON.stringify(otlpErrorEnvelope({
         requestId: record.requestId, subsystem: record.subsystem, code: record.code,
       })),
       timeoutMs: 2_000,
+      signal: controller.signal,
     });
+    const response = await Promise.race([delivery, expired]);
     return response.ok ? "delivered" : "failed";
   } catch { return "failed"; }
+  finally { if (deadline) clearTimeout(deadline); }
 }

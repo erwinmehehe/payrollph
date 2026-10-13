@@ -127,4 +127,13 @@ jobs:
       - run: npm run seo:audit
       - run: npm run seo:routes
       - run: npm run seo:links
+      # The synthetic route exists only in the ephemeral CI workspace.
+      - name: Stage synthetic sanitized-telemetry Next.js route (CI only)
+        env:
+          CI: "true"
+        run: node scripts/verify-safe-otel-next-runtime.mjs stage
       - run: npx next build
+      - name: Production-mode Next.js and synthetic PostgreSQL cron telemetry acceptance
+        env:
+          CI: "true"
+        run: node scripts/verify-safe-otel-next-runtime.mjs verify

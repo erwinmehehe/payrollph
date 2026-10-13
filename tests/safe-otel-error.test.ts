@@ -61,3 +61,55 @@ test("Next.js unhandled hook and authenticated cron error path use sanitized col
   assert.match(cron, /code: "CRON_TICK_FAILED"/);
   assert.doesNotMatch(cron, /console\.error\(error\)/);
 });
+
+test("OFF-ON-OFF stays fail-closed and provider rejection or exception is masked", async () => {
+  const input = { requestId: newOperationalRequestId(), subsystem: "scheduler", code: "CRON_TICK_FAILED" } as const;
+  const enabled = {
+    SAFE_OTEL_ERRORS_ENABLED: "true",
+    OTLP_LOGS_ENDPOINT: "https://collector.example/v1/logs",
+    OTLP_LOGS_BEARER_TOKEN: "synthetic-collector-token-at-least-32-chars",
+  };
+  let calls = 0;
+  const success = async () => { calls++; return { ok: true, status: 200 }; };
+  assert.equal(await emitSafeOtelError(input, { ...enabled, SAFE_OTEL_ERRORS_ENABLED: "false" }, success), "disabled");
+  assert.equal(calls, 0);
+  assert.equal(await emitSafeOtelError(input, enabled, success), "delivered");
+  assert.equal(calls, 1);
+  assert.equal(await emitSafeOtelError(input, { ...enabled, SAFE_OTEL_ERRORS_ENABLED: "false" }, success), "disabled");
+  assert.equal(calls, 1);
+  assert.equal(await emitSafeOtelError(input, enabled, async () => ({ ok: false, status: 503 })), "failed");
+  assert.equal(await emitSafeOtelError(input, enabled, async () => { throw new Error("synthetic secret"); }), "failed");
+});
+
+test("hung exporter is aborted within the end-to-end delivery deadline", async () => {
+  const input = { requestId: newOperationalRequestId(), subsystem: "web", code: "UNHANDLED_SERVER_ERROR" } as const;
+  const env = {
+    SAFE_OTEL_ERRORS_ENABLED: "true",
+    OTLP_LOGS_ENDPOINT: "https://collector.example/v1/logs",
+    OTLP_LOGS_BEARER_TOKEN: "synthetic-collector-token-at-least-32-chars",
+  };
+  let signal: AbortSignal | undefined;
+  const startedAt = Date.now();
+  const result = await emitSafeOtelError(input, env, async payload => {
+    signal = payload.signal;
+    return new Promise<never>(() => {});
+  });
+  assert.equal(result, "failed");
+  assert.equal(signal?.aborted, true);
+  assert.ok(Date.now() - startedAt < 8_000, "tracker must not hang indefinitely");
+});
+
+test("already aborted outbound delivery does not attempt DNS or a socket", async () => {
+  const { postValidatedWebhook } = await import("../src/lib/security-network");
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    postValidatedWebhook({
+      url: "https://collector.example/v1/logs",
+      body: "{}",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+    }),
+    /aborted/,
+  );
+});
