@@ -10,7 +10,7 @@ import {
 } from "@/db/schema";
 import { recordAuditEvent } from "@/lib/audit";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { documentObjectKey, putDocumentObject, deleteDocumentObject } from "@/lib/document-object-storage";
+import { documentObjectKey, putDocumentObject, deleteDocumentObject, verifyStoredDocumentObject } from "@/lib/document-object-storage";
 import { compatibleDocumentColumns, legacyDocumentInsertTable } from "@/lib/document-schema-compat";
 import {
   getAutomationDocumentTemplate,
@@ -56,6 +56,7 @@ export async function generateAutomationEmployeeDocument(input: {
   // Never populated from an HTTP request.
   objectStore?: {
     put: (key: string, bytes: Uint8Array, mime: string) => Promise<void>;
+    verify: (key: string, expectedSha256: string, expectedByteSize: number) => Promise<void>;
     delete: (key: string) => Promise<void>;
   };
 }) {
@@ -178,7 +179,16 @@ export async function generateAutomationEmployeeDocument(input: {
       await (input.objectStore?.put ?? putDocumentObject)(
         storageKey, bytes, "text/plain; charset=utf-8",
       );
+      // An acknowledged PUT does not establish byte retention. A generated
+      // employee file must also round-trip its original SHA and length before
+      // the source-key/idempotency row can be committed.
+      await (input.objectStore?.verify ?? verifyStoredDocumentObject)(
+        storageKey, sha256, bytes.byteLength,
+      );
     } catch {
+      // Readback failures are handled like storage failures. Remove the
+      // potentially corrupt/orphaned object; never create a document row.
+      await (input.objectStore?.delete ?? deleteDocumentObject)(storageKey).catch(() => {});
       throw new AutomationDocumentGenerationError("Private generated-document storage is unavailable.");
     }
   }

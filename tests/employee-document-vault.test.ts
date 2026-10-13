@@ -202,7 +202,7 @@ test("private vault upload readback rejects corrupted, truncated, oversized and 
   await verifyStoredDocumentObject(key, hash, Buffer.byteLength(bytes), {
     config, fetchImpl: goodGet as typeof fetch,
   });
-  for (const body of [bytes.slice(0, -1), bytes + "extra", bytes.replace("Synthetic", "Malicious!")]) {
+  for (const body of [bytes.slice(0, -1), bytes + "extra", bytes.replace("Synthetic", "Corrupted")]) {
     await assert.rejects(() => verifyStoredDocumentObject(key, hash, Buffer.byteLength(bytes), {
       config, fetchImpl: (async () => new Response(body, { status: 200 })) as typeof fetch,
     }), /integrity check failed/);
