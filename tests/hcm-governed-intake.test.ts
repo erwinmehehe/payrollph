@@ -34,25 +34,18 @@ test("standalone and CSV routes reject bypass when Hire BP is configured", () =>
   const bulk = readFileSync("src/app/api/employees/import/route.ts", "utf8");
   for (const source of [direct, bulk]) {
     assert.match(source, /await hasConfiguredHireBusinessProcess\(organizationId\)/);
-    assert.match(source, /Response\.json\(GOVERNED_HIRE_REQUIRED,\s*\{\s*status:\s*409\s*\}\)/);
+    assert.match(source, /Response\.json\(GOVERNED_HIRE_REQUIRED, \{ status: 409 \}\)/);
   }
-  const commit = readFileSync("src/lib/employee-import-batch-server.ts", "utf8");
-  assert.match(commit, /hcmBusinessProcessDefinitions\.processType, "hire"/,
-    "CSV must recheck governed Hire BP in the commit transaction");
 });
 
 test("CSV must not update existing employment, pay, status or bank records", () => {
-  const route = readFileSync("src/app/api/employees/import/route.ts", "utf8");
-  const batch = readFileSync("src/lib/employee-import-batch-server.ts", "utf8");
-  const preview = readFileSync("src/lib/employee-import-preview.ts", "utf8");
-  assert.ok(route.includes("handleEmployeeImportPreview("));
-  assert.ok(preview.includes("known.has(normalized)"));
-  assert.ok(preview.includes("Import never updates existing employees."));
-  assert.ok(batch.includes("readEmployeeImportContext(input.organizationId, tx)"));
-  assert.ok(!batch.includes("db.update(employees)"));
-  assert.ok(!batch.includes("tx.update(employees)"));
-  assert.ok(batch.includes("database.transaction(async tx =>"));
-  assert.ok(batch.includes("tx.insert(auditEvents)"));
-  assert.ok(batch.includes("pg_advisory_xact_lock"));
-  assert.ok(batch.includes("startDate: row.startDate"));
+  const bulk = readFileSync("src/app/api/employees/import/route.ts", "utf8");
+  assert.ok(bulk.includes("knownNumbers.has(row.employeeNo)"));
+  assert.ok(bulk.includes("skippedExistingCount += 1"));
+  assert.ok(!bulk.includes("db.update(employees)"));
+  assert.ok(!bulk.includes("tx.update(employees)"));
+  assert.ok(bulk.includes("db.transaction(async (tx)"));
+  assert.ok(bulk.includes("tx.insert(auditEvents)"));
+  assert.ok(bulk.includes("pg_advisory_xact_lock"));
+  assert.ok(bulk.includes("startDate: row.startDate"));
 });

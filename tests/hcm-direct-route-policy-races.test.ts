@@ -28,18 +28,10 @@ test("standalone employee create rechecks Hire governance and inserts pay profil
 });
 
 test("CSV intake rechecks HCM Hire governance under tenant intake lock", () => {
-  const route = readFileSync("src/app/api/employees/import/route.ts", "utf8");
-  const handler = readFileSync("src/lib/employee-import-request.ts", "utf8");
-  const commit = readFileSync("src/lib/employee-import-batch-server.ts", "utf8");
-  const preview = readFileSync("src/lib/employee-import-preview.ts", "utf8");
-  assert.match(route, /handleEmployeeImportPreview\(/);
-  assert.match(handler, /commitEmployeeImport\(/);
-  assert.match(commit, /pg_advisory_xact_lock\(4212/);
-  assert.match(commit, /pg_advisory_xact_lock\(4195/);
-  assert.match(commit, /eq\(hcmBusinessProcessDefinitions\.processType, "hire"\)/);
-  assert.match(handler, /error\.message === "HCM_GOVERNED_HIRE_REQUIRED"/);
-  assert.match(commit, /readEmployeeImportContext\(input\.organizationId, tx\)/,
-    "Recheck existing numbers within the locked transaction");
-  assert.match(preview, /known\.has\(normalized\)/,
-    "Existing employees must be rejected, never updated");
+  const source = readFileSync("src/app/api/employees/import/route.ts", "utf8");
+  assert.match(source, /pg_advisory_xact_lock\(4212/);
+  assert.match(source, /pg_advisory_xact_lock\(4195/);
+  assert.match(source, /eq\(hcmBusinessProcessDefinitions\.processType, "hire"\)/);
+  assert.match(source, /error\.message === "HCM_GOVERNED_HIRE_REQUIRED"/);
+  assert.match(source, /IMPORT_DUPLICATE_AFTER_PREFLIGHT/);
 });
