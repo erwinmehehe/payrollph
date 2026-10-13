@@ -12,7 +12,7 @@ import {
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
-import { canStaffOpenEmployeeVault, documentObjectIdentityMatches } from "@/lib/employee-document-vault";
+import { canStaffOpenEmployeeVault, documentObjectIdentityMatches, documentBytesMayBeReleased } from "@/lib/employee-document-vault";
 import { documentStorageConfig, signedDocumentObjectUrl } from "@/lib/document-object-storage";
 import { compatibleDocumentColumns } from "@/lib/document-schema-compat";
 
@@ -78,7 +78,12 @@ export async function GET(
   }
 
   const vaultEnabled = criticalReleaseFlagEnabled("employeeDocumentVault");
-  if (!document.scannedClean && (process.env.NODE_ENV === "production" || vaultEnabled)) {
+  if (!documentBytesMayBeReleased({
+    scannedClean: document.scannedClean,
+    isProduction: process.env.NODE_ENV === "production",
+    vaultEnabled,
+    hasPrivateObject: Boolean(document.objectStorageKey),
+  })) {
     return Response.json({
       error: "This document is not available because malware scanning has not verified it as clean.",
     }, { status: 409 });
