@@ -2529,9 +2529,10 @@
   display: none !important;
 }
 
-.app-shell:has(.payrollph-dashboard) .nav-item[data-nav-name]:not([data-nav-name="Overview"]):not([data-nav-name="People"]):not([data-nav-name="Payroll"]):not([data-nav-name="Approvals"]):not([data-nav-name="Compliance"]):not([data-nav-name="Analytics"]):not([data-nav-name="Exports"]):not([data-nav-name="Settings"]) {
-  display: none !important;
-}
+/* Navigation permissions and primary/More grouping are enforced by the
+   WorkspaceShell's authorized tenantNavigationGroups and visiblePages.
+   Never re-hide all other pages using a stale CSS name allowlist: that
+   concealed the Entities link even after the More menu was expanded. */
 
 .app-shell:has(.payrollph-dashboard) .side-navigation {
   padding-top: 10px;
@@ -2703,10 +2704,6 @@
 .app-shell[data-workspace-page="Overview"] .topbar-link,
 .app-shell[data-workspace-page="Overview"] .role-switcher-wrap {
   display: none !important;
-}
-
-.app-shell[data-workspace-page="Overview"] .side-navigation .nav-item:not([data-nav-name="Overview"]):not([data-nav-name="People"]):not([data-nav-name="Payroll"]):not([data-nav-name="Approvals"]):not([data-nav-name="Compliance"]):not([data-nav-name="Analytics"]):not([data-nav-name="Settings"]) {
-  display: none;
 }
 
 

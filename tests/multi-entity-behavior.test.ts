@@ -313,3 +313,16 @@ test("employer transfer history totals retain every centavo over many source cut
   assert.match(source, /sourceBasic = sumPayrollAmounts\(basicAmounts\)/);
   assert.match(source, /source13thPaid = sumPayrollAmounts\(paidThirteenthAmounts\)/);
 });
+
+test("tenant-authorized secondary Entities navigation remains clickable after More expands", () => {
+  const css = readFileSync("src/app/workspace-theme.css", "utf8");
+  const shell = readFileSync("src/components/workspace/shell.tsx", "utf8");
+  // These old Overview allowlists hid authorized secondary links with a more
+  // specific !important selector, overriding the current React navigation.
+  assert.doesNotMatch(css, /\.app-shell:has\(\.payrollph-dashboard\) \.nav-item\[data-nav-name\]:not\(/);
+  assert.doesNotMatch(css, /\.app-shell\[data-workspace-page="Overview"\] \.side-navigation \.nav-item:not\(/);
+  assert.match(shell, /tenantNavigationGroups\(/);
+  assert.match(shell, /secondaryItems/);
+  assert.match(shell, /moreOpen \|\| secondaryHasCurrent/);
+  assert.match(css, /\.app-shell \.nav-more-items \{/);
+});
