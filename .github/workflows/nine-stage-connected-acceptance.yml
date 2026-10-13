@@ -96,10 +96,6 @@ jobs:
             tests/filing-remittance-crosscheck.test.ts
       - name: Build exact PR commit
         run: npm run build
-      - name: Install pinned Chromium
-        run: |
-          npm install --no-save --ignore-scripts playwright@1.55.0
-          npx playwright install --with-deps chromium
       - name: Start localhost application
         shell: bash
         run: |
@@ -112,6 +108,10 @@ jobs:
           exit 1
       - name: Run SAME-source nine-stage connected workflow
         run: npx tsx scripts/qa/nine-stage-connected-acceptance.ts
+      - name: Install pinned Chromium
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
       - name: Exercise synthetic 375px/390px role and employer switching
         if: success()
         run: node scripts/qa/nine-stage-mobile-browser.mjs
