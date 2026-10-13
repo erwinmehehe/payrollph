@@ -13,6 +13,9 @@ export default async function CareersPage({ searchParams }: {
   searchParams: Promise<{ organizationId?: string }>;
 }) {
   if (!criticalReleaseFlagEnabled("recruitmentJourney")) notFound();
+  // The public careers source has only tenant-level filtering. Do not display
+  // or publish from it in multi-entity mode until legal-employer attribution is reviewed.
+  if (criticalReleaseFlagEnabled("multiEntity")) notFound();
   const { organizationId: raw } = await searchParams;
   const organizationId = Number(raw);
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0) notFound();
