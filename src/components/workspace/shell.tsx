@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { LinawMark } from "@/components/linaw-mark";
+import { SchedulerAdminBanner } from "./scheduler-admin-banner";
 import {
   Bell,
   Check,
@@ -516,6 +517,9 @@ export function WorkspaceShell({
         </header>
 
         <main className="content-area" id="workspace-main">
+          {data.access?.companyWide && ["owner", "admin"].includes(data.access.role) && page === "Overview" && (
+            <SchedulerAdminBanner organizationId={data.selectedOrganization.id} />
+          )}
           {children}
         </main>
       </div>
