@@ -13,14 +13,15 @@
 -- SELECT m.id FROM employee_hr_case_messages m JOIN employee_hr_cases c ON c.id=m.case_id
 --   WHERE m.organization_id<>c.organization_id;
 -- SELECT c.id FROM employee_hr_cases c JOIN documents d ON d.id=c.coe_document_id
---   WHERE c.coe_document_id IS NOT NULL AND c.organization_id<>d.organization_id;
+--   WHERE c.coe_document_id IS NOT NULL AND
+--     (c.organization_id<>d.organization_id OR c.employee_id IS DISTINCT FROM d.employee_id);
 
 -- Required parent keys are schema-first compatible. If a historical
 -- employees(org,id) key is missing, stop and reconcile #910 first.
 CREATE UNIQUE INDEX IF NOT EXISTS "employee_hr_cases_org_id_unique"
   ON "employee_hr_cases"("organization_id","id");
-CREATE UNIQUE INDEX IF NOT EXISTS "documents_org_id_hr_cases_unique"
-  ON "documents"("organization_id","id");
+CREATE UNIQUE INDEX IF NOT EXISTS "documents_org_employee_id_hr_cases_unique"
+  ON "documents"("organization_id","employee_id","id");
 
 DO $$
 BEGIN
@@ -33,8 +34,8 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='employee_hr_cases_coe_document_tenant_fk'
       AND conrelid='employee_hr_cases'::regclass) THEN
     ALTER TABLE "employee_hr_cases" ADD CONSTRAINT "employee_hr_cases_coe_document_tenant_fk"
-      FOREIGN KEY ("organization_id","coe_document_id")
-      REFERENCES "documents"("organization_id","id") NOT VALID;
+      FOREIGN KEY ("organization_id","employee_id","coe_document_id")
+      REFERENCES "documents"("organization_id","employee_id","id") NOT VALID;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='employee_hr_case_messages_case_tenant_fk'
       AND conrelid='employee_hr_case_messages'::regclass) THEN
