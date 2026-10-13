@@ -4,7 +4,7 @@
 
 ## Recommendation: prove the foundation, then refine screens and forecast
 
-The first delivery gate is [#691 WFM operational acceptance](https://github.com/erwinmehehe/payrollph/issues/691), beginning with independent WFM-12 staging evidence. Production DBA incident #899, migration #910 and readiness #112 run in parallel. Avoid adding broad optional features or enabling flags to make the UAT appear complete. The [executable staging packet](qa/wfm-691-staging-acceptance-runbook.md) lists roles, fixtures and outcome rules.
+The first delivery gate is [#691 WFM operational acceptance](https://github.com/erwinmehehe/payrollph/issues/691), beginning with WFM-12 automated and existing-development-app checks. Production DBA incident #899, migration #910 and readiness #112 run in parallel. Avoid adding broad optional features or enabling flags to make the UAT appear complete. The [development-first acceptance packet](qa/wfm-691-development-acceptance-runbook.md) provides immediate developer tests; independent external pilot sign-off is later.
 
 | Benchmark | Implemented today in reviewed source | Specific verified gap / next proof | Stage |
 | --- | --- | --- | --- |
@@ -41,10 +41,10 @@ Use authorized **aggregate** activity only (never employee-level payroll as fake
 
 | Work | What unblocks it | Owner/evidence |
 | --- | --- | --- |
-| **Now:** WFM-12 1,000-assignment full path | Protected staging, independent WFM/SRE roles, one leased real-app clock-in-watch tick, tenant/multi-page failure and latency results; [synthetic upgrade #936](https://github.com/erwinmehehe/payrollph/pull/936) stays draft until WFM policy review | SRE + QA + WFM manager; #691 |
-| **Now:** WFM-01..14 and photo/offline | Multi-role/phone/device testers, DPO/legal/privacy, independent payroll checks and signed source-SHA acceptance | HR + AppSec/DPO + payroll + owner; #691 |
+| **Now:** WFM-12 1,000-assignment full path | Existing development app for UI; isolated GitHub/throwaway PostgreSQL for the 1,000-row scheduler stress test, with independently witnessed acceptance later; [synthetic upgrade #936](https://github.com/erwinmehehe/payrollph/pull/936) stays draft until WFM policy review | Developer + QA now; independent WFM/SRE before pilot; #691 |
+| **Now:** WFM-01..14 and photo/offline | Multi-role/phone/device testers, DPO/legal/privacy, independent payroll checks and signed source-SHA pilot acceptance | HR + AppSec/DPO + payroll + owner; #691 |
 | **Parallel:** deploy readiness and migrations | Historical DBA receipts, #899 write-impact assessment, credentials/worker health | DBA/SRE; #910 #899 #112 |
 | **Later:** measured UX simplification | Manager/employee UAT recordings, gap ticket with one clearly owned workflow | Product + UX; #678 |
 | **Later:** forecast accuracy depth | Prospective locked input/actual evidence, provider provenance, repeated score data and access rules | Operations + finance + data; #678 |
 
-**Decision:** freeze broad WFM features until operational acceptance. The three benchmarks remain design inputs, not reasons to duplicate already merged modules.
+**Decision:** freeze broad WFM features until the development test baseline is recorded. The three benchmarks remain design inputs, not reasons to duplicate already merged modules.
