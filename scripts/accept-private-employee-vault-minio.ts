@@ -12,6 +12,7 @@ import { scanUpload, validateUpload } from "../src/lib/storage";
  * This is NOT acceptance of a real S3 tenant, real ClamAV provider, legal
  * holds or production file residency.
  */
+async function main() {
 assert.equal(process.env.CI,"true");
 assert.equal(process.env.GITHUB_ACTIONS,"true");
 assert.equal(process.env.EMPLOYEE_DOCUMENT_VAULT_ENABLED,"true");
@@ -79,3 +80,9 @@ await deleteDocumentObject(key,{config});
 const after=await fetch(signed,{cache:"no-store"});
 assert.equal(after.status,404,"deleted disposable object must not remain available");
 console.log("PASS synthetic private vault storage: signed GET, byte hash, private bucket, expiry, signature tampering, immutable PUT, delete; deterministic scanner clean/infected/outage");
+}
+
+main().catch(() => {
+  console.error("Synthetic private vault acceptance failed; no production service was used.");
+  process.exitCode = 1;
+});

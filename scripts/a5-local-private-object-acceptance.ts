@@ -5,6 +5,7 @@ import { documentObjectKey, documentStorageConfig, deleteDocumentObject, putDocu
 import { scanUpload } from "../src/lib/storage";
 
 // No real storage, customer records, credentials, or production endpoint allowed.
+async function main() {
 assert.equal(process.env.CI, "true");
 assert.equal(process.env.GITHUB_ACTIONS, "true");
 assert.equal(process.env.NODE_ENV, "test");
@@ -80,3 +81,9 @@ try {
 } finally {
   await deleteDocumentObject(key, { config }).catch(() => {});
 }
+}
+
+main().catch(() => {
+  console.error("Synthetic private object acceptance failed; no production service was used.");
+  process.exitCode = 1;
+});
