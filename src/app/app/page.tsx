@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { LinawWorkspace } from "@/components/linaw-workspace";
 import { SelfServicePortal } from "@/components/self-service-portal";
+import { employeeHrCasesEnabled } from "@/lib/hr-case-activation";
 import { getSessionUser } from "@/lib/auth";
 import { getDashboardData } from "@/lib/dashboard-data";
 import { assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES, PEOPLE_PAYROLL_ROLES, primaryCompanyOrganizationId, primaryEmployeeOrganizationId } from "@/lib/access";
@@ -36,7 +37,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       const denied = await assertOrganizationSessionPolicy(user.id, employeeOrganizationId);
       if (denied) redirect("/login?ssoRequired=1");
     }
-    return <SelfServicePortal hrCasesEnabled={criticalReleaseFlagEnabled("employeeHrCases")} />;
+    return <SelfServicePortal hrCasesEnabled={employeeHrCasesEnabled()} />;
   }
 
   const { organizationId: requestedValue, focusEmployeeId: requestedEmployeeId, workspacePage: requestedWorkspacePage } = await searchParams;
@@ -57,7 +58,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
       const denied = await assertOrganizationSessionPolicy(user.id, employeeOrganizationId);
       if (denied) redirect("/login?ssoRequired=1");
     }
-    return <SelfServicePortal hrCasesEnabled={criticalReleaseFlagEnabled("employeeHrCases")} />;
+    return <SelfServicePortal hrCasesEnabled={employeeHrCasesEnabled()} />;
   }
 
   // Newly self-registered company owners must authorize a successful
@@ -97,7 +98,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
     hirePayrollReviewEnabledForEmployer(companyOrganizationId) &&
     !!access?.companyWide && ["owner", "admin", "hr"].includes(access.role) &&
     (await assertOrganizationRole(user.id, companyOrganizationId, PEOPLE_ADMIN_ROLES)) === null;
-  const canSeeHrCases = criticalReleaseFlagEnabled("employeeHrCases") &&
+  const canSeeHrCases = employeeHrCasesEnabled() &&
     !!access && ["owner", "admin", "hr", "payroll"].includes(access.role) &&
     !(await assertOrganizationRole(user.id, companyOrganizationId, PEOPLE_PAYROLL_ROLES));
   const canSeeMyTeam = !pilotFocusEnabled && process.env.HCM_MY_TEAM_ENABLED === "true" &&
