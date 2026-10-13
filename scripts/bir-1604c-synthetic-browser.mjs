@@ -14,7 +14,7 @@ const browser = await chromium.launch({ headless: true });
 const results = [];
 let page = null;
 async function login(role) {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, ignoreHTTPSErrors: true });
   const base = "https://127.0.0.1:3443";
   const response = await context.request.post(base + "/api/auth/login", {
     headers: { origin: base, "sec-fetch-site": "same-origin" },
@@ -157,7 +157,7 @@ try {
 
   for (const width of [1280, 390]) {
     const context = await browser.newContext({
-      viewport: { width, height: 900 },
+      viewport: { width, height: 900 }, ignoreHTTPSErrors: true,
       storageState: await owner.storageState(),
     });
     page = await context.newPage();
