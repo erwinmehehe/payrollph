@@ -90,8 +90,13 @@ export async function dispatchSchedulerTick({ env = process.env, fetchImpl = fet
     }
     return { outcome: "lease-or-interval-skipped" };
   }
-  if (payload.result.skipped !== false && payload.result.skipped !== undefined) {
-    throw new Error("Scheduler tick acknowledgement is malformed.");
+  // The existing scheduler commits its leased database completion receipt
+  // before returning a result with skipped:false and its cycle timestamp.
+  if (payload.result.skipped !== false ||
+    typeof payload.result.at !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}T/.test(payload.result.at) ||
+    !Number.isFinite(Date.parse(payload.result.at))) {
+    throw new Error("Scheduler tick acknowledgement lacks a committed-cycle shape.");
   }
   return { outcome: "tick-acknowledged" };
 }
