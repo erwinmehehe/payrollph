@@ -1109,3 +1109,45 @@
     gap: 10px;
   }
 }
+
+/* Small-screen workspace header: a long employer name must relinquish space
+   to search, notifications and account controls. The 375px connected-owner
+   acceptance showed .topbar-actions ending at x=388 before this layout fix.
+   Allow the client switcher to shrink and ellipsize instead of scrolling the
+   entire document; keep every header control interactive and visible. */
+@media (max-width: 480px) {
+  .app-shell.clean-shell .topbar {
+    gap: 8px;
+    padding-inline: 12px;
+  }
+
+  .app-shell.clean-shell .topbar-left {
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .app-shell.clean-shell .topbar-left .mobile-menu {
+    flex: 0 0 32px;
+  }
+
+  .app-shell.clean-shell .topbar-left .client-switcher-wrap {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  .app-shell.clean-shell .topbar-left .client-switcher-wrap .company-switcher {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .app-shell.clean-shell .topbar-left .client-switcher-wrap .company-switcher > span:nth-child(2) {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .app-shell.clean-shell .topbar-actions {
+    flex: 0 0 auto;
+    gap: 4px;
+  }
+}
