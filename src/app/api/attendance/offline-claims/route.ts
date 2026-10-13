@@ -4,6 +4,7 @@ import { auditEvents, employees, offlinePunchClaims } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { assertMembership, assertOrganizationRole, getAccess, PEOPLE_ADMIN_ROLES } from "@/lib/access";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { workflowEntityHold } from "@/lib/workflow-entity-hold";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { rateLimitDistributed } from "@/lib/rate-limit";
 
@@ -19,6 +20,7 @@ async function member(userId: number, organizationId: number) {
 }
 export async function GET(request: Request) {
   if (!criticalReleaseFlagEnabled("faceOfflinePunch")) return unavailable();
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const user = await getSessionUser();
   if (!user) return failure("Sign in required.", 401);
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
@@ -61,6 +63,7 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   if (!criticalReleaseFlagEnabled("faceOfflinePunch")) return unavailable();
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return failure("Sign in required.", 401);
@@ -111,6 +114,7 @@ export async function POST(request: Request) {
 }
 export async function PATCH(request: Request) {
   if (!criticalReleaseFlagEnabled("faceOfflinePunch")) return unavailable();
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const origin = enforceSameOriginMutation(request); if (origin) return origin;
   const user = await getSessionUser();
   if (!user) return failure("Sign in required.",401);
