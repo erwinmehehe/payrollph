@@ -64,10 +64,25 @@ try {
     assert.equal(b.status,200);
     assert.equal(b.body.length,1);
     assert.notEqual(a.body[0].id,b.body[0].id);
+    // A -> B is not enough: returning to A must restore the original tenant,
+    // including the original scoped employee record after a failed fetch.
+    await page.locator(".company-switcher").click();
+    await page.getByRole("menuitemradio", {name:/Fictional Connected Employer A/}).click();
+    await page.waitForURL("**/app?organizationId=" + auth.organizationId,
+      {timeout:60000});
+    const backToA = await page.evaluate(async id => {
+      const response = await fetch("/api/employees?organizationId=" + id,
+        {cache:"no-store"});
+      return {status:response.status,body:await response.json()};
+    }, auth.organizationId);
+    assert.equal(backToA.status,200);
+    assert.equal(backToA.body.length,1);
+    assert.equal(backToA.body[0].id,a.body[0].id,
+      "Returning to employer A must restore the original worker");
     const overflows = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
-    assert.equal(overflows,false,"Employer-switched mobile screen overflows");
+    assert.equal(overflows,false,"Round-trip employer switch mobile screen overflows");
     assert.deepEqual(errors,[]);
-    report.checks.push(width + "px failure/retry and owner switch A -> B; disjoint tenant employee records");
+    report.checks.push(width + "px failure/retry and owner switch A -> B -> A; disjoint tenant employee records");
     await context.close();
 
     const restricted = await browser.newContext({viewport:{width,height:844}});
