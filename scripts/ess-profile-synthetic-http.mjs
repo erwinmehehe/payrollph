@@ -130,7 +130,7 @@ async function run() {
   assert.equal(stillPendingB.current.tin.hasValue, false);
 
   await expect("Short rejection note denied", post(hrB, REVIEW,
-    reject(fixture.organizationB, pendingB.id, "too short")), 422);
+    reject(fixture.organizationB, pendingB.id, "bad")), 422);
   await expect("HR-B rejects own pending request", post(hrB, REVIEW,
     reject(fixture.organizationB, pendingB.id, "Fictional source not verified")), 200);
   const rejectedB = await (await expect("B review rejection visible", get(b, IDS), 200)).json();
