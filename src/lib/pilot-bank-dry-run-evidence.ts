@@ -55,14 +55,21 @@ export function isValidPilotBankDryRunEvidence(
     || !Array.isArray(parts)
     || parts.length !== meta.bankFileCount) return false;
 
+  // The audit event must describe unique, safe, individually downloadable parts.
+  // Duplicate names can overwrite one bank-file part even if totals match.
+  const partFilenames = new Set<string>();
   let partRows = 0;
   let partCents = 0;
   for (const part of parts) {
     if (!part || typeof part !== "object" || Array.isArray(part)) return false;
     const data = part as Record<string, unknown>;
     const cents = nonNegativeCents(data.totalNet);
-    if (typeof data.filename !== "string" || !data.filename
+    if (typeof data.filename !== "string" || !data.filename.trim()
+      || /[\\/\\\\\\r\\n]/.test(data.filename)
+      || data.filename === "." || data.filename === ".."
+      || partFilenames.has(data.filename)
       || !positiveInteger(data.rowCount) || cents === null) return false;
+    partFilenames.add(data.filename);
     partRows += data.rowCount;
     partCents += cents;
     if (!Number.isSafeInteger(partRows) || !Number.isSafeInteger(partCents)) return false;
