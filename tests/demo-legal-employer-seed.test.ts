@@ -50,6 +50,21 @@ test("verified demo fixtures receive idempotent, tenant-scoped primary legal emp
   assert.equal(after.length, 4, "repeated demo login must not create duplicate legal employers");
   for (const row of after) assert.equal(row.id, firstPrimary.get(row.organizationId));
 
+  // Reproduce the legacy fictional seed's missing link, then verify that
+  // the next demo entry repairs it without duplicating employers or touching
+  // any configured assignment.
+  const [legacyOrg] = await db.select().from(organizations)
+    .where(eq(organizations.name, "Loom & Local"));
+  const [legacyWorker] = await db.select().from(employees)
+    .where(eq(employees.organizationId, legacyOrg.id));
+  await db.update(employees).set({ legalEntityId: null })
+    .where(eq(employees.id, legacyWorker.id));
+  await ensureSeedData();
+  const [repaired] = await db.select().from(employees)
+    .where(eq(employees.id, legacyWorker.id));
+  assert.equal(repaired.legalEntityId, firstPrimary.get(legacyOrg.id),
+    "known legacy fictional worker must be reattached on repeated demo login");
+
   // A different employer in the same otherwise test-only DB prevents even a
   // name-matched demo repair. No customer worker may be linked automatically.
   const [outside] = await db.insert(organizations).values({
