@@ -1,5 +1,6 @@
+import { configuredPayrollPayoutProvider, xenditPayrollLiveReadiness } from "@/lib/payroll-payout-provider";
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   auditEvents,
@@ -8,6 +9,7 @@ import {
   payslips,
   payrollEntries,
   payrollRuns,
+  payoutBatches,
 } from "@/db/schema";
 import { getSessionUser } from "@/lib/auth";
 import { recordAuditEvent } from "@/lib/audit";
@@ -28,12 +30,19 @@ import {
   preflightPaymongoPayrollDisbursement,
 } from "@/lib/paymongo-disbursements";
 import { withPayrollPayoutSubmissionLock } from "@/lib/payout-submission-lock";
+import { withPayrollRunPayoutLock } from "@/lib/payroll-run-payout-lock";
 import { authorizeTreasuryOperation, type TreasuryEvidence } from "@/lib/treasury-controls";
 import { latestApprovedPayoutDestinationChangeForRun } from "@/lib/payout-destination-controls";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  return readPayrollExport(request, params, false);
+}
+
+async function readPayrollExport(
+  request: Request, params: Promise<{ id: string }>, payoutLockHeld: boolean,
+): Promise<Response> {
   const { id } = await params;
   const runId = Number(id);
   if (!Number.isInteger(runId)) return Response.json({ error: "Invalid run id" }, { status: 400 });
@@ -74,6 +83,27 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }, { status: 409 });
   }
 
+  // A final bank file may be uploaded outside Linaw. Serialize its
+  // generation and durable audit receipt with the first provider claim.
+  // Dry-run validation, payslips and accounting exports never take this lock.
+  if (kind === "bank" && !dryRun && !payoutLockHeld) {
+    try {
+      return await withPayrollRunPayoutLock(
+        run.organizationId, run.id,
+        () => readPayrollExport(request, params, true),
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("PAYOUT_") ||
+          error instanceof Error && error.message.startsWith("PAYROLL_PAYOUT_CLAIM_")) {
+        return Response.json({
+          error: "Another payout claim is in progress or its lock is uncertain. Do not generate a second salary file; reconcile the original operation.",
+          code: "PAYOUT_RUN_CLAIM_CONFLICT",
+        }, { status: 409 });
+      }
+      throw error;
+    }
+  }
+
   const actor = user.name;
   let finalBankTreasuryEvidence: TreasuryEvidence | null = null;
 
@@ -84,6 +114,31 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   if (kind === "bank" && !dryRun) {
+    const [existingBatch] = await db.select({ provider: payoutBatches.provider })
+      .from(payoutBatches).where(and(
+        eq(payoutBatches.organizationId, run.organizationId),
+        eq(payoutBatches.payrollRunId, run.id),
+      )).limit(1);
+    if (existingBatch) {
+      return Response.json({
+        error: "An employee payout ledger already owns this payroll run. Generating another final bank file could pay the same salaries twice. Reconcile the original provider instead.",
+        code: "PAYROLL_PAYOUT_LEDGER_ALREADY_CLAIMED",
+      }, { status: 409 });
+    }
+    const [previousFinalFile] = await db.select({ id: auditEvents.id })
+      .from(auditEvents).where(and(
+        eq(auditEvents.organizationId, run.organizationId),
+        eq(auditEvents.action, "bank export generated"),
+        sql`${auditEvents.metadata} ->> 'runId' = ${String(run.id)}`,
+        sql`${auditEvents.metadata} ->> 'kind' = 'bank'`,
+        sql`COALESCE(${auditEvents.metadata} ->> 'dryRun', 'false') <> 'true'`,
+      )).limit(1);
+    if (previousFinalFile) {
+      return Response.json({
+        error: "A final bank file was already issued for this payroll. Its external bank-upload outcome must be reviewed before generating any replacement. Do not upload a second salary batch.",
+        code: "FINAL_BANK_FILE_ALREADY_ISSUED",
+      }, { status: 409 });
+    }
     const treasury = await authorizeTreasuryOperation({
       organizationId: run.organizationId,
       runId: run.id,
@@ -250,6 +305,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         ? "complete-manual"
         : "disburse";
 
+
   let treasuryEvidence: TreasuryEvidence | null = null;
   if (mode === "preflight") {
     const denied = await assertOrganizationRole(
@@ -279,6 +335,38 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (scopeDenied) return scopeDenied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+  // Authorize before revealing any provider claim or employer readiness.
+  const [existingXenditBatch] = await db.select({ provider: payoutBatches.provider })
+    .from(payoutBatches)
+    .where(and(eq(payoutBatches.organizationId, run.organizationId),
+      eq(payoutBatches.payrollRunId, run.id))).limit(1);
+  if (existingXenditBatch?.provider === "xendit") {
+    return Response.json({
+      error: "This payroll run has an Xendit payout ledger. PayMongo submission and manual bank-file payout confirmation are blocked to prevent duplicate salaries. Reconcile the original Xendit payments.",
+      code: "XENDIT_PAYOUT_LEDGER_ALREADY_EXISTS",
+    }, { status: 409 });
+  }
+
+  // Xendit is the default selected rail. The legacy PayMongo payment endpoint
+  // must never move funds merely because its credentials are present.
+  // Xendit V3 transfers use one request per employee and require a separately
+  // reviewed durable settlement path; until then fail closed, not fall back.
+  if (mode !== "complete-manual" && configuredPayrollPayoutProvider() === "xendit") {
+    const readiness = xenditPayrollLiveReadiness({
+      organizationId: run.organizationId,
+      legalEntityId: run.legalEntityId,
+    });
+    return Response.json({
+      error: "This legacy PayMongo payout endpoint is not fully configured for Xendit salary transfers. Use the treasury-protected Xendit payout workflow instead. No money moved, and Linaw will never reroute a released payroll to PayMongo automatically.",
+      code: "XENDIT_DEFAULT_PAYROLL_PAYOUT_NOT_ACTIVATED",
+      provider: "xendit",
+      providerConfigured: readiness.ready,
+      blockers: readiness.blockers,
+      moneyMoved: false,
+      manualWorkaround: "A bank-validated manual payout remains available after independent treasury authorization.",
+    }, { status: 501 });
+  }
+
   const rateDenied = await enforceSensitiveActionRateLimit(request, {
     userId: user.id,
     action: mode === "preflight" ? "payout-preflight" : "payout-submit",
@@ -549,9 +637,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   try {
-    const result = await withPayrollPayoutSubmissionLock(
-      () => createPaymongoPayrollDisbursement(runId),
-    );
+    return await withPayrollRunPayoutLock(run.organizationId, run.id, async () => {
+      // A final bank file has an unknown external outcome; do not pay
+      // again through a provider while that evidence exists. Check inside
+      // the shared per-run lock to close the bank-file/provider race.
+      const [legacyFile] = await db.select({ id: auditEvents.id })
+        .from(auditEvents).where(and(
+          eq(auditEvents.organizationId, run.organizationId),
+          inArray(auditEvents.action, [
+            "bank export generated", "Payroll payout completed manually",
+          ]),
+          sql`${auditEvents.metadata} ->> 'runId' = ${String(run.id)}`,
+          sql`(${auditEvents.action} <> 'bank export generated'
+             OR (${auditEvents.metadata} ->> 'kind' = 'bank'
+               AND COALESCE(${auditEvents.metadata} ->> 'dryRun', 'false') <> 'true'))`,
+        )).limit(1);
+      if (legacyFile) {
+        throw new Error("PAYROLL_PREVIOUS_FINAL_BANK_FILE_OR_MANUAL_PAYMENT: Reconcile historical bank/payment evidence before sending another payroll.");
+      }
+      const [claim] = await db.select({ provider: payoutBatches.provider })
+        .from(payoutBatches).where(and(
+          eq(payoutBatches.organizationId, run.organizationId),
+          eq(payoutBatches.payrollRunId, run.id),
+        )).limit(1);
+      if (claim && claim.provider !== "paymongo") {
+        throw new Error("PAYROLL_PAYOUT_CLAIMED_BY_XENDIT: Reconcile existing provider payments; never switch money-out rails.");
+      }
+      const result = await withPayrollPayoutSubmissionLock(
+        () => createPaymongoPayrollDisbursement(runId),
+      );
     const everyTransferCompleted =
       result.transfers.length > 0 &&
       result.transfers.every((transfer) => transfer.status.toLowerCase() === "succeeded");
@@ -575,7 +689,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         treasury: treasuryEvidence,
       },
     });
-    return Response.json({ ...result, completed: everyTransferCompleted, completedAt });
+      return Response.json({ ...result, completed: everyTransferCompleted, completedAt });
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Disbursement failed.";
     await recordAuditEvent({
