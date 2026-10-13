@@ -7,7 +7,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import test from "node:test";
 import { and, eq } from "drizzle-orm";
 import {
-  applicantPrivacyEvidence, auditEvents, jobApplicants, jobRequisitions, organizations, users,
+  applicantPrivacyEvidence, auditEvents, hcmBusinessProcessInstances, jobApplicants, jobRequisitions, organizations, users,
 } from "../src/db/schema";
 const require = createRequire(import.meta.url);
 
@@ -168,6 +168,16 @@ test("bounded six-month purge skips retained resumes without starving eligible r
     await db.update(jobApplicants).set({ resumeUrl: null }).where(eq(jobApplicants.id, unresolvedResume.id));
     assert.equal((await purgeExpiredRejectedApplicants(now)).purged, 0, "Named immutable audit evidence blocks incomplete erasure");
     assert.equal((await route.PATCH(mutate("request_delete", alpha.id, unresolvedResume.id))).status, 409);
+    const [hireEvidenceCandidate] = await db.insert(jobApplicants).values(applicantValues(alpha.id, ra.id, 6)).returning();
+    await db.insert(applicantPrivacyEvidence).values({ organizationId: alpha.id, applicantId: hireEvidenceCandidate.id,
+      legalBasis: "consent", privacyNoticeVersion: "2026.10", sourceEvidenceReference: "synthetic-hire-copy",
+      consentCapturedAt: oldDate, rejectedAt: oldDate });
+    await db.insert(hcmBusinessProcessInstances).values({ organizationId: alpha.id, definitionCode: "hire",
+      definitionVersion: 1, processType: "hire", sourceType: "recruitment_hire",
+      sourceKey: hireEvidenceCandidate.id + ":synthetic", definitionSnapshot: { candidateName: "Synthetic retained name" },
+      initiatedByName: "Synthetic maker" });
+    assert.equal((await purgeExpiredRejectedApplicants(now)).purged, 0, "Governed Hire evidence blocks incomplete erasure");
+    assert.equal((await route.PATCH(mutate("request_delete", alpha.id, hireEvidenceCandidate.id))).status, 409);
   } finally {
     for (const restore of restorers.reverse()) restore();
     if (oldFlag == null) delete process.env.APPLICANT_PRIVACY_CONTROLS_ENABLED;
