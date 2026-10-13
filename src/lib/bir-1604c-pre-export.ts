@@ -159,7 +159,7 @@ export function validateBir1604cPreExport(input: {
     for (const field of fieldList) {
       if (AUTO_FIELDS.has(field)) continue;
       const value = values[field];
-      if (value === undefined || value === null || value === "") {
+      if (value === undefined || value === null || (value === "" && field !== "MIDDLE_NAME")) {
         add("MISSING_FIELD", "Provide a reviewed value for " + field + "; never substitute zero or a guessed date.", no, field);
         continue;
       }
@@ -196,14 +196,12 @@ export function validateBir1604cPreExport(input: {
 
     if (typeof values.EMPLOYMENT_FROM === "string" && typeof values.EMPLOYMENT_TO === "string"
         && calendarDate(values.EMPLOYMENT_FROM) && calendarDate(values.EMPLOYMENT_TO)) {
-      const from = new Date(values.EMPLOYMENT_FROM);
-      const to = new Date(values.EMPLOYMENT_TO);
+      const [fm, fd, fy] = values.EMPLOYMENT_FROM.split("/").map(Number);
+      const [tm, td, ty] = values.EMPLOYMENT_TO.split("/").map(Number);
+      const from = new Date(Date.UTC(fy, fm - 1, fd));
+      const to = new Date(Date.UTC(ty, tm - 1, td));
       if (from > to || from.getUTCFullYear() > input.taxYear || to.getUTCFullYear() < input.taxYear)
         add("EMPLOYMENT_INTERVAL", "Employment dates must overlap this tax year and be in chronological order.", no, "EMPLOYMENT_FROM");
-    }
-    if (values.REASON_SEPARATION === "T" && typeof values.EMPLOYMENT_TO === "string"
-        && values.EMPLOYMENT_TO === "12/31/" + input.taxYear) {
-      // A December 31 departure is legitimate; do not reject it.
     }
     const employeeTin = values.TIN, branch = values.BRANCH_CODE;
     if (typeof employeeTin === "string" && typeof branch === "string"
