@@ -21,6 +21,7 @@ const AUTHORIZED_NO_COOKIE_MUTATIONS: Record<string, string> = {
   "src/app/api/webhooks/paymongo/transfers/route.ts": "verifyPaymongoWebhookSignature",
   "src/app/api/webhooks/resend/route.ts": "verifyResendWebhookSignature",
   "src/app/api/webhooks/xendit/subscriptions/route.ts": "constantTimeSecretEqual",
+  "src/app/api/webhooks/xendit-payout/route.ts": "verifyXenditPayoutWebhookToken",
 };
 
 function walk(directory: string): string[] {

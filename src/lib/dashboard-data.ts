@@ -376,6 +376,7 @@ export async function getDashboardData(organizationId?: number) {
     firstPayrollReadiness,
     coreModuleNavigationEnabled,
     employeeImportPreviewEnabled: criticalReleaseFlagEnabled("employeeImportPreview"),
+    xenditPayoutsEnabled: criticalReleaseFlagEnabled("xenditPayrollPayouts"),
     user: sessionUser ? { ...publicUser(sessionUser), role: access.role } : null,
     access,
     capabilities,

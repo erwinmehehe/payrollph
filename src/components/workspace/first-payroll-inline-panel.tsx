@@ -189,8 +189,8 @@ export function FirstPayrollInlinePanel({
    </div>}
    {step==="time"&&<div className="grid gap-3">
      <p>An authorized HR reviewer must check missing punches, leave, schedule exceptions and the actual pay period. This attestation does not approve timesheets or bypass payroll attendance locks.</p>
-     <label>Pay period start<input type="date" value={start} onChange={e=>setStart(e.target.value)}/></label>
-     <label>Pay period end<input type="date" value={end} onChange={e=>setEnd(e.target.value)}/></label>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Pay period start</span><input className="block min-w-0 w-full" type="date" value={start} onChange={e=>setStart(e.target.value)}/></label>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Pay period end</span><input className="block min-w-0 w-full" type="date" value={end} onChange={e=>setEnd(e.target.value)}/></label>
      {start&&end ? <>
        <p role="status">{periodPunches.length} recorded attendance punch{periodPunches.length===1?"":"es"} and {periodLeaves.length} leave request{periodLeaves.length===1?"":"s"} overlap this selected period. Review recorded exceptions before attesting. Absence of records does not prove attendance was completed.</p>
        {periodPunches.length===0
@@ -238,9 +238,9 @@ export function FirstPayrollInlinePanel({
    </div>}
    {step==="payroll"&&<div className="grid gap-3">
      <p>First payroll preview reads actual employer records and reuses the payroll calculator. It never creates a run or a ledger entry. Creating a draft is a separate, explicit action.</p>
-     <label>Period start<input type="date" value={start} onChange={e=>{setStart(e.target.value);setPreview(null);setDraftId(null);}}/></label>
-     <label>Period end<input type="date" value={end} onChange={e=>{setEnd(e.target.value);setPreview(null);setDraftId(null);}}/></label>
-     <label>Pay date<input type="date" value={payDate} onChange={e=>{setPayDate(e.target.value);setPreview(null);setDraftId(null);}}/></label>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period start</span><input className="block min-w-0 w-full" type="date" value={start} onChange={e=>{setStart(e.target.value);setPreview(null);setDraftId(null);}}/></label>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period end</span><input className="block min-w-0 w-full" type="date" value={end} onChange={e=>{setEnd(e.target.value);setPreview(null);setDraftId(null);}}/></label>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Pay date</span><input className="block min-w-0 w-full" type="date" value={payDate} onChange={e=>{setPayDate(e.target.value);setPreview(null);setDraftId(null);}}/></label>
      <button type="button" className="primary-button" disabled={busy||!canPreviewPayroll||!start||!end||!payDate} onClick={()=>void dryRun()}>Preview first payroll (no writes)</button>
      {!canPreviewPayroll&&<p role="status">Only company-wide payroll viewers can inspect calculated preview amounts.</p>}
      {preview&&<>

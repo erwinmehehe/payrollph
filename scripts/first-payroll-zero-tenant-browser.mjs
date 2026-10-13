@@ -46,6 +46,27 @@ async function captureStep(role, key, item, actionName) {
     });
     assert.ok(bounds.left >= -1 && bounds.right <= bounds.viewport + 1,
       `${key} inline panel must fit ${width}px width: ${JSON.stringify(bounds)}`);
+    // Native date inputs must not collide with their text labels at 390px
+    // or desktop widths. These assertions are viewport geometry, not OCR.
+    const dateFields = key === "time" ? ["Pay period start", "Pay period end"]
+      : key === "payroll" ? ["Period start", "Period end", "Pay date"] : [];
+    for (const title of dateFields) {
+      const layout = await panel.getByLabel(title, { exact: true }).evaluate(input => {
+        const label = input.closest("label");
+        const caption = label?.querySelector("span");
+        if (!label || !caption) return null;
+        const textBounds = caption.getBoundingClientRect();
+        const controlBounds = input.getBoundingClientRect();
+        return {
+          verticalGap: controlBounds.top - textBounds.bottom,
+          left: controlBounds.left, right: controlBounds.right,
+          width: controlBounds.width,
+        };
+      });
+      assert.ok(layout && layout.verticalGap >= 4 && layout.width >= 120 &&
+        layout.left >= -1 && layout.right <= width + 1,
+        `${title} label/input must be separated and inside ${width}px viewport: ${JSON.stringify(layout)}`);
+    }
     await card.screenshot({ path: `${screenshotRoot}/${key}-${role}-${width}-after.png`, animations: "disabled" });
   }
   await active.setViewportSize({ width: 375, height: 812 });

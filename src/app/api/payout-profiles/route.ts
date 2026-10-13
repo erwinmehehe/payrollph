@@ -15,6 +15,7 @@ import { recordAuditEvent } from "@/lib/audit";
 import { getSessionUser } from "@/lib/auth";
 import { maskBankAccount } from "@/lib/bank-account-crypto";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -23,7 +24,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const PAYOUT_METHODS = new Set(["bank_file", "paymongo", "manual"]);
+const PAYOUT_METHODS = new Set(["bank_file", "paymongo", "xendit", "manual"]);
 
 function optionalText(value: unknown, max: number) {
   const text = String(value ?? "").trim().slice(0, max);
@@ -114,6 +115,7 @@ export async function GET(request: Request) {
       },
       profile: profileByEntity.get(entity.id) ?? null,
     })),
+    xenditEnabled: criticalReleaseFlagEnabled("xenditPayrollPayouts"),
     adapters: adapters.map((adapter) => {
       const portalValidated = acceptedKeys.has(evidenceKey(adapter.name, adapter.version));
       return {
@@ -170,7 +172,12 @@ export async function PATCH(request: Request) {
 
   const defaultMethod = String(body.defaultMethod ?? "bank_file");
   if (!PAYOUT_METHODS.has(defaultMethod)) {
-    return Response.json({ error: "defaultMethod must be bank_file, paymongo, or manual." }, { status: 400 });
+    return Response.json({ error: "defaultMethod must be xendit, paymongo, bank_file, or manual." }, { status: 400 });
+  }
+  if (defaultMethod === "xendit" && !criticalReleaseFlagEnabled("xenditPayrollPayouts")) {
+    return Response.json({
+      error: "Xendit payout profile selection is disabled until the protected payroll payout pilot is authorized.",
+    }, { status: 409 });
   }
 
   const bankTemplateId = body.bankTemplateId === null || body.bankTemplateId === undefined || body.bankTemplateId === ""
