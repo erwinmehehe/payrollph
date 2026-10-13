@@ -176,7 +176,7 @@ async function finishDeliveryAttempt(input: {
   const retryDelay = AUTO_RETRY_DELAYS_MS[Math.min(Math.max(attempts - 1, 0), AUTO_RETRY_DELAYS_MS.length - 1)];
   const nextAttemptAt =
     !input.result.ok
-    && ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case", "hcm-lifecycle-notification"].includes(input.row.purpose)
+    && ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case", "hcm-lifecycle-notification", "approval-chain-escalation"].includes(input.row.purpose)
     && attempts < input.row.maxAttempts
       ? new Date(now.getTime() + retryDelay)
       : null;
@@ -261,7 +261,7 @@ export async function queueMessage(input: {
     deliveryStatus: providerName === "none" ? "queued" : "sending",
     deliveryUpdatedAt: new Date(),
     metadata: input.metadata ?? input.audit?.metadata ?? {},
-    maxAttempts: ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case", "hcm-lifecycle-notification"].includes(input.purpose)
+    maxAttempts: ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case", "hcm-lifecycle-notification", "approval-chain-escalation"].includes(input.purpose)
       ? MAX_AUTOMATIC_RETRIES + 1
       : 1,
   }).onConflictDoNothing().returning();
@@ -391,14 +391,25 @@ export async function retryOutboxMessage(input: {
   }
 
   if (row.purpose === "approval-chain-escalation") {
-    // A queued reminder is NOT an authorization. Revoked, changed-employer,
-    // decided, or flag-rolled-back tasks must never be delivered later.
+    // A queued advisory is not a grant of approval authority. It may be sent
+    // only while the actual source task and the recipient are still eligible.
+    // Permanently tombstone stale deliveries so automatic drains cannot retry
+    // them on every scheduler tick or after a recipient is reactivated.
+    if (row.maxAttempts === 0) {
+      return { ok: false as const, httpStatus: 409,
+        error: "This advisory escalation was permanently blocked." };
+    }
     const { approvalEscalationRetryAllowed } = await import("@/lib/approval-escalation-notifications");
     if (!await approvalEscalationRetryAllowed({
       organizationId: row.organizationId,
       recipient: row.recipient,
       metadata: row.metadata,
     })) {
+      await db.update(outbox).set({
+        status: "failed", deliveryStatus: "blocked", maxAttempts: 0,
+        error: "Expired approval escalation recipient, task, or feature gate.",
+        nextAttemptAt: null, deliveryUpdatedAt: new Date(),
+      }).where(and(eq(outbox.id, row.id), eq(outbox.status, row.status)));
       return { ok: false as const, httpStatus: 409,
         error: "This advisory escalation is no longer authorized for delivery." };
     }
@@ -667,8 +678,8 @@ export async function retryFailedPayslipNotices(input: {
 
 /**
  * Background retry is deliberately narrow: payslip-ready notices, statutory
- * remittance escalations, and employee contribution-case updates are retried
- * automatically. Password resets, invitations and email-change links must be
+ * remittance escalations, employee contribution-case updates, and revocation-
+ * checked approval escalation advisories are retried automatically. Password resets, invitations and email-change links must be
  * regenerated instead of replaying stale one-time credentials.
  */
 export async function drainOutboxRetries(limit = 25) {
@@ -679,7 +690,7 @@ export async function drainOutboxRetries(limit = 25) {
     .select()
     .from(outbox)
     .where(and(
-      inArray(outbox.purpose, ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case"]),
+      inArray(outbox.purpose, ["payslip-ready", "statutory-remittance-escalation", "employee-contribution-case", "approval-chain-escalation"]),
       inArray(outbox.status, ["queued", "failed"]),
     ))
     .orderBy(asc(outbox.id))
