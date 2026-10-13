@@ -3,7 +3,7 @@ import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { criticalReleaseFlagEnabled } from "../src/lib/critical-release-flags";
-import { EMPTY_WORKFLOW_UI_FLAGS } from "../src/lib/workflow-ui-flags";
+import { EMPTY_WORKFLOW_UI_FLAGS, resolveWorkflowUiFlags } from "../src/lib/workflow-ui-flags";
 import { parseEmployeeImportPreview, makeEmployeeImportErrorCsv } from "../src/lib/workflow-employee-import-preview";
 import { projectReportRows, exportProjectedReportCsv } from "../src/lib/report-builder-view";
 import { loanDisplaySchedule } from "../src/lib/loan-schedule-view";
@@ -151,4 +151,26 @@ test("public careers displays published job card or grounded empty state", () =>
   assert.match(html,/Payroll Analyst/);
   assert.match(html,/Apply for this role/);
   assert.doesNotMatch(html,/bank account/i);
+});
+
+test("canonical HR cases supersede the draft employee request entrypoint without enabling other UI flags", () => {
+  const enabledLegacy = resolveWorkflowUiFlags({
+    EMPLOYEE_CASES_UI_ENABLED: "true",
+    EMPLOYEE_HR_CASES_ENABLED: "false",
+    MULTI_ENTITY_ENABLED: "false",
+  });
+  assert.equal(enabledLegacy.employeeCases, true);
+  const canonical = resolveWorkflowUiFlags({
+    EMPLOYEE_CASES_UI_ENABLED: "true",
+    EMPLOYEE_HR_CASES_ENABLED: "true",
+    MULTI_ENTITY_ENABLED: "false",
+  });
+  assert.equal(canonical.employeeCases, false);
+  assert.equal(canonical.faceOfflinePunch, false);
+  assert.equal(canonical.reportBuilder, false);
+  assert.equal(resolveWorkflowUiFlags({
+    EMPLOYEE_CASES_UI_ENABLED: "true",
+    EMPLOYEE_HR_CASES_ENABLED: "true",
+    MULTI_ENTITY_ENABLED: "true",
+  }).employeeCases, false);
 });

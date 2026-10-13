@@ -34,11 +34,12 @@ import { EmployeeWorkforcePanel } from "@/components/employee-workforce-panel";
 import { EmployeeExplainPay } from "@/components/employee-explain-pay";
 import { EmployeeContributionIssueModal } from "@/components/employee-contribution-issue-modal";
 import { EmployeeDocumentsPanel } from "@/components/employee-documents-panel";
+import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
+import { EmployeeRequestPanel } from "@/components/workspace/employee-case-ui";
+import { EmployeeHrCasesPanel } from "@/components/employee-hr-cases-panel";
 import { HcmSelfProbationReviews } from "@/components/hcm-self-probation-reviews";
 import { HcmSelfPerformance } from "@/components/hcm-self-performance";
 import { WebBundyModal } from "@/components/web-bundy-modal";
-import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
-import { EmployeeRequestPanel } from "@/components/workspace/employee-case-ui";
 import { DemoSandboxBar } from "@/components/demo-sandbox-bar";
 import { PayrollHandoff } from "@/components/payroll-handoff";
 import { DEMO_ROLES, demoRolePath, type DemoRoleId } from "@/lib/demo-roles";
@@ -216,8 +217,8 @@ const ESS_TAB_CONFIG: Record<SelfTab, { label: string; mobileLabel?: string; ico
   leave: { label: "Leave", icon: CalendarDays },
   documents: { label: "Documents", icon: FileText },
   performance: { label: "Performance", icon: BadgeCheck },
-  profile: { label: "Profile", mobileLabel: "My info", icon: UserRound },
   requests: { label: "Requests", mobileLabel: "Ask HR", icon: FileText },
+  profile: { label: "Profile", mobileLabel: "My info", icon: UserRound },
 };
 
 const ESS_PRIMARY_TABS: SelfTab[] = ["home", "pay", "time", "leave"];
@@ -265,10 +266,12 @@ function statusTone(status: string) {
   return "neutral";
 }
 
-export function SelfServicePortal() {
+export function SelfServicePortal({ hrCasesEnabled = false }: { hrCasesEnabled?: boolean } = {}) {
   const workflowUi = useWorkflowUi();
-  const visibleSelfTabs = workflowUi.employeeCases ? [...ESS_ALL_TABS, "requests" as const] : ESS_ALL_TABS;
-  const moreSelfTabs = workflowUi.employeeCases ? [...ESS_MORE_TABS, "requests" as const] : ESS_MORE_TABS;
+  // A single employee request entrypoint: canonical HR cases take precedence.
+  const legacyRequestsEnabled = workflowUi.employeeCases && !hrCasesEnabled;
+  const visibleSelfTabs = legacyRequestsEnabled ? [...ESS_ALL_TABS, "requests" as const] : ESS_ALL_TABS;
+  const moreSelfTabs = legacyRequestsEnabled ? [...ESS_MORE_TABS, "requests" as const] : ESS_MORE_TABS;
   const searchParams = useSearchParams();
   const isDemo = searchParams.get("demoRole") === "employee";
   const [language, setLanguage] = useState<EssLanguage>("en");
@@ -991,6 +994,7 @@ export function SelfServicePortal() {
                     <div className="employee-pay-row-detail" id={"employee-payslip-" + slip.entryId}>
                       <div><span>{t("Gross")}</span><strong>{peso(slip.gross)}</strong></div>
                       <div><span>{t("Deductions")}</span><strong>{peso(slip.deductions)}</strong></div>
+                      <a className="secondary-button" href={"/api/self/payslips/" + slip.entryId}><Download size={13} /> {t("Download PDF")}</a>
                       {workflowUi.benefitsLoans && <div style={{ display: "block" }} aria-label="Benefits and loan payslip lines">
                         <strong>Benefits and loan lines (stored payroll amounts)</strong>
                         {slip.lineItems.filter(line => /^(BEN-|LOAN|SSS-LOAN|HDMF-LOAN)/i.test(String(line.code ?? ""))).length === 0
@@ -1091,13 +1095,16 @@ export function SelfServicePortal() {
         </section>
       )}
 
-      {workflowUi.employeeCases && tab === "requests" && data.employer && (
+      {legacyRequestsEnabled && tab === "requests" && data.employer && (
         <section className="employee-section">
           <EmployeeRequestPanel organizationId={data.employer.id} />
         </section>
       )}
       {tab === "documents" && data.employer && (
-        <EmployeeDocumentsPanel organizationId={data.employer.id} language={language} />
+        <>
+          <EmployeeDocumentsPanel organizationId={data.employer.id} language={language} />
+          <EmployeeHrCasesPanel language={language} enabled={hrCasesEnabled} />
+        </>
       )}
 
       {tab === "performance" && (

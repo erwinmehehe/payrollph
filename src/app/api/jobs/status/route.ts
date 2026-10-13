@@ -5,6 +5,7 @@ import { constantTimeSecretEqual } from "@/lib/security-secret";
 import { operationalSecret } from "@/lib/operational-secret";
 import { evaluateSchedulerLiveness } from "@/lib/scheduler-liveness";
 import { isCentralSchedulerEnabled } from "@/lib/scheduler-activation";
+import { checkPayrollWorkerDispatchGate } from "@/lib/payroll-worker-dispatch-gate";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,13 @@ export async function GET(request: Request) {
       lastSuccessfulRunAt: completed?.lastRunAt ?? null,
       lastLeaseStatus,
     });
+    const worker = await checkPayrollWorkerDispatchGate();
+    if (!worker.ok) {
+      return Response.json({
+        ...state, ok: false, state: "payroll-worker-unhealthy",
+        payrollWorkerState: worker.state,
+      }, { status: 503, headers: { "Cache-Control": "no-store" } });
+    }
     return Response.json(state, {
       status: state.ok ? 200 : 503,
       headers: { "Cache-Control": "no-store" },

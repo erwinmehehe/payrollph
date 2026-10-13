@@ -43,6 +43,8 @@ export function resolveWorkflowUiFlags(
     reportBuilder: criticalReleaseFlagEnabled("reportBuilder", env),
     benefitsLoans: criticalReleaseFlagEnabled("benefitsLoans", env),
     recruitmentJourney: criticalReleaseFlagEnabled("recruitmentJourney", env),
-    employeeCases: criticalReleaseFlagEnabled("employeeCases", env),
+    // Keep one authoritative HR request UI when the newer governed A-3 flow is enabled.
+    employeeCases: criticalReleaseFlagEnabled("employeeCases", env)
+      && !criticalReleaseFlagEnabled("employeeHrCases", env),
   };
 }
