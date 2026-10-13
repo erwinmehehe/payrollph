@@ -2,6 +2,7 @@ import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { jobApplicants, jobRequisitions, organizations } from "@/db/schema";
 import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
+import { workflowEntityHold } from "@/lib/workflow-entity-hold";
 import { enforceSameOriginMutation } from "@/lib/security-request";
 import { clientIp, rateLimitDistributed } from "@/lib/rate-limit";
 import { recordAuditEvent } from "@/lib/audit";
@@ -15,6 +16,7 @@ const listing = (organizationId: number) => and(
 );
 export async function GET(request: Request) {
   if (!criticalReleaseFlagEnabled("recruitmentJourney")) return unavailable();
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const organizationId = Number(new URL(request.url).searchParams.get("organizationId"));
   if (!Number.isSafeInteger(organizationId) || organizationId <= 0)
     return Response.json({ error: "Valid employer required." }, { status: 400 });
@@ -32,6 +34,7 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   if (!criticalReleaseFlagEnabled("recruitmentJourney")) return unavailable();
+  const entityHold = workflowEntityHold(); if (entityHold) return entityHold;
   const denied = enforceSameOriginMutation(request);
   if (denied) return denied;
   const body = await request.json().catch(() => ({}));
