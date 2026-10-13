@@ -32,11 +32,19 @@ test("bounded six-month purge skips retained resumes without starving eligible r
       await pool.query(`CREATE TABLE ${schema}.${table} (LIKE public.${table} INCLUDING DEFAULTS INCLUDING CONSTRAINTS)`);
       await pool.query(`ALTER TABLE ${schema}.${table} ADD PRIMARY KEY (id)`);
     }
+    require.cache[dbId]!.exports = { ...originalDb, db };
+    const { purgeExpiredRejectedApplicants } = await import("../src/lib/recruitment-applicant-retention");
+    const oldFlagBeforeSchema = process.env.APPLICANT_PRIVACY_CONTROLS_ENABLED;
+    try {
+      delete process.env.APPLICANT_PRIVACY_CONTROLS_ENABLED;
+      assert.deepEqual(await purgeExpiredRejectedApplicants(new Date()), { purged: 0, enabled: false }, "Flag-off works before the new evidence table exists");
+    } finally {
+      if (oldFlagBeforeSchema === undefined) delete process.env.APPLICANT_PRIVACY_CONTROLS_ENABLED;
+      else process.env.APPLICANT_PRIVACY_CONTROLS_ENABLED = oldFlagBeforeSchema;
+    }
     // Actual proposal executed twice against disposable, schema-qualified sources.
     const proposal = readFileSync("docs/engineering/migration-proposals/recruitment-applicant-privacy.sql", "utf8");
     for (let repeat = 0; repeat < 2; repeat++) await pool.query(proposal);
-    require.cache[dbId]!.exports = { ...originalDb, db };
-    const { purgeExpiredRejectedApplicants } = await import("../src/lib/recruitment-applicant-retention");
   const [alpha, beta] = await db.insert(organizations).values([
     { name: "Privacy A " + suffix, legalName: "Privacy A " + suffix },
     { name: "Privacy B " + suffix, legalName: "Privacy B " + suffix },

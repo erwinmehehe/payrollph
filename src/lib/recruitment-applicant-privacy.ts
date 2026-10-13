@@ -14,11 +14,14 @@ export function applicantPrivacyId(value: unknown): number | null {
 
 export function sixCalendarMonthsBefore(now: Date): Date {
   if (!Number.isFinite(now.getTime())) throw new Error("INVALID_RETENTION_CLOCK");
-  const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 6, 1,
-    now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds(), now.getUTCMilliseconds()));
+  // Philippine calendar months, independent of the worker process timezone.
+  const manilaOffset = 8 * 60 * 60_000;
+  const local = new Date(now.getTime() + manilaOffset);
+  const target = new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth() - 6, 1,
+    local.getUTCHours(), local.getUTCMinutes(), local.getUTCSeconds(), local.getUTCMilliseconds()));
   const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  target.setUTCDate(Math.min(now.getUTCDate(), lastDay));
-  return target;
+  target.setUTCDate(Math.min(local.getUTCDate(), lastDay));
+  return new Date(target.getTime() - manilaOffset);
 }
 
 export function requireApplicantConsent(input: {
@@ -55,7 +58,7 @@ export function rejectedApplicantCanPurge(input: RejectedApplicantRetention, now
 
 export function applicantPiiEraseValues(applicantId: number) {
   if (!Number.isSafeInteger(applicantId) || applicantId < 1) throw new Error("INVALID_APPLICANT");
-  // Keep only an anonymous recruiting-stage / referential record.
+  // Keep a pseudonymous recruiting-stage / referential record.
   return {
     fullName: "Redacted applicant #" + applicantId,
     email: "redacted+" + applicantId + "@deleted.invalid",

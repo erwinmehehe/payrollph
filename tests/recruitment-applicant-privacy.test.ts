@@ -31,12 +31,14 @@ test("intake cannot invent consent after candidate has applied", () => {
 });
 test("six-month candidate retention respects calendar-month ends, hires, holds and resumes", () => {
   assert.equal(sixCalendarMonthsBefore(new Date("2027-03-31T12:00:00Z")).toISOString(), "2026-09-30T12:00:00.000Z");
+  assert.equal(sixCalendarMonthsBefore(new Date("2026-10-31T16:30:00Z")).toISOString(), "2026-04-30T16:30:00.000Z", "November 1 Manila maps to May 1 Manila");
   const now = new Date("2027-04-12T00:00:00Z");
   const row = { stage: "rejected", hiredEmployeeId: null, rejectedAt: new Date("2026-10-11T23:59:59Z"),
     legalHold: false, purgedAt: null, resumeUrl: null };
   assert.equal(rejectedApplicantCanPurge(row, now), true);
   assert.equal(rejectedApplicantCanPurge({ ...row, rejectedAt: new Date("2026-10-12T00:00:01Z") }, now), false);
   assert.equal(rejectedApplicantCanPurge({ ...row, hiredEmployeeId: 12 }, now), false);
+  assert.equal(rejectedApplicantCanPurge({ ...row, hiredAt: new Date("2026-09-01") }, now), false);
   assert.equal(rejectedApplicantCanPurge({ ...row, legalHold: true }, now), false);
   assert.equal(rejectedApplicantCanPurge({ ...row, resumeUrl: "object://pending-delete" }, now), false);
   assert.equal(rejectedApplicantCanPurge({ ...row, purgedAt: new Date() }, now), false);
