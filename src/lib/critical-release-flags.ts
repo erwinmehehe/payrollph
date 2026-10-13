@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  payrollWorkerHeartbeatRequired: {
+    env: "PAYROLL_WORKER_HEARTBEAT_REQUIRED",
+    owner: "Payroll / Operations",
+    risk: "Scheduler refuses work without a fresh dedicated-worker heartbeat",
+    approval: "Synthetic liveness and independently approved worker hosting; no payout authority",
+  },
   bir1604cReviewedCandidate: {
     env: "BIR_1604C_DAT_CANDIDATE_ENABLED",
     owner: "Philippine Payroll / Tax",
