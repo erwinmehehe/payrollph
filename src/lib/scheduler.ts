@@ -26,6 +26,7 @@ import { runScheduledPerformanceEvidenceSealing } from "@/lib/hcm-performance-ev
 import { resumeDueAutomationExecutions } from "@/lib/automation";
 import { runScheduledAutomationTemporalEvents } from "@/lib/automation-temporal-events";
 import { sealAuditEvents } from "@/lib/audit-chain";
+import { runDueApprovalChainEscalations } from "@/lib/approval-chain-escalation-server";
 import { runScheduledComplianceDeadlineAlerts } from "@/lib/compliance-deadline-alerts";
 
 const MIN_INTERVAL_MS = 30_000;
@@ -136,6 +137,8 @@ async function runScheduledJobs(
       );
     }
   }
+  await assertLeaseOwnership();
+  const approvalEscalations = await runDueApprovalChainEscalations(now);
   await assertLeaseOwnership();
   const statutoryRemittanceActions = await runScheduledStatutoryRemittanceSync({
     actor: "System scheduler",
@@ -384,6 +387,7 @@ async function runScheduledJobs(
     mailRetries: mailRetried.length,
     marketingLeadNotifications: marketingLeadResults.filter((item) => item.notified).length,
     retentionPurge: retention,
+    approvalEscalations,
     punchPhotoPurge,
     statutoryRemittanceActions,
     contributionCaseEscalations,
