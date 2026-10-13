@@ -33,6 +33,7 @@ import { withPayrollPayoutSubmissionLock } from "@/lib/payout-submission-lock";
 import { withPayrollRunPayoutLock } from "@/lib/payroll-run-payout-lock";
 import { authorizeTreasuryOperation, type TreasuryEvidence } from "@/lib/treasury-controls";
 import { latestApprovedPayoutDestinationChangeForRun } from "@/lib/payout-destination-controls";
+import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,11 @@ async function readPayrollExport(
     "This payroll run is outside your assigned organization unit.",
   );
   if (scopeDenied) return scopeDenied;
+  const entityDenied = await requireRunEmployer({
+    request, userId: user.id, organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
+  });
+  if (entityDenied) return entityDenied;
 
   if (kind === "government" && template === "bir-1604c-source") {
     return Response.json({
@@ -333,6 +339,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     "This payroll run is outside your assigned organization unit.",
   );
   if (scopeDenied) return scopeDenied;
+  const entityDenied = await requireRunEmployer({
+    request, userId: user.id, organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId,
+  });
+  if (entityDenied) return entityDenied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
   // Authorize before revealing any provider claim or employer readiness.

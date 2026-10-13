@@ -20,6 +20,7 @@ import { managedPayrollReleaseRequirement } from "@/lib/managed-payroll";
 import { runAutomationEventSafely } from "@/lib/automation";
 import { findPayrollPeriodConflict } from "@/lib/payroll-period-integrity";
 import { verifyPayrollApprovalSnapshot } from "@/lib/payroll-approval-integrity";
+import { requireRunEmployer } from "@/lib/multi-entity-run-guard";
 import { checkPayrollReleaseSegregation } from "@/lib/payroll-release-segregation";
 import { connectedPayrollReleaseGateEnabled, safePayrollConnectedReleaseReadiness } from "@/lib/payroll-connected-release-gate-server";
 import { payrollPayoutProviderForReleaseReceipt } from "@/lib/payroll-payout-provider";
@@ -54,6 +55,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     "This payroll run is outside your assigned organization unit.",
   );
   if (scopeDenied) return scopeDenied;
+  const confirmationBody = await request.clone().json().catch(() => ({}));
+  const entityDenied = await requireRunEmployer({
+    request, userId: user.id, organizationId: run.organizationId,
+    legalEntityId: run.legalEntityId, requireConfirmation: true,
+    confirmation: typeof confirmationBody.confirmLegalEntityName === "string"
+      ? confirmationBody.confirmLegalEntityName : "",
+  });
+  if (entityDenied) return entityDenied;
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
   const rateDenied = await enforceSensitiveActionRateLimit(request, {

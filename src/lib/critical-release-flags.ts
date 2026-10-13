@@ -65,6 +65,24 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "Temporary read-only legacy PII key compatibility",
     approval: "Key custody, measured rewrap and retirement acceptance",
   },
+  multiEntity: {
+    env: "MULTI_ENTITY_ENABLED",
+    owner: "Security / Payroll Operations",
+    risk: "P0 employer payroll, statutory and personnel isolation",
+    approval: "DB clone migration, two-tenant/two-entity tests, golden payroll evidence and independent maker-checker UAT",
+  },
+  multiEntityRegistrations: {
+    env: "MULTI_ENTITY_REGISTRATIONS_ENABLED",
+    owner: "DBA / Philippine Payroll / Security",
+    risk: "P0 legal employer identity, statutory registrations and bank account change governance",
+    approval: "Immutable source migration, encrypted proposal reviews, independent maker/checker, tenant/entity HTTP isolation and DBA clone evidence",
+  },
+  multiEntityTransfers: {
+    env: "MULTI_ENTITY_TRANSFERS_ENABLED",
+    owner: "Philippine Payroll / Legal / HR",
+    risk: "P0 cross-legal-employer liabilities, leave, 13th-month, statutory records and worker continuity",
+    approval: "Written employment-continuity policy, employer-specific legal and financial signoff, isolated transaction UAT and independent transfer maker/checker",
+  },
   employeeImportPreview: {
     env: "EMPLOYEE_IMPORT_PREVIEW_ENABLED", owner: "People Operations",
     risk: "P1 atomic employee CSV intake", approval: "500-row preview and rollback acceptance",

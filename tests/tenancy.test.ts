@@ -268,7 +268,8 @@ test("tenant-wide imports privacy and recruitment reject unit-scoped administrat
 test("dashboard and approval discovery do not expose cross-unit payroll data", () => {
   const dashboard = read("src/lib/dashboard-data.ts");
   assert.ok(dashboard.includes("eq(payrollRuns.scopeOrgUnitId, access.orgUnitId!)"));
-  assert.ok(dashboard.includes("const canViewAudit = access.companyWide"));
+  assert.ok(dashboard.includes("allEmployeesVisible = access.companyWide && selectedEntityId === null"));
+  assert.ok(dashboard.includes("const canViewAudit = allEmployeesVisible"));
   assert.ok(dashboard.includes("delegation.fromApprover.toLowerCase() === sessionUser.name.toLowerCase()"));
 
   const approvers = read("src/app/api/organizations/[id]/payroll-approvers/route.ts");
