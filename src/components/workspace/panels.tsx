@@ -45,6 +45,7 @@ import {
 import { AccountPanel } from "@/components/account-panel";
 import { StatutoryRemittancePanel } from "@/components/workspace/statutory-remittance-panel";
 import { ComplianceCalendarPanel } from "@/components/workspace/compliance-calendar-panel";
+import { Bir1604cCandidatePanel } from "@/components/workspace/bir-1604c-candidate-panel";
 import { LaborInspectionReadinessPanel } from "@/components/workspace/labor-inspection-readiness-panel";
 import { LaborInspectionDrillPanel } from "@/components/workspace/labor-inspection-drill-panel";
 import { PayrollMonthClosePanel } from "@/components/workspace/payroll-month-close-panel";
@@ -713,11 +714,6 @@ function YearEndPanel({ organizationId, setNotice }: { organizationId: number; s
       <section className="notice notice-blue" style={{ marginTop: 14 }} aria-label="Employer-specific BIR reconciliation">
         <div style={{ width: "100%", display: "grid", gap: 8 }}>
           <strong>Employer-specific 1604-C and 1601-C reconciliation</strong>
-          <p data-bir-v70-validation-status role="status" style={{ margin: 0 }}>
-            Validated against BIR Alphalist Module v7.0: <strong>not run</strong>.
-            Payroll source reconciliation and unit tests are not desktop-module validation.
-            No official DAT download is enabled without a separately reviewed source mapping and external module evidence.
-          </p>
           <p style={{ margin: 0 }}>Review the exact legal employer, released payroll and monthly BIR withholding evidence before preparing any official alphalist. This check never submits to BIR.</p>
           <div className="heading-actions" style={{ flexWrap: "wrap", gap: 8 }}>
             <label>
@@ -771,6 +767,14 @@ function YearEndPanel({ organizationId, setNotice }: { organizationId: number; s
           )}
         </div>
       </section>
+      <Bir1604cCandidatePanel
+        key={organizationId + ":" + birEntityId + ":" + taxYear + ":" + (birEntityReport?.sourceDigest ?? "")}
+        organizationId={organizationId}
+        legalEntityId={birEntityId}
+        taxYear={taxYear}
+        sourceDigest={birEntityReport?.sourceDigest ?? null}
+        setNotice={setNotice}
+      />
       {summary?.rows?.length ? (
         <>
           <div className="run-stats">
