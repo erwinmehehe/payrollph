@@ -141,7 +141,7 @@ jobs:
             # Disposable PostgreSQL/fictional employees only. Show a bounded,
             # redacted server diagnostic instead of concealing all HTTP 500s.
             tail -n 100 /tmp/hris-journey-local.log \
-              | sed -E 's#(postgres(ql)?://)[^/@[:space:]]+@#\\1[REDACTED]@#g; s#(BANK_DATA_ENCRYPTION_KEY|TOTP_ENCRYPTION_KEY|PII_ENCRYPTION_KEY|SESSION_SECRET|AUTH_SECRET|OPENAI_API_KEY)[=:][^[:space:]]+#\\1=[REDACTED]#g' \
+              | sed -E 's#(postgres(ql)?://)[^/@[:space:]]+@#\1[REDACTED]@#g; s#(BANK_DATA_ENCRYPTION_KEY|TOTP_ENCRYPTION_KEY|PII_ENCRYPTION_KEY|SESSION_SECRET|AUTH_SECRET|OPENAI_API_KEY)[=:][^[:space:]]+#\1=[REDACTED]#g' \
               | tail -n 80
           fi
           exit 1
