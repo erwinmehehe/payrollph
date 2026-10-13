@@ -41,9 +41,9 @@ type ReportResult = {
 };
 
 export function AnalyticsView({ data, notify }: { data: DashboardData; notify: Notify }) {
-  // Legacy feature-OFF selection; scoped sessions switch to a supported
-  // employer report before ever requesting uncertified workforce data.
-  const [active, setActive] = useState<ReportKey>("workforce");
+  const [active, setActive] = useState<ReportKey>(
+    data.multiEntity?.enabled && data.multiEntity.legalEntityId !== null ? "headcount" : "workforce",
+  );
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [result, setResult] = useState<ReportResult | null>(null);
   const [error, setError] = useState("");
@@ -53,28 +53,23 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
   const organizationId = data.selectedOrganization.id;
 
   const [nonce, setNonce] = useState(0);
-
-  useEffect(() => {
-    if (data.multiEntity?.enabled && data.multiEntity.legalEntityId !== null
-        && active === "workforce") {
-      setActive("headcount");
-    }
-  }, [active, data.multiEntity?.enabled, data.multiEntity?.legalEntityId]);
+  // Derived, not an effect-driven state change: a mid-session employer switch
+  // cannot fetch or export a report not certified for a single legal employer.
+  const employerScoped = data.multiEntity?.enabled === true && data.multiEntity.legalEntityId !== null;
+  const supportedEmployerReports: ReportKey[] = ["headcount", "cost", "turnover", "assurance"];
+  const safeActive: ReportKey = employerScoped && !supportedEmployerReports.includes(active)
+    ? "headcount" : active;
 
   // The fetch lives in the effect and every state update happens after an
   // await, so switching report or client never cascades a synchronous render.
   // `alive` stops a slow response from overwriting a newer one.
   useEffect(() => {
     if (data.multiEntity?.enabled && data.multiEntity.role === "group_hr") return;
-    // Do not make an interim unsupported report request during the scoped
-    // selection transition.
-    if (data.multiEntity?.enabled && data.multiEntity.legalEntityId !== null
-        && active === "workforce") return;
     let alive = true;
     (async () => {
       try {
-        const query = new URLSearchParams({ organizationId: String(organizationId), key: active });
-        if (active === "people") {
+        const query = new URLSearchParams({ organizationId: String(organizationId), key: safeActive });
+        if (safeActive === "people") {
           if (peopleAsOf) query.set("asOf", peopleAsOf);
           query.set("windowDays", String(peopleWindowDays));
         }
@@ -98,7 +93,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
     return () => {
       alive = false;
     };
-  }, [organizationId, active, nonce, peopleAsOf, peopleWindowDays, data.multiEntity?.enabled, data.multiEntity?.role]);
+  }, [organizationId, safeActive, nonce, peopleAsOf, peopleWindowDays, data.multiEntity?.enabled, data.multiEntity?.role]);
 
   const reload = useCallback(() => {
     setState("loading");
@@ -116,7 +111,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
           sublabel: `${run.periodLabel} · ${run.employeeCount} people`,
           segments: [
             { key: "net", value: net, color: "var(--brand)" },
-            { key: "deductions", value: Math.max(gross - net, 0), color: "var(--active-bright)" },
+            { key: "deductions", value: Math.max(gross - net, 0), color: "var(--safeActive-bright)" },
           ],
         };
       }),
@@ -182,7 +177,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
             data={costSeries}
             legend={[
               { key: "net", label: "Net pay", color: "var(--brand)" },
-              { key: "deductions", label: "Employee deductions", color: "var(--active-bright)" },
+              { key: "deductions", label: "Employee deductions", color: "var(--safeActive-bright)" },
             ]}
           />
         </article>
@@ -192,17 +187,17 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
       <HcmReportBuilderPanel key={organizationId} organizationId={organizationId} />
 
       <div className="report-grid">
-        {REPORTS.map((report) => {
+        {REPORTS.filter(report => !employerScoped || supportedEmployerReports.includes(report.key)).map((report) => {
           const Icon = report.icon;
           return (
             <button
               key={report.key}
-              className={`report-hero ${active === report.key ? "on" : ""}`}
+              className={`report-hero ${safeActive === report.key ? "on" : ""}`}
               onClick={() => {
                 setState("loading");
                 setActive(report.key);
               }}
-              aria-pressed={active === report.key}
+              aria-pressed={safeActive === report.key}
             >
               <span className="report-icon" aria-hidden>
                 <Icon size={15} />
@@ -214,7 +209,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         })}
       </div>
 
-      {active === "people" && (
+      {safeActive === "people" && (
         <article className="card" style={{ marginBottom: 16 }}>
           <div className="card-header">
             <div>
@@ -243,7 +238,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         </article>
       )}
 
-      {active === "people" && state === "ready" && result?.peopleIntelligence && (
+      {safeActive === "people" && state === "ready" && result?.peopleIntelligence && (
         <PeopleIntelligenceOverview report={result.peopleIntelligence} />
       )}
 
@@ -251,7 +246,7 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
         <div className="card-header">
           <div>
             <div className="card-kicker">Result</div>
-            <h2>{REPORTS.find((report) => report.key === active)?.name}</h2>
+            <h2>{REPORTS.find((report) => report.key === safeActive)?.name}</h2>
             <p>
               {state === "ready" && result
                 ? `${result.rows.length} row${result.rows.length === 1 ? "" : "s"} returned${result.generatedAt ? ` · generated ${new Date(result.generatedAt).toLocaleTimeString("en-PH")}` : ""}`
@@ -263,9 +258,9 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
             disabled={state !== "ready" || !result?.rows.length}
             onClick={() => {
               const query = new URLSearchParams({
-                organizationId: String(organizationId), key: active, format: "csv",
+                organizationId: String(organizationId), key: safeActive, format: "csv",
               });
-              if (active === "people") {
+              if (safeActive === "people") {
                 if (peopleAsOf) query.set("asOf", peopleAsOf);
                 query.set("windowDays", String(peopleWindowDays));
               }
