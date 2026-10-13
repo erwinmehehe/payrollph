@@ -41,9 +41,9 @@ type ReportResult = {
 };
 
 export function AnalyticsView({ data, notify }: { data: DashboardData; notify: Notify }) {
-  const [active, setActive] = useState<ReportKey>(
-    data.multiEntity?.enabled && data.multiEntity.legalEntityId !== null ? "headcount" : "workforce",
-  );
+  // Legacy feature-OFF selection; scoped sessions switch to a supported
+  // employer report before ever requesting uncertified workforce data.
+  const [active, setActive] = useState<ReportKey>("workforce");
   const [state, setState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [result, setResult] = useState<ReportResult | null>(null);
   const [error, setError] = useState("");
@@ -54,11 +54,22 @@ export function AnalyticsView({ data, notify }: { data: DashboardData; notify: N
 
   const [nonce, setNonce] = useState(0);
 
+  useEffect(() => {
+    if (data.multiEntity?.enabled && data.multiEntity.legalEntityId !== null
+        && active === "workforce") {
+      setActive("headcount");
+    }
+  }, [active, data.multiEntity?.enabled, data.multiEntity?.legalEntityId]);
+
   // The fetch lives in the effect and every state update happens after an
   // await, so switching report or client never cascades a synchronous render.
   // `alive` stops a slow response from overwriting a newer one.
   useEffect(() => {
     if (data.multiEntity?.enabled && data.multiEntity.role === "group_hr") return;
+    // Do not make an interim unsupported report request during the scoped
+    // selection transition.
+    if (data.multiEntity?.enabled && data.multiEntity.legalEntityId !== null
+        && active === "workforce") return;
     let alive = true;
     (async () => {
       try {

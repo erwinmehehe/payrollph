@@ -72,7 +72,11 @@ export async function GET(request: Request) {
     }
   }
 
-  const report = await runReport(key, organizationId, { asOf, windowDays, legalEntityId: scope.context.legalEntityId });
+  // Retain the legacy report call when OFF; never omit scoped employer
+  // access when multi-entity isolation is ON.
+  const report = scope.context.enabled
+    ? await runReport(key, organizationId, { asOf, windowDays, legalEntityId: scope.context.legalEntityId })
+    : await runReport(key, organizationId, { asOf, windowDays });
 
   if (format === "csv") {
     await recordAuditEvent({
