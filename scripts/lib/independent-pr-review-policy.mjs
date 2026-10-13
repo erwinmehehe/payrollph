@@ -22,6 +22,21 @@ const ALWAYS_SENSITIVE = [
   /^tests\/.*(?:payroll|payout|bank|financial|review|approval|migration|scheduler).*\.test\.(?:ts|mjs)$/,
 ];
 
+// One narrow development-only source-evidence lane for WFM-12. This does NOT
+// permit runtime behavior, new tests, migrations, operational pilot activation,
+// environment flags, or payroll release. Every GitHub file must be MODIFIED.
+const WFM12_DEV_EVIDENCE_FILES = new Set([
+  "scripts/wfm-pilot-synthetic-evidence.mjs",
+  "tests/wfm-roster-scale-postgres.test.ts",
+]);
+function isExactWfm12DevelopmentEvidence(files) {
+  if (files.length !== WFM12_DEV_EVIDENCE_FILES.size) return false;
+  const actual = new Set(files.map(file => file.filename));
+  return actual.size === WFM12_DEV_EVIDENCE_FILES.size
+    && files.every(file => file.status === "modified"
+      && WFM12_DEV_EVIDENCE_FILES.has(file.filename));
+}
+
 const FROZEN_LANES = [
   /^src\/lib\/(?:hcm-|workforce-|wfm-|compensation-|performance-)/,
   /^src\/app\/api\/(?:hcm|workforce|recruitment|talent|compensation|performance|planning)\//,
@@ -57,6 +72,7 @@ export function classifyReviewScope(files) {
   }
   const list = [...paths];
   const frozenPaths = list.filter(path => FROZEN_LANES.some(regex => regex.test(path)));
+  const wfm12DevEvidence = isExactWfm12DevelopmentEvidence(files);
   const sensitivePaths = list.filter(path =>
     ALWAYS_SENSITIVE.some(regex => regex.test(path)) ||
     ["T2", "T3"].includes(tierForPath(path)));
@@ -64,6 +80,7 @@ export function classifyReviewScope(files) {
     fileCount: files.length,
     requiresIndependentHuman: sensitivePaths.length > 0,
     hcmWfmFrozen: frozenPaths.length > 0,
+    wfm12DevEvidence,
     sensitiveFileCount: sensitivePaths.length,
     frozenFileCount: frozenPaths.length,
   };
@@ -119,7 +136,7 @@ export function evaluateIndependentReview({
   }
   const scope = classifyReviewScope(files);
   const blockers = [];
-  if (scope.hcmWfmFrozen &&
+  if (scope.hcmWfmFrozen && !scope.wfm12DevEvidence &&
       (pilotStarted !== "true" ||
        typeof pilotEvidenceRef !== "string" ||
        !/^[A-Za-z0-9][A-Za-z0-9_.:/-]{7,119}$/.test(pilotEvidenceRef))) {
