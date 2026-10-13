@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { PayrollHandoff } from "@/components/payroll-handoff";
+import { EntityBadge } from "./multi-entity-ui";
 import { PayrollConnectedImpactPanel } from "./payroll-connected-impact-panel";
 import { buildPayrollHandoff, handoffViewerRole } from "@/lib/payroll-handoff";
 import { derivePayrollPayoutState } from "@/lib/payroll-payout-state";
@@ -375,6 +376,9 @@ export function PayrollRunView({
 
   return (
     <>
+      {data.multiEntity?.enabled && <div style={{ marginBottom: 12 }}>
+        <EntityBadge context={data.multiEntity} legalEntityId={run?.legalEntityId} />
+      </div>}
       <PageHeading
         eyebrow={
           payrollOfficerMode
@@ -1045,6 +1049,8 @@ export function PayrollRunView({
                             runId={run.id}
                             periodLabel={run.periodLabel}
                             released={released}
+                            entityContext={data.multiEntity}
+                            legalEntityId={run.legalEntityId ?? null}
                             notify={notify}
                             onExplain={() => setExplainEmployeeId(entry.employeeId)}
                           />
@@ -1143,6 +1149,8 @@ function PayslipDetail({
   runId,
   periodLabel,
   released,
+  entityContext,
+  legalEntityId,
   notify,
   onExplain,
 }: {
@@ -1150,6 +1158,8 @@ function PayslipDetail({
   runId: number;
   periodLabel: string;
   released: boolean;
+  entityContext?: DashboardData["multiEntity"];
+  legalEntityId: number | null;
   notify: Notify;
   onExplain: () => void;
 }) {
@@ -1171,6 +1181,7 @@ function PayslipDetail({
 
   return (
     <div className="payslip-panel">
+      {entityContext?.enabled && <EntityBadge context={entityContext} legalEntityId={legalEntityId} />}
       {lines.length === 0 ? (
         <p className="payslip-note">
           This entry has no stored line items. Re-calculating the run regenerates them from the payroll engine.

@@ -1,0 +1,98 @@
+name: Payroll Payout Claim Safety (Isolated CI)
+
+on:
+  pull_request:
+    paths:
+      - "src/lib/payroll-run-payout-lock.ts"
+      - "src/lib/payout-ledger.ts"
+      - "src/lib/xendit-payroll-operations.ts"
+      - "src/lib/xendit-payout-ledger.ts"
+      - "src/app/api/payroll-runs/**"
+      - "tests/payroll-run-payout-lock.test.ts"
+      - "tests/xendit-payroll-ledger-integration.test.ts"
+      - "src/components/payout-profiles-panel.tsx"
+      - "src/components/workspace/exports.tsx"
+      - "src/components/workspace/xendit-payout-panel.tsx"
+      - "tests/xendit-payout-ui.test.ts"
+      - "tests/payout-export-tenant-access.test.ts"
+      - "tests/fixtures/payout-ui.ts"
+      - "scripts/payout-ui-browser-qa.mjs"
+      - "scripts/qa/payout-ui-entry.tsx"
+      - ".github/workflows/payout-claim-safety.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  payout-claim:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CI: "true"
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout without persisting credentials
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Configure synthetic CI bank encryption key
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+      - name: Push schema only to disposable localhost PostgreSQL 16
+        run: npm run db:push
+      - name: Prove per-run concurrency and prevent cross-rail duplicate payouts
+        run: >
+          npx tsx --test --test-concurrency=1
+          tests/payroll-run-payout-lock.test.ts
+          tests/xendit-payroll-ledger-integration.test.ts
+          tests/payroll-lifecycle-safety.test.ts
+          tests/xendit-payout-ui.test.ts
+          tests/payout-export-tenant-access.test.ts
+      - name: Verify TypeScript on exact PR head
+        run: npx tsc --noEmit
+      - name: Install pinned synthetic UI browser
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Exercise real payout components at desktop and 390px without provider traffic
+        run: node scripts/payout-ui-browser-qa.mjs
+      - name: Upload payout component browser evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: payout-ui-components-desktop-390
+          path: qa-artifacts/payout-ui
+          if-no-files-found: error
+          retention-days: 14

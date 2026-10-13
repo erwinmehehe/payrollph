@@ -1,0 +1,86 @@
+name: Development Demo Legal Employer Seed
+on:
+  pull_request:
+    paths:
+      - "src/db/seed.ts"
+      - "tests/demo-legal-employer-seed.test.ts"
+      - "scripts/qa/verify-demo-payroll-draft.mjs"
+      - ".github/workflows/dev-demo-legal-employer-seed.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/db/seed.ts"
+      - "tests/demo-legal-employer-seed.test.ts"
+      - "scripts/qa/verify-demo-payroll-draft.mjs"
+      - ".github/workflows/dev-demo-legal-employer-seed.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-demo-only-on-isolated-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      DEMO_MODE: "true"
+      TZ: Asia/Manila
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      PAYMONGO_DISBURSEMENTS_ENABLED: "false"
+      XENDIT_PAYOUTS_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Isolated throwaway crypto keys for fictional fixtures only
+        shell: bash
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          totp_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "::add-mask::$totp_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
+          echo "TOTP_ENCRYPTION_KEY=$totp_key" >> "$GITHUB_ENV"
+      - name: Provision empty loopback PostgreSQL schema under repository guard
+        run: npm run db:push
+      - name: Verify legal-employer links, idempotence and foreign-company denial
+        run: npx tsx --test --test-concurrency=1 tests/demo-legal-employer-seed.test.ts
+      - name: Verify Owner can create a fictional payroll Draft via the real API
+        shell: bash
+        run: |
+          npm run dev -- -H 127.0.0.1 > /tmp/demo-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for attempt in $(seq 1 60); do
+            if curl -fsS --max-time 5 http://127.0.0.1:3000/login > /dev/null; then
+              ready=true
+              break
+            fi
+            sleep 2
+          done
+          if [ "$ready" != "true" ]; then
+            echo 'Development application did not start on loopback.'
+            exit 1
+          fi
+          node scripts/qa/verify-demo-payroll-draft.mjs
