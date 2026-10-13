@@ -176,6 +176,70 @@ try {
     assert.equal(await page.getByText("AlphaPrivate note", { exact: true }).count(), 0);
   });
 
+  await checkpoint(page, "ESS HR cases: employer-scoped messages, internal-note privacy and blocked COE issuance", async () => {
+    await workspace(page, 1);
+    const ess = await browser.newContext({ viewport: { width: 375, height: 812 } });
+    await signIn(ess, "hcm-employee@example.test");
+    const ep = await ess.newPage();
+    try {
+      await ep.goto(base + "/login", { waitUntil: "domcontentloaded" });
+      const created = await browserRequest(ep, "/api/hr-cases", "POST", {
+        caseType: "general", subject: "Synthetic staff support",
+        description: "A fictional worker requests an HR update for disposable QA.",
+      });
+      assert.equal(created.status, 201, "ESS case creation failed");
+      const id = created.body?.case?.id;
+      assert.ok(Number.isSafeInteger(id) && id > 0);
+      const employeeOwn = await browserRequest(ep, "/api/hr-cases?organizationId=1");
+      assert.equal(employeeOwn.status, 200);
+      assert.ok(employeeOwn.body?.cases?.some(row => row.id === id));
+
+      const staff = await browserRequest(page, "/api/hr-cases?organizationId=1");
+      assert.equal(staff.status, 200);
+      assert.ok(staff.body?.cases?.some(row => row.id === id));
+      const internal = await browserRequest(page, "/api/hr-cases", "PATCH", {
+        id, action: "internal_note", message: "HR_PRIVATE_SYNTHETIC_ONLY",
+      });
+      assert.equal(internal.status, 200);
+      const afterInternal = await browserRequest(ep, "/api/hr-cases?organizationId=1");
+      assert.equal(afterInternal.status, 200);
+      assert.equal(JSON.stringify(afterInternal.body).includes("HR_PRIVATE_SYNTHETIC_ONLY"), false,
+        "ESS cannot receive internal HR notes");
+      const forbidden = await browserRequest(ep, "/api/hr-cases", "PATCH", {
+        id, action: "internal_note", message: "Trying to add an internal note",
+      });
+      assert.equal(forbidden.status, 403);
+
+      const waiting = await browserRequest(page, "/api/hr-cases", "PATCH", {
+        id, action: "status", status: "waiting_employee",
+      });
+      assert.equal(waiting.status, 200);
+      const reply = await browserRequest(ep, "/api/hr-cases", "PATCH", {
+        id, action: "reply", message: "Synthetic worker reply",
+      });
+      assert.equal(reply.status, 200);
+      assert.equal(reply.body?.case?.status, "in_progress");
+
+      const other = await browserRequest(page, "/api/hr-cases?organizationId=2");
+      assert.equal(other.status, 200);
+      assert.equal(other.body?.cases?.some(row => row.id === id), false,
+        "An A-employer case must never appear under B");
+
+      const coe = await browserRequest(ep, "/api/hr-cases", "POST", {
+        caseType: "coe", subject: "Synthetic COE request",
+        description: "Request fictional certificate with private vault disabled.",
+      });
+      assert.equal(coe.status, 201);
+      const reject = await browserRequest(page, "/api/hr-cases", "PATCH", {
+        id: coe.body.case.id, action: "approve_coe",
+      });
+      assert.equal(reject.status, 503,
+        "COE may not issue when the private document vault is not active");
+    } finally {
+      await ess.close();
+    }
+  });
+
   // Verify the same task-first surface at phone width and after the actual
   // employer-switching control reloads the selected tenant. Test data is local.
   const mobileHr = await browser.newContext({
