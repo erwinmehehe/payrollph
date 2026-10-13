@@ -166,7 +166,7 @@ export async function collectScheduledRunEvidence({token,fetcher=fetch,now=new D
 
 export async function main(env=process.env,fetcher=fetch,now=new Date()) {
   if (env.GITHUB_ACTIONS !== 'true' || env.GITHUB_REPOSITORY !== 'erwinmehehe/payrollph' ||
-      env.GITHUB_REF !== 'refs/heads/main' || !['schedule','workflow_dispatch'].includes(env.GITHUB_EVENT_NAME)) reject('TRUSTED_OBSERVER_CONTEXT_REQUIRED');
+      env.GITHUB_REF !== 'refs/heads/main' || !['schedule','workflow_dispatch','push'].includes(env.GITHUB_EVENT_NAME)) reject('TRUSTED_OBSERVER_CONTEXT_REQUIRED');
   const report=await collectScheduledRunEvidence({token:env.GITHUB_TOKEN,fetcher,now});
   mkdirSync('qa-artifacts',{recursive:true});
   writeFileSync(OUTPUT,JSON.stringify(report,null,2)+'\n',{flag:'w',mode:0o600});
