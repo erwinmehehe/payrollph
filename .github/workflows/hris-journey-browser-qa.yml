@@ -112,9 +112,15 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - name: Ephemeral bank key for synthetic database only
+      - name: Ephemeral independent bank and PII keys for synthetic database only
         shell: bash
-        run: echo "BANK_DATA_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+        run: |
+          bank_key=$(openssl rand -hex 32)
+          pii_key=$(openssl rand -hex 32)
+          echo "::add-mask::$bank_key"
+          echo "::add-mask::$pii_key"
+          echo "BANK_DATA_ENCRYPTION_KEY=$bank_key" >> "$GITHUB_ENV"
+          echo "PII_ENCRYPTION_KEY=$pii_key" >> "$GITHUB_ENV"
       - run: npm run db:push
       - name: Apply audit 0109 on isolated real PG16 before acceptance
         run: node scripts/qa/apply-audit-0109-isolated.mjs
