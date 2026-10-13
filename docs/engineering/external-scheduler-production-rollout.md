@@ -20,11 +20,23 @@ Create the **protected** GitHub environment with restricted main-only branch acc
 | variable `PAYROLL_SCHEDULER_DISPATCH_ENABLED` | Exact `true` enables dispatch, otherwise no network call |
 | variable `PAYROLL_SCHEDULER_ORIGIN` | Exact HTTPS production origin, no path/query/port |
 | variable `PAYROLL_SCHEDULER_EXPECTED_HOST` | Exact approved hostname |
+| generated `PAYROLL_SCHEDULER_EXPECTED_DEPLOYMENT_SHA` | GitHub Actions `github.sha`, pinned to the deployed main commit, not an operator-supplied secret |
 | secret `PAYROLL_SCHEDULER_WORKER_TOKEN` | Dedicated 32+ byte server-side token, matching the deployed worker-token configuration |
 
 Vercel currently has SSO protection enabled for Vercel-hosted domains while custom domains are exempt; use the **verified approved production custom domain** for scheduled server-to-server requests, not an arbitrary `*.vercel.app` preview hostname. Confirm the expected hostname is bound to the intended PayrollPH project and tenant database. Never copy production credentials to previews or synthetic staging.
 
 In the web deployment, configure and verify `CENTRAL_SCHEDULER_ENABLED=true` only after the staged operator approvals. Keep `WORKER_ENABLED=false` until its separate queued-payroll execution authority is accepted. `SCHEDULER_MONITOR_TOKEN` must be a distinct read-only secret and external monitoring must alert when `/api/jobs/status` returns 503 or a completed tick becomes stale. Never place worker tokens in URLs, public monitoring, source, screenshots or job output.
+
+
+## Commit-pinned preflight (required before any production tick)
+
+Before the external dispatcher performs its one mutating POST, it authenticates a **read-only** GET `/api/jobs/dispatch-readiness` using the dedicated `WORKER_TOKEN`. This verifies that the deployed application has `CENTRAL_SCHEDULER_ENABLED=true` and returns its `VERCEL_GIT_COMMIT_SHA`. GitHub Actions supplies the **exact** `github.sha` from the scheduled `main` commit as `PAYROLL_SCHEDULER_EXPECTED_DEPLOYMENT_SHA`. Unknown, stale, malformed, unauthorized or disabled deployments fail closed **without sending a POST**; the POST carries that SHA again to reject a deployment alias change between preflight and execution.
+
+Verify that Vercel provides a valid `VERCEL_GIT_COMMIT_SHA` inside the server runtime (enable the appropriate platform system environment exposure if required). **Never manually spoof this value**. A main-branch deployment that remains CANCELED/ERROR or otherwise behind the approved GitHub commit blocks scheduling by design. Resolve release drift and restore the pinned deployment before approving the scheduler; the external overdue monitor must alert on this condition. The handshake is not a substitute for running worker/cron staging acceptance or financial idempotency tests.
+
+The inspected Vercel Hobby project `erwinmehehe-payrollph` has the custom production domain `payrollsoftware.ph` and platform-domain SSO protection; confirm DNS/domain-to-project binding before choosing it as the dispatcher hostname. A protected `*.vercel.app` hostname may return a Vercel authentication response before the app sees the worker token.
+
+Current `vercel.json` permits automatic Git deployments for `main` but disables preview/staging branches. Staging acceptance therefore needs a **separate isolated Vercel project/custom environment with synthetic PostgreSQL and no production secrets**, or another explicitly isolated runtime. Do not use the production database for staged tick tests.
 
 ## Required acceptance before turning on
 
