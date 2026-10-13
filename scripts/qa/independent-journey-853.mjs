@@ -113,13 +113,19 @@ export function assess(manifest) {
       if (new Set(sameRole).size !== 1) reasons.push("Different operators claimed the same " + role + " persona");
     }
     const actor = role => manifest.stages[STAGES.find(x => x.role === role).id].operatorRef;
-    for (const [a, b] of [["PAYROLL", "CHECKER"], ["OWNER", "CHECKER"],
-      ["OWNER", "PAYROLL"], ["HR", "PAYROLL"]]) {
-      if (actor(a) === actor(b)) reasons.push(a + " and " + b + " must be different people");
+    // Six real operator personas must remain distinct even when test accounts differ.
+    // Opaque aliases alone are not proof: the external witness must confirm identity.
+    const roles = [...new Set(STAGES.map(x => x.role))];
+    for (let i = 0; i < roles.length; i += 1) {
+      for (let j = i + 1; j < roles.length; j += 1) {
+        const a = roles[i], b = roles[j];
+        if (actor(a) === actor(b)) reasons.push(a + " and " + b + " must be different people");
+      }
     }
     for (const c of CHECKS) {
       const row = manifest.checks[c.id];
       if (row.status === "PASS" && actors.has(row.witnessRef)) reasons.push(c.id + " witness also operated the journey");
+      if (row.status === "PASS" && !actors.has(row.operatorRef)) reasons.push(c.id + " operator is not a recorded journey operator");
     }
     for (const [id, role] of [["OWNER_PHYSICAL_MOBILE", "OWNER"], ["OWNER_EMPLOYER_SWITCH", "OWNER"],
       ["PAYROLL_PHYSICAL_MOBILE", "PAYROLL"], ["PAYROLL_EMPLOYER_SWITCH", "PAYROLL"]]) {
