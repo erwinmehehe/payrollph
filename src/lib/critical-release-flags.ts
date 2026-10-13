@@ -12,6 +12,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P0 release-time employee loan ledger posting",
     approval: "Exact centavo, transaction rollback and payroll golden acceptance",
   },
+  loanSchedulePreview: {
+    env: "LOAN_SCHEDULE_PREVIEW_ENABLED",
+    owner: "Philippine Payroll / HR Operations",
+    risk: "P1 read-only employee/company and agency loan schedule previews",
+    approval: "Centavo schedule/golden tests, lawful deduction policy and independent finance review",
+  },
   workPeriodWageScreen: {
     env: "WORK_PERIOD_WAGE_SCREEN_ENABLED",
     owner: "Philippine Payroll",
