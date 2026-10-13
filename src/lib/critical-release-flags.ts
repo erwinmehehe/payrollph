@@ -186,6 +186,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     env: "CORE_MODULE_NAVIGATION_ENABLED", owner: "Product",
     risk: "P2 tenant module disclosure", approval: "New and existing tenant navigation snapshots",
   },
+  approvalChainEscalations: {
+    env: "APPROVAL_CHAIN_ESCALATIONS_ENABLED",
+    owner: "People Governance",
+    risk: "P1 overdue approval escalation and stricter payroll maker-checker identity gate",
+    approval: "Delegation expiry, distinct-human and scheduler idempotency UAT",
+  },
   employeeDocumentVault: {
     env: "EMPLOYEE_DOCUMENT_VAULT_ENABLED",
     owner: "Security and Privacy",
