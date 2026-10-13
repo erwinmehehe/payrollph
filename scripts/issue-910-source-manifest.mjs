@@ -12,9 +12,11 @@ import { dirname, resolve, relative, sep } from "node:path";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sources = [
   "drizzle/0022_job_architecture_positions.sql",
+  "drizzle/0026_statutory_remittance_corrections.sql",
   "drizzle/0050_hcm_core_worker_history.sql",
   "drizzle/0051_hcm_org_job_architecture.sql",
   "drizzle/0052_hcm_effective_dated_changes.sql",
+  "drizzle/0105_ess_self_service_profile.sql",
   "drizzle/0110_provider_events_inbox.sql",
   "drizzle/0112_wfm_operational_demand_observations.sql",
   "drizzle/0113_wfm_issued_demand_forecasts.sql",
