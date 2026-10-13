@@ -90,12 +90,6 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 Consent, camera and unverified offline punch review",
     approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
   },
-  rosterPublish: {
-    env: "ROSTER_PUBLISH_UI_ENABLED",
-    owner: "Workforce Operations",
-    risk: "P1 Roster findings and publish confirmation",
-    approval: "Tenant/role checks, component behavior, flag-off snapshot and mobile Playwright evidence",
-  },
   approvalBuilder: {
     env: "APPROVAL_BUILDER_UI_ENABLED",
     owner: "Security / HCM",

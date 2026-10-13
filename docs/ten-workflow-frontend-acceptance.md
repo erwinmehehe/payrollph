@@ -1,4 +1,6 @@
-**Integration update (2026-10-13): Canonical A-3 employee HR cases and COE approvals already exist on main. The duplicate #862 employee request UI/API and service-case schema have now been removed from this draft. Only NINE independently default-OFF legacy UI controls remain. The previous "ten workflow" inventory below is historical; employee HR cases are not a deliverable of this PR. An independent real-device and pilot approval gate remains mandatory.**
+**Release-scope reduction (13 October 2026): The draft `ROSTER_PUBLISH_UI_ENABLED` preview and publish confirmation are retired. `src/components/workspace/workforce-bulk-roster-preview.tsx` is identical to `main`; canonical WFM/bulk roster staging and maker/checker controls stay under their existing flags and pilot gate. Only EIGHT draft UI families remain. This is a source-only scope removal—not WFM acceptance or authorization to publish rosters.**
+
+**Integration update (2026-10-13): Canonical A-3 employee HR cases and COE approvals already exist on main. The duplicate #862 employee request UI/API and service-case schema have now been removed from this draft. After retiring the roster overlay, only EIGHT independently default-OFF legacy UI controls remain. The previous "ten workflow" inventory below is historical; employee HR cases are not a deliverable of this PR. An independent real-device and pilot approval gate remains mandatory.**
 
 **PostgreSQL tenant integrity fix (2026-10-12):** The Drizzle schema for optional employee request and offline attendance tables now matches the unnumbered SQL proposal, including composite tenant foreign keys (organization_id, employee_id) and (organization_id, case_id), plus required compound unique keys on employees and employee cases. This closes a disposable db:push gap where cross-tenant inserts could pass while the migration proposal specified fail-closed constraints. The integration test exercises each rejection. The desktop employee navigation assertion now checks conditional visibleSelfTabs and preserved base tabs. Source-only; no live Neon DDL applied.
 
@@ -19,7 +21,7 @@ Every flag is evaluated **on the server**, passed to the client through `Workflo
 | Import | `IMPORT_REVIEW_UI_ENABLED` |
 | New tenant navigation | `CORE_ONLY_NAV_UI_ENABLED` |
 | Camera/offline claims | `FACE_OFFLINE_PUNCH_UI_ENABLED` |
-| Roster review | `ROSTER_PUBLISH_UI_ENABLED` |
+| Roster review | **Retired from #862; governed WFM roster on `main` only** |
 | Approval chains | `APPROVAL_BUILDER_UI_ENABLED` |
 | Report builder | `REPORT_BUILDER_UI_ENABLED` |
 | Benefits and loans | `BENEFITS_LOANS_UI_ENABLED` |
@@ -36,7 +38,7 @@ The new release registry lives in `src/lib/critical-release-flags.ts`. Unset fla
 | Import upload / correction grid | Existing authorized People import roles | CSV file chooser; parse/validation error, upload/network failure, no rows, all/valid/error filter, corrected CSV download; commit after validation when new flag on | Grid scrolls, filter and download remain reachable |
 | Core-only nav / More modules | New self-service customer workspaces under flag, each role's already permitted modules | Core tab list and module directory; restricted modules visibly unavailable; existing tenants not opted in | Standard mobile drawer; tiles reflow at 320px |
 | Camera consent and offline claim | Employee linked to their own identity; reviewer queue restricted to authorized company HR | Consent unchecked, camera requesting/ready/denied, online/offline, queued unsent, sync sending/error, HR pending/flagged/dismissed; no raw face photo stored | Web Bundy modal max 95vw/90vh scroll; check camera no overflow and all buttons reachable |
-| Governed roster publish/staging findings | Existing company-wide People roster maker/checker roles, **plus** underlying WFM pilot flag | Source loading and error; no worker/shift; blocked vs warning findings; confirmation dialog reason and acknowledgement; staged, checker review, error | Scroll modal and findings list, buttons wrap |
+| Governed roster publish/staging findings (existing main only; no longer in #862) | Existing company-wide People roster maker/checker roles and underlying WFM pilot flag | Source loading and error; no worker/shift; blocked vs warning findings; confirmation dialog reason and acknowledgement; staged, checker review, error | Scroll modal and findings list, buttons wrap |
 | Approval-chain preview/delegation | Existing company-wide approval-chain admin; actual delegation actions restricted to existing authorized approval participants | No policies, loading/error, configured steps, missing approver or invalid chain; delegation list/empty/error/saving; reviewer expiry | Step list and form fields wrap; no invisible approve control |
 | Custom report builder / CSV | Existing report viewers; report API remains final authority | Saved list/loading/error, no report data, field picker, filters/no matches, preview, save/update/delete, CSV | Preview table scroll, selects/filters wrap |
 | Benefits enrollment, loan schedule, payslip lines | Existing benefits/loan admins for changes; employee sees only own released payslip lines | Enrollment review & confirmation, pending/approved loans, no schedule/recorded payments; stored payslip lines/no deduction lines | Split inputs and schedule table scroll |
@@ -80,7 +82,7 @@ Use an **authenticated isolated staging tenant** and synthetic workers. Log the 
 | Import | Old import; new preview, error filter, downloadable error CSV |
 | New tenant navigation | Before original sidebar; after core-only nav, More modules, restricted card; mobile drawer |
 | Face/offline | Consent, camera permission denial/preview, offline queued banner, returned connectivity, HR flag queue |
-| Roster review | Before existing staging form; after publish finding dialog with blockers/warnings and reason |
+| Roster review (canonical main only) | Existing source-backed staging and governed checker UI; no #862 overlay |
 | Approval chains | Old builder; after step preview, delegation empty/saving/error, role-denied action |
 | Reports | Old report page; new picker, filters, empty results, saved view, CSV |
 | Benefits/loans | Old enrollment/loan; new enrollment confirmation, approved schedule, stored payslip lines |

@@ -5,7 +5,6 @@ export type WorkflowUiFlags = {
   importReview: boolean;
   coreOnlyNav: boolean;
   faceOfflinePunch: boolean;
-  rosterPublish: boolean;
   approvalBuilder: boolean;
   reportBuilder: boolean;
   benefitsLoans: boolean;
@@ -17,7 +16,6 @@ export const EMPTY_WORKFLOW_UI_FLAGS: Readonly<WorkflowUiFlags> = Object.freeze(
   importReview: false,
   coreOnlyNav: false,
   faceOfflinePunch: false,
-  rosterPublish: false,
   approvalBuilder: false,
   reportBuilder: false,
   benefitsLoans: false,
@@ -36,7 +34,6 @@ export function resolveWorkflowUiFlags(
     importReview: criticalReleaseFlagEnabled("importReview", env),
     coreOnlyNav: criticalReleaseFlagEnabled("coreOnlyNav", env),
     faceOfflinePunch: criticalReleaseFlagEnabled("faceOfflinePunch", env),
-    rosterPublish: criticalReleaseFlagEnabled("rosterPublish", env),
     approvalBuilder: criticalReleaseFlagEnabled("approvalBuilder", env),
     reportBuilder: criticalReleaseFlagEnabled("reportBuilder", env),
     benefitsLoans: criticalReleaseFlagEnabled("benefitsLoans", env),

@@ -84,11 +84,11 @@ test("all new unscoped draft APIs deny multi-entity reads and writes before DB/u
 });
 
 
-test("all nine remaining draft UI controls disappear in multi-entity mode", () => {
+test("all eight remaining draft UI controls disappear in multi-entity mode", () => {
   const flags = {
     FIRST_PAYROLL_INLINE_UI_ENABLED: "true", IMPORT_REVIEW_UI_ENABLED: "true",
     CORE_ONLY_NAV_UI_ENABLED: "true", FACE_OFFLINE_PUNCH_UI_ENABLED: "true",
-    ROSTER_PUBLISH_UI_ENABLED: "true", APPROVAL_BUILDER_UI_ENABLED: "true",
+    APPROVAL_BUILDER_UI_ENABLED: "true",
     REPORT_BUILDER_UI_ENABLED: "true", BENEFITS_LOANS_UI_ENABLED: "true",
     RECRUITMENT_JOURNEY_UI_ENABLED: "true",
   };
@@ -96,5 +96,5 @@ test("all nine remaining draft UI controls disappear in multi-entity mode", () =
   assert.ok(Object.values(legacy).every(Boolean));
   const entityScoped = resolveWorkflowUiFlags({ ...flags, MULTI_ENTITY_ENABLED: "true" });
   assert.ok(Object.values(entityScoped).every(value => value === false));
-  assert.equal(Object.keys(entityScoped).length, 9);
+  assert.equal(Object.keys(entityScoped).length, 8);
 });

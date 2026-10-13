@@ -28,13 +28,12 @@ const readiness: FirstPayrollReadiness = {
   ],
 };
 
-test("all nine remaining draft workflow UI flags are default OFF and require exact true", () => {
+test("all eight remaining draft workflow UI flags are default OFF and require exact true", () => {
   const flags = {
     workflowFirstPayrollAdvisory: "FIRST_PAYROLL_INLINE_UI_ENABLED",
     importReview: "IMPORT_REVIEW_UI_ENABLED",
     coreOnlyNav: "CORE_ONLY_NAV_UI_ENABLED",
     faceOfflinePunch: "FACE_OFFLINE_PUNCH_UI_ENABLED",
-    rosterPublish: "ROSTER_PUBLISH_UI_ENABLED",
     approvalBuilder: "APPROVAL_BUILDER_UI_ENABLED",
     reportBuilder: "REPORT_BUILDER_UI_ENABLED",
     benefitsLoans: "BENEFITS_LOANS_UI_ENABLED",

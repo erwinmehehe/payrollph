@@ -11,7 +11,6 @@ import {
 } from "@/lib/workforce-bulk-roster-preview";
 import { Metric, Status } from "./ui";
 import { useScopedAsyncResource } from "./use-scoped-async-resource";
-import { useWorkflowUi } from "./workflow-ui-context";
 
 type RosterPage = {
   startDate: string;
@@ -42,8 +41,6 @@ export function WorkforceBulkRosterPreview({
   onOpenTeamRoster: () => void;
   onStageCompleted?: () => void;
 }) {
-  const rosterReviewEnabled = useWorkflowUi().rosterPublish;
-  const [publishDialogOpen, setPublishDialogOpen] = useState(false);
   const [weekStart, setWeekStart] = useState(mondayInManila);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -174,11 +171,6 @@ export function WorkforceBulkRosterPreview({
 
   const blocked = preview.rows.filter(row => row.status === "blocked").length;
   const unchanged = preview.rows.filter(row => row.status === "unchanged").length;
-  const findings = preview.rows.flatMap(row => row.reasons.map(reason => ({
-    employeeName: row.employeeName,
-    text: reason,
-    severity: row.status === "blocked" ? "Blocking" : "Requires review",
-  })));
 
   return (
     <article className="card" data-wfm-bulk-roster-preview>
@@ -323,43 +315,11 @@ export function WorkforceBulkRosterPreview({
               <button type="button" className="primary-button brand"
                 disabled={staging || !stageAcknowledged || stageReason.trim().length < 12 ||
                   preview.rows.some(row => row.status !== "review")}
-                onClick={() => rosterReviewEnabled ? setPublishDialogOpen(true) : void stageBatch()}>
+                onClick={() => void stageBatch()}>
                 {staging ? "Staging…" : "Stage for independent approval"}
               </button>
             </div>
           )}
-          {rosterReviewEnabled && publishDialogOpen && <div className="modal-backdrop" role="presentation">
-            <section className="modal" role="dialog" aria-modal="true" aria-label="Review roster publication findings"
-              style={{ width: "min(95vw, 680px)", maxHeight: "90vh", overflowY: "auto" }}>
-              <h2>Review roster findings before staging</h2>
-              <p>This sends a request for independent checker publication, not immediate publishing. The server re-checks all rules when the checker acts.</p>
-              <div className="notice notice-amber">
-                Blocking: {blocked}. Already assigned: {unchanged}. Other findings: {findings.filter(row => row.severity !== "Blocking").length}.
-                Blocking rules cannot be overridden here.
-              </div>
-              <div style={{ maxHeight: 230, overflowY: "auto" }}>
-                {findings.length === 0 ? <p>No local findings; server-side checks still apply.</p> :
-                  <ul>{findings.map((row,index) => <li key={index}>
-                    <strong>{row.severity} · {row.employeeName}</strong>: {row.text}
-                  </li>)}</ul>}
-              </div>
-              <label>Review / allowed override reason
-                <textarea rows={3} maxLength={240} value={stageReason}
-                  onChange={event => setStageIntent(current => ({ scope, reason: event.target.value,
-                    acknowledged: current?.scope === scope ? current.acknowledged : false }))}
-                  placeholder="Document source review and permitted exception rationale" />
-              </label>
-              <p>Do not use this reason to override payroll, leave, rest-day or site blockers. Such cases require correction in their authoritative workflow.</p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                <button className="secondary-button" type="button" onClick={() => setPublishDialogOpen(false)}>Cancel</button>
-                <button className="primary-button" type="button"
-                  disabled={staging || blocked > 0 || unchanged > 0 || !stageAcknowledged || stageReason.trim().length < 12}
-                  onClick={() => { setPublishDialogOpen(false); void stageBatch(); }}>
-                  Stage for independent checker
-                </button>
-              </div>
-            </section>
-          </div>}
           {selectedIds.length > 0 && (!chosenShift || !chosenDate) && (
             <div className="notice notice-slate" style={{ margin: "0 18px 16px" }}>
               Select a future roster date and one shift to see a draft.
