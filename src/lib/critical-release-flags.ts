@@ -18,6 +18,23 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 large-roster notification completeness and labor-rule schedule publish",
     approval: "Synthetic 1000-assignment pagination, verified roster publish UAT, payroll review and operational sign-off",
   },
+  publicIntakeProof: {
+    env: "PUBLIC_INTAKE_PROOF_ENABLED", owner: "Security",
+    risk: "Public enquiry and signup anti-automation", approval: "Proof replay, limits and accessible intake acceptance",
+  },
+  operationalStatusDetails: {
+    env: "OPERATIONAL_STATUS_DETAILS_ENABLED", owner: "Security",
+    risk: "Authenticated operational status details", approval: "Endpoint visibility acceptance",
+  },
+  configurableLeadRetention: {
+    env: "CONFIGURABLE_LEAD_RETENTION_ENABLED", owner: "Privacy",
+    risk: "Public enquiry retention period", approval: "Approved notice and purge acceptance",
+  },
+  piiLegacyRead: {
+    env: "PII_LEGACY_READ_ENABLED", owner: "Security",
+    risk: "Temporary read-only legacy PII key compatibility",
+    approval: "Key custody, measured rewrap and retirement acceptance",
+  },
   employeeImportPreview: {
     env: "EMPLOYEE_IMPORT_PREVIEW_ENABLED", owner: "People Operations",
     risk: "P1 atomic employee CSV intake", approval: "500-row preview and rollback acceptance",

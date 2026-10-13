@@ -1,4 +1,4 @@
-import { buildReadinessPayload } from "@/app/api/readiness/route";
+import { buildReadinessPayload } from "@/lib/operational-readiness";
 import { getSessionUser } from "@/lib/auth";
 import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access";
 
