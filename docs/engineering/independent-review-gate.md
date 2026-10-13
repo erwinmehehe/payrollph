@@ -57,3 +57,49 @@ The former mandatory-independent-review policy introduced by #884 is
 superseded by the owner's explicit instruction. Production safeguards are
 not waived. This change does not close first-paying-customer operational
 acceptance or certify a live pilot.
+
+## Proposed #691 immutable offline witness packet exception (owner decision required)
+
+**Draft proposal only: no current source-freeze waiver until an authorized merge of
+this policy change.** The exact already-reviewed #969 evidence tooling would be
+eligible for source integration only if GitHub reports precisely three added files
+with these Git blob identifiers:
+
+- `docs/qa/wfm-691-independent-witness-handoff.md`: `4cbcc7bb09e21e0d836f4d52fb17750273bdd2bc`
+- `scripts/qa/wfm-independent-witness.mjs`: `ed923d4bead1dab6f98583b59435fc494a773d1b`
+- `tests/wfm-independent-witness.test.mjs`: `5dbfc80577b30365cf17573c1d19693cdb9ce3a0`
+
+The policy rejects a changed byte, duplicate, changed status, renamed path,
+omission, extra file, runtime/API/SQL/workflow addition or new money capability.
+P0-3 must continue reading the policy from trusted main; no PR may make its own
+head authoritative. This exception would allow only a **local offline evidence
+recording tool**, never real operator UAT, independent signature verification,
+WFM-14 hardware certification, production activation, migration, payment,
+government filing or actual #579 employer reconciliation.
+
+Follow the repository's solo-maintainer source policy and current-head CI,
+CodeQL and queue gates when reviewing this exact proposal. The owner must
+decide deliberately whether #969 merits source integration or should stay
+deferred; do not set a false `PILOT_HCM_WFM_STARTED` value.
+
+## Proposed immutable HCM import-regression source exception (#965)
+
+**Draft only — not active until the owner deliberately approves and merges the
+policy PR on trusted `main`.** The HCM Hire and CSV employee import regression
+tests were updated to check the current split import implementation. An optional
+source-only exception is limited to exactly three **modified** files with the
+following Git blob SHAs from #965's inspected head:
+
+- `tests/hcm-direct-route-policy-races.test.ts`: `c986dc63f7e490a4e8ec3360f56d2f0a49525539`
+- `tests/hcm-governed-intake.test.ts`: `94f9523c257a3b603ab726f61b5b80b11ff6e212`
+- `tests/hcm-legacy-write-integration.test.ts`: `ba929f96c369fc9db00e414ae360bf7ee2c4e4ea`
+
+Every byte, file path, blob hash and status must match, with no extra files,
+rename, or added test. A changed file or extra HCM API, UI, SQL, workflow or
+runtime path remains blocked by `PILOT_HCM_WFM_FREEZE_ACTIVE`. The exception
+never proves the tests' behavior with real employers, lifts the HCM/WFM runtime
+freeze, changes feature flags, grants source-merge approval for other PRs,
+authorizes production deployment or releases payroll.
+
+This source policy may be approved independently of actual WFM-01..14 operator
+testing. No pilot-start flag or evidence reference is set by this proposal.

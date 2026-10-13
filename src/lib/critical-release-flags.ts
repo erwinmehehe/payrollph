@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  compactMobileHeader: {
+    env: "COMPACT_MOBILE_HEADER_ENABLED",
+    owner: "Product / Accessibility",
+    risk: "Small-screen organization switcher and account control layout",
+    approval: "Desktop/375/390px authenticated browser and default-off rendering parity",
+  },
   payrollWorkerHeartbeatRequired: {
     env: "PAYROLL_WORKER_HEARTBEAT_REQUIRED",
     owner: "Payroll / Operations",
@@ -67,10 +73,6 @@ export const CRITICAL_RELEASE_FLAGS = {
   operationalStatusDetails: {
     env: "OPERATIONAL_STATUS_DETAILS_ENABLED", owner: "Security",
     risk: "Authenticated operational status details", approval: "Endpoint visibility acceptance",
-  },
-  sanitizedErrorTelemetry: {
-    env: "SAFE_OTEL_ERRORS_ENABLED", owner: "Security / Operations",
-    risk: "Optional remote sanitized error events", approval: "Collector/DPO review and synthetic error payload acceptance",
   },
   configurableLeadRetention: {
     env: "CONFIGURABLE_LEAD_RETENTION_ENABLED", owner: "Privacy",
@@ -225,6 +227,10 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "Product",
     risk: "P2 employer pilot navigation",
     approval: "Named pilot employer opt-in and witnessed UX acceptance",
+  },
+  sanitizedErrorTelemetry: {
+    env: "SAFE_OTEL_ERRORS_ENABLED", owner: "Security / Operations",
+    risk: "Optional remote sanitized error events", approval: "Collector/DPO review and synthetic error payload acceptance",
   },
 } as const;
 
