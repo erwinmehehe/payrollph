@@ -6,9 +6,9 @@ import { constantTimeSecretEqual } from "@/lib/security-secret";
 export const dynamic = "force-dynamic";
 
 /**
- * Public health probes are read-only. Historical snapshots are recorded only
- * by an authenticated monitor so an anonymous caller cannot create database
- * write amplification by polling this endpoint.
+ * Public health probes expose up/down only and never create database writes.
+ * An authenticated monitor can receive latency and persist a history snapshot;
+ * anonymous requests never disclose timing or infrastructure details.
  */
 export async function GET(request: Request) {
   const started = Date.now();
@@ -27,7 +27,9 @@ export async function GET(request: Request) {
         // liveness probe.
       }
     }
-    return Response.json({ ok: true, latencyMs });
+    return Response.json(recordSnapshot ? { ok: true, latencyMs } : { ok: true }, {
+      headers: { "Cache-Control": "no-store", Vary: "x-health-token, x-worker-token" },
+    });
   } catch {
     const latencyMs = Date.now() - started;
     if (recordSnapshot) {
@@ -37,6 +39,9 @@ export async function GET(request: Request) {
         // Ignore snapshot failure; the health response below is authoritative.
       }
     }
-    return Response.json({ ok: false, latencyMs }, { status: 500 });
+    return Response.json(recordSnapshot ? { ok: false, latencyMs } : { ok: false }, {
+      status: 500,
+      headers: { "Cache-Control": "no-store", Vary: "x-health-token, x-worker-token" },
+    });
   }
 }

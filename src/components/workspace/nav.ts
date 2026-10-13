@@ -1,3 +1,5 @@
+import { CORE_NAVIGATION_PAGES, tenantModulePages } from "@/lib/tenant-modules";
+import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 import {
   AlertCircle,
   BadgeDollarSign,
@@ -16,7 +18,6 @@ import {
   HandCoins,
   LayoutDashboard,
   Package,
-  PanelsTopLeft,
   Trophy,
   ReceiptText,
   RefreshCcw,
@@ -61,8 +62,7 @@ export const NAVIGATION: NavGroup[] = [
     label: "Workspace",
     items: [
       { name: "Overview", icon: LayoutDashboard, hint: "Payroll status, approvals and cost at a glance", tone: "blue" },
-      { name: "More modules", icon: PanelsTopLeft, hint: "Find additional authorized payroll and HR modules", tone: "teal" },
-      { name: "Employee requests", icon: ClipboardCheck, hint: "HR inbox for employee service requests and replies", tone: "purple" },
+      { name: "Employee requests", icon: ClipboardCheck, hint: "HR inbox for governed employee requests and replies", tone: "purple" },
       { name: "Payroll", icon: WalletCards, hint: "Prepare, approve, release and export a run", tone: "green", badge: "runs" },
       { name: "People", icon: UsersRound, hint: "Employee directory, import and structure", tone: "purple", badge: "people" },
       { name: "Migration", icon: RefreshCcw, hint: "Switch from another payroll or HRIS with validated imports", tone: "teal" },
@@ -143,5 +143,33 @@ export function groupOf(page: string) {
 }
 
 export function itemOf(page: string) {
-  return ALL_ITEMS.find((item) => item.name === page);
+  return [...ALL_ITEMS, ...MODULE_NAV_ITEMS].find((item) => item.name === page);
+}
+
+export const MODULE_NAV_ITEMS: NavItem[] = [
+  { name: "Reports", icon: FileBarChart2, hint: "Payroll reports and exports available to your role", tone: "blue" },
+  { name: "More modules", icon: Package, hint: "Enable optional modules for this employer", tone: "purple" },
+];
+export type TenantNavigationOptions = {
+  enabled: boolean; mode?: string; enabledModules?: readonly string[];
+  isFreelancer?: boolean; rolePages?: readonly string[] | null; canManageModules?: boolean; companyWide?: boolean;
+};
+export function tenantNavigationGroups(options: TenantNavigationOptions): NavGroup[] {
+  const core = options.enabled && options.mode === "core" && !options.isFreelancer;
+  const optionalPages = tenantModulePages(options.enabledModules ?? []);
+  const allowed = (name: string) => (!options.isFreelancer || !FREELANCER_HIDDEN.has(name)) && (!options.rolePages || options.rolePages.includes(name));
+  const groups = NAVIGATION.map(group => ({ ...group, items: group.items.filter(item => allowed(item.name) && (!core || (CORE_NAVIGATION_PAGES as readonly string[]).includes(item.name) || optionalPages.has(item.name))) }));
+  if (core) {
+    const canReport = ["Analytics", "Exports"].some(allowed);
+    if (canReport) groups.find(g => g.label === "Operate")!.items.push(MODULE_NAV_ITEMS[0]);
+    if (options.canManageModules && options.companyWide === true) groups.find(g => g.label === "Manage")!.items.push(MODULE_NAV_ITEMS[1]);
+  }
+  return groups.filter(g => g.items.length);
+}
+
+export function tenantNavigationPages(options: TenantNavigationOptions, pilotFocus = false): string[] {
+  const pages = tenantNavigationGroups(options).flatMap(group => group.items.map(item => item.name));
+  const core = options.enabled && options.mode === "core" && !options.isFreelancer;
+  // Tenant opt-ins take precedence over the older pilot menu reduction.
+  return pilotFocus && !core && !options.isFreelancer ? pilotCoreNavigationPages(pages) : pages;
 }

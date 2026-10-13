@@ -1,4 +1,6 @@
 "use client";
+import { MoreModules } from "@/components/workspace/more-modules";
+import { CoreReports } from "@/components/workspace/core-reports";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -38,7 +40,7 @@ import { EmployeeCaseInbox } from "@/components/workspace/employee-case-ui";
 import { OfflinePunchReviewQueue } from "@/components/workspace/offline-punch-review";
 import { useWorkflowUi } from "@/components/workspace/workflow-ui-context";
 import { ProductionPilotSignoffCard } from "@/components/workspace/production-pilot-signoff";
-import { FREELANCER_HIDDEN, NAVIGATION } from "@/components/workspace/nav";
+import { tenantNavigationPages } from "@/components/workspace/nav";
 import { OverviewView } from "@/components/workspace/overview";
 import { RoleOverviewView, type WorkspaceDashboardRole } from "@/components/workspace/role-overview";
 import {
@@ -65,7 +67,6 @@ import type { DashboardData, PayrollReleaseReceipt, PricingPlan } from "@/compon
 import { ToastStack, useToasts } from "@/components/workspace/ui";
 import { demoRoleInfo, demoRolePages, demoRolePath, isDemoRole, type DemoRoleId } from "@/lib/demo-roles";
 import { roleCanDecideApprovals, roleCanManageDelegations, roleCanManagePayroll, roleCanManagePeople, roleCanManageTime, roleHasPeopleWorkspace, workspacePagesForRole, workspacePrimaryPagesForRole } from "@/lib/workspace-role-ui";
-import { pilotCoreNavigationPages } from "@/lib/pilot-navigation";
 import { hrisHomeShortcutsForRole } from "@/lib/hris-home-shortcuts";
 import { requestedMyTeamWorkspacePage } from "@/lib/hcm-my-team-navigation";
 import { resolvePeopleEmployeeFocus } from "@/lib/hcm-people-employee-focus";
@@ -146,26 +147,23 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
 
   const effectiveRole = demoRole ?? data.access?.role ?? data.user?.role ?? null;
   const rolePages = demoRole ? demoRolePages(demoRole) : workspacePagesForRole(effectiveRole);
-  const primaryPages = workspacePrimaryPagesForRole(effectiveRole);
+  const coreModules = data.coreModuleNavigationEnabled === true && data.selectedOrganization.moduleNavigationMode === "core" && !isFreelancer;
+  const canSeeEmployeeCases = workflowUi.employeeCases && !isFreelancer && !demoRole
+    && data.access?.companyWide === true && ["owner", "admin", "hr"].includes(effectiveRole ?? "");
+  // The existing tenant-aware core navigation remains authoritative. An older
+  // optional core-only frontend must not displace or duplicate its module UI.
+  const legacyCompactCore = workflowUi.coreOnlyNav && isSelfServeCustomer
+    && !coreModules && !isFreelancer && !demoRole && data.access?.companyWide === true;
+  const primaryPages = coreModules ? ["Overview", "People", "Time & attendance", "Payroll", "Approvals", "Reports", "More modules"]
+    : legacyCompactCore ? ["Overview", "People", "Time & attendance", "Payroll", "Analytics", "Approvals", "More modules"]
+    : workspacePrimaryPagesForRole(effectiveRole);
   const availablePages = useMemo(() => {
-    const roleAllowedPages = NAVIGATION.flatMap((group) => group.items)
-      .map((item) => item.name)
-      .filter((name) => !(isFreelancer && FREELANCER_HIDDEN.has(name)))
-      .filter((name) => !rolePages || rolePages.includes(name)
-        || (name === "More modules" && isSelfServeCustomer && workflowUi.coreOnlyNav)
-        || (name === "Employee requests" && workflowUi.employeeCases &&
-          ["owner","admin","hr"].includes(effectiveRole ?? "")))
-      .filter((name) => name !== "More modules" || (isSelfServeCustomer && workflowUi.coreOnlyNav))
-      .filter(name => name !== "Employee requests" || (workflowUi.employeeCases
-        && !isFreelancer && !demoRole && ["owner","admin","hr"].includes(effectiveRole ?? "")));
-    // Keep the pilot menu small without ever granting access outside the
-    // already calculated role/plan navigation entitlement.
-    return pilotFocusEnabled && !isFreelancer && !demoRole
-      ? pilotCoreNavigationPages(roleAllowedPages)
-      : roleAllowedPages;
-  }, [isFreelancer, rolePages, pilotFocusEnabled, demoRole, isSelfServeCustomer, workflowUi.coreOnlyNav, workflowUi.employeeCases, effectiveRole]);
-  const compactCore = workflowUi.coreOnlyNav && isSelfServeCustomer && !isFreelancer && !demoRole;
-  const visiblePages = compactCore
+    const pages = tenantNavigationPages({ enabled: data.coreModuleNavigationEnabled === true, mode: data.selectedOrganization.moduleNavigationMode, enabledModules: data.selectedOrganization.enabledModules, isFreelancer, rolePages, companyWide: data.access?.companyWide, canManageModules: ["owner", "admin", "bookkeeper"].includes(effectiveRole ?? "") }, pilotFocusEnabled && !demoRole);
+    if (canSeeEmployeeCases && !pages.includes("Employee requests")) pages.push("Employee requests");
+    if (legacyCompactCore && ["owner", "admin", "hr"].includes(effectiveRole ?? "") && !pages.includes("More modules")) pages.push("More modules");
+    return pages;
+  }, [data.access?.companyWide, data.coreModuleNavigationEnabled, data.selectedOrganization.moduleNavigationMode, data.selectedOrganization.enabledModules, effectiveRole, isFreelancer, rolePages, pilotFocusEnabled, demoRole, canSeeEmployeeCases, legacyCompactCore]);
+  const visiblePages = legacyCompactCore
     ? availablePages.filter(name => ["Overview", "People", "Time & attendance", "Payroll", "Analytics", "Approvals", "More modules"].includes(name))
     : availablePages;
 
@@ -486,7 +484,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
                 readiness={data.firstPayrollReadiness}
                 guided={isSelfServeCustomer}
                 organizationId={data.selectedOrganization.id}
-                canAssign={!demoRole && ["owner", "admin", "hr"].includes(effectiveRole ?? "") && !!data.access?.companyWide}
+                canAssign={!demoRole && data.access?.companyWide === true && ["owner", "admin", "hr"].includes(effectiveRole ?? "")}
                 allowedPages={availablePages}
                 onSettings={setSettingsInitialTab}
                 onPage={setPage}
@@ -505,12 +503,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
           </>
         )}
 
-        {page === "Employee requests" && workflowUi.employeeCases &&
-          ["owner","admin","hr"].includes(effectiveRole ?? "") &&
-          <EmployeeCaseInbox organizationId={data.selectedOrganization.id}/>}
-        {page === "More modules" && compactCore && <MoreModulesPage
-          visiblePages={visiblePages} allowedPages={availablePages} onPage={setPage}
-        />}
+        {page === "Employee requests" && canSeeEmployeeCases && <EmployeeCaseInbox organizationId={data.selectedOrganization.id} />}
         {page === "Payroll" && (
           <PayrollRunView
             data={data}
@@ -564,9 +557,7 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
           />
         )}
 
-        {page === "Time & attendance" && workflowUi.faceOfflinePunch
-          && ["owner","admin","hr"].includes(effectiveRole ?? "")
-          && <OfflinePunchReviewQueue organizationId={data.selectedOrganization.id} />}
+        {page === "Time & attendance" && workflowUi.faceOfflinePunch && !demoRole && data.access?.companyWide === true && ["owner", "admin", "hr"].includes(effectiveRole ?? "") && <OfflinePunchReviewQueue organizationId={data.selectedOrganization.id} />}
         {page === "Time & attendance" && (
           <TimeView
             data={data}
@@ -599,6 +590,13 @@ export function LinawWorkspace({ initialData, isSelfServeCustomer = false, pilot
             notify={notify}
           />
         )}
+
+        {page === "More modules" && legacyCompactCore && <MoreModulesPage visiblePages={visiblePages} allowedPages={availablePages} onPage={setPage} />}
+        {page === "More modules" && !legacyCompactCore && availablePages.includes("More modules") && <MoreModules key={data.selectedOrganization.id} organizationId={data.selectedOrganization.id} enabledModules={data.selectedOrganization.enabledModules ?? []} onRefresh={async () => { await refresh(); }} notify={notify} />}
+        {page === "Reports" && availablePages.includes("Reports") && <CoreReports
+          analytics={(!rolePages || rolePages.includes("Analytics")) ? <AnalyticsView data={data} notify={notify} /> : undefined}
+          exports={(!rolePages || rolePages.includes("Exports")) ? <ExportsView data={data} notify={notify} onRefresh={async () => { await refresh(); }} /> : undefined}
+        />}
 
         {page === "Analytics" && <AnalyticsView data={data} notify={notify} />}
         {page === "Exports" && (
