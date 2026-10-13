@@ -109,3 +109,23 @@ test("legacy BI metadata and exports fail closed when multi-entity mode is enabl
   assert.ok(analytics.includes("<EnterpriseBiExportPanel organizationId={organizationId} notify={notify} />"));
   assert.ok(analytics.includes("<HcmReportBuilderPanel key={organizationId} organizationId={organizationId} />"));
 });
+
+
+test("Analytics never displays or exports a response from a previous legal employer", () => {
+  const analytics = read("src/components/workspace/analytics.tsx");
+  assert.ok(analytics.includes("const requestScopeKey = JSON.stringify({"));
+  assert.ok(analytics.includes("organizationId,"));
+  assert.ok(analytics.includes("legalEntityId: data.multiEntity?.enabled ? data.multiEntity.legalEntityId : null"));
+  assert.ok(analytics.includes("role: data.multiEntity?.enabled ? data.multiEntity.role : \"legacy\""));
+  assert.ok(analytics.includes("report: safeActive,"));
+  assert.ok(analytics.includes("resolvedScopeKey === requestScopeKey ? result : null"));
+  assert.ok(analytics.includes('resolvedScopeKey === requestScopeKey ? state : "loading"'));
+  assert.ok(analytics.includes("data.multiEntity?.legalEntityId,"),
+    "changing legal employer must re-run the API request");
+  assert.ok((analytics.match(/setResolvedScopeKey\(requestScopeKey\)/g) ?? []).length >= 3,
+    "success and both failure paths must pin response/error to request identity");
+  assert.ok(analytics.includes('disabled={visibleState !== "ready" || !visibleResult?.rows.length}'),
+    "stale report must not enable an export click");
+  assert.ok(analytics.includes('visibleState === "ready" && visibleResult && ('),
+    "stale report table must never render as new employer data");
+});
