@@ -243,6 +243,43 @@ try {
   await mp.screenshot({ path: "qa-artifacts/multi-entity/registration-approved-1440.png", fullPage: true });
   await cp.reload({ waitUntil: "domcontentloaded" });
   await cp.locator('[data-workspace-page="Overview"]').waitFor({ timeout: 60000 });
+
+  // A REAL concurrent employer edit must still invalidate a pending proposal.
+  // Change only the synthetic timestamp by a single microsecond so an unsafe
+  // JavaScript millisecond comparison would miss the collision.
+  const staleProposal = await request(maker, "/api/multi-entity/registration-changes", "POST", {
+    organizationId: 1, legalEntityId: selected.id, effectiveDate: today,
+    reason: "Synthetic concurrent employer revision",
+    changes: { legalName: "Unapproved Stale Synthetic Employer" },
+  });
+  assert.equal(staleProposal.status, 201, "Stale-write regression proposal must be created");
+  const concurrent = new pg.Client({ connectionString: process.env.DATABASE_URL });
+  await concurrent.connect();
+  try {
+    const changed = await concurrent.query(
+      "UPDATE legal_entities SET updated_at = updated_at + interval '1 microsecond' " +
+      "WHERE organization_id = $1 AND id = $2 RETURNING id",
+      [1, selected.id],
+    );
+    assert.equal(changed.rowCount, 1, "Synthetic concurrent update must affect one employer");
+  } finally {
+    await concurrent.end();
+  }
+  const staleApproval = await request(checker, "/api/multi-entity/registration-changes", "PATCH", {
+    organizationId: 1, legalEntityId: selected.id,
+    requestId: staleProposal.json.id, action: "approve",
+  });
+  assert.equal(staleApproval.status, 409,
+    "Concurrent microsecond-only source revision must invalidate approval");
+  const deniedHistory = await list(maker, selected.id);
+  assert.deepEqual(deniedHistory.json.versions.map(x => x.revision), [2, 1]);
+  assert.equal(deniedHistory.json.requests.find(x => x.id === staleProposal.json.id)?.status,
+    "pending_approval", "Stale decision must never approve or seal a version");
+  const deniedProjection = await request(maker, "/api/multi-entity/settings?organizationId=1");
+  assert.equal(deniedProjection.json.entities.find(e => e.id === selected.id)?.legalName,
+    "Beta Legal Employer QA Approved", "Stale approval must not change the legal identity");
+  checks.push("Concurrent sub-millisecond employer update fails closed without a new version");
+
   // Flag-on view retains a visible audited version history; no raw bank digits.
   console.log(JSON.stringify({
     result: "PASS", mode: "synthetic-postgres-only", checks,
