@@ -90,3 +90,19 @@ SELECT n.nspname, c.relname FROM pg_catalog.pg_class c
  (c.relname ILIKE '%migrat%' OR c.relname ILIKE '%receipt%' OR c.relname ILIKE '%journal%' OR n.nspname='drizzle')
  ORDER BY n.nspname,c.relname;
 ```
+
+## Fresh repeatable SQL probe — 2026-10-13 05:18:55 UTC
+
+The exact **single-statement SELECT-only** probe is `docs/sql/issue-910-read-only-catalog-probe.sql` (source-reviewed against Neon using explicit project `calm-wave-70219564`, branch `br-lucky-sound-b79i56jw`, database `neondb`). This run checked 26 named source prerequisites; **1 present** (`workforce_plans`) and **25 absent**. All 26 are labeled `execution_status = UNPROVEN`, regardless of catalog presence. Output also reported 116 public tables, 11 workforce-plan columns, 14 org-unit columns, 3 workforce-plan indexes, 3 ESS drift tables and zero candidate migration-journal relations. No SQL text in the query writes to user tables, changes sessions, or calls an application migration; test `tests/issue-910-readonly-catalog-probe.test.mjs` checks that invariant and the full expected-object inventory.
+
+Additional read-only aggregate checks on the *same explicit default branch* returned **zero** duplicate `org_units(organization_id, code)` combinations, **zero** employee rows with a null or foreign-tenant employer link, **zero** payroll runs with a null or foreign-tenant employer link, and **zero** payroll entries with employee/run cross-tenant organization mismatch. These aggregates do **not** validate the historical employer of a transferred worker or any payout/filing action. The limited one-tenant dataset is not a cross-tenant penetration test.
+
+### #899 metadata timeline and evidence limit
+
+A Neon **read-only** listing of the latest 1,000 project operations showed `create_branch` and `epc_sync` at **2026-10-12 05:30:40 UTC** for the snapshot/endpoint transition, with further `epc_sync` activity at **05:32:23/05:32:30 UTC** and original default-branch endpoint `ep-cool-hat-b7e7gpoo` compute restart at **05:32:47 UTC**. This supports the recorded **control-plane transition window**, but these operations do **not** include authenticated database SQL, HTTP requests, application write receipts, resolved payroll transaction IDs, or a signed restore outcome.
+
+A separate read-only `pg_endpoint` log query on original branch `br-lucky-sound-b79i56jw` for **05:28:00–05:36:00 UTC** returned **zero log records**. This is an observability gap, **NOT evidence of zero failures, zero writes, or zero RPO/RTO**. #899 request/write impact therefore remains `UNKNOWN`. Do not close #899 or reclassify #910 as production-ready on the strength of metadata-only operations.
+
+### Unchanged operational stop
+
+Neon lists **10 branches** against a Free plan allowance of **10**, with the original default branch still `protected=false`, six-hour point-in-time history and a single manual snapshot. No new protected independent clone can be assumed available. Capacity, privacy-eligible clone conditions, safe non-default restore with explicit `finalize=false`, independent DBA/operator permissions and a verified rollback must be approved *before* new restore/branch work. This report only performed reads.
