@@ -547,12 +547,19 @@ test("PayMongo transfer webhook route is signed, duplicate-safe and exact-transf
 });
 
 
-test("live payout submission is serialized by PayMongo wallet", () => {
+test("live payout submission is serialized by PayMongo wallet using a transaction-scoped lock", () => {
   const lock = readFileSync("src/lib/payout-submission-lock.ts", "utf8");
   const exportRoute = readFileSync("src/app/api/payroll-runs/[id]/exports/route.ts", "utf8");
   const reconciliationRoute = readFileSync("src/app/api/payroll-runs/[id]/payout-reconciliation/route.ts", "utf8");
 
-  assert.ok(lock.includes("pg_try_advisory_lock"));
+  // The pinned transaction-scoped lock is safe with transaction poolers.
+  // A session-level lock could leak across pooled backend reuse.
+  assert.ok(lock.includes("BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED, READ ONLY"));
+  assert.ok(lock.includes("pg_try_advisory_xact_lock"));
+  assert.ok(lock.includes("hashtextextended($1, 0)"));
+  assert.ok(lock.includes("ROLLBACK"));
+  assert.ok(lock.includes("client.release(!rolledBack)"));
+  assert.ok(!lock.includes("pg_advisory_unlock("), "do not reintroduce session-level advisory unlock");
   assert.ok(lock.includes("PAYMONGO_WALLET_ID"));
   assert.ok(lock.includes("Another payroll payout is already being submitted"));
   assert.ok(exportRoute.includes("withPayrollPayoutSubmissionLock"));

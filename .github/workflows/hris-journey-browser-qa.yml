@@ -79,6 +79,7 @@ jobs:
     env:
       CI: "true"
       HRIS_JOURNEY_ACCEPTANCE_MODE: synthetic-postgres-only
+      FIRST_PAYROLL_INLINE_ENABLED: "true" # disposable PostgreSQL acceptance only
       HRIS_JOURNEY_ACCEPTANCE_URL: http://127.0.0.1:3000
       HCM_PEOPLE_HOME_ACCEPTANCE_MODE: synthetic-postgres-only
       HCM_PEOPLE_HOME_ENABLED: "true"
@@ -122,7 +123,7 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - name: Ephemeral bank key for synthetic database only
+      - name: Ephemeral independent bank and PII keys for synthetic database only
         shell: bash
         run: |
           bank_key=$(openssl rand -hex 32)
@@ -140,6 +141,8 @@ jobs:
         run: npx tsx scripts/hris-journey-synthetic-fixture.ts
       - name: Link fictional ESS identity for A-3 HR-case acceptance (disposable DB)
         run: npx tsx scripts/hr-cases-synthetic-employee-link.ts
+      - name: Prove first payroll owner-to-HR-to-payroll resume and read-only PG16 preview
+        run: npx tsx --test tests/first-payroll-tenant-resume-postgres.test.ts
       - name: Build local app with tenant-scoped synthetic flags
         run: npm run build
       - name: Install pinned Chromium
@@ -177,6 +180,8 @@ jobs:
         run: npx tsx scripts/first-payroll-mobile-synthetic-fixture.ts
       - name: Test first-payroll guide on mobile with owner and payroll roles
         run: node scripts/first-payroll-mobile-synthetic-browser.mjs
+      - name: Test zero-employee tenant through inline owner, HR and payroll journeys
+        run: node scripts/first-payroll-zero-tenant-browser.mjs
       - name: Upload sanitized mobile engineering receipt
         if: always()
         uses: actions/upload-artifact@v7
@@ -185,6 +190,9 @@ jobs:
           path: |
             qa-artifacts/first-payroll-mobile-synthetic.json
             qa-artifacts/first-payroll-mobile-failed.png
+            qa-artifacts/first-payroll-zero-tenant-browser.json
+            qa-artifacts/first-payroll-screens/*.png
+            qa-artifacts/first-payroll-zero-tenant-failed.png
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload synthetic-only failure screenshot

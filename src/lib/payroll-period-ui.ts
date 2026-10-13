@@ -18,3 +18,28 @@ export function isPreliminaryPayroll(
 ): boolean {
   return calculated && /^\d{4}-\d{2}-\d{2}$/.test(periodEnd) && periodEnd > manilaCalendarDate(now);
 }
+
+/**
+ * Stable human-readable payroll cutoff label. Intl.format with an undefined
+ * month option produces environment-specific "2026 (day: 15)" strings on some
+ * Node/ICU builds. Compose numeric days explicitly instead of relying on that.
+ * The calling payroll route validates ISO calendar dates before formatting.
+ */
+export function formatPayrollPeriodLabel(periodStart: string, periodEnd: string): string {
+  const start = new Date(`${periodStart}T12:00:00Z`);
+  const end = new Date(`${periodEnd}T12:00:00Z`);
+  const month = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "UTC" });
+  const startMonth = month.format(start);
+  const endMonth = month.format(end);
+  const startDay = start.getUTCDate();
+  const endDay = end.getUTCDate();
+  const startYear = start.getUTCFullYear();
+  const endYear = end.getUTCFullYear();
+  if (startYear === endYear && start.getUTCMonth() === end.getUTCMonth()) {
+    return `${startMonth} ${startDay}–${endDay}, ${endYear}`;
+  }
+  if (startYear === endYear) {
+    return `${startMonth} ${startDay}–${endMonth} ${endDay}, ${endYear}`;
+  }
+  return `${startMonth} ${startDay}, ${startYear}–${endMonth} ${endDay}, ${endYear}`;
+}

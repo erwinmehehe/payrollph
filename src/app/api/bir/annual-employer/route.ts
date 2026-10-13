@@ -13,6 +13,7 @@ import { assertOrganizationRole, getAccess, PAYROLL_OPERATOR_ROLES } from "@/lib
 import { getSessionUser } from "@/lib/auth";
 import { reconcileBirEmployerYear } from "@/lib/bir-employer-reconciliation";
 import { requireSensitiveActionMfa } from "@/lib/security-request";
+import { resolveMultiEntityContext, assertEntityResource } from "@/lib/multi-entity-server";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,8 @@ export async function GET(request: Request) {
   }
   const mfaDenied = requireSensitiveActionMfa(user);
   if (mfaDenied) return mfaDenied;
+  const scope = await resolveMultiEntityContext({ userId: user.id, organizationId, request });
+  if (!scope.ok) return scope.response;
 
   if (mode === "employers") {
     const options = await db.select({
@@ -48,6 +51,8 @@ export async function GET(request: Request) {
     }).from(legalEntities).where(and(
       eq(legalEntities.organizationId, organizationId),
       eq(legalEntities.active, true),
+      scope.context.enabled && scope.context.legalEntityId !== null
+        ? eq(legalEntities.id, scope.context.legalEntityId) : undefined,
     ));
     return Response.json({ employers: options }, { headers: { "Cache-Control": "no-store, private" } });
   }
@@ -65,6 +70,8 @@ export async function GET(request: Request) {
     eq(legalEntities.active, true),
   )).limit(1);
   if (!employer) return Response.json({ error: "Legal employer not found in this organization." }, { status: 404 });
+  const entityDenied = assertEntityResource(scope.context, employer.id);
+  if (entityDenied) return entityDenied;
 
   const from = `${taxYear}-01-01`;
   const to = `${taxYear}-12-31`;

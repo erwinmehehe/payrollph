@@ -8,6 +8,17 @@ export function assertIsolatedSchedulerRehearsal(
   if (env.CI !== "true" || env.SCHEDULER_REHEARSAL_MODE !== "isolated-ci-only") {
     throw new Error("Scheduler rehearsal requires explicit isolated CI authorization.");
   }
+  for (const flag of [
+    "CENTRAL_SCHEDULER_ENABLED",
+    "WORKER_ENABLED",
+    "PAYROLL_SCHEDULER_DISPATCH_ENABLED",
+    "PAYMONGO_DISBURSEMENTS_ENABLED",
+    "XENDIT_PAYOUTS_ENABLED",
+  ]) {
+    if (env[flag] === "true") {
+      throw new Error("Scheduler rehearsal refuses an enabled runtime or payment integration.");
+    }
+  }
   let url: URL;
   try {
     url = new URL(env.DATABASE_URL ?? "");

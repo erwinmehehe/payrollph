@@ -1,0 +1,272 @@
+"use client";
+import { useEffect, useState } from "react";
+import { EmployeeImportPreviewPanel } from "@/components/employee-import-preview-panel";
+import { AccountPanel } from "@/components/account-panel";
+import { NewHireModal } from "@/components/new-hire-modal";
+import { FIRST_PAYROLL_STEPS, type FirstPayrollKey } from "@/lib/first-payroll-journey";
+import { INVITABLE_ROLES } from "@/lib/roles";
+import { ApprovalsView } from "./approvals";
+import { ExportsView } from "./exports";
+import type { DashboardData, Notify } from "./types";
+
+function firstPayrollStep(key: FirstPayrollKey) {
+  const found = FIRST_PAYROLL_STEPS.find(item => item.key === key);
+  if (!found) throw new Error("Unknown journey step");
+  return found;
+}
+type RecordedStep = { byUserId:number;at:string;periodStart?:string;periodEnd?:string };
+type Progress = { stepOwners?:Record<string,string>;completedSteps?:Record<string,RecordedStep>;reviewedByUserId?:number|null };
+type PreviewRow = { employeeId:number;name:string;gross:number|null;sss:number|null;philHealth:number|null;pagIbig:number|null;withholding:number|null;net:number|null;blockers:string[] };
+type Preview = { rows:PreviewRow[];blockers:string[];warnings?:string[];previewReady:boolean;dryRun:true };
+type LegalEmployer = { id:number;primaryEntity:boolean;active:boolean;legalName:string;payrollCalendarMode:string;birTin?:string|null;sssEmployerNo?:string|null;philHealthEmployerNo?:string|null;pagIbigEmployerNo?:string|null };
+export function FirstPayrollInlinePanel({
+ step, data, onRefresh, onProgressUpdate, onDecide, canDecide = false, canManageDelegations = false, notify = () => {},
+}: {
+ step:FirstPayrollKey;data:DashboardData;onRefresh:()=>Promise<void>;
+ onProgressUpdate?:()=>Promise<void>;
+ onDecide?:(id:number,status:"Approved"|"Declined")=>Promise<void>;
+ canDecide?:boolean;canManageDelegations?:boolean;notify?:Notify;
+}) {
+ const organizationId=data.selectedOrganization.id;
+ const defaultOwner=firstPayrollStep(step).owner;
+ const permittedOwners: readonly string[]=firstPayrollStep(step).allowedOwners;
+ const [progress,setProgress]=useState<Progress|null>(null);
+ const [progressLoading,setProgressLoading]=useState(true);
+ const [companyLoading,setCompanyLoading]=useState(step==="company");
+ const [error,setError]=useState("");const [notice,setNotice]=useState("");const [busy,setBusy]=useState(false);
+ const [company,setCompany]=useState(data.selectedOrganization.legalName);
+ const [schedule,setSchedule]=useState("ph_semi_monthly");
+ const [registrations,setRegistrations]=useState({birTin:"",sssEmployerNo:"",philHealthEmployerNo:"",pagIbigEmployerNo:""});
+ const [employer,setEmployer]=useState<LegalEmployer|null>(null);
+ const [peopleMode,setPeopleMode]=useState<"add"|"import">("add");
+ const [showHire,setShowHire]=useState(false);
+ const [showSecurity,setShowSecurity]=useState(false);
+ const [email,setEmail]=useState("");const [role,setRole]=useState("payroll");
+ const [target,setTarget]=useState<string>(defaultOwner);
+ const [start,setStart]=useState("");const [end,setEnd]=useState("");const [payDate,setPayDate]=useState("");
+ const [acknowledged,setAcknowledged]=useState(false);
+ const [preview,setPreview]=useState<Preview|null>(null);
+ const [draftId,setDraftId]=useState<number|null>(null);
+ useEffect(()=>{
+  let cancelled=false;
+  void fetch("/api/first-payroll/progress?organizationId="+organizationId,{cache:"no-store"})
+   .then(async r=>{if(!r.ok)throw Error("Cannot load step progress");return r.json();})
+   .then(x=>{if(cancelled)return;const p=x.progress as Progress|null;setProgress(p);
+      const reviewed=p?.completedSteps?.time;
+      if(reviewed?.periodStart)setStart(reviewed.periodStart);
+      if(reviewed?.periodEnd)setEnd(reviewed.periodEnd);
+      const owner=p?.stepOwners?.[step];if(owner&&permittedOwners.includes(owner))setTarget(owner);
+   }).catch(()=>{if(!cancelled)setError("Could not load saved progress for this employer.");})
+   .finally(()=>{if(!cancelled)setProgressLoading(false);});
+  return ()=>{cancelled=true;};
+ },[organizationId,step,permittedOwners]);
+ useEffect(()=>{
+  if(step!=="company")return;
+  let cancelled=false;
+  void fetch("/api/legal-entities?organizationId="+organizationId,{cache:"no-store"})
+   .then(async r=>{const body=await r.json();if(!r.ok)throw Error(body.error??"Could not load legal employer");return body;})
+   .then(result=>{if(cancelled)return;const entries=(result.legalEntities??[]) as LegalEmployer[];
+     const selected=entries.find(e=>e.active&&e.primaryEntity)??null;
+     setEmployer(selected);if(selected){setCompany(selected.legalName);setSchedule(selected.payrollCalendarMode);setRegistrations({birTin:selected.birTin??"",sssEmployerNo:selected.sssEmployerNo??"",philHealthEmployerNo:selected.philHealthEmployerNo??"",pagIbigEmployerNo:selected.pagIbigEmployerNo??""});}
+   }).catch(e=>{if(!cancelled)setError(e instanceof Error?e.message:"Could not load legal employer");})
+   .finally(()=>{if(!cancelled)setCompanyLoading(false);});
+  return ()=>{cancelled=true;};
+ },[step,organizationId]);
+
+ async function send(url:string,method:string,body:Record<string,unknown>,message:string) {
+  setBusy(true);setError("");setNotice("");
+  try {
+    const response=await fetch(url,{method,headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({...body,organizationId})});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw Error(result.error??"Could not complete action");
+    if(result.progress)setProgress(result.progress);
+    if(result.run?.id)setDraftId(result.run.id);
+    if(result.progress)await onProgressUpdate?.();
+    await onRefresh();
+    setNotice(message);
+    return true;
+  }catch(e){setError(e instanceof Error?e.message:"Action failed");return false;}
+  finally{setBusy(false);}
+ }
+ async function companySave() {
+  if(!employer){setError("No active primary legal employer found.");return;}
+  // Legal employer is authoritative for payroll. Updating organization settings alone is insufficient.
+  const entitySaved=await send("/api/legal-entities","PATCH",{
+    action:"update_entity",legalEntityId:employer.id,legalName:company,payrollCalendarMode:schedule,...registrations,
+  },"Legal employer updated.");
+  if(!entitySaved)return;
+  const projected=await send("/api/organizations","PUT",{
+    legalName:company,payrollCalendarMode:schedule,
+  },"Employer projection updated.");
+  if(!projected)return;
+  await send("/api/first-payroll/progress","PATCH",{
+    key:"company",action:"company_confirm",
+  },"Legal employer and pay schedule confirmed.");
+ }
+ async function dryRun() {
+  setBusy(true);setError("");setPreview(null);setDraftId(null);
+  try {
+    const q=new URLSearchParams({organizationId:String(organizationId),periodStart:start,periodEnd:end,payDate});
+    const response=await fetch("/api/first-payroll/preview?"+q,{cache:"no-store"});
+    const result=await response.json();
+    if(!response.ok)throw Error(result.error??"Preview unavailable");
+    setPreview(result as Preview);
+  }catch(e){setError(e instanceof Error?e.message:"Preview unavailable");}
+  finally{setBusy(false);}
+ }
+ const periodPunches=start&&end ? (data.punches??[]).filter(p=>p.workDate>=start&&p.workDate<=end) : [];
+ const periodLeaves=start&&end ? (data.leaveRequests??[]).filter(l=>l.startDate<=end&&l.endDate>=start) : [];
+ const employeeNames=new Map((data.employees??[]).map(person=>[person.id,person.firstName+" "+person.lastName]));
+ const timeLabel=(value:Date|string|null)=>value
+   ? new Date(value).toLocaleString("en-PH",{timeZone:"Asia/Manila",dateStyle:"short",timeStyle:"short"})
+   : "—";
+ const reviewed=progress?.completedSteps?.time;
+ const activeRole=data.access?.role??"";
+ const companyWide=data.access?.companyWide===true;
+ const reviewersCanEdit=companyWide&&["owner","admin"].includes(activeRole);
+ const canAddPeople=companyWide&&["owner","admin","bookkeeper","hr"].includes(activeRole);
+ const canPreviewPayroll=companyWide&&["owner","admin","bookkeeper","payroll","checker"].includes(activeRole);
+ const canDraftPayroll=companyWide&&["owner","admin","bookkeeper","payroll"].includes(activeRole);
+ const currentOwner=progress?.stepOwners?.[step]??defaultOwner;
+ const canHandoff=companyWide&&(reviewersCanEdit||currentOwner===activeRole);
+ const handoff=<div className="mt-4 flex flex-wrap items-center gap-2">
+   <label>Responsible role <select value={target} onChange={e=>setTarget(e.target.value)}>
+     {permittedOwners.map(r=><option key={r} value={r}>{r}</option>)}
+   </select></label>
+   <button type="button" className="secondary-button" disabled={busy||progressLoading||!canHandoff}
+     onClick={()=>void send("/api/first-payroll/progress","PATCH",{key:step,action:"handoff",targetRole:target},"Handoff recorded for the selected role.")}>
+     Send to {target}
+   </button>
+   <small>Current owner: {currentOwner}</small>
+   {!canHandoff&&<small>Only the responsible role or a company administrator can reassign this step.</small>}
+ </div>;
+ return <div className="mt-3 min-w-0 max-w-full rounded-xl border p-4" aria-label={step+" inline setup"}
+   aria-busy={progressLoading||companyLoading||busy}>
+   {(progressLoading||companyLoading)&&<p role="status">Loading saved employer setup…</p>}
+   {busy&&<p role="status">Processing this step…</p>}
+   {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
+   {step==="company"&&<div className="grid gap-3">
+     <p>Update the primary legal employer. Its calendar, not the legacy organization projection, governs payroll.</p>
+     <label>Legal employer name<input value={company} onChange={e=>setCompany(e.target.value)}/></label>
+     <label>Employer BIR TIN<input value={registrations.birTin} inputMode="numeric" maxLength={9} pattern="[0-9]{9}" onChange={e=>setRegistrations(p=>({...p,birTin:e.target.value.replace(/\D/g,"")}))}/></label>
+     <label>SSS employer registration<input value={registrations.sssEmployerNo} onChange={e=>setRegistrations(p=>({...p,sssEmployerNo:e.target.value}))}/></label>
+     <label>PhilHealth employer registration<input value={registrations.philHealthEmployerNo} onChange={e=>setRegistrations(p=>({...p,philHealthEmployerNo:e.target.value}))}/></label>
+     <label>Pag-IBIG employer registration<input value={registrations.pagIbigEmployerNo} onChange={e=>setRegistrations(p=>({...p,pagIbigEmployerNo:e.target.value}))}/></label>
+     <label>Pay schedule<select value={schedule} onChange={e=>setSchedule(e.target.value)}>
+       <option value="ph_semi_monthly">Philippine semi-monthly</option>
+       <option value="flexible">Flexible (review required)</option>
+     </select></label>
+     <button type="button" className="primary-button" disabled={busy||!employer||!reviewersCanEdit}
+       onClick={()=>void companySave()}>Save legal employer and schedule</button>
+     {reviewersCanEdit&&<div className="min-w-0 max-w-full rounded-lg border p-3">
+       <p className="text-sm">Account security is personal to the signed-in administrator. MFA and session changes use the existing protected account endpoints.</p>
+       <button type="button" className="secondary-button" aria-expanded={showSecurity}
+         onClick={()=>setShowSecurity(current=>!current)}>
+         {showSecurity?"Close account security":"Configure account security and MFA"}
+       </button>
+       {showSecurity&&<div className="mt-3 max-w-full overflow-x-auto" aria-label="Inline account security">
+         <AccountPanel onNotice={message=>setNotice(message)}/>
+       </div>}
+     </div>}
+     {progress?.completedSteps?.company&&<small>Confirmed by user #{progress.completedSteps.company.byUserId}</small>}
+   </div>}
+   {step==="people"&&<div>
+     <div className="flex flex-wrap gap-2">
+       <button type="button" className="secondary-button" onClick={()=>setPeopleMode("add")}>Add one employee</button>
+       <button type="button" className="secondary-button" onClick={()=>setPeopleMode("import")}>Import CSV</button>
+     </div>
+     {peopleMode==="add"&&<div className="mt-3">
+       <p>Create the employee and their pay profile using the same governed hire endpoint as People.</p>
+       <button type="button" className="primary-button" disabled={!canAddPeople} onClick={()=>setShowHire(v=>!v)}>{showHire?"Close employee form":"Add employee inline"}</button>
+       {showHire&&canAddPeople&&<NewHireModal inline organizationId={organizationId} onClose={()=>setShowHire(false)}
+         onCreated={()=>{setShowHire(false);void onRefresh();}}/>}
+     </div>}
+     {peopleMode==="import"&&!canAddPeople&&<p role="status">Ask an authorized People administrator to import employees.</p>}
+     {peopleMode==="import"&&canAddPeople&&(data.employeeImportPreviewEnabled
+       ?<EmployeeImportPreviewPanel organizationId={organizationId} onImported={()=>void onRefresh()}/>
+       :<p role="alert">Employee CSV preview is not enabled. Individual employee creation remains available; unsafe direct import is not exposed here.</p>)}
+   </div>}
+   {step==="time"&&<div className="grid gap-3">
+     <p>An authorized HR reviewer must check missing punches, leave, schedule exceptions and the actual pay period. This attestation does not approve timesheets or bypass payroll attendance locks.</p>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Pay period start</span><input className="block min-w-0 w-full" type="date" value={start} onChange={e=>setStart(e.target.value)}/></label>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Pay period end</span><input className="block min-w-0 w-full" type="date" value={end} onChange={e=>setEnd(e.target.value)}/></label>
+     {start&&end ? <>
+       <p role="status">{periodPunches.length} recorded attendance punch{periodPunches.length===1?"":"es"} and {periodLeaves.length} leave request{periodLeaves.length===1?"":"s"} overlap this selected period. Review recorded exceptions before attesting. Absence of records does not prove attendance was completed.</p>
+       {periodPunches.length===0
+         ? <p>No time punches are recorded for this period. Confirm the employee schedule and any missing attendance records before reviewing.</p>
+         : <div className="max-w-full overflow-x-auto" role="region" aria-label="Period attendance records" tabIndex={0}>
+           <table className="min-w-[520px]"><caption>Recorded attendance for the selected period (first 50 rows)</caption>
+             <thead><tr><th>Employee</th><th>Work date</th><th>Time in</th><th>Time out</th><th>Status</th></tr></thead>
+             <tbody>{periodPunches.slice(0,50).map(p=><tr key={p.id}>
+               <td>{employeeNames.get(p.employeeId)??"Worker #"+p.employeeId}</td>
+               <td>{p.workDate}</td><td>{timeLabel(p.timeIn)}</td><td>{timeLabel(p.timeOut)}</td><td>{p.status}</td>
+             </tr>)}</tbody>
+           </table>
+         </div>}
+       {periodPunches.length>50&&<p>Additional attendance rows require review in the authoritative time workflow before attestation.</p>}
+       {periodLeaves.length>0&&<div className="max-w-full overflow-x-auto" role="region" aria-label="Period leave records" tabIndex={0}>
+         <table className="min-w-[460px]"><caption>Leave requests overlapping the period (first 50 rows)</caption>
+           <thead><tr><th>Employee</th><th>Dates</th><th>Type</th><th>Status</th></tr></thead>
+           <tbody>{periodLeaves.slice(0,50).map(l=><tr key={l.id}>
+             <td>{employeeNames.get(l.employeeId)??"Worker #"+l.employeeId}</td>
+             <td>{l.startDate} to {l.endDate}</td><td>{l.leaveType}</td><td>{l.status}</td>
+           </tr>)}</tbody>
+         </table>
+       </div>}
+       {periodLeaves.length>50&&<p>Additional leave records require review in the authoritative leave workflow before attestation.</p>}
+     </> : <p>Select a pay period to load recorded attendance and leave context.</p>}
+     <label className="flex items-start gap-2"><input type="checkbox" checked={acknowledged} onChange={e=>setAcknowledged(e.target.checked)}/>
+       I personally reviewed the time and HR inputs for this period and will resolve any independent approval requirements.</label>
+     <button type="button" className="primary-button"
+       disabled={busy||!["hr"].includes(data.access?.role??"")||!start||!end||!acknowledged}
+       onClick={()=>void send("/api/first-payroll/progress","PATCH",{key:"time",action:"time_review",periodStart:start,periodEnd:end,acknowledged:true},"Period-specific HR review recorded.")}>
+       Record authorized human review
+     </button>
+     {reviewed&&<p>Reviewed by user #{reviewed.byUserId} for {reviewed.periodStart} to {reviewed.periodEnd}.</p>}
+   </div>}
+   {step==="reviewers"&&<div className="grid gap-3">
+     <p>Invite HR for the time review, then a payroll officer, independent checker and finance/bookkeeper as needed. Invitations must be accepted before a role handoff.</p>
+     <label>Work email<input type="email" value={email} onChange={e=>setEmail(e.target.value)}/></label>
+     <label>Role<select value={role} onChange={e=>setRole(e.target.value)}>
+       {INVITABLE_ROLES.filter(item=>["hr","payroll","checker","bookkeeper"].includes(item.id)).map(item=><option key={item.id} value={item.id}>{item.label}</option>)}
+     </select></label>
+     <button type="button" className="primary-button" disabled={busy||!email||!reviewersCanEdit}
+       onClick={()=>void send("/api/invitations","POST",{email,role},`Invitation sent for ${role}; acceptance still required.`).then(ok=>{if(ok)setEmail("");})}>
+       Invite {role}</button>
+     <p>Active payroll officers: {data.firstPayrollReadiness?.payrollOfficerCount??0}; independent checkers: {data.firstPayrollReadiness?.checkerCount??0}.</p>
+   </div>}
+   {step==="payroll"&&<div className="grid gap-3">
+     <p>First payroll preview reads actual employer records and reuses the payroll calculator. It never creates a run or a ledger entry. Creating a draft is a separate, explicit action.</p>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period start</span><input className="block min-w-0 w-full" type="date" value={start} onChange={e=>{setStart(e.target.value);setPreview(null);setDraftId(null);}}/></label>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Period end</span><input className="block min-w-0 w-full" type="date" value={end} onChange={e=>{setEnd(e.target.value);setPreview(null);setDraftId(null);}}/></label>
+     <label className="grid min-w-0 w-full max-w-sm gap-2 text-sm"><span>Pay date</span><input className="block min-w-0 w-full" type="date" value={payDate} onChange={e=>{setPayDate(e.target.value);setPreview(null);setDraftId(null);}}/></label>
+     <button type="button" className="primary-button" disabled={busy||!canPreviewPayroll||!start||!end||!payDate} onClick={()=>void dryRun()}>Preview first payroll (no writes)</button>
+     {!canPreviewPayroll&&<p role="status">Only company-wide payroll viewers can inspect calculated preview amounts.</p>}
+     {preview&&<>
+       <p role="status">{preview.previewReady?"Preview ready for reconciliation":"Preview has blockers"}</p>
+       {preview.blockers.map((b,i)=><p key={i} role="alert">{b}</p>)}
+       {preview.warnings?.map((b,i)=><p key={i}>{b}</p>)}
+       <div className="max-w-full overflow-x-auto" role="region" aria-label="First payroll per-employee preview" tabIndex={0}><table className="min-w-[700px]"><thead><tr>{["Employee","Gross","SSS","PhilHealth","Pag-IBIG","Withholding","Net","Blockers"].map(h=><th key={h}>{h}</th>)}</tr></thead>
+       <tbody>{preview.rows.map(row=><tr key={row.employeeId}>
+         <td>{row.name}</td>{[row.gross,row.sss,row.philHealth,row.pagIbig,row.withholding,row.net].map((n,i)=><td key={i}>{n==null?"—":n.toFixed(2)}</td>)}
+         <td>{row.blockers.join("; ")||"None"}</td></tr>)}</tbody></table></div>
+       {preview.previewReady&&<button type="button" className="secondary-button" disabled={busy||!canDraftPayroll||draftId!==null} onClick={()=>void send("/api/payroll-runs","POST",{
+         periodStart:start,periodEnd:end,payDate,processNow:false,
+       },"A draft payroll record was created. It is not calculated, approved or released.")}>Create actual draft payroll (writes a draft record)</button>}
+       {preview.previewReady&&!canDraftPayroll&&<p role="status">A payroll operator must create the draft. Preview access does not grant maker privileges.</p>}
+       {draftId&&<p role="status">Draft run #{draftId} created. Existing independent calculation and approval gates still apply.</p>}
+     </>}
+   </div>}
+   {step==="approval"&&<div>
+     <p>Complete independent payroll approval using the existing role-controlled workflow. This onboarding view cannot approve its own run.</p>
+     {onDecide&&<ApprovalsView data={data} busy={busy} canDecide={canDecide} canManageDelegations={canManageDelegations}
+       onDecide={onDecide} onRefresh={onRefresh} notify={notify}/>}
+   </div>}
+   {step==="exports"&&<div>
+     <p>Review released outputs and official filing evidence through the existing controlled export workflow. An export is not government filing acceptance.</p>
+     <ExportsView data={data} notify={notify} onRefresh={onRefresh}/>
+   </div>}
+   {handoff}
+ </div>;
+}

@@ -6,9 +6,11 @@ export const ROLE_PRIMARY_PAGES: Partial<Record<string, readonly string[]>> = {
   payroll: ["Overview", "Payroll", "People", "Time & attendance", "Approvals", "Analytics"],
   checker: ["Overview", "Approvals", "Audit trail"],
   manager: ["Overview", "Approvals", "Planning", "Performance", "Analytics"],
+  group_hr: ["Overview", "People", "Analytics"],
 };
 
 export const REAL_ROLE_PAGE_ACCESS: Partial<Record<string, readonly string[]>> = {
+  group_hr: ["Overview", "People", "Analytics", "Entities"],
   hr: [
     "Overview",
     "People",

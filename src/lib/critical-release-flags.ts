@@ -42,6 +42,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 large-roster notification completeness and labor-rule schedule publish",
     approval: "Synthetic 1000-assignment pagination, verified roster publish UAT, payroll review and operational sign-off",
   },
+  xenditPayrollPayouts: {
+    env: "XENDIT_PAYOUTS_ENABLED",
+    owner: "Treasury",
+    risk: "P0 external Xendit salary money movement",
+    approval: "Independent provider/treasury acceptance and exact employer/legal-entity authorization",
+  },
   publicIntakeProof: {
     env: "PUBLIC_INTAKE_PROOF_ENABLED", owner: "Security",
     risk: "Public enquiry and signup anti-automation", approval: "Proof replay, limits and accessible intake acceptance",
@@ -58,6 +64,24 @@ export const CRITICAL_RELEASE_FLAGS = {
     env: "PII_LEGACY_READ_ENABLED", owner: "Security",
     risk: "Temporary read-only legacy PII key compatibility",
     approval: "Key custody, measured rewrap and retirement acceptance",
+  },
+  multiEntity: {
+    env: "MULTI_ENTITY_ENABLED",
+    owner: "Security / Payroll Operations",
+    risk: "P0 employer payroll, statutory and personnel isolation",
+    approval: "DB clone migration, two-tenant/two-entity tests, golden payroll evidence and independent maker-checker UAT",
+  },
+  multiEntityRegistrations: {
+    env: "MULTI_ENTITY_REGISTRATIONS_ENABLED",
+    owner: "DBA / Philippine Payroll / Security",
+    risk: "P0 legal employer identity, statutory registrations and bank account change governance",
+    approval: "Immutable source migration, encrypted proposal reviews, independent maker/checker, tenant/entity HTTP isolation and DBA clone evidence",
+  },
+  multiEntityTransfers: {
+    env: "MULTI_ENTITY_TRANSFERS_ENABLED",
+    owner: "Philippine Payroll / Legal / HR",
+    risk: "P0 cross-legal-employer liabilities, leave, 13th-month, statutory records and worker continuity",
+    approval: "Written employment-continuity policy, employer-specific legal and financial signoff, isolated transaction UAT and independent transfer maker/checker",
   },
   employeeImportPreview: {
     env: "EMPLOYEE_IMPORT_PREVIEW_ENABLED", owner: "People Operations",
@@ -151,6 +175,12 @@ export const CRITICAL_RELEASE_FLAGS = {
     owner: "People Operations",
     risk: "P1 anonymous employee feedback and small-cohort inference",
     approval: "Minimum cohort privacy tests, consent and retention review",
+  },
+  firstPayrollInline: {
+    env: "FIRST_PAYROLL_INLINE_ENABLED",
+    owner: "Payroll Operations",
+    risk: "P0 inline onboarding uses canonical 0117 first-payroll tenant progress schema",
+    approval: "Reviewed 0117 receipt, zero-write preview and independent two-role mobile acceptance",
   },
   coreModuleNavigation: {
     env: "CORE_MODULE_NAVIGATION_ENABLED", owner: "Product",

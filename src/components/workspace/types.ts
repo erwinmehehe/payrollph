@@ -170,6 +170,7 @@ export function readLineItems(entry: Pick<PayrollEntry, "lineItems">): PayrollLi
 
 export type Task = {
   id: number;
+  payrollRunId?: number | null;
   title: string;
   detail: string;
   approver: string;
@@ -347,6 +348,7 @@ export type FreelancerProfile = {
 export type DashboardData = {
   coreModuleNavigationEnabled?: boolean;
   employeeImportPreviewEnabled?: boolean;
+  xenditPayoutsEnabled?: boolean;
   firstPayrollReadiness?: FirstPayrollReadiness | null;
   user: SessionUser | null;
   organizations: Organization[];
@@ -367,6 +369,14 @@ export type DashboardData = {
   leaveRequests?: LeaveRequest[];
   leavePolicies?: LeavePolicy[];
   orgUnits?: OrgUnit[];
+  multiEntity?: {
+    enabled: true;
+    group: boolean;
+    canSwitch?: boolean;
+    role: string;
+    legalEntityId: number | null;
+    entities: Array<{ id: number; legalName: string; displayName: string; code: string }>;
+  };
   access?: { companyWide: boolean; orgUnitName: string | null; role: string } | null;
   capabilities?: {
     orgStructure: boolean;
