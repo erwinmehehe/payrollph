@@ -17,6 +17,8 @@ and arrange a different human's approval of the exact head. Only exact
 lowercase true enables this mode. Its reviewer identity, current-head,
 permission and optional HCM/WFM pilot checks remain tested.
 
+The independent-review opt-out does **not** waive the separately enforced optional HCM/WFM pilot freeze. Source changes in frozen lanes remain blocked until the approved pilot flag and a valid evidence reference are present. Core Payroll/People/Time fixes that are outside those paths can proceed under the regular CI rules.
+
 This policy governs source integration only. Employer maker-checker,
 tenant isolation, production migration approval, restore evidence, payroll
 reconciliation, feature activation and bank/payout authorization remain
