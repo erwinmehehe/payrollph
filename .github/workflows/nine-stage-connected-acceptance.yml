@@ -5,6 +5,7 @@ on:
   push:
     branches: [main]
     paths:
+      - "src/app/dashboard-design.css"
       - "src/app/globals.css"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
       - "scripts/qa/isolated-month-end-clock.cjs"
@@ -15,6 +16,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - "src/app/dashboard-design.css"
       - "src/app/globals.css"
       - "scripts/qa/nine-stage-connected-acceptance.ts"
       - "scripts/qa/isolated-month-end-clock.cjs"
