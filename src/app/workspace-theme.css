@@ -13286,3 +13286,48 @@
     padding: 16px 12px 28px;
   }
 }
+
+
+/* Multi-entity only: keep the legal employer and all header actions reachable
+   on 320–430px phones. The legacy flag-OFF workspace is intentionally unchanged.
+   These selectors match only while EntitySwitcher renders the gated marker. */
+@media (max-width: 720px) {
+  .app-shell:has(.entity-switcher-control) .topbar {
+    height: auto;
+    min-height: 70px;
+    flex-wrap: wrap;
+    gap: 7px;
+    padding: 8px 12px;
+    align-items: center;
+  }
+  .app-shell:has(.entity-switcher-control) .topbar-left {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .app-shell:has(.entity-switcher-control) .topbar-actions {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+    justify-content: space-between;
+    gap: 5px;
+  }
+  .app-shell:has(.entity-switcher-control) .palette-trigger {
+    min-width: 34px !important;
+    width: 34px;
+    max-width: 34px;
+    flex: 0 0 34px;
+    padding: 0;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .app-shell:has(.entity-switcher-control) .palette-trigger > span,
+  .app-shell:has(.entity-switcher-control) .palette-trigger > kbd {
+    display: none;
+  }
+  .app-shell:has(.entity-switcher-control) .entity-switcher-control {
+    min-width: 0;
+    max-width: 42vw;
+    flex: 0 1 auto;
+  }
+}
