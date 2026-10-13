@@ -204,6 +204,18 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 overdue approval escalation and stricter payroll maker-checker identity gate",
     approval: "Delegation expiry, distinct-human and scheduler idempotency UAT",
   },
+  employeeDocumentVault: {
+    env: "EMPLOYEE_DOCUMENT_VAULT_ENABLED",
+    owner: "Security and Privacy",
+    risk: "P1 private employee documents in signed object storage",
+    approval: "Object storage, migration reconciliation, malware scanning and view auditing accepted",
+  },
+  employeeHrCases: {
+    env: "EMPLOYEE_HR_CASES_ENABLED",
+    owner: "People Operations",
+    risk: "P1 confidential employee HR requests and COE approvals",
+    approval: "Scoped HR and ESS acceptance, SLA operations and independently signed COE review",
+  },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
     owner: "Product",
