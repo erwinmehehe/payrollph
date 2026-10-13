@@ -69,3 +69,5 @@ The new automatic workflow .github/workflows/unattended-scheduler-payroll-accept
 ### What this cannot certify
 
 This PR/push automation tests the real scheduler *code path* and independent payroll worker using localhost transport. It does NOT establish that GitHub's real five-minute schedule has triggered the deployed Vercel target, that an always-on remote payroll worker is hosted, or that a third-party missed-tick monitor has fired. Keep production deployment, GitHub dispatch and all banking/statutory provider switches OFF until separate time-separated schedule-run provenance, hosted liveness/alert tests, and operator review are recorded. No payroll release, money movement, or agency filing is authorized.
+
+The disposable workflow applies reviewed audit-chain SQL 0109 through the existing strictly localhost-guarded CI runner before creating any fictional employee. The proof also asserts that auditChainSeal reports a numerical sealed count, not an error; a fresh scheduler heartbeat alone cannot conceal missing audit functions.
