@@ -6,6 +6,7 @@ import { assertOrganizationRole, getAccess, ORG_ADMIN_ROLES } from "@/lib/access
 import { recordAuditEvent } from "@/lib/audit";
 import { publicDemoMutationDenied } from "@/lib/demo-security";
 import { freezeDynamicGroupApprovalSteps, validateApprovalChainSteps } from "@/lib/approval-chains";
+import { criticalReleaseFlagEnabled } from "@/lib/critical-release-flags";
 import {
   enforceSameOriginMutation,
   enforceSensitiveActionRateLimit,
@@ -47,7 +48,8 @@ export async function GET(request: Request) {
       eq(dynamicWorkerGroups.active, true),
     )).orderBy(dynamicWorkerGroups.name),
   ]);
-  return Response.json({ policies, dynamicGroups: groups });
+  return Response.json({ policies, dynamicGroups: groups,
+    approvalEscalationsEnabled: criticalReleaseFlagEnabled("approvalChainEscalations") });
 }
 
 export async function POST(request: Request) {
