@@ -6,6 +6,12 @@
  * This is a technical configuration inventory, not human launch approval.
  */
 export const CRITICAL_RELEASE_FLAGS = {
+  compactMobileHeader: {
+    env: "COMPACT_MOBILE_HEADER_ENABLED",
+    owner: "Product / Accessibility",
+    risk: "Small-screen organization switcher and account control layout",
+    approval: "Desktop/375/390px authenticated browser and default-off rendering parity",
+  },
   payrollWorkerHeartbeatRequired: {
     env: "PAYROLL_WORKER_HEARTBEAT_REQUIRED",
     owner: "Payroll / Operations",
@@ -216,17 +222,17 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P1 confidential employee HR requests and COE approvals",
     approval: "Scoped HR and ESS acceptance, SLA operations and independently signed COE review",
   },
-  offboardingClearance: {
-    env: "OFFBOARDING_CLEARANCE_ENABLED",
-    owner: "People Operations and Payroll",
-    risk: "P0 documented clearance waivers, final-pay authority and worker access revocation",
-    approval: "Three-actor final-pay pilot, tenant isolation, waiver evidence and revoked-session rollback UAT",
-  },
   pilotFocusedNavigation: {
     env: "PILOT_FOCUS_NAV_ENABLED",
     owner: "Product",
     risk: "P2 employer pilot navigation",
     approval: "Named pilot employer opt-in and witnessed UX acceptance",
+  },
+  offboardingClearance: {
+    env: "OFFBOARDING_CLEARANCE_ENABLED",
+    owner: "People Operations and Payroll",
+    risk: "P0 documented clearance waivers, final-pay authority and worker access revocation",
+    approval: "Three-actor final-pay pilot, tenant isolation, waiver evidence and revoked-session rollback UAT",
   },
 } as const;
 
