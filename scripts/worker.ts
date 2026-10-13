@@ -2,6 +2,7 @@ import "dotenv/config";
 import { pool } from "../src/db";
 import { processNextPayrollJob } from "../src/lib/payroll-engine";
 import { tickScheduler } from "../src/lib/scheduler";
+import { assertProductionPiiKey } from "../src/lib/pii-key-policy";
 
 // Refuse a NaN/zero/overflow timer instead of accidentally creating a tight
 // database polling loop under a typo in managed-worker configuration.
@@ -47,6 +48,9 @@ async function tick() {
 }
 
 async function main() {
+  // Standalone workers do not run Next.js instrumentation. Apply the same S-2
+  // startup policy before accepting or querying any payroll/scheduler work.
+  assertProductionPiiKey();
   if (process.env.WORKER_ENABLED !== "true") {
     throw new Error("WORKER_ENABLED must be true before starting the dedicated worker.");
   }
