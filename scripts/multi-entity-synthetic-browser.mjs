@@ -189,6 +189,21 @@ try {
   assert.equal(ownerContext.data.canSwitch, true);
   assert.equal(ownerContext.data.entities.length, 2);
   assert.equal((await request(owner, on, "/api/multi-entity/reports?organizationId=1")).status, 403);
+  await checkpoint("Legacy BI metadata and cross-employer export fail closed over authenticated HTTP", async () => {
+    for (const path of [
+      "/api/bi-exports?organizationId=1",
+      "/api/bi-exports?organizationId=1&key=payroll_runs&format=csv" +
+        "&startDate=2026-09-01&endDate=2026-09-30&legalEntityId=" + ownerContext.data.entities[1].id,
+      "/api/bi-exports?organizationId=1&key=payroll_entries&format=json" +
+        "&startDate=2026-09-01&endDate=2026-09-30",
+    ]) {
+      const denied = await request(owner, on, path);
+      assert.equal(denied.status, 409, "Uncertified BI read/export must not reach tenant-wide data: " + path);
+      assert.equal(denied.data?.code, "ENTITY_BI_EXPORT_NOT_YET_CERTIFIED");
+      assert.ok(!JSON.stringify(denied.data).includes("Beta Synthetic"),
+        "Rejected BI request must not serialize foreign legal-employer records");
+    }
+  });
   await checkpoint("HCM API GET/POST fail closed under multi-entity flag", async () => {
     for (const path of [
       "/api/hcm/lifecycle-readiness?organizationId=1",
@@ -258,6 +273,10 @@ try {
       await capture(op, "after-owner-" + screen);
     }, op);
   }
+  await checkpoint("Scoped analytics hides legacy company-wide BI export controls", async () => {
+    await gotoScreen(op, "Analytics");
+    assert.equal(await op.locator("[data-enterprise-bi-export]").count(), 0);
+  }, op);
   await checkpoint("Entity-scoped run reads and wrong-entity creation are denied", async () => {
     const scopedPayroll = await newSyntheticContext();
     await login(scopedPayroll, on, "entity-payroll@example.test");
@@ -329,6 +348,17 @@ try {
 
   const hr = await newSyntheticContext({ viewport: { width: 390, height: 844 } });
   await login(hr, on, "entity-hr@example.test");
+  await checkpoint("Scoped HR BI metadata and payroll export cannot enumerate other employers", async () => {
+    for (const path of [
+      "/api/bi-exports?organizationId=1",
+      "/api/bi-exports?organizationId=1&key=payroll_runs&format=csv" +
+        "&startDate=2026-09-01&endDate=2026-09-30",
+    ]) {
+      const denied = await request(hr, on, path);
+      assert.equal(denied.status, 409);
+      assert.equal(denied.data?.code, "ENTITY_BI_EXPORT_NOT_YET_CERTIFIED");
+    }
+  });
   const hp = await hr.newPage();
   await checkpoint("Scoped HR gets fixed employer label and HCM APIs fail closed", async () => {
     await app(hp, on);
@@ -405,6 +435,10 @@ try {
   assert.notEqual(legacyHcm.data?.code, "ENTITY_HCM_DEFERRED",
     "Feature-OFF HCM must not inherit the multi-entity hold");
   assert.equal((await request(disabled, off, "/api/multi-entity/context?organizationId=1")).status, 404);
+  const legacyBi = await request(disabled, off, "/api/bi-exports?organizationId=1");
+  assert.equal(legacyBi.status, 200, "Feature-OFF legacy BI metadata must retain normal authorization");
+  assert.ok(Array.isArray(legacyBi.data?.datasets), "Legacy BI definitions remain available with the feature OFF");
+  checks.push("Flag-OFF BI definition discovery preserved");
   const oldPage = await disabled.newPage();
   await checkpoint("Flag OFF has no entity switcher or badge", async () => {
     await app(oldPage, off);
@@ -414,6 +448,10 @@ try {
     await capture(oldPage, "before-owner-header");
     for (const screen of ["People", "Payroll", "Time & attendance", "Analytics", "Exports"]) {
       await gotoScreen(oldPage, screen);
+      if (screen === "Analytics") {
+        assert.equal(await oldPage.locator("[data-enterprise-bi-export]").count(), 1,
+          "Feature-OFF legacy analytics must retain its BI export panel");
+      }
       await capture(oldPage, "before-owner-" + screen);
     }
     await gotoScreen(oldPage, "Payroll");
