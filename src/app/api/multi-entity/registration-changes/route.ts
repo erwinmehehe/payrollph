@@ -188,16 +188,28 @@ export async function PATCH(request: Request) {
       )).limit(1);
       if (!pending || pending.status !== "pending_approval") throw new Error("Not pending");
       if (pending.requestedByUserId === user.id) throw new Error("Self-approval blocked");
-      const [member] = await tx.select({ id: legalEntities.id, updatedAt: legalEntities.updatedAt })
-        .from(legalEntities).where(and(
-          eq(legalEntities.organizationId, organizationId), eq(legalEntities.id, legalEntityId),
-          eq(legalEntities.active, true),
-        )).limit(1);
+      // Drizzle decodes timestamptz as a JS Date and drops microseconds.
+      // Read the expected token from its stored PostgreSQL value for BOTH
+      // the stale check and the compare-and-swap UPDATE below. Otherwise an
+      // unchanged employer can be rejected as stale, or a sub-ms race missed.
+      const sourceVersion = sql<Date>`(
+        SELECT ${legalEntityProfileChangeRequests.expectedEntityUpdatedAt}
+        FROM ${legalEntityProfileChangeRequests}
+        WHERE ${legalEntityProfileChangeRequests.id} = ${requestId}
+          AND ${legalEntityProfileChangeRequests.organizationId} = ${organizationId}
+          AND ${legalEntityProfileChangeRequests.legalEntityId} = ${legalEntityId}
+      )`;
+      const [member] = await tx.select({
+        id: legalEntities.id,
+        sourceMatches: sql<boolean>`${legalEntities.updatedAt} = ${sourceVersion}`,
+      }).from(legalEntities).where(and(
+        eq(legalEntities.organizationId, organizationId), eq(legalEntities.id, legalEntityId),
+        eq(legalEntities.active, true),
+      )).limit(1);
       if (!member) throw new Error("Employer missing");
-      // Another operator may have changed the employer while this was awaiting
-      // approval; never replay stale registration or bank data.
-      if (member.updatedAt.getTime() !== pending.expectedEntityUpdatedAt.getTime())
-        throw new Error("Stale source version");
+      // DB-native, microsecond-precise comparison rejects genuinely stale
+      // proposals without weakening the entity-version concurrency guard.
+      if (!member.sourceMatches) throw new Error("Stale source version");
       let revision: number | null = null;
       if (action === "approve") {
         if (pending.effectiveDate !== manilaCalendarDate()) throw new Error("Expired effective date");
@@ -221,7 +233,7 @@ export async function PATCH(request: Request) {
         };
         const [updated] = await tx.update(legalEntities).set(patch).where(and(
           eq(legalEntities.id, legalEntityId), eq(legalEntities.organizationId, organizationId),
-          eq(legalEntities.updatedAt, pending.expectedEntityUpdatedAt),
+          eq(legalEntities.updatedAt, sourceVersion),
         )).returning();
         if (!updated) throw new Error("Employer changed concurrently");
         const [latest] = await tx.select({ revision: legalEntityStatutoryRegistrations.revision })
