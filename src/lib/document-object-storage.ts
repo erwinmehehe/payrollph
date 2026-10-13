@@ -35,7 +35,13 @@ export function documentStorageConfig(
   try { url = new URL(endpoint); } catch { throw new Error("Private document storage endpoint is not configured."); }
   if (!["https:", "http:"].includes(url.protocol) || url.username || url.password
     || url.search || url.hash || url.pathname !== "/") throw new Error("Invalid document storage endpoint.");
-  if (env.NODE_ENV === "production" && url.protocol !== "https:") throw new Error("Private document storage requires HTTPS.");
+  // Financial/201 files may exist in staging too. Never send signed requests
+  // to a remote HTTP object endpoint; only local test emulators are allowed.
+  const localEmulator = env.NODE_ENV !== "production"
+    && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if (url.protocol !== "https:" && !localEmulator) {
+    throw new Error("Private document storage requires HTTPS except local test emulators.");
+  }
   if (!/^[a-z0-9][a-z0-9.-]{2,62}$/.test(bucket) || !/^[a-z0-9-]{3,40}$/.test(region)
     || !accessKeyId || !secretAccessKey) throw new Error("Private document storage credentials are missing.");
   return { endpoint: url.origin, bucket, region, accessKeyId, secretAccessKey };
@@ -91,7 +97,10 @@ export async function putDocumentObject(key: string, bytes: Uint8Array, mime: st
   const url = signedDocumentObjectUrl(key, "PUT", config);
   const response = await (options.fetchImpl ?? fetch)(url, {
     method: "PUT", body: Buffer.from(bytes),
-    headers: { "Content-Type": mime, "Cache-Control": "private, no-store" },
+    // Conditional PUT prevents a later writer from silently replacing
+    // malware-scanned bytes at an existing private object key.
+    headers: { "Content-Type": mime, "Cache-Control": "private, no-store",
+      "If-None-Match": "*" },
     cache: "no-store", redirect: "error", signal: AbortSignal.timeout(20000),
   });
   if (!response.ok) throw new Error("Private document upload failed with HTTP " + response.status);
