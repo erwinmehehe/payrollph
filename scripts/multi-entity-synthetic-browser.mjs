@@ -74,7 +74,7 @@ async function request(context, base, path, method = "GET", data = undefined) {
 }
 async function app(page, base) {
   const r = await page.goto(base + "/app?organizationId=1", {
-    waitUntil: "domcontentloaded", timeout: 60000,
+    waitUntil: "load", timeout: 60000,
   });
   assert.equal(r?.status(), 200);
   await page.locator('[data-workspace-page="Overview"]').waitFor({ timeout: 60000 });
@@ -90,9 +90,19 @@ async function gotoScreen(page, target) {
       const mobileNav = page.getByRole("navigation", { name: "Mobile workspace navigation" });
       const shortcut = mobileNav.getByRole("button", { name: /^(People|Employees)$/i });
       if (await shortcut.isVisible()) {
-        await shortcut.click();
-        await page.locator('[data-workspace-page="' + target + '"]').waitFor({ timeout: 30000 });
-        return;
+        // App Router can paint server HTML before the mobile React click
+        // handler is hydrated. Give the actual control a bounded second
+        // opportunity, then FAIL if no client-side page transition occurs.
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          await shortcut.click();
+          try {
+            await page.locator('[data-workspace-page="' + target + '"]')
+              .waitFor({ timeout: 3500 });
+            return;
+          } catch (error) {
+            if (attempt === 2) throw error;
+          }
+        }
       }
     }
     await page.getByRole("button", { name: "More navigation options" }).click();
