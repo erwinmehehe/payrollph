@@ -1,0 +1,67 @@
+name: Scheduler Scheduled-Run Evidence Observer (Read Only)
+
+# Independent READ-ONLY Actions metadata collection, not a dispatcher.
+# A successful observer is not evidence that production scheduler ran.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/scheduler-scheduled-run-observer.yml"
+      - "scripts/observe-scheduler-run-provenance.mjs"
+      - "tests/scheduler-schedule-provenance.test.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/scheduler-scheduled-run-observer.yml"
+      - "scripts/observe-scheduler-run-provenance.mjs"
+      - "tests/scheduler-schedule-provenance.test.mjs"
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: scheduler-read-only-observer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observer-unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Test schedule provenance and heartbeat fail-closed responses
+        run: node --test tests/scheduler-schedule-provenance.test.mjs tests/scheduler-staging-health.test.mjs
+
+  collect-github-schedule-evidence:
+    if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push') && github.ref == 'refs/heads/main'
+    needs: observer-unit-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+      - name: Read GitHub schedule metadata ONLY; no deployed target or database access
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/observe-scheduler-run-provenance.mjs
+      - name: Upload bounded sanitized evidence, including NOT PROVEN results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: scheduler-scheduled-run-readonly-evidence
+          path: qa-artifacts/scheduler-scheduled-run-observation.json
+          if-no-files-found: warn
+          retention-days: 14
