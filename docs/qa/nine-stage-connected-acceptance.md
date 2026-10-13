@@ -21,9 +21,13 @@ final monthly cutoff, released ledger, and draft BIR/SSS/PhilHealth/Pag-IBIG wor
 share the same *simulated* payroll work date. The API-created punch is not seeded.
 It is **not actual October 13 wall-clock attendance or a real device event**.
 The guarded virtual date runs in the localhost Next.js process and connected test
-process. The synthetic Chromium browser now uses an isolated test-only Manila-time
-Date shim so its hydrated UI matches the fictional September cutoff; React page-error
-assertions remain active. This is not actual wall-clock attendance or a physical phone.
+process. GitHub CI exports one fresh real-time anchor (milliseconds), which both
+Node and the synthetic Chromium page convert to the same fictional September 30
+instant. This avoids creating independent virtual clocks at each process start.
+The browser context explicitly uses the Asia/Manila timezone and an isolated Date
+shim; full React hydration/page-error assertions remain active. An absent, invalid
+or more-than-30-minute-old anchor fails closed. This is not actual wall-clock
+attendance or a physical phone.
 Postgres itself, other CI checks and production continue using their real clocks.
 The preload refuses anything except GitHub CI with a local empty PG16 database, payout
 flags OFF and provider keys absent. Its time advances monotonically to retain ordering.
