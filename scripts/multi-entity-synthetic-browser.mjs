@@ -188,6 +188,24 @@ try {
     }, op);
   }
   await checkpoint("Entity-scoped run reads and wrong-entity creation are denied", async () => {
+    const scopedPayroll = await browser.newContext();
+    await login(scopedPayroll, on, "entity-payroll@example.test");
+    const alphaRuns = await request(scopedPayroll, on, "/api/payroll-runs?organizationId=1");
+    assert.equal(alphaRuns.status, 200);
+    assert.equal(alphaRuns.data?.runs?.length, 1);
+    assert.equal(alphaRuns.data.runs[0].legalEntityId, employerA.id);
+    const foreignRunId = alphaRuns.data.runs[0].id;
+    const groupRunRead = await request(group, on, "/api/payroll-runs?organizationId=1");
+    assert.equal(groupRunRead.status, 403, "Read-only group_hr cannot use payroll operator API");
+    // Resource-by-ID is checked against the immutable run's employer before
+    // returning job status or bytes. A second grant is not an implicit switch.
+    const wrongStatus = await request(owner, on, "/api/payroll-runs?runId=" + foreignRunId);
+    assert.equal(wrongStatus.status, 403);
+    const wrongExport = await request(owner, on, "/api/payroll-runs/" + foreignRunId + "/exports?kind=journal");
+    assert.equal(wrongExport.status, 403);
+    const foreignTenantExport = await request(foreign, on, "/api/payroll-runs/" + foreignRunId + "/exports?kind=journal");
+    assert.equal(foreignTenantExport.status, 403);
+    await scopedPayroll.close();
     const runs = await request(owner, on, "/api/payroll-runs?organizationId=1");
     assert.equal(runs.status, 200);
     assert.equal(runs.data?.runs?.length, 1);
