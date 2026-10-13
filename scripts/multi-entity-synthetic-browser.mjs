@@ -330,25 +330,31 @@ try {
   const hr = await newSyntheticContext({ viewport: { width: 390, height: 844 } });
   await login(hr, on, "entity-hr@example.test");
   const hp = await hr.newPage();
-  await checkpoint("Scoped HR gets fixed employer label, never a switcher", async () => {
+  await checkpoint("Scoped HR gets fixed employer label and HCM APIs fail closed", async () => {
     await app(hp, on);
     assert.equal(await hp.getByRole("combobox", { name: "Legal entity switcher" }).count(), 0);
     await hp.getByLabel("Assigned legal employer").waitFor();
     await gotoScreen(hp, "People");
     assert.ok(!(await hp.locator('[data-workspace-page="People"]').innerText()).includes("Beta Synthetic"));
-    const scopedInbox = await request(hr, on, "/api/hcm/people-operations-inbox?organizationId=1");
-    assert.equal(scopedInbox.status, 200);
-    assert.ok(scopedInbox.data.rows.length > 0);
-    assert.ok(scopedInbox.data.rows.every(row => row.employeeNo === "A-01"));
-    assert.ok(!JSON.stringify(scopedInbox.data).includes("Beta Synthetic"));
-    const scopedReadiness = await request(hr, on, "/api/hcm/lifecycle-readiness?organizationId=1");
-    assert.equal(scopedReadiness.status, 200);
-    assert.ok(scopedReadiness.data.rows.every(row => row.employeeNo === "A-01"));
-    assert.ok(!JSON.stringify(scopedReadiness.data).includes("Beta Synthetic"));
+    // The HCM worklist and lifecycle authorization implementation is now
+    // deferred to draft #963. In core, ALL such reads must fail closed under
+    // multi-entity mode, even for a normally permitted scoped HR identity.
+    for (const path of [
+      "/api/hcm/people-operations-inbox?organizationId=1",
+      "/api/hcm/lifecycle-readiness?organizationId=1",
+    ]) {
+      const denied = await request(hr, on, path);
+      assert.equal(denied.status, 403, "Deferred HCM read must fail closed: " + path);
+      assert.equal(denied.data?.code, "ENTITY_HCM_DEFERRED");
+      assert.ok(!JSON.stringify(denied.data).includes("Beta Synthetic"),
+        "HCM hold must not reveal another employer's data");
+    }
     const forgedInbox = await hr.request.get(on + "/api/hcm/people-operations-inbox?organizationId=1", {
       headers: { "x-legal-entity-id": String(employerB.id) }, failOnStatusCode: false,
     });
     assert.equal(forgedInbox.status(), 403, "An entity-scoped HR user cannot guess another employer's inbox");
+    const forgedResponse = await forgedInbox.json().catch(() => null);
+    assert.equal(forgedResponse?.code, "ENTITY_HCM_DEFERRED");
     await fitPhone(hp);
     await capture(hp, "after-scoped-hr-people");
   }, hp);
