@@ -38,6 +38,12 @@ export async function resolveMultiEntityContext(input: {
   }
   const sessionDenied = await assertOrganizationSessionPolicy(input.userId, input.organizationId);
   if (sessionDenied) return { ok: false, response: sessionDenied };
+  // The group_hr role alone is not a group-wide grant. A membership narrowed
+  // to one org unit must never widen into all legal employers, even if its
+  // string role is group_hr. Deny BEFORE querying employer IDs or preferences.
+  if (GROUP_ENTITY_ROLES.has(access.role) && !access.companyWide) {
+    return { ok: false, response: denied() };
+  }
 
   const [entities, grants, preference] = await Promise.all([
     db.select({ id: legalEntities.id, legalName: legalEntities.legalName,
