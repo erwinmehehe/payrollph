@@ -48,7 +48,7 @@ export const CRITICAL_RELEASE_FLAGS = {
     risk: "P0 external Xendit salary money movement",
     approval: "Independent provider/treasury acceptance and exact employer/legal-entity authorization",
   },
-  firstPayrollInline: {
+  workflowFirstPayrollAdvisory: {
     env: "FIRST_PAYROLL_INLINE_UI_ENABLED",
     owner: "Product / Payroll",
     risk: "P1 Interactive first-payroll drawers, preview and task handoff",
